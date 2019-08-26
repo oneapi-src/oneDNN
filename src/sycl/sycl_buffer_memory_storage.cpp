@@ -21,7 +21,7 @@
 #include "common/guard_manager.hpp"
 #include "common/memory.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -71,4 +71,4 @@ status_t sycl_buffer_memory_storage_t::unmap_data(void *mapped_ptr) const {
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

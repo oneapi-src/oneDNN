@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_pool_desc_t {
     memory::dim mb, c;
@@ -38,7 +38,7 @@ struct pool_test_params {
     int ndims;
     test_pool_desc_t test_pd;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -51,7 +51,7 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     auto ws_data = [&](size_t idx) -> int {
         auto w = (const unsigned char *)ws_data_ptr;
         if (w == nullptr) return -1;
-        if (ws.get_desc().data.data_type == mkldnn_u8)
+        if (ws.get_desc().data.data_type == dnnl_u8)
             return (int)w[idx];
         else
             return ((const int *)w)[idx];
@@ -61,14 +61,14 @@ void check_pool_fwd(const pool_test_params &p, const memory &src,
     const memory::desc dst_d = dst.get_desc();
     const memory::desc ws_d = ws.get_desc();
 
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-    const mkldnn::impl::memory_desc_wrapper ws_mdw(ws_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper ws_mdw(ws_d.data);
 
     auto pd = p.test_pd;
     size_t padded_c = src_d.data.padded_dims[1];
 
-    mkldnn::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
+    dnnl::impl::parallel_nd(pd.mb, pd.c, pd.od, pd.oh, pd.ow,
             [&](memory::dim n, memory::dim c, memory::dim od, memory::dim oh,
                     memory::dim ow) {
                 if (is_current_test_failed()) return;
@@ -222,8 +222,8 @@ protected:
 
         pooling_forward(pool_prim_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, p_src}, {MKLDNN_ARG_DST, p_dst},
-                                {MKLDNN_ARG_WORKSPACE, workspace}});
+                        {{DNNL_ARG_SRC, p_src}, {DNNL_ARG_DST, p_dst},
+                                {DNNL_ARG_WORKSPACE, workspace}});
         strm.wait();
 
         check_pool_fwd<data_t>(p, p_src, p_dst, workspace);
@@ -597,17 +597,17 @@ INSTANTIATE_TEST_SUITE_P(TestPoolingForwardEF, pooling_test_float,
                         algorithm::pooling_max, memory::format_tag::nchw,
                         memory::format_tag::nchw,
                         EXPAND_SIZES_2D(2, -4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
-                        true, mkldnn_invalid_arguments},
+                        true, dnnl_invalid_arguments},
                 pool_test_params_float {prop_kind::forward_training,
                         algorithm::pooling_max, memory::format_tag::nchw,
                         memory::format_tag::nchw,
                         EXPAND_SIZES_2D(-1, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
-                        true, mkldnn_invalid_arguments},
+                        true, dnnl_invalid_arguments},
                 pool_test_params_float {prop_kind::forward_training,
                         algorithm::eltwise_square, memory::format_tag::nchw,
                         memory::format_tag::nchw,
                         EXPAND_SIZES_2D(2, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
-                        true, mkldnn_invalid_arguments}));
+                        true, dnnl_invalid_arguments}));
 
 INSTANTIATE_TEST_SUITE_P(TestPooling_nChw16c_with_padded, pooling_test_float,
         ::testing::Values(
@@ -1850,4 +1850,4 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestPoolingAsymmPadding, pooling_test_float,
 
 GPU_INST_TEST_CASE(pooling_test_float);
 
-} // namespace mkldnn
+} // namespace dnnl

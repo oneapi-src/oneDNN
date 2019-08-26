@@ -34,7 +34,7 @@
 #include "xbyak/xbyak.h"
 #include "xbyak/xbyak_util.h"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -148,6 +148,6 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

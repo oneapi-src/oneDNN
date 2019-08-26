@@ -17,7 +17,7 @@
 #ifndef OCL_GPU_ENGINE_HPP
 #define OCL_GPU_ENGINE_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
@@ -28,7 +28,7 @@
 #include "ocl/ocl_gpu_kernel.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -45,8 +45,6 @@ public:
 
 class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
-    static status_t get_ocl_devices(std::vector<cl_device_id> *devices);
-
     ocl_gpu_engine_t(cl_device_id adevice)
         : compute::compute_engine_t(engine_kind::gpu, backend_kind::ocl,
                 new ocl_device_info_t(adevice))
@@ -111,6 +109,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -23,7 +23,7 @@
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -84,6 +84,6 @@ struct jit_ref_layer_normalization_kernel_t {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_REF_LAYER_NORMALIZATION_KERNEL_HPP

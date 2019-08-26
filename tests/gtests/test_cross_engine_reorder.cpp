@@ -16,13 +16,13 @@
 
 #include <utility>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "test_reorder_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using f32_f32 = std::pair<float, float>;
 
@@ -58,4 +58,4 @@ INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
                 cfg_f32 {tag::nchw, tag::NChw16n16c, {64, 32, 5, 6}},
                 cfg_f32 {tag::nChw16c, tag::NChw16n16c, {32, 48, 6, 9}}));
 
-} // namespace mkldnn
+} // namespace dnnl

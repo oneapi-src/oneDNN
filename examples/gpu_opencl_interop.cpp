@@ -21,7 +21,7 @@
 /// Full example text: @ref gpu_opencl_interop.cpp
 ///
 /// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with OpenCL* extensions API in Intel MKL-DNN.
+/// Graphics with OpenCL* extensions API in DNNL.
 /// The workflow includes following steps:
 ///   - Create a GPU engine. It uses OpenCL as the runtime in this sample.
 ///   - Create a GPU memory descriptor/object.
@@ -38,26 +38,26 @@
 
 /// @section gpu_opencl_interop_cpp_headers Public headers
 ///
-/// To start using Intel MKL-DNN, we must first include the @ref mkldnn.hpp
+/// To start using DNNL, we must first include the @ref dnnl.hpp
 /// header file in the application. We also include CL/cl.h for using
-/// OpenCL APIs and @ref mkldnn_debug.h, which  contains some debugging
+/// OpenCL APIs and @ref dnnl_debug.h, which  contains some debugging
 /// facilities such as returning a string representation
-/// for common Intel MKL-DNN C types.
-/// All C++ API types and functions reside in the `mkldnn` namespace.
+/// for common DNNL C types.
+/// All C++ API types and functions reside in the `dnnl` namespace.
 /// For simplicity of the example we import this namespace.
 /// @page gpu_opencl_interop_cpp
 /// @snippet  gpu_opencl_interop.cpp Prologue
 // [Prologue]
-#include <mkldnn.hpp>
+#include <dnnl.hpp>
 #include <CL/cl.h>
-// Optional header to access debug functions like `mkldnn_status2str()`
-#include "mkldnn_debug.h"
+// Optional header to access debug functions like `dnnl_status2str()`
+#include "dnnl_debug.h"
 
 #include <iostream>
 #include <numeric>
 #include <sstream>
 
-using namespace mkldnn;
+using namespace dnnl;
 using namespace std;
 // [Prologue]
 
@@ -95,8 +95,8 @@ void gpu_opencl_interop_tutorial() {
     /// @page gpu_opencl_interop_cpp
     /// @subsection gpu_opencl_interop_cpp_sub1 Engine and stream
     ///
-    /// All Intel MKL-DNN primitives and memory objects are attached to a
-    /// particular @ref mkldnn::engine, which is an abstraction of a
+    /// All DNNL primitives and memory objects are attached to a
+    /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device to which they are
     /// attached, and the memory objects refer to memory residing on the
@@ -104,7 +104,7 @@ void gpu_opencl_interop_tutorial() {
     /// nor primitives that were created for one engine can be used on
     /// another.
     ///
-    /// To create engines, we must specify the @ref mkldnn::engine::kind
+    /// To create engines, we must specify the @ref dnnl::engine::kind
     /// and the index of the device of the given kind. In this example we use
     /// the first available GPU engine, so the index for the engine is 0.
     /// This example assumes OpenCL being a runtime for GPU. In such case,
@@ -116,7 +116,7 @@ void gpu_opencl_interop_tutorial() {
     engine eng(engine::kind::gpu, 0);
     // [Initialize engine]
 
-    /// In addition to an engine, all primitives require a @ref mkldnn::stream
+    /// In addition to an engine, all primitives require a @ref dnnl::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
     ///
@@ -126,15 +126,15 @@ void gpu_opencl_interop_tutorial() {
     ///
     /// @snippet  gpu_opencl_interop.cpp Initialize stream
     // [Initialize stream]
-    mkldnn::stream strm(eng);
+    dnnl::stream strm(eng);
     // [Initialize stream]
 
-    /// @subsection  gpu_opencl_interop_cpp_sub2 Wrapping data into Intel MKL-DNN memory object
+    /// @subsection  gpu_opencl_interop_cpp_sub2 Wrapping data into DNNL memory object
     ///
     /// Next, we create a memory object. We need to specify dimensions of our
     /// memory by passing a memory::dims object. Then we create a memory
-    /// descriptor with these dimensions, with the mkldnn::memory::data_type::f32
-    /// data type, and with the mkldnn::memory::format_tag::nchw memory format.
+    /// descriptor with these dimensions, with the dnnl::memory::data_type::f32
+    /// data type, and with the dnnl::memory::format_tag::nchw memory format.
     /// Finally, we construct a memory object and pass the memory descriptor.
     /// The library allocates memory internally.
     /// @snippet  gpu_opencl_interop.cpp memory alloc
@@ -176,7 +176,7 @@ void gpu_opencl_interop_tutorial() {
     /// The next step is to execute our OpenCL kernel by setting its arguments
     /// and enqueueing to an OpenCL queue. You can extract the underlying OpenCL
     /// buffer from the memory object using  the interoperability interface:
-    /// mkldnn::memory::get_ocl_mem_object() . For simplicity we can just construct a
+    /// dnnl::memory::get_ocl_mem_object() . For simplicity we can just construct a
     /// stream, extract the underlying OpenCL queue, and enqueue the kernel to
     /// this queue.
     /// @snippet  gpu_opencl_interop.cpp oclexecution
@@ -190,7 +190,7 @@ void gpu_opencl_interop_tutorial() {
     // [oclexecution]
 
     /// @subsection gpu_opencl_interop_cpp_sub4 Create and execute a primitive
-    /// There are three steps to create an operation primitive in Intel MKL-DNN:
+    /// There are three steps to create an operation primitive in DNNL:
     /// 1. Create an operation descriptor.
     /// 2. Create a primitive descriptor.
     /// 3. Create a primitive.
@@ -213,7 +213,7 @@ void gpu_opencl_interop_tutorial() {
     /// Next, execute the primitive.
     /// @snippet gpu_opencl_interop.cpp relu exec
     // [relu exec]
-    relu.execute(strm, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
+    relu.execute(strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
     strm.wait();
     // [relu exec]
     ///
@@ -223,7 +223,7 @@ void gpu_opencl_interop_tutorial() {
     ///
     ///@note
     ///    Primitive submission on GPU is asynchronous; However, the user can
-    ///    call mkldnn:stream::wait() to synchronize the stream and ensure that all
+    ///    call dnnl:stream::wait() to synchronize the stream and ensure that all
     ///    previously submitted primitives are completed.
     ///
 
@@ -232,8 +232,8 @@ void gpu_opencl_interop_tutorial() {
     ///
     /// Before running validation codes, we need to access the OpenCL memory on
     /// the host. The simplest way to access the OpenCL memory is to map it to
-    /// the host using the mkldnn::memory::map_data() and
-    /// mkldnn::memory::unmap_data() APIs. After mapping, this data is directly
+    /// the host using the dnnl::memory::map_data() and
+    /// dnnl::memory::unmap_data() APIs. After mapping, this data is directly
     /// accessible  for reading or writing on the host.
     /// We can run validation codes on the host accordingly. While
     /// the data is mapped, no GPU-side operations on this data are allowed.
@@ -258,10 +258,10 @@ void gpu_opencl_interop_tutorial() {
 ///
 /// We now just call everything we prepared earlier.
 ///
-/// Because we are using the Intel MKL-DNN C++ API, we use exceptions to handle
-/// errors (see @ref dev_guide_c_and_cpp_apis). The Intel MKL-DNN C++ API throws
-/// exceptions of type @ref mkldnn::error, which contains the error status
-/// (of type @ref mkldnn_status_t) and a human-readable error message accessible
+/// Because we are using the DNNL C++ API, we use exceptions to handle
+/// errors (see @ref dev_guide_c_and_cpp_apis). The DNNL C++ API throws
+/// exceptions of type @ref dnnl::error, which contains the error status
+/// (of type @ref dnnl_status_t) and a human-readable error message accessible
 /// through the regular `what()` method.
 /// @page gpu_opencl_interop_cpp
 /// @snippet gpu_opencl_interop.cpp Main
@@ -269,10 +269,9 @@ void gpu_opencl_interop_tutorial() {
 int main(int argc, char **argv) {
     try {
         gpu_opencl_interop_tutorial();
-    } catch (mkldnn::error &e) {
-        std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-                  << "Error status: " << mkldnn_status2str(e.status)
-                  << std::endl;
+    } catch (dnnl::error &e) {
+        std::cerr << "DNNL error: " << e.what() << std::endl
+                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;

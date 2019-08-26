@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -22,4 +22,4 @@ const char *get_ocl_kernel_source(const char *kernel_name);
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -20,7 +20,7 @@
 #include "ocl/ocl_reorder_pd.hpp"
 #include "ocl/simple_reorder.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -28,7 +28,7 @@ using rpd_create_f = engine_t::reorder_primitive_desc_create_f;
 
 namespace {
 
-using namespace mkldnn::impl::data_type;
+using namespace dnnl::impl::data_type;
 
 static const rpd_create_f ocl_ce_reorder_impl_list[]
         = {cross_engine_reorder_t::pd_t::create, simple_reorder_t::pd_t::create,
@@ -42,4 +42,4 @@ ocl_gpu_engine_impl_list_t::get_reorder_implementation_list() {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

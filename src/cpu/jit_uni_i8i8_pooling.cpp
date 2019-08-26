@@ -18,20 +18,20 @@
 
 #include <math.h>
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "utils.hpp"
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 using namespace Xbyak;
 
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::types;
 using namespace alg_kind;
 
 template <cpu_isa_t isa>
@@ -1105,7 +1105,7 @@ status_t jit_uni_i8i8_pooling_fwd_t<isa>::pd_t::jit_conf() {
 
 template <cpu_isa_t isa>
 jit_uni_i8i8_pooling_fwd_t<isa>::jit_uni_i8i8_pooling_fwd_t(const pd_t *apd)
-    : cpu_primitive_t(apd), ker_(nullptr) {
+    : primitive_impl_t(apd), ker_(nullptr) {
     ker_ = new jit_uni_i8i8_pooling_fwd_ker_t<isa>(pd()->jpp_);
 }
 
@@ -1117,8 +1117,8 @@ jit_uni_i8i8_pooling_fwd_t<isa>::~jit_uni_i8i8_pooling_fwd_t() {
 template <cpu_isa_t isa>
 void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src_i8 = CTX_IN_MEM(const char *, MKLDNN_ARG_SRC);
-    auto dst_i8 = CTX_OUT_MEM(char *, MKLDNN_ARG_DST);
+    auto src_i8 = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    auto dst_i8 = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -1174,4 +1174,4 @@ template struct jit_uni_i8i8_pooling_fwd_t<avx2>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

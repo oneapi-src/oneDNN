@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if (NOT MKLDNN_BUILD_EXAMPLES)
+if (NOT DNNL_BUILD_EXAMPLES)
     return()
 endif()
 
@@ -32,60 +32,58 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-set_if(UNIX LIBM m)
-
-# Getting Started example access memory directly so build it with
-# the native CPU backend only
-if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
-    register_exe(cpu-getting-started cpu_getting_started.cpp "test")
-endif()
-register_exe(cpu-memory-format-propagation cpu_memory_format_propagation.cpp "test")
-register_exe(cpu-performance-profiling-cpp cpu_performance_profiling.cpp "test")
-
-register_exe(cpu-cnn-inference-f32-c cpu_cnn_inference_f32.c "test")
-register_exe(cpu-cnn-inference-f32-cpp cpu_cnn_inference_f32.cpp "test")
-register_exe(cpu-cnn-training-f32-c cpu_cnn_training_f32.c "test" ${LIBM})
-register_exe(cpu-cnn-training-f32-cpp cpu_cnn_training_f32.cpp "test" ${LIBM})
-register_exe(cpu-cnn-training-bf16-cpp cpu_cnn_training_bf16.cpp "test" ${LIBM})
-register_exe(cpu-cnn-inference-int8-cpp cpu_cnn_inference_int8.cpp "test")
-
-# RNN examples access memory directly so build it with the native CPU backend only
-if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
-    register_exe(cpu-rnn-inference-f32-cpp cpu_rnn_inference_f32.cpp "test")
-    register_exe(cpu-rnn-inference-int8 cpu_rnn_inference_int8.cpp "test")
+if(UNIX)
+    find_library(LIBM m)
 endif()
 
-register_exe(cpu-rnn-training-f32 cpu_rnn_training_f32.cpp "test")
+file(GLOB sources *.cpp *.c)
 
-if(NOT MKLDNN_GPU_RUNTIME STREQUAL "NONE")
-    register_exe(gpu-getting-started-c gpu_getting_started.c "test")
-    register_exe(gpu-getting-started-cpp gpu_getting_started.cpp "test")
-endif()
-
-if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
-    register_exe(gpu-opencl-interop-cpp gpu_opencl_interop.cpp "test")
-endif()
-
-if(MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
-    register_exe(sycl-interop-cpp sycl_interop.cpp "test")
-    if(MKLDNN_SYCL_INTEL)
-        register_exe(sycl-interop-usm-cpp sycl_interop_usm.cpp "test")
+foreach(src ${sources})
+    get_filename_component(src_name ${src} NAME)
+    string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
+    if(${example_name} MATCHES "sycl*")
+        if(DNNL_GPU_RUNTIME STREQUAL "SYCL")
+            if(NOT ${example_name} MATCHES ".*usm" OR DNNL_SYCL_INTEL)
+                register_exe(${example_name} ${src} "test" ${LIBM})
+                if(DNNL_SYCL_COMPUTECPP AND NOT ${example_name} MATCHES ".*usm")
+                    add_sycl_to_target(TARGET ${example_name} SOURCES ${src})
+                endif()
+            endif()
+        endif()
+    elseif(${example_name} MATCHES ".*opencl")
+         if(DNNL_GPU_RUNTIME STREQUAL "OCL")
+            register_exe(${example_name} ${src} "test" ${LIBM})
+        endif()
+    elseif(${example_name} MATCHES "^(cpu)")
+            if(NOT ${example_name} MATCHES "^(cpu-rnn|cpu-cnn)" AND NOT DNNL_WITH_SYCL)
+                # Example name contains cpu- but not rnn
+                register_exe(${example_name} ${src} "test" ${LIBM})
+            endif()
+    elseif(${example_name} MATCHES "^(cross-engine|gpu)")
+        # Example name contains cross-engine or gpu-
+        if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+            register_exe(${example_name} ${src} "test" ${LIBM})
+        endif()
+    else()
+        register_exe(${example_name} ${src} "" ${LIBM})
+        # Adding test for CPU
+        add_test("cpu-${example_name}" "${example_name}" cpu)
+        maybe_configure_windows_test("cpu-${example_name}" TEST)
+        # Adding test for GPU
+        if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+           add_test("gpu-${example_name}" "${example_name}" gpu)
+           maybe_configure_windows_test("gpu-${example_name}" TEST)
+        endif()
     endif()
-    if(MKLDNN_SYCL_COMPUTECPP)
-        add_sycl_to_target(
-            TARGET sycl-interop-cpp
-            SOURCES sycl_interop.cpp
-        )
-    endif()
-endif()
+endforeach()
 
-if (MKLDNN_INSTALL_MODE STREQUAL "BUNDLE")
-    file(GLOB example_sources "cpu_*.cpp" "cpu_*.c")
-
-    if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL")
+if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
+    file(GLOB example_sources
+         "cpu_*.cpp" "c_*.c" "cnn_*.c" "cnn_*.cpp" "rnn_*.cpp" "*.h*")
+    if(DNNL_CPU_RUNTIME STREQUAL "SYCL")
         foreach(ex_skip
-                cpu_getting_started.cpp
-                cpu_rnn_inference_f32.cpp
+                getting_started.cpp
+                rnn_inference_f32.cpp
                 cpu_rnn_inference_int8.cpp)
             get_filename_component(ex_skip_abs_path
                     ${CMAKE_CURRENT_LIST_DIR}/${ex_skip} ABSOLUTE)

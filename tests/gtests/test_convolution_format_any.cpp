@@ -15,11 +15,11 @@
 *******************************************************************************/
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
-namespace mkldnn {
+#include "dnnl.hpp"
+namespace dnnl {
 
 using tag = memory::format_tag;
 
@@ -50,7 +50,7 @@ protected:
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
         auto eng = engine(get_test_engine_kind(), 0);
         memory::data_type data_type = data_traits<data_t>::data_type;
-        ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
+        ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 
         test_convolution_sizes_t cd = p.test_cd;
 
@@ -70,14 +70,14 @@ protected:
         auto conv_prim_desc
                 = convolution_forward::primitive_desc(conv_desc, eng);
 
-        auto check_fmt = [&](const mkldnn_memory_desc_t &md,
+        auto check_fmt = [&](const dnnl_memory_desc_t &md,
                                  data_fmt_t expected) {
             bool ok = false;
             if (expected == data_fmt_t::flat) {
-                ok = true && md.format_kind == mkldnn_blocked
+                ok = true && md.format_kind == dnnl_blocked
                         && md.format_desc.blocking.inner_nblks == 0;
             } else if (expected == data_fmt_t::blocked_cX) {
-                ok = true && md.format_kind == mkldnn_blocked
+                ok = true && md.format_kind == dnnl_blocked
                         && md.format_desc.blocking.inner_nblks == 1
                         && md.format_desc.blocking.inner_idxs[0] == 1
                         && (false || md.format_desc.blocking.inner_blks[0] == 8
@@ -116,4 +116,4 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestConvolutionAlexnetAnyFmtForwardxlocked,
                         {2, 2, 384, 13, 13, 384, 13, 13, 3, 3, 1, 1, 1, 1}},
                 tf32 {CPARAMS, BLK, BLK,
                         {2, 2, 384, 13, 13, 256, 13, 13, 3, 3, 1, 1, 1, 1}}));
-} // namespace mkldnn
+} // namespace dnnl

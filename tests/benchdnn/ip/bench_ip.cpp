@@ -21,10 +21,10 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "ip/ip.hpp"
@@ -33,9 +33,9 @@ namespace ip {
 
 std::vector<dir_t> dir {FWD_B};
 std::vector<const dt_conf_t *> cfg {conf_f32};
-std::vector<mkldnn_format_tag_t> stag {mkldnn_format_tag_any};
-std::vector<mkldnn_format_tag_t> wtag {mkldnn_format_tag_any};
-std::vector<mkldnn_format_tag_t> dtag {mkldnn_format_tag_any};
+std::vector<dnnl_format_tag_t> stag {dnnl_format_tag_any};
+std::vector<dnnl_format_tag_t> wtag {dnnl_format_tag_any};
+std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_any};
 std::vector<int64_t> mb {0};
 
 attr_t attr;
@@ -51,9 +51,9 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_B};
     cfg = {conf_f32};
-    stag = {mkldnn_format_tag_any};
-    wtag = {mkldnn_format_tag_any};
-    dtag = {mkldnn_format_tag_any};
+    stag = {dnnl_format_tag_any};
+    wtag = {dnnl_format_tag_any};
+    dtag = {dnnl_format_tag_any};
     mb = {0};
     attr = attr_t();
     allow_unimpl = false;

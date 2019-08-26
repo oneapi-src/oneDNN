@@ -26,11 +26,11 @@
 
 extern const char *ref_convolution_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
-struct ref_convolution_fwd_t : public primitive_t {
+struct ref_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_fwd_pd_t {
         using ocl_convolution_fwd_pd_t::ocl_convolution_fwd_pd_t;
 
@@ -91,7 +91,7 @@ struct ref_convolution_fwd_t : public primitive_t {
                     = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise(0) || with_eltwise(1)
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : mkldnn_alg_kind_undef;
+                    : dnnl_alg_kind_undef;
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -124,7 +124,7 @@ struct ref_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -132,11 +132,11 @@ struct ref_convolution_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_convolution_bwd_data_t : public primitive_t {
+struct ref_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_bwd_data_pd_t {
         using ocl_convolution_bwd_data_pd_t::ocl_convolution_bwd_data_pd_t;
 
@@ -183,7 +183,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
         return status::success;
     }
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -191,11 +191,11 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_convolution_bwd_weights_t : public primitive_t {
+struct ref_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_bwd_weights_pd_t {
         using ocl_convolution_bwd_weights_pd_t::
                 ocl_convolution_bwd_weights_pd_t;
@@ -243,7 +243,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
@@ -251,11 +251,11 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
 };
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif

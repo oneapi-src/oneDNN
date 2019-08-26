@@ -73,7 +73,7 @@
 #include "cpu/ref_softmax.hpp"
 #include "cpu/simple_layer_normalization.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -88,10 +88,10 @@ status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
     return safe_ptr_assign<stream_t>(*stream, new cpu_stream_t(this, flags));
 }
 
-using pd_create_f = mkldnn::impl::engine_t::primitive_desc_create_f;
+using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
 
 namespace {
-using namespace mkldnn::impl::data_type;
+using namespace dnnl::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f cpu_impl_list[] = {
@@ -225,12 +225,18 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
         /* eltwise */
         INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, f32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, s32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx512_common, f32>),
         INSTANCE(jit_uni_eltwise_fwd_t<avx512_core, bf16>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx512_core, bf16>),
         INSTANCE(jit_uni_eltwise_fwd_t<avx2, f32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx2, s32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<avx2, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx2, f32>),
         INSTANCE(jit_uni_eltwise_fwd_t<sse41, f32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<sse41, s32>),
+        INSTANCE(jit_uni_eltwise_fwd_t<sse41, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<sse41, f32>),
         INSTANCE(ref_eltwise_fwd_t<f32>),
         INSTANCE(ref_eltwise_bwd_t<f32>),
@@ -360,6 +366,6 @@ const pd_create_f *cpu_engine_impl_list_t::get_implementation_list() {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

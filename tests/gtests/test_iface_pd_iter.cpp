@@ -14,57 +14,57 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
-#include "mkldnn_types.h"
+#include "dnnl.h"
+#include "dnnl_types.h"
 
-namespace mkldnn {
+namespace dnnl {
 
-const mkldnn_status_t ok = mkldnn_success;
+const dnnl_status_t ok = dnnl_success;
 
 class pd_iter_test : public ::testing::Test {
 protected:
-    mkldnn_engine_t engine;
+    dnnl_engine_t engine;
     virtual void SetUp() {
         auto engine_kind
-                = static_cast<mkldnn_engine_kind_t>(get_test_engine_kind());
-        ASSERT_EQ(mkldnn_engine_create(&engine, engine_kind, 0), ok);
+                = static_cast<dnnl_engine_kind_t>(get_test_engine_kind());
+        ASSERT_EQ(dnnl_engine_create(&engine, engine_kind, 0), ok);
     }
-    virtual void TearDown() { mkldnn_engine_destroy(engine); }
+    virtual void TearDown() { dnnl_engine_destroy(engine); }
 };
 
 TEST_F(pd_iter_test, TestReLUImpls) {
-    mkldnn_memory_desc_t dense_md;
-    mkldnn_dims_t dims = {4, 16, 16, 16};
-    ASSERT_EQ(mkldnn_memory_desc_init_by_tag(
-                      &dense_md, 4, dims, mkldnn_f32, mkldnn_nchw),
+    dnnl_memory_desc_t dense_md;
+    dnnl_dims_t dims = {4, 16, 16, 16};
+    ASSERT_EQ(dnnl_memory_desc_init_by_tag(
+                      &dense_md, 4, dims, dnnl_f32, dnnl_nchw),
             ok);
 
-    mkldnn_eltwise_desc_t ed;
-    ASSERT_EQ(mkldnn_eltwise_forward_desc_init(&ed, mkldnn_forward_inference,
-                      mkldnn_eltwise_relu, &dense_md, 0., 0.),
+    dnnl_eltwise_desc_t ed;
+    ASSERT_EQ(dnnl_eltwise_forward_desc_init(&ed, dnnl_forward_inference,
+                      dnnl_eltwise_relu, &dense_md, 0., 0.),
             ok);
 
-    mkldnn_primitive_desc_iterator_t it;
-    mkldnn_status_t rc;
+    dnnl_primitive_desc_iterator_t it;
+    dnnl_status_t rc;
 
-    ASSERT_EQ(rc = mkldnn_primitive_desc_iterator_create(
+    ASSERT_EQ(rc = dnnl_primitive_desc_iterator_create(
                       &it, &ed, nullptr, engine, nullptr),
             ok); /* there should be at least one impl */
 
-    mkldnn_primitive_desc_t pd;
-    ASSERT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);
-    mkldnn_primitive_desc_destroy(pd);
+    dnnl_primitive_desc_t pd;
+    ASSERT_NE(pd = dnnl_primitive_desc_iterator_fetch(it), nullptr);
+    dnnl_primitive_desc_destroy(pd);
 
-    while ((rc = mkldnn_primitive_desc_iterator_next(it)) == ok) {
-        ASSERT_NE(pd = mkldnn_primitive_desc_iterator_fetch(it), nullptr);
-        mkldnn_primitive_desc_destroy(pd);
+    while ((rc = dnnl_primitive_desc_iterator_next(it)) == ok) {
+        ASSERT_NE(pd = dnnl_primitive_desc_iterator_fetch(it), nullptr);
+        dnnl_primitive_desc_destroy(pd);
     }
 
-    ASSERT_EQ(rc, mkldnn_iterator_ends);
-    mkldnn_primitive_desc_iterator_destroy(it);
+    ASSERT_EQ(rc, dnnl_iterator_ends);
+    dnnl_primitive_desc_iterator_destroy(it);
 }
 
 TEST(pd_next_impl, TestEltwiseImpl) {
@@ -87,4 +87,4 @@ TEST(pd_next_impl, TestEltwiseImpl) {
     }
 }
 
-} // namespace mkldnn
+} // namespace dnnl

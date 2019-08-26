@@ -21,7 +21,7 @@
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -34,7 +34,7 @@ struct jit_ref_pooling_fwd_kernel {
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_desc_t &pd,
             const memory_desc_wrapper &src_d, const memory_desc_wrapper &dst_d,
             jit_offsets &jit_off) {
-        using namespace mkldnn::impl::format_tag;
+        using namespace dnnl::impl::format_tag;
 
         const int ndims = src_d.ndims();
         const auto &src_dims = src_d.padded_dims();
@@ -112,7 +112,7 @@ struct jit_ref_pooling_fwd_kernel {
 
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_pool_conf_t &jpp, const jit_offsets &jit_off) {
-        using namespace mkldnn::impl::alg_kind;
+        using namespace dnnl::impl::alg_kind;
         status_t status = status::success;
 
         kernel_ctx.set_data_type(jpp.src_dt);
@@ -171,6 +171,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -15,14 +15,14 @@
 *******************************************************************************/
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
-#include "common/mkldnn_thread.hpp"
-#include "common/mkldnn_traits.hpp"
 #include "common/type_helpers.hpp"
 
 #include "ocl/ref_batch_normalization.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -32,20 +32,19 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
 
-    auto &mean_ = pd()->stats_is_src() ? CTX_IN_STORAGE(MKLDNN_ARG_MEAN)
-                                       : CTX_OUT_STORAGE(MKLDNN_ARG_MEAN);
+    auto &mean_ = pd()->stats_is_src() ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
+                                       : CTX_OUT_STORAGE(DNNL_ARG_MEAN);
 
-    auto &variance_ = pd()->stats_is_src()
-            ? CTX_IN_STORAGE(MKLDNN_ARG_VARIANCE)
-            : CTX_OUT_STORAGE(MKLDNN_ARG_VARIANCE);
+    auto &variance_ = pd()->stats_is_src() ? CTX_IN_STORAGE(DNNL_ARG_VARIANCE)
+                                           : CTX_OUT_STORAGE(DNNL_ARG_VARIANCE);
 
     //auto idx_scaleshift = 1 + 2*pd()->stats_is_src();
-    auto &scaleshift = CTX_IN_STORAGE(MKLDNN_ARG_SCALE_SHIFT);
+    auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
 
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
-    auto &ws = CTX_OUT_STORAGE(MKLDNN_ARG_WORKSPACE);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
     const auto &jbn = ker_->jbn;
 
@@ -124,15 +123,15 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &mean = CTX_IN_STORAGE(MKLDNN_ARG_MEAN);
-    auto &variance = CTX_IN_STORAGE(MKLDNN_ARG_VARIANCE);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &scaleshift = CTX_IN_STORAGE(MKLDNN_ARG_SCALE_SHIFT);
-    auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
+    auto &variance = CTX_IN_STORAGE(DNNL_ARG_VARIANCE);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
+    auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
-    auto &diff_scaleshift_ = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_scaleshift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
 
     const auto &jbn = ker_->jbn;
 
@@ -188,6 +187,6 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

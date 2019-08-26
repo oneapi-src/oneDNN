@@ -21,7 +21,7 @@
 
 #include "compute/compute.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -39,6 +39,6 @@ private:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // SYCL_OCL_GPU_KERNEL_HPP

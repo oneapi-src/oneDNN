@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 
 #include "sycl/sycl_stream_submit_cpu_primitive.hpp"
 
-#include "common/mkldnn_traits.hpp"
+#include "common/dnnl_traits.hpp"
 #include "common/nstl.hpp"
 #include "common/primitive.hpp"
 #include "common/stream.hpp"
@@ -35,9 +35,9 @@
 
 // A global scope tag type to use for enqueueing a single task
 template <int memory_api_kind, typename... types>
-class mkldnn_submit_primitive_tag_t;
+class dnnl_submit_primitive_tag_t;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -62,7 +62,7 @@ struct init_thunk_params_t<memory_api_kind_t::buffer> {
     }
 };
 
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
 template <>
 struct init_thunk_params_t<memory_api_kind_t::usm> {
     template <size_t N>
@@ -84,15 +84,15 @@ struct make_kernel_tag_t {};
 template <>
 struct make_kernel_tag_t<memory_api_kind_t::buffer> {
     template <typename... accessor_types>
-    using type = mkldnn_submit_primitive_tag_t<(int)memory_api_kind_t::buffer,
+    using type = dnnl_submit_primitive_tag_t<(int)memory_api_kind_t::buffer,
             typename accessor_types::value_type...>;
 };
 
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
 template <>
 struct make_kernel_tag_t<memory_api_kind_t::usm> {
     template <typename... param_types>
-    using type = mkldnn_submit_primitive_tag_t<(int)memory_api_kind_t::usm,
+    using type = dnnl_submit_primitive_tag_t<(int)memory_api_kind_t::usm,
             param_types...>;
 };
 #endif
@@ -117,7 +117,7 @@ status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
                 &thunk_params, params...);
 
         // Call C-linkage thunk which executes CPU primitive natively
-        mkldnn_impl_sycl_cpu_thunk(&thunk_params);
+        dnnl_impl_sycl_cpu_thunk(&thunk_params);
     });
     return status::success;
 }
@@ -138,7 +138,7 @@ struct submit_t<memory_api_kind_t::buffer> {
     }
 };
 
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
 template <>
 struct submit_t<memory_api_kind_t::usm> {
     template <typename params_tuple_t, size_t... Is>
@@ -180,7 +180,7 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
                     params_tp, nstl::make_index_sequence<nparams> {});
             break;
         }
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
         case memory_api_kind_t::usm: {
             auto params_tp = std::make_tuple(
                     utils::downcast<const sycl_usm_memory_storage_t *>(
@@ -432,6 +432,6 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

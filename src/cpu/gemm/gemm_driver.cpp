@@ -22,6 +22,8 @@
 #include "gemm_driver.hpp"
 
 #include "common/bfloat16.hpp"
+#include "dnnl_traits.hpp"
+#include "dnnl_types.h"
 #include "f32/gemm_utils_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
@@ -30,13 +32,11 @@
 #include "gemm_threading.hpp"
 #include "gemv_driver.hpp"
 #include "jit_generator.hpp"
-#include "mkldnn_traits.hpp"
-#include "mkldnn_types.h"
 #include "nstl.hpp"
 #include "s8x8s32/gemv.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -287,15 +287,14 @@ void prep_ref_gemm_s8u8s32_pack(
     pack_dst->finalize<int8_t, int32_t>();
 }
 
-mkldnn_status_t ref_gemm_s8u8s32_pack(const void *src_void, dim_t ld_src,
+dnnl_status_t ref_gemm_s8u8s32_pack(const void *src_void, dim_t ld_src,
         dim_t rows, dim_t cols, int trans, gemm_pack_storage_t *dst_pack) {
 
     auto src = reinterpret_cast<const int8_t *>(src_void);
     auto dst = dst_pack->matrix<int8_t>(0);
     dim_t ld_dst, td_dst;
 
-    if (!dst_pack->get_nocopy(0, ld_dst, td_dst))
-        return mkldnn_invalid_arguments;
+    if (!dst_pack->get_nocopy(0, ld_dst, td_dst)) return dnnl_invalid_arguments;
 
     if (!trans) {
         parallel_nd(cols, [=](int j) {
@@ -317,19 +316,18 @@ mkldnn_status_t ref_gemm_s8u8s32_pack(const void *src_void, dim_t ld_src,
         });
     }
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
 template <typename data_type>
-static mkldnn_status_t pack_no_copy(const data_type *src, dim_t ld_src,
+static dnnl_status_t pack_no_copy(const data_type *src, dim_t ld_src,
         dim_t rows, dim_t cols, int trans, float alpha,
         gemm_pack_storage_t *dst_pack) {
 
     auto dst = dst_pack->matrix<data_type>(0);
     dim_t ld_dst, td_dst;
 
-    if (!dst_pack->get_nocopy(0, ld_dst, td_dst))
-        return mkldnn_invalid_arguments;
+    if (!dst_pack->get_nocopy(0, ld_dst, td_dst)) return dnnl_invalid_arguments;
 
     if (!trans) {
         parallel_nd(cols, [=](int j) {
@@ -352,11 +350,11 @@ static mkldnn_status_t pack_no_copy(const data_type *src, dim_t ld_src,
         });
     }
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t pack_no_copy(gemm_info_t<a_type, b_type, c_type> *arg) {
+static dnnl_status_t pack_no_copy(gemm_info_t<a_type, b_type, c_type> *arg) {
 
     if (arg->packing == pack_type::pack_a)
         return pack_no_copy(arg->a, arg->lda, arg->m, arg->k, arg->transa,
@@ -367,15 +365,15 @@ static mkldnn_status_t pack_no_copy(gemm_info_t<a_type, b_type, c_type> *arg) {
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
+static dnnl_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
         const a_type *a, const b_type *b,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
-    if (m <= 0 || n <= 0) return mkldnn_success;
+    if (m <= 0 || n <= 0) return dnnl_success;
 
     gemm_pack_storage_t *pack_dst = arg->pack_dst;
 
-    if (!pack_dst->is_first_thread_in_slice(ithr)) return mkldnn_success;
+    if (!pack_dst->is_first_thread_in_slice(ithr)) return dnnl_success;
 
     dim_t block_r, block_c;
     pack_dst->get_blocking(ithr, block_r, block_c);
@@ -419,7 +417,7 @@ static mkldnn_status_t gemm_packing_driver(int ithr, dim_t m, dim_t n, dim_t k,
         }
     }
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
 template <typename a_type, typename b_type, typename c_type>
@@ -429,7 +427,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
         const c_type *co, offset_type offsetc,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
-#if MKLDNN_WITH_SYCL
+#if DNNL_WITH_SYCL
     std::vector<c_type> col_offset_vec(m);
     std::vector<c_type> row_offset_vec(n);
     c_type *col_offset = col_offset_vec.data();
@@ -541,7 +539,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
+static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
         const a_type *a, const b_type *b, float beta, c_type *c, dim_t ldc,
         offset_type offsetc, const c_type *co,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
@@ -549,7 +547,7 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     if (arg->packing != pack_type::none)
         return gemm_packing_driver(ithr, m, n, k, a, b, arg);
 
-    if (m <= 0 || n <= 0) return mkldnn_success;
+    if (m <= 0 || n <= 0) return dnnl_success;
 
     dim_t lda = arg->lda;
     dim_t ldb = arg->ldb;
@@ -571,7 +569,7 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     if (!isInteger && alpha == 0.0f) {
         if (beta == 0.0f) scale_matrix(m, n, beta, c, ldc);
 
-        return mkldnn_success;
+        return dnnl_success;
     }
 
     // Get block sizes.
@@ -615,7 +613,7 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     if (mem_size > 0) {
         mem = (char *)malloc(mem_size, 128);
-        if (!mem) return mkldnn_out_of_memory;
+        if (!mem) return dnnl_out_of_memory;
     }
 
     a_type *bufferA = (a_type *)align(mem, PAGE_4K);
@@ -747,11 +745,11 @@ static mkldnn_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     free(mem);
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
+static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
         dim_t n, dim_t k, dim_t blk_k, dim_t Bk, const a_type *bufferA,
         const b_type *b, float beta, c_type *c, offset_type offsetc,
         const c_type *co, const c_type *a_row_sum,
@@ -764,7 +762,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
 
-    if (m <= 0 || n <= 0) { return mkldnn_success; }
+    if (m <= 0 || n <= 0) { return dnnl_success; }
 
     // Padding along N dimension.
     dim_t n_padd = get_n_padd(ithr, n, k, arg);
@@ -797,7 +795,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     if (mem_size > 0) {
         mem = (char *)malloc(mem_size, 128);
-        if (!mem) return mkldnn_out_of_memory;
+        if (!mem) return dnnl_out_of_memory;
     }
 
     b_type *bufferB = (b_type *)align(mem, PAGE_4K);
@@ -858,7 +856,7 @@ static mkldnn_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     free(mem);
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
 static inline bool nocopy_checker_avx2(const int nthr, const int transa,
@@ -1048,7 +1046,7 @@ static inline void set_thread_opts_nopack(int nthrs,
         thread_info.nthrs_m = nthrs_m;
         thread_info.nthrs_n = nthrs_n;
         thread_info.partition = partition_type::col_major_2d;
-    } else if (condition_1D_copya && mkldnn_thr_syncable()) {
+    } else if (condition_1D_copya && dnnl_thr_syncable()) {
         // Use parallel copy A algorithm
         thread_info.copy = copy_type::shared_a;
         thread_info.partition = partition_type::col_1d;
@@ -1223,7 +1221,7 @@ decompose_matrices(const gemm_slice_t &slice,
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
+static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
         const dim_t m, const dim_t n, const dim_t k, const a_type *a,
         const b_type *b, float beta, c_type *c, dim_t ldc, offset_type offsetc,
         const c_type *co, const gemm_info_t<a_type, b_type, c_type> *arg,
@@ -1273,7 +1271,7 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
             *p_shared_mem = (char *)malloc(mem_size, 128);
         }
 
-        mkldnn_thr_barrier();
+        dnnl_thr_barrier();
 
         mem = *p_shared_mem;
         bufferA = (a_type *)align(mem, PAGE_4K);
@@ -1281,10 +1279,10 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
         if (isInteger)
             a_row_sum = (c_type *)align(bufferA + a_buf_nelems, PAGE_4K);
 
-        if (!mem) return mkldnn_out_of_memory;
+        if (!mem) return dnnl_out_of_memory;
     }
 
-    mkldnn_status_t result = mkldnn_success; // Return status
+    dnnl_status_t result = dnnl_success; // Return status
 
     dim_t sizeK = 0;
     dim_t blk_k = 0;
@@ -1333,7 +1331,7 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
                 }
             }
             if (!a_packed)
-                mkldnn_thr_barrier(); // Wait for finishing parallel copy.
+                dnnl_thr_barrier(); // Wait for finishing parallel copy.
 
             const b_type *b_block = b + Bk * strideBm;
             c_type *c_block = c + Bm;
@@ -1357,10 +1355,10 @@ static mkldnn_status_t parallel_a_copy(const int ithr, const int nthrs,
                     n, sizeK, blk_k, Bk, bufferA_eff, b_block, beta_eff,
                     c_block, offsetc_eff, co + co_stride, a_row_sum_eff, arg);
 
-            if (this_result != mkldnn_success) result = this_result;
+            if (this_result != dnnl_success) result = this_result;
 
             if (!a_packed)
-                mkldnn_thr_barrier(); // Wait for kernel computations to finish.
+                dnnl_thr_barrier(); // Wait for kernel computations to finish.
         }
     }
 
@@ -1432,7 +1430,7 @@ static inline void adjust_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t call_no_copy_sgemm(
+static dnnl_status_t call_no_copy_sgemm(
         gemm_info_t<a_type, b_type, c_type> *arg) {
 
     if (arg->packing == pack_type::none) {
@@ -1460,7 +1458,7 @@ static mkldnn_status_t call_no_copy_sgemm(
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static mkldnn_status_t gemm_threading_driver(
+static dnnl_status_t gemm_threading_driver(
         gemm_info_t<a_type, b_type, c_type> *arg) {
 
     auto packing = (arg->packing != pack_type::none);
@@ -1468,23 +1466,23 @@ static mkldnn_status_t gemm_threading_driver(
     auto is_b_packed = (arg->transb == packed);
     auto is_integer = (data_traits<a_type>::data_type == data_type::s8);
 
-    if ((arg->m <= 0) || (arg->n <= 0)) return mkldnn_success;
+    if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)
             && gemm_s8u8s32_jump_to_gemv_s8u8s32(arg))
-        return mkldnn_success;
+        return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)
-            && jump_to_gemv(arg) == mkldnn_success)
-        return mkldnn_success;
+            && jump_to_gemv(arg) == dnnl_success)
+        return dnnl_success;
 
     if (is_a_packed && arg->bo != 0)
-        if (!arg->a_packed->has_row_sums()) return mkldnn_invalid_arguments;
+        if (!arg->a_packed->has_row_sums()) return dnnl_invalid_arguments;
 
     if (is_b_packed && arg->ao != 0)
-        if (!arg->b_packed->has_col_sums()) return mkldnn_invalid_arguments;
+        if (!arg->b_packed->has_col_sums()) return dnnl_invalid_arguments;
 
-    auto nthr_max = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+    auto nthr_max = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
     int nthr_goal = nthr_max;
 
     adjust_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr_goal);
@@ -1496,7 +1494,7 @@ static mkldnn_status_t gemm_threading_driver(
         //  number of threads.
         if (is_a_packed && is_b_packed)
             if (arg->a_packed->threading() != arg->b_packed->threading())
-                return mkldnn_invalid_arguments;
+                return dnnl_invalid_arguments;
         if (is_a_packed)
             force_threading = &arg->a_packed->threading();
         else if (is_b_packed)
@@ -1549,7 +1547,7 @@ static mkldnn_status_t gemm_threading_driver(
         do_a ? pack_dst->finalize<a_type, c_type>()
              : pack_dst->finalize<b_type, c_type>();
 
-        if (arg->measure_only) return mkldnn_success;
+        if (arg->measure_only) return dnnl_success;
     }
 
     if (nocopy_checker(nthr_goal, arg)) return call_no_copy_sgemm(arg);
@@ -1567,11 +1565,11 @@ static mkldnn_status_t gemm_threading_driver(
     auto *thread_arg = (gemm_per_thread_t<c_type> *)malloc(
             sizeof(gemm_per_thread_t<c_type>) * nthr_goal, PAGE_4K);
 
-    if (!thread_arg) return mkldnn_out_of_memory;
+    if (!thread_arg) return dnnl_out_of_memory;
 
     dim_t max_mt = 0, max_nt = 0;
     for (int ithr = 0; ithr < nthr_goal; ithr++) {
-        thread_arg[ithr].result = mkldnn_success;
+        thread_arg[ithr].result = dnnl_success;
         thread_arg[ithr].compute_done = false;
         thread_arg[ithr].c_local = thread_arg[ithr].c_global = nullptr;
         thread_arg[ithr].ldc_global = arg->ldc;
@@ -1694,7 +1692,7 @@ static mkldnn_status_t gemm_threading_driver(
                                     (float *)b, arg->ldb, &beta_eff,
                                     (float *)c_eff, ldc_eff, NULL, NULL);
                         }
-                        thread_arg[ithr].result = mkldnn_success;
+                        thread_arg[ithr].result = dnnl_success;
                         break;
                 }
 
@@ -1702,7 +1700,7 @@ static mkldnn_status_t gemm_threading_driver(
                     // dimension. To avoid deadlocks, results are summed later if
                     // not all threads are running concurrently. We can only detect
                     // if this is safe when using OpenMP.
-#if MKLDNN_THR_SYNC == 1
+#if DNNL_THR_SYNC == 1
                 if (k_summing && (nthr >= nthr_eff)) {
                     thread_arg[ithr].compute_done = true;
                     sum_k_blocks(ithr, thread_arg, true);
@@ -1712,10 +1710,10 @@ static mkldnn_status_t gemm_threading_driver(
         }
     });
 
-    mkldnn_status_t result = mkldnn_success; // Initialize to success
+    dnnl_status_t result = dnnl_success; // Initialize to success
     for (int ithr = 0; ithr < nthr_goal; ithr++) {
-        if (thread_arg[ithr].result != mkldnn_success) {
-            result = static_cast<mkldnn_status_t>(thread_arg[ithr].result);
+        if (thread_arg[ithr].result != dnnl_success) {
+            result = static_cast<dnnl_status_t>(thread_arg[ithr].result);
             break;
         }
     }
@@ -1728,14 +1726,14 @@ static mkldnn_status_t gemm_threading_driver(
         });
     }
 
-    if (c_local_storage) mkldnn::impl::free(c_local_storage);
-    mkldnn::impl::free(thread_arg);
+    if (c_local_storage) dnnl::impl::free(c_local_storage);
+    dnnl::impl::free(thread_arg);
 
     return result;
 }
 
 template <typename a_type, typename b_type, typename c_type>
-mkldnn_status_t gemm_driver(const char *transA, const char *transB,
+dnnl_status_t gemm_driver(const char *transA, const char *transB,
         const char *offsetC, const int *m, const int *n, const int *k,
         const float *alpha, const a_type *a, const int *lda, const a_type *oa,
         const b_type *b, const int *ldb, const b_type *ob, const float *beta,
@@ -1774,7 +1772,7 @@ mkldnn_status_t gemm_driver(const char *transA, const char *transB,
 }
 
 template // Instantiate gemm_bf16bf16f32
-        mkldnn_status_t
+        dnnl_status_t
         gemm_driver<bfloat16_t, bfloat16_t, float>(const char *transA,
                 const char *transB, const char *offsetC, const int *m,
                 const int *n, const int *k, const float *alpha,
@@ -1785,7 +1783,7 @@ template // Instantiate gemm_bf16bf16f32
                 gemm_pack_storage_t *pack_dst, bool measure_only);
 
 template // Instantiate gemm_s8s8s32
-        mkldnn_status_t
+        dnnl_status_t
         gemm_driver<int8_t, int8_t, int32_t>(const char *transA,
                 const char *transB, const char *offsetC, const int *m,
                 const int *n, const int *k, const float *alpha, const int8_t *a,
@@ -1796,7 +1794,7 @@ template // Instantiate gemm_s8s8s32
                 bool measure_only);
 
 template // Instantiate gemm_s8u8s32
-        mkldnn_status_t
+        dnnl_status_t
         gemm_driver<int8_t, uint8_t, int32_t>(const char *transA,
                 const char *transB, const char *offsetC, const int *m,
                 const int *n, const int *k, const float *alpha, const int8_t *a,
@@ -1807,7 +1805,7 @@ template // Instantiate gemm_s8u8s32
                 gemm_pack_storage_t *pack_dst, bool measure_only);
 
 template // Instantiate sgemm
-        mkldnn_status_t
+        dnnl_status_t
         gemm_driver<float, float, float>(const char *transA, const char *transB,
                 const char *offsetC, const int *m, const int *n, const int *k,
                 const float *alpha, const float *a, const int *lda,
@@ -1818,4 +1816,4 @@ template // Instantiate sgemm
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

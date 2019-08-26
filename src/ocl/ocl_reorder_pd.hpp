@@ -19,7 +19,7 @@
 
 #include "common/reorder_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -29,7 +29,7 @@ struct ocl_reorder_pd_t : public reorder_pd_t {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #define DECLARE_OCL_REORDER_CREATE() \
     static status_t create(reorder_pd_t **reorder_pd, engine_t *engine, \
@@ -43,6 +43,8 @@ struct ocl_reorder_pd_t : public reorder_pd_t {
             delete _pd; \
             return status::unimplemented; \
         } \
+        _pd->init_info(); \
+        _pd->init_scratchpad_md(); \
         return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd); \
     }
 

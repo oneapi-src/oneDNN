@@ -19,8 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mkldnn.h"
-#include "mkldnn_common.hpp"
+#include "dnnl.h"
+#include "dnnl_common.hpp"
 
 #include "reorder.hpp"
 
@@ -30,7 +30,7 @@ const int int_max_exact = 1 << 24;
 const int f16_max_exact = 1 << 14;
 
 #define REG(dt, min, range) \
-    const dt_conf_s CONCAT2(_conf_, dt) = {CONCAT2(mkldnn_, dt), min, range}; \
+    const dt_conf_s CONCAT2(_conf_, dt) = {CONCAT2(dnnl_, dt), min, range}; \
     const dt_conf_t CONCAT2(conf_, dt) = &CONCAT2(_conf_, dt);
 
 REG(f32, -int_max_exact, 2 * int_max_exact);
@@ -42,9 +42,9 @@ REG(u8, 0, UINT8_MAX);
 
 #undef REG
 
-dt_conf_t dt2cfg(mkldnn_data_type_t dt) {
+dt_conf_t dt2cfg(dnnl_data_type_t dt) {
 #define CASE(cfg) \
-    if (CONCAT2(mkldnn_, cfg) == dt) return CONCAT2(conf_, cfg)
+    if (CONCAT2(dnnl_, cfg) == dt) return CONCAT2(conf_, cfg)
     CASE(f32);
     CASE(f16);
     CASE(bf16);
@@ -56,9 +56,9 @@ dt_conf_t dt2cfg(mkldnn_data_type_t dt) {
     return conf_f32;
 }
 
-mkldnn_data_type_t cfg2dt(dt_conf_t cfg) {
+dnnl_data_type_t cfg2dt(dt_conf_t cfg) {
 #define CASE(_cfg) \
-    if (cfg == CONCAT2(conf_, _cfg)) return CONCAT2(mkldnn_, _cfg)
+    if (cfg == CONCAT2(conf_, _cfg)) return CONCAT2(dnnl_, _cfg)
     CASE(f32);
     CASE(f16);
     CASE(bf16);
@@ -67,7 +67,7 @@ mkldnn_data_type_t cfg2dt(dt_conf_t cfg) {
     CASE(u8);
 #undef CASE
     SAFE_V(FAIL);
-    return mkldnn_f32;
+    return dnnl_f32;
 }
 
 } // namespace reorder

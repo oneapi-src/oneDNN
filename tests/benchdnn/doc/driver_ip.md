@@ -8,7 +8,7 @@
 where *ip-knobs* are:
 
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
-            -- mkldnn_prop_kind_t. Refer to the common glossary in README.md for
+            -- dnnl_prop_kind_t. Refer to the common glossary in README.md for
             details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` in
             driver_conv.md.

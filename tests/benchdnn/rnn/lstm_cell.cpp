@@ -16,7 +16,7 @@
 
 #include <stdlib.h>
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
@@ -62,7 +62,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     };
 
     // run the eltwise
-    mkldnn::impl::parallel_nd(p.mb, [&](int64_t ib) {
+    dnnl::impl::parallel_nd(p.mb, [&](int64_t ib) {
         for (int64_t ih = 0; ih < p.dic; ih++) {
             gates(ib, 0, ih) = func1(p.linear_scales[0],
                     maybe_deq_w(gates(ib, 0, ih), 0 * p.dic + ih)

@@ -17,10 +17,13 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
-#include "mkldnn.h"
+#include <mutex>
+
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive.hpp"
+#include "primitive_cache.hpp"
 #include "utils.hpp"
 
 /** \brief An abstraction of an execution unit with shared resources
@@ -28,62 +31,71 @@
  * Responsibilities:
  *   - Provide engine specific memory allocation
  *   - Provide engine specific primitive_desc_t creators
+ *   - Provide engine specific primitive cache
  */
-struct mkldnn_engine : public mkldnn::impl::c_compatible {
-    mkldnn_engine(mkldnn::impl::engine_kind_t kind,
-            mkldnn::impl::backend_kind_t backend_kind)
-        : kind_(kind), backend_kind_(backend_kind) {}
-    virtual ~mkldnn_engine() {}
+struct dnnl_engine : public dnnl::impl::c_compatible {
+    dnnl_engine(dnnl::impl::engine_kind_t kind,
+            dnnl::impl::backend_kind_t backend_kind)
+        : kind_(kind), backend_kind_(backend_kind) {
+        size_t cache_capacity
+                = dnnl::impl::getenv_int("DNNL_CACHE_CAPACITY", 200);
+        primitive_cache_ = dnnl::impl::utils::make_unique<
+                dnnl::impl::lru_primitive_cache_t>(cache_capacity);
+
+        static_assert(std::has_virtual_destructor<
+                              dnnl::impl::primitive_cache_t>::value,
+                "primitive_cache_t should have a virtual destructor");
+    }
+
+    virtual ~dnnl_engine() {}
 
     /** get kind of the current engine */
-    mkldnn::impl::engine_kind_t kind() const { return kind_; }
+    dnnl::impl::engine_kind_t kind() const { return kind_; }
 
     /** get the backend kind of the current engine */
-    mkldnn::impl::backend_kind_t backend_kind() const { return backend_kind_; }
+    dnnl::impl::backend_kind_t backend_kind() const { return backend_kind_; }
 
     /** create memory storage */
-    virtual mkldnn::impl::status_t create_memory_storage(
-            mkldnn::impl::memory_storage_t **storage, unsigned flags,
-            size_t size, size_t alignment, void *handle)
+    virtual dnnl::impl::status_t create_memory_storage(
+            dnnl::impl::memory_storage_t **storage, unsigned flags, size_t size,
+            size_t alignment, void *handle)
             = 0;
-    mkldnn::impl::status_t create_memory_storage(
-            mkldnn::impl::memory_storage_t **storage, size_t size,
+    dnnl::impl::status_t create_memory_storage(
+            dnnl::impl::memory_storage_t **storage, size_t size,
             size_t alignment = 0);
 
     /** create stream */
-    virtual mkldnn::impl::status_t create_stream(
-            mkldnn::impl::stream_t **stream, unsigned flags)
+    virtual dnnl::impl::status_t create_stream(
+            dnnl::impl::stream_t **stream, unsigned flags)
             = 0;
 
     /** implementation section (typedefs) */
 
     // TODO: remove engine?
-    typedef mkldnn::impl::status_t (*reorder_primitive_desc_create_f)(
-            mkldnn::impl::reorder_pd_t **reorder_pd,
-            mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::primitive_attr_t *attr,
-            mkldnn::impl::engine_t *src_engine,
-            const mkldnn::impl::memory_desc_t *src_md,
-            mkldnn::impl::engine_t *dst_engine,
-            const mkldnn::impl::memory_desc_t *dst_md);
+    typedef dnnl::impl::status_t (*reorder_primitive_desc_create_f)(
+            dnnl::impl::reorder_pd_t **reorder_pd, dnnl::impl::engine_t *engine,
+            const dnnl::impl::primitive_attr_t *attr,
+            dnnl::impl::engine_t *src_engine,
+            const dnnl::impl::memory_desc_t *src_md,
+            dnnl::impl::engine_t *dst_engine,
+            const dnnl::impl::memory_desc_t *dst_md);
 
-    typedef mkldnn::impl::status_t (*concat_primitive_desc_create_f)(
-            mkldnn::impl::concat_pd_t **concat_pd,
-            mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::primitive_attr_t *attr,
-            const mkldnn::impl::memory_desc_t *dst_md, int n, int concat_dim,
-            const mkldnn::impl::memory_desc_t *src_mds);
+    typedef dnnl::impl::status_t (*concat_primitive_desc_create_f)(
+            dnnl::impl::concat_pd_t **concat_pd, dnnl::impl::engine_t *engine,
+            const dnnl::impl::primitive_attr_t *attr,
+            const dnnl::impl::memory_desc_t *dst_md, int n, int concat_dim,
+            const dnnl::impl::memory_desc_t *src_mds);
 
-    typedef mkldnn::impl::status_t (*sum_primitive_desc_create_f)(
-            mkldnn::impl::sum_pd_t **sum_pd, mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::primitive_attr_t *attr,
-            const mkldnn::impl::memory_desc_t *dst_md, int n,
-            const float *scales, const mkldnn::impl::memory_desc_t *src_mds);
+    typedef dnnl::impl::status_t (*sum_primitive_desc_create_f)(
+            dnnl::impl::sum_pd_t **sum_pd, dnnl::impl::engine_t *engine,
+            const dnnl::impl::primitive_attr_t *attr,
+            const dnnl::impl::memory_desc_t *dst_md, int n, const float *scales,
+            const dnnl::impl::memory_desc_t *src_mds);
 
-    typedef mkldnn::impl::status_t (*primitive_desc_create_f)(
-            mkldnn::impl::primitive_desc_t **, const mkldnn::impl::op_desc_t *,
-            const mkldnn::impl::primitive_attr_t *attr,
-            mkldnn::impl::engine_t *, const mkldnn::impl::primitive_desc_t *);
+    typedef dnnl::impl::status_t (*primitive_desc_create_f)(
+            dnnl::impl::primitive_desc_t **, const dnnl::impl::op_desc_t *,
+            const dnnl::impl::primitive_attr_t *attr, dnnl::impl::engine_t *,
+            const dnnl::impl::primitive_desc_t *);
 
     /* implementation section */
 
@@ -106,12 +118,83 @@ struct mkldnn_engine : public mkldnn::impl::c_compatible {
      * NULL-terminated list */
     virtual const primitive_desc_create_f *get_implementation_list() const = 0;
 
+    template <typename F>
+    dnnl::impl::status_t get_primitive(dnnl::impl::primitive_t **primitive,
+            const dnnl::impl::primitive_desc_t *pd,
+            const F &create_primitive_impl, bool use_global_scratchpad) {
+        double ms = dnnl::impl::get_msec();
+
+        // create a key for the requested primitive
+        dnnl::impl::primitive_hashing::key_t key(pd->kind(), pd->op_desc(),
+                pd->attr(), pd->impl_id(), this->dnnl_get_max_threads());
+
+        // lock cache
+        recursive_mutex_.lock();
+        auto primitive_impl = primitive_cache_->get(key);
+        if (primitive_impl) { // cache hit
+            // unlock cache because it's safe to create a wrapper in parallel
+            recursive_mutex_.unlock();
+            // create a wrapper for primitive_impl
+            auto status = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_t>(
+                    *primitive,
+                    new dnnl::impl::primitive_t(
+                            primitive_impl, use_global_scratchpad));
+            if (status != dnnl::impl::status::success) return status;
+
+            ms = dnnl::impl::get_msec() - ms;
+            if (dnnl::impl::dnnl_verbose()->level >= 2) {
+                printf("dnnl_verbose,create:cache hit,%s,%g\n",
+                        (*primitive)->pd()->info(), ms);
+                fflush(0);
+            }
+            return status;
+        }
+
+        // cache miss - create a requested primitive_impl and a wrapper
+        auto status = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_t>(
+                *primitive,
+                new dnnl::impl::primitive_t(
+                        create_primitive_impl(), use_global_scratchpad));
+
+        if (status != dnnl::impl::status::success) {
+            recursive_mutex_.unlock();
+            return status;
+        }
+
+        status = (*primitive)->init();
+        if (status != dnnl::impl::status::success) {
+            recursive_mutex_.unlock();
+            (*primitive)->release();
+            return status;
+        }
+
+        // update op_desc and attr pointers in the key
+        key.op_desc_ = (*primitive)->pd()->op_desc();
+        key.attr_ = (*primitive)->pd()->attr();
+
+        primitive_cache_->add(key, (*primitive)->get_primitive_impl());
+        recursive_mutex_.unlock();
+
+        ms = dnnl::impl::get_msec() - ms;
+        if (dnnl::impl::dnnl_verbose()->level >= 2) {
+            printf("dnnl_verbose,create:cache miss,%s,%g\n",
+                    (*primitive)->pd()->info(), ms);
+            fflush(0);
+        }
+        return status;
+    }
+    int dnnl_get_max_threads();
+
 protected:
-    mkldnn::impl::engine_kind_t kind_;
-    mkldnn::impl::backend_kind_t backend_kind_;
+    dnnl::impl::engine_kind_t kind_;
+    dnnl::impl::backend_kind_t backend_kind_;
+    std::unique_ptr<dnnl::impl::primitive_cache_t> primitive_cache_;
+    // As a primitive can be created inside another one a recursive_mutex is
+    // required
+    std::recursive_mutex recursive_mutex_;
 };
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct engine_factory_t : public c_compatible {
@@ -121,7 +204,7 @@ struct engine_factory_t : public c_compatible {
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

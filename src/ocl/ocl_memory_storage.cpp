@@ -21,7 +21,7 @@
 
 #include "ocl/ocl_memory_storage.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -83,7 +83,7 @@ status_t ocl_memory_storage_t::map_data(void **mapped_ptr) const {
     cl_int err;
     *mapped_ptr = clEnqueueMapBuffer(service_stream->queue(), mem_object(),
             CL_TRUE, map_flags, 0, mem_bytes, 0, nullptr, nullptr, &err);
-    return ocl_utils::convert_to_mkldnn(err);
+    return ocl_utils::convert_to_dnnl(err);
 }
 
 status_t ocl_memory_storage_t::unmap_data(void *mapped_ptr) const {
@@ -101,4 +101,4 @@ status_t ocl_memory_storage_t::unmap_data(void *mapped_ptr) const {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -25,7 +25,7 @@
 
 extern const char *gemm_inner_product_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -50,14 +50,12 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
 
-    op_desc_t op_desc(gemm_desc);
-
-    return mkldnn_primitive_desc_create(
-            gemm_pd, &op_desc, &attr, engine, nullptr);
+    return dnnl_primitive_desc_create(
+            gemm_pd, (op_desc_t *)&gemm_desc, &attr, engine, nullptr);
 }
 } // namespace
 
-struct gemm_inner_product_fwd_t : public primitive_t {
+struct gemm_inner_product_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -69,7 +67,8 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_inner_product_fwd_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -145,7 +144,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         return status::success;
     }
 
-    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
     ~gemm_inner_product_fwd_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -154,13 +153,13 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
     compute::kernel_t bias_kernel_;
 };
 
-struct gemm_inner_product_bwd_data_t : public primitive_t {
+struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
     struct pd_t : public ocl_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -173,7 +172,8 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_inner_product_bwd_data_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -227,7 +227,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
         return status::success;
     }
 
-    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
     ~gemm_inner_product_bwd_data_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -236,12 +236,12 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
 };
 
-struct gemm_inner_product_bwd_weights_t : public primitive_t {
+struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
     using ocl_ip_bwd_weights_pd_t = ocl_inner_product_bwd_weights_pd_t;
     struct pd_t : public ocl_ip_bwd_weights_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -254,7 +254,8 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            ocl_ip_bwd_weights_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -333,7 +334,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
     ~gemm_inner_product_bwd_weights_t() { gemm_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -342,13 +343,13 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *gemm_ = nullptr;
     compute::kernel_t bias_kernel_;
 };
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

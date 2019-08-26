@@ -21,7 +21,7 @@
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -37,7 +37,7 @@ struct jit_gen9_gemm_kernel {
 
         kernel_ctx.add_option("-cl-mad-enable");
         kernel_ctx.add_option("-cl-strict-aliasing");
-#if defined(CL_VERSION_2_0) && !defined(MKLDNN_SYCL_COMPUTECPP)
+#if defined(CL_VERSION_2_0) && !defined(DNNL_SYCL_COMPUTECPP)
         kernel_ctx.add_option("-cl-std=CL2.0");
 #else
         kernel_ctx.add_option("-Dget_enqueued_local_size=get_local_size");
@@ -162,6 +162,6 @@ struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

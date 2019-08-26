@@ -19,7 +19,7 @@
 
 #include <cstddef>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -67,5 +67,5 @@ void partition_unit_diff(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif // GEMM_UTILS_F32_HPP

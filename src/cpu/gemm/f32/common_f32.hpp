@@ -22,7 +22,7 @@
 #define F32_COPY_KERNEL_CODE_SIZE (4096L * 5)
 #define F32_COMPUTE_KERNEL_CODE_SIZE (4096L * 32)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -168,5 +168,5 @@ public:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif // COMMON_F32_HPP

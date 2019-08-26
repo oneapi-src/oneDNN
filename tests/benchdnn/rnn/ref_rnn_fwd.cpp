@@ -39,13 +39,13 @@ void copy_init_fwd(const prb_t &p, float *ws_, const float *src_layer_,
 
     int64_t lay_dest = (lay_dir == bottom2top) ? 0 : p.n_layer + 1;
     int64_t it_dest = (iter_dir == left2right) ? 0 : p.n_iter + 1;
-    bool is_int8 = p.cfg[input].dt == mkldnn_u8;
+    bool is_int8 = p.cfg[input].dt == dnnl_u8;
 
     // Copy input
     for (int64_t it = 0; it < p.n_iter; it++) {
         copy(p.mb, p.slc, p.slc, p.wc, &src_layer(it, 0),
                 &ws(lay_dest, dir_val, it + 1, H, 0));
-        if (p.cfg[input].dt == mkldnn_u8)
+        if (p.cfg[input].dt == dnnl_u8)
             // shift u8 input to s8 to avoid compensation in gemm
             shift(p.mb, p.slc, p.wc, &ws(lay_dest, dir_val, it + 1, H, 0),
                     -1. * p.data_shift);
@@ -55,10 +55,10 @@ void copy_init_fwd(const prb_t &p, float *ws_, const float *src_layer_,
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
         copy(p.mb, p.sic, p.sic, p.wc, &firstit_states(lay, dir_val, 0),
                 &ws(lay + 1, dir_val, it_dest, H, 0));
-        if (p.cfg[states].dt == mkldnn_u8)
+        if (p.cfg[states].dt == dnnl_u8)
             shift(p.mb, p.sic, p.wc, &ws(lay + 1, dir_val, it_dest, H, 0),
                     -1. * p.data_shift);
-        else if (p.cfg[states].dt == mkldnn_f32 && is_int8) {
+        else if (p.cfg[states].dt == dnnl_f32 && is_int8) {
             // quantize to s8
             scale(p.mb, p.sic, p.wc, &ws(lay + 1, dir_val, it_dest, H, 0),
                     p.data_scale, true);
@@ -91,7 +91,7 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
                     it, nb, action == action_concat ? p.dlc : 0);
             copy(1, p.dlc, p.wc, lastlay_c, from, to, action);
 
-            if (p.cfg[dst_last_layer].dt == mkldnn_u8) {
+            if (p.cfg[dst_last_layer].dt == dnnl_u8) {
                 // shift s8 internal ws to u8
                 shift(1, p.dlc, lastlay_c, to, p.data_shift);
             } else {
@@ -113,7 +113,7 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
         copy(p.mb, p.dic, p.wc, p.dic,
                 &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, 0, 0));
-        if (p.cfg[dst_last_iteration].dt == mkldnn_u8) {
+        if (p.cfg[dst_last_iteration].dt == dnnl_u8) {
             // shift s8 internal ws to u8
             shift(p.mb, p.dic, p.dic, &lastit_states(lay, dir_val, 0, 0),
                     p.data_shift);
@@ -162,7 +162,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
 
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));
     bool is_lbr = p.alg == LBR_GRU;
-    bool is_concat = p.direction == mkldnn_bidirectional_concat;
+    bool is_concat = p.direction == dnnl_bidirectional_concat;
 
     AOC<const float> bias(
             bias_, p.n_layer, p.n_dir(), (p.n_gates() + is_lbr) * p.dic);
@@ -216,17 +216,17 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
     };
 
     switch (p.direction) {
-        case mkldnn_unidirectional_left2right:
+        case dnnl_unidirectional_left2right:
             process_direction(left2right, bottom2top, 0, action_copy);
             break;
-        case mkldnn_unidirectional_right2left:
+        case dnnl_unidirectional_right2left:
             process_direction(right2left, bottom2top, 0, action_copy);
             break;
-        case mkldnn_bidirectional_sum:
+        case dnnl_bidirectional_sum:
             process_direction(left2right, bottom2top, 0, action_copy);
             process_direction(right2left, bottom2top, 1, action_sum);
             break;
-        case mkldnn_bidirectional_concat:
+        case dnnl_bidirectional_concat:
             process_direction(left2right, bottom2top, 0, action_copy);
             process_direction(right2left, bottom2top, 1, action_concat);
             break;
@@ -242,10 +242,10 @@ void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &bias_m, dnn_mem_t &dst_last_layer_m,
         dnn_mem_t &dst_last_iteration_m, dnn_mem_t &dst_c_last_iteration_m) {
 
-    assert(p.direction == mkldnn_unidirectional_left2right
-            || p.direction == mkldnn_unidirectional_right2left
-            || p.direction == mkldnn_bidirectional_sum
-            || p.direction == mkldnn_bidirectional_concat);
+    assert(p.direction == dnnl_unidirectional_left2right
+            || p.direction == dnnl_unidirectional_right2left
+            || p.direction == dnnl_bidirectional_sum
+            || p.direction == dnnl_bidirectional_concat);
 
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));
     int64_t ws_size = (p.n_layer + 2) * p.n_dir() * (p.n_iter + 2)

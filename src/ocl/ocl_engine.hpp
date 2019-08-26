@@ -19,7 +19,7 @@
 
 #include "ocl/ocl_gpu_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -76,6 +76,6 @@ public:
 };
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // OCL_ENGINE_HPP

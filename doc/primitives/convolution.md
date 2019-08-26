@@ -18,7 +18,7 @@ IW\f$, \f$OC \times IC \times KH \times KW\f$, and \f$N \times OC \times OH
 \times OW\f$ tensors respectively. Let \f$bias\f$ be a 1D tensor with \f$OC\f$
 elements.
 
-The following formulas show how Intel MKL-DNN computes convolutions. They are
+The following formulas show how DNNL computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
 convolution types can be combined.
 
@@ -45,7 +45,7 @@ Here:
 
 #### Convolution with Groups
 
-In the API, Intel MKL-DNN adds a separate groups dimension to memory objects
+In the API, DNNL adds a separate groups dimension to memory objects
 representing weights tensors and represents weights as \f$G \times OC_G \times
 IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
 
@@ -95,10 +95,10 @@ convolution. One way to put it is to note that the weights define a
 convolution, but whether it is a direct convolution or a transposed
 convolution is determined by how the forward and backward passes are computed.
 
-#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
-There is no difference between the #mkldnn_forward_training
-and #mkldnn_forward_inference propagation kinds.
+There is no difference between the #dnnl_forward_training
+and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
@@ -147,9 +147,9 @@ tensors:
 | 3D      | \f$N \times C \times D \times H \times W\f$ | \f$[G \times ] OC \times IC \times KD \times KH \times KW\f$
 
 Physical format of data and weights memory objects is critical for convolution
-primitive performance. In the Intel MKL-DNN programming model, convolution is
+primitive performance. In the DNNL programming model, convolution is
 one of the few primitives that support the placeholder memory format tag
- #mkldnn::memory::format_tag::any (shortened to `any` from now on) and can
+ #dnnl::memory::format_tag::any (shortened to `any` from now on) and can
 define data and weight memory objects format based on the primitive parameters.
 When using `any` it is necessary to first create a convolution primitive
 descriptor and then query it for the actual data and weight memory objects
@@ -164,12 +164,12 @@ the convolution primitive is optimized for.
 | Spatial    | Convolution Type | Data / Weights logical tensor | Implementation optimized for memory formats
 | :--        | :--              | :--                           | :--
 | 1D, 2D, 3D |                  | `any`                         | *optimized*
-| 1D         | f32, bf16        | NCW / OIW, GOIW               | #mkldnn_ncw (#mkldnn_abc) / #mkldnn_oiw (#mkldnn_abc), #mkldnn_goiw (#mkldnn_abcd)
-| 1D         | int8             | NCW / OIW                     | #mkldnn_nwc (#mkldnn_acb) / #mkldnn_wio (#mkldnn_cba)
-| 2D         | f32, bf16        | NCHW / OIHW, GOIHW            | #mkldnn_nchw (#mkldnn_abcd) / #mkldnn_oihw (#mkldnn_abcd), #mkldnn_goihw (#mkldnn_abcde)
-| 2D         | int8             | NCHW / OIHW, GOIHW            | #mkldnn_nhwc (#mkldnn_acdb) / #mkldnn_hwio (#mkldnn_cdba), #mkldnn_hwigo (#mkldnn_decab)
-| 3D         | f32, bf16        | NCDHW / OIDHW, GOIDHW         | #mkldnn_ncdhw (#mkldnn_abcde) / #mkldnn_oidhw (#mkldnn_abcde), #mkldnn_goidhw (#mkldnn_abcdef)
-| 3D         | int8             | NCDHW / OIDHW                 | #mkldnn_ndhwc (#mkldnn_acdeb) / #mkldnn_dhwio (#mkldnn_cdeba)
+| 1D         | f32, bf16        | NCW / OIW, GOIW               | #dnnl_ncw (#dnnl_abc) / #dnnl_oiw (#dnnl_abc), #dnnl_goiw (#dnnl_abcd)
+| 1D         | int8             | NCW / OIW                     | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba)
+| 2D         | f32, bf16        | NCHW / OIHW, GOIHW            | #dnnl_nchw (#dnnl_abcd) / #dnnl_oihw (#dnnl_abcd), #dnnl_goihw (#dnnl_abcde)
+| 2D         | int8             | NCHW / OIHW, GOIHW            | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba), #dnnl_hwigo (#dnnl_decab)
+| 3D         | f32, bf16        | NCDHW / OIDHW, GOIDHW         | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde), #dnnl_goidhw (#dnnl_abcdef)
+| 3D         | int8             | NCDHW / OIDHW                 | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
 
 ### Post-ops and Attributes
 
@@ -180,9 +180,9 @@ post-ops are supported:
 
 | Propagation | Type      | Operation                                                      | Restrictions           | Description
 | :--         | :--       | :--                                                            | :--                    | :--
-| forward     | attribute | [Output scale](@ref mkldnn::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref mkldnn::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result
-| forward     | post-op   | [sum](@ref mkldnn::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales)   | int8 convolutions only | Scales the result of convolution by given scale factor(s)
+| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)                 |                        | Applies an @ref c_api_eltwise operation to the result
+| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                         |                        | Adds the operation result to the destination tensor instead of overwriting it
 
 @note The library doesn't prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
@@ -259,7 +259,7 @@ That would lead to the following:
 
 ## Algorithms
 
-Intel MKL-DNN implements convolution primitives using several different
+DNNL implements convolution primitives using several different
 algorithms:
 
 - _Direct_. The convolution operation is computed directly using SIMD
@@ -282,7 +282,7 @@ algorithms:
 
 #### Direct Algorithm
 
-Intel MKL-DNN supports the direct convolution algorithm on all supported
+DNNL supports the direct convolution algorithm on all supported
 platforms for the following conditions:
 
 - Data and weights memory formats are defined by the convolution primitive
@@ -301,7 +301,7 @@ fall back to an explicit GEMM algorithm.
 
 #### Winograd Convolution
 
-Intel MKL-DNN supports the Winograd convolution algorithm on systems with
+DNNL supports the Winograd convolution algorithm on systems with
 Intel AVX-512 support and above under the following conditions:
 
 - Data and weights memory formats are defined by the convolution primitive
@@ -319,19 +319,19 @@ fall back to the direct algorithm.
 
 The Winograd convolution algorithm implementation additionally chooses tile
 size based on the problem shape and
-[propagation kind](@ref mkldnn_prop_kind_t):
+[propagation kind](@ref dnnl_prop_kind_t):
 
-- For `forward_inference` Intel MKL-DNN supports
+- For `forward_inference` DNNL supports
   \f$F(2 \times 2, 3 \times 3)\f$ or
   \f$F(4 \times 4, 3 \times 3)\f$
 
-- Intel MKL-DNN supports only \f$F(4 \times 4, 3 \times 3)\f$ Winograd for all
+- DNNL supports only \f$F(4 \times 4, 3 \times 3)\f$ Winograd for all
   the training propagation kinds.
 
 The following side effects should be weighed against the (potential)
 performance boost achieved from using the Winograd algorithm:
 
-- _Memory consumption_. Winograd implementation in MKL-DNN requires additional
+- _Memory consumption_. Winograd implementation in DNNL requires additional
   scratchpad memory to store intermediate results. As more convolutions using
   Winograd are added to the topology, the amount of memory required can grow
   significantly. This growth can be controlled if the scratchpad memory can be
@@ -342,7 +342,7 @@ performance boost achieved from using the Winograd algorithm:
   significantly less accurate than results from the direct convolution.
 
 Create a Winograd convolution by simply creating a convolution descriptor
-(step 6 in [simple network example](@ref cpu_cnn_inference_f32_cpp) specifying
+(step 6 in [simple network example](@ref cnn_inference_f32_cpp) specifying
 the Winograd algorithm. The rest of the steps are exactly the same.
 
 ~~~cpp
@@ -354,7 +354,7 @@ auto conv1_desc = convolution_forward::desc(
 
 #### Automatic Algorithm Selection
 
-Intel MKL-DNN supports `mkldnn::algorithm::convolution_auto` algorithm that
+DNNL supports `dnnl::algorithm::convolution_auto` algorithm that
 instructs the library to automatically select the *best* algorithm based on
 the heuristics that take into account tensor shapes and the number of logical
 processors available.  (For automatic selection to work as intended, use the
@@ -378,6 +378,6 @@ the convolution.)
 
 ## Performance Tips
 
-- Use #mkldnn::memory::format_tag::any for source, weights, and destinations
+- Use #dnnl::memory::format_tag::any for source, weights, and destinations
   memory format tags when create a convolution primitive to allow the library
   to choose the most appropriate memory format.

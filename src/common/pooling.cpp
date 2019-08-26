@@ -15,18 +15,18 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
@@ -98,7 +98,7 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t mkldnn_pooling_forward_desc_init(pooling_desc_t *pool_desc,
+status_t dnnl_pooling_forward_desc_init(pooling_desc_t *pool_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *src_desc, const memory_desc_t *dst_desc,
         const dims_t strides, const dims_t kernel, const dims_t padding_l,
@@ -109,7 +109,7 @@ status_t mkldnn_pooling_forward_desc_init(pooling_desc_t *pool_desc,
             strides, kernel, padding_l, padding_r);
 }
 
-status_t mkldnn_pooling_backward_desc_init(pooling_desc_t *pool_desc,
+status_t dnnl_pooling_backward_desc_init(pooling_desc_t *pool_desc,
         alg_kind_t alg_kind, const memory_desc_t *diff_src_desc,
         const memory_desc_t *diff_dst_desc, const dims_t strides,
         const dims_t kernel, const dims_t padding_l, const dims_t padding_r) {

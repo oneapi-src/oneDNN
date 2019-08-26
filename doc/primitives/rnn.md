@@ -207,7 +207,7 @@ primitive for each input and output memory object.
 
 # Data and Weights Formats
 
-In the Intel MKL-DNN programming model, the RNN primitive is one of a few that
+In the DNNL programming model, the RNN primitive is one of a few that
 support the placeholder memory format memory::format::any (shortened
 to `any` from now on) and can define data and weight memory objects format based
 on the primitive parameters.

@@ -28,13 +28,13 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
 template <impl::data_type_t a_type, impl::data_type_t b_type = a_type,
         impl::data_type_t c_type = a_type>
-struct jit_gen9_gemm_t : public primitive_t {
+struct jit_gen9_gemm_t : public primitive_impl_t {
     using c_t = typename prec_traits<c_type>::type;
 
     enum class type {
@@ -102,7 +102,7 @@ struct jit_gen9_gemm_t : public primitive_t {
                     = attr()->post_ops_.find(primitive_kind::eltwise);
             return with_eltwise()
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
-                    : mkldnn_alg_kind_undef;
+                    : dnnl_alg_kind_undef;
         }
 
         size_t dyn_offset_a = 0;
@@ -238,7 +238,7 @@ struct jit_gen9_gemm_t : public primitive_t {
         return status::success;
     }
 
-    jit_gen9_gemm_t(const pd_t *apd) : primitive_t(apd) {}
+    jit_gen9_gemm_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
@@ -289,11 +289,11 @@ private:
     int hw_threads_ = 0;
     int eu_count_ = 0;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_nocopy() const {
-        bool transa = (pd()->desc()->transa == mkldnn_trans);
-        bool transb = (pd()->desc()->transb == mkldnn_trans);
+        bool transa = (pd()->desc()->transa == dnnl_trans);
+        bool transb = (pd()->desc()->transb == dnnl_trans);
 
         auto m = pd()->desc()->m;
         auto n = pd()->desc()->n;
@@ -331,7 +331,7 @@ private:
 
         if (compute_engine->get_runtime_version() < min_version) return false;
 
-        bool transa = (pd()->desc()->transa == mkldnn_trans);
+        bool transa = (pd()->desc()->transa == dnnl_trans);
         auto k = pd()->desc()->k;
 
         return !transa && (hw_threads_ > 0) && (k >= 384);
@@ -348,7 +348,7 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

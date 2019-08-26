@@ -27,18 +27,17 @@
 #include "../cpu_isa_traits.hpp"
 #include "../gemm/os_blas.hpp"
 
-#include "../cpu_primitive.hpp"
 #include "cpu_rnn_pd.hpp"
 #include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
 #include "rnn_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type>
-struct _ref_rnn_common_t : public cpu_primitive_t {
+struct _ref_rnn_common_t : public primitive_impl_t {
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<weights_type>::type weights_data_t;
     typedef typename utils::conditional<src_type == data_type::u8, int32_t,
@@ -61,7 +60,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     struct pd_t : public base_pd_t {
         using base_pd_t::base_pd_t;
 
-        DECLARE_COMMON_PD_T("ref:any", class_name);
+        DECLARE_COMMON_PD_T("ref:any", class_name, USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             using namespace prop_kind;
@@ -131,7 +130,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
             // initialize the workspace if needed
             if (rnn_.is_training) {
                 dims_t ws_dims = {(dim_t)ws_sz};
-                mkldnn_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
+                dnnl_memory_desc_init_by_tag(&this->ws_md_, 1, ws_dims,
                         data_type::u8, format_tag::x);
             }
 
@@ -159,7 +158,7 @@ struct _ref_rnn_common_t : public cpu_primitive_t {
     };
 
     _ref_rnn_common_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), rnn_postgemm_(nullptr) {
+        : primitive_impl_t(apd), rnn_postgemm_(nullptr) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dic and sic != dic
         /// respectively
@@ -257,7 +256,7 @@ private:
     void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
             const acc_data_t *ws_gates_, float *diff_bias_) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     size_t ws_gates_offset_;
     size_t ws_states_offset_;
@@ -288,7 +287,7 @@ using ref_rnn_fwd_u8s8_t
         = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

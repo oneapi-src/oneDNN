@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename T, typename A>
 inline T relu_fwd(T s, A alpha) {
@@ -170,7 +170,7 @@ struct eltwise_test_params {
     float alpha, beta;
     memory::dims dims;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 memory::dim n_elems(const memory::desc &md) {
@@ -218,15 +218,22 @@ void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
 template <typename data_t>
 void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
         const memory &dst, const memory &ref_dst) {
-    const data_t eps = (data_traits<data_t>::data_type == memory::data_type::f16
-                               || data_traits<data_t>::data_type
-                                       == memory::data_type::bf16)
-            ? 5e-2
-            : (p.alg_kind == algorithm::eltwise_elu
-                      || p.alg_kind == algorithm::eltwise_gelu)
-                    ? 2e-5
-                    : p.alg_kind == algorithm::eltwise_soft_relu ? 2e-6 : 1e-6;
-
+    data_t eps;
+    if (data_traits<data_t>::data_type == memory::data_type::s8
+            || data_traits<data_t>::data_type == memory::data_type::s32)
+        eps = 0;
+    else
+        eps = static_cast<data_t>(
+                (data_traits<data_t>::data_type == memory::data_type::f16
+                        || data_traits<data_t>::data_type
+                                == memory::data_type::bf16)
+                        ? 5e-2
+                        : (p.alg_kind == algorithm::eltwise_elu
+                                  || p.alg_kind == algorithm::eltwise_gelu)
+                                ? 2e-5
+                                : p.alg_kind == algorithm::eltwise_soft_relu
+                                        ? 2e-6
+                                        : 1e-6);
     compare_data(ref_dst, dst, eps);
 }
 
@@ -239,13 +246,14 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
 
     const memory::desc data_d = src.get_desc();
     const memory::desc diff_data_d = diff_src.get_desc();
-    const mkldnn::impl::memory_desc_wrapper data_mdw(data_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
+    const dnnl::impl::memory_desc_wrapper data_mdw(data_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
-    const data_t eps = (p.alg_kind == algorithm::eltwise_soft_relu
-                               || p.alg_kind == algorithm::eltwise_tanh)
-            ? 2e-6
-            : (p.alg_kind == algorithm::eltwise_gelu ? 1e-5 : 1e-6);
+    const data_t eps = static_cast<data_t>(
+            (p.alg_kind == algorithm::eltwise_soft_relu
+                    || p.alg_kind == algorithm::eltwise_tanh)
+                    ? 2e-6f
+                    : (p.alg_kind == algorithm::eltwise_gelu ? 1e-5f : 1e-6f));
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
@@ -322,6 +330,12 @@ protected:
                         && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "ISA does not support bf16 data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        SKIP_IF((p.alg_kind != algorithm::eltwise_relu
+                        || (p.alg_kind == algorithm::eltwise_relu
+                                && p.alpha != 0.0))
+                        && (data_type == memory::data_type::s32
+                                || data_type == memory::data_type::s8),
+                "DNNL only supports relu w/ slope=0 for integers");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -333,7 +347,7 @@ protected:
         strm = stream(eng);
 
         Forward();
-        if (data_type != memory::data_type::f16) { Backward(); }
+        Backward();
     }
 
     void Forward() {
@@ -348,7 +362,7 @@ protected:
                         || (p.alg_kind == algorithm::eltwise_swish)
                 ? data_t(1.0)
                 : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)
-                                                          : data_t(200.0);
+                                                          : data_t(100.0);
         fill_data<data_t>(
                 n_elems(*data_desc), src, data_median, data_deviation);
         check_zero_tail<data_t>(1, src);
@@ -357,7 +371,7 @@ protected:
                 p.alg_kind, *data_desc, p.alpha, p.beta);
         eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
         eltwise_forward(eltwise_prim_desc)
-                .execute(strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+                .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
 
         check_zero_tail<data_t>(0, dst);
@@ -375,7 +389,7 @@ protected:
         data_t data_deviation = p.alg_kind == algorithm::eltwise_elu
                 ? data_t(1.0)
                 : p.alg_kind == algorithm::eltwise_square ? data_t(6.0)
-                                                          : data_t(200.0);
+                                                          : data_t(100.0);
         fill_data<data_t>(
                 n_elems(diff_data_desc), diff_dst, data_median, data_deviation);
         check_zero_tail<data_t>(1, diff_dst);
@@ -387,8 +401,8 @@ protected:
 
         eltwise_backward(eltwise_bwd_prim_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DIFF_DST, diff_dst},
-                                {MKLDNN_ARG_DIFF_SRC, diff_src}});
+                        {{DNNL_ARG_SRC, src}, {DNNL_ARG_DIFF_DST, diff_dst},
+                                {DNNL_ARG_DIFF_SRC, diff_src}});
         strm.wait();
 
         check_zero_tail<data_t>(0, diff_src);
@@ -396,13 +410,21 @@ protected:
     }
 };
 
-using eltwise_test_half = eltwise_test<float16_t>;
-using eltwise_test_float = eltwise_test<float>;
-using eltwise_test_bfloat16 = eltwise_test<bfloat16_t>;
+using eltwise_test_f16 = eltwise_test<float16_t>;
+using eltwise_test_bf16 = eltwise_test<bfloat16_t>;
+using eltwise_test_f32 = eltwise_test<float>;
+using eltwise_test_s32 = eltwise_test<int>;
+using eltwise_test_s8 = eltwise_test<int8_t>;
 
-TEST_P(eltwise_test_half, TestsEltwise) {}
-TEST_P(eltwise_test_float, TestsEltwise) {}
-TEST_P(eltwise_test_bfloat16, TestsEltwise) {}
+TEST_P(eltwise_test_f16, TestsEltwise) {}
+
+TEST_P(eltwise_test_bf16, TestsEltwise) {}
+
+TEST_P(eltwise_test_f32, TestsEltwise) {}
+
+TEST_P(eltwise_test_s32, TestsEltwise) {}
+
+TEST_P(eltwise_test_s8, TestsEltwise) {}
 
 #define EXPAND(args) args
 
@@ -433,19 +455,42 @@ TEST_P(eltwise_test_bfloat16, TestsEltwise) {}
             EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
 
+#define _CPU_INST_TEST_CASE(str, data_t, ...) \
+    CPU_INSTANTIATE_TEST_SUITE_P(str##_##data_t, eltwise_test_##data_t, \
+            ::testing::Values(__VA_ARGS__))
+
+#define _INST_TEST_CASE(str, data_t, ...) \
+    INSTANTIATE_TEST_SUITE_P_(str##_##data_t, eltwise_test_##data_t, \
+            ::testing::Values(__VA_ARGS__))
+
+#define CPU_INST_TEST_CASE_BF16(str, ...) \
+    _CPU_INST_TEST_CASE(str, bf16, __VA_ARGS__);
+#define INST_TEST_CASE_BF16(str, ...) _INST_TEST_CASE(str, bf16, __VA_ARGS__);
+#define GPU_INST_TEST_CASE_F16(str, ...) \
+    GPU_INSTANTIATE_TEST_SUITE_P_(TEST_CONCAT(str, _f16), eltwise_test_f16, \
+            ::testing::Values(__VA_ARGS__));
+#define CPU_INST_TEST_CASE_F32(str, ...) \
+    _CPU_INST_TEST_CASE(str, f32, __VA_ARGS__);
+#define INST_TEST_CASE_F32(str, ...) _INST_TEST_CASE(str, f32, __VA_ARGS__);
+#define CPU_INST_TEST_CASE_S32(str, ...) \
+    _CPU_INST_TEST_CASE(str, s32, __VA_ARGS__);
+#define INST_TEST_CASE_S32(str, ...) _INST_TEST_CASE(str, s32, __VA_ARGS__);
+#define CPU_INST_TEST_CASE_S8(str, ...) \
+    _CPU_INST_TEST_CASE(str, s8, __VA_ARGS__);
+#define INST_TEST_CASE_S8(str, ...) _INST_TEST_CASE(str, s8, __VA_ARGS__);
+
 #define CPU_INST_TEST_CASE(str, ...) \
-    CPU_INSTANTIATE_TEST_SUITE_P(TEST_CONCAT(str, _f32), eltwise_test_float, \
-            ::testing::Values(__VA_ARGS__)); \
-    CPU_INSTANTIATE_TEST_SUITE_P(TEST_CONCAT(str, _bf16), \
-            eltwise_test_bfloat16, ::testing::Values(__VA_ARGS__))
+    CPU_INST_TEST_CASE_F32(str, __VA_ARGS__) \
+    CPU_INST_TEST_CASE_BF16(str, __VA_ARGS__) \
+    CPU_INST_TEST_CASE_S32(str, __VA_ARGS__) \
+    CPU_INST_TEST_CASE_S8(str, __VA_ARGS__)
 
 #define INST_TEST_CASE(str, ...) \
-    GPU_INSTANTIATE_TEST_SUITE_P_(TEST_CONCAT(str, _f16), eltwise_test_half, \
-            ::testing::Values(__VA_ARGS__)); \
-    INSTANTIATE_TEST_SUITE_P_(TEST_CONCAT(str, _f32), eltwise_test_float, \
-            ::testing::Values(__VA_ARGS__)); \
-    INSTANTIATE_TEST_SUITE_P_(TEST_CONCAT(str, _bf16), eltwise_test_bfloat16, \
-            ::testing::Values(__VA_ARGS__))
+    GPU_INST_TEST_CASE_F16(str, __VA_ARGS__) \
+    INST_TEST_CASE_BF16(str, __VA_ARGS__) \
+    INST_TEST_CASE_F32(str, __VA_ARGS__) \
+    INST_TEST_CASE_S32(str, __VA_ARGS__) \
+    INST_TEST_CASE_S8(str, __VA_ARGS__)
 
 INST_TEST_CASE(SimpleZeroDim,
         PARAMS_ALL_ALG(ncdhw, nCdhw8c, 0.1f, 0.f, 0, 2, 4, 4, 4),
@@ -456,7 +501,7 @@ INST_TEST_CASE(SimpleZeroDim,
 #define CASE_EF(alg, d0, d1, d2, d3) \
     eltwise_test_params { \
         algorithm::eltwise_##alg, EXPAND_FORMATS(nchw), EXPAND_FORMATS(nchw), \
-                0.f, 0.f, {d0, d1, d2, d3}, true, mkldnn_invalid_arguments \
+                0.f, 0.f, {d0, d1, d2, d3}, true, dnnl_invalid_arguments \
     }
 INST_TEST_CASE(SimpleExpectedFails, CASE_EF(relu, -1, 2, 4, 4),
         CASE_EF(sqrt, -1, 2, 4, 4), CASE_EF(logistic, -1, 2, 4, 4),
@@ -542,4 +587,4 @@ INST_TEST_CASE(AlexNet_NCHW,
 
 INST_TEST_CASE(Simple_X, PARAMS_ALL_ALG(x, x, 0.f, 0.f, 55));
 
-} // namespace mkldnn
+} // namespace dnnl

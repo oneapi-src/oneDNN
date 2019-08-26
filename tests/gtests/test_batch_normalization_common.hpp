@@ -16,10 +16,10 @@
 
 #include <cmath>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INSTANTIATE_TEST_SUITE_P( \
@@ -29,7 +29,7 @@
     GPU_INSTANTIATE_TEST_SUITE_P( \
             str, bnorm_test, ::testing::Values(__VA_ARGS__));
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_bnorm_sizes_t {
     memory::dim mb, c, d, h, w;
@@ -46,7 +46,7 @@ struct test_bnorm_params_t {
     float epsilon;
     int ndims;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename T>
@@ -90,7 +90,7 @@ protected:
         ASSERT_TRUE(isF32(data_type) || isS8(data_type));
 
         test_bnorm_sizes_t bs = p.sizes;
-        bool has_spatial = (p.tags.data_tag != mkldnn_nc);
+        bool has_spatial = (p.tags.data_tag != dnnl_nc);
         if (has_spatial) {
             if (p.ndims == 5) {
                 data_d.reset(new memory::desc({bs.mb, bs.c, bs.d, bs.h, bs.w},
@@ -212,25 +212,25 @@ protected:
     }
 
     inline bool isF32(memory::data_type data_type) {
-        return data_type == mkldnn::memory::data_type::f32;
+        return data_type == dnnl::memory::data_type::f32;
     }
 
     inline bool isS8(memory::data_type data_type) {
-        return data_type == mkldnn::memory::data_type::s8;
+        return data_type == dnnl::memory::data_type::s8;
     }
 
     void execBnormFwd(
             bool isTraining, bool useGlobalStats, bool useScaleShift) {
         std::unordered_map<int, memory> args = {
-                {MKLDNN_ARG_SRC, src->get()},
-                {MKLDNN_ARG_DST, dst->get()},
+                {DNNL_ARG_SRC, src->get()},
+                {DNNL_ARG_DST, dst->get()},
         };
 
-        if (useScaleShift) args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
+        if (useScaleShift) args.insert({DNNL_ARG_SCALE_SHIFT, weights});
 
         if (isTraining || useGlobalStats) {
-            args.insert({MKLDNN_ARG_MEAN, mean});
-            args.insert({MKLDNN_ARG_VARIANCE, variance});
+            args.insert({DNNL_ARG_MEAN, mean});
+            args.insert({DNNL_ARG_VARIANCE, variance});
         }
 
         batch_normalization_forward(bnorm_fwd_pd).execute(strm, args);
@@ -239,17 +239,17 @@ protected:
 
     void execBnormBwd(bool useScaleShift, prop_kind pk) {
         std::unordered_map<int, memory> args = {
-                {MKLDNN_ARG_SRC, src->get()},
-                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-                {MKLDNN_ARG_MEAN, mean},
-                {MKLDNN_ARG_VARIANCE, variance},
-                {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
+                {DNNL_ARG_SRC, src->get()},
+                {DNNL_ARG_DIFF_DST, diff_dst->get()},
+                {DNNL_ARG_MEAN, mean},
+                {DNNL_ARG_VARIANCE, variance},
+                {DNNL_ARG_DIFF_SRC, diff_src->get()},
         };
 
         if (useScaleShift) {
-            args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
+            args.insert({DNNL_ARG_SCALE_SHIFT, weights});
             if (pk == prop_kind::backward)
-                args.insert({MKLDNN_ARG_DIFF_SCALE_SHIFT, diff_weights});
+                args.insert({DNNL_ARG_DIFF_SCALE_SHIFT, diff_weights});
         }
 
         batch_normalization_backward(bnorm_bwd_pd).execute(strm, args);
@@ -285,15 +285,15 @@ protected:
         const memory::desc weights_d
                 = use_weights ? weights.get_desc() : memory::desc();
 
-        const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-        const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-        const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
 
         float eps = static_cast<float>(1.e-4 * bp.mb * bp.d * bp.h * bp.w);
 
         auto padded_c = src_d.data.padded_dims[1];
 
-        mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
+        dnnl::impl::parallel_nd(bp.c, [&](memory::dim c) {
             if (is_current_test_failed()) return;
 
             float ref_mean = calculate_stats ? float(0) : mean_data[c];
@@ -406,11 +406,11 @@ protected:
         const memory::desc diff_src_d = diff_src.get_desc();
         const memory::desc diff_weights_d = diff_weights.get_desc();
 
-        const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-        const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-        const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-        const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
-        const mkldnn::impl::memory_desc_wrapper diff_weights_mdw(
+        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+        const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+        const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+        const dnnl::impl::memory_desc_wrapper diff_weights_mdw(
                 diff_weights_d.data);
 
         if (bp.mb * bp.c * bp.d * bp.h * bp.w == 0) {
@@ -432,7 +432,7 @@ protected:
 
         auto padded_c = src_d.data.padded_dims[1];
 
-        mkldnn::impl::parallel_nd(bp.c, [&](memory::dim c) {
+        dnnl::impl::parallel_nd(bp.c, [&](memory::dim c) {
             if (is_current_test_failed()) return;
 
             float ref_diff_gamma = float(0);
@@ -501,4 +501,4 @@ protected:
     }
 };
 
-} // namespace mkldnn
+} // namespace dnnl

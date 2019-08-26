@@ -21,10 +21,11 @@
 
 #include "c_types_map.hpp"
 #include "concat_pd.hpp"
+#include "cpu_engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -34,7 +35,7 @@ struct cpu_concat_pd_t : public concat_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

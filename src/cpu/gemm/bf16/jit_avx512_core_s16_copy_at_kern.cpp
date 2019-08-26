@@ -17,7 +17,7 @@
 #include "common_s16.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -1663,4 +1663,4 @@ jit_avx512_core_s16_copy_at_kern::jit_avx512_core_s16_copy_at_kern()
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -21,13 +21,12 @@
 #include "reorder_pd.hpp"
 
 #include "cpu_concat_pd.hpp"
-#include "cpu_primitive.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct ref_concat_t : public cpu_primitive_t {
+struct ref_concat_t : public primitive_impl_t {
     struct pd_t : public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
@@ -36,7 +35,7 @@ struct ref_concat_t : public cpu_primitive_t {
         ~pd_t() { clear(); }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             cpu_concat_pd_t::operator=(rhs);
             clear();
             clone_reorder_pds(rhs);
@@ -57,7 +56,6 @@ struct ref_concat_t : public cpu_primitive_t {
                     if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
                                 src_image_md(i))
                             == status::success) {
-                        r_pd->init_info();
                         reorder_pds_.push_back(r_pd);
                         break;
                     }
@@ -79,10 +77,10 @@ struct ref_concat_t : public cpu_primitive_t {
                 delete rpd;
         }
 
-        nstl::vector<const reorder_pd_t *> reorder_pds_;
+        std::vector<const reorder_pd_t *> reorder_pds_;
     };
 
-    ref_concat_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    ref_concat_t(const pd_t *apd) : primitive_impl_t(apd) {
         const int n = pd()->n_inputs();
         reorders_.resize(n);
         for (int i = 0; i < n; ++i)
@@ -98,8 +96,8 @@ struct ref_concat_t : public cpu_primitive_t {
         const auto n = pd()->n_inputs();
         for (int i = 0; i < n; ++i) {
             exec_args_t r_args;
-            r_args[MKLDNN_ARG_SRC] = ctx.args().at(MKLDNN_ARG_MULTIPLE_SRC + i);
-            r_args[MKLDNN_ARG_DST] = ctx.args().at(MKLDNN_ARG_DST);
+            r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
+            r_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
             exec_ctx_t r_ctx(ctx, std::move(r_args));
             reorders_[i]->execute(r_ctx);
         }
@@ -107,12 +105,12 @@ struct ref_concat_t : public cpu_primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    nstl::vector<primitive_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    std::vector<primitive_t *> reorders_;
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -17,31 +17,28 @@
 #ifndef CAPI_HPP
 #define CAPI_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 extern "C" {
 
 /** Creates an @p engine of particuler @p kind associated with given SYCL
  * device and context objects. */
-mkldnn_status_t mkldnn_engine_create_sycl(mkldnn_engine_t *engine,
-        mkldnn_engine_kind_t kind, const void *device, const void *context);
+dnnl_status_t dnnl_engine_create_sycl(dnnl_engine_t *engine,
+        dnnl_engine_kind_t kind, const void *device, const void *context);
 
 /** Returns a SYCL context associated with @p engine. */
-mkldnn_status_t mkldnn_engine_get_sycl_context(
-        mkldnn_engine_t engine, void **ctx);
+dnnl_status_t dnnl_engine_get_sycl_context(dnnl_engine_t engine, void **ctx);
 
 /** Returns a SYCL device associated with @p engine. */
-mkldnn_status_t mkldnn_engine_get_sycl_device(
-        mkldnn_engine_t engine, void **dev);
+dnnl_status_t dnnl_engine_get_sycl_device(dnnl_engine_t engine, void **dev);
 
 /** Creates an execution @p stream for given @p engine associated with SYCL
  * queue object @p queue.  */
-mkldnn_status_t mkldnn_stream_create_sycl(
-        mkldnn_stream_t *stream, mkldnn_engine_t engine, void *queue);
+dnnl_status_t dnnl_stream_create_sycl(
+        dnnl_stream_t *stream, dnnl_engine_t engine, void *queue);
 
 /** Returns a SYCL command queue associated with @p stream. */
-mkldnn_status_t mkldnn_stream_get_sycl_queue(
-        mkldnn_stream_t stream, void **queue);
+dnnl_status_t dnnl_stream_get_sycl_queue(dnnl_stream_t stream, void **queue);
 }
 
 #endif

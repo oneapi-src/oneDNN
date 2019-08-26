@@ -6,12 +6,12 @@ Int8 Computation Aspects {#dev_guide_int8_computations}
 > **u8** (`uint8_t`) or **s8** (`int8_t`) are used. In particular, if a
 > primitive has two inputs the types would be written using "/". For instance:
 > - int8 GEMM denotes any integer GEMM with 8-bit integer inputs, while
-> - u8/s8 GEMM denotes mkldnn_gemm_u8s8s32() only.
+> - u8/s8 GEMM denotes dnnl_gemm_u8s8s32() only.
 
 The operation primitives that work with the int8 data type
-(#mkldnn::memory::data_type::s8 and #mkldnn::memory::data_type::u8)
+(#dnnl::memory::data_type::s8 and #dnnl::memory::data_type::u8)
 typically use s32 (`int32_t`) as an intermediate data type
-(#mkldnn::memory::data_type::s32) to avoid integer overflows.
+(#dnnl::memory::data_type::s32) to avoid integer overflows.
 
 For instance, the int8 average [pooling](@ref dev_guide_pooling) primitive
 accumulates the int8 input values in a window to an s32 accumulator, then
@@ -38,7 +38,7 @@ Using an s32 accumulator is especially important for matrix-multiply such as
 operation primitives that have chains of multiplication and accumulation of
 int8 values. These primitives are:
  * [Convolution](@ref dev_guide_convolution)
- * Int8 GEMMs: mkldnn_gemm_s8s8s32() and mkldnn_gemm_u8s8s32()
+ * Int8 GEMMs: dnnl_gemm_s8s8s32() and dnnl_gemm_u8s8s32()
  * [Inner Product](@ref dev_guide_inner_product)
  * [LSTM](@ref dev_guide_rnn)
 
@@ -61,7 +61,7 @@ systems and the reasons behind them.
 ### 1. Inputs of mixed type: u8 and s8
 
 The Intel(R) Instruction Set Architecture has special instructions that enable
-multiplying and adding the vectors of u8 and s8 very efficiently. Intel MKL-DNN
+multiplying and adding the vectors of u8 and s8 very efficiently. DNNL
 enables int8 support using these particular instructions.
 
 Unfortunately, these instructions do not have the counterparts that work with
@@ -73,7 +73,7 @@ case are covered in the
 
 *System examples: Intel Xeon Scalable processor x1xx series (formerly Skylake).*
 
-Intel MKL-DNN implements matrix multiplication such as operations with u8 and s8
+DNNL implements matrix multiplication such as operations with u8 and s8
 operands on the Intel AVX512 Instruction Set by using a sequence of
 `VPMADDUBSW, VPMADDWD, VPADDD` instructions [[1]](@ref dg_i8_ref_sdm):
 
@@ -129,7 +129,7 @@ precise result is concerned, one of the possible instruction sequences would be
 where the first ones casts the s8/u8 values to s16. Unfortunately, using them
 would lead to 2x lower performance.
 
-When one input is of type u8 and the other one is of type s8, Intel MKL-DNN
+When one input is of type u8 and the other one is of type s8, DNNL
 assumes that it is the user's responsibility to choose the quantization
 parameters so that no overflow/saturation occurs. For instance, a user can use
 u7 `[0, 127]` instead of u8 for the unsigned input, or s7 `[-64, 63]` instead
@@ -145,8 +145,8 @@ Namely, the formula is:
 But similarly to the other primitives, the LSTM primitive doesn't handle
 potential overflows automatically. It is up to the user to specify the
 appropriate quantization parameters (see
-mkldnn::primitive_attr::set_rnn_data_qparams() and
-mkldnn::primitive_attr::set_rnn_weights_qparams()).
+dnnl::primitive_attr::set_rnn_data_qparams() and
+dnnl::primitive_attr::set_rnn_weights_qparams()).
 The recommended ones are:
  - Data (hidden states) use `scale = 127`, and `shift = 128`.
  - Weights use `scale = 63 / W_max`,
@@ -193,9 +193,9 @@ multiply and add two vectors of the s8 data type as efficiently as it is
 for the mixed case. However, in real-world applications the inputs are
 typically signed.
 
-To overcome this issue, Intel MKL-DNN employs a trick: at run-time, it adds 128
+To overcome this issue, DNNL employs a trick: at run-time, it adds 128
 to one of the s8 input to make it of type u8 instead. Once the result is
-computed, Intel MKL-DNN subtracts the extra value it added by replacing the s8
+computed, DNNL subtracts the extra value it added by replacing the s8
 with u8. This subtracted value sometimes referred as a **compensation**.
 
 Conceptually the formula is:
@@ -261,7 +261,7 @@ the implementations are given below:
   introduces an error that might insignificantly affect the inference accuracy
   (compared to a platform with the Intel DL Boost Instruction Set).
 
-2. **s8/s8 GEMM** (mkldnn_gemm_s8s8s32()) does nothing to handle the overflow
+2. **s8/s8 GEMM** (dnnl_gemm_s8s8s32()) does nothing to handle the overflow
    issue. It is up to the user to prepare the data so that the
    overflow/saturation doesn't occur. For instance, the user can specify
    s7 `[-64, 63]` instead of s8 for the second input.

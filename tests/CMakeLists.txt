@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-if (NOT MKLDNN_BUILD_TESTS)
+if (NOT DNNL_BUILD_TESTS)
     return()
 endif()
 
@@ -36,7 +36,7 @@ append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 
 # allow tests to include internal header files with, e.g.
-# include "src/common/mkldnn_thread.hpp"
+# include "src/common/dnnl_thread.hpp"
 include_directories(${PROJECT_SOURCE_DIR})
 
 if(UNIX OR MINGW)
@@ -82,3 +82,4 @@ endif()
 
 add_subdirectory(gtests)
 add_subdirectory(benchdnn)
+add_subdirectory(mkldnn_compat)

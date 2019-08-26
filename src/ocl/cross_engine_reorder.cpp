@@ -19,15 +19,15 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-static mkldnn_engine_kind_t cross_engine_reorder_engine_kind = mkldnn_gpu;
+static dnnl_engine_kind_t cross_engine_reorder_engine_kind = dnnl_gpu;
 
-extern "C" mkldnn_status_t MKLDNN_API mkldnn_impl_gpu_reorder_set_engine_kind(
-        mkldnn_engine_kind_t engine_kind) {
+extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_reorder_set_engine_kind(
+        dnnl_engine_kind_t engine_kind) {
     cross_engine_reorder_engine_kind = engine_kind;
-    return mkldnn_success;
+    return dnnl_success;
 }
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -66,8 +66,6 @@ status_t cross_engine_reorder_t::pd_t::init() {
         if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
                     reorder_engine, dst_md())
                 == status::success) {
-
-            r_pd->init_info();
             reorder_.reset(r_pd);
             break;
         }
@@ -82,14 +80,14 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_FROM);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_TO);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
     auto exec_reorder = [&](const memory_t *src_mem, const memory_t *dst_mem) {
         exec_args_t r_args;
-        r_args[MKLDNN_ARG_SRC]
+        r_args[DNNL_ARG_SRC]
                 = memory_arg_t {const_cast<memory_t *>(src_mem), true};
-        r_args[MKLDNN_ARG_DST]
+        r_args[DNNL_ARG_DST]
                 = memory_arg_t {const_cast<memory_t *>(dst_mem), false};
 
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
@@ -99,7 +97,7 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     status_t status = status::success;
     if (pd()->src_engine()->kind() == pd()->reorder_engine_kind_) {
         if (do_reorder_) {
-            status = exec_reorder(ctx.input(MKLDNN_ARG_FROM), temp_buf.get());
+            status = exec_reorder(ctx.input(DNNL_ARG_FROM), temp_buf.get());
         }
         if (status == status::success) {
             memory_desc_wrapper dst_mdw(pd()->dst_md());
@@ -113,11 +111,11 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                 do_reorder_ ? *temp_buf->memory_storage() : dst,
                 src_mdw.size());
         if (status == status::success && do_reorder_)
-            status = exec_reorder(temp_buf.get(), ctx.output(MKLDNN_ARG_TO));
+            status = exec_reorder(temp_buf.get(), ctx.output(DNNL_ARG_TO));
     }
     return status;
 }
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

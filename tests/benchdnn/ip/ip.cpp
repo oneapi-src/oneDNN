@@ -20,12 +20,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 #include "ip/ip.hpp"
 
@@ -39,105 +39,104 @@ inline bool is_1d(const prb_t *p) {
     return !is_3d(p) && p->ih == 1;
 }
 
-inline int init_pd(const prb_t *p, mkldnn_inner_product_desc_t &ipd,
-        mkldnn_primitive_desc_t &ippd, res_t *r) {
-    mkldnn_memory_desc_t src_d, wei_d, bia_d, dst_d;
+inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
+        dnnl_primitive_desc_t &ippd, res_t *r) {
+    dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-    mkldnn_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
-    mkldnn_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
-    mkldnn_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
-    mkldnn_dims_t wei_1d_dims = {p->oc, p->ic, p->iw};
-    mkldnn_dims_t wei_2d_dims = {p->oc, p->ic, p->ih, p->iw};
-    mkldnn_dims_t wei_3d_dims = {p->oc, p->ic, p->id, p->ih, p->iw};
-    mkldnn_dims_t bia_dims = {p->oc};
-    mkldnn_dims_t dst_dims = {p->mb, p->oc};
+    dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
+    dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
+    dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t wei_1d_dims = {p->oc, p->ic, p->iw};
+    dnnl_dims_t wei_2d_dims = {p->oc, p->ic, p->ih, p->iw};
+    dnnl_dims_t wei_3d_dims = {p->oc, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t bia_dims = {p->oc};
+    dnnl_dims_t dst_dims = {p->mb, p->oc};
 
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&src_d, ndims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, ndims,
                      is_3d(p) ? src_3d_dims
                               : is_1d(p) ? src_1d_dims : src_2d_dims,
                      p->cfg[SRC].dt, p->stag),
             WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&wei_d, ndims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, ndims,
                      is_3d(p) ? wei_3d_dims
                               : is_1d(p) ? wei_1d_dims : wei_2d_dims,
                      p->cfg[WEI].dt, p->wtag),
             WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(&bia_d, 1, bia_dims, p->cfg[BIA].dt,
-                     mkldnn_format_tag_any),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
             WARN);
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &dst_d, 2, dst_dims, p->cfg[DST].dt, p->dtag),
             WARN);
 
     switch (p->dir) {
         case FWD_D:
         case FWD_B:
-            DNN_SAFE(mkldnn_inner_product_forward_desc_init(&ipd,
-                             mkldnn_forward, &src_d, &wei_d,
-                             p->dir == FWD_D ? NULL : &bia_d, &dst_d),
+            DNN_SAFE(dnnl_inner_product_forward_desc_init(&ipd, dnnl_forward,
+                             &src_d, &wei_d, p->dir == FWD_D ? NULL : &bia_d,
+                             &dst_d),
                     WARN);
             break;
         case BWD_D:
-            DNN_SAFE(mkldnn_inner_product_backward_data_desc_init(
+            DNN_SAFE(dnnl_inner_product_backward_data_desc_init(
                              &ipd, &src_d, &wei_d, &dst_d),
                     WARN);
             break;
         case BWD_W:
         case BWD_WB:
-            DNN_SAFE(mkldnn_inner_product_backward_weights_desc_init(&ipd,
-                             &src_d, &wei_d, p->dir == BWD_W ? NULL : &bia_d,
-                             &dst_d),
+            DNN_SAFE(dnnl_inner_product_backward_weights_desc_init(&ipd, &src_d,
+                             &wei_d, p->dir == BWD_W ? NULL : &bia_d, &dst_d),
                     WARN);
             break;
-        default: DNN_SAFE(mkldnn_invalid_arguments, CRIT);
+        default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
     }
 
-    DNN_SAFE(ipd.accum_data_type == p->cfg[ACC].dt ? mkldnn_success
-                                                   : mkldnn_unimplemented,
+    DNN_SAFE(ipd.accum_data_type == p->cfg[ACC].dt ? dnnl_success
+                                                   : dnnl_unimplemented,
             CRIT);
 
-    auto mkldnn_attr = create_mkldnn_attr(p->attr, p->oc, p->scales);
+    auto dnnl_attr = create_dnnl_attr(p->attr, p->oc, p->scales);
 
-    mkldnn_status_t init_status = mkldnn_success;
-    init_status = mkldnn_primitive_desc_create(
-            &ippd, &ipd, mkldnn_attr, engine_tgt, NULL);
+    dnnl_status_t init_status = dnnl_success;
+    init_status = dnnl_primitive_desc_create(
+            &ippd, &ipd, dnnl_attr, engine_tgt, NULL);
 
-    mkldnn_primitive_attr_destroy(mkldnn_attr);
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
-    if (init_status == mkldnn_unimplemented)
+    if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(ippd);
-    print(5, "mkldnn implementation: %s\n", impl_str);
+    print(5, "dnnl implementation: %s\n", impl_str);
 
-    auto q = [=](mkldnn_query_t query, int index = 0) {
-        return *mkldnn_primitive_desc_query_md(ippd, query, index);
+    auto q = [=](dnnl_query_t query, int index = 0) {
+        return *dnnl_primitive_desc_query_md(ippd, query, index);
     };
 
     if (p->dir == BWD_D)
-        ipd.diff_src_desc = q(mkldnn_query_diff_src_md);
+        ipd.diff_src_desc = q(dnnl_query_diff_src_md);
     else
-        ipd.src_desc = q(mkldnn_query_src_md);
+        ipd.src_desc = q(dnnl_query_src_md);
 
     if (p->dir & FLAG_WEI)
-        ipd.diff_weights_desc = q(mkldnn_query_diff_weights_md);
+        ipd.diff_weights_desc = q(dnnl_query_diff_weights_md);
     else
-        ipd.weights_desc = q(mkldnn_query_weights_md);
+        ipd.weights_desc = q(dnnl_query_weights_md);
 
     if (p->dir & FLAG_BIA) {
         if (p->dir & FLAG_BWD)
-            ipd.diff_bias_desc = q(mkldnn_query_diff_weights_md, 1);
+            ipd.diff_bias_desc = q(dnnl_query_diff_weights_md, 1);
         else
-            ipd.bias_desc = q(mkldnn_query_weights_md, 1);
+            ipd.bias_desc = q(dnnl_query_weights_md, 1);
     }
 
     if (p->dir & FLAG_BWD)
-        ipd.diff_dst_desc = q(mkldnn_query_diff_dst_md);
+        ipd.diff_dst_desc = q(dnnl_query_diff_dst_md);
     else
-        ipd.dst_desc = q(mkldnn_query_dst_md);
+        ipd.dst_desc = q(dnnl_query_dst_md);
 
     return OK;
 }
@@ -193,7 +192,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
-    dnn_mem_t mem_00(mem_dt.md_, mkldnn_f32, get_default_tag(mem_dt.md_.ndims),
+    dnn_mem_t mem_00(mem_dt.md_, dnnl_f32, get_default_tag(mem_dt.md_.ndims),
             engine_ref);
 
     const auto nelems = mem_dt.nelems();
@@ -201,7 +200,7 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
     const auto &c = p->cfg[kind];
 
-    mkldnn::impl::parallel(0, [&](int ithr, int nthr) {
+    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
         int64_t chunk_size = (nelems + nthr - 1) / nthr;
         int64_t idx_start = ithr * chunk_size;
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
@@ -220,15 +219,15 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 }
 
 int doit(const prb_t *p, res_t *r) {
-    mkldnn_inner_product_desc_t ipd;
-    mkldnn_primitive_desc_t ippd;
-    mkldnn_primitive_t ip;
+    dnnl_inner_product_desc_t ipd;
+    dnnl_primitive_desc_t ippd;
+    dnnl_primitive_t ip;
 
     SAFE(init_pd(p, ipd, ippd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    DNN_SAFE(mkldnn_primitive_create(&ip, ippd), WARN);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(ippd), CRIT);
+    DNN_SAFE(dnnl_primitive_create(&ip, ippd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(ippd), CRIT);
 
     auto &src_dt_d = p->dir == BWD_D ? ipd.diff_src_desc : ipd.src_desc;
     auto &wei_dt_d
@@ -236,13 +235,13 @@ int doit(const prb_t *p, res_t *r) {
     auto &bia_dt_d = p->dir & FLAG_BWD ? ipd.diff_bias_desc : ipd.bias_desc;
     auto &dst_dt_d = p->dir & FLAG_BWD ? ipd.diff_dst_desc : ipd.dst_desc;
 
-    const auto fp = mkldnn_f32;
+    const auto fp = dnnl_f32;
     dnn_mem_t src_dt(
-            src_dt_d, p->cfg[SRC].dt, mkldnn_format_tag_undef, engine_tgt);
+            src_dt_d, p->cfg[SRC].dt, dnnl_format_tag_undef, engine_tgt);
     dnn_mem_t wei_dt(
-            wei_dt_d, p->cfg[WEI].dt, mkldnn_format_tag_undef, engine_tgt);
+            wei_dt_d, p->cfg[WEI].dt, dnnl_format_tag_undef, engine_tgt);
     dnn_mem_t dst_dt(
-            dst_dt_d, p->cfg[DST].dt, mkldnn_format_tag_undef, engine_tgt);
+            dst_dt_d, p->cfg[DST].dt, dnnl_format_tag_undef, engine_tgt);
     dnn_mem_t bia_dt = p->dir & FLAG_BIA
             ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt)
             : dnn_mem_t();
@@ -251,9 +250,9 @@ int doit(const prb_t *p, res_t *r) {
     const auto wei_tag = get_default_tag(wei_dt.md_.ndims);
     dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref);
     dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_ref);
-    dnn_mem_t dst_fp(dst_dt_d, fp, mkldnn_nc, engine_ref);
+    dnn_mem_t dst_fp(dst_dt_d, fp, dnnl_nc, engine_ref);
     dnn_mem_t bia_fp = p->dir & FLAG_BIA
-            ? dnn_mem_t(bia_dt_d, fp, mkldnn_x, engine_ref)
+            ? dnn_mem_t(bia_dt_d, fp, dnnl_x, engine_ref)
             : dnn_mem_t();
 
     SAFE(fill_data(SRC, p, src_dt, src_fp, r), WARN);
@@ -264,20 +263,20 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        args.set(MKLDNN_ARG_SRC, src_dt.m_);
-        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
-        if (p->dir & FLAG_BIA) args.set(MKLDNN_ARG_BIAS, bia_dt.m_);
-        args.set(MKLDNN_ARG_DST, dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_WEIGHTS, wei_dt.m_);
+        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_BIAS, bia_dt.m_);
+        args.set(DNNL_ARG_DST, dst_dt.m_);
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
-            dnn_mem_t dst(dst_dt, fp, mkldnn_nc, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, dnnl_nc, engine_ref);
             SAFE(compare_dat(p, DST, dst, dst_fp, r), WARN);
         }
     } else if (p->dir == BWD_D) {
-        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.m_);
-        args.set(MKLDNN_ARG_WEIGHTS, wei_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_SRC, src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, dst_dt.m_);
+        args.set(DNNL_ARG_WEIGHTS, wei_dt.m_);
+        args.set(DNNL_ARG_DIFF_SRC, src_dt.m_);
 
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
 
@@ -287,10 +286,10 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_dat(p, SRC, src, src_fp, r), WARN);
         }
     } else if (p->dir & FLAG_BWD && p->dir & FLAG_WEI) {
-        args.set(MKLDNN_ARG_SRC, src_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_DST, dst_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_WEIGHTS, wei_dt.m_);
-        if (p->dir & FLAG_BIA) args.set(MKLDNN_ARG_DIFF_BIAS, bia_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, dst_dt.m_);
+        args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt.m_);
+        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_DIFF_BIAS, bia_dt.m_);
 
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args.size(), args), WARN);
 
@@ -299,7 +298,7 @@ int doit(const prb_t *p, res_t *r) {
             dnn_mem_t wei(wei_dt, fp, wei_tag, engine_ref);
             if (compare_dat(p, WEI, wei, wei_fp, r) != OK) return FAIL;
             if (p->dir & FLAG_BIA) {
-                dnn_mem_t bia(bia_dt, fp, mkldnn_x, engine_ref);
+                dnn_mem_t bia(bia_dt, fp, dnnl_x, engine_ref);
                 SAFE(compare_dat(p, BIA, bia, bia_fp, r), WARN);
             }
         }
@@ -307,7 +306,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, ip, args);
 
-    DNN_SAFE(mkldnn_primitive_destroy(ip), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(ip), CRIT);
 
     return OK;
 }

@@ -20,12 +20,12 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "nstl.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
+
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct concat_pd_t : public primitive_desc_t {
@@ -39,16 +39,29 @@ struct concat_pd_t : public primitive_desc_t {
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             src_mds_.push_back(src_mds[i]);
+
+        // Fill a desc that is intended for internal use only
+        desc_ = concat_desc_t();
+        desc_.primitive_kind = primitive_kind::concat;
+        desc_.dst_md = dst_md_;
+        desc_.n = n_;
+        desc_.concat_dimension = concat_dim_;
+        desc_.src_mds = src_mds_;
+    }
+
+    const concat_desc_t *desc() const { return &desc_; }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg >= MKLDNN_ARG_MULTIPLE_SRC
-                && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
+        if (arg >= DNNL_ARG_MULTIPLE_SRC
+                && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -72,14 +85,15 @@ struct concat_pd_t : public primitive_desc_t {
 protected:
     int n_, concat_dim_;
     memory_desc_t dst_md_;
-    nstl::vector<memory_desc_t> src_mds_;
+    std::vector<memory_desc_t> src_mds_;
 
     /* contains images of srcs in the dst memory (if possible)
      * Lives here to simplify some implementations. An implementation might
      * use this auxiliary array iff init() returned success */
-    nstl::vector<memory_desc_t> src_image_mds_;
+    std::vector<memory_desc_t> src_image_mds_;
 
 protected:
+    concat_desc_t desc_;
     /* inits src_image_mds_ and dst_md_ in simple cases. The call may fail */
     status_t init() {
         bool ok = true && set_default_params() == status::success
@@ -102,7 +116,7 @@ protected:
             offsets[concat_dim_] = current_concat_dim_offset;
 
             memory_desc_t src_img_d;
-            status_t status = mkldnn_memory_desc_init_submemory(
+            status_t status = dnnl_memory_desc_init_submemory(
                     &src_img_d, &dst_md_, dims, offsets);
             if (status != status::success) return status;
             src_image_mds_.push_back(src_img_d);
@@ -145,7 +159,7 @@ protected:
                 offsets[concat_dim_] = current_concat_dim_offset;
 
                 memory_desc_t src_img_d;
-                status_t status = mkldnn_memory_desc_init_submemory(
+                status_t status = dnnl_memory_desc_init_submemory(
                         &src_img_d, &dst_md_, dims, offsets);
                 if (status != status::success) {
                     desired_format_ok = false;
@@ -188,27 +202,24 @@ protected:
             delete _pd; \
             return unimplemented; \
         } \
+        _pd->init_info(); \
+        _pd->init_scratchpad_md(); \
         return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
     } \
     virtual status_t create_primitive(primitive_t **p) const override { \
-        double ms = get_msec(); \
-        auto ret = safe_ptr_assign<primitive_t>(*p, new (__VA_ARGS__)(this)); \
-        status_t status = (*p)->init(); \
-        if (status != status::success) return status; \
-        ms = get_msec() - ms; \
-        if (mkldnn_verbose()->level >= 2) { \
-            printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \
-            fflush(0); \
-        } \
-        return ret; \
+        auto status = this->engine()->get_primitive( \
+                p, this, [=] { return std::make_shared<__VA_ARGS__>(this); }, \
+                false); \
+        return status; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual const char *name() const override { return impl_name; }
+    virtual const char *name() const override { return impl_name; } \
+    virtual std::type_index impl_id() const override { return typeid(pd_t); }
 
 #define DECLARE_CONCAT_PD_T(impl_name, ...) \
     DECLARE_CONCAT_PD_t(impl_name, __VA_ARGS__)
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

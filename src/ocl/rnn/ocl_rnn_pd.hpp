@@ -25,7 +25,7 @@
 #include "ocl/ocl_engine.hpp"
 #include "ocl/rnn/rnn_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -130,6 +130,6 @@ protected:
 };
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

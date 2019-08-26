@@ -23,11 +23,11 @@
 
 #include "jit_transpose_src_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 #define GET_OFF(x) offsetof(ctx_t, x)
@@ -1218,4 +1218,4 @@ jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf) {
 }
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

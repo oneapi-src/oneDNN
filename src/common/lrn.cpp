@@ -15,18 +15,18 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
@@ -69,20 +69,18 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t mkldnn_lrn_forward_desc_init(lrn_desc_t *lrn_desc,
-        prop_kind_t prop_kind, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, dim_t local_size, float alpha,
-        float beta, float k) {
+status_t dnnl_lrn_forward_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
+        alg_kind_t alg_kind, const memory_desc_t *data_desc, dim_t local_size,
+        float alpha, float beta, float k) {
     if (!one_of(prop_kind, forward_training, forward_inference))
         return invalid_arguments;
     return lrn_desc_init(lrn_desc, prop_kind, alg_kind, data_desc, nullptr,
             local_size, alpha, beta, k);
 }
 
-status_t mkldnn_lrn_backward_desc_init(lrn_desc_t *lrn_desc,
-        alg_kind_t alg_kind, const memory_desc_t *data_desc,
-        const memory_desc_t *diff_data_desc, dim_t local_size, float alpha,
-        float beta, float k) {
+status_t dnnl_lrn_backward_desc_init(lrn_desc_t *lrn_desc, alg_kind_t alg_kind,
+        const memory_desc_t *data_desc, const memory_desc_t *diff_data_desc,
+        dim_t local_size, float alpha, float beta, float k) {
     return lrn_desc_init(lrn_desc, backward_data, alg_kind, data_desc,
             diff_data_desc, local_size, alpha, beta, k);
 }

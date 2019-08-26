@@ -17,20 +17,20 @@
 #ifndef GEMM_PD_HPP
 #define GEMM_PD_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/primitive_desc.hpp"
 #include "common/utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct gemm_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::gemm;
 
-    gemm_pd_t(mkldnn::impl::engine_t *engine, const gemm_desc_t *adesc,
+    gemm_pd_t(dnnl::impl::engine_t *engine, const gemm_desc_t *adesc,
             const primitive_attr_t *attr)
         : primitive_desc_t(engine, attr, base_pkind)
         , desc_(*adesc)
@@ -44,10 +44,10 @@ struct gemm_pd_t : public primitive_desc_t {
     }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, MKLDNN_ARG_SRC_0, MKLDNN_ARG_SRC_1))
+        if (utils::one_of(arg, DNNL_ARG_SRC_0, DNNL_ARG_SRC_1))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -90,6 +90,6 @@ private:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

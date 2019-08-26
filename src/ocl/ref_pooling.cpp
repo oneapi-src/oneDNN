@@ -18,15 +18,15 @@
 #include <math.h>
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
-#include "common/mkldnn_thread.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "compute/compute.hpp"
 
 #include "ocl/ref_pooling.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -34,9 +34,9 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
-    auto &ws = CTX_OUT_STORAGE(MKLDNN_ARG_WORKSPACE);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
     const auto &jpp = ker_->jpp;
 
@@ -55,9 +55,9 @@ status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &ws = CTX_IN_STORAGE(MKLDNN_ARG_WORKSPACE);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &ws = CTX_IN_STORAGE(DNNL_ARG_WORKSPACE);
 
     const auto &jpp = ker_->jpp;
 
@@ -74,4 +74,4 @@ status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

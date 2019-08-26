@@ -20,11 +20,12 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "cpu_engine.hpp"
 #include "eltwise_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -38,7 +39,7 @@ struct cpu_eltwise_bwd_pd_t : public eltwise_bwd_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

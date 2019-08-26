@@ -16,16 +16,16 @@
 
 #include <cmath>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
 #define CPU_INST_TEST_CASE(str, ...) \
     CPU_INSTANTIATE_TEST_SUITE_P( \
             str, lnorm_test, ::testing::Values(__VA_ARGS__));
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_lnorm_params_t {
     memory::format_tag data_tag;
@@ -34,7 +34,7 @@ struct test_lnorm_params_t {
     memory::dims dims;
     float epsilon;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename T>
@@ -172,15 +172,15 @@ protected:
     void execlnormFwd(
             bool isTraining, bool useGlobalStats, bool useScaleShift) {
         std::unordered_map<int, memory> args = {
-                {MKLDNN_ARG_SRC, src->get()},
-                {MKLDNN_ARG_DST, dst->get()},
+                {DNNL_ARG_SRC, src->get()},
+                {DNNL_ARG_DST, dst->get()},
         };
 
-        if (useScaleShift) args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
+        if (useScaleShift) args.insert({DNNL_ARG_SCALE_SHIFT, weights});
 
         if (isTraining || useGlobalStats) {
-            args.insert({MKLDNN_ARG_MEAN, mean});
-            args.insert({MKLDNN_ARG_VARIANCE, variance});
+            args.insert({DNNL_ARG_MEAN, mean});
+            args.insert({DNNL_ARG_VARIANCE, variance});
         }
 
         layer_normalization_forward(lnorm_fwd_pd).execute(strm, args);
@@ -189,17 +189,17 @@ protected:
 
     void execlnormBwd(bool useScaleShift, prop_kind pk) {
         std::unordered_map<int, memory> args = {
-                {MKLDNN_ARG_SRC, src->get()},
-                {MKLDNN_ARG_DIFF_DST, diff_dst->get()},
-                {MKLDNN_ARG_MEAN, mean},
-                {MKLDNN_ARG_VARIANCE, variance},
-                {MKLDNN_ARG_DIFF_SRC, diff_src->get()},
+                {DNNL_ARG_SRC, src->get()},
+                {DNNL_ARG_DIFF_DST, diff_dst->get()},
+                {DNNL_ARG_MEAN, mean},
+                {DNNL_ARG_VARIANCE, variance},
+                {DNNL_ARG_DIFF_SRC, diff_src->get()},
         };
 
         if (useScaleShift) {
-            args.insert({MKLDNN_ARG_SCALE_SHIFT, weights});
+            args.insert({DNNL_ARG_SCALE_SHIFT, weights});
             if (pk == prop_kind::backward)
-                args.insert({MKLDNN_ARG_DIFF_SCALE_SHIFT, diff_weights});
+                args.insert({DNNL_ARG_DIFF_SCALE_SHIFT, diff_weights});
         }
 
         layer_normalization_backward(lnorm_bwd_pd).execute(strm, args);
@@ -234,20 +234,20 @@ protected:
         const memory::desc dst_d = dst.get_desc();
         const memory::desc weights_d
                 = use_weights ? weights.get_desc() : memory::desc();
-        const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-        const mkldnn::impl::memory_desc_wrapper stat_mdw((*stat_d).data);
-        const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-        const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+        const dnnl::impl::memory_desc_wrapper stat_mdw((*stat_d).data);
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
 
         if (!calculate_stats || is_training) {
             const memory::desc stat_d = mean.get_desc();
-            const mkldnn::impl::memory_desc_wrapper stat_mdw(stat_d.data);
+            const dnnl::impl::memory_desc_wrapper stat_mdw(stat_d.data);
         }
         const auto ndims = src_mdw.ndims();
         const auto C = src_mdw.dims()[ndims - 1];
 
         float eps = static_cast<float>(1.e-4 * nelems / C);
-        mkldnn::impl::parallel_nd(nelems / C, [&](memory::dim n) {
+        dnnl::impl::parallel_nd(nelems / C, [&](memory::dim n) {
             if (is_current_test_failed()) return;
             float ref_mean = float(0);
             float ref_variance = float(0);
@@ -343,12 +343,12 @@ protected:
         const memory::desc diff_src_d = diff_src.get_desc();
         const memory::desc diff_weights_d = diff_weights.get_desc();
 
-        const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-        const mkldnn::impl::memory_desc_wrapper stat_mdw((*stat_d).data);
-        const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-        const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-        const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
-        const mkldnn::impl::memory_desc_wrapper diff_weights_mdw(
+        const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+        const dnnl::impl::memory_desc_wrapper stat_mdw((*stat_d).data);
+        const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+        const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+        const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+        const dnnl::impl::memory_desc_wrapper diff_weights_mdw(
                 diff_weights_d.data);
 
         const auto ndims = src_mdw.ndims();
@@ -370,7 +370,7 @@ protected:
 
         const float eps = static_cast<float>(1.e-4 * nelems / C);
 
-        mkldnn::impl::parallel_nd(C, [&](memory::dim c) {
+        dnnl::impl::parallel_nd(C, [&](memory::dim c) {
             if (is_current_test_failed()) return;
 
             float ref_diff_gamma = float(0);
@@ -431,4 +431,4 @@ protected:
 TEST_P(lnorm_test, TestsLnormF32) {}
 
 #include "layer_normalization.h"
-} // namespace mkldnn
+} // namespace dnnl

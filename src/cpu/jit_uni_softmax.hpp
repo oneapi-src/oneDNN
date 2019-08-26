@@ -24,10 +24,9 @@
 #include "utils.hpp"
 
 #include "cpu_isa_traits.hpp"
-#include "cpu_primitive.hpp"
 #include "cpu_softmax_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -37,15 +36,15 @@ struct driver_t;
 }
 
 template <cpu_isa_t isa>
-struct jit_uni_softmax_fwd_t : public cpu_primitive_t {
+struct jit_uni_softmax_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
             : cpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", isa, ""),
-                jit_uni_softmax_fwd_t<isa>);
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_fwd_t);
 
         status_t init() {
             auto is_dense = [&]() {
@@ -80,14 +79,14 @@ struct jit_uni_softmax_fwd_t : public cpu_primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     softmax_impl::driver_t<isa> *softmax_driver_;
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

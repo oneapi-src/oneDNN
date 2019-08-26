@@ -15,18 +15,18 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
@@ -48,20 +48,20 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
         bd.diff_data_desc = *diff_data_desc;
 
     dims_t scaleshift_dims = {2, data_desc->dims[1]};
-    mkldnn_memory_desc_init_by_tag(&bd.data_scaleshift_desc, 2, scaleshift_dims,
-            data_type::f32, mkldnn_nc);
+    dnnl_memory_desc_init_by_tag(&bd.data_scaleshift_desc, 2, scaleshift_dims,
+            data_type::f32, dnnl_nc);
     bd.diff_data_scaleshift_desc = zero_md();
     if (bd.prop_kind == backward) {
         bd.diff_data_scaleshift_desc = bd.data_scaleshift_desc;
     }
 
     dims_t stats_dims = {data_desc->dims[1]};
-    mkldnn_memory_desc_init_by_tag(
-            &bd.stat_desc, 1, stats_dims, data_type::f32, mkldnn_x);
+    dnnl_memory_desc_init_by_tag(
+            &bd.stat_desc, 1, stats_dims, data_type::f32, dnnl_x);
     bd.batch_norm_epsilon = epsilon;
 
-    unsigned bnorm_flags = mkldnn_use_global_stats | mkldnn_use_scaleshift
-            | mkldnn_fuse_norm_relu;
+    unsigned bnorm_flags
+            = dnnl_use_global_stats | dnnl_use_scaleshift | dnnl_fuse_norm_relu;
     if ((~bnorm_flags & flags) != 0) return invalid_arguments;
 
     bd.flags = flags;
@@ -79,7 +79,7 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
 }
 } // namespace
 
-status_t mkldnn_batch_normalization_forward_desc_init(
+status_t dnnl_batch_normalization_forward_desc_init(
         batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, float epsilon, unsigned flags) {
     if (!one_of(prop_kind, forward_training, forward_inference))
@@ -88,7 +88,7 @@ status_t mkldnn_batch_normalization_forward_desc_init(
             bnrm_desc, prop_kind, data_desc, nullptr, epsilon, flags);
 }
 
-status_t mkldnn_batch_normalization_backward_desc_init(
+status_t dnnl_batch_normalization_backward_desc_init(
         batch_normalization_desc_t *bnrm_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
         float epsilon, unsigned flags) {

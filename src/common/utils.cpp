@@ -23,10 +23,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 int getenv(const char *name, char *buffer, int buffer_size) {
@@ -116,17 +116,18 @@ static bool jit_dump_flag_initialized = false;
 bool jit_dump_enabled() {
     if (!jit_dump_flag_initialized) {
         jit_dump_flag = getenv_int("MKLDNN_JIT_DUMP");
+        jit_dump_flag = getenv_int("DNNL_JIT_DUMP", jit_dump_flag);
         jit_dump_flag_initialized = true;
     }
     return jit_dump_flag != 0;
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
-mkldnn_status_t mkldnn_set_jit_dump(int enabled) {
-    using namespace mkldnn::impl::status;
-    mkldnn::impl::jit_dump_flag = enabled;
-    mkldnn::impl::jit_dump_flag_initialized = true;
+dnnl_status_t dnnl_set_jit_dump(int enabled) {
+    using namespace dnnl::impl::status;
+    dnnl::impl::jit_dump_flag = enabled;
+    dnnl::impl::jit_dump_flag_initialized = true;
     return success;
 }

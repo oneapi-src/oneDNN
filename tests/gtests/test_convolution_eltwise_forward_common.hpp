@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "dnnl.hpp"
+#include "dnnl_test_common.hpp"
 #include "math_utils.hpp"
-#include "mkldnn.hpp"
-#include "mkldnn_test_common.hpp"
 #include "gtest/gtest.h"
 
-using namespace mkldnn::impl::math;
+using namespace dnnl::impl::math;
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_t_src, typename data_t_wei, typename data_t_acc,
         typename data_t_dst>
@@ -41,11 +41,11 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
 
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
-    mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
+    dnnl::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
             [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
                     memory::dim ow) {
                 memory::dim oidx = n * padded_oc * c.oh * c.ow
@@ -182,10 +182,10 @@ protected:
         }
 
         auto test = [&]() {
-            mkldnn::post_ops ops;
+            dnnl::post_ops ops;
             ops.append_eltwise(1.0, p.alg, p.eltwise_alpha, p.eltwise_beta);
 
-            mkldnn::primitive_attr attr;
+            dnnl::primitive_attr attr;
             attr.set_post_ops(ops);
 
             auto conv_desc = with_bias
@@ -203,10 +203,10 @@ protected:
 
             convolution_forward(conv_primitive_desc)
                     .execute(strm,
-                            {{MKLDNN_ARG_SRC, c_src},
-                                    {MKLDNN_ARG_WEIGHTS, c_weights},
-                                    {MKLDNN_ARG_BIAS, c_bias},
-                                    {MKLDNN_ARG_DST, c_dst}});
+                            {{DNNL_ARG_SRC, c_src},
+                                    {DNNL_ARG_WEIGHTS, c_weights},
+                                    {DNNL_ARG_BIAS, c_bias},
+                                    {DNNL_ARG_DST, c_dst}});
             strm.wait();
         };
 
@@ -223,4 +223,4 @@ protected:
     }
 };
 
-} // namespace mkldnn
+} // namespace dnnl

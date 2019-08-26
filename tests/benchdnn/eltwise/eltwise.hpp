@@ -19,12 +19,12 @@
 
 #include <iostream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace eltwise {
@@ -32,8 +32,8 @@ namespace eltwise {
 using alg_t = attr_t::post_ops_t::kind_t;
 
 struct prb_t {
-    prb_t(const dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, alg_t alg, float alpha, float beta,
+    prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
+            dnnl_format_tag_t tag, alg_t alg, float alpha, float beta,
             bool inplace, int64_t mb = 0)
         : dims(dims)
         , dir(dir)
@@ -49,8 +49,8 @@ struct prb_t {
 
     dims_t dims;
     dir_t dir;
-    mkldnn_data_type_t dt;
-    mkldnn_format_tag_t tag;
+    dnnl_data_type_t dt;
+    dnnl_format_tag_t tag;
     alg_t alg;
     float alpha, beta;
     bool inplace;
@@ -74,8 +74,8 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
-    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

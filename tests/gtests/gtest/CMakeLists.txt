@@ -1,6 +1,6 @@
 # Do not modify this file
 
-set(TARGET_NAME mkldnn_gtest)
+set(TARGET_NAME dnnl_gtest)
 set(MAIN_SRC "src/gtest-all.cc")
 source_group("" FILES ${MAIN_SRC})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}

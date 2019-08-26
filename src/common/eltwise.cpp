@@ -15,18 +15,18 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
@@ -41,8 +41,8 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                     eltwise_exp, eltwise_gelu, eltwise_swish)
             && IMPLICATION(
                     prop_kind == backward_data, diff_data_desc != nullptr)
-            && IMPLICATION(one_of(data_desc->data_type, mkldnn_s32, mkldnn_s8,
-                                   mkldnn_u8),
+            && IMPLICATION(
+                    one_of(data_desc->data_type, dnnl_s32, dnnl_s8, dnnl_u8),
                     alg_kind == eltwise_relu && alpha == 0);
     if (!args_ok) return invalid_arguments;
 
@@ -69,7 +69,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t mkldnn_eltwise_forward_desc_init(eltwise_desc_t *eltwise_desc,
+status_t dnnl_eltwise_forward_desc_init(eltwise_desc_t *eltwise_desc,
         prop_kind_t prop_kind, alg_kind_t alg_kind,
         const memory_desc_t *data_desc, float alpha, float beta) {
     if (!one_of(prop_kind, forward_training, forward_inference))
@@ -78,7 +78,7 @@ status_t mkldnn_eltwise_forward_desc_init(eltwise_desc_t *eltwise_desc,
             eltwise_desc, prop_kind, alg_kind, data_desc, nullptr, alpha, beta);
 }
 
-status_t mkldnn_eltwise_backward_desc_init(eltwise_desc_t *eltwise_desc,
+status_t dnnl_eltwise_backward_desc_init(eltwise_desc_t *eltwise_desc,
         alg_kind_t alg_kind, const memory_desc_t *diff_data_desc,
         const memory_desc_t *data_desc, float alpha, float beta) {
     return eltwise_desc_init(eltwise_desc, backward_data, alg_kind, data_desc,

@@ -20,20 +20,31 @@
 #include <assert.h>
 #include <atomic>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
-#include "nstl.hpp"
-#include "primitive_desc.hpp"
+#include "memory_tracking.hpp"
 #include "primitive_exec_types.hpp"
+#include "primitive_impl.hpp"
+#include "scratchpad.hpp"
 
-namespace mkldnn {
+#include <type_traits>
+
+#define ARG_TYPE(t) \
+    typename std::remove_cv<typename std::remove_pointer<t>::type>::type
+
+#define CTX_IN_MEM(type, arg) \
+    static_cast<const ARG_TYPE(type) *>(ctx.host_ptr(arg))
+
+#define CTX_OUT_MEM(type, arg) static_cast<ARG_TYPE(type) *>(ctx.host_ptr(arg))
+
+namespace dnnl {
 namespace impl {
 
 status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx);
 
 }
-}
+} // namespace dnnl
 
 /** \brief A pure virtual primitive class
  *
@@ -53,26 +64,20 @@ status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx);
  *   in natural order: i.e. from bottom to top for forward pass and from top to
  *   bottom for backward pass. Please consider restriction [1] in Level 0.
  */
-struct mkldnn_primitive : public mkldnn::impl::c_compatible {
-    mkldnn_primitive(const mkldnn::impl::primitive_desc_t *pd)
-        : pd_(pd->clone()), counter_(0) {
-        retain();
-    }
+struct dnnl_primitive : public dnnl::impl::c_compatible {
+    dnnl_primitive(
+            const std::shared_ptr<dnnl::impl::primitive_impl_t> &primitive_impl,
+            bool use_global_scratchpad);
 
-    virtual mkldnn::impl::status_t init() {
-        return mkldnn::impl::status::success;
-    }
+    dnnl::impl::status_t init();
+    dnnl::impl::engine_t *engine() const;
+    const dnnl::impl::primitive_desc_t *pd() const;
+    const std::shared_ptr<dnnl::impl::primitive_impl_t> &
+    get_primitive_impl() const;
+    dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
-    /** returns primitive's engine */
-    mkldnn::impl::engine_t *engine() const { return pd_->engine(); }
-    /** returns primitive's inputs */
-    const mkldnn::impl::primitive_desc_t *pd() const { return pd_; }
-    /** returns primitive's kind */
-    mkldnn::impl::primitive_kind_t kind() const { return pd_->kind(); }
-
-    /** executes primitive with execution context @p ctx */
-    virtual mkldnn::impl::status_t execute(
-            const mkldnn::impl::exec_ctx_t &ctx) const = 0;
+    const dnnl::impl::memory_storage_t *scratchpad_memory_storage(
+            const dnnl::impl::exec_ctx_t &ctx) const;
 
     void retain() { counter_++; }
 
@@ -81,15 +86,16 @@ struct mkldnn_primitive : public mkldnn::impl::c_compatible {
     }
 
 protected:
-    const mkldnn::impl::primitive_desc_t *pd_;
-
-    virtual ~mkldnn_primitive() { delete pd_; }
+    ~dnnl_primitive() = default;
 
 private:
     std::atomic<int> counter_;
+    std::shared_ptr<dnnl::impl::primitive_impl_t> primitive_impl_;
+    std::unique_ptr<dnnl::impl::memory_storage_t> scratchpad_buffer_;
+    std::unique_ptr<dnnl::impl::scratchpad_t> global_scratchpad_;
 
-    mkldnn_primitive() = delete;
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_primitive);
+    dnnl_primitive() = delete;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);
 };
 
 #endif

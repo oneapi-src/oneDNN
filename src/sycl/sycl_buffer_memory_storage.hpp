@@ -25,7 +25,7 @@
 #include "sycl/sycl_memory_storage_base.hpp"
 #include "sycl/sycl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -62,6 +62,6 @@ private:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // SYCL_BUFFER_MEMORY_STORAGE_HPP

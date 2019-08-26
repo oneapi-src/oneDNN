@@ -58,14 +58,14 @@ def template(body, year_from):
 
 def header(body):
     return '''\
-#ifndef MKLDNN_DEBUG_H
-#define MKLDNN_DEBUG_H
+#ifndef DNNL_DEBUG_H
+#define DNNL_DEBUG_H
 
 /// @file
 /// Debug capabilities
 
-#include "mkldnn_config.h"
-#include "mkldnn_types.h"
+#include "dnnl_config.h"
+#include "dnnl_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -83,14 +83,14 @@ extern "C" {
 ///  - fmt_kind -- format kind (blocked, wino, etc...)
 ///  - fmt      -- extended format string (format_kind specific)
 ///  - extra    -- shows extra fields (underspecified)
-int MKLDNN_API mkldnn_md2fmt_str(char *fmt_str, size_t fmt_str_len,
-        const mkldnn_memory_desc_t *md);
+int DNNL_API dnnl_md2fmt_str(char *fmt_str, size_t fmt_str_len,
+        const dnnl_memory_desc_t *md);
 
 /// Forms a dimension string for a given memory descriptor.
 ///
 /// The format is defined as: 'dim0xdim1x...xdimN
-int MKLDNN_API mkldnn_md2dim_str(char *dim_str, size_t dim_str_len,
-        const mkldnn_memory_desc_t *md);
+int DNNL_API dnnl_md2dim_str(char *dim_str, size_t dim_str_len,
+        const dnnl_memory_desc_t *md);
 
 #ifdef __cplusplus
 }
@@ -104,8 +104,8 @@ def source(body):
     return '''\
 #include <assert.h>
 
-#include "mkldnn_debug.h"
-#include "mkldnn_types.h"
+#include "dnnl_debug.h"
+#include "dnnl_types.h"
 
 %s
 ''' % body
@@ -113,20 +113,20 @@ def source(body):
 
 def header_benchdnn(body):
     return '''\
-#ifndef MKLDNN_DEBUG_HPP
-#define MKLDNN_DEBUG_HPP
+#ifndef DNNL_DEBUG_HPP
+#define DNNL_DEBUG_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 %s
 /* status */
-const char *status2str(mkldnn_status_t status);
+const char *status2str(dnnl_status_t status);
 
 /* data type */
-const char *dt2str(mkldnn_data_type_t dt);
+const char *dt2str(dnnl_data_type_t dt);
 
 /* format */
-const char *fmt_tag2str(mkldnn_format_tag_t tag);
+const char *fmt_tag2str(dnnl_format_tag_t tag);
 
 #endif
 ''' % body
@@ -137,64 +137,64 @@ def source_benchdnn(body):
 #include <assert.h>
 #include <string.h>
 
-#include "mkldnn_debug.h"
-#include "mkldnn_debug.hpp"
+#include "dnnl_debug.h"
+#include "dnnl_debug.hpp"
 
 #include "src/common/z_magic.hpp"
 
 %s
 
-const char *status2str(mkldnn_status_t status) {
-    return mkldnn_status2str(status);
+const char *status2str(dnnl_status_t status) {
+    return dnnl_status2str(status);
 }
 
-const char *dt2str(mkldnn_data_type_t dt) {
-    return mkldnn_dt2str(dt);
+const char *dt2str(dnnl_data_type_t dt) {
+    return dnnl_dt2str(dt);
 }
 
-const char *fmt_tag2str(mkldnn_format_tag_t tag) {
-    return mkldnn_fmt_tag2str(tag);
+const char *fmt_tag2str(dnnl_format_tag_t tag) {
+    return dnnl_fmt_tag2str(tag);
 }
 ''' % body.rstrip()
 
 
 def maybe_skip(enum):
     return enum in (
-        'mkldnn_batch_normalization_flag_t',
-        'mkldnn_memory_extra_flags_t',
-        'mkldnn_wino_memory_format_t',
-        'mkldnn_rnn_cell_flags_t',
-        'mkldnn_rnn_packed_memory_format_t',
-        'mkldnn_batch_normalization_flags_t',
-        'mkldnn_query_t',
-        'mkldnn_stream_flags_t',
+        'dnnl_batch_normalization_flag_t',
+        'dnnl_memory_extra_flags_t',
+        'dnnl_wino_memory_format_t',
+        'dnnl_rnn_cell_flags_t',
+        'dnnl_rnn_packed_memory_format_t',
+        'dnnl_batch_normalization_flags_t',
+        'dnnl_query_t',
+        'dnnl_stream_flags_t',
         )
 
 
 def enum_abbrev(enum):
-    def_enum = re.sub(r'^mkldnn_', '', enum)
+    def_enum = re.sub(r'^dnnl_', '', enum)
     def_enum = re.sub(r'_t$', '', def_enum)
     return {
-        'mkldnn_data_type_t': 'dt',
-        'mkldnn_format_kind_t': 'fmt_kind',
-        'mkldnn_format_tag_t': 'fmt_tag',
-        'mkldnn_primitive_kind_t': 'prim_kind',
-        'mkldnn_engine_kind_t': 'engine_kind',
+        'dnnl_data_type_t': 'dt',
+        'dnnl_format_kind_t': 'fmt_kind',
+        'dnnl_format_tag_t': 'fmt_tag',
+        'dnnl_primitive_kind_t': 'prim_kind',
+        'dnnl_engine_kind_t': 'engine_kind',
     }.get(enum, def_enum)
 
 
 def sanitize_value(v):
     if 'undef' in v:
         return 'undef'
-    v = v.split('mkldnn_format_kind_')[-1]
-    v = v.split('mkldnn_')[-1]
+    v = v.split('dnnl_format_kind_')[-1]
+    v = v.split('dnnl_')[-1]
     return v
 
 
 def func_to_str_decl(enum, is_header=False):
     abbrev = enum_abbrev(enum)
-    return 'const char %s*mkldnn_%s2str(%s v)' % \
-        ('MKLDNN_API ' if is_header else '', abbrev, enum)
+    return 'const char %s*dnnl_%s2str(%s v)' % \
+        ('DNNL_API ' if is_header else '', abbrev, enum)
 
 
 def func_to_str(enum, values):
@@ -210,23 +210,23 @@ def func_to_str(enum, values):
     return func
 
 
-def str_to_func_decl(enum, is_header=False, is_mkldnn=True):
-    attr = 'MKLDNN_API ' if is_header and is_mkldnn else ''
-    prefix = 'mkldnn_' if is_mkldnn else ''
+def str_to_func_decl(enum, is_header=False, is_dnnl=True):
+    attr = 'DNNL_API ' if is_header and is_dnnl else ''
+    prefix = 'dnnl_' if is_dnnl else ''
     abbrev = enum_abbrev(enum)
     return '%s %s%sstr2%s(const char *str)' % \
         (enum, attr, prefix, abbrev)
 
 
-def str_to_func(enum, values, is_mkldnn=True):
+def str_to_func(enum, values, is_dnnl=True):
     indent = '    '
     abbrev = enum_abbrev(enum)
     func = ''
-    func += str_to_func_decl(enum, is_mkldnn=is_mkldnn) + ' {\n'
+    func += str_to_func_decl(enum, is_dnnl=is_dnnl) + ' {\n'
     func += '''#define CASE(_case) do { \\
     if (!strcmp(STRINGIFY(_case), str) \\
-            || !strcmp("mkldnn_" STRINGIFY(_case), str)) \\
-        return CONCAT2(mkldnn_, _case); \\
+            || !strcmp("dnnl_" STRINGIFY(_case), str)) \\
+        return CONCAT2(dnnl_, _case); \\
 } while (0)
 '''
     special_values = []
@@ -262,11 +262,11 @@ def generate(ifile, banner_years):
                   for v_value in v_enum.findall('EnumValue')]
         h_body += func_to_str_decl(enum, is_header=True) + ';\n'
         s_body += func_to_str(enum, values) + '\n'
-        if enum in ['mkldnn_format_tag_t', 'mkldnn_data_type_t']:
+        if enum in ['dnnl_format_tag_t', 'dnnl_data_type_t']:
             h_benchdnn_body += str_to_func_decl(
-                enum, is_header=True, is_mkldnn=False) + ';\n'
+                enum, is_header=True, is_dnnl=False) + ';\n'
             s_benchdnn_body += str_to_func(
-                enum, values, is_mkldnn=False) + '\n'
+                enum, values, is_dnnl=False) + '\n'
     bodies = [
         header(h_body),
         source(s_body),
@@ -280,10 +280,10 @@ def usage():
     print('''\
 %s types.xml
 
-Generates MKL-DNN debug header and source files with enum to string mapping.
+Generates DNNL debug header and source files with enum to string mapping.
 Input types.xml file can be obtained with CastXML[1]:
 $ castxml --castxml-cc-gnu-c clang --castxml-output=1 \\
-        include/mkldnn_types.h -o types.xml
+        include/dnnl_types.h -o types.xml
 
 [1] https://github.com/CastXML/CastXML''' % sys.argv[0])
     sys.exit(1)
@@ -298,10 +298,10 @@ script_root = os.path.dirname(os.path.realpath(__file__))
 ifile = sys.argv[1] if len(sys.argv) > 1 else usage()
 
 file_paths = (
-    '%s/../include/mkldnn_debug.h' % script_root,
-    '%s/../src/common/mkldnn_debug_autogenerated.cpp' % script_root,
-    '%s/../tests/benchdnn/mkldnn_debug.hpp' % script_root,
-    '%s/../tests/benchdnn/mkldnn_debug_autogenerated.cpp' % script_root)
+    '%s/../include/dnnl_debug.h' % script_root,
+    '%s/../src/common/dnnl_debug_autogenerated.cpp' % script_root,
+    '%s/../tests/benchdnn/dnnl_debug.hpp' % script_root,
+    '%s/../tests/benchdnn/dnnl_debug_autogenerated.cpp' % script_root)
 
 banner_years = []
 for file_path in file_paths:

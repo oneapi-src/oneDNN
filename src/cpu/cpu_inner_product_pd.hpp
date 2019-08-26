@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "cpu_engine.hpp"
 #include "inner_product_pd.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -262,7 +263,7 @@ protected:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

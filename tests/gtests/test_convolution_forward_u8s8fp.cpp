@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 #include "test_convolution_forward_common.hpp"
-namespace mkldnn {
+namespace dnnl {
 
 using convolution_test
         = convolution_forward_test<uint8_t, int8_t, int32_t, float>;
@@ -32,4 +32,4 @@ TEST_P(convolution_test, TestConvolution) {}
 #include "convolution_common.h"
 #undef TEST_PARAM_ATTR
 
-} // namespace mkldnn
+} // namespace dnnl

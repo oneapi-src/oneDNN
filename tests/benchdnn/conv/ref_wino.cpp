@@ -264,7 +264,7 @@ int init_scratchpad(const prb_t *p, scratchpad_t &sp) {
             64);
 
     if (sp._u_ptr == NULL || sp._v_ptr == NULL || sp._m_ptr == NULL)
-        return mkldnn_out_of_memory;
+        return dnnl_out_of_memory;
 
     array_set((char *)sp._u_ptr,
             sizeof(float) * sp.alpha * sp.alpha * p->oc * p->ic);

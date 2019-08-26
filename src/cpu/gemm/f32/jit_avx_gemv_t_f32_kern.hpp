@@ -19,7 +19,7 @@
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -63,6 +63,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_AVX_GEMV_T_F32_KERN_HPP

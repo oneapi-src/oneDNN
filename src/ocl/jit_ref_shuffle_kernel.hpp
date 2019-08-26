@@ -23,7 +23,7 @@
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl_shuffle_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -96,6 +96,6 @@ struct jit_ref_shuffle_kernel {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_REF_SHUFFLE_KERNEL_HPP

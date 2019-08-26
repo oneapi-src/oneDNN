@@ -17,12 +17,12 @@
 #ifndef TEST_CONVOLUTION_BACKWARD_DATA_COMMON_H
 #define TEST_CONVOLUTION_BACKWARD_DATA_COMMON_H
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_t_diff_dst, typename data_t_wei, typename data_t_acc,
         typename data_t_diff_src>
@@ -39,11 +39,11 @@ void compute_ref_conv_bwd_data(const test_convolution_sizes_t &c,
     auto padded_ic = diff_src_d.data.padded_dims[1];
     auto padded_oc = diff_dst_d.data.padded_dims[1];
 
-    const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
-    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
 
-    mkldnn::impl::parallel_nd(c.mb, c.ng, c.ic / c.ng, c.ih, c.iw,
+    dnnl::impl::parallel_nd(c.mb, c.ng, c.ic / c.ng, c.ih, c.iw,
             [&](memory::dim mb, memory::dim g, memory::dim ic, memory::dim ih,
                     memory::dim iw) {
                 memory::dim sidx = mb * padded_ic * c.ih * c.iw
@@ -159,9 +159,9 @@ protected:
 
         convolution_backward_data(conv_bwd_data_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, c_diff_dst.get()},
-                                {MKLDNN_ARG_WEIGHTS, c_weights.get()},
-                                {MKLDNN_ARG_DIFF_SRC, c_diff_src.get()}});
+                        {{DNNL_ARG_DIFF_DST, c_diff_dst.get()},
+                                {DNNL_ARG_WEIGHTS, c_weights.get()},
+                                {DNNL_ARG_DIFF_SRC, c_diff_src.get()}});
         strm.wait();
 
         auto ref_memory = memory(c_src_desc, eng);
@@ -175,5 +175,5 @@ protected:
     }
 };
 
-} // namespace mkldnn
+} // namespace dnnl
 #endif

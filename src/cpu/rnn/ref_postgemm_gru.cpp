@@ -18,17 +18,17 @@
  * Cell execution LSTM
  */
 
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 
 #include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::math;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::math;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
@@ -176,4 +176,4 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part2_postgemm) {
 #undef AOC
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

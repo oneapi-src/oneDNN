@@ -7,7 +7,7 @@
 
 where *rnn-knobs* are:
 
- - `--prop={FWD_D [default], BWD_DW}` -- mkldnn_prop_kind_t.
+ - `--prop={FWD_D [default], BWD_DW}` -- dnnl_prop_kind_t.
             Refer to the common glossary in README.md for details.
  - `--cfg={f32 [default], ...}` -- refer to ``Configurations`` below.
  - `--alg={VANILLA_RNN [default], VANILLA_LSTM, VANILLA_GRU, LBR_GRU}`

@@ -18,22 +18,21 @@
 #define CPU_JIT_AVX2_1x1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "cpu_primitive.hpp"
 #include "cpu_reducer.hpp"
 
 #include "jit_avx2_1x1_conv_kernel_f32.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct jit_avx2_1x1_convolution_fwd_t : public cpu_primitive_t {
+struct jit_avx2_1x1_convolution_fwd_t : public primitive_impl_t {
     // TODO: (Roma) Code duplication duplication! Remove with templates
     //              (maybe...)!
     struct pd_t : public cpu_convolution_fwd_pd_t {
@@ -91,7 +90,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public cpu_primitive_t {
     friend void init_rtus_driver(conv_t *self);
 
     jit_avx2_1x1_convolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+        : primitive_impl_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
         kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
         init_rtus_driver<avx2>(this);
     }
@@ -110,13 +109,13 @@ struct jit_avx2_1x1_convolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     rtus_driver_t<avx2> *rtus_driver_;
 };
 
-struct jit_avx2_1x1_convolution_bwd_data_t : public cpu_primitive_t {
+struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -173,7 +172,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public cpu_primitive_t {
     friend void init_rtus_driver(conv_t *self);
 
     jit_avx2_1x1_convolution_bwd_data_t(const pd_t *apd)
-        : cpu_primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+        : primitive_impl_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
         kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
         init_rtus_driver<avx2>(this);
     }
@@ -192,13 +191,13 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     rtus_driver_t<avx2> *rtus_driver_;
 };
 
-struct jit_avx2_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
+struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -279,7 +278,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
             const int njobs_x = bcast_work;
             const int njobs_y = jcp_.ngroups * load_work;
 
-            const int max_threads = mkldnn_get_max_threads();
+            const int max_threads = dnnl_get_max_threads();
             const size_t max_buffer_size = max_threads * job_size * 8;
 
             if (with_bias()) {
@@ -317,7 +316,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public cpu_primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     cpu_reducer_2d_t<data_type::f32> *reducer_weights_;
@@ -327,6 +326,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

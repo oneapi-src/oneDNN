@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_inner_product_descr_t {
     memory::dim mb;
@@ -39,52 +39,45 @@ void compute_ref_inner_product_bwd_data(int ndims,
     const memory::desc diff_dst_d = diff_dst.get_desc();
     const memory::desc weights_d = weights.get_desc();
     const memory::desc diff_src_d = diff_src.get_desc();
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
-    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_src_mdw(diff_src_d.data);
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
     auto padded_ic = diff_src_d.data.padded_dims[1];
 
-    mkldnn::impl::parallel_nd(
-            ipd.mb, ipd.ic, [&](memory::dim n, memory::dim ic) {
-                if (has_spatial) {
-                    for_(memory::dim kd = 0; kd < ipd.kd; ++kd)
-                    for_(memory::dim kh = 0; kh < ipd.kh; ++kh)
-                    for (memory::dim kw = 0; kw < ipd.kw; ++kw) {
-                        memory::dim dsidx
-                                = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                                + ic * ipd.kd * ipd.kh * ipd.kw
-                                + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                        data_t *ds = &diff_src_data[diff_src_mdw.off_l(
-                                dsidx, true)];
-                        *ds = data_t(0);
-                        for (memory::dim oc = 0; oc < ipd.oc; ++oc) {
-                            memory::dim ddidx = n * ipd.oc + oc;
-                            memory::dim widx
-                                    = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
-                                    + ic * ipd.kd * ipd.kh * ipd.kw
-                                    + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
-                            *ds += diff_dst_data[diff_dst_mdw.off_l(
-                                           ddidx, true)]
-                                    * weights_data[weights_mdw.off_l(
-                                            widx, true)];
-                        }
-                    }
-                } else {
-                    memory::dim dsidx = n * ipd.ic + ic;
-                    data_t *ds
-                            = &diff_src_data[diff_src_mdw.off_l(dsidx, true)];
-                    *ds = data_t(0);
-                    for (memory::dim oc = 0; oc < ipd.oc; ++oc) {
-                        memory::dim ddidx = n * ipd.oc + oc;
-                        memory::dim widx = oc * ipd.ic + ic;
-                        *ds += diff_dst_data[diff_dst_mdw.off_l(ddidx, true)]
-                                * weights_data[weights_mdw.off_l(widx, true)];
-                    }
+    dnnl::impl::parallel_nd(ipd.mb, ipd.ic, [&](memory::dim n, memory::dim ic) {
+        if (has_spatial) {
+            for_(memory::dim kd = 0; kd < ipd.kd; ++kd)
+            for_(memory::dim kh = 0; kh < ipd.kh; ++kh)
+            for (memory::dim kw = 0; kw < ipd.kw; ++kw) {
+                memory::dim dsidx = n * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                        + ic * ipd.kd * ipd.kh * ipd.kw + kd * ipd.kh * ipd.kw
+                        + kh * ipd.kw + kw;
+                data_t *ds = &diff_src_data[diff_src_mdw.off_l(dsidx, true)];
+                *ds = data_t(0);
+                for (memory::dim oc = 0; oc < ipd.oc; ++oc) {
+                    memory::dim ddidx = n * ipd.oc + oc;
+                    memory::dim widx = oc * padded_ic * ipd.kd * ipd.kh * ipd.kw
+                            + ic * ipd.kd * ipd.kh * ipd.kw
+                            + kd * ipd.kh * ipd.kw + kh * ipd.kw + kw;
+                    *ds += diff_dst_data[diff_dst_mdw.off_l(ddidx, true)]
+                            * weights_data[weights_mdw.off_l(widx, true)];
                 }
-            });
+            }
+        } else {
+            memory::dim dsidx = n * ipd.ic + ic;
+            data_t *ds = &diff_src_data[diff_src_mdw.off_l(dsidx, true)];
+            *ds = data_t(0);
+            for (memory::dim oc = 0; oc < ipd.oc; ++oc) {
+                memory::dim ddidx = n * ipd.oc + oc;
+                memory::dim widx = oc * ipd.ic + ic;
+                *ds += diff_dst_data[diff_dst_mdw.off_l(ddidx, true)]
+                        * weights_data[weights_mdw.off_l(widx, true)];
+            }
+        }
+    });
 }
 
 struct inprod_test_params {
@@ -94,7 +87,7 @@ struct inprod_test_params {
     int ndims;
     test_inner_product_descr_t test_ipd;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -117,7 +110,7 @@ protected:
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
-        ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
+        ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 
         memory::dims diff_src_dims = {ipd.mb, ipd.ic},
                      wei_dims = {ipd.oc, ipd.ic};
@@ -169,9 +162,9 @@ protected:
 
         inner_product_backward_data(ip_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, ip_diff_dst},
-                                {MKLDNN_ARG_WEIGHTS, ip_weights},
-                                {MKLDNN_ARG_DIFF_SRC, ip_diff_src}});
+                        {{DNNL_ARG_DIFF_DST, ip_diff_dst},
+                                {DNNL_ARG_WEIGHTS, ip_weights},
+                                {DNNL_ARG_DIFF_SRC, ip_diff_src}});
         strm.wait();
 
         compute_ref_inner_product_bwd_data<data_t>(
@@ -206,15 +199,15 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardDataEF,
                 inprod_test_params_float {memory::format_tag::any,
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D(2, 0, 48, 6, 6), true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 inprod_test_params_float {memory::format_tag::any,
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D(-1, 32, 48, 6, 6), true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 inprod_test_params_float {memory::format_tag::any,
                         memory::format_tag::any, memory::format_tag::any,
                         EXPAND_SIZES_2D(2, -1, 48, 6, 6), true,
-                        mkldnn_invalid_arguments}));
+                        dnnl_invalid_arguments}));
 
 INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardData_nCdhw8c,
         inner_product_test_float,
@@ -334,4 +327,4 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardData3D,
                         memory::format_tag::dhwio, memory::format_tag::nc,
                         EXPAND_SIZES_3D(2, 16, 48, 3, 3, 3)}));
 
-} // namespace mkldnn
+} // namespace dnnl

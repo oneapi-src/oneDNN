@@ -21,7 +21,7 @@
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -35,7 +35,7 @@ struct jit_gen9_common_conv_fwd_kernel {
             const convolution_desc_t &cd, const memory_desc_t &src_md,
             const memory_desc_t &weights_md, const memory_desc_t &dst_md,
             const memory_desc_t &bias_md, const primitive_attr_t &attr) {
-        using namespace mkldnn::impl::format_tag;
+        using namespace dnnl::impl::format_tag;
 
         const memory_desc_wrapper src_mdw(&src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
@@ -106,9 +106,9 @@ struct jit_gen9_common_conv_fwd_kernel {
         switch (jcp.ver) {
             case ver_16mb16c:
                 jcp.mb_block = 16;
-                if (src_mdw.data_type() == mkldnn_f32
-                        || src_mdw.data_type() == mkldnn_f16) {
-                    if (src_mdw.data_type() == mkldnn_f16 && jcp.mb % 32 != 0) {
+                if (src_mdw.data_type() == dnnl_f32
+                        || src_mdw.data_type() == dnnl_f16) {
+                    if (src_mdw.data_type() == dnnl_f16 && jcp.mb % 32 != 0) {
                         jcp.mb_block
                                 = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
                                 ? 16
@@ -134,7 +134,7 @@ struct jit_gen9_common_conv_fwd_kernel {
                         jcp.lws_d[2] = 1;
                         jcp.gws_d[0] = jcp.oc * jcp.ngroups;
                         jcp.gws_d[1] = jcp.oh * jcp.ow * jcp.od;
-                        jcp.gws_d[2] = (src_mdw.data_type() == mkldnn_f16
+                        jcp.gws_d[2] = (src_mdw.data_type() == dnnl_f16
                                                && !jcp.is_depthwise)
                                 ? jcp.mb / (jcp.mb_block * 2)
                                 : jcp.mb / (jcp.mb_block * 1);
@@ -193,7 +193,7 @@ struct jit_gen9_common_conv_fwd_kernel {
 
                 break;
             case ver_1stconv:
-                if (src_mdw.data_type() == mkldnn_f16) {
+                if (src_mdw.data_type() == dnnl_f16) {
                     jcp.mb_block = jcp.mb % 16 == 0 ? 16 : 1;
                     jcp.oc_block = 16;
                     jcp.ic_block = 16;
@@ -346,7 +346,7 @@ struct jit_gen9_common_conv_fwd_kernel {
                         : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
                 break;
             case ver_16mb16c:
-                if (utils::one_of(src_mdw.data_type(), mkldnn_f16)) {
+                if (utils::one_of(src_mdw.data_type(), dnnl_f16)) {
                     if (jcp.mb % 32 == 0) {
                         src_tag = utils::pick(jcp.ndims - 3, NCw16n16c,
                                 NChw16n16c, NCdhw16n16c);
@@ -530,7 +530,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
             const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
             const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
             const memory_desc_t &bias_md, const primitive_attr_t &attr) {
-        using namespace mkldnn::impl::format_tag;
+        using namespace dnnl::impl::format_tag;
 
         const memory_desc_wrapper src_mdw(&diff_src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
@@ -748,7 +748,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             const memory_desc_t &diff_weights_md,
             const memory_desc_t &diff_bias_md, const memory_desc_t &diff_dst_md,
             const primitive_attr_t &attr) {
-        using namespace mkldnn::impl::format_tag;
+        using namespace dnnl::impl::format_tag;
 
         const memory_desc_wrapper src_mdw(&src_md);
         const memory_desc_wrapper weights_mdw(&diff_weights_md);
@@ -811,7 +811,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
                 ? jcp.kh * jcp.kw * jcp.kd * jcp.ngroups
                 : jcp.kh * jcp.kw * jcp.kd * (jcp.oc / 16) * (jcp.ic / 16)
                         * jcp.ngroups;
-        int opt_chunk = 1;
+        dim_t opt_chunk = 1;
 
         switch (jcp.ver) {
             case ver_1stconv:
@@ -823,12 +823,13 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
                 /* 2KB per thread (72 EU and 7 thr/EU)*/
                 opt_chunk = utils::div_up(
-                        (jcp.ic_block * jcp.ih * jcp.iw * jcp.id
-                                + jcp.oc_block * jcp.oh * jcp.ow * jcp.od)
+                        ((dim_t)jcp.ic_block * jcp.ih * jcp.iw * jcp.id
+                                + (dim_t)jcp.oc_block * jcp.oh * jcp.ow
+                                        * jcp.od)
                                 * jcp.mb * 4,
                         1024 * 2 * 72 * 7);
                 jcp.oh_chunk = 1;
-                jcp.mb_chunk = utils::div_up(jcp.mb, opt_chunk);
+                jcp.mb_chunk = utils::div_up(jcp.mb, (dim_t)opt_chunk);
                 jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
                 jcp.oh_block
                         = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
@@ -859,9 +860,10 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
                                                       * jcp.od)
                                         * jcp.mb * 4,
                                 1024 * 2 * 72 * 7));
-                jcp.oh_chunk = nstl::min(jcp.oh * jcp.ow * jcp.od, opt_chunk);
-                jcp.mb_chunk = nstl::min(jcp.mb / jcp.mb_block,
-                        utils::div_up(opt_chunk, jcp.oh_chunk));
+                jcp.oh_chunk
+                        = nstl::min((dim_t)jcp.oh * jcp.ow * jcp.od, opt_chunk);
+                jcp.mb_chunk = nstl::min((dim_t)jcp.mb / jcp.mb_block,
+                        utils::div_up(opt_chunk, (dim_t)jcp.oh_chunk));
                 jcp.nchunk = jcp.oh_chunk * jcp.mb_chunk;
                 jcp.oh_block
                         = utils::div_up(jcp.od * jcp.oh * jcp.ow, jcp.oh_chunk);
@@ -1009,6 +1011,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

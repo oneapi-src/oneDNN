@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-# Test Intel MKL-DNN for embeddability
+# Test DNNL for embeddability
 # by imitating a project that includes the library
 #
 # To test run:
@@ -24,10 +24,10 @@ cmake_minimum_required(VERSION 2.8.11)
 
 set(PROJECT_NAME "Project")
 
-# include Intel MKL-DNN
-set(MKLDNN_DIR "../../..")
-add_subdirectory(${MKLDNN_DIR} mkl-dnn)
-include_directories(${MKLDNN_DIR}/include)
+# include DNNL
+set(DNNL_DIR "../../..")
+add_subdirectory(${DNNL_DIR} DNNL)
+include_directories(${DNNL_DIR}/include)
 
 add_executable(project_app main.c)
-target_link_libraries(project_app mkldnn)
+target_link_libraries(project_app dnnl)

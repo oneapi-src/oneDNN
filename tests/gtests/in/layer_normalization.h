@@ -21,34 +21,34 @@
 
 #define PARAMS_NC(...) \
     test_lnorm_params_t { \
-        EXPAND_FORMATS(ab, a, ab), __VA_ARGS__, EPS, false, mkldnn_success \
+        EXPAND_FORMATS(ab, a, ab), __VA_ARGS__, EPS, false, dnnl_success \
     }
 
 #define PARAMS_TNC(...) \
     test_lnorm_params_t { \
-        EXPAND_FORMATS(abc, ab, abc), __VA_ARGS__, EPS, false, mkldnn_success \
+        EXPAND_FORMATS(abc, ab, abc), __VA_ARGS__, EPS, false, dnnl_success \
     }
 
 #define PARAMS_TNC_CROSS_CASE(...) \
     test_lnorm_params_t { \
-        EXPAND_FORMATS(abc, ba, abc), __VA_ARGS__, EPS, false, mkldnn_success \
+        EXPAND_FORMATS(abc, ba, abc), __VA_ARGS__, EPS, false, dnnl_success \
     }
 
 #define PARAMS_NTC(...) \
     test_lnorm_params_t { \
-        EXPAND_FORMATS(bac, ba, bac), __VA_ARGS__, EPS, false, mkldnn_success \
+        EXPAND_FORMATS(bac, ba, bac), __VA_ARGS__, EPS, false, dnnl_success \
     }
 
 #define PARAMS_LDSNC(...) \
     test_lnorm_params_t { \
         EXPAND_FORMATS(abcde, abcd, abcde), __VA_ARGS__, EPS, false, \
-                mkldnn_success \
+                dnnl_success \
     }
 
 #define PARAMS_LDSNC_CROSS_CASE(...) \
     test_lnorm_params_t { \
         EXPAND_FORMATS(abcde, acdb, abcde), __VA_ARGS__, EPS, false, \
-                mkldnn_success \
+                dnnl_success \
     }
 
 #define PARAMS_EF(...) \
@@ -59,9 +59,9 @@
             str, lnorm_test, ::testing::Values(__VA_ARGS__));
 
 CPU_INST_TEST_CASE(SimpleExpectedFails,
-        PARAMS_EF({-1, 27, 9}, EPS, true, mkldnn_invalid_arguments),
-        PARAMS_EF({1, -12, 10}, EPS, true, mkldnn_invalid_arguments),
-        PARAMS_EF({4, 20, -12}, EPS, true, mkldnn_invalid_arguments));
+        PARAMS_EF({-1, 27, 9}, EPS, true, dnnl_invalid_arguments),
+        PARAMS_EF({1, -12, 10}, EPS, true, dnnl_invalid_arguments),
+        PARAMS_EF({4, 20, -12}, EPS, true, dnnl_invalid_arguments));
 
 CPU_INST_TEST_CASE(SimpleZeroDim, PARAMS_NC({0, 9}), PARAMS_NC({1, 0}));
 

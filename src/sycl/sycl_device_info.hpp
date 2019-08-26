@@ -23,7 +23,7 @@
 #include "compute/device_info.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -87,6 +87,6 @@ private:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // SYCL_DEVICE_INFO_HPP

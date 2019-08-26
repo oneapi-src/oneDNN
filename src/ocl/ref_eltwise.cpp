@@ -16,7 +16,7 @@
 
 #include "ocl/ref_eltwise.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -30,8 +30,8 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
@@ -53,9 +53,9 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
-    auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
-    auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
     const float alpha = pd()->desc()->alpha;
 
@@ -75,4 +75,4 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -176,7 +176,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// Next, execute the primitive.
     /// @snippet sycl_interop.cpp relu exec
     // [relu exec]
-    relu.execute(strm, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
+    relu.execute(strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
     strm.wait();
     // [relu exec]
     ///

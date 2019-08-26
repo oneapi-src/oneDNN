@@ -17,7 +17,7 @@
 #include <cmath>
 #include <mutex>
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "utils.hpp"
 
 #include "gemm_utils_f32.hpp"
@@ -26,7 +26,7 @@
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -1868,13 +1868,12 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
 
 } // namespace avx512_common_gemm_f32
 
-mkldnn_status_t jit_avx512_common_gemm_f32(const char *transa,
-        const char *transb, const int *p_m, const int *p_n, const int *p_k,
-        const float *p_alpha, const float *A, const int *p_lda, const float *B,
-        const int *p_ldb, const float *p_beta, float *C, const int *p_ldc,
-        const float *bias) {
+dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
+        const int *p_m, const int *p_n, const int *p_k, const float *p_alpha,
+        const float *A, const int *p_lda, const float *B, const int *p_ldb,
+        const float *p_beta, float *C, const int *p_ldc, const float *bias) {
 
-    using namespace mkldnn::impl::utils;
+    using namespace dnnl::impl::utils;
     using namespace avx512_common_gemm_f32;
     using namespace gemm_utils;
 
@@ -1882,7 +1881,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(const char *transa,
         return ref_gemm(transa, transb, p_m, p_n, p_k, p_alpha, A, p_lda, B,
                 p_lda, p_beta, C, p_ldc, bias);
 
-    int nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+    int nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
     int m = *p_m;
     int n = *p_n;
@@ -1898,7 +1897,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(const char *transa,
     // Determine threading partitioning
     calc_nthr_nocopy_avx512_common(
             m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
-    assert(IMPLICATION(!mkldnn_thr_syncable(), nthr_k == 1));
+    assert(IMPLICATION(!dnnl_thr_syncable(), nthr_k == 1));
 
     // May not happen, but just in case
     if (nthr < nthr_m * nthr_n * nthr_k) nthr = nthr_m * nthr_n * nthr_k;
@@ -1945,7 +1944,7 @@ mkldnn_status_t jit_avx512_common_gemm_f32(const char *transa,
                 : 0;
         dim_t ld = ldc;
 
-        int sum_later = (mkldnn_get_num_threads() < nthr_m * nthr_n * nthr_k);
+        int sum_later = (dnnl_get_num_threads() < nthr_m * nthr_n * nthr_k);
 
         if (ithr < nthr_m * nthr_n * nthr_k) {
 
@@ -2115,11 +2114,11 @@ mkldnn_status_t jit_avx512_common_gemm_f32(const char *transa,
     free(ompstatus_);
     free(ws_buffers);
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

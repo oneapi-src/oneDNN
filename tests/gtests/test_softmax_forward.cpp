@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_t>
 void check_softmax_fwd(
@@ -27,7 +27,7 @@ void check_softmax_fwd(
     auto dst_ptr = map_memory<data_t>(dst);
 
     const memory::desc dst_pd = dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
 
     float result = 0.0f;
     // Worst case error bound on naive summation
@@ -153,7 +153,7 @@ struct softmax_test_params {
     memory::dims dims;
     int axis;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -193,8 +193,7 @@ protected:
                     mem_desc.get_size() / sizeof(data_t), src, mean, var);
             check_zero_tail<data_t>(1, src);
 
-            softmax.execute(
-                    strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+            softmax.execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
             strm.wait();
             check_softmax_fwd<data_t>(p.aprop_kind, src, dst, p.axis);
             check_zero_tail<data_t>(0, dst);
@@ -220,10 +219,10 @@ INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardFloat, softmax_forward_test_float,
         ::testing::Values(
                 softmax_fwd_test_params_float {prop_kind::forward_scoring,
                         memory::format_tag::nchw, {2, -2, 128, 256}, 0, true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 softmax_fwd_test_params_float {prop_kind::forward_scoring,
                         memory::format_tag::nchw, {2, 2, 128, 256}, 5, true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 softmax_fwd_test_params_float {prop_kind::forward_scoring,
                         memory::format_tag::nchw, {2, 0, 5, 5}, 0},
                 softmax_fwd_test_params_float {prop_kind::forward_scoring,
@@ -325,4 +324,4 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestSoftmaxForwardHalf, softmax_forward_test_half,
                         memory::format_tag::nc, {2, 1000}, 0},
                 softmax_fwd_test_params_half {prop_kind::forward_scoring,
                         memory::format_tag::nc, {2, 1000}, 1}));
-} // namespace mkldnn
+} // namespace dnnl

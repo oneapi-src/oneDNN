@@ -25,23 +25,23 @@
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace shuffle {
 
 struct prb_t {
-    prb_t(const dims_t &dims, dir_t dir, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, int axis, int64_t group)
+    prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
+            dnnl_format_tag_t tag, int axis, int64_t group)
         : dims(dims), dir(dir), dt(dt), tag(tag), axis(axis), group(group) {}
     ~prb_t() {}
 
     dims_t dims;
     dir_t dir;
-    mkldnn_data_type_t dt;
-    mkldnn_format_tag_t tag;
+    dnnl_data_type_t dt;
+    dnnl_format_tag_t tag;
     int axis;
     int64_t group;
 };
@@ -62,8 +62,8 @@ struct perf_report_t : public base_perf_report_t {
     virtual const int *axis() const override { return &p_->axis; }
     virtual const int64_t *group() const override { return &p_->group; }
     virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
-    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

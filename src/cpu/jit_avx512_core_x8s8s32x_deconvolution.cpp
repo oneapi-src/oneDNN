@@ -18,13 +18,13 @@
 
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 using namespace nstl;
@@ -784,10 +784,10 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::generate() {
 template <data_type_t src_type, data_type_t dst_type>
 void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
         dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -801,8 +801,8 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
     if (jcp.signed_input && jcp.ver != ver_vnni) {
-        auto local_scales
-                = scratchpad(ctx).template get<float>(key_conv_adjusted_scales);
+        auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
+                key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
         float factor = 1.f / pd()->jcp_.wei_adj_scale;
         if (count == 1) {
@@ -867,10 +867,10 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
 template <data_type_t src_type, data_type_t dst_type>
 void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
         dst_type>::execute_forward_2d(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -888,8 +888,8 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
 
     const float *oscales = pd()->attr()->output_scales_.scales_;
     if (jcp.signed_input && jcp.ver != ver_vnni) {
-        auto local_scales
-                = scratchpad(ctx).template get<float>(key_conv_adjusted_scales);
+        auto local_scales = ctx.get_scratchpad_grantor().template get<float>(
+                key_conv_adjusted_scales);
         size_t count = pd()->attr()->output_scales_.count_;
         float factor = 1.f / pd()->jcp_.wei_adj_scale;
         if (count == 1) {
@@ -1020,4 +1020,4 @@ template struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<data_type::s8,
         data_type::s32>;
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

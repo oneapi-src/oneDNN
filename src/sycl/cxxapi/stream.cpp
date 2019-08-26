@@ -14,26 +14,26 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 #include <CL/sycl.hpp>
 
 #include "sycl/capi.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 stream::stream(const engine &eng, cl::sycl::queue &aqueue) {
-    mkldnn_stream_t astream;
-    error::wrap_c_api(mkldnn_stream_create_sycl(&astream, eng.get(), &aqueue),
+    dnnl_stream_t astream;
+    error::wrap_c_api(dnnl_stream_create_sycl(&astream, eng.get(), &aqueue),
             "could not create a stream");
     reset(astream);
 }
 
 cl::sycl::queue stream::get_sycl_queue() const {
     void *queue_ptr;
-    error::wrap_c_api(mkldnn_stream_get_sycl_queue(get(), &queue_ptr),
+    error::wrap_c_api(dnnl_stream_get_sycl_queue(get(), &queue_ptr),
             "could not get a stream handle");
     auto queue = *static_cast<cl::sycl::queue *>(queue_ptr);
     return queue;
 }
 
-} // namespace mkldnn
+} // namespace dnnl

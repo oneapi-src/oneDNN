@@ -24,7 +24,7 @@ set(MKL_cmake_included true)
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
 
-if (NOT _MKLDNN_USE_MKL)
+if (NOT _DNNL_USE_MKL)
     return()
 endif()
 

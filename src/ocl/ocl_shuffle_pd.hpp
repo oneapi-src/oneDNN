@@ -21,7 +21,7 @@
 #include "common/shuffle_pd.hpp"
 #include "ocl/ocl_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -31,6 +31,6 @@ struct ocl_shuffle_pd_t : public shuffle_pd_t {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

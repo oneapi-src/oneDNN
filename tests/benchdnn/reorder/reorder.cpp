@@ -17,14 +17,14 @@
 #include <stdlib.h>
 
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 #include "reorder.hpp"
 
 namespace reorder {
 
-int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
+int get_scale_mask(const dnnl_memory_desc_t &md, const attr_t &attr) {
     using P = attr_t::scale_t::policy_t;
     const auto policy = attr.oscale.policy;
 
@@ -44,7 +44,7 @@ int get_scale_mask(const mkldnn_memory_desc_t &md, const attr_t &attr) {
 
 int scales_count(int64_t *count, int *mask, const dnn_mem_t &memory,
         const attr_t &attr) {
-    const mkldnn_memory_desc_t &md = memory.md_;
+    const dnnl_memory_desc_t &md = memory.md_;
     const int scale_mask = get_scale_mask(md, attr);
     if (mask) *mask = scale_mask;
 
@@ -160,13 +160,13 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
     const auto dt = mem_expected.dt();
     const size_t width = mem_expected.sizeof_dt() * 8;
 
-    const float dt_min = dt == mkldnn_u8 ? 0.f : -(float)(1l << (width - 1));
+    const float dt_min = dt == dnnl_u8 ? 0.f : -(float)(1l << (width - 1));
     const float dt_max
-            = dt == mkldnn_u8 ? 255.f : (float)((1l << (width - 1)) - 1);
+            = dt == dnnl_u8 ? 255.f : (float)((1l << (width - 1)) - 1);
 
     int64_t inf_p = 0, inf_n = 0, zeros = 0, reg = 0;
 
-    const float tolerance = mem_computed.dt() == mkldnn_bf16
+    const float tolerance = mem_computed.dt() == dnnl_bf16
             ? 8.e-3f // due to bf16 truncation (7th mantissa bit -> 1/129)
             : 0.0f;
     for (int64_t i = 0; i < nelems; ++i) {
@@ -205,10 +205,10 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
     const int c_dst_max = c_dst->min + c_dst->range - 1;
 
     bool check_int_overflow
-            = (dt != mkldnn_f32 && dt != mkldnn_f16 && dt != mkldnn_bf16);
-    bool check_inf_p = (check_int_overflow && dt != mkldnn_s32)
+            = (dt != dnnl_f32 && dt != dnnl_f16 && dt != dnnl_bf16);
+    bool check_inf_p = (check_int_overflow && dt != dnnl_s32)
             && (c_src_max * max_scale > c_dst_max);
-    bool check_inf_n = (check_int_overflow && dt != mkldnn_s32)
+    bool check_inf_n = (check_int_overflow && dt != dnnl_s32)
             && (c_src->min * max_scale < c_dst->min);
     bool check_zeros = (check_int_overflow) && (dt_min != 0 && dt_max != 0);
 
@@ -226,11 +226,11 @@ int check_reorder(const prb_t *p, res_t *res) {
  *                                      |___________________|
  *                                                |
  *   _______________           ______________     V     ________________
- *  |               | MKL-DNN |              | MKL-DNN |                |
+ *  |               | DNNL |              | DNNL |                |
  *  | dt_in fmt_ref |-------->| dt_in fmt_in |-------->| dt_out fmt_out |
  *  |_______________|         |______________|    ^    |________________|
  *           |                                    |            |
- *  benchdnn |<-------------------------------- scales         | MKL-DNN
+ *  benchdnn |<-------------------------------- scales         | DNNL
  *   ________V_______                                   _______V________
  *  |                |                                 |                |
  *  | dt_out fmt_ref |         <= compare =>           | dt_out fmt_ref |
@@ -240,7 +240,7 @@ int check_reorder(const prb_t *p, res_t *res) {
  * 1. create memory
  * 2. fill scales
  * 3. fill input memory
- * 4. execute mkl-dnn: reorder->q10n->reorder
+ * 4. execute DNNL: reorder->q10n->reorder
  * 5. execute benchdnn: q10n
  * 6. compare results
  * 7. performance measurment
@@ -255,17 +255,17 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* check for extra flags on output format, and create extra information
      * descriptor for output memory. */
-    mkldnn_memory_extra_desc_t mem_extra_dt_out_fmt_out = {};
-    mkldnn_memory_extra_desc_t mem_extra_test_dt_out_fmt_out = {};
+    dnnl_memory_extra_desc_t mem_extra_dt_out_fmt_out = {};
+    dnnl_memory_extra_desc_t mem_extra_test_dt_out_fmt_out = {};
 
-    mem_extra_dt_out_fmt_out.flags = mkldnn_memory_extra_flag_none;
-    mem_extra_test_dt_out_fmt_out.flags = mkldnn_memory_extra_flag_none;
+    mem_extra_dt_out_fmt_out.flags = dnnl_memory_extra_flag_none;
+    mem_extra_test_dt_out_fmt_out.flags = dnnl_memory_extra_flag_none;
 
     if (p->alg == ALG_BOOT
             && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
         int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
-        auto set_oflags = [=](mkldnn_memory_extra_desc_t &extra) {
-            extra.flags = mkldnn_memory_extra_flag_compensation_conv_s8s8;
+        auto set_oflags = [=](dnnl_memory_extra_desc_t &extra) {
+            extra.flags = dnnl_memory_extra_flag_compensation_conv_s8s8;
             extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
         };
         set_oflags(mem_extra_dt_out_fmt_out);
@@ -293,14 +293,14 @@ int check_reorder(const prb_t *p, res_t *res) {
     SAFE(scales != NULL ? OK : FAIL, CRIT);
     SAFE(fill_scales(p, scales, count), WARN);
 
-    auto mkldnn_attr = create_mkldnn_attr(p->attr, count, mask, scales);
+    auto dnnl_attr = create_dnnl_attr(p->attr, count, mask, scales);
 
     /* check for extra flags on output format, and set them */
     if (p->alg == ALG_BOOT
             && (p->oflag == FLAG_CONV_S8S8 || p->oflag == FLAG_GCONV_S8S8)) {
         int with_groups = p->oflag == FLAG_GCONV_S8S8 ? 1 : 0;
         auto set_oflags = [=](dnn_mem_t &m) {
-            m.md_.extra.flags = mkldnn_memory_extra_flag_compensation_conv_s8s8;
+            m.md_.extra.flags = dnnl_memory_extra_flag_compensation_conv_s8s8;
             m.md_.extra.compensation_mask = (1 << 0) + with_groups * (1 << 1);
         };
         set_oflags(mem_dt_out_fmt_out);
@@ -308,39 +308,38 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     /* Step 3: check creation of reorder primitive */
-    mkldnn_primitive_desc_t rpd;
-    mkldnn_status_t init_status = mkldnn_reorder_primitive_desc_create(&rpd,
-            &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
-            engine_tgt, mkldnn_attr);
-    if (init_status == mkldnn_unimplemented) {
+    dnnl_primitive_desc_t rpd;
+    dnnl_status_t init_status
+            = dnnl_reorder_primitive_desc_create(&rpd, &mem_dt_in_fmt_in.md_,
+                    engine_tgt, &mem_dt_out_fmt_out.md_, engine_tgt, dnnl_attr);
+    if (init_status == dnnl_unimplemented) {
         res->state = UNIMPLEMENTED;
         goto cleanup;
     } else {
         const char *impl_str = query_impl_info(rpd);
-        print(5, "mkldnn implementation: %s\n", impl_str);
+        print(5, "dnnl implementation: %s\n", impl_str);
     }
 
-    mkldnn_primitive_desc_destroy(rpd);
+    dnnl_primitive_desc_destroy(rpd);
     SAFE(init_status, WARN);
 
     /* Step 4: fill input memory */
     SAFE(fill_memory(p, mem_dt_in_fmt_ref, scales, p->attr), WARN);
 
-    /* Step 5: execute mkl-dnn */
+    /* Step 5: execute DNNL */
     SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
-    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, mkldnn_attr), WARN);
+    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, dnnl_attr), WARN);
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
         if (p->alg == ALG_BOOT) {
-            /* "bootstrap" algorithm: compare to another mkldnn reorder. use
+            /* "bootstrap" algorithm: compare to another dnnl reorder. use
              * this when benchdnn does not know about all details of the data
              * layout, as is the case for compensated weights formats. */
 
-            /* Step 5a: mkldnn reorder from ref format to output format */
-            SAFE(mem_test_dt_out_fmt_out.reorder(
-                         mem_dt_in_fmt_ref, mkldnn_attr),
+            /* Step 5a: dnnl reorder from ref format to output format */
+            SAFE(mem_test_dt_out_fmt_out.reorder(mem_dt_in_fmt_ref, dnnl_attr),
                     WARN);
 
             /* Step 5b: compare results (expect bit-wise exactness) */
@@ -350,14 +349,14 @@ int check_reorder(const prb_t *p, res_t *res) {
         } else {
             /* (default) "reference" algorithm: compare to benchdnn reorder */
 
-            /* Step 5a: reorder output from mkldnn to ref format using mkldnn */
+            /* Step 5a: reorder output from dnnl to ref format using dnnl */
             SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
 
             /* Step 5b: execute benchdnn reorder */
             SAFE(reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref, scales),
                     WARN);
 
-            /* Step 5c: compare benchdnn and mkldnn output */
+            /* Step 5c: compare benchdnn and dnnl output */
             SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref, scales,
                          count, res),
                     WARN);
@@ -366,28 +365,28 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 7: performance measurement */
     if (bench_mode & PERF) {
-        mkldnn_primitive_desc_t perf_r_pd;
-        DNN_SAFE(mkldnn_reorder_primitive_desc_create(&perf_r_pd,
+        dnnl_primitive_desc_t perf_r_pd;
+        DNN_SAFE(dnnl_reorder_primitive_desc_create(&perf_r_pd,
                          &mem_dt_in_fmt_in.md_, engine_tgt,
-                         &mem_dt_out_fmt_out.md_, engine_tgt, mkldnn_attr),
+                         &mem_dt_out_fmt_out.md_, engine_tgt, dnnl_attr),
                 WARN);
 
-        mkldnn_primitive_t perf_r;
-        DNN_SAFE(mkldnn_primitive_create(&perf_r, perf_r_pd), WARN);
-        DNN_SAFE_V(mkldnn_primitive_desc_destroy(perf_r_pd));
+        dnnl_primitive_t perf_r;
+        DNN_SAFE(dnnl_primitive_create(&perf_r, perf_r_pd), WARN);
+        DNN_SAFE_V(dnnl_primitive_desc_destroy(perf_r_pd));
 
         args_t args;
-        args.set(MKLDNN_ARG_FROM, mem_dt_in_fmt_in.m_);
-        args.set(MKLDNN_ARG_TO, mem_dt_out_fmt_out.m_);
+        args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in.m_);
+        args.set(DNNL_ARG_TO, mem_dt_out_fmt_out.m_);
 
         measure_perf(res->timer, perf_r, args);
 
-        DNN_SAFE_V(mkldnn_primitive_destroy(perf_r));
+        DNN_SAFE_V(dnnl_primitive_destroy(perf_r));
     }
 
     /* Step 8: clean up */
 cleanup:
-    mkldnn_primitive_attr_destroy(mkldnn_attr);
+    dnnl_primitive_attr_destroy(dnnl_attr);
     zfree(scales);
 
     return OK;

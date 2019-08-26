@@ -14,17 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 #include <CL/sycl.hpp>
 
 #include "sycl/capi.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 engine::engine(
         kind akind, const cl::sycl::device &dev, const cl::sycl::context &ctx) {
-    mkldnn_engine_t aengine;
-    error::wrap_c_api(mkldnn_engine_create_sycl(&aengine, convert_to_c(akind),
+    dnnl_engine_t aengine;
+    error::wrap_c_api(dnnl_engine_create_sycl(&aengine, convert_to_c(akind),
                               static_cast<const void *>(&dev),
                               static_cast<const void *>(&ctx)),
             "could not create an engine");
@@ -33,7 +33,7 @@ engine::engine(
 
 cl::sycl::context engine::get_sycl_context() const {
     void *ctx_ptr;
-    error::wrap_c_api(mkldnn_engine_get_sycl_context(get(), &ctx_ptr),
+    error::wrap_c_api(dnnl_engine_get_sycl_context(get(), &ctx_ptr),
             "could not get a context handle");
     auto ctx = *static_cast<cl::sycl::context *>(ctx_ptr);
     return ctx;
@@ -41,10 +41,10 @@ cl::sycl::context engine::get_sycl_context() const {
 
 cl::sycl::device engine::get_sycl_device() const {
     void *dev_ptr;
-    error::wrap_c_api(mkldnn_engine_get_sycl_device(get(), &dev_ptr),
+    error::wrap_c_api(dnnl_engine_get_sycl_device(get(), &dev_ptr),
             "could not get a device handle");
     auto dev = *static_cast<cl::sycl::device *>(dev_ptr);
     return dev;
 }
 
-} // namespace mkldnn
+} // namespace dnnl

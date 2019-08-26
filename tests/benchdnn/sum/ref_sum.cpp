@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "sum/sum.hpp"
 
@@ -25,7 +25,7 @@ void compute_ref(
     float *dst_ptr = (float *)dst;
     const auto nelems = dst.nelems();
 
-    mkldnn::impl::parallel_nd(nelems, [&](int64_t k) {
+    dnnl::impl::parallel_nd(nelems, [&](int64_t k) {
         dst_ptr[k] = 0;
         for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
             const float *src_ptr = (const float *)src[i_input];

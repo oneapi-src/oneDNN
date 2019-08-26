@@ -23,8 +23,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <memory>
+
 #if defined(__x86_64__) || defined(_M_X64)
-#define MKLDNN_X86_64
+#define DNNL_X86_64
 #endif
 
 #define MSAN_ENABLED 0
@@ -40,20 +42,25 @@
 #include "nstl.hpp"
 #include "z_magic.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
-#define MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other) \
+#define DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other) \
     do { \
         if (this == &other) return *this; \
     } while (0)
 
-#define MKLDNN_DISALLOW_COPY_AND_ASSIGN(T) \
+#define DNNL_SHORT_CIRCUIT_SELF_COMPARISON(other) \
+    do { \
+        if (this == &other) return true; \
+    } while (0)
+
+#define DNNL_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
 
 // Sanity check for 64 bits
-static_assert(sizeof(void *) == 8, "Intel(R) MKL-DNN supports 64 bit only");
+static_assert(sizeof(void *) == 8, "DNNL supports 64 bit only");
 
 #define CHECK(f) \
     do { \
@@ -70,7 +77,7 @@ namespace utils {
  * Rationale: msvs c++ (and even some c) headers contain special pragma that
  * injects msvs-version check into object files in order to abi-mismatches
  * during the static linking. This makes sense if e.g. std:: objects are passed
- * through between application and library, which is not the case for mkl-dnn
+ * through between application and library, which is not the case for DNNL
  * (since there is no any c++-rt dependent stuff, ideally...). */
 
 /* SFINAE helper -- analogue to std::enable_if */
@@ -145,6 +152,11 @@ template <typename T>
 inline typename remove_reference<T>::type zero() {
     auto zero = typename remove_reference<T>::type();
     return zero;
+}
+
+template <typename T, typename... Args>
+std::unique_ptr<T> make_unique(Args &&... args) {
+    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
 template <typename T, typename P>
@@ -449,7 +461,7 @@ inline void msan_unpoison(void *ptr, size_t size) {
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

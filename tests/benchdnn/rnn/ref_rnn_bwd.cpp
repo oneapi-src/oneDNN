@@ -16,7 +16,7 @@
 
 #include <stdlib.h>
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
@@ -197,7 +197,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
         // it simplifies the logic in the following code
         copy_init_bwd(p, wsb_, diff_dst_layer_, diff_dst_iter_,
                 diff_dst_iter_c_, iter_dir, lay_dir, dir_val,
-                p.direction == mkldnn_bidirectional_concat);
+                p.direction == dnnl_bidirectional_concat);
 
         // We run the grid of computation
         for (int64_t j = p.n_layer - 1; j >= 0; j--) {
@@ -239,17 +239,17 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
     };
 
     switch (p.direction) {
-        case mkldnn_unidirectional_left2right:
+        case dnnl_unidirectional_left2right:
             process_direction(right2left, top2bottom, 0, action_copy);
             break;
-        case mkldnn_unidirectional_right2left:
+        case dnnl_unidirectional_right2left:
             process_direction(left2right, top2bottom, 0, action_copy);
             break;
-        case mkldnn_bidirectional_sum:
+        case dnnl_bidirectional_sum:
             process_direction(right2left, top2bottom, 0, action_copy);
             process_direction(left2right, top2bottom, 1, action_sum);
             break;
-        case mkldnn_bidirectional_concat:
+        case dnnl_bidirectional_concat:
             process_direction(right2left, top2bottom, 0, action_copy);
             process_direction(left2right, top2bottom, 1, action_sum);
             break;
@@ -272,10 +272,10 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
         dnn_mem_t &dst_diff_weights_states_m, dnn_mem_t &dst_diff_bias_m) {
     // !! TODO: add support of strides
 
-    assert(p.direction == mkldnn_unidirectional_left2right
-            || p.direction == mkldnn_unidirectional_right2left
-            || p.direction == mkldnn_bidirectional_sum
-            || p.direction == mkldnn_bidirectional_concat);
+    assert(p.direction == dnnl_unidirectional_left2right
+            || p.direction == dnnl_unidirectional_right2left
+            || p.direction == dnnl_bidirectional_sum
+            || p.direction == dnnl_bidirectional_concat);
 
     assert(p.dlc == p.dic);
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));

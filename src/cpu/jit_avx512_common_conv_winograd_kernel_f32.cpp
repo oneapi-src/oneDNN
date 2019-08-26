@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -31,13 +31,13 @@
 
 #define MIN_REQUIRED_DIMN_REG_BLOCK 14
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 namespace {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 
 unsigned int L1_cache_size = get_cache_size(1, true);
 unsigned int L2_cache_size = get_cache_size(2, true);
@@ -174,8 +174,8 @@ bool check_cond2(int nb_dimN_reg_block, int dimN_reg_block, int dimK_nb_block,
 }
 } // namespace
 
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
@@ -337,7 +337,7 @@ status_t _jit_avx512_common_conv_winograd_data_kernel_f32::init_conf_common(
     else
         jcp.ver = ver_fma;
 
-    jcp.nthr = mkldnn_get_max_threads();
+    jcp.nthr = dnnl_get_max_threads();
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
@@ -1008,7 +1008,7 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
         jit_conv_winograd_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &diff_dst_d,
         const memory_desc_wrapper &diff_weights_d) {
-    jcp.nthr = mkldnn_get_max_threads();
+    jcp.nthr = dnnl_get_max_threads();
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
 
@@ -1142,6 +1142,6 @@ status_t jit_avx512_common_conv_winograd_bwd_weights_kernel_f32::init_conf(
 }
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

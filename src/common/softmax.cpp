@@ -15,18 +15,18 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::alg_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::alg_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
@@ -50,7 +50,7 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t mkldnn_softmax_forward_desc_init(softmax_desc_t *softmax_desc,
+status_t dnnl_softmax_forward_desc_init(softmax_desc_t *softmax_desc,
         prop_kind_t prop_kind, const memory_desc_t *data_desc,
         int softmax_axis) {
     if (!one_of(prop_kind, forward_inference, forward_training))
@@ -59,7 +59,7 @@ status_t mkldnn_softmax_forward_desc_init(softmax_desc_t *softmax_desc,
             softmax_desc, prop_kind, data_desc, nullptr, softmax_axis);
 }
 
-status_t mkldnn_softmax_backward_desc_init(softmax_desc_t *softmax_desc,
+status_t dnnl_softmax_backward_desc_init(softmax_desc_t *softmax_desc,
         const memory_desc_t *diff_desc, const memory_desc_t *data_desc,
         int softmax_axis) {
     return softmax_desc_init(softmax_desc, prop_kind::backward_data, data_desc,

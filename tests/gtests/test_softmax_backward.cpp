@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include <memory>
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_t>
 void check_softmax_bwd(
@@ -32,8 +32,8 @@ void check_softmax_bwd(
     const memory::desc dst_pd = dst.get_desc();
     const memory::desc diff_dst_pd = diff_dst.get_desc();
 
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_pd.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_pd.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_pd.data);
 
     ASSERT_EQ(diff_dst_mdw.data_type(),
             memory::data_type::f32); // TODO: type assert
@@ -49,7 +49,7 @@ void check_softmax_bwd(
     for (int d = axis + 1; d < ndims; ++d)
         IN *= diff_dst_pd.data.dims[d];
 
-    mkldnn::impl::parallel_nd(OU, IN, [&](memory::dim ou, memory::dim in) {
+    dnnl::impl::parallel_nd(OU, IN, [&](memory::dim ou, memory::dim in) {
         if (is_current_test_failed()) return;
 
         const memory::dim idx_start = ou * C * IN + in;
@@ -77,7 +77,7 @@ struct softmax_test_params {
     memory::dims dims;
     int axis;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -136,11 +136,10 @@ protected:
                     diff_dst, data_t(0), data_t(1));
             check_zero_tail<data_t>(1, diff_dst);
 
-            softmax.execute(
-                    strm, {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst}});
+            softmax.execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
             softmax_bwd.execute(strm,
-                    {{MKLDNN_ARG_DST, dst}, {MKLDNN_ARG_DIFF_DST, diff_dst},
-                            {MKLDNN_ARG_DIFF_SRC, diff_src}});
+                    {{DNNL_ARG_DST, dst}, {DNNL_ARG_DIFF_DST, diff_dst},
+                            {DNNL_ARG_DIFF_SRC, diff_src}});
             strm.wait();
 
             check_softmax_bwd<data_t>(dst, diff_dst, diff_src, p.axis);
@@ -161,10 +160,10 @@ INSTANTIATE_TEST_SUITE_P(TestSoftmaxBackward, softmax_backward_test_float,
         ::testing::Values(
                 softmax_bwd_test_params_float {memory::format_tag::nchw,
                         memory::format_tag::nchw, {2, -2, 128, 256}, 0, true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 softmax_bwd_test_params_float {memory::format_tag::nchw,
                         memory::format_tag::nchw, {2, 19, 128, 256}, 5, true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 softmax_bwd_test_params_float {memory::format_tag::nchw,
                         memory::format_tag::nchw, {2, 0, 5, 5}, 0},
                 softmax_bwd_test_params_float {memory::format_tag::nchw,
@@ -191,4 +190,4 @@ INSTANTIATE_TEST_SUITE_P(TestSoftmaxBackward, softmax_backward_test_float,
                         memory::format_tag::nChw8c, {64, 1011, 1, 1}, 1},
                 softmax_bwd_test_params_float {memory::format_tag::nChw8c,
                         memory::format_tag::nChw8c, {2, 1011, 32, 1}, 2}));
-} // namespace mkldnn
+} // namespace dnnl

@@ -17,12 +17,12 @@
 #ifndef SOFTMAX_PD_HPP
 #define SOFTMAX_PD_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct softmax_fwd_pd_t;
@@ -106,11 +106,11 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
         : softmax_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg == MKLDNN_ARG_SRC) return arg_usage_t::input;
+        if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
+        if (arg == DNNL_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -139,12 +139,12 @@ struct softmax_bwd_pd_t : public softmax_pd_t {
         , diff_data_md_(desc_.diff_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, MKLDNN_ARG_DST, MKLDNN_ARG_DIFF_DST))
+        if (utils::one_of(arg, DNNL_ARG_DST, DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
+        if (arg == DNNL_ARG_WORKSPACE && (!types::is_zero_md(workspace_md())))
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
@@ -170,7 +170,7 @@ protected:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

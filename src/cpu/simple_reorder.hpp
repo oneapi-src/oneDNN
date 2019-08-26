@@ -21,19 +21,18 @@
 
 #include "bfloat16.hpp"
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "tag_traits.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "simple_q10n.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -422,7 +421,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d) {
         const int blksize = 16;
-        return sizeof(float) * blksize * blksize * mkldnn_get_max_threads();
+        return sizeof(float) * blksize * blksize * dnnl_get_max_threads();
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -494,7 +493,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         parallel_nd(
                 G, NB_OC, NB_IC, H, W, [&](int g, int O, int I, int h, int w) {
-                    int ithr = mkldnn_get_thread_num();
+                    int ithr = dnnl_get_thread_num();
                     float *_wspace = wspace + wsp_size * ithr;
                     auto i = &input[input_d.blk_off<!w_groups>(
                             g, i_mult * O, i_mult * I, h, w)];
@@ -528,7 +527,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const memory_desc_wrapper &output_d) {
         const size_t blksize = 16;
         const size_t W = input_d.dims()[3];
-        return sizeof(float) * blksize * W * mkldnn_get_max_threads();
+        return sizeof(float) * blksize * W * dnnl_get_max_threads();
     }
 
     static status_t execute(const cpu_reorder_pd_t *pd,
@@ -571,7 +570,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         parallel_nd(
                 dims[0], pdims[1] / blksize, H, [&](int n, int nb_c, int h) {
-                    int ithr = mkldnn_get_thread_num();
+                    int ithr = dnnl_get_thread_num();
                     float *_wspace = wspace + wsp_size * ithr;
                     auto i = &input[input_d.blk_off(n, i_c_mult * nb_c, h)];
                     auto o = &output[output_d.blk_off(n, o_c_mult * nb_c, h)];
@@ -1221,7 +1220,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 /* high level class declaration */
 
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
-struct simple_reorder_t : public cpu_primitive_t {
+struct simple_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -1251,22 +1250,24 @@ struct simple_reorder_t : public cpu_primitive_t {
             auto scratchpad = _pd->scratchpad_registry().registrar();
             scratchpad.book(
                     memory_tracking::names::key_reorder_space, scratchpad_sz_);
+            _pd->init_info();
+            _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
     };
 
-    simple_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    simple_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const data_t<type_i> *, MKLDNN_ARG_FROM);
-        auto output = CTX_OUT_MEM(data_t<type_o> *, MKLDNN_ARG_TO);
+        auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO);
         simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                pd(), input, output, this->scratchpad(ctx));
+                pd(), input, output, ctx.get_scratchpad_grantor());
         return status::success;
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL
@@ -1274,7 +1275,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

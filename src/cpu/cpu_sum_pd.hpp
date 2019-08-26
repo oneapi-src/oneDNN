@@ -18,11 +18,12 @@
 #define CPU_SUM_PD_HPP
 
 #include "c_types_map.hpp"
+#include "cpu_engine.hpp"
 #include "sum_pd.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -32,7 +33,7 @@ struct cpu_sum_pd_t : public sum_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -22,12 +22,12 @@
 #include <utility>
 #include <type_traits>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_i_t, typename data_o_t>
 inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
@@ -40,8 +40,8 @@ inline void check_reorder(const memory::desc &md_i, const memory::desc &md_o,
     const size_t nelems = std::accumulate(
             dims, dims + ndims, size_t(1), std::multiplies<size_t>());
 
-    const mkldnn::impl::memory_desc_wrapper mdw_i(md_i.data);
-    const mkldnn::impl::memory_desc_wrapper mdw_o(md_o.data);
+    const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);
+    const dnnl::impl::memory_desc_wrapper mdw_o(md_o.data);
     for (size_t i = 0; i < nelems; ++i) {
         data_i_t s_raw = src_data[mdw_i.off_l(i, false)];
         data_o_t s = static_cast<data_o_t>(s_raw);
@@ -56,7 +56,7 @@ struct test_simple_params {
     memory::format_tag fmt_o;
     memory::dims dims;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename reorder_types>
@@ -102,7 +102,7 @@ protected:
         auto dst = memory(md_o, eng_o);
 
         /* initialize input data */
-        const mkldnn::impl::memory_desc_wrapper mdw_i(md_i.data);
+        const dnnl::impl::memory_desc_wrapper mdw_i(md_i.data);
         {
             auto src_data = map_memory<data_i_t>(src);
             for (size_t i = 0; i < nelems; ++i)
@@ -122,6 +122,6 @@ protected:
     }
 };
 
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -26,7 +26,7 @@
 #include "compute/compute.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -46,7 +46,7 @@ struct jit_memory_desc_info_t {
     int strides[MAX_NDIMS][nlevels + 1];
 
     static jit_memory_desc_info_t create(const memory_desc_wrapper &mdw) {
-        jit_memory_desc_info_t jit_md_info{};
+        jit_memory_desc_info_t jit_md_info {};
 
         jit_md_info.ndims = mdw.ndims();
         jit_md_info.data_type = mdw.data_type();
@@ -417,8 +417,8 @@ inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
         const memory_desc_wrapper &md, const char *str) {
     char tempstr[32];
 
-    dim_t block_dims[MKLDNN_MAX_NDIMS];
-    dim_t strides_compat[2][MKLDNN_MAX_NDIMS];
+    dim_t block_dims[DNNL_MAX_NDIMS];
+    dim_t strides_compat[2][DNNL_MAX_NDIMS];
 
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
@@ -452,8 +452,8 @@ inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
 }
 
 inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
-    dim_t block_dims[MKLDNN_MAX_NDIMS];
-    dim_t strides_compat[2][MKLDNN_MAX_NDIMS];
+    dim_t block_dims[DNNL_MAX_NDIMS];
+    dim_t strides_compat[2][DNNL_MAX_NDIMS];
 
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
@@ -596,6 +596,6 @@ inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

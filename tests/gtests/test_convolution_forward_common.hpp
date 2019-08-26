@@ -17,15 +17,15 @@
 #ifndef TEST_CONVOLUTION_FORWARD_COMMON_H
 #define TEST_CONVOLUTION_FORWARD_COMMON_H
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include <stdint.h>
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
 #include <math.h>
 
-namespace mkldnn {
+namespace dnnl {
 
 template <typename data_t_src, typename data_t_wei, typename data_t_acc,
         typename data_t_dst>
@@ -44,12 +44,12 @@ void compute_ref_conv_fwd(const test_convolution_sizes_t &c,
     auto padded_ic = src_d.data.padded_dims[1];
     auto padded_oc = dst_d.data.padded_dims[1];
 
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
-    const mkldnn::impl::memory_desc_wrapper weights_mdw(weights_d.data);
-    const mkldnn::impl::memory_desc_wrapper bias_mdw(bias_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+    const dnnl::impl::memory_desc_wrapper weights_mdw(weights_d.data);
+    const dnnl::impl::memory_desc_wrapper bias_mdw(bias_d.data);
 
-    mkldnn::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
+    dnnl::impl::parallel_nd(c.mb, c.ng, c.oc / c.ng, c.oh, c.ow,
             [&](memory::dim n, memory::dim g, memory::dim oc, memory::dim oh,
                     memory::dim ow) {
                 data_t_acc a = 0;
@@ -124,7 +124,7 @@ protected:
         test_convolution_sizes_t cd = p.sizes;
 
         test_convolution_attr_t attr = p.attr;
-        attr.mkldnn_attr_recreate();
+        attr.dnnl_attr_recreate();
 
         auto aprop_kind = prop_kind::forward;
         bool with_bias = p.formats.bias_format != memory::format_tag::undef;
@@ -181,10 +181,10 @@ protected:
 
         convolution_forward(conv_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_SRC, c_src.get()},
-                                {MKLDNN_ARG_WEIGHTS, c_weights.get()},
-                                {MKLDNN_ARG_BIAS, c_bias.get()},
-                                {MKLDNN_ARG_DST, c_dst.get()}});
+                        {{DNNL_ARG_SRC, c_src.get()},
+                                {DNNL_ARG_WEIGHTS, c_weights.get()},
+                                {DNNL_ARG_BIAS, c_bias.get()},
+                                {DNNL_ARG_DST, c_dst.get()}});
         strm.wait();
 
         auto ref_memory = memory(c_dst_desc, eng);
@@ -198,5 +198,5 @@ protected:
     }
 };
 
-} // namespace mkldnn
+} // namespace dnnl
 #endif

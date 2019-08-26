@@ -36,19 +36,19 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 
-if(NOT MKLDNN_VERBOSE)
+if(NOT DNNL_VERBOSE)
     add_definitions(-DDISABLE_VERBOSE)
 endif()
 
-if(MKLDNN_ENABLE_CONCURRENT_EXEC)
-    add_definitions(-DMKLDNN_ENABLE_CONCURRENT_EXEC)
+if(DNNL_ENABLE_CONCURRENT_EXEC)
+    add_definitions(-DDNNL_ENABLE_CONCURRENT_EXEC)
 endif()
 
-if(NOT MKLDNN_ENABLE_JIT_PROFILING)
+if(NOT DNNL_ENABLE_JIT_PROFILING)
     # XXX: the profiling interface will still be built and present in the
     # library
     message(STATUS "Intel(R) VTune(TM) Amplifier JIT profiling disabled")
-    add_definitions(-DMKLDNN_ENABLE_JIT_PROFILING=0)
+    add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
 elseif(UNIX AND NOT APPLE)
     # Not every compiler adds -ldl automatically
     list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
@@ -66,20 +66,20 @@ endif()
 add_subdirectory(common)
 add_subdirectory(cpu)
 
-if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
+if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 
-if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
     add_subdirectory(ocl)
     add_subdirectory(sycl)
 endif()
 
-add_library(${LIB_NAME}
-    ${MKLDNN_LIBRARY_TYPE} ${HEADERS} ${${LIB_NAME}_SUB_OBJS})
+add_library(${LIB_NAME} ${DNNL_LIBRARY_TYPE}
+    ${VERSION_RESOURCE_FILE} ${HEADERS} ${${LIB_NAME}_SUB_OBJS})
 
-set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${MKLDNN_VERSION_MAJOR}.${MKLDNN_VERSION_MINOR}")
-set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${MKLDNN_VERSION_MAJOR}")
+set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
+set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
 set_property(TARGET ${LIB_NAME} PROPERTY PUBLIC_HEADER ${HEADERS})
 
 target_include_directories(${LIB_NAME} PUBLIC
@@ -92,7 +92,7 @@ target_include_directories(${LIB_NAME} PUBLIC
 target_link_libraries_build(${LIB_NAME}
     "${EXTRA_SHARED_LIBS};${EXTRA_STATIC_LIBS}")
 target_link_libraries_install(${LIB_NAME} "${EXTRA_SHARED_LIBS}")
-if(MKLDNN_LIBRARY_TYPE STREQUAL "STATIC")
+if(DNNL_LIBRARY_TYPE STREQUAL "STATIC")
     target_link_libraries_install(${LIB_NAME} "${EXTRA_STATIC_LIBS}")
 endif()
 
@@ -126,8 +126,14 @@ install(EXPORT ${LIB_EXPORT_NAME}
     NAMESPACE ${LIB_NAMESPACE}
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 
+# MKL-DNN compat cmake files
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND}
+    -DDIR=${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
+    -P ${PROJECT_SOURCE_DIR}/cmake/gen_mkldnn_compat_cmakes.cmake)")
+
 # Install custom find modules for transitive dependencies
-if(MKLDNN_CPU_THREADING_RUNTIME STREQUAL "TBB")
+
+if(DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
     if(WIN32)
         install(FILES "../cmake/win/TBBConfig.cmake" RENAME "FindTBB.cmake"
             DESTINATION ${LIB_CONFIG_INSTALL_DIR})
@@ -140,13 +146,13 @@ if(MKLDNN_CPU_THREADING_RUNTIME STREQUAL "TBB")
     endif()
 endif()
 
-if(MKLDNN_GPU_RUNTIME STREQUAL "OCL")
+if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     install(FILES
         "../cmake/FindOpenCL.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
-if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
     install(FILES
         "../cmake/FindOpenCL.cmake"
         "../cmake/FindSYCL.cmake"
@@ -155,7 +161,7 @@ if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
-# On Windows we need to add mkldnn.dll path to CTESTCONFIG_PATH which is later
+# On Windows we need to add dnnl.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)
     if(CMAKE_GENERATOR MATCHES "Visual Studio")

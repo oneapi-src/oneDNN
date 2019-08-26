@@ -1,6 +1,11 @@
 Version 1.0 Transition Guide {#dev_guide_transition_to_v1}
 ==========================================================
 
+> **NOTE**
+>
+> Starting with version 1.1 Intel(R) MKL-DNN is renamed to DNNL.
+> For consistency, only this guide uses Intel MKL-DNN nomenclature.
+
 ## Introduction
 
 This article describes user-visible and some important internal changes to
@@ -36,7 +41,7 @@ These groups are discussed in detail below.
 
 | Deprecated functionality               | Replacement
 | :---                                   | :---
-| ReLU primitive                         | [Eltwise](@ref mkldnn::eltwise_forward) with algorithm kind [ReLU](@ref mkldnn::algorithm::eltwise_relu)
+| ReLU primitive                         | [Eltwise](@ref dnnl::eltwise_forward) with algorithm kind [ReLU](@ref dnnl::algorithm::eltwise_relu)
 | ConvolutionReLU (single primitive)     | Convolution with ReLU as a [post operation](@ref dev_guide_attributes_post_ops)
 | Double precision scales                | Single precision scales
 | RNN backward pd w/o forward pd hint    | RNN backward pd w/ forward pd hint
@@ -112,24 +117,24 @@ set explicitly, rounding to the nearest even integer (RNE) is used.
 
 | API | v0.x                              | v1.0
 | :-- | :--                               | :--
-| C   | mkldnn_batch_normalization_flag_t | mkldnn_normalization_flags_t
-| C   | mkldnn_format_t                   | mkldnn_format_tag_t
-| C++ | mkldnn::batch_normalization_flag  | mkldnn::normalization_flags
-| C++ | mkldnn::memory::format            | mkldnn::memory::format_tag
+| C   | mkldnn_batch_normalization_flag_t | [mkldnn_normalization_flags_t](@ref dnnl_normalization_flags_t)
+| C   | mkldnn_format_t                   | [mkldnn_format_tag_t](@ref dnnl_format_tag_t)
+| C++ | mkldnn::batch_normalization_flag  | [mkldnn::normalization_flags](@ref dnnl::normalization_flags::use_global_stats)
+| C++ | mkldnn::memory::format            | [mkldnn::memory::format_tag](@ref dnnl::memory::format_tag)
 
 #### 1.5.2. Enumerations
 
 | API | v0.x                   | v1.0
 | :-- | :--                    | :--
-| C   | mkldnn_fuse_bn_relu    | #mkldnn_fuse_norm_relu
-| C++ | mkldnn::fuse_bn_relu   | mkldnn::normalization_flags::fuse_norm_relu
-| C++ | mkldnn::query::eengine | mkldnn::query::engine
+| C   | mkldnn_fuse_bn_relu    | [mkldnn_fuse_norm_relu](@ref dnnl_fuse_norm_relu)
+| C++ | mkldnn::fuse_bn_relu   | [mkldnn::normalization_flags::fuse_norm_relu](@ref dnnl::normalization_flags::fuse_norm_relu)
+| C++ | mkldnn::query::eengine | [mkldnn::query::engine](@ref dnnl::query::engine)
 
 #### 1.5.3. Functions
 
-| API | v0.x                    | v1.0
-| :-- | :--                     | :--
-| C   | mkldnn_memory_desc_init | mkldnn_memory_desc_init_by_tag
+| API | v0.x                      | v1.0
+| :-- | :--                       | :--
+| C   | mkldnn_memory_desc_init() | [mkldnn_memory_desc_init_by_tag()](@ref dnnl_memory_desc_init_by_tag)
 
 ### 1.6. Unscoped enumerations become scoped (C++ API only)
 
@@ -137,19 +142,19 @@ All `enum` became `enum class`. This requires the following changes:
 
 | Type                        | Value in v0.x             | Value in v1.0
 | :--                         | :--                       | :--
-| mkldnn::prop_kind           | mkldnn::forward_inference | mkldnn::prop_kind::forward_inference
-| mkldnn::algorithm           | mkldnn::eltwise_tanh      | mkldnn::algorithm::eltwise_tanh
-| mkldnn::normalization_flags | mkldnn::fuse_bn_norm_relu | mkldnn::normalization_flags::fuse_norm_relu
-| mkldnn::query               | mkldnn::eengine           | mkldnn::query::engine
-| mkldnn::memory::data_type   | mkldnn::memory::f32       | mkldnn::memory::data_type::f32
-| mkldnn::memory::format_tag  | mkldnn::memory::nchw      | mkldnn::memory::format_tag::nchw
+| mkldnn::prop_kind           | mkldnn::forward_inference | [mkldnn::prop_kind::forward_inference](@ref dnnl::prop_kind::forward_inference)
+| mkldnn::algorithm           | mkldnn::eltwise_tanh      | [mkldnn::algorithm::eltwise_tanh](@ref dnnl::algorithm::eltwise_tanh)
+| mkldnn::normalization_flags | mkldnn::fuse_bn_norm_relu | [mkldnn::normalization_flags::fuse_norm_relu](@ref dnnl::normalization_flags::fuse_norm_relu)
+| mkldnn::query               | mkldnn::eengine           | [mkldnn::query::engine](@ref dnnl::query::engine)
+| mkldnn::memory::data_type   | mkldnn::memory::f32       | [mkldnn::memory::data_type::f32](@ref dnnl::memory::data_type::f32)
+| mkldnn::memory::format_tag  | mkldnn::memory::nchw      | [mkldnn::memory::format_tag::nchw](@ref dnnl::memory::format_tag::nchw)
 
 ### 1.7. Remove view primitive
 
 Version 0.x had an implementation of view that was simply an alias for memory.
 In Intel MKL-DNN v1.0, we removed view as a type and replaced it with a
 memory descriptor directly. In order to initialize sub-memory, use
-mkldnn::memory::desc::submemory_desc().
+[mkldnn::memory::desc::submemory_desc()](@ref dnnl::memory::desc::submemory_desc()).
 
 @sa
 For more detail, refer to section
@@ -163,10 +168,10 @@ is now initialized by a separate function/operation descriptor constructor.
 
 For instance, instead of using mkldnn::rnn_forward with specified RNN types
 a user is expected to use:
-- mkldnn::vanilla_rnn_forward for Vanilla RNN
-- mkldnn::lstm_forward for LSTM
-- mkldnn::gru_forward for GRU
-- mkldnn::lbr_gru_forward for the linear-before-reset variant of GRU
+- [mkldnn::vanilla_rnn_forward](@ref dnnl::vanilla_rnn_forward) for Vanilla RNN
+- [mkldnn::lstm_forward](@ref dnnl::lstm_forward) for LSTM
+- [mkldnn::gru_forward](@ref dnnl::gru_forward) for GRU
+- [mkldnn::lbr_gru_forward](@ref dnnl::lbr_gru_forward) for the linear-before-reset variant of GRU
 
 Also, the hidden and cell states in LSTM are now separated. This means that
 instead of one `src_iter` tensor of shape
@@ -181,9 +186,9 @@ into `dst_iter` and `dst_iter_c` respectively.
 ### 1.9. GEMM API changes
 
 Intel MKL-DNN provides three GEMM-like functions:
-- mkldnn_sgemm() -- Single precision matrix-matrix multiply
-- mkldnn_gemm_u8s8s32() -- u8/s8 integer matrix-matrix multiply
-- mkldnn_gemm_s8s8s32() -- s8/s8 integer matrix-matrix multiply
+- [mkldnn_sgemm()](@ref dnnl_sgemm) -- Single precision matrix-matrix multiply
+- [mkldnn_gemm_u8s8s32()](@ref dnnl_gemm_u8s8s32) -- u8/s8 integer matrix-matrix multiply
+- [mkldnn_gemm_s8s8s32()](@ref dnnl_gemm_s8s8s32) -- s8/s8 integer matrix-matrix multiply
 
 With version 1.0 we switched from a Fortran-style to a C-style API, meaning that
 the parameters are passed by value rather than by address, and matrices are
@@ -209,7 +214,8 @@ to
         + o_C
 \f]
 
-where for both mkldnn_gemm_u8s8s32() and mkldnn_gemm_s8s8s32() the types of
+where for both [mkldnn_gemm_u8s8s32()](@ref dnnl_gemm_u8s8s32) and
+[mkldnn_gemm_s8s8s32()](@ref dnnl_gemm_s8s8s32) the types of
 offsets for matrices A and B correspond to the type of the matrices themselves;
 that is:
 - `typeof(o_A) == typeof(*A)` and
@@ -288,9 +294,9 @@ weights typically requires extra space to perform a reduction of the
 `diff_weights` computed by different threads (the work is divided across
 images). Starting with version 1.0, the library supports two modes:
 1. Implicit scratchpad, managed by the library (**default**).
-   See #mkldnn::scratchpad_mode::library.
+   See [mkldnn::scratchpad_mode::library](#dnnl::scratchpad_mode::library).
 2. Explicit scratchpad, provided by the user.
-   See #mkldnn::scratchpad_mode::user.
+   See [mkldnn::scratchpad_mode::user](#dnnl::scratchpad_mode::user).
 
 The former mode matches the behavior of Intel MKL-DNN v0.x. It is kept for
 user convenience and cases in which memory is not a concern.
@@ -299,7 +305,7 @@ In the explicit scratchpad mode, a new `mkldnn_query_scratchpad_md` query will
 return the amount of scratchpad memory needed for a primitive, and the user
 will be responsible for allocating and providing the scratchpad memory to a
 primitive at runtime. The explicit scratchpad mode should be *explicitly*
-enabled by passing an attribute with #mkldnn::scratchpad_mode::user to
+enabled by passing an attribute with `mkldnn::scratchpad_mode::user` to
 primitive descriptors.
 
 @warning
@@ -484,8 +490,8 @@ perspective, the main changes are:
    example, initializing a memory descriptor with `strides={h*w, o*h*w, w, 1}`
    should be a valid way to define `iohw` format even if Intel MKL-DNN does not
    support it explicitly. Functions to use:
-   - C++ API: mkldnn::memory::desc::desc(const dims &adims, data_type adata_type, const dims &astrides),
-   - C API: mkldnn_memory_desc_init_by_strides().
+   - C++ API: [mkldnn::memory::desc::desc(dims, data_type, strides)](@ref dnnl::memory::desc::desc),
+   - C API: [mkldnn_memory_desc_init_by_strides()](@ref dnnl_memory_desc_init_by_strides).
 2. Dimensions are of type `int64_t` instead of int, and the maximum number
    of tensor dimensions is decreased from 16 to 12. The `mkldnn_strides_t`
    is removed; use `mkldnn_dims_t` instead.
@@ -509,8 +515,9 @@ memory format and convenience memory format tags that can be used to describe
 memory format concisely.
 
 Users are still able to initialize memory descriptors with format tags like
-`nchw` using mkldnn::memory::desc::desc(const dims &adims, data_type adata_type, format_tag aformat_tag)
-or mkldnn_memory_desc_init_by_tag(), but the `memory_desc_t.format_kind` is set
+`nchw` using [mkldnn::memory::desc::desc(dims, data_type, format_tag)](@ref dnnl::memory::desc::desc)
+or [mkldnn_memory_desc_init_by_tag()](@ref dnnl_memory_desc_init_by_tag),
+but the `memory_desc_t.format_kind` is set
 to a canonicalized kind like `blocked`, and the format name is not recorded in
 the memory descriptor structure. Initialization with strides will always result
 in `blocked` format. The API also uses different types for memory format tags

@@ -20,14 +20,14 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_debug.h"
+#include "dnnl_debug.h"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 
 #include "bfloat16.hpp"
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -621,6 +621,6 @@ private:
 #undef GET_OFF
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

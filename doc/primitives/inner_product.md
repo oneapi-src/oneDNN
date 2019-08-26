@@ -19,10 +19,10 @@ In case when the \f$src\f$ tensor has spatial dimension it is flattened to 2D.
 For example, if it is a 4D \f$N \times IC' \times IH \times IW\f$ tensor, then
 the formula above is applied with \f$IC = IC' \cdot IH \cdot IW\f$.
 
-#### Difference Between [Forward Training](#mkldnn::forward_training) and [Forward Inference](#mkldnn::forward_inference)
+#### Difference Between [Forward Training](#dnnl::forward_training) and [Forward Inference](#dnnl::forward_inference)
 
-There is no difference between the @ref mkldnn::forward_training
-and @ref mkldnn::forward_inference propagation kinds.
+There is no difference between the @ref dnnl::forward_training
+and @ref dnnl::forward_inference propagation kinds.
 
 ### Backward
 
@@ -67,9 +67,9 @@ tensors:
 | 3D      | \f$N \times C \times D \times H \times W\f$ | \f$N \times C\f$ | \f$OC \times IC \times KD \times KH \times KW\f$
 
 Memory format of data and weights memory objects is critical for inner
-product primitive performance. In the Intel MKL-DNN programming model, inner
+product primitive performance. In the DNNL programming model, inner
 product primitive is one of the few primitives that support the placeholder
-format #mkldnn::memory::format_tag::any (shortened to `any` from
+format #dnnl::memory::format_tag::any (shortened to `any` from
 now on) and can define data and weight memory objects formats based on the
 primitive parameters. When using `any` it is necessary to first create an
 inner product primitive descriptor and then query it for the actual data and
@@ -78,18 +78,18 @@ weight memory objects formats.
 The table below shows the combinations for which **plain** memory formats the
 inner product primitive is optimized for. For the destination tensor (which is
 always \f$N \times C\f$) the memory format is always
-#mkldnn::memory::format_tag::nc (#mkldnn::memory::format_tag::ab).
+#dnnl::memory::format_tag::nc (#dnnl::memory::format_tag::ab).
 
 | Spatial | Source / Weights logical tensor | Implementation optimized for memory formats
 | :--     | :--                             | :--
-| 0D      | NC / OI                         | #mkldnn_nc (#mkldnn_ab) / #mkldnn_oi (#mkldnn_ab)
-| 0D      | NC / OI                         | #mkldnn_nc (#mkldnn_ab) / #mkldnn_io (#mkldnn_ba)
-| 1D      | NCW / OIW                       | #mkldnn_ncw (#mkldnn_abc) / #mkldnn_oiw (#mkldnn_abc)
-| 1D      | NCW / OIW                       | #mkldnn_nwc (#mkldnn_acb) / #mkldnn_wio (#mkldnn_cba)
-| 2D      | NCHW / OIHW                     | #mkldnn_nchw (#mkldnn_abcd) / #mkldnn_oihw (#mkldnn_abcd)
-| 2D      | NCHW / OIHW                     | #mkldnn_nhwc (#mkldnn_acdb) / #mkldnn_hwio (#mkldnn_cdba)
-| 3D      | NCDHW / OIDHW                   | #mkldnn_ncdhw (#mkldnn_abcde) / #mkldnn_oidhw (#mkldnn_abcde)
-| 3D      | NCDHW / OIDHW                   | #mkldnn_ndhwc (#mkldnn_acdeb) / #mkldnn_dhwio (#mkldnn_cdeba)
+| 0D      | NC / OI                         | #dnnl_nc (#dnnl_ab) / #dnnl_oi (#dnnl_ab)
+| 0D      | NC / OI                         | #dnnl_nc (#dnnl_ab) / #dnnl_io (#dnnl_ba)
+| 1D      | NCW / OIW                       | #dnnl_ncw (#dnnl_abc) / #dnnl_oiw (#dnnl_abc)
+| 1D      | NCW / OIW                       | #dnnl_nwc (#dnnl_acb) / #dnnl_wio (#dnnl_cba)
+| 2D      | NCHW / OIHW                     | #dnnl_nchw (#dnnl_abcd) / #dnnl_oihw (#dnnl_abcd)
+| 2D      | NCHW / OIHW                     | #dnnl_nhwc (#dnnl_acdb) / #dnnl_hwio (#dnnl_cdba)
+| 3D      | NCDHW / OIDHW                   | #dnnl_ncdhw (#dnnl_abcde) / #dnnl_oidhw (#dnnl_abcde)
+| 3D      | NCDHW / OIDHW                   | #dnnl_ndhwc (#dnnl_acdeb) / #dnnl_dhwio (#dnnl_cdeba)
 
 ### Post-ops and Attributes
 
@@ -108,6 +108,6 @@ The following post-ops are supported by inner product primitives:
 
 ## Performance Tips
 
-- Use #mkldnn::memory::format_tag::any for source, weights,
+- Use #dnnl::memory::format_tag::any for source, weights,
   and destinations memory format tags when create an inner product primitive
   to allow the library to choose the most appropriate memory format.

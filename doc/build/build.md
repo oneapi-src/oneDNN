@@ -3,7 +3,7 @@ Build from Source {#dev_guide_build}
 
 ## Download the Source Code
 
-Download [Intel MKL-DNN source code](https://github.com/intel/mkl-dnn/archive/master.zip)
+Download [DNNL source code](https://github.com/intel/mkl-dnn/archive/master.zip)
 or clone [the repository](https://github.com/intel/mkl-dnn.git).
 
 ~~~sh
@@ -15,7 +15,7 @@ git clone https://github.com/intel/mkl-dnn.git
 Ensure that all software dependencies are in place and have at least the
 minimal supported version.
 
-The Intel MKL-DNN build system is based on CMake. Use
+The DNNL build system is based on CMake. Use
 
 - `CMAKE_INSTALL_PREFIX` to control the library installation location,
 
@@ -67,7 +67,7 @@ You can also use the `msbuild` command-line tool directly (here
 `/p:Configuration` selects the build configuration which can be different from
 the one specified in `CMAKE_BUILD_TYPE`, and `/m` enables a parallel build):
 ~~~bat
-msbuild "Intel(R) MKL-DNN.sln" /p:Configuration=Release /m
+msbuild "DNNL.sln" /p:Configuration=Release /m
   ~~~
 
 - Build the documentation

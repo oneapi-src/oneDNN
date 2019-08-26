@@ -19,7 +19,7 @@
 
 #include "common/memory_storage.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -37,6 +37,6 @@ public:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // SYCL_MEMORY_STORAGE_BASE_HPP

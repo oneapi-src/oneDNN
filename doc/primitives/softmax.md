@@ -35,10 +35,10 @@ where
         src(\overline{ou}, ic, \overline{in})
 \f]
 
-#### Difference Between [Forward Training](#mkldnn_forward_training) and [Forward Inference](#mkldnn_forward_inference)
+#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
-There is no difference between the #mkldnn_forward_training
-and #mkldnn_forward_inference propagation kinds.
+There is no difference between the #dnnl_forward_training
+and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
@@ -85,18 +85,18 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
  * Currently the softmax primitive is optimized for the cases where
    the dimension of the softmax axis is physically dense. For instance:
    - Optimized: 2D case, tensor \f$A \times B\f$,
-                softmax axis 1 (B), format tag #mkldnn_ab
+                softmax axis 1 (B), format tag #dnnl_ab
    - Optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
-                softmax axis 3 (D), format tag #mkldnn_abcd
+                softmax axis 3 (D), format tag #dnnl_abcd
    - Optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
-                softmax axis 1 (B), format tag #mkldnn_abcd, and
+                softmax axis 1 (B), format tag #dnnl_abcd, and
                 \f$C = D = 1\f$
    - Non-optimized: 2D case, tensor \f$A \times B\f$,
-                    softmax axis 0 (A), format tag #mkldnn_ab,
+                    softmax axis 0 (A), format tag #dnnl_ab,
                     and \f$B \ne 1\f$
    - Non-optimized: 2D case, tensor \f$A \times B\f$,
-                    softmax axis 1 (B), format tag #mkldnn_ba,
+                    softmax axis 1 (B), format tag #dnnl_ba,
                     and \f$A \ne 1\f$
    - Non-optimized: 4D case, tensor \f$A \times B\f$,
-                    softmax axis 2 (C), format tag #mkldnn_acdb, and
+                    softmax axis 2 (C), format tag #dnnl_acdb, and
                     and \f$D \cdot B \ne 1\f$

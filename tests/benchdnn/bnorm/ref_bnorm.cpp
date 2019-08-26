@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "bnorm/bnorm.hpp"
 
@@ -23,7 +23,7 @@ namespace bnorm {
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst) {
 
-    mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
+    dnnl::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
         float sqrt_var = sqrtf(svar + p->eps);
@@ -52,7 +52,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         dnn_mem_t &d_ss) {
     const float NHW = p->mb * p->id * p->ih * p->iw;
 
-    mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
+    dnnl::impl::parallel_nd(p->ic, [&](int64_t c) {
         float smean = ((float *)mean)[c];
         float svar = ((float *)var)[c];
         float rcp_denom = 1.f / sqrtf(svar + p->eps);

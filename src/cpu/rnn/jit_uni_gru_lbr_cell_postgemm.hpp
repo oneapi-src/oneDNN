@@ -19,7 +19,7 @@
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -254,6 +254,6 @@ protected:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -15,7 +15,7 @@
  *******************************************************************************/
 #ifndef BENCHDNN_RNN_CELLS_HPP
 #define BENCHDNN_RNN_CELLS_HPP
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"

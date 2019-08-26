@@ -21,7 +21,7 @@
 #include "sycl/sycl_stream.hpp"
 #include "sycl/sycl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -61,7 +61,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     auto &queue = sycl_stream->queue();
     cl::sycl::kernel sycl_kernel(ocl_kernel_, sycl_engine->context());
     auto event = queue.submit([&](cl::sycl::handler &cgh) {
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
         cgh.depends_on(sycl_stream->get_deps());
 #endif
         for (int i = 0; i < arg_list.nargs(); ++i) {
@@ -85,7 +85,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                                             cgh));
                             break;
                         }
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
                         case memory_api_kind_t::usm: {
                             auto *m = utils::downcast<
                                     const sycl_usm_memory_storage_t *>(
@@ -114,10 +114,10 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             cgh.parallel_for(sycl_range, sycl_kernel);
         }
     });
-    sycl_stream->set_deps({ event });
+    sycl_stream->set_deps({event});
     return status::success;
 }
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

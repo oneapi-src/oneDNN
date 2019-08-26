@@ -69,7 +69,7 @@
             weights_data_t **weights_, const weights_data_t *w_, \
             float **bias_, const float *b_, float *scratch_bias_) const
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -91,11 +91,11 @@ struct rnn_conf_t {
     int mb;
     int slc, sic, dic, dlc;
     int gates_ld, gates_nld, gates_ws_ld;
-    int n_parts_weights_layer, parts_weights_layer[MKLDNN_RNN_MAX_N_PARTS];
-    int n_parts_weights_iter, parts_weights_iter[MKLDNN_RNN_MAX_N_PARTS];
-    int n_bias, n_parts_bias, parts_bias[MKLDNN_RNN_MAX_N_PARTS];
-    size_t part_weights_iter_pack_size[MKLDNN_RNN_MAX_N_PARTS],
-            part_weights_layer_pack_size[MKLDNN_RNN_MAX_N_PARTS];
+    int n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
+    int n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
+    int n_bias, n_parts_bias, parts_bias[DNNL_RNN_MAX_N_PARTS];
+    size_t part_weights_iter_pack_size[DNNL_RNN_MAX_N_PARTS],
+            part_weights_layer_pack_size[DNNL_RNN_MAX_N_PARTS];
     /* Size of packed data in bytes */
     size_t weights_layer_comp_offset, weights_layer_pack_size,
             weights_iter_comp_offset, weights_iter_pack_size;
@@ -156,7 +156,7 @@ struct ws_gates_aoc {
     }
 
 private:
-    mkldnn::impl::utils::array_offset_calculator<T, 2> gates_;
+    dnnl::impl::utils::array_offset_calculator<T, 2> gates_;
     int DIC_;
 };
 using ws_gates_aoc_t = ws_gates_aoc<float>;
@@ -168,7 +168,7 @@ struct bias_aoc_t {
     const float &operator()(int bias_n, int dic) { return bias_(bias_n, dic); }
 
 private:
-    mkldnn::impl::utils::array_offset_calculator<const float, 2> bias_;
+    dnnl::impl::utils::array_offset_calculator<const float, 2> bias_;
 };
 
 template <typename T>
@@ -178,7 +178,7 @@ struct ws_states_aoc {
     T &operator()(int batch, int dic) { return state_(batch, dic); }
 
 private:
-    mkldnn::impl::utils::array_offset_calculator<T, 2> state_;
+    dnnl::impl::utils::array_offset_calculator<T, 2> state_;
 };
 using ws_states_aoc_t = ws_states_aoc<float>;
 using ws_states_aoc_u8_t = ws_states_aoc<uint8_t>;
@@ -192,7 +192,7 @@ struct ws_diff_states_aoc_t {
     }
 
 private:
-    mkldnn::impl::utils::array_offset_calculator<float, 4> diff_states_;
+    dnnl::impl::utils::array_offset_calculator<float, 4> diff_states_;
 };
 
 struct ws_diff_w_iter_aoc_t {
@@ -205,11 +205,11 @@ struct ws_diff_w_iter_aoc_t {
     }
 
 private:
-    mkldnn::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
+    dnnl::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
     int DIC_;
 };
 } // namespace rnn_utils
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif

@@ -18,13 +18,14 @@
 #define BFLOAT16_HPP
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
 
-#include "mkldnn_config.h"
+#include "dnnl.h"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct bfloat16_t {
@@ -33,9 +34,9 @@ struct bfloat16_t {
     constexpr bfloat16_t(uint16_t r, bool) : raw_bits_(r) {}
     bfloat16_t(float f) { (*this) = f; }
 
-    bfloat16_t MKLDNN_API &operator=(float f);
+    bfloat16_t DNNL_API &operator=(float f);
 
-    MKLDNN_API operator float() const;
+    DNNL_API operator float() const;
 
     bfloat16_t &operator+=(bfloat16_t a) {
         (*this) = (float)(*this) + (float)a;
@@ -54,6 +55,6 @@ void add_floats_and_cvt_to_bfloat16(
         bfloat16_t *out, const float *inp0, const float *inp1, size_t size);
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

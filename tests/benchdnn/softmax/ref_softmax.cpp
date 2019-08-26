@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "softmax/softmax.hpp"
 
@@ -37,7 +37,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
     const float *src_ptr = (const float *)src;
     float *dst_ptr = (float *)dst;
 
-    mkldnn::impl::parallel_nd(
+    dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
                 float space_denom = 0.;
                 float space_max = -FLT_MAX;
@@ -72,7 +72,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
     const float *d_dst_ptr = (const float *)diff_dst;
     float *d_src_ptr = (float *)diff_src;
 
-    mkldnn::impl::parallel_nd(
+    dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
                 float part_deriv_sum = 0.;
 

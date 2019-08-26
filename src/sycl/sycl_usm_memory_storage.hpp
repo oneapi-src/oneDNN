@@ -17,9 +17,9 @@
 #ifndef SYCL_USM_MEMORY_STORAGE_HPP
 #define SYCL_USM_MEMORY_STORAGE_HPP
 
-#include "mkldnn_config.h"
+#include "dnnl_config.h"
 
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
 
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
@@ -30,7 +30,7 @@
 #include <memory>
 #include <CL/sycl.hpp>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -87,7 +87,7 @@ private:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

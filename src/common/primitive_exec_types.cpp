@@ -20,11 +20,11 @@
 #include "memory_storage.hpp"
 #include "primitive.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
-        const mkldnn_exec_arg_t *c_args, exec_args_t &args) {
+        const dnnl_exec_arg_t *c_args, exec_args_t &args) {
     using namespace status;
 
     if (!IMPLICATION(nargs > 0, c_args != nullptr)) return invalid_arguments;
@@ -131,5 +131,16 @@ void exec_ctx_t::unmap_memory_storage(
     assert(status == status::success);
     MAYBE_UNUSED(status);
 }
+
+void exec_ctx_t::set_scratchpad_grantor(
+        const memory_tracking::grantor_t &scratchpad_grantor) {
+    scratchpad_grantor_ = utils::make_unique<memory_tracking::grantor_t>(
+            scratchpad_grantor);
+}
+
+const memory_tracking::grantor_t &exec_ctx_t::get_scratchpad_grantor() const {
+    assert(scratchpad_grantor_.get());
+    return *(scratchpad_grantor_.get());
+}
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

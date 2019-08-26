@@ -19,7 +19,7 @@
 
 #include "jit_generator.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -82,6 +82,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // JIT_AVX512_CORE_GEMM_S8U8S32_KERN_HPP

@@ -25,8 +25,8 @@
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace deconv {
@@ -40,7 +40,7 @@ namespace conv {
 enum alg_t { DIRECT, WINO, AUTO };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
-alg_t alg_kind2alg(mkldnn_alg_kind_t alg);
+alg_t alg_kind2alg(dnnl_alg_kind_t alg);
 
 struct desc_t {
     int64_t g, mb;
@@ -73,7 +73,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d);
  * relative difference should not exceed eps
  */
 typedef struct dt_conf_t {
-    mkldnn_data_type_t dt;
+    dnnl_data_type_t dt;
     double min, max; /* representative */
     int f_min, f_max; /* fill range */
     int f_base; /* fill base, use 0 */
@@ -107,8 +107,8 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-            mkldnn_format_tag_t stag, mkldnn_format_tag_t wtag,
-            mkldnn_format_tag_t dtag, alg_t alg, const attr_t &attr,
+            dnnl_format_tag_t stag, dnnl_format_tag_t wtag,
+            dnnl_format_tag_t dtag, alg_t alg, const attr_t &attr,
             int64_t mb = 0, bool is_deconv = false)
         : desc_t(desc)
         , dir(dir)
@@ -131,7 +131,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    mkldnn_format_tag_t stag, wtag, dtag;
+    dnnl_format_tag_t stag, wtag, dtag;
     alg_t alg;
     attr_t attr;
 

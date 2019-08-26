@@ -20,7 +20,7 @@
 #include <cassert>
 #include <sstream>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -93,6 +93,6 @@ private:
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // COMPUTE_UTILS_HPP

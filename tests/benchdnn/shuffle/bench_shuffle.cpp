@@ -20,10 +20,10 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "shuffle/shuffle.hpp"
@@ -31,8 +31,8 @@
 namespace shuffle {
 
 std::vector<dir_t> dir {FWD_D};
-std::vector<mkldnn_data_type_t> dt {mkldnn_f32};
-std::vector<mkldnn_format_tag_t> tag {mkldnn_nchw};
+std::vector<dnnl_data_type_t> dt {dnnl_f32};
+std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
 std::vector<int64_t> group {1};
 std::vector<int> axis {1};
 
@@ -46,8 +46,8 @@ const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     dir = {FWD_D};
-    dt = {mkldnn_f32};
-    tag = {mkldnn_nchw};
+    dt = {dnnl_f32};
+    tag = {dnnl_nchw};
     group = {1};
     axis = {1};
     allow_unimpl = false;

@@ -24,9 +24,9 @@
 #include "sycl/sycl_engine.hpp"
 #include "sycl/sycl_stream.hpp"
 
-using namespace mkldnn::impl;
+using namespace dnnl::impl;
 
-status_t mkldnn_stream_create_sycl(
+status_t dnnl_stream_create_sycl(
         stream_t **stream, engine_t *engine, void *queue) {
     bool args_ok = true && !utils::any_null(stream, engine, queue)
             && engine->kind() == engine_kind::gpu;
@@ -37,7 +37,7 @@ status_t mkldnn_stream_create_sycl(
     return sycl_engine->create_stream(stream, sycl_queue);
 }
 
-status_t mkldnn_stream_get_sycl_queue(stream_t *stream, void **queue) {
+status_t dnnl_stream_get_sycl_queue(stream_t *stream, void **queue) {
     bool args_ok = true && !utils::any_null(queue, stream)
             && stream->engine()->backend_kind() == backend_kind::sycl;
 

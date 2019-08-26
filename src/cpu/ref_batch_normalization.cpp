@@ -19,8 +19,8 @@
 
 #include "bfloat16.hpp"
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "ref_batch_normalization.hpp"
 #include "simple_q10n.hpp"
 #include "type_helpers.hpp"
@@ -40,7 +40,7 @@
         } \
     }
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -70,19 +70,19 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     /* fast return */
     if (this->pd()->has_zero_dim_memory()) return;
 
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
 
-    auto mean = pd()->stats_is_src() ? const_cast<acc_data_t *>(
-                        CTX_IN_MEM(const float *, MKLDNN_ARG_MEAN))
-                                     : CTX_OUT_MEM(float *, MKLDNN_ARG_MEAN);
+    auto mean = pd()->stats_is_src()
+            ? const_cast<acc_data_t *>(CTX_IN_MEM(const float *, DNNL_ARG_MEAN))
+            : CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
     auto variance = pd()->stats_is_src()
             ? const_cast<acc_data_t *>(
-                    CTX_IN_MEM(const float *, MKLDNN_ARG_VARIANCE))
-            : CTX_OUT_MEM(float *, MKLDNN_ARG_VARIANCE);
+                    CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE))
+            : CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
 
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
-    auto ws = CTX_OUT_MEM(uint8_t *, MKLDNN_ARG_WORKSPACE);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
+    auto ws = CTX_OUT_MEM(uint8_t *, DNNL_ARG_WORKSPACE);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper scaleshift_d(pd()->weights_md());
@@ -191,16 +191,15 @@ template struct ref_batch_normalization_fwd_t<bf16>;
 template <impl::data_type_t d_type>
 void ref_batch_normalization_bwd_t<d_type>::execute_backward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto mean = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_MEAN);
-    auto variance = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_VARIANCE);
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto scaleshift = CTX_IN_MEM(const acc_data_t *, MKLDNN_ARG_SCALE_SHIFT);
-    auto ws = CTX_IN_MEM(const uint8_t *, MKLDNN_ARG_WORKSPACE);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
+    auto variance = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto scaleshift = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE_SHIFT);
+    auto ws = CTX_IN_MEM(const uint8_t *, DNNL_ARG_WORKSPACE);
 
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
-    auto diff_scaleshift
-            = CTX_OUT_MEM(acc_data_t *, MKLDNN_ARG_DIFF_SCALE_SHIFT);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
+    auto diff_scaleshift = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_SCALE_SHIFT);
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
@@ -300,6 +299,6 @@ template struct ref_batch_normalization_bwd_t<bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

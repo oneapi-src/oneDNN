@@ -18,7 +18,6 @@
 #define OCL_REF_DECONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
-#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "compute/compute.hpp"
@@ -29,7 +28,7 @@
 
 extern const char *ref_deconv_backward_bias_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -112,7 +111,7 @@ static status_t conv_descr_create(
             dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 }
 
-struct ref_deconvolution_fwd_t : public primitive_t {
+struct ref_deconvolution_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -125,7 +124,8 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            ocl_deconvolution_fwd_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
@@ -138,7 +138,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         status_t init_convolution() {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
-            status_t status = mkldnn_primitive_desc_create(
+            status_t status = dnnl_primitive_desc_create(
                     &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
             return status;
         }
@@ -187,18 +187,18 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_deconvolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
     ~ref_deconvolution_fwd_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
         exec_args_t conv_args;
-        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
-        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
-        conv_args[MKLDNN_ARG_DIFF_SRC] = args.at(MKLDNN_ARG_DST);
+        conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
+        conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
+        conv_args[DNNL_ARG_DIFF_SRC] = args.at(DNNL_ARG_DST);
         if (pd()->with_bias())
-            conv_args[MKLDNN_ARG_BIAS] = args.at(MKLDNN_ARG_BIAS);
-        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+            conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
+        exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         // Executing the convolution kernel
         status_t status = conv_p_->execute(conv_ctx);
@@ -211,11 +211,11 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                 = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
         return conv_status;
     }
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *conv_p_ = nullptr;
 };
 
-struct ref_deconvolution_bwd_data_t : public primitive_t {
+struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public ocl_deconvolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -228,7 +228,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            ocl_deconvolution_bwd_data_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
@@ -241,7 +242,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
         status_t init_convolution() {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
-            status_t status = mkldnn_primitive_desc_create(
+            status_t status = dnnl_primitive_desc_create(
                     &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
             return status;
         }
@@ -282,18 +283,18 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
     ~ref_deconvolution_bwd_data_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto &args = ctx.args();
         exec_args_t conv_args;
-        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
-        conv_args[MKLDNN_ARG_WEIGHTS] = args.at(MKLDNN_ARG_WEIGHTS);
-        conv_args[MKLDNN_ARG_DST] = args.at(MKLDNN_ARG_DIFF_SRC);
+        conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
+        conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
+        conv_args[DNNL_ARG_DST] = args.at(DNNL_ARG_DIFF_SRC);
         if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
-        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
+        exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         // Executing the convolution kernel
         status_t status = conv_p_->execute(conv_ctx);
@@ -307,11 +308,11 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *conv_p_ = nullptr;
 };
 
-struct ref_deconvolution_bwd_weights_t : public primitive_t {
+struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public ocl_deconvolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -325,7 +326,8 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            ocl_deconvolution_bwd_weights_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
@@ -338,7 +340,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         status_t init_convolution() {
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
-            status_t status = mkldnn_primitive_desc_create(
+            status_t status = dnnl_primitive_desc_create(
                     &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
             return status;
         }
@@ -383,7 +385,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     ~ref_deconvolution_bwd_weights_t() {
         if (conv_p_) conv_p_->release();
@@ -395,20 +397,20 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
 
         const auto &args = ctx.args();
         exec_args_t conv_args;
-        conv_args[MKLDNN_ARG_DIFF_DST] = args.at(MKLDNN_ARG_SRC);
-        conv_args[MKLDNN_ARG_SRC] = args.at(MKLDNN_ARG_DIFF_DST);
-        conv_args[MKLDNN_ARG_DIFF_WEIGHTS] = args.at(MKLDNN_ARG_DIFF_WEIGHTS);
+        conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
+        conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
+        conv_args[DNNL_ARG_DIFF_WEIGHTS] = args.at(DNNL_ARG_DIFF_WEIGHTS);
         if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[MKLDNN_ARG_SCRATCHPAD] = args.at(MKLDNN_ARG_SCRATCHPAD);
-        const exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
+            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
+        exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
         status_t status = conv_p_->execute(conv_ctx);
         if (status != status::success) return status;
 
         if (pd()->with_bias()) {
             // Calling the bias kernel if bias=1
-            auto &diff_bias = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_BIAS);
-            auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
+            auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
+            auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
 
             compute::kernel_arg_list_t arg_list;
             arg_list.set(0, diff_dst);
@@ -459,7 +461,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *conv_p_ = nullptr;
     compute::kernel_t bias_kernel;
     size_t gws[3];
@@ -467,6 +469,6 @@ private:
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

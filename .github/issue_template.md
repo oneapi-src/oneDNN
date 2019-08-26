@@ -6,7 +6,7 @@ below the line.
 -----------------------------------------------------------------------------
 
 ### Environment
-Intel MKL-DNN includes hardware-specific optimizations and may behave
+DNNL includes hardware-specific optimizations and may behave
 differently on depending on the compiler and build environment. Include
 the following information to help reproduce the issue:
 * CPU make and model (try `lscpu`; if your `lscpu` does not list CPU flags,

@@ -17,13 +17,13 @@
 #ifndef INNER_PRODUCT_PD_HPP
 #define INNER_PRODUCT_PD_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 memory_desc_t *ip_prop_invariant_src_d(inner_product_desc_t *desc);
@@ -188,12 +188,12 @@ struct inner_product_fwd_pd_t : public inner_product_pd_t {
         , dst_md_(desc_.dst_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_WEIGHTS))
+        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_BIAS && with_bias()) return arg_usage_t::input;
+        if (arg == DNNL_ARG_BIAS && with_bias()) return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -233,10 +233,10 @@ struct inner_product_bwd_data_pd_t : public inner_product_pd_t {
         , diff_dst_md_(desc_.diff_dst_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, MKLDNN_ARG_WEIGHTS, MKLDNN_ARG_DIFF_DST))
+        if (utils::one_of(arg, DNNL_ARG_WEIGHTS, DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -274,12 +274,12 @@ struct inner_product_bwd_weights_pd_t : public inner_product_pd_t {
         , diff_dst_md_(desc_.diff_dst_desc) {}
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, MKLDNN_ARG_SRC, MKLDNN_ARG_DIFF_DST))
+        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DIFF_DST))
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DIFF_WEIGHTS) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DIFF_WEIGHTS) return arg_usage_t::output;
 
-        if (arg == MKLDNN_ARG_DIFF_BIAS && with_bias())
+        if (arg == DNNL_ARG_DIFF_BIAS && with_bias())
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
@@ -308,7 +308,7 @@ protected:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

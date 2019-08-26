@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include <vector>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -45,11 +45,11 @@ struct thunk_params_t {
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // OpenCL for CPU cannot find mangled functions so use
 // C linkage for the thunk
-extern "C" void MKLDNN_API mkldnn_impl_sycl_cpu_thunk(
-        const mkldnn::impl::sycl::thunk_params_t *params);
+extern "C" void DNNL_API dnnl_impl_sycl_cpu_thunk(
+        const dnnl::impl::sycl::thunk_params_t *params);
 
 #endif // SYCL_STREAM_CPU_THUNK_HPP

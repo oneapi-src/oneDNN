@@ -19,11 +19,11 @@
 
 #include <iostream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace ip {
@@ -36,7 +36,7 @@ int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 typedef struct dt_conf_t {
-    mkldnn_data_type_t dt;
+    dnnl_data_type_t dt;
     double min, max; /* representative */
     double f_min, f_max; /* fill range */
     int f_base; /* fill base, use 0 */
@@ -56,8 +56,8 @@ extern const _dt_conf_t conf_bf16f32bf16;
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
-            mkldnn_format_tag_t stag, mkldnn_format_tag_t wtag,
-            mkldnn_format_tag_t dtag, const attr_t &attr)
+            dnnl_format_tag_t stag, dnnl_format_tag_t wtag,
+            dnnl_format_tag_t dtag, const attr_t &attr)
         : desc_t(desc)
         , dir(dir)
         , cfg(cfg)
@@ -77,7 +77,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    mkldnn_format_tag_t stag, wtag, dtag;
+    dnnl_format_tag_t stag, wtag, dtag;
     attr_t attr;
 
     double ops;

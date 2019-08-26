@@ -25,7 +25,7 @@
 #include "jit_uni_eltwise.hpp"
 #include "memory.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -211,6 +211,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

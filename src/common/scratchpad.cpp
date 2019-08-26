@@ -17,15 +17,15 @@
 #include <memory>
 #include <mutex>
 
+#include "dnnl_thread.hpp"
 #include "engine.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu/cpu_engine.hpp"
 
 #include "scratchpad.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 /* Allocating memory buffers on a page boundary to reduce TLB/page misses */
@@ -86,11 +86,13 @@ struct concurrent_scratchpad_t : public scratchpad_t {
         return mem_storage_.get();
     }
 
+    //virtual char *get() const { return scratchpad_; }
+
 private:
     std::unique_ptr<memory_storage_t> mem_storage_;
     size_t size_;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(concurrent_scratchpad_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(concurrent_scratchpad_t);
 };
 
 /*
@@ -125,6 +127,8 @@ struct global_scratchpad_t : public scratchpad_t {
         return mem_storage_.get();
     }
 
+    //virtual char *get() const { return scratchpad_; }
+
 private:
     thread_local static std::unique_ptr<memory_storage_t> mem_storage_;
     thread_local static size_t size_;
@@ -140,11 +144,11 @@ thread_local unsigned int global_scratchpad_t::reference_count_ = 0;
    Scratchpad creation routine
 */
 scratchpad_t *create_scratchpad(engine_t *engine, size_t size) {
-#ifndef MKLDNN_ENABLE_CONCURRENT_EXEC
+#ifndef DNNL_ENABLE_CONCURRENT_EXEC
     return new global_scratchpad_t(engine, size);
 #else
     return new concurrent_scratchpad_t(engine, size);
 #endif
 }
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

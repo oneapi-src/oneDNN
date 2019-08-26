@@ -20,7 +20,7 @@
 
 #include "jit_uni_lrn_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -1394,6 +1394,6 @@ template struct jit_uni_lrn_bwd_kernel_f32<avx2>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

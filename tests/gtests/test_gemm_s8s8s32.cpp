@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
+#include "dnnl.h"
 #include "test_gemm_common.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using gemm_test = gemm_test_common<int8_t, int8_t, int32_t>;
 
@@ -29,4 +29,4 @@ TEST_P(gemm_test, TestGEMM) {}
 #define TEST_CASE_NAME_PREFIX s8s8s32
 #define S8S8S32
 #include "gemm_in.h"
-} // namespace mkldnn
+} // namespace dnnl

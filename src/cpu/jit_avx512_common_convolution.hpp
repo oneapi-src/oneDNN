@@ -18,25 +18,24 @@
 #define CPU_JIT_AVX512_COMMON_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_barrier.hpp"
 #include "cpu_convolution_pd.hpp"
-#include "cpu_primitive.hpp"
 #include "cpu_reducer.hpp"
 
 #include "jit_avx512_common_conv_kernel.hpp"
 #include "jit_transpose_src_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type>
-struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
+struct jit_avx512_common_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -57,7 +56,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
 
             status_t status = jit_avx512_common_conv_fwd_kernel::init_conf(jcp_,
                     *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -71,7 +70,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
     };
 
     jit_avx512_common_convolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {
+        : primitive_impl_t(apd) {
         kernel_ = new jit_avx512_common_conv_fwd_kernel(
                 pd()->jcp_, *pd()->attr());
     }
@@ -91,8 +90,7 @@ struct jit_avx512_common_convolution_fwd_t : public cpu_primitive_t {
         else
             assert(false);
 
-        if (pd()->wants_zero_pad_dst())
-            ctx.memory(MKLDNN_ARG_DST)->zero_pad(ctx);
+        if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
 
         return status::success;
     }
@@ -103,7 +101,7 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx512_common_conv_fwd_kernel *kernel_;
 };
@@ -111,7 +109,7 @@ private:
 template <impl::data_type_t diff_dst_type,
         impl::data_type_t wei_type = diff_dst_type,
         impl::data_type_t diff_src_type = diff_dst_type>
-struct jit_avx512_common_convolution_bwd_data_t : public cpu_primitive_t {
+struct jit_avx512_common_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -159,7 +157,7 @@ struct jit_avx512_common_convolution_bwd_data_t : public cpu_primitive_t {
     };
 
     jit_avx512_common_convolution_bwd_data_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {
+        : primitive_impl_t(apd) {
         kernel_ = new jit_avx512_common_conv_bwd_data_kernel_f32(pd()->jcp_);
     }
     ~jit_avx512_common_convolution_bwd_data_t() { delete kernel_; };
@@ -184,7 +182,7 @@ private:
     void execute_backward_data_1d(const exec_ctx_t &ctx) const;
     void execute_backward_data_2d(const exec_ctx_t &ctx) const;
     void execute_backward_data_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
@@ -192,7 +190,7 @@ private:
 template <impl::data_type_t src_type,
         impl::data_type_t diff_dst_type = src_type,
         impl::data_type_t diff_weights_type = src_type>
-struct jit_avx512_common_convolution_bwd_weights_t : public cpu_primitive_t {
+struct jit_avx512_common_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -273,7 +271,7 @@ private:
     void compute_diff_bias(const thread_info_t *) const;
     void reduce_diff_bias(const thread_info_t *) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
@@ -285,7 +283,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

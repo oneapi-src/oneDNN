@@ -18,10 +18,10 @@
 #include <immintrin.h>
 #endif
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -33,7 +33,7 @@
 #define pragma_unroll
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -96,8 +96,8 @@ void inline accum_output(
 }
 } // namespace
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::utils;
 
 void trans_W_4x4_3x3(float Fw_[6][6][16][16], float F[3][3][16][16]) {
     float Fw[6][16];
@@ -1003,10 +1003,10 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
 void jit_avx512_common_convolution_winograd_bwd_weights_t::
         _execute_backward_weights_S_D_G_W(const exec_ctx_t &ctx,
                 const memory_tracking::grantor_t &scratchpad) const {
-    auto ptr_diff_dst = CTX_IN_MEM(const float *, MKLDNN_ARG_DIFF_DST);
-    auto ptr_src = CTX_IN_MEM(const float *, MKLDNN_ARG_SRC);
-    auto ptr_diff_weights = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_WEIGHTS);
-    auto ptr_diff_bias = CTX_OUT_MEM(float *, MKLDNN_ARG_DIFF_BIAS);
+    auto ptr_diff_dst = CTX_IN_MEM(const float *, DNNL_ARG_DIFF_DST);
+    auto ptr_src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
+    auto ptr_diff_weights = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_WEIGHTS);
+    auto ptr_diff_bias = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
 
     const auto &jcp = kernel_->jcp;
     const int nthreads = jcp.nthr;
@@ -1065,7 +1065,7 @@ for (int bofm = 0; bofm < jcp.oc / simd_w; bofm++) {
 }
         }
 
-        const int ithread = mkldnn_get_thread_num();
+        const int ithread = dnnl_get_thread_num();
 
         parallel_nd_in_omp(jcp.mb, jcp.nb_ic, jcp.ic_block,
                 [&](int img, int ifm1, int ifm2) {
@@ -1144,5 +1144,5 @@ for (int ofm1 = 0; ofm1 < jcp.oc / simd_w; ofm1++) {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

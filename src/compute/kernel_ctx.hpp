@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -78,16 +78,9 @@ public:
         }
     }
 
-    std::string get_options() const {
-        std::ostringstream oss;
-        for (auto &opt : option_set_)
-            oss << " " << opt;
-        return oss.str();
-    }
-
     void print_options() const {
 #ifdef DEBUG_PRINT
-        std::cout << "OPT:\n" << get_options() << std::endl;
+        std::cout << "OPT:\n" << options() << std::endl;
 #endif
     }
 
@@ -127,6 +120,6 @@ inline int64_t kernel_ctx_t::get_scalar(const std::string &name) const {
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // COMPUTE_KERNEL_CTX_HPP

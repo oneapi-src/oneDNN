@@ -19,9 +19,9 @@ set(TEST_EXE test_api_sycl)
 file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 list(APPEND TEST_SOURCES ${MAIN_SRC_GTEST})
 
-register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "mkldnn_gtest")
+register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
 
-if(MKLDNN_SYCL_COMPUTECPP)
+if(DNNL_SYCL_COMPUTECPP)
     add_sycl_to_target(
         TARGET ${TEST_EXE}
         SOURCES ${TEST_SOURCES}

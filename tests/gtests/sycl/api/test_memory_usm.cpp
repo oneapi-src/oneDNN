@@ -14,19 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
 #include <cstdint>
 #include <CL/sycl.hpp>
 
 using namespace cl::sycl;
 
-namespace mkldnn {
+namespace dnnl {
 
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
 
 // TODO: enable after a USM bug related to mixed CPU/GPU execution is fixed.
 #if 0
@@ -60,4 +60,4 @@ TEST(sycl_memory_usm_test, Constructor) {
 
 #endif
 
-} // namespace mkldnn
+} // namespace dnnl

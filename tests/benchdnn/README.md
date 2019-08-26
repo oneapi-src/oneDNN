@@ -1,11 +1,11 @@
 # benchdnn
 
 **benchdnn** is a standalone correctness and performance benchmark for
-[Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](
+[Deep Neural Network Library (DNNL)](
 /intel/mkl-dnn).
 
 The purpose of the benchmark is extended and robust correctness verification of
-the primitives provided by Intel MKL-DNN.
+the primitives provided by DNNL.
 **benchdnn** itself is a harness for different primitive-specific drivers.
 So far it supports and uses the following drivers:
 * [batch normalization](doc/driver_bnorm.md)
@@ -53,7 +53,7 @@ where:
  - `-vINT, --verbose=INT` -- verbose level; use for printing additional
             information. Default is `0`.
  - `--skip-impl="str1[:str2]..."` -- skip a specific implementation
-            (see mkldnn_query_impl_info_str), default `""`.
+            (see dnnl_query_impl_info_str), default `""`.
  - `--allow-unimpl=true|false` -- do not treat unimplemented configuration
             as an error. Default is `false`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
@@ -88,13 +88,13 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 
 |Prop kind      | Description
 |:---           |:---
-| FWD_B         | mkldnn_forward_training w/ bias
-| FWD_D         | mkldnn_forward_training w/o bias
-| FWD_I         | mkldnn_forward_inference
-| BWD_D         | mkldnn_backward_data
-| BWD_W         | mkldnn_backward_weights
-| BWD_DW        | mkldnn_backward_data + mkldnn_backward_weights
-| BWD_WB        | mkldnn_backward_weights + mkldnn_backward_bias
+| FWD_B         | dnnl_forward_training w/ bias
+| FWD_D         | dnnl_forward_training w/o bias
+| FWD_I         | dnnl_forward_inference
+| BWD_D         | dnnl_backward_data
+| BWD_W         | dnnl_backward_weights
+| BWD_DW        | dnnl_backward_data + dnnl_backward_weights
+| BWD_WB        | dnnl_backward_weights + dnnl_backward_bias
 
 |Data type/cfg  | Description
 |:---           |:---
@@ -115,13 +115,13 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 |  aBcd16b      | Internal blocked format for AVX512VL systems and above.
 |  ...          | and some others...
 | Special:      |
-|  any          | mkldnn_format_tag_any. Let the library decide, which layout should be used.
-|  undef        | mkldnn_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
+|  any          | dnnl_format_tag_any. Let the library decide, which layout should be used.
+|  undef        | dnnl_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
 
 
 ## Issues and Contributions
 
-We welcome community contributions to **benchdnn** as well as to Intel MKL-DNN.
+We welcome community contributions to **benchdnn** as well as to DNNL.
 If you have any ideas or issues, please submit an issue or pull request. For
 clarity, please include ''benchdnn: '' in the title.
 

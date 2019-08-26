@@ -4,19 +4,19 @@ Inference and Training Aspects {#dev_guide_inference_and_training_aspects}
 @anchor dev_guide_inference_and_training_prop_kinds
 ## Propagation Kinds
 
-The Intel(R) MKL-DNN library provides performance critical primitives to
+The DNNL library provides performance critical primitives to
 accelerate operations used both during **training** deep learning models and
 during the operations performed when the models are used for **inference**.
 
 During inference, the input data is fed into the trained model which in turn
 produces a result (e.g. makes a prediction). This process is usually called
-forward propagation and corresponds to the #mkldnn::prop_kind::forward_inference
-propagation kind in Intel MKL-DNN.
+forward propagation and corresponds to the #dnnl::prop_kind::forward_inference
+propagation kind in DNNL.
 
 Training usually consists of the following steps.
 1. Make prediction based on the current state of the model.
    As in the case of inference, this step is called **forward** propagation,
-   but corresponds to the #mkldnn::prop_kind::forward_training propagation kind.
+   but corresponds to the #dnnl::prop_kind::forward_training propagation kind.
    Note the difference in the names' suffixes:
    `_training` here versus `_inference` mentioned above.
    The differences are covered below in the corresponding
@@ -29,11 +29,11 @@ Training usually consists of the following steps.
    into two steps:
    - Propagating error with respect to data, i.e. computing `diff_src` from
      `diff_dst` (see @ref dev_guide_conventions). This step corresponds
-     to the #mkldnn::prop_kind::backward_data propagation kind;
+     to the #dnnl::prop_kind::backward_data propagation kind;
    - Propagating error with respect to weights, i.e. computing `diff_weights`
      from `diff_dst`.
      This step makes sense only for the operations that have learnable
-     parameters and corresponds to the #mkldnn::prop_kind::backward_weights
+     parameters and corresponds to the #dnnl::prop_kind::backward_weights
      propagation kind.
 4. Use computed gradients to modify the weights according to the chosen solver
    to improve the accuracy of the model.
@@ -55,7 +55,7 @@ input data, output data, or sometimes some intermediate data, that will later
 be used at the backward propagation to compute the gradients.
 
 For example, let's take max pooling (@ref dev_guide_pooling with algorithm
-kind #mkldnn::algorithm::pooling_max) as an example. The forward pass consists
+kind #dnnl::algorithm::pooling_max) as an example. The forward pass consists
 of computing the maximum values in the sliding window over the source tensor.
 Hence the output is just another tensor that contain these maximum values.
 However, in order to compute source gradient on backward propagation one needs
@@ -64,36 +64,36 @@ it is possible to use the original source tensor to locate the maximums again,
 but this might be more expensive compared to preserving the positions of
 the maximum values in another tensor, that will be then used during the
 backward propagation.
-Intel MKL-DNN uses the latter approach: for max pooling primitive when
-the propagation kind is set to #mkldnn::prop_kind::forward_training
+DNNL uses the latter approach: for max pooling primitive when
+the propagation kind is set to #dnnl::prop_kind::forward_training
 the library produces one extra output called
 [Workspace](@ref dev_guide_inference_and_training_aspects_workspace)
 which will be covered later in this document.
 
 @note
     Key takeaways:
-    - Always use #mkldnn::prop_kind::forward_inference when running inference;
-      use #mkldnn::prop_kind::forward_training for forward pass of training.
+    - Always use #dnnl::prop_kind::forward_inference when running inference;
+      use #dnnl::prop_kind::forward_training for forward pass of training.
     - The number of a primitive's outputs might be greater by 1 if it was
-      created with #mkldnn::prop_kind::forward_training because of the extra
+      created with #dnnl::prop_kind::forward_training because of the extra
       [Workspace](@ref dev_guide_inference_and_training_aspects_workspace)
       memory.
 
 ### Different Backward Propagation Kinds
 @anchor dev_guide_inference_and_training_aspects_difference_backward_prop_kinds
 
-As mentioned above, Intel MKL-DNN separates error back-propagation with respect
+As mentioned above, DNNL separates error back-propagation with respect
 to data and error back-propagation with respect to weights. The former
-corresponds to #mkldnn::prop_kind::backward_data, while the latter corresponds
-to #mkldnn::prop_kind::backward_weights (for example:
+corresponds to #dnnl::prop_kind::backward_data, while the latter corresponds
+to #dnnl::prop_kind::backward_weights (for example:
 @ref dev_guide_convolution).
 
 ## Inference-Specific Aspects
 
 The following list outlines the key specifics of running inference
-with Intel MKL-DNN:
+with DNNL:
 
-1. As described above, always use #mkldnn::prop_kind::forward_inference
+1. As described above, always use #dnnl::prop_kind::forward_inference
    as a propagation kind.
 
 2. To get maximum performance, consider performing operations in-place
@@ -110,16 +110,16 @@ with Intel MKL-DNN:
    better performance.
 
 Most of these techniques are shown in the following examples:
-- @ref cpu_cnn_inference_f32_cpp
-- @ref cpu_cnn_inference_int8_cpp
+- @ref cnn_inference_f32_cpp
+- @ref cnn_inference_int8_cpp
 
 @anchor dev_guide_inference_and_training_aspects_training
 ## Training-Specific Aspects
 
 The following list outlines the key specifics of running training
-with Intel MKL-DNN:
+with DNNL:
 
-1. During the forward propagation, use #mkldnn::prop_kind::forward_training
+1. During the forward propagation, use #dnnl::prop_kind::forward_training
    as a propagation kind.
 
 2. During backward propagation, perform backward by data and backward by
@@ -129,7 +129,7 @@ with Intel MKL-DNN:
      dev_guide_rnn and @ref dev_guide_batch_normalization compute both
      `diff_src` and `diff_weights` at the same time.
      To highlight this behavior, the propagation kind is set
-     to #mkldnn::prop_kind::backward.
+     to #dnnl::prop_kind::backward.
 
 3. Create primitives once, and reuse them across multiple model invocations.
    This is especially relevant for the frameworks integration.
@@ -152,7 +152,7 @@ with Intel MKL-DNN:
    Check the documentation for each primitive to see what is required
    for each particular primitive.
 
-6. For the primitives that are created with #mkldnn::memory::format_tag::any
+6. For the primitives that are created with #dnnl::memory::format_tag::any
    memory format tag, there are no guarantees that the memory format on forward
    and backward propagations will match. So the robust integration should
    always be ready to emit @ref dev_guide_reorder when necessary.
@@ -186,13 +186,13 @@ with Intel MKL-DNN:
    are detailed in the section @ref dev_guide_training_bf16.
 
 Most of these techniques are shown in the following examples:
-- @ref cpu_cnn_training_f32_cpp
+- @ref cnn_training_f32_cpp
 - @ref cpu_cnn_training_bf16_cpp
 
 @anchor dev_guide_inference_and_training_aspects_workspace
 ## Workspace
 
-Intel MKL-DNN uses the notion of `workspace` for some very particular cases.
+DNNL uses the notion of `workspace` for some very particular cases.
 Specifically, the `workspace` is a tensor that the primitive fills in during
 forward propagation and that will then be used by the corresponding backward
 propagation operation. The example with max pooling was already discussed
@@ -202,12 +202,12 @@ The workflow for using workspace is:
 1. When creating a primitive for the forward propagation, query the primitive
    descriptor about the workspace requirement using `.workspace_desc()`.
    - If the returned memory descriptor is essentially empty (i.e. is equal to
-     `mkldnn::memory::desc()` or for which @ref mkldnn::memory::desc::get_size()
+     `dnnl::memory::desc()` or for which @ref dnnl::memory::desc::get_size()
      returns 0), no extra action is required--the workspace is not required
      for this primitive in this configuration.
    - Otherwise, create a workspace memory based on the memory descriptor
      obtained and pass it to the execution function with
-     `MKLDNN_ARG_WORKSPACE` tag.
+     `DNNL_ARG_WORKSPACE` tag.
 
 2. On backward propagation, attach that same workspace memory during
    the execution as well. The state of the workspace memory after backward
@@ -228,7 +228,7 @@ memory workspace(workspace_md, engine); // create a memory (even if empty)
 
 primitive_forward.execute(stream, {
         ...,
-        {MKLDNN_ARG_WORKSPACE, workspace} // this is output
+        {DNNL_ARG_WORKSPACE, workspace} // this is output
         });
 // The workspace contains required information for the backward propagation,
 // hence should not be used anywhere else.
@@ -238,7 +238,7 @@ primitive_forward.execute(stream, {
 // BWD
 primitive_backward.execute(stream, {
         ...,
-        {MKLDNN_ARG_WORKSPACE, workspace} // this input/output
+        {DNNL_ARG_WORKSPACE, workspace} // this input/output
         });
 // The state of the workspace is undefined here
 ~~~

@@ -26,7 +26,7 @@ factors at run-time dynamically. Hence, the model is sometimes called a *static*
 quantization model. The main rationale to support only *static* quantization
 out-of-the-box is higher performance. Those who want to use *dynamic*
 quantization can do so in a few steps:
-1. Compute the result in higher precision, like #mkldnn::memory::data_type::s32.
+1. Compute the result in higher precision, like #dnnl::memory::data_type::s32.
 2. Find the required characteristics, like min and max values, and derive
    the scale factor.
 3. Re-quantize to the lower precision data type.
@@ -121,7 +121,7 @@ where now
     \frac{\alpha_{src} \cdot \alpha_{weights}(oc)}{\alpha_{dst}}\f$.
 
 It is worth mentioning that a user has to prepare quantized weights accordingly.
-For Intel MKL-DNN provides reorders that can perform per-channel scaling:
+For DNNL provides reorders that can perform per-channel scaling:
 
 \f[
     weights_{int8}(oc, ic, kh, kw) =
@@ -144,9 +144,9 @@ fine. Having this in mind we tried to design a minimal and simple yet powerful
 enough quantization API.
 
 The most common data type for data tensors during INT8 inference is
- #mkldnn::memory::data_type::s8 and #mkldnn::memory::data_type::u8. All the
+ #dnnl::memory::data_type::s8 and #dnnl::memory::data_type::u8. All the
 scaling factors related to tensors are not attached in any way to the
-Intel MKL-DNN memory objects and should be maintained by users.
+DNNL memory objects and should be maintained by users.
 
 The library essentially extends the ability of the primitives to scale the
 output before storing the result to the memory with the destination data type.
@@ -154,7 +154,7 @@ That's exactly the minimum that we need to support INT8 inference (check the
 equations above--only \f$output\_scale\f$ is non-standard).
 
 The scaling happens in the single precision floating point data type
-(#mkldnn::memory::data_type::f32). Before storing, the result is downconverted
+(#dnnl::memory::data_type::f32). Before storing, the result is downconverted
 to the destination data type with saturation if required. The rounding happens
 according to the current HW setting (for instance, on CPU according to the
 MXCSR register).
@@ -170,8 +170,8 @@ to the
 [attributes error handling section](@ref dev_guide_attributes_error_handling).
 
 API:
-- C: @ref mkldnn_primitive_attr_set_output_scales
-- C++: @ref mkldnn::primitive_attr::set_output_scales
+- C: @ref dnnl_primitive_attr_set_output_scales
+- C++: @ref dnnl::primitive_attr::set_output_scales
 
 The primitives do not support output scales if source (and weights) tensors
 are of the int8 data type. In other words, regular `f32` convolution cannot
@@ -179,7 +179,7 @@ scale the output result.
 
 The parameters (C++ API for simplicity):
 ~~~cpp
-void mkldnn::primitive_attr::set_output_scales(
+void dnnl::primitive_attr::set_output_scales(
         int mask,
         const std::vector<float> &scales
         );
@@ -217,10 +217,10 @@ and the number of scales should be:
 const int G, OC, IC, KH, KW;
 
 // original f32 weights in user's format
-mkldnn::memory::desc wei_user_f32_md(
+dnnl::memory::desc wei_user_f32_md(
         {G, OC/G, IC/G, KH, KW},            // dims
-        mkldnn::memory::data_type::f32,     // the data originally in f32
-        mkldnn::memory::format_tag::hwigo   // the memory format a user uses
+        dnnl::memory::data_type::f32,     // the data originally in f32
+        dnnl::memory::format_tag::hwigo   // the memory format a user uses
         );
 
 // the scaling factors for quantized weights
@@ -230,11 +230,11 @@ std::vector<float> wei_scales(G * OC/G) = {...};
 // ...
 
 // int8 convolution primitive descriptor (will create it in the next example)
-mkldnn::convolution_forward::primitive_desc conv_pd(...);
+dnnl::convolution_forward::primitive_desc conv_pd(...);
 
 
 // query the convolution weights memory descriptor
-mkldnn::memory::desc wei_conv_s8_md = conv_pd.weights_desc();
+dnnl::memory::desc wei_conv_s8_md = conv_pd.weights_desc();
 
 // prepare the inverse of the scales (f32 = scale * int8 --> int8 = 1/scale * f32)
 std::vector<float> inv_wei_scales(wei_scales.size());
@@ -242,7 +242,7 @@ for (size_t i = 0; i < wei_scales.size(); ++i)
     inv_wei_scales[i] = 1.f / wei_scales[i];
 
 // prepare the attributes for the reorder
-mkldnn::primitive_attr attr;
+dnnl::primitive_attr attr;
 const int mask = 0
     | (1 << 0)  // scale per  G dimension, which is the dim #0
     | (1 << 1); // scale per OC dimension, which is the dim #1
@@ -251,11 +251,11 @@ attr.set_output_scales(mask, inv_wei_scales);
 // create reorder that would perform:
 //   wei_s8(g, oc, ic, kh, kw) <- 1/scale(g, oc) * wei_f32(g, oc, ic, kh, kw)
 // including the data format transformation.
-auto wei_reorder_pd = mkldnn::reorder::primitive_desc(
+auto wei_reorder_pd = dnnl::reorder::primitive_desc(
         wei_user_f32_md, engine, // source
         wei_conv_s8_md, engine, // destination,
         attr);
-auto wei_reorder = mkldnn::reorder(wei_reorder_pd);
+auto wei_reorder = dnnl::reorder(wei_reorder_pd);
 
 // ...
 ~~~
@@ -279,33 +279,33 @@ std::vector<float> wei_scales(G * OC/G) = {...};
 // with memory format tag == any to allow a convolution implementation
 // to chose the appropriate memory format
 
-mkldnn::memory::desc src_conv_s8_any_md(
+dnnl::memory::desc src_conv_s8_any_md(
         {BATCH, IC, IH, IW},            // dims
-        mkldnn::memory::data_type::s8,  // the data originally in s8
-        mkldnn::memory::format_tag::any // let convolution to choose
+        dnnl::memory::data_type::s8,  // the data originally in s8
+        dnnl::memory::format_tag::any // let convolution to choose
         );
 
-mkldnn::memory::desc wei_conv_s8_any_md(
+dnnl::memory::desc wei_conv_s8_any_md(
         {G, OC/G, IC/G, KH, KW},        // dims
-        mkldnn::memory::data_type::s8,  // the data originally in s8
-        mkldnn::memory::format_tag::any // let convolution to choose
+        dnnl::memory::data_type::s8,  // the data originally in s8
+        dnnl::memory::format_tag::any // let convolution to choose
         );
 
-mkldnn::memory::desc dst_conv_s8_any_md(...);  // ditto
+dnnl::memory::desc dst_conv_s8_any_md(...);  // ditto
 
 // Create a convolution operation descriptor
-mkldnn::convolution_forward::desc conv_d(
-        mkldnn::prop_kind::forward_inference,
-        mkldnn::algorithm::convolution_direct,
+dnnl::convolution_forward::desc conv_d(
+        dnnl::prop_kind::forward_inference,
+        dnnl::algorithm::convolution_direct,
         src_conv_s8_any_md,                     // what's important is that
         wei_conv_s8_any_md,                     // we specified that we want
         dst_conv_s8_any_md,                     // computations in s8
         strides, padding_l, padding_r,
-        mkldnn::padding_kind::zero
+        dnnl::padding_kind::zero
         );
 
 // prepare the attributes for the convolution
-mkldnn::primitive_attr attr;
+dnnl::primitive_attr attr;
 const int mask = 0
     | (1 << 1); // scale per OC dimension, which is the dim #1 on dst tensor:
                 // (BATCH, OC, OH, OW)
@@ -316,7 +316,7 @@ for (int g_oc = 0; G * OC/G; ++g_oc)
 attr.set_output_scales(mask, conv_output_scales);
 
 // create a convolution primitive descriptor with the scaling factors
-auto conv_pd = mkldnn::convolution_forward::primitive_desc(
+auto conv_pd = dnnl::convolution_forward::primitive_desc(
         conv_d, // general (non-customized) operation descriptor
         attr,   // the attributes contain the output scaling
         engine);

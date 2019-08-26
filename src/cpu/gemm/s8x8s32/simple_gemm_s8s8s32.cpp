@@ -19,14 +19,14 @@
 #include "simple_gemm_s8s8s32.hpp"
 
 #include "../gemm.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_types.h"
 #include "jit_generator.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
-#include "mkldnn_types.h"
 #include "nstl.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -141,14 +141,14 @@ void copy_and_shift_b(bool transb, int k, int n, uint8_t *b_u8, int ldb_u8,
  *  - if op(A) = A**T: compensation contains sum of the elements in each column
  *   scaled by -128 * alpha
  *
- * The rest of parameters is described in mkldnn.h
+ * The rest of parameters is described in dnnl.h
  */
-mkldnn_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
+dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
         const char *offsetC, const int *m, const int *n, const int *k,
         const float *alpha, const int8_t *a, const int *lda, const int8_t *oa,
         const int8_t *b, const int *ldb, const int8_t *ob, const float *beta,
         int32_t *c, const int *ldc, const int32_t *oc) {
-    if (*oa != 0 || *ob != 0) return mkldnn_unimplemented;
+    if (*oa != 0 || *ob != 0) return dnnl_unimplemented;
 
     int M = *m, N = *n, K = *k;
     bool transa = (*transA == 'T' || *transA == 't');
@@ -162,7 +162,7 @@ mkldnn_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
     if (utils::any_null(b_u8, compensation)) {
         free(b_u8);
         free(compensation);
-        return mkldnn_out_of_memory;
+        return dnnl_out_of_memory;
     }
 
     compensation_init(offsetC, compensation, M, oc);
@@ -179,8 +179,8 @@ mkldnn_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
     free(b_u8);
     free(compensation);
 
-    return mkldnn_success;
+    return dnnl_success;
 }
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

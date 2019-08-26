@@ -20,7 +20,7 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -28,8 +28,8 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(MKLDNN_ARG_FROM);
-    auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_TO);
+    auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
+    auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
     const auto &jrp = pd()->jrp_;
     float alpha = pd()->alpha();
@@ -62,4 +62,4 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

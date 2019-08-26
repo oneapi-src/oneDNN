@@ -43,7 +43,7 @@
 
 extern const char *ref_rnn_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -56,7 +56,7 @@ enum gemm_kind_t {
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type>
-struct _ref_rnn_common_t : public primitive_t {
+struct _ref_rnn_common_t : public primitive_impl_t {
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<weights_type>::type weights_data_t;
 
@@ -81,7 +81,8 @@ struct _ref_rnn_common_t : public primitive_t {
         pd_t(const pd_t &other) : base_pd_t(other) { copy_from(other); }
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            base_pd_t::operator=(other);
             clear();
             copy_from(other);
             return *this;
@@ -174,7 +175,7 @@ struct _ref_rnn_common_t : public primitive_t {
                 this->weights_layer_md_ = new_weights_layer_md;
             } else if (this->weights_layer_md_.format_kind
                     == format_kind::rnn_packed) {
-                if (mkldnn::impl::operator!=(
+                if (dnnl::impl::operator!=(
                             this->weights_layer_md_, new_weights_layer_md))
                     return status::unimplemented;
             }
@@ -184,15 +185,14 @@ struct _ref_rnn_common_t : public primitive_t {
                 this->weights_iter_md_ = new_weights_iter_md;
             } else if (this->weights_iter_md_.format_kind
                     == format_kind::rnn_packed) {
-                if (mkldnn::impl::operator!=(
+                if (dnnl::impl::operator!=(
                             this->weights_iter_md_, new_weights_iter_md))
                     return status::unimplemented;
             }
 
             // Check dimensions consistency
             int ls_multiplier
-                    = (this->direction() == mkldnn_bidirectional_concat) ? 2
-                                                                         : 1;
+                    = (this->direction() == dnnl_bidirectional_concat) ? 2 : 1;
 
             ok = ok && (ls_multiplier * this->DIC() == this->DLC())
                     && ((ls_multiplier * this->SLC()) == this->DLC()
@@ -210,7 +210,7 @@ struct _ref_rnn_common_t : public primitive_t {
             // initialize the workspace_pd if needed
             if (rnn_conf_.use_workspace) {
                 dims_t ws_dims = {(dim_t)ws_sz};
-                mkldnn_memory_desc_init_by_tag(
+                dnnl_memory_desc_init_by_tag(
                         &this->ws_md_, 1, ws_dims, src_type, x);
             }
 
@@ -244,12 +244,11 @@ struct _ref_rnn_common_t : public primitive_t {
                 gemm_desc.b_type = b_dt;
                 gemm_desc.c_type = c_dt;
 
-                op_desc_t op_desc(gemm_desc);
-
                 primitive_attr_t dummy_attr;
 
-                return mkldnn_primitive_desc_create(gemm_pd, &op_desc,
-                        &dummy_attr, this->engine(), nullptr);
+                return dnnl_primitive_desc_create(gemm_pd,
+                        (op_desc_t *)&gemm_desc, &dummy_attr, this->engine(),
+                        nullptr);
             };
 
             int batch = rnn_conf_.mb;
@@ -437,7 +436,7 @@ struct _ref_rnn_common_t : public primitive_t {
         return status::success;
     } // status_t init() override
 
-    _ref_rnn_common_t(const pd_t *apd) : primitive_t(apd) {
+    _ref_rnn_common_t(const pd_t *apd) : primitive_impl_t(apd) {
 
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
@@ -523,7 +522,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     grid_execution_sig(linear_execution);
     // grid_execution_sig(wavefront_execution);
@@ -626,7 +625,7 @@ using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

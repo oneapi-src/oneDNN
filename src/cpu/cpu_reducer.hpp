@@ -20,16 +20,16 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_types.h"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
-#include "mkldnn_types.h"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "cpu_barrier.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -74,7 +74,7 @@ struct reduce_balancer_t {
     reduce_balancer_t &init(int nthr, int job_size, int njobs,
             int reduction_size, size_t max_buffer_size,
             bool lock_free = false) {
-        allow_nthr_in_group_ = lock_free ? true : mkldnn_thr_syncable();
+        allow_nthr_in_group_ = lock_free ? true : dnnl_thr_syncable();
         nthr_ = nthr;
         job_size_ = job_size;
         njobs_ = njobs;
@@ -187,7 +187,7 @@ struct cpu_reducer_t {
     /** initializes reducer.
      * Must be called from a single thread prior to actual usage */
     void init(const memory_tracking::grantor_t &scratchpad) const {
-        if (balancer().nthr_per_group_ == 1 || !mkldnn_thr_syncable()) return;
+        if (balancer().nthr_per_group_ == 1 || !dnnl_thr_syncable()) return;
 
         auto bctx = scratchpad.template get<simple_barrier::ctx_t>(
                 memory_tracking::names::key_reducer_space_bctx);
@@ -240,7 +240,7 @@ private:
     const conf_t conf_;
     reducer_2d_driver_t<data_type> *drv_;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_t);
 };
 
 template <impl::data_type_t data_type>
@@ -272,7 +272,7 @@ struct cpu_reducer_2d_t {
     /** initializes reducer.
      * Must be called from a single thread prior to actual usage */
     void init(const memory_tracking::grantor_t &scratchpad) const {
-        if (balancer().nthr_per_group_ == 1 || !mkldnn_thr_syncable()) return;
+        if (balancer().nthr_per_group_ == 1 || !dnnl_thr_syncable()) return;
 
         auto bctx = scratchpad.template get<simple_barrier::ctx_t>(
                 memory_tracking::names::key_reducer_space_bctx);
@@ -322,7 +322,7 @@ private:
             int start_y, int start_x, int ny_start, int nx_start, int ny_step,
             int nx_step) const;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_2d_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_reducer_2d_t);
 };
 
 /** simple 1d accumulator: y[:] += x[:] */
@@ -336,12 +336,12 @@ struct cpu_accumulator_1d_t {
 
     reducer_2d_driver_t<data_type> *drv_;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(cpu_accumulator_1d_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_accumulator_1d_t);
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

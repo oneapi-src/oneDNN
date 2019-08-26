@@ -25,14 +25,14 @@
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::format_tag;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::format_tag;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 
@@ -1485,6 +1485,6 @@ inline void jit_avx2_conv_bwd_weights_kernel_f32::compute_oh_loop_common() {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

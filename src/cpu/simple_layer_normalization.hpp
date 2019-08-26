@@ -18,13 +18,12 @@
 #define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 
 #include "cpu_layer_normalization_pd.hpp"
-#include "cpu_primitive.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "reorder_pd.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 /* Stats and src here are compatible if
@@ -44,13 +43,13 @@ static status_t create_reorder_pd(engine_t *engine,
 
     const primitive_attr_t attr;
     primitive_desc_t *r_pd = nullptr;
-    status_t status = mkldnn_reorder_primitive_desc_create(
+    status_t status = dnnl_reorder_primitive_desc_create(
             &r_pd, from_md, engine, to_md, engine, &attr);
     *reorder_pd = r_pd;
     return status;
 }
 
-struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
+struct simple_layer_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -63,7 +62,8 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
         }
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_layer_normalization_fwd_pd_t::operator=(other);
             clear();
             copy_from(other);
             return *this;
@@ -129,7 +129,7 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
     };
 
     simple_layer_normalization_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), reorder_(nullptr) {
+        : primitive_impl_t(apd), reorder_(nullptr) {
         if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
@@ -140,8 +140,8 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
     void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
             const memory_arg_t &out) const {
         exec_args_t r_args;
-        r_args[MKLDNN_ARG_SRC] = in;
-        r_args[MKLDNN_ARG_DST] = out;
+        r_args[DNNL_ARG_SRC] = in;
+        r_args[DNNL_ARG_DST] = out;
         exec_ctx_t r_ctx(ctx, std::move(r_args));
         reorder_->execute(r_ctx);
     }
@@ -152,7 +152,7 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
          * as data tensor (i.e. data in abcd, stats in abc) and user's
          * input/output statistics are reordered if necessary */
         using namespace memory_tracking::names;
-        auto scratchpad = this->scratchpad(ctx);
+        auto scratchpad = ctx.get_scratchpad_grantor();
         auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
         auto variance_mem = scratchpad.get_memory_storage(key_lnorm_tmp_var);
         memory_t mean(
@@ -162,16 +162,16 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
-                    {&variance, false});
+            reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(
+                    ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});
         }
         execute_forward(ctx);
         // reorder output stats
         if (!pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, {&mean, true}, ctx.args().at(MKLDNN_ARG_MEAN));
+            reorder_stat(ctx, {&mean, true}, ctx.args().at(DNNL_ARG_MEAN));
             reorder_stat(
-                    ctx, {&variance, true}, ctx.args().at(MKLDNN_ARG_VARIANCE));
+                    ctx, {&variance, true}, ctx.args().at(DNNL_ARG_VARIANCE));
         }
 
         return status::success;
@@ -179,11 +179,11 @@ struct simple_layer_normalization_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *reorder_;
 };
 
-struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
+struct simple_layer_normalization_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -196,7 +196,8 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
         }
 
         pd_t &operator=(const pd_t &other) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            cpu_layer_normalization_bwd_pd_t::operator=(other);
             clear();
             copy_from(other);
             return *this;
@@ -250,7 +251,7 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
                         key_lnorm_tmp_var, sizeof(float) * across_axis());
             }
             scratchpad.book(key_lnorm_reduction,
-                    sizeof(float) * 2 * norm_axis() * mkldnn_get_max_threads());
+                    sizeof(float) * 2 * norm_axis() * dnnl_get_max_threads());
             scratchpad.book(
                     key_lnorm_tmp_diff_ss, sizeof(float) * 2 * norm_axis());
         }
@@ -265,7 +266,7 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
     };
 
     simple_layer_normalization_bwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd), reorder_(nullptr) {
+        : primitive_impl_t(apd), reorder_(nullptr) {
         if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
     }
 
@@ -276,8 +277,8 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
     void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
             const memory_arg_t &out) const {
         exec_args_t r_args;
-        r_args[MKLDNN_ARG_SRC] = in;
-        r_args[MKLDNN_ARG_DST] = out;
+        r_args[DNNL_ARG_SRC] = in;
+        r_args[DNNL_ARG_DST] = out;
         exec_ctx_t r_ctx(ctx, std::move(r_args));
         reorder_->execute(r_ctx);
     }
@@ -290,7 +291,7 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
          * input/output statistics are reordered if necessary */
 
         if (reorder_) {
-            auto scratchpad = this->scratchpad(ctx);
+            auto scratchpad = ctx.get_scratchpad_grantor();
             auto mean_mem = scratchpad.get_memory_storage(key_lnorm_tmp_mean);
             auto variance_mem
                     = scratchpad.get_memory_storage(key_lnorm_tmp_var);
@@ -298,9 +299,9 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
                     false);
             memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
                     variance_mem, false);
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_MEAN), {&mean, false});
-            reorder_stat(ctx, ctx.args().at(MKLDNN_ARG_VARIANCE),
-                    {&variance, false});
+            reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(
+                    ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});
         }
 
         execute_backward(ctx);
@@ -309,13 +310,13 @@ struct simple_layer_normalization_bwd_t : public cpu_primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *reorder_;
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

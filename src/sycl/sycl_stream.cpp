@@ -23,7 +23,7 @@
 #include <memory>
 #include <CL/cl.h>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -103,13 +103,13 @@ status_t sycl_stream_t::init() {
             cl_context ocl_ctx;
             err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
                     sizeof(cl_context), &ocl_ctx, nullptr);
-            status = ocl::ocl_utils::convert_to_mkldnn(err);
+            status = ocl::ocl_utils::convert_to_dnnl(err);
             if (status != status::success) return status;
 
             cl_device_id ocl_dev;
             err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
                     sizeof(cl_device_id), &ocl_dev, nullptr);
-            status = ocl::ocl_utils::convert_to_mkldnn(err);
+            status = ocl::ocl_utils::convert_to_dnnl(err);
             if (status != status::success) return status;
 
             auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
@@ -128,4 +128,4 @@ status_t sycl_stream_t::init() {
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

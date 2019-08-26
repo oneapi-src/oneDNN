@@ -17,19 +17,18 @@
 #ifndef CPU_WINO_REORDER_HPP
 #define CPU_WINO_REORDER_HPP
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "primitive_desc.hpp"
 
-#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "simple_q10n.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t type_i, data_type_t type_o>
-struct wino_reorder_t : public cpu_primitive_t {
+struct wino_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -48,9 +47,8 @@ struct wino_reorder_t : public cpu_primitive_t {
                                     format_tag::hwio, format_tag::hwigo)))
                     && od.format_kind() == format_kind::wino
                     && utils::one_of(od.wino_desc().wino_format,
-                            mkldnn_wino_wei_aaOIoi, mkldnn_wino_wei_aaOio,
-                            mkldnn_wino_wei_aaOBiOo,
-                            mkldnn_wino_wei_OBaaIBOIio);
+                            dnnl_wino_wei_aaOIoi, dnnl_wino_wei_aaOio,
+                            dnnl_wino_wei_aaOBiOo, dnnl_wino_wei_OBaaIBOIio);
             if (!args_ok) return status::invalid_arguments;
 
             auto _pd = new pd_t(
@@ -60,6 +58,8 @@ struct wino_reorder_t : public cpu_primitive_t {
                 delete _pd;
                 return status::unimplemented;
             }
+            _pd->init_info();
+            _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
@@ -87,12 +87,7 @@ struct wino_reorder_t : public cpu_primitive_t {
         }
     };
 
-private:
-    typedef typename prec_traits<type_i>::type in_data_t;
-    typedef typename prec_traits<type_o>::type out_data_t;
-    const int unsign_val_in_wino_domain_ = 5;
-
-    wino_reorder_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    wino_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -126,7 +121,7 @@ private:
         nb_oc_ = oc_ / oc_block_;
         nb_ic_ = ic_ / ic_block_;
         ic2_block_ = 1;
-        if (wino_format_ == mkldnn_wino_wei_OBaaIBOIio)
+        if (wino_format_ == dnnl_wino_wei_OBaaIBOIio)
             ic2_block_ = dst_d.wino_desc().ic2_block;
         oc2_block_ = dst_d.wino_desc().oc2_block;
         assert(nb_ic_ % ic2_block_ == 0 && nb_oc_ % oc2_block_ == 0);
@@ -136,6 +131,11 @@ private:
         size_wino_wei_ = w_alpha_ * w_alpha_ * oc_ * ic_;
         size_wspace_ = r_ * w_alpha_ * oc_block_;
     }
+
+private:
+    typedef typename prec_traits<type_i>::type in_data_t;
+    typedef typename prec_traits<type_o>::type out_data_t;
+    const int unsign_val_in_wino_domain_ = 5;
 
     void transform(out_data_t *__restrict tmp_wei,
             const in_data_t *__restrict input,
@@ -160,10 +160,10 @@ private:
                 {0.f, 0.f, 1.f}};
 
         float *__restrict g;
-        if (utils::one_of(wino_format_, mkldnn_wino_wei_aaOIoi,
-                    mkldnn_wino_wei_aaOio, mkldnn_wino_wei_aaOBiOo))
+        if (utils::one_of(wino_format_, dnnl_wino_wei_aaOIoi,
+                    dnnl_wino_wei_aaOio, dnnl_wino_wei_aaOBiOo))
             g = (float *)G_2x2_3x3;
-        else if (wino_format_ == mkldnn_wino_wei_OBaaIBOIio)
+        else if (wino_format_ == dnnl_wino_wei_OBaaIBOIio)
             g = (float *)G_4x4_3x3;
         else {
             assert(!"Unknown winograd weights target layout");
@@ -376,31 +376,28 @@ private:
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const in_data_t *, MKLDNN_ARG_FROM);
-        auto output = CTX_OUT_MEM(out_data_t *, MKLDNN_ARG_TO);
+        auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
 
-        auto wspace
-                = (in_data_t * __restrict) scratchpad(ctx).template get<void>(
-                        memory_tracking::names::
-                                key_reorder_wino_transform_space);
-        auto tmp_wei
-                = (out_data_t * __restrict) scratchpad(ctx).template get<void>(
-                        memory_tracking::names::key_reorder_wino_plain);
+        auto wspace = (in_data_t * __restrict) ctx.get_scratchpad_grantor()
+                              .template get<void>(memory_tracking::names::
+                                              key_reorder_wino_transform_space);
+        auto tmp_wei = (out_data_t * __restrict) ctx.get_scratchpad_grantor()
+                               .template get<void>(memory_tracking::names::
+                                               key_reorder_wino_plain);
 
         transform(tmp_wei, input, wspace);
 
         /* reorder to winograd domain */
         switch (wino_format_) {
-            case mkldnn_wino_wei_aaOIoi:
+            case dnnl_wino_wei_aaOIoi:
                 reorder_to_aaOIoi(output, tmp_wei);
                 break;
-            case mkldnn_wino_wei_aaOio:
-                reorder_to_aaOio(output, tmp_wei);
-                break;
-            case mkldnn_wino_wei_aaOBiOo:
+            case dnnl_wino_wei_aaOio: reorder_to_aaOio(output, tmp_wei); break;
+            case dnnl_wino_wei_aaOBiOo:
                 reorder_to_aaOBiOo(output, tmp_wei);
                 break;
-            case mkldnn_wino_wei_OBaaIBOIio:
+            case dnnl_wino_wei_OBaaIBOIio:
                 reorder_to_OBaaIBOIio(output, tmp_wei);
                 break;
             default: assert(!"Unknown wino format"); break;
@@ -409,19 +406,19 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     int r_, w_alpha_;
     int ic_, oc_, or_ic_, or_oc_, kh_, kw_;
     int oc_block_, ic_block_, oc2_block_, ic2_block_;
     float adj_scale_;
     int nb_oc_, nb_ic_;
-    mkldnn_wino_memory_format_t wino_format_;
+    dnnl_wino_memory_format_t wino_format_;
     int size_wino_wei_;
     int size_wspace_;
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

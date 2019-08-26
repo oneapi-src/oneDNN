@@ -23,7 +23,7 @@
 #include <assert.h>
 #include <memory>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 // Memory storage is an abstraction providing interfaces to:
@@ -32,6 +32,7 @@ namespace impl {
 //
 // Memory storage is engine-specific and has different implementations for
 // different engines.
+
 struct memory_storage_impl_t : public c_compatible {
     memory_storage_impl_t(engine_t *engine, size_t size)
         : engine_(engine), size_(size) {}
@@ -60,7 +61,7 @@ private:
     engine_t *engine_;
     size_t size_;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(memory_storage_impl_t);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_impl_t);
 };
 
 struct memory_storage_t : public c_compatible {
@@ -155,9 +156,11 @@ public:
 private:
     std::shared_ptr<memory_storage_impl_t> impl_;
     size_t offset_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

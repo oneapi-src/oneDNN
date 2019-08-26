@@ -20,13 +20,13 @@
 
 #include "common/bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_types.h"
 #include "gemm_info.hpp"
 #include "jit_generator.hpp"
-#include "mkldnn_thread.hpp"
-#include "mkldnn_types.h"
 #include "nstl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -240,7 +240,7 @@ static inline void gemv_kernel_driver(const int trans, const dim_t m,
 #define CONST2_AVX2 41700
 // Check if threading is beneficial.
 static inline dim_t thread_checker(const dim_t m, const dim_t n) {
-    dim_t nthr = (mkldnn_in_parallel()) ? 1 : mkldnn_get_max_threads();
+    dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
     // Threshold based on performance measurement with warm and cold cache
     // to decide when threading is beneficial.
@@ -349,23 +349,23 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
 }
 
 template <>
-mkldnn_status_t jump_to_gemv(const gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
-    return mkldnn_unimplemented;
+dnnl_status_t jump_to_gemv(const gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
+    return dnnl_unimplemented;
 }
 
 template <>
-mkldnn_status_t jump_to_gemv(const gemm_info_t<int8_t, int8_t, int32_t> *arg) {
-    return mkldnn_unimplemented;
+dnnl_status_t jump_to_gemv(const gemm_info_t<int8_t, int8_t, int32_t> *arg) {
+    return dnnl_unimplemented;
 }
 
 template <>
-mkldnn_status_t jump_to_gemv(
+dnnl_status_t jump_to_gemv(
         const gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) {
-    return mkldnn_unimplemented;
+    return dnnl_unimplemented;
 }
 
 template <typename a_t, typename b_t, typename c_t>
-mkldnn_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
+dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
     int transa = arg->transa;
     int transb = arg->transb;
 
@@ -384,28 +384,28 @@ mkldnn_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
     const b_t *b = arg->b;
     c_t *c = arg->c;
 
-    if (k == 0) return mkldnn_success;
+    if (k == 0) return dnnl_success;
 
     if (n == 1 && transa == do_trans) {
         gemv_threading_driver(do_trans, k, m, alpha, a, lda, b,
                 transb == no_trans ? 1 : ldb, beta, c, 1, arg);
-        return mkldnn_success;
+        return dnnl_success;
     }
 
     if (m == 1 && transb == no_trans) {
         gemv_threading_driver(do_trans, k, n, alpha, b, ldb, a,
                 transa == no_trans ? lda : 1, beta, c, ldc, arg);
-        return mkldnn_success;
+        return dnnl_success;
     }
 
-    return mkldnn_unimplemented;
+    return dnnl_unimplemented;
 }
 
 template // Instatiate gemv_f32
-        mkldnn_status_t
+        dnnl_status_t
         jump_to_gemv<float, float, float>(
                 const gemm_info_t<float, float, float> *arg);
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

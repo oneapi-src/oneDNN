@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "shuffle/shuffle.hpp"
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 namespace shuffle {
 
@@ -46,7 +46,7 @@ void compute_shuffle(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
         inner_size *= (size_t)p->dims[i];
     const size_t dim = axis_size * inner_size;
 
-    mkldnn::impl::parallel_nd(outer_size, axis_size, inner_size,
+    dnnl::impl::parallel_nd(outer_size, axis_size, inner_size,
             [&](int64_t ou, int64_t a, int64_t in) {
                 auto src_off = ou * dim + a * inner_size + in;
                 auto dst_off = ou * dim + transpose(a) * inner_size + in;

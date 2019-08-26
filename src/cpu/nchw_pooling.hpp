@@ -20,22 +20,21 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_pooling_pd.hpp"
-#include "cpu_primitive.hpp"
 
 #include "bfloat16.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct nchw_pooling_fwd_t : public cpu_primitive_t {
+struct nchw_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
@@ -80,7 +79,7 @@ struct nchw_pooling_fwd_t : public cpu_primitive_t {
         }
     };
 
-    nchw_pooling_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    nchw_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -91,11 +90,11 @@ struct nchw_pooling_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <data_type_t d_type>
-struct nchw_pooling_bwd_t : public cpu_primitive_t {
+struct nchw_pooling_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
@@ -148,7 +147,7 @@ struct nchw_pooling_bwd_t : public cpu_primitive_t {
             if (diff_dst_md()->data_type == data_type::bf16) {
                 size_t dst_sz_ = OD() * OH() * OW();
                 size_t src_sz_ = ID() * IH() * IW();
-                size_t nthrs = mkldnn_get_max_threads();
+                size_t nthrs = dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(
                         key_pool_src_bf16cvt, sizeof(float) * src_sz_ * nthrs);
@@ -158,7 +157,7 @@ struct nchw_pooling_bwd_t : public cpu_primitive_t {
         }
     };
 
-    nchw_pooling_bwd_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    nchw_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -168,12 +167,12 @@ struct nchw_pooling_bwd_t : public cpu_primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

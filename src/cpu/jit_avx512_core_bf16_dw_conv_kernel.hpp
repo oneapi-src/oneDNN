@@ -26,7 +26,7 @@
 
 #include "jit_avx512_core_bf16cvt.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -280,6 +280,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif /* JIT_UNI_DW_CONV_KERNEL_BF16_HPP */

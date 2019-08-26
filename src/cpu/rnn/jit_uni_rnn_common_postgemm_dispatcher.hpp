@@ -17,7 +17,6 @@
 #ifndef JIT_UNI_RNN_POSTGEMM_DISPATCHER_HPP
 #define JIT_UNI_RNN_POSTGEMM_DISPATCHER_HPP
 
-#include "../cpu_primitive.hpp"
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
@@ -28,7 +27,7 @@
 #include "jit_uni_rnn_cell_postgemm.hpp"
 #include "jit_uni_rnn_common_postgemm.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -215,7 +214,7 @@ private:
     postgemm_f postgemm_func;
     postgemm_f postgemm_part2_func;
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(rnn_postgemm_dispatcher);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(rnn_postgemm_dispatcher);
 };
 
 using rnn_postgemm_fwd_f32_t
@@ -227,6 +226,6 @@ using rnn_postgemm_bwd_f32_t
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

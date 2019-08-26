@@ -7,15 +7,15 @@
 
 where *lrn-knobs* are:
 
- - `--dir={FWD_D [default], BWD_D}` -- mkldnn_prop_kind_t.
+ - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t.
             Refer to the common glossary in README.md for details.
  - `--dt={f32 [default], bf16, f16}` -- src and dst data types.
             Refer to the common glossary in README.md for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to the common glossary in README.md for details.
  - `--alg={ACROSS [default], WITHIN}` -- lrn algorithm.
-            `ACROSS` is mkldnn_lrn_across_channels;
-            `WITHIN` is mkldnn_lrn_within_channel;
+            `ACROSS` is dnnl_lrn_across_channels;
+            `WITHIN` is dnnl_lrn_within_channel;
             Refer to ``doc/primitives/lrn.md`` for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual

@@ -28,7 +28,7 @@
 #include "sycl/sycl_cpu_engine.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -55,7 +55,7 @@ public:
 
         auto exception_handler = [](cl::sycl::exception_list eptr_list) {
             for (auto &eptr : eptr_list) {
-                if (mkldnn_verbose()->level >= 5) {
+                if (dnnl_verbose()->level >= 5) {
                     try {
                         std::rethrow_exception(eptr);
                     } catch (const cl::sycl::exception &e) {
@@ -121,6 +121,6 @@ inline std::unique_ptr<sycl_engine_factory_t> get_engine_factory(
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

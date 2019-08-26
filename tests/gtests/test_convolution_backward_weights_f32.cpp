@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 #include "test_convolution_backward_weights_common.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using convolution_test
         = convolution_backward_weights_test<float, float, float, float>;
@@ -31,4 +31,4 @@ TEST_P(convolution_test, TestConvolution) {}
 #define DIRECTION_BACKWARD_WEIGHTS
 #include "convolution_common.h"
 
-} // namespace mkldnn
+} // namespace dnnl

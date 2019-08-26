@@ -22,12 +22,12 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
 #include "src/common/math_utils.hpp"
 
 // returns dims with current @p off values using actual values from @p dims
@@ -51,7 +51,7 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
 }
 
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<mkldnn_data_type_t> &v_dt) {
+        std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt) {
     s << dt2str(v_dt[0]);
     for (size_t d = 1; d < v_dt.size(); ++d)
         s << ":" << dt2str(v_dt[d]);
@@ -59,7 +59,7 @@ std::ostream &operator<<(
 }
 
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<mkldnn_format_tag_t> &v_tag) {
+        std::ostream &s, const std::vector<dnnl_format_tag_t> &v_tag) {
     s << fmt_tag2str(v_tag[0]);
     for (size_t d = 1; d < v_tag.size(); ++d)
         s << ":" << fmt_tag2str(v_tag[d]);
@@ -96,16 +96,16 @@ const char *dir2str(dir_t dir) {
     return "DIR_UNDEF";
 }
 
-mkldnn_prop_kind_t prop2prop_kind(const dir_t dir) {
-    if (dir == FWD_D) return mkldnn_forward;
-    if (dir == BWD_DW) return mkldnn_backward;
+dnnl_prop_kind_t prop2prop_kind(const dir_t dir) {
+    if (dir == FWD_D) return dnnl_forward;
+    if (dir == BWD_DW) return dnnl_backward;
     assert(!"unknown dir");
-    return mkldnn_prop_kind_undef;
+    return dnnl_prop_kind_undef;
 }
 
-const char *prop2str(mkldnn_prop_kind_t prop) {
-    if (prop == mkldnn_forward) return "FWD_D";
-    if (prop == mkldnn_backward) return "BWD_DW";
+const char *prop2str(dnnl_prop_kind_t prop) {
+    if (prop == dnnl_forward) return "FWD_D";
+    if (prop == dnnl_backward) return "BWD_DW";
     assert(!"unknown prop_kind");
     return "unknown prop_kind";
 }
@@ -229,26 +229,26 @@ const char *attr_t::post_ops_t::kind2str(attr_t::post_ops_t::kind_t kind) {
     return "unknown attr::post_ops::kind";
 }
 
-mkldnn_alg_kind_t attr_t::post_ops_t::kind2mkldnn_kind(
+dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(
         attr_t::post_ops_t::kind_t kind) {
 #define CASE(_knd, _mknd) \
     if (kind == _knd) return _mknd
-    CASE(RELU, mkldnn_eltwise_relu);
-    CASE(TANH, mkldnn_eltwise_tanh);
-    CASE(ELU, mkldnn_eltwise_elu);
-    CASE(SQUARE, mkldnn_eltwise_square);
-    CASE(ABS, mkldnn_eltwise_abs);
-    CASE(SQRT, mkldnn_eltwise_sqrt);
-    CASE(LINEAR, mkldnn_eltwise_linear);
-    CASE(BRELU, mkldnn_eltwise_bounded_relu);
-    CASE(SRELU, mkldnn_eltwise_soft_relu);
-    CASE(LOGISTIC, mkldnn_eltwise_logistic);
-    CASE(EXP, mkldnn_eltwise_exp);
-    CASE(GELU, mkldnn_eltwise_gelu);
-    CASE(SWISH, mkldnn_eltwise_swish);
+    CASE(RELU, dnnl_eltwise_relu);
+    CASE(TANH, dnnl_eltwise_tanh);
+    CASE(ELU, dnnl_eltwise_elu);
+    CASE(SQUARE, dnnl_eltwise_square);
+    CASE(ABS, dnnl_eltwise_abs);
+    CASE(SQRT, dnnl_eltwise_sqrt);
+    CASE(LINEAR, dnnl_eltwise_linear);
+    CASE(BRELU, dnnl_eltwise_bounded_relu);
+    CASE(SRELU, dnnl_eltwise_soft_relu);
+    CASE(LOGISTIC, dnnl_eltwise_logistic);
+    CASE(EXP, dnnl_eltwise_exp);
+    CASE(GELU, dnnl_eltwise_gelu);
+    CASE(SWISH, dnnl_eltwise_swish);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
-    return mkldnn_alg_kind_undef;
+    return dnnl_alg_kind_undef;
 }
 
 int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
@@ -287,7 +287,7 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                         e.sum.scale = 1.f;
                     }
                 } else {
-                    e.eltwise.alg = kind2mkldnn_kind(k);
+                    e.eltwise.alg = kind2dnnl_kind(k);
                     e.eltwise.scale = 1.f;
                     e.eltwise.alpha = e.eltwise.beta = 0.f;
 
@@ -404,38 +404,38 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 }
 
 std::ostream &dump_global_params(std::ostream &s) {
-    if (engine_tgt_kind != mkldnn_cpu)
+    if (engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
 
     s << "--" << driver_name << " ";
     return s;
 }
 
-mkldnn_engine_kind_t str2engine_kind(const char *str) {
+dnnl_engine_kind_t str2engine_kind(const char *str) {
     const char *param = "cpu";
-    if (!strncasecmp(param, str, strlen(param))) return mkldnn_cpu;
+    if (!strncasecmp(param, str, strlen(param))) return dnnl_cpu;
 
     param = "gpu";
-    if (!strncasecmp(param, str, strlen(param))) return mkldnn_gpu;
+    if (!strncasecmp(param, str, strlen(param))) return dnnl_gpu;
 
     assert(!"not expected");
-    return mkldnn_cpu;
+    return dnnl_cpu;
 }
 
-const char *engine_kind2str(mkldnn_engine_kind_t engine) {
+const char *engine_kind2str(dnnl_engine_kind_t engine) {
     switch (engine) {
-        case mkldnn_any_engine: return "any";
-        case mkldnn_cpu: return "cpu";
-        case mkldnn_gpu: return "gpu";
+        case dnnl_any_engine: return "any";
+        case dnnl_cpu: return "cpu";
+        case dnnl_gpu: return "gpu";
     }
     assert(!"incorrect engine kind");
     return "incorrect engine kind";
 }
 
-mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
-        int64_t scale_cnt, int scale_mask, const float *scales) {
-    mkldnn_primitive_attr_t mkldnn_attr = NULL;
-    DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
+dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
+        int scale_mask, const float *scales) {
+    dnnl_primitive_attr_t dnnl_attr = NULL;
+    DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
 
     if (!attr.oscale.is_def()) {
         using P = attr_t::scale_t::policy_t;
@@ -452,20 +452,20 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
             scales = gen_scs;
         }
 
-        DNN_SAFE_V(mkldnn_primitive_attr_set_output_scales(
-                mkldnn_attr, count, scale_mask, scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
+                dnnl_attr, count, scale_mask, scales));
 
         if (gen_scs) zfree(gen_scs);
     }
 
     if (!attr.post_ops.is_def()) {
-        mkldnn_post_ops_t ops;
-        DNN_SAFE_V(mkldnn_post_ops_create(&ops));
+        dnnl_post_ops_t ops;
+        DNN_SAFE_V(dnnl_post_ops_create(&ops));
         for (int idx = 0; idx < attr.post_ops.len; ++idx) {
             const auto &e = attr.post_ops.entry[idx];
             switch (attr.post_ops.entry[idx].kind) {
                 case attr_t::post_ops_t::SUM:
-                    DNN_SAFE_V(mkldnn_post_ops_append_sum(ops, e.sum.scale));
+                    DNN_SAFE_V(dnnl_post_ops_append_sum(ops, e.sum.scale));
                     break;
                 case attr_t::post_ops_t::RELU:
                 case attr_t::post_ops_t::TANH:
@@ -480,36 +480,36 @@ mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
                 case attr_t::post_ops_t::EXP:
                 case attr_t::post_ops_t::GELU:
                 case attr_t::post_ops_t::SWISH:
-                    DNN_SAFE_V(mkldnn_post_ops_append_eltwise(ops,
+                    DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops,
                             e.eltwise.scale, e.eltwise.alg, e.eltwise.alpha,
                             e.eltwise.beta));
                     break;
                 default: assert(!"unknown attr::post_ops::kind");
             }
         }
-        DNN_SAFE_V(mkldnn_primitive_attr_set_post_ops(mkldnn_attr, ops));
+        DNN_SAFE_V(dnnl_primitive_attr_set_post_ops(dnnl_attr, ops));
 
-        const_mkldnn_post_ops_t c_ops;
-        DNN_SAFE_V(mkldnn_primitive_attr_get_post_ops(mkldnn_attr, &c_ops));
-        SAFE_V(mkldnn_post_ops_len(c_ops) == attr.post_ops.len ? OK : FAIL);
+        const_dnnl_post_ops_t c_ops;
+        DNN_SAFE_V(dnnl_primitive_attr_get_post_ops(dnnl_attr, &c_ops));
+        SAFE_V(dnnl_post_ops_len(c_ops) == attr.post_ops.len ? OK : FAIL);
 
-        DNN_SAFE_V(mkldnn_post_ops_destroy(ops));
+        DNN_SAFE_V(dnnl_post_ops_destroy(ops));
     }
 
-    return mkldnn_attr;
+    return dnnl_attr;
 }
 
-mkldnn_format_tag_t get_default_tag(int ndims) {
+dnnl_format_tag_t get_default_tag(int ndims) {
     switch (ndims) {
-        case 1: return mkldnn_a;
-        case 2: return mkldnn_ab;
-        case 3: return mkldnn_abc;
-        case 4: return mkldnn_abcd;
-        case 5: return mkldnn_abcde;
-        case 6: return mkldnn_abcdef;
+        case 1: return dnnl_a;
+        case 2: return dnnl_ab;
+        case 3: return dnnl_abc;
+        case 4: return dnnl_abcd;
+        case 5: return dnnl_abcde;
+        case 6: return dnnl_abcdef;
         default: assert(!"unknown kind");
     }
-    return mkldnn_format_tag_undef;
+    return dnnl_format_tag_undef;
 }
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
@@ -526,7 +526,7 @@ void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
 
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
         float scale, float alpha, float beta) {
-    using namespace mkldnn::impl::math;
+    using namespace dnnl::impl::math;
     using pk = attr_t::post_ops_t::kind_t;
 
     switch (kind) {
@@ -550,7 +550,7 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
 
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta) {
-    using namespace mkldnn::impl::math;
+    using namespace dnnl::impl::math;
     using pk = attr_t::post_ops_t::kind_t;
 
     switch (kind) {
@@ -573,7 +573,7 @@ float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
 }
 
 void maybe_post_ops(float &d, float dst, const attr_t &attr) {
-    using namespace mkldnn::impl::math;
+    using namespace dnnl::impl::math;
 
     const auto &ops = attr.post_ops;
     for (int idx = 0; idx < ops.len; ++idx) {

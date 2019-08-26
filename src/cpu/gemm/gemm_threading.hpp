@@ -22,7 +22,7 @@
 
 #include <cstdint>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -114,6 +114,6 @@ struct gemm_threading_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

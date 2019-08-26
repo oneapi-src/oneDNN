@@ -17,9 +17,10 @@
 #ifndef CPU_LAYER_NORMALIZATION_PD_HPP
 #define CPU_LAYER_NORMALIZATION_PD_HPP
 
+#include "cpu_engine.hpp"
 #include "layer_normalization_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -33,7 +34,7 @@ struct cpu_layer_normalization_bwd_pd_t : public layer_normalization_bwd_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

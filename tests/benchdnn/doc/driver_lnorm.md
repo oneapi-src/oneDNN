@@ -7,7 +7,7 @@
 
 where *lnorm-knobs* are:
 
- - `--dir={FWD_D [default], FWD_I, BWD_D, BWD_DW}` -- mkldnn_prop_kind_t.
+ - `--dir={FWD_D [default], FWD_I, BWD_D, BWD_DW}` -- dnnl_prop_kind_t.
             Refer to the common glossary in README.md for details.
  - `--dt={f32 [default]}` -- src and dst data types.
             Refer to the common glossary in README.md for details.
@@ -17,8 +17,8 @@ where *lnorm-knobs* are:
             Refer to the common glossary in README.md for details.
  - `--flags=[|G|S]` -- layer normalization flags, default `none`; where
             multiple simultaneous flags are supported.
-            `G` is mkldnn_use_global_stats;
-            `S` is mkldnn_use_scaleshift;
+            `G` is dnnl_use_global_stats;
+            `S` is dnnl_use_scaleshift;
             Refer to ``doc/primitives/layer_normalization.md`` for details.
  - `--attr="attr_str"` -- primitive attributes, default `""` (no attributes).
             Refer to knobs_attr.md for details.

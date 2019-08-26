@@ -24,7 +24,7 @@
 #include "common/c_types_map.hpp"
 #include "common/z_magic.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -117,6 +117,6 @@ public:
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

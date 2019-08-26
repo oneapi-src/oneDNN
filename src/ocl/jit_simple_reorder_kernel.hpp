@@ -22,7 +22,7 @@
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -90,8 +90,8 @@ struct jit_simple_reorder_kernel {
         if (jrp.has_padding || jrp.scale_quant) return status;
 
         const bool type_s8_u8
-                = utils::one_of(src_md.data_type(), mkldnn_s8, mkldnn_u8)
-                || utils::one_of(dst_md.data_type(), mkldnn_s8, mkldnn_u8);
+                = utils::one_of(src_md.data_type(), dnnl_s8, dnnl_u8)
+                || utils::one_of(dst_md.data_type(), dnnl_s8, dnnl_u8);
 
         const bool use_unroll_16a16b = true && !type_s8_u8
                 && (src_md.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
@@ -252,6 +252,6 @@ struct jit_simple_reorder_kernel {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

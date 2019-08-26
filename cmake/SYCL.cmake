@@ -19,8 +19,8 @@ if(SYCL_cmake_included)
 endif()
 set(SYCL_cmake_included true)
 
-if(NOT MKLDNN_CPU_RUNTIME STREQUAL "SYCL" AND
-   NOT MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+if(NOT DNNL_CPU_RUNTIME STREQUAL "SYCL" AND
+   NOT DNNL_GPU_RUNTIME STREQUAL "SYCL")
     return()
 endif()
 
@@ -35,7 +35,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
 # XXX: OpenCL in SYCL bundle cannot be found by FindOpenCL due to the specific
 # directory layout. This workaround ensures that local OpenCL SDK doesn't
 # create any conflicts with SYCL headers.
-if(WIN32 AND MKLDNN_SYCL_INTEL)
+if(WIN32 AND DNNL_SYCL_INTEL)
     include_directories(${SYCL_INCLUDE_DIRS})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter ${OpenCL_INCLUDE_DIRS}")
 else()
@@ -44,7 +44,7 @@ endif()
 
 list(APPEND EXTRA_SHARED_LIBS SYCL::SYCL)
 
-if(MKLDNN_SYCL_INTEL)
+if(DNNL_SYCL_INTEL)
     get_target_property(sycl_lib_path SYCL::SYCL IMPORTED_LOCATION)
     get_filename_component(sycl_lib_dir "${sycl_lib_path}" PATH)
 

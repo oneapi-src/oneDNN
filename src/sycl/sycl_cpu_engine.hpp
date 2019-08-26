@@ -24,7 +24,7 @@
 
 #include <CL/sycl.hpp>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -73,6 +73,6 @@ public:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

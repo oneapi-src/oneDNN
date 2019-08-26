@@ -24,8 +24,8 @@
 #include <iostream>
 #include <sstream>
 
-#include "mkldnn.h"
-#include "mkldnn_memory.hpp"
+#include "dnnl.h"
+#include "dnnl_memory.hpp"
 
 // Please update doc/knobs_perf_report.md in case of any changes!
 
@@ -129,18 +129,16 @@ struct base_perf_report_t {
     virtual const char *name() const { return nullptr; }
     virtual const int64_t *group() const { return nullptr; }
     virtual const dir_t *dir() const { return nullptr; }
-    virtual const mkldnn_data_type_t *dt() const { return nullptr; }
-    virtual const std::vector<mkldnn_data_type_t> *sdt() const {
+    virtual const dnnl_data_type_t *dt() const { return nullptr; }
+    virtual const std::vector<dnnl_data_type_t> *sdt() const { return nullptr; }
+    virtual const dnnl_data_type_t *ddt() const { return nullptr; }
+    virtual const dnnl_format_tag_t *tag() const { return nullptr; }
+    virtual const dnnl_format_tag_t *stat_tag() const { return nullptr; }
+    virtual const std::vector<dnnl_format_tag_t> *stag() const {
         return nullptr;
     }
-    virtual const mkldnn_data_type_t *ddt() const { return nullptr; }
-    virtual const mkldnn_format_tag_t *tag() const { return nullptr; }
-    virtual const mkldnn_format_tag_t *stat_tag() const { return nullptr; }
-    virtual const std::vector<mkldnn_format_tag_t> *stag() const {
-        return nullptr;
-    }
-    virtual const mkldnn_format_tag_t *dtag() const { return nullptr; }
-    virtual const mkldnn_prop_kind_t *prop() const { return nullptr; }
+    virtual const dnnl_format_tag_t *dtag() const { return nullptr; }
+    virtual const dnnl_prop_kind_t *prop() const { return nullptr; }
 
     /* primitive-specific properties (but with common interface) */
     virtual void dump_alg(std::ostream &) const { SAFE_V(FAIL); }

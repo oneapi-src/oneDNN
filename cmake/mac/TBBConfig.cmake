@@ -36,7 +36,7 @@ if (NOT _tbbmalloc_proxy_ix EQUAL -1)
     endif()
 endif()
 
-# Intel MKL-DNN changes: use TBBROOT to locate Intel TBB
+# DNNL changes: use TBBROOT to locate Intel TBB
 # get_filename_component(_tbb_root "${CMAKE_CURRENT_LIST_FILE}" PATH)
 # get_filename_component(_tbb_root "${_tbb_root}" PATH)
 if (NOT TBBROOT)
@@ -64,7 +64,7 @@ set(_tbb_compiler_subdir .)
 file(READ "${_tbb_root}/include/tbb/tbb_stddef.h" _tbb_stddef)
 string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1" TBB_INTERFACE_VERSION "${_tbb_stddef}")
 if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
-    message(FATAL_ERROR "MKL-DNN requires TBB version 2017 or above")
+    message(FATAL_ERROR "DNNL requires TBB version 2017 or above")
 endif()
 
 get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
@@ -86,7 +86,7 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                                   IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
                                   INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
 
-            # Intel MKL-DNN changes: set TBB_INCLUDE_DIRS to use it for include_directories()
+            # DNNL changes: set TBB_INCLUDE_DIRS to use it for include_directories()
             if (_tbb_component STREQUAL tbb)
                 set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
             endif()

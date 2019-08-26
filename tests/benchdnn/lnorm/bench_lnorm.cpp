@@ -22,11 +22,11 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "lnorm/lnorm.hpp"
@@ -35,9 +35,9 @@ namespace lnorm {
 
 dims_t dims;
 std::vector<dir_t> dir {FWD_D};
-std::vector<mkldnn_data_type_t> dt {mkldnn_f32};
-std::vector<mkldnn_format_tag_t> data_tag {mkldnn_tnc};
-std::vector<mkldnn_format_tag_t> stat_tag {mkldnn_tn};
+std::vector<dnnl_data_type_t> dt {dnnl_f32};
+std::vector<dnnl_format_tag_t> data_tag {dnnl_tnc};
+std::vector<dnnl_format_tag_t> stat_tag {dnnl_tn};
 std::vector<flags_t> flags {0};
 std::vector<bool> inplace {true};
 
@@ -55,9 +55,9 @@ const char *perf_template = perf_template_def;
 
 void reset_parameters() {
     dir = {FWD_D};
-    dt = {mkldnn_f32};
-    data_tag = {mkldnn_tnc};
-    stat_tag = {mkldnn_tn};
+    dt = {dnnl_f32};
+    data_tag = {dnnl_tnc};
+    stat_tag = {dnnl_tn};
     flags = {0};
     inplace = {true};
     attr = attr_t();

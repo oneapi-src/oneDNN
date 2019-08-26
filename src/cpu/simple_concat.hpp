@@ -21,21 +21,20 @@
 
 #include "cpu_concat_pd.hpp"
 #include "cpu_isa_traits.hpp"
-#include "cpu_primitive.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t data_type>
-struct simple_concat_t : public cpu_primitive_t {
+struct simple_concat_t : public primitive_impl_t {
     struct pd_t : public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { copy_from(rhs); }
 
         pd_t &operator=(const pd_t &rhs) {
-            MKLDNN_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             cpu_concat_pd_t::operator=(rhs);
             copy_from(rhs);
             return *this;
@@ -101,8 +100,8 @@ struct simple_concat_t : public cpu_primitive_t {
             return status::success;
         }
 
-        int perm_[MKLDNN_MAX_NDIMS];
-        int iperm_[MKLDNN_MAX_NDIMS];
+        int perm_[DNNL_MAX_NDIMS];
+        int iperm_[DNNL_MAX_NDIMS];
         dims_t blocks_;
 
         dim_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
@@ -152,18 +151,18 @@ struct simple_concat_t : public cpu_primitive_t {
         }
     };
 
-    simple_concat_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    simple_concat_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

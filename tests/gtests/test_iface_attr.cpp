@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 class attr_test : public ::testing::Test {
 protected:
@@ -27,7 +27,7 @@ protected:
 };
 
 TEST_F(attr_test, TestScratchpadMode) {
-    mkldnn::primitive_attr attr;
+    dnnl::primitive_attr attr;
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
         attr.set_scratchpad_mode(m);
         ASSERT_EQ(m, attr.get_scratchpad_mode());
@@ -42,7 +42,7 @@ TEST_F(attr_test, TestScratchpadModeEx) {
     memory::desc data_md(
             {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
-    mkldnn::primitive_attr attr;
+    dnnl::primitive_attr attr;
     auto softmax_d
             = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
@@ -71,7 +71,7 @@ TEST_F(attr_test, TestScratchpadArg) {
     memory::desc data_md(
             {N, C, W}, memory::data_type::f32, memory::format_tag::ncw);
 
-    mkldnn::primitive_attr attr;
+    dnnl::primitive_attr attr;
     auto softmax_d
             = softmax_forward::desc(prop_kind::forward_inference, data_md, 1);
     for (auto m : {scratchpad_mode::library, scratchpad_mode::user}) {
@@ -88,14 +88,14 @@ TEST_F(attr_test, TestScratchpadArg) {
 
         softmax_forward softmax_p(softmax_pd);
         softmax_p.execute(s,
-                {{MKLDNN_ARG_SRC, src}, {MKLDNN_ARG_DST, dst},
-                        {MKLDNN_ARG_SCRATCHPAD, scratchpad}});
+                {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst},
+                        {DNNL_ARG_SCRATCHPAD, scratchpad}});
         s.wait();
     }
 }
 
 TEST_F(attr_test, TestIntOutputScales) {
-    mkldnn::primitive_attr attr;
+    dnnl::primitive_attr attr;
 
     int mask;
     std::vector<float> scales;
@@ -124,8 +124,8 @@ TEST_F(attr_test, TestIntOutputScales) {
 }
 
 TEST_F(attr_test, TestPostOps) {
-    mkldnn::primitive_attr attr;
-    mkldnn::post_ops ops;
+    dnnl::primitive_attr attr;
+    dnnl::post_ops ops;
 
     algorithm alg;
     float scale, alpha, beta;
@@ -154,4 +154,4 @@ TEST_F(attr_test, TestPostOps) {
     ASSERT_FLOAT_EQ(beta, 4.4f);
 }
 
-} // namespace mkldnn
+} // namespace dnnl

@@ -25,7 +25,7 @@
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace compute {
 
@@ -128,6 +128,6 @@ private:
 
 } // namespace compute
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // COMPUTE_KERNEL_ARG_LIST_HPP

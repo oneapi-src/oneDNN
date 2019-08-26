@@ -18,8 +18,9 @@
 #define CPU_BATCH_NORMALIZATION_PD_HPP
 
 #include "batch_normalization_pd.hpp"
+#include "cpu_engine.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -33,7 +34,7 @@ struct cpu_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -18,7 +18,7 @@
 
 #include "convolution_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 using namespace prop_kind;
@@ -58,4 +58,4 @@ const memory_desc_t *conv_prop_invariant_dst_d(const convolution_desc_t *desc) {
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

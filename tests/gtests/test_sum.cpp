@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using fmt = memory::format_tag;
 
@@ -31,7 +31,7 @@ struct sum_test_params {
     std::vector<float> scale;
     bool is_output_omitted;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename src_data_t, typename acc_t, typename dst_data_t = src_data_t>
@@ -45,13 +45,13 @@ private:
         auto dst_data = map_memory<const dst_data_t>(dst);
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
-        const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
         std::vector<mapped_ptr_t<const src_data_t>> mapped_srcs;
         for (auto &src : srcs)
             mapped_srcs.emplace_back(map_memory<const src_data_t>(src));
 
-        mkldnn::impl::parallel_nd(dst_dims[0], dst_dims[1], dst_dims[2],
+        dnnl::impl::parallel_nd(dst_dims[0], dst_dims[1], dst_dims[2],
                 dst_dims[3],
                 [&](memory::dim n, memory::dim c, memory::dim h,
                         memory::dim w) {
@@ -62,7 +62,7 @@ private:
                         auto &src_data = mapped_srcs[num];
                         const auto &src_d = srcs[num].get_desc();
                         const auto src_dims = src_d.data.dims;
-                        const mkldnn::impl::memory_desc_wrapper src_mdw(
+                        const dnnl::impl::memory_desc_wrapper src_mdw(
                                 src_d.data);
 
                         auto src_idx = w + src_dims[3] * h
@@ -130,8 +130,8 @@ protected:
             // With proper scalars the computations give exact results
             if (!std::is_integral<src_data_t>::value) {
                 using uint_type = typename data_traits<src_data_t>::uint_type;
-                int mant_digits = mkldnn::impl::nstl::numeric_limits<
-                        src_data_t>::digits;
+                int mant_digits
+                        = dnnl::impl::nstl::numeric_limits<src_data_t>::digits;
                 int want_mant_digits = 3;
                 auto src_ptr = map_memory<src_data_t>(src_memory);
                 for (size_t i = 0; i < sz; i++) {
@@ -162,13 +162,13 @@ protected:
             auto dst_data = map_memory<dst_data_t>(dst);
             const size_t sz = dst.get_desc().get_size() / sizeof(dst_data_t);
             // overwriting dst to prevent false positives for test cases.
-            mkldnn::impl::parallel_nd(
+            dnnl::impl::parallel_nd(
                     (ptrdiff_t)sz, [&](ptrdiff_t i) { dst_data[i] = -32; });
         }
         sum c(sum_pd);
-        std::unordered_map<int, memory> args = {{MKLDNN_ARG_DST, dst}};
+        std::unordered_map<int, memory> args = {{DNNL_ARG_DST, dst}};
         for (int i = 0; i < (int)num_srcs; i++) {
-            args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
+            args.insert({DNNL_ARG_MULTIPLE_SRC + i, srcs[i]});
         }
         c.execute(strm, args);
         strm.wait();
@@ -186,7 +186,7 @@ static auto simple_test_cases = [](bool omit_output) {
             sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {1, 8, 0, 4},
                     {1.0f, 1.0f}, omit_output},
             sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {-1, 8, 4, 4},
-                    {1.0f, 1.0f}, omit_output, true, mkldnn_invalid_arguments},
+                    {1.0f, 1.0f}, omit_output, true, dnnl_invalid_arguments},
 
             sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw,
                     {1, 1024, 38, 50}, {1.0f, 1.0f}, omit_output},
@@ -251,9 +251,9 @@ static auto simple_test_cases_bf16 = [](bool omit_output) {
 static auto special_test_cases = []() {
     return ::testing::Values(
             sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {1, 8, 4, 4},
-                    {1.0f}, false, true, mkldnn_invalid_arguments},
+                    {1.0f}, false, true, dnnl_invalid_arguments},
             sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {2, 8, 4, 4},
-                    {0.1f}, false, true, mkldnn_invalid_arguments});
+                    {0.1f}, false, true, dnnl_invalid_arguments});
 };
 
 /* corner cases */
@@ -264,11 +264,11 @@ static auto special_test_cases = []() {
     }
 static auto corner_test_cases = []() {
     return ::testing::Values(
-            CASE_CC(nchw, nChw8c, nchw, ({0, 7, 4, 4}), false, mkldnn_success),
-            CASE_CC(nchw, nChw8c, nchw, ({1, 0, 4, 4}), false, mkldnn_success),
-            CASE_CC(nchw, nChw8c, nchw, ({1, 8, 0, 4}), false, mkldnn_success),
+            CASE_CC(nchw, nChw8c, nchw, ({0, 7, 4, 4}), false, dnnl_success),
+            CASE_CC(nchw, nChw8c, nchw, ({1, 0, 4, 4}), false, dnnl_success),
+            CASE_CC(nchw, nChw8c, nchw, ({1, 8, 0, 4}), false, dnnl_success),
             CASE_CC(nchw, nChw8c, nchw, ({-1, 8, 4, 4}), true,
-                    mkldnn_invalid_arguments));
+                    dnnl_invalid_arguments));
 };
 #undef CASE_CC
 
@@ -336,4 +336,4 @@ GPU_INST_TEST_CASE(sum_test_f16, 0)
 
 #undef CPU_INST_TEST_CASE
 #undef GPU_INST_TEST_CASE
-} // namespace mkldnn
+} // namespace dnnl

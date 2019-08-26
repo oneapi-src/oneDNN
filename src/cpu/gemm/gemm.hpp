@@ -19,31 +19,31 @@
 
 #include "bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 #include "os_blas.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-mkldnn_status_t extended_sgemm(const char *transa, const char *transb,
+dnnl_status_t extended_sgemm(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *alpha,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc,
         const float *bias = nullptr, bool force_jit_gemm = false);
 
 template <typename b_dt>
-mkldnn_status_t gemm_s8x8s32(const char *transa, const char *transb,
+dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const char *offsetc, const int *M, const int *N, const int *K,
         const float *alpha, const int8_t *A, const int *lda, const int8_t *ao,
         const b_dt *B, const int *ldb, const b_dt *bo, const float *beta,
         int32_t *c, const int *ldc, const int32_t *co);
 
-mkldnn_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
-        const mkldnn_dim_t *M, const mkldnn_dim_t *N, const mkldnn_dim_t *K,
-        const float *alpha, const bfloat16_t *A, const mkldnn_dim_t *lda,
-        const bfloat16_t *B, const mkldnn_dim_t *ldb, const float *beta,
-        float *C, const mkldnn_dim_t *ldc);
+dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
+        const dnnl_dim_t *M, const dnnl_dim_t *N, const dnnl_dim_t *K,
+        const float *alpha, const bfloat16_t *A, const dnnl_dim_t *lda,
+        const bfloat16_t *B, const dnnl_dim_t *ldb, const float *beta, float *C,
+        const dnnl_dim_t *ldc);
 
 #ifdef USE_CBLAS
 #define GEMM_IMPL_STR "gemm:blas"
@@ -72,6 +72,6 @@ mkldnn_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // GEMM_HPP

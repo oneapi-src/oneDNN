@@ -22,12 +22,12 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "norm.hpp"
 
 #include "bnorm/bnorm.hpp"
@@ -44,7 +44,7 @@ inline bool is_1d(const prb_t *p) {
 
 static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
-    mkldnn::impl::parallel_nd(p->ic, p->mb, p->id, p->ih, p->iw,
+    dnnl::impl::parallel_nd(p->ic, p->mb, p->id, p->ih, p->iw,
             [&](int64_t c, int64_t mb, int64_t d, int64_t h, int64_t w) {
                 int64_t l_base = mb * p->id * p->ih * p->iw + c * 239 * 2;
                 float *s = (float *)src + data_off(p, mb, c, 0, 0, 0);
@@ -100,7 +100,7 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
 
     const int64_t flex_bits = alg == ALG_0
             ? want_flex_bits /* BFloat16 has only 7 bits of mantissa */
-            : MIN2(p->dt == mkldnn_bf16 ? 7 : exact_bits,
+            : MIN2(p->dt == dnnl_bf16 ? 7 : exact_bits,
                     (exact_bits - logL) / 2 - 1);
 
     if (flex_bits < min_flex_bits) return FAIL;
@@ -116,7 +116,7 @@ static int prepare_fwd_no_stats(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
     print(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
             check_alg2str(alg), density, flex_bits);
 
-    mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
+    dnnl::impl::parallel_nd(p->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c]
                 = alg == ALG_0 ? 0.f : 0.25f * (1 << (c % 7));
         float v = 0; /* current variance */
@@ -226,7 +226,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
     print(5, "prep_bwd: k:" IFMT ", P:" IFMT " log2P:" IFMT ", density = %g\n",
             k, P, log2P, density);
 
-    mkldnn::impl::parallel_nd(p->ic, [&](int64_t c) {
+    dnnl::impl::parallel_nd(p->ic, [&](int64_t c) {
         const float m = ((float *)mean)[c] = c % 2;
 
         /* var + eps \in {1/4, 1, 4} */
@@ -308,7 +308,7 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
             ((float *)d_dst)[l1] = f1 + m;
             ((float *)d_dst)[l0] = f0 + m;
 
-            if (p->dt == mkldnn_bf16) { // truncate to bf16
+            if (p->dt == dnnl_bf16) { // truncate to bf16
                 ((uint16_t *)(&((float *)d_dst)[l1]))[0] = 0;
                 ((uint16_t *)(&((float *)d_dst)[l0]))[0] = 0;
             }
@@ -474,7 +474,7 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *r) {
             }
 
             // XXX: GPU implementation uses int32_t for workspace
-            if (engine_tgt_kind == mkldnn_gpu) {
+            if (engine_tgt_kind == dnnl_gpu) {
                 ws += sizeof(int32_t);
             } else {
                 if (ws_type == ws_byte) ++ws;
@@ -490,70 +490,70 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *r) {
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, mkldnn_batch_normalization_desc_t &bd,
-        mkldnn_primitive_desc_t &bpd, res_t *r) {
-    mkldnn_memory_desc_t data_d;
+static int init_pd(const prb_t *p, dnnl_batch_normalization_desc_t &bd,
+        dnnl_primitive_desc_t &bpd, res_t *r) {
+    dnnl_memory_desc_t data_d;
 
     const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
 
-    mkldnn_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
-    mkldnn_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
-    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
+    dnnl_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
+    dnnl_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
-    mkldnn_dim_t *data_dims
+    dnnl_dim_t *data_dims
             = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
 
-    DNN_SAFE(mkldnn_memory_desc_init_by_tag(
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &data_d, ndims, data_dims, p->dt, p->tag),
             WARN);
 
-    auto flags = (mkldnn_normalization_flags_t)p->flags;
+    auto flags = (dnnl_normalization_flags_t)p->flags;
     if (p->dir & FLAG_FWD) {
-        auto prop = p->dir & FLAG_INF ? mkldnn_forward_inference
-                                      : mkldnn_forward_training;
-        DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(
+        auto prop = p->dir & FLAG_INF ? dnnl_forward_inference
+                                      : dnnl_forward_training;
+        DNN_SAFE(dnnl_batch_normalization_forward_desc_init(
                          &bd, prop, &data_d, p->eps, flags),
                 WARN);
 
     } else {
-        auto prop = p->dir & FLAG_WEI ? mkldnn_backward : mkldnn_backward_data;
-        DNN_SAFE(mkldnn_batch_normalization_backward_desc_init(
+        auto prop = p->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
+        DNN_SAFE(dnnl_batch_normalization_backward_desc_init(
                          &bd, prop, &data_d, &data_d, p->eps, flags),
                 WARN);
     }
 
-    mkldnn_primitive_desc_t hint_fwd_pd = NULL;
+    dnnl_primitive_desc_t hint_fwd_pd = NULL;
     if (p->dir & FLAG_BWD) {
-        mkldnn_batch_normalization_desc_t bd_fwd;
-        DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(&bd_fwd,
-                         mkldnn_forward_training, &data_d, p->eps, flags),
+        dnnl_batch_normalization_desc_t bd_fwd;
+        DNN_SAFE(dnnl_batch_normalization_forward_desc_init(&bd_fwd,
+                         dnnl_forward_training, &data_d, p->eps, flags),
                 WARN);
-        mkldnn_status_t init_fwd_status = mkldnn_primitive_desc_create(
+        dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
                 &hint_fwd_pd, &bd_fwd, NULL, engine_tgt, NULL);
-        if (init_fwd_status == mkldnn_unimplemented)
+        if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         else
             SAFE(init_fwd_status, WARN);
     }
-    auto mkldnn_attr = create_mkldnn_attr(p->attr, 1, NULL);
-    mkldnn_status_t init_status = mkldnn_primitive_desc_create(
-            &bpd, &bd, mkldnn_attr, engine_tgt, hint_fwd_pd);
+    auto dnnl_attr = create_dnnl_attr(p->attr, 1, NULL);
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
+            &bpd, &bd, dnnl_attr, engine_tgt, hint_fwd_pd);
 
-    mkldnn_primitive_desc_destroy(hint_fwd_pd);
-    mkldnn_primitive_attr_destroy(mkldnn_attr);
+    dnnl_primitive_desc_destroy(hint_fwd_pd);
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
-    if (init_status == mkldnn_unimplemented)
+    if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
     else
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(bpd);
     if (maybe_skip(skip_impl, impl_str)) {
-        print(2, "SKIPPED: mkldnn implementation: %s\n", impl_str);
-        DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), WARN);
+        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        DNN_SAFE(dnnl_primitive_desc_destroy(bpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        print(5, "mkldnn implementation: %s\n", impl_str);
+        print(5, "dnnl implementation: %s\n", impl_str);
         if (!strstr(impl_str, "jit")) {
             print(2, "WARNING: %s",
                     "accuracy of the implementation being tested "
@@ -573,18 +573,18 @@ static int cvt_mask_to_ws(
         const prb_t *p, const dnn_mem_t &mask_fp, dnn_mem_t &ws_dt) {
     const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
 
-    mkldnn_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
-    mkldnn_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
-    mkldnn_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
+    dnnl_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
+    dnnl_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
-    mkldnn_dim_t *data_dims
+    dnnl_dim_t *data_dims
             = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
 
-    dnn_mem_t data(ndims, data_dims, mkldnn_f32, p->tag, engine_tgt);
+    dnn_mem_t data(ndims, data_dims, dnnl_f32, p->tag, engine_tgt);
     SAFE(data.reorder(mask_fp), WARN);
 
-    dnn_mem_t mean(1, &p->ic, mkldnn_f32, mkldnn_x, engine_tgt);
-    dnn_mem_t var(1, &p->ic, mkldnn_f32, mkldnn_x, engine_tgt);
+    dnn_mem_t mean(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
+    dnn_mem_t var(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
 
     mean.map();
     var.map();
@@ -595,42 +595,42 @@ static int cvt_mask_to_ws(
     mean.unmap();
     var.unmap();
 
-    mkldnn_batch_normalization_desc_t bd;
-    auto flags = (mkldnn_normalization_flags_t)(
-            mkldnn_use_global_stats | mkldnn_fuse_norm_relu);
-    DNN_SAFE(mkldnn_batch_normalization_forward_desc_init(
-                     &bd, mkldnn_forward_training, &data.md_, 0, flags),
+    dnnl_batch_normalization_desc_t bd;
+    auto flags = (dnnl_normalization_flags_t)(
+            dnnl_use_global_stats | dnnl_fuse_norm_relu);
+    DNN_SAFE(dnnl_batch_normalization_forward_desc_init(
+                     &bd, dnnl_forward_training, &data.md_, 0, flags),
             WARN);
 
-    mkldnn_primitive_desc_t bpd;
-    DNN_SAFE(mkldnn_primitive_desc_create(&bpd, &bd, NULL, engine_tgt, NULL),
+    dnnl_primitive_desc_t bpd;
+    DNN_SAFE(dnnl_primitive_desc_create(&bpd, &bd, NULL, engine_tgt, NULL),
             WARN);
 
-    mkldnn_primitive_t b;
-    DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
+    dnnl_primitive_t b;
+    DNN_SAFE(dnnl_primitive_create(&b, bpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
 
     args_t args;
-    args.set(MKLDNN_ARG_SRC, data.m_);
-    args.set(MKLDNN_ARG_MEAN, mean.m_);
-    args.set(MKLDNN_ARG_VARIANCE, var.m_);
-    args.set(MKLDNN_ARG_DST, data.m_);
-    args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
+    args.set(DNNL_ARG_SRC, data.m_);
+    args.set(DNNL_ARG_MEAN, mean.m_);
+    args.set(DNNL_ARG_VARIANCE, var.m_);
+    args.set(DNNL_ARG_DST, data.m_);
+    args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
     DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
-    DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
 
     return OK;
 }
 
 int doit(const prb_t *p, res_t *r) {
-    mkldnn_batch_normalization_desc_t bd;
-    mkldnn_primitive_desc_t bpd;
-    mkldnn_primitive_t b;
+    dnnl_batch_normalization_desc_t bd;
+    dnnl_primitive_desc_t bpd;
+    dnnl_primitive_t b;
 
     SAFE(init_pd(p, bd, bpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    const auto fp = mkldnn_f32;
+    const auto fp = dnnl_f32;
     const auto tag = get_default_tag(bd.data_desc.ndims);
     const auto &data_desc = bd.data_desc;
 
@@ -642,29 +642,29 @@ int doit(const prb_t *p, res_t *r) {
     if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt); }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
-    const mkldnn_dims_t dims1d = {p->ic};
-    dnn_mem_t mean_fp(1, dims1d, fp, mkldnn_x, engine_ref),
+    const dnnl_dims_t dims1d = {p->ic};
+    dnn_mem_t mean_fp(1, dims1d, fp, dnnl_x, engine_ref),
             mean_dt(mean_fp.md_, engine_tgt);
-    dnn_mem_t var_fp(1, dims1d, fp, mkldnn_x, engine_ref),
+    dnn_mem_t var_fp(1, dims1d, fp, dnnl_x, engine_ref),
             var_dt(var_fp.md_, engine_tgt);
 
-    const mkldnn_dims_t dims2d = {2, p->ic};
-    dnn_mem_t ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
+    const dnnl_dims_t dims2d = {2, p->ic};
+    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
             ss_dt(ss_fp.md_, engine_tgt);
-    dnn_mem_t d_ss_fp(2, dims2d, fp, mkldnn_nc, engine_ref),
+    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
             d_ss_dt(d_ss_fp.md_, engine_tgt);
 
     dnn_mem_t ws_fp(src_fp.md_, engine_ref);
     dnn_mem_t ws_dt;
     if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
-        const auto ws_md = mkldnn_primitive_desc_query_md(
-                bpd, mkldnn_query_workspace_md, 0);
+        const auto ws_md
+                = dnnl_primitive_desc_query_md(bpd, dnnl_query_workspace_md, 0);
         SAFE(ws_md != NULL ? OK : FAIL, WARN);
         ws_dt = dnn_mem_t(*ws_md, engine_tgt);
     }
 
-    DNN_SAFE(mkldnn_primitive_create(&b, bpd), WARN);
-    DNN_SAFE(mkldnn_primitive_desc_destroy(bpd), CRIT);
+    DNN_SAFE(dnnl_primitive_create(&b, bpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
@@ -676,23 +676,23 @@ int doit(const prb_t *p, res_t *r) {
 
         SAFE(src_dt.reorder(src_fp), WARN);
 
-        args.set(MKLDNN_ARG_SRC, src_dt.m_);
-        args.set(MKLDNN_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
             SAFE(mean_dt.reorder(mean_fp), WARN);
             SAFE(var_dt.reorder(var_fp), WARN);
         }
-        args.set(MKLDNN_ARG_MEAN, mean_dt.m_);
-        args.set(MKLDNN_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt.m_);
+        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(MKLDNN_ARG_SCALE_SHIFT, ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
         }
 
-        if (p->flags & FUSE_NORM_RELU) args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
+        if (p->flags & FUSE_NORM_RELU) args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
 
@@ -734,25 +734,25 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(src_dt.reorder(src_fp), WARN);
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
 
-        args.set(MKLDNN_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt.m_);
 
-        args.set(MKLDNN_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(MKLDNN_ARG_DIFF_SRC, d_src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt.m_);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        args.set(MKLDNN_ARG_MEAN, mean_dt.m_);
-        args.set(MKLDNN_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt.m_);
+        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(MKLDNN_ARG_SCALE_SHIFT, ss_dt.m_);
-            args.set(MKLDNN_ARG_DIFF_SCALE_SHIFT, d_ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
+            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt.m_);
         }
 
         if (p->flags & FUSE_NORM_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
-            args.set(MKLDNN_ARG_WORKSPACE, ws_dt.m_);
+            args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
         }
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
@@ -772,7 +772,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, b, args);
 
-    DNN_SAFE(mkldnn_primitive_destroy(b), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
 
     return OK;
 }

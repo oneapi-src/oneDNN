@@ -28,11 +28,11 @@
 /// > Example code: @ref cpu_memory_format_propagation.cpp
 ///
 /// Format propagation is one of the central notions that needs to be
-/// well-understood to use Intel MKL-DNN correctly.
+/// well-understood to use DNNL correctly.
 ///
 /// Convolution and inner product primitives choose the memory format when you
 /// create them with the placeholder memory format @ref
-/// mkldnn::memory::format_tag::any for input or output. The memory format
+/// dnnl::memory::format_tag::any for input or output. The memory format
 /// chosen is based on different circumstances such as hardware and
 /// convolutional parameters. Using the placeholder memory format is the
 /// recommended practice for convolutions, since they are the most
@@ -40,7 +40,7 @@
 ///
 /// Other primitives, such as ReLU, LRN, batch normalization and other, should
 /// use the same memory format as the preceding layer thus propagating the
-/// memory format through multiple Intel MKL-DNN primitives. This avoids
+/// memory format through multiple DNNL primitives. This avoids
 /// unnecessary reorders which may be expensive and should be avoided unless a
 /// compute-intensive primitive requires a different format.
 ///
@@ -48,20 +48,20 @@
 /// computations when running training workloads. This topic is covered in
 /// [Training-Specific Aspects](@ref dev_guide_inference_and_training_aspects_training).
 ///
-/// For better understanding of the architecture and design of Intel MKL-DNN
+/// For better understanding of the architecture and design of DNNL
 /// as well as the concepts used in the library, please refer to @ref
 /// dev_guide_understanding_memory_formats.
 ///
 /// @section cpu_memory_format_propagation_intro Introduction to the tutorial
 ///
 /// This C++ API example demonstrates how to use optimized memory formats
-/// supported by Intel MKL-DNN:
+/// supported by DNNL:
 /// - How to configure primitives to use optimized memory formats.
 /// - How to determine whether data needs to be reordered from/to optimized
 ///   memory formats.
 ///
 /// This tutorial assumes that the reader has already reviewed the
-/// @ref cpu_getting_started_cpp tutorial.
+/// @ref getting_started_cpp tutorial.
 ///
 /// The example is built around a CNN consisting of a convolution followed by
 /// a pooling and consists of the following steps:
@@ -77,9 +77,9 @@
 /// which in turn is called from `main()` which is also responsible for error
 /// handling.
 
-#include "mkldnn.hpp"
-#include "mkldnn_debug.h"
-using namespace mkldnn;
+#include "dnnl.hpp"
+#include "dnnl_debug.h"
+using namespace dnnl;
 
 /// @page cpu_memory_format_propagation_cpp
 /// @section cpu_memory_format_propagation_tutorial cpu_memory_format_propagation() function
@@ -102,10 +102,10 @@ void cpu_memory_format_propagation_tutorial() {
     ///
     /// To specify that a primitive should pick an optimized format for the
     /// specified computation parameters, we create memory descriptors with
-    /// memory format set to @ref mkldnn::memory::format_tag::any.
+    /// memory format set to @ref dnnl::memory::format_tag::any.
     ///
     /// This approach works only for a limited set of primitives: convolutions
-    /// and inner products. Additionally, @ref mkldnn::memory::format_tag::any
+    /// and inner products. Additionally, @ref dnnl::memory::format_tag::any
     /// can be specified for destination memory descriptors which implies that
     /// destination will have the same memory format as the source.
     ///
@@ -154,7 +154,7 @@ void cpu_memory_format_propagation_tutorial() {
     /// We assume that the 'user' source and destination memory format is
     /// NHWC. Since there is no result validation in this tutorial, we do not
     /// bother with filling the data with some values and let the Intel
-    /// MKL-DNN library to allocate the memory.
+    /// DNNL library to allocate the memory.
     ///
     /// @snippet cpu_memory_format_propagation.cpp Create source and destination memory objects
     // [Create source and destination memory objects]
@@ -232,7 +232,7 @@ void cpu_memory_format_propagation_tutorial() {
     /// check if reorders are necessary based on the flags computed before and
     /// create and execute them immediately.
     ///
-    /// @note We call @ref mkldnn::stream::wait() before reorder primitives
+    /// @note We call @ref dnnl::stream::wait() before reorder primitives
     /// get out of scope and destroyed to accommodate for potentially
     /// asynchronous execution.
     ///
@@ -241,15 +241,15 @@ void cpu_memory_format_propagation_tutorial() {
     if (need_reorder_src) {
         auto reorder_src = reorder(src_mem, conv_src_mem);
         reorder_src.execute(cpu_stream,
-                {{MKLDNN_ARG_FROM, src_mem}, {MKLDNN_ARG_TO, conv_src_mem}});
+                {{DNNL_ARG_FROM, src_mem}, {DNNL_ARG_TO, conv_src_mem}});
         cpu_stream.wait(); // wait for the reorder to complete
     }
 
     if (need_reorder_weights) {
         auto reorder_weights = reorder(weights_mem, conv_weights_mem);
         reorder_weights.execute(cpu_stream,
-                {{MKLDNN_ARG_FROM, weights_mem},
-                        {MKLDNN_ARG_TO, conv_weights_mem}});
+                {{DNNL_ARG_FROM, weights_mem},
+                        {DNNL_ARG_TO, conv_weights_mem}});
         cpu_stream.wait(); // wait for the reorder to complete
     }
     // [Perform reorders for source data if necessary]
@@ -265,13 +265,12 @@ void cpu_memory_format_propagation_tutorial() {
     auto conv_scratchpad_mem = memory(conv_pd.scratchpad_desc(), cpu_engine);
     auto conv = convolution_forward(conv_pd);
     conv.execute(cpu_stream,
-            {{MKLDNN_ARG_SRC, conv_src_mem},
-                    {MKLDNN_ARG_WEIGHTS, conv_weights_mem},
-                    {MKLDNN_ARG_DST, conv_dst_mem}});
+            {{DNNL_ARG_SRC, conv_src_mem}, {DNNL_ARG_WEIGHTS, conv_weights_mem},
+                    {DNNL_ARG_DST, conv_dst_mem}});
     auto pool_scratchpad_mem = memory(pool_pd.scratchpad_desc(), cpu_engine);
     auto pool = pooling_forward(pool_pd);
     pool.execute(cpu_stream,
-            {{MKLDNN_ARG_SRC, conv_dst_mem}, {MKLDNN_ARG_DST, pool_dst_mem}});
+            {{DNNL_ARG_SRC, conv_dst_mem}, {DNNL_ARG_DST, pool_dst_mem}});
     cpu_stream.wait();
     // [Create and execute convolution and pooling primitives]
 
@@ -288,7 +287,7 @@ void cpu_memory_format_propagation_tutorial() {
     if (need_reorder_dst) {
         auto reorder_dst = reorder(pool_dst_mem, dst_mem);
         reorder_dst.execute(cpu_stream,
-                {{MKLDNN_ARG_FROM, pool_dst_mem}, {MKLDNN_ARG_TO, dst_mem}});
+                {{DNNL_ARG_FROM, pool_dst_mem}, {DNNL_ARG_TO, dst_mem}});
         cpu_stream.wait();
     }
     // [Reorder destination data if necessary]
@@ -297,10 +296,9 @@ void cpu_memory_format_propagation_tutorial() {
 int main(int argc, char **argv) {
     try {
         cpu_memory_format_propagation_tutorial();
-    } catch (mkldnn::error &e) {
-        std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-                  << "Error status: " << mkldnn_status2str(e.status)
-                  << std::endl;
+    } catch (dnnl::error &e) {
+        std::cerr << "DNNL error: " << e.what() << std::endl
+                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;
@@ -318,38 +316,38 @@ int main(int argc, char **argv) {
 /// ~~~
 ///
 /// It may be interesting to check what really happens during the run. We can
-/// use `MKLDNN_VERBOSE` environment variable for that (see also @ref
+/// use `DNNL_VERBOSE` environment variable for that (see also @ref
 /// dev_guide_verbose). Here's example output on a system that has an Intel(R)
 /// AVX2-capable processor (line breaks added for readability):
 ///
 /// ~~~sh
-/// $ MKLDNN_VERBOSE=1 ./cpu_memory_format_propagation
-/// mkldnn_verbose,info,Intel(R) MKL-DNN <ver> (Git Hash <hash>),Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)
-/// mkldnn_verbose,exec,reorder,jit:uni,undef,
+/// $ DNNL_VERBOSE=1 ./cpu_memory_format_propagation
+/// dnnl_verbose,info,DNNL <ver> (Git Hash <hash>),Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)
+/// dnnl_verbose,exec,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,num:1,1x256x14x14,1.03101
-/// mkldnn_verbose,exec,reorder,jit:uni,undef,
+/// dnnl_verbose,exec,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:ABcd8b8a:f0,num:1,256x256x3x3,5.69678
-/// mkldnn_verbose,exec,convolution,jit:avx2,forward_inference,
+/// dnnl_verbose,exec,convolution,jit:avx2,forward_inference,
 ///     src_f32::blocked:aBcd8b:f0 wei_f32::blocked:ABcd8b8a:f0 dst_f32::blocked:aBcd8b:f0,
 ///     alg:convolution_direct,mb1_ic256oc256_ih14oh14kh3sh1dh0ph1_iw14ow14kw3sw1dw0pw1,1.65698
-/// mkldnn_verbose,exec,pooling,jit:avx,forward_inference,
+/// dnnl_verbose,exec,pooling,jit:avx,forward_inference,
 ///     src_f32::blocked:aBcd8b:f0 dst_f32::blocked:aBcd8b:f0,
 ///     alg:pooling_max,mb1ic256_ih14oh14kh3sh1ph1_iw14ow14kw3sw1pw1,0.322021
-/// mkldnn_verbose,exec,reorder,jit:uni,
+/// dnnl_verbose,exec,reorder,jit:uni,
 ///     undef,src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,num:1,1x256x14x14,0.333008
 /// Example passes
 /// ~~~
 ///
 /// From this output we can deduce that:
 /// * The convolution primitive picked up @ref
-///   mkldnn::memory::format_tag::aBcd8b optimized memory format for
+///   dnnl::memory::format_tag::aBcd8b optimized memory format for
 ///   activations. In this format the channels dimension (denoted by letter B
 ///   since it is the second dimension; see also @ref dev_guide_conventions)
 ///   is blocked by a factor of 8. Because of this memory format is different
 ///   from the NHWC format the tutorial uses, the source and destination had
 ///   to be reordered to and from this optimized memory layout.
 /// * The convolution primitive picked up @ref
-///   mkldnn::memory::format_tag::ABcd8b8a optimized memory format (output (A)
+///   dnnl::memory::format_tag::ABcd8b8a optimized memory format (output (A)
 ///   and input (B) channel dimensions blocked by 8) which we also had to
 ///   reorder the initial weights to since they are in the OIHW memory format.
 ///

@@ -18,11 +18,11 @@
  */
 #include "ocl/rnn/ref_rnn.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::utils;
 using namespace rnn_utils;
 
 #define AOC array_offset_calculator
@@ -140,4 +140,4 @@ template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

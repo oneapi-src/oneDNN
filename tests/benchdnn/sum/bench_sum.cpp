@@ -19,20 +19,20 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "sum/sum.hpp"
 
 namespace sum {
 
-std::vector<std::vector<mkldnn_data_type_t>> sdt {{mkldnn_f32, mkldnn_f32}};
-std::vector<mkldnn_data_type_t> ddt {mkldnn_f32};
-std::vector<std::vector<mkldnn_format_tag_t>> stag {{mkldnn_nchw, mkldnn_nchw}};
-std::vector<mkldnn_format_tag_t> dtag {mkldnn_format_tag_undef};
+std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
+std::vector<dnnl_data_type_t> ddt {dnnl_f32};
+std::vector<std::vector<dnnl_format_tag_t>> stag {{dnnl_nchw, dnnl_nchw}};
+std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_undef};
 std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
 
 dims_t dims;
@@ -43,10 +43,10 @@ const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
-    sdt = {{mkldnn_f32, mkldnn_f32}};
-    ddt = {mkldnn_f32};
-    stag = {{mkldnn_nchw, mkldnn_nchw}};
-    dtag = {mkldnn_nchw};
+    sdt = {{dnnl_f32, dnnl_f32}};
+    ddt = {dnnl_f32};
+    stag = {{dnnl_nchw, dnnl_nchw}};
+    dtag = {dnnl_nchw};
     scales = {{0.25}, {1}, {4}};
     allow_unimpl = false;
 }

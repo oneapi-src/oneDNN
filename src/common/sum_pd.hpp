@@ -18,15 +18,15 @@
 #define SUM_PD_HPP
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
-#include "nstl.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
+
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct sum_pd_t : public primitive_desc_t {
@@ -42,16 +42,29 @@ struct sum_pd_t : public primitive_desc_t {
         src_mds_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             src_mds_.push_back(src_mds[i]);
+
+        // Fill a desc that is intended for internal use only
+        desc_ = sum_desc_t();
+        desc_.primitive_kind = primitive_kind::sum;
+        desc_.dst_md = dst_md_;
+        desc_.n = n_;
+        desc_.scales = scales_;
+        desc_.src_mds = src_mds_;
+    }
+
+    const sum_desc_t *desc() const { return &desc_; }
+    virtual const op_desc_t *op_desc() const override {
+        return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
     virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual arg_usage_t arg_usage(int arg) const override {
-        if (arg >= MKLDNN_ARG_MULTIPLE_SRC
-                && arg < MKLDNN_ARG_MULTIPLE_SRC + n_inputs())
+        if (arg >= DNNL_ARG_MULTIPLE_SRC
+                && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
             return arg_usage_t::input;
 
-        if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+        if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
     }
@@ -71,17 +84,16 @@ struct sum_pd_t : public primitive_desc_t {
 
     const float *scales() const { return &scales_[0]; }
 
-    bool need_output_reorder() const {
-        return dst_md()->data_type != mkldnn_f32;
-    }
+    bool need_output_reorder() const { return dst_md()->data_type != dnnl_f32; }
 
 protected:
     int n_;
-    nstl::vector<float> scales_;
+    std::vector<float> scales_;
     memory_desc_t dst_md_, dst_acc_md_;
-    nstl::vector<memory_desc_t> src_mds_;
+    std::vector<memory_desc_t> src_mds_;
 
 protected:
+    sum_desc_t desc_;
     /* inits dst_md_ in simple cases. The call may fail. */
     status_t init() {
         for (int i = 0; i < n_; ++i) {
@@ -96,7 +108,7 @@ protected:
         // use f32 accumulator to handle float scales w/o accuracy loss
         if (need_output_reorder()) {
             dst_acc_md_ = dst_md_;
-            dst_acc_md_.data_type = mkldnn_f32;
+            dst_acc_md_.data_type = dnnl_f32;
         }
 
         return status::success;
@@ -137,27 +149,24 @@ protected:
             delete _pd; \
             return unimplemented; \
         } \
+        _pd->init_info(); \
+        _pd->init_scratchpad_md(); \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
     virtual status_t create_primitive(primitive_t **p) const override { \
-        double ms = get_msec(); \
-        auto ret = safe_ptr_assign<primitive_t>(*p, new (__VA_ARGS__)(this)); \
-        status_t status = (*p)->init(); \
-        if (status != status::success) return status; \
-        ms = get_msec() - ms; \
-        if (mkldnn_verbose()->level >= 2) { \
-            printf("mkldnn_verbose,create,%s,%g\n", this->info(), ms); \
-            fflush(0); \
-        } \
-        return ret; \
+        auto status = this->engine()->get_primitive( \
+                p, this, [=] { return std::make_shared<__VA_ARGS__>(this); }, \
+                false); \
+        return status; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual const char *name() const override { return impl_name; }
+    virtual const char *name() const override { return impl_name; } \
+    virtual std::type_index impl_id() const override { return typeid(pd_t); }
 
 #define DECLARE_SUM_PD_T(impl_name, ...) \
     DECLARE_SUM_PD_t(impl_name, __VA_ARGS__)
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

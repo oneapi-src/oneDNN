@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_inner_product_descr_t {
     memory::dim mb;
@@ -36,10 +36,10 @@ void compute_ref_inner_product_bwd_bias(const test_inner_product_descr_t &ipd,
 
     const memory::desc diff_bias_d = diff_bias.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper diff_bias_mdw(diff_bias_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_bias_mdw(diff_bias_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
 
-    mkldnn::impl::parallel_nd(ipd.oc, [&](memory::dim oc) {
+    dnnl::impl::parallel_nd(ipd.oc, [&](memory::dim oc) {
         data_t *db = &diff_bias_data[diff_bias_mdw.off_l(oc, true)];
         *db = data_t(0);
         for (memory::dim n = 0; n < ipd.mb; ++n) {
@@ -59,16 +59,15 @@ void compute_ref_inner_product_bwd_weights(int ndims,
     const memory::desc src_d = src.get_desc();
     const memory::desc diff_weights_d = diff_weights.get_desc();
     const memory::desc diff_dst_d = diff_dst.get_desc();
-    const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_weights_mdw(
-            diff_weights_d.data);
-    const mkldnn::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
+    const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_weights_mdw(diff_weights_d.data);
+    const dnnl::impl::memory_desc_wrapper diff_dst_mdw(diff_dst_d.data);
 
     auto padded_ic = src_d.data.padded_dims[1];
 
     bool has_spatial = ipd.kh > 1 || ipd.kw > 1;
     if (ndims == 5) has_spatial = has_spatial || ipd.kd > 1;
-    mkldnn::impl::parallel_nd(
+    dnnl::impl::parallel_nd(
             ipd.oc, ipd.ic, [&](memory::dim oc, memory::dim ic) {
                 if (has_spatial) {
                     for_(memory::dim kd = 0; kd < ipd.kd; ++kd)
@@ -115,7 +114,7 @@ struct inprod_test_params {
     int ndims;
     test_inner_product_descr_t test_ipd;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -140,7 +139,7 @@ protected:
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
-        ASSERT_EQ(data_type, mkldnn::memory::data_type::f32);
+        ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 
         memory::dims src_dims = {ipd.mb, ipd.ic},
                      diff_wei_dims = {ipd.oc, ipd.ic};
@@ -201,10 +200,10 @@ protected:
 
         inner_product_backward_weights(ip_primitive_desc)
                 .execute(strm,
-                        {{MKLDNN_ARG_DIFF_DST, ip_diff_dst},
-                                {MKLDNN_ARG_SRC, ip_src},
-                                {MKLDNN_ARG_DIFF_WEIGHTS, ip_diff_weights},
-                                {MKLDNN_ARG_DIFF_BIAS, ip_diff_bias}});
+                        {{DNNL_ARG_DIFF_DST, ip_diff_dst},
+                                {DNNL_ARG_SRC, ip_src},
+                                {DNNL_ARG_DIFF_WEIGHTS, ip_diff_weights},
+                                {DNNL_ARG_DIFF_BIAS, ip_diff_bias}});
         strm.wait();
 
         compute_ref_inner_product_bwd_weights<data_t>(
@@ -248,17 +247,17 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeightsEF,
                         memory::format_tag::any, memory::format_tag::any,
                         memory::format_tag::any,
                         EXPAND_SIZES_2D(2, 0, 48, 6, 6), true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 inprod_test_params_float {memory::format_tag::any,
                         memory::format_tag::any, memory::format_tag::any,
                         memory::format_tag::any,
                         EXPAND_SIZES_2D(-1, 32, 48, 6, 6), true,
-                        mkldnn_invalid_arguments},
+                        dnnl_invalid_arguments},
                 inprod_test_params_float {memory::format_tag::any,
                         memory::format_tag::any, memory::format_tag::any,
                         memory::format_tag::any,
                         EXPAND_SIZES_2D(2, -1, 48, 6, 6), true,
-                        mkldnn_invalid_arguments}));
+                        dnnl_invalid_arguments}));
 
 INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeightsNoBias_padded,
         inner_product_test_float,
@@ -437,4 +436,4 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeights3D,
                         memory::format_tag::dhwio, memory::format_tag::x,
                         memory::format_tag::nc,
                         EXPAND_SIZES_3D(2, 16, 48, 3, 3, 3)}));
-} // namespace mkldnn
+} // namespace dnnl

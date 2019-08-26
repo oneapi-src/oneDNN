@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
 #include "primitive_desc.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::status;
+using namespace dnnl::impl;
+using namespace dnnl::impl::status;
 
 status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
     auto safe_ret_md = [&](const memory_desc_t *_) {
@@ -71,7 +71,7 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
     return success;
 }
 
-status_t mkldnn_primitive_desc_get_attr(
+status_t dnnl_primitive_desc_get_attr(
         const primitive_desc_t *primitive_desc, const primitive_attr_t **attr) {
     if (utils::any_null(primitive_desc, attr)) return invalid_arguments;
 

@@ -20,7 +20,7 @@
 #include "ocl/ref_sum.hpp"
 #include "ocl/simple_sum.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -42,4 +42,4 @@ const spd_create_f *ocl_gpu_engine_impl_list_t::get_sum_implementation_list() {
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

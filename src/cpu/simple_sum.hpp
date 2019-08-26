@@ -17,14 +17,13 @@
 #ifndef SIMPLE_SUM_HPP
 #define SIMPLE_SUM_HPP
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu_isa_traits.hpp"
-#include "cpu_primitive.hpp"
 #include "cpu_sum_pd.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -38,7 +37,7 @@ struct sum_bf16_params_t {
 } // namespace
 
 template <data_type_t src_data_type, data_type_t dst_data_type = src_data_type>
-struct simple_sum_t : public cpu_primitive_t {
+struct simple_sum_t : public primitive_impl_t {
     struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
@@ -109,7 +108,7 @@ struct simple_sum_t : public cpu_primitive_t {
                         + bf16_p_.ws_acc_elements_per_thread_;
                 dim_t bf16cvt_buf_sz_ = sizeof(acc_data_t)
                         * bf16_p_.ws_elements_per_thread_
-                        * mkldnn_get_max_threads();
+                        * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(memory_tracking::names::key_sum_srcs_cvt,
                         bf16cvt_buf_sz_);
@@ -117,7 +116,7 @@ struct simple_sum_t : public cpu_primitive_t {
         }
     };
 
-    simple_sum_t(const pd_t *apd) : cpu_primitive_t(apd) {}
+    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
@@ -127,12 +126,12 @@ struct simple_sum_t : public cpu_primitive_t {
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

@@ -19,12 +19,11 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
-#include "common/primitive_desc.hpp"
 #include "common/utils.hpp"
 #include "ocl/ocl_reorder_pd.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -37,7 +36,7 @@ namespace ocl {
 // For GPU -> CPU reorder, it includes 2 steps:
 // 1. GPU reorder
 // 2. GPU -> CPU copying
-struct cross_engine_reorder_t : public primitive_t {
+struct cross_engine_reorder_t : public primitive_impl_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
@@ -88,20 +87,20 @@ struct cross_engine_reorder_t : public primitive_t {
         return status::success;
     }
 
-    cross_engine_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    cross_engine_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     primitive_t *reorder_;
     std::unique_ptr<memory_t> temp_buf;
-    bool do_reorder_;
+    bool do_reorder_ = true;
 };
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

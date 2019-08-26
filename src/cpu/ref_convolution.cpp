@@ -15,14 +15,14 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
+#include "dnnl_traits.hpp"
 #include "math_utils.hpp"
-#include "mkldnn_thread.hpp"
-#include "mkldnn_traits.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -33,10 +33,10 @@ template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
         data_type_t acc_type>
 void ref_convolution_fwd_t<src_type, wei_type, dst_type,
         acc_type>::execute_forward(const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -138,10 +138,10 @@ template <data_type_t diff_src_type, data_type_t wei_type,
         data_type_t diff_dst_type, data_type_t acc_type>
 void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
         acc_type>::execute_backward_data(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const wei_data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const char *, MKLDNN_ARG_BIAS);
-    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
+    auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
@@ -244,10 +244,10 @@ template <data_type_t src_type, data_type_t diff_wei_type,
         data_type_t diff_dst_type, data_type_t acc_type>
 void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
         acc_type>::execute_backward_weights(const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
-    auto diff_bias = CTX_OUT_MEM(diff_wei_data_t *, MKLDNN_ARG_DIFF_BIAS);
+    auto diff_dst = CTX_IN_MEM(const diff_dst_data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias = CTX_OUT_MEM(diff_wei_data_t *, DNNL_ARG_DIFF_BIAS);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
@@ -392,6 +392,6 @@ template struct ref_convolution_bwd_weights_t<f32, f32, f32, f32>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

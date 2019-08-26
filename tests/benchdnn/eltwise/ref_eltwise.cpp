@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "src/common/mkldnn_thread.hpp"
+#include "src/common/dnnl_thread.hpp"
 
 #include "eltwise/eltwise.hpp"
 
@@ -25,7 +25,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
     const auto nelems = src.nelems();
 
-    mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
+    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         dst_ptr[i] = compute_eltwise_fwd(
                 p->alg, src_ptr[i], 1.0, p->alpha, p->beta);
     });
@@ -38,7 +38,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
     float *d_src_ptr = (float *)diff_src;
     const auto nelems = src.nelems();
 
-    mkldnn::impl::parallel_nd(nelems, [&](int64_t i) {
+    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         d_src_ptr[i] = compute_eltwise_bwd(
                 p->alg, d_dst_ptr[i], src_ptr[i], p->alpha, p->beta);
     });

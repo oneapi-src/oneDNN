@@ -9,7 +9,7 @@
 where *conv-knobs* are:
 
  - `--dir={FWD_B [default], FWD_D, FWD_I, BWD_D, BWD_W, BWD_WB}`
-            -- mkldnn_prop_kind_t. Refer to the common glossary in README.md for
+            -- dnnl_prop_kind_t. Refer to the common glossary in README.md for
             details.
  - `--cfg={f32 [default], ...}` -- Refer to ``Configurations`` below.
  - `--stag={any [default], ...}` -- physical src memory layout.
@@ -79,10 +79,10 @@ The table below shows supported name configurations for this driver:
 
 ## Essence of Testing
 
-Intel MKL-DNN supports different data types, such as single-precision floating
-point (`mkldnn_f32`) and signed/unsigned integer of different lengths
-(`mkldnn_{s,u}{8,16,32}`). We need to cover all those cases with tests. It is
-essential to test real convolution sizes, because Intel MKL-DNN provides
+DNNL supports different data types, such as single-precision floating
+point (`dnnl_f32`) and signed/unsigned integer of different lengths
+(`dnnl_{s,u}{8,16,32}`). We need to cover all those cases with tests. It is
+essential to test real convolution sizes, because DNNL provides
 different optimizations depending on the convolution parameters. There is no
 single unified approach inside, so it would not be enough to test only a few
 convolutions (also known as unit tests).
@@ -151,7 +151,7 @@ configurations (`u8s8u8s32` and `f32`):
 
 Run the batch file for different algorithms (assuming the file specifies only
 convolutions and does not include driver options that would override any passed
-on the command line). Also ignore mkldnn_unimplemented errors in case of
+on the command line). Also ignore dnnl_unimplemented errors in case of
 Winograd. Before running the AUTO algorithm, reset the allow-unimpl value back
 to false:
 ``` sh

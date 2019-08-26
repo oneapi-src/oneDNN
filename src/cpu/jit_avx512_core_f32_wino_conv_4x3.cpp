@@ -18,10 +18,10 @@
 #include <immintrin.h>
 #endif
 
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -33,13 +33,13 @@
 #define pragma_unroll
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 template <bool is_fwd>
 void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::weight_transform_data(
@@ -458,7 +458,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
 
     PRAGMA_OMP(parallel) {
 
-        int ithr = mkldnn_get_thread_num();
+        int ithr = dnnl_get_thread_num();
 
 PRAGMA_OMP(for schedule(static))
 for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
@@ -518,8 +518,8 @@ void subarray_sum(size_t num_arrs, float *output, size_t nelems,
     const size_t tail = nelems % block_size;
 
     PRAGMA_OMP(parallel) {
-        const int ithr = mkldnn_get_thread_num();
-        const int nthr = mkldnn_get_num_threads();
+        const int ithr = dnnl_get_thread_num();
+        const int nthr = dnnl_get_num_threads();
         size_t start {0}, end {0};
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -599,8 +599,8 @@ void array_sum(size_t num_arrs, float *output, size_t nelems,
     const size_t tail = nelems % block_size;
 
     PRAGMA_OMP(parallel) {
-        const size_t ithr = mkldnn_get_thread_num();
-        const size_t nthr = mkldnn_get_num_threads();
+        const size_t ithr = dnnl_get_thread_num();
+        const size_t nthr = dnnl_get_num_threads();
         size_t start {0}, end {0};
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -699,7 +699,7 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
                     });
         }
 
-        int ithr = mkldnn_get_thread_num();
+        int ithr = dnnl_get_thread_num();
         for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
             int first_tblk = 0;
 PRAGMA_OMP(for)
@@ -868,7 +868,7 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
                     kernel_->src_transform(&trans_ker_p);
                 });
 
-        int ithr = mkldnn_get_thread_num();
+        int ithr = dnnl_get_thread_num();
         trans_ker_p.G = G_W_3x3_4x4;
         parallel_nd_in_omp(jcp.nb_oc, jcp.oc_block, jcp.mb,
                 [&](int ofm1, int ofm2, int img) {
@@ -980,5 +980,5 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -17,16 +17,16 @@
 #ifndef GEMM_DRIVER_HPP
 #define GEMM_DRIVER_HPP
 
+#include "dnnl_types.h"
 #include "gemm_info.hpp"
 #include "gemm_pack_storage.hpp"
-#include "mkldnn_types.h"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <typename a_type, typename b_type, typename c_type>
-mkldnn_status_t gemm_driver(const char *transA, const char *transB,
+dnnl_status_t gemm_driver(const char *transA, const char *transB,
         const char *offsetC, const int *m, const int *n, const int *k,
         const float *alpha, const a_type *a, const int *lda, const a_type *oa,
         const b_type *b, const int *ldb, const b_type *ob, const float *beta,
@@ -37,11 +37,11 @@ mkldnn_status_t gemm_driver(const char *transA, const char *transB,
 void prep_ref_gemm_s8u8s32_pack(
         bool do_a, dim_t rows, dim_t cols, gemm_pack_storage_t *pack_dst);
 
-mkldnn_status_t ref_gemm_s8u8s32_pack(const void *src, dim_t ld_src, dim_t rows,
+dnnl_status_t ref_gemm_s8u8s32_pack(const void *src, dim_t ld_src, dim_t rows,
         dim_t cols, int trans, gemm_pack_storage_t *dst_pack);
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // GEMM_DRIVER_HPP

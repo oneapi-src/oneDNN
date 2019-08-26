@@ -17,12 +17,12 @@
 #ifndef TEST_GEMM_COMMON_H
 #define TEST_GEMM_COMMON_H
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.h"
-#include "mkldnn_types.h"
+#include "dnnl.h"
+#include "dnnl_types.h"
 
 #include <utility>
 #include <vector>
@@ -43,36 +43,36 @@
     CPU_INST_TEST_CASE_( \
             CONCAT_WITH_UNDERSCORE(str, TEST_CASE_NAME_PREFIX), __VA_ARGS__)
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 
 // Declare OpenCL GEMM interfaces for testing
 extern "C" {
-mkldnn_status_t mkldnn_ocl_sgemm(cl_command_queue queue, char transa,
-        char transb, mkldnn_dim_t m, mkldnn_dim_t n, mkldnn_dim_t k,
-        cl_float alpha, cl_mem a, mkldnn_dim_t offset_a, mkldnn_dim_t lda,
-        cl_mem b, mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta,
-        cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+dnnl_status_t dnnl_ocl_sgemm(cl_command_queue queue, char transa, char transb,
+        dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k, cl_float alpha, cl_mem a,
+        dnnl_dim_t offset_a, dnnl_dim_t lda, cl_mem b, dnnl_dim_t offset_b,
+        dnnl_dim_t ldb, cl_float beta, cl_mem c, dnnl_dim_t offset_c,
+        dnnl_dim_t ldc);
 
-mkldnn_status_t mkldnn_ocl_hgemm(cl_command_queue queue, char transa,
-        char transb, mkldnn_dim_t m, mkldnn_dim_t n, mkldnn_dim_t k,
-        cl_float alpha, cl_mem a, mkldnn_dim_t offset_a, mkldnn_dim_t lda,
-        cl_mem b, mkldnn_dim_t offset_b, mkldnn_dim_t ldb, cl_float beta,
-        cl_mem c, mkldnn_dim_t offset_c, mkldnn_dim_t ldc);
+dnnl_status_t dnnl_ocl_hgemm(cl_command_queue queue, char transa, char transb,
+        dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k, cl_float alpha, cl_mem a,
+        dnnl_dim_t offset_a, dnnl_dim_t lda, cl_mem b, dnnl_dim_t offset_b,
+        dnnl_dim_t ldb, cl_float beta, cl_mem c, dnnl_dim_t offset_c,
+        dnnl_dim_t ldc);
 }
 #endif
 
-#if MKLDNN_WITH_SYCL
+#if DNNL_WITH_SYCL
 
 // Declare SYCL GEMM interfaces for testing
-namespace mkldnn {
-void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+namespace dnnl {
+void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         memory::dim m, memory::dim n, memory::dim k, float alpha,
         cl::sycl::buffer<float, 1> &a, memory::dim offset_a, memory::dim lda,
         cl::sycl::buffer<float, 1> &b, memory::dim offset_b, memory::dim ldb,
         float beta, cl::sycl::buffer<float, 1> &c, memory::dim offset_c,
         memory::dim ldc);
 
-void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         memory::dim m, memory::dim n, memory::dim k, float alpha,
         cl::sycl::buffer<cl::sycl::half, 1> &a, memory::dim offset_a,
         memory::dim lda, cl::sycl::buffer<cl::sycl::half, 1> &b,
@@ -80,67 +80,67 @@ void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
         cl::sycl::buffer<cl::sycl::half, 1> &c, memory::dim offset_c,
         memory::dim ldc);
 
-void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         memory::dim m, memory::dim n, memory::dim k, float alpha,
         const float *a, memory::dim lda, const float *b, memory::dim ldb,
         float beta, float *c, memory::dim ldc);
 
-void MKLDNN_API gemm(cl::sycl::queue &queue, char transa, char transb,
+void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         memory::dim m, memory::dim n, memory::dim k, float alpha,
         const cl::sycl::half *a, memory::dim lda, const cl::sycl::half *b,
         memory::dim ldb, float beta, cl::sycl::half *c, memory::dim ldc);
 
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 
 // Declare bfloat16 GEMM interfaces for testing
 extern "C" {
-mkldnn_status_t mkldnn_gemm_bf16bf16f32(char transa, char transb,
-        mkldnn_dim_t M, mkldnn_dim_t N, mkldnn_dim_t K, float alpha,
-        const bfloat16_t *A, mkldnn_dim_t lda, const bfloat16_t *B,
-        mkldnn_dim_t ldb, float beta, float *C, mkldnn_dim_t ldc);
+dnnl_status_t dnnl_gemm_bf16bf16f32(char transa, char transb, dnnl_dim_t M,
+        dnnl_dim_t N, dnnl_dim_t K, float alpha, const bfloat16_t *A,
+        dnnl_dim_t lda, const bfloat16_t *B, dnnl_dim_t ldb, float beta,
+        float *C, dnnl_dim_t ldc);
 }
 
 // Declare packed GEMM interfaces for testing
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-extern mkldnn_status_t sgemm_pack_get_size(const char *identifier,
+extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
         bool *pack = nullptr);
 
-extern mkldnn_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
+extern dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
         bool *pack = nullptr);
 
-extern mkldnn_status_t sgemm_pack(const char *identifier, const char *transa,
+extern dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
         const int *lda, const int *ldb, const float *src, float *dst);
 
-extern mkldnn_status_t gemm_s8u8s32_pack(const char *identifier,
+extern dnnl_status_t gemm_s8u8s32_pack(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, const void *src,
         void *dst);
 
-extern mkldnn_status_t sgemm_compute(const char *transa, const char *transb,
+extern dnnl_status_t sgemm_compute(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *A,
         const int *lda, const float *B, const int *ldb, const float *beta,
         float *C, const int *ldc);
 
-extern mkldnn_status_t gemm_s8u8s32_compute(const char *transa,
+extern dnnl_status_t gemm_s8u8s32_compute(const char *transa,
         const char *transb, const char *offsetc, const int *M, const int *N,
         const int *K, const int8_t *A, const int *lda, const uint8_t *B,
         const int *ldb, const float *beta, int32_t *C, const int *ldc,
         const int32_t *co);
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
-namespace mkldnn {
+namespace dnnl {
 
 struct test_igemm_params {
     char offsetc;
@@ -178,11 +178,11 @@ struct test_params {
     test_igemm_params igemm_params;
     test_pack_params pack_params;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 
     gemm_offset off;
 
-#if MKLDNN_WITH_SYCL
+#if DNNL_WITH_SYCL
     bool test_usm_api;
 #endif
 
@@ -304,13 +304,13 @@ void prepare_matrix(const test_memory &M_mem, int64_t off_beg, layout_t layout,
     const int R_test = mapper.dim_test();
 
     if (layout == layout_t::COL_MAJOR) {
-        mkldnn::impl::parallel_nd(C, R_test, [&](int64_t c, int64_t r) {
+        dnnl::impl::parallel_nd(C, R_test, [&](int64_t c, int64_t r) {
             const int64_t off = c * LD + r;
             M[off_beg + off] = set_value<data_t>(off, mean, var, 1.);
         });
         if (R > R_test) {
             const int64_t R_rest = R - R_test;
-            mkldnn::impl::parallel_nd(C, R_rest, [&](int64_t c, int64_t r_) {
+            dnnl::impl::parallel_nd(C, R_rest, [&](int64_t c, int64_t r_) {
                 const int64_t r = R_test + r_;
                 const int64_t off = c * LD + r;
                 const int64_t off0 = c * LD + mapper[r];
@@ -318,13 +318,13 @@ void prepare_matrix(const test_memory &M_mem, int64_t off_beg, layout_t layout,
             });
         }
     } else {
-        mkldnn::impl::parallel_nd(R_test, C, [&](int64_t r, int64_t c) {
+        dnnl::impl::parallel_nd(R_test, C, [&](int64_t r, int64_t c) {
             const int64_t off = r * LD + c;
             M[off_beg + off] = set_value<data_t>(off, mean, var, 1.);
         });
         if (R > R_test) {
             const int64_t R_rest = R - R_test;
-            mkldnn::impl::parallel_nd(R_rest, C, [&](int64_t r_, int64_t c) {
+            dnnl::impl::parallel_nd(R_rest, C, [&](int64_t r_, int64_t c) {
                 const int64_t r = R_test + r_;
                 const int64_t off = r * LD + c;
                 const int64_t off0 = mapper[r] * LD + c;
@@ -343,7 +343,7 @@ void extend_matrix_cols(const test_memory &M_mem, int64_t off, int64_t R,
     const int64_t C_test = mapper_c.dim_test();
     if (C_test == C) return;
 
-    mkldnn::impl::parallel_nd(R, C - C_test, [&](int64_t r, int64_t c_) {
+    dnnl::impl::parallel_nd(R, C - C_test, [&](int64_t r, int64_t c_) {
         const int64_t c = C_test + c_;
         const int64_t c0 = mapper_c[c];
         M[off + r * LD + c] = M[off + r * LD + c0];
@@ -359,7 +359,7 @@ void extend_matrix_rows(const test_memory &M_mem, int64_t off, int64_t R,
     const int64_t R_test = mapper_r.dim_test();
     if (R_test == R) return;
 
-    mkldnn::impl::parallel_nd(R - R_test, [&](int64_t r_) {
+    dnnl::impl::parallel_nd(R - R_test, [&](int64_t r_) {
         const int64_t r = R_test + r_;
         const int64_t r0 = mapper_r[r];
         for (int64_t c = 0; c < C; ++c)
@@ -399,7 +399,7 @@ struct ref_gemm {
             return c[p.off.c + i * p.ldc + j];
         };
 
-        mkldnn::impl::parallel_nd(M, N, [&](int64_t im, int64_t in) {
+        dnnl::impl::parallel_nd(M, N, [&](int64_t im, int64_t in) {
             c_dt c_elem = (p.beta == 0.) ? 0. : pc(im, in) * p.beta;
 
             for (int64_t ik = 0; ik < p.K; ik++) {
@@ -442,7 +442,7 @@ struct ref_gemm<a_dt, int8_t, int32_t> {
         int8_t oa = p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
 
-        mkldnn::impl::parallel_nd(M, N, [&](int64_t m, int64_t n) {
+        dnnl::impl::parallel_nd(M, N, [&](int64_t m, int64_t n) {
             double c_elem = 0;
             for (int64_t k = 0; k < p.K; k++) {
                 const double a_elem = (tr_a ? pa(k, m) : pa(m, k)) - oa;
@@ -465,7 +465,7 @@ void compare(const test_params &p, const test_memory &c_mem,
     using data_type = memory::data_type;
     auto c = map_memory<c_dt>(c_mem);
     auto c_ref = map_memory<c_dt>(c_ref_mem);
-    mkldnn::impl::parallel_nd(p.M, p.ldc, [&](int64_t i, int64_t j) {
+    dnnl::impl::parallel_nd(p.M, p.ldc, [&](int64_t i, int64_t j) {
         if (is_current_test_failed()) return;
 
         c_dt ref = c_ref[p.off.c + i * p.ldc + j];
@@ -511,7 +511,7 @@ inline test_memory get_matrix_memory(
         const test_params &p, memory::dim n, memory::dim off, engine &eng) {
     auto d = create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
     if (p.test_usm_api) {
         auto dev = eng.get_sycl_device();
         auto ctx = eng.get_sycl_context();
@@ -542,7 +542,7 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
     {
         auto C = map_memory<c_dt>(c_mem);
         auto C_ref = map_memory<c_dt>(c_ref_mem);
-        mkldnn::impl::parallel_nd(p.sizeC(),
+        dnnl::impl::parallel_nd(p.sizeC(),
                 [&](int64_t i) { C_ref[p.off.c + i] = C[p.off.c + i]; });
     }
 
@@ -563,31 +563,31 @@ void fill_matrices(const test_params &p, const mapper_t &mapper_m,
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
-struct mkldnn_gemm {
-    static mkldnn_status_t call(test_params &p, const test_memory &a_mem,
+struct dnnl_gemm {
+    static dnnl_status_t call(test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem) {
-        throw error(mkldnn_runtime_error, "unknown gemm");
+        throw error(dnnl_runtime_error, "unknown gemm");
     }
 };
 
 template <>
-struct mkldnn_gemm<float16_t, float16_t, float16_t> {
-    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+struct dnnl_gemm<float16_t, float16_t, float16_t> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
         engine eng = a_mem.get().get_engine();
         stream s(eng);
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl_command_queue q = s.get_ocl_command_queue();
-            auto status = mkldnn_ocl_hgemm(q, p.transA, p.transB, p.M, p.N, p.K,
+            auto status = dnnl_ocl_hgemm(q, p.transA, p.transB, p.M, p.N, p.K,
                     p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
                     b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
                     c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
         }
-#elif MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl::sycl::queue sycl_queue = s.get_sycl_queue();
             if (p.test_usm_api) {
@@ -598,35 +598,35 @@ struct mkldnn_gemm<float16_t, float16_t, float16_t> {
                         b_mem.get().get_data_handle());
                 auto c = static_cast<cl::sycl::half *>(
                         c_mem.get().get_data_handle());
-                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
                         p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
             } else {
                 // Test buffer API
                 auto a = a_mem.get().get_sycl_buffer<cl::sycl::half>();
                 auto b = b_mem.get().get_sycl_buffer<cl::sycl::half>();
                 auto c = c_mem.get().get_sycl_buffer<cl::sycl::half>();
-                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
                         p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
                         c, p.off.c, p.ldc);
             }
             s.wait();
-            return mkldnn_success;
+            return dnnl_success;
         }
 #endif
-        throw error(mkldnn_runtime_error, "unknown gemm");
+        throw error(dnnl_runtime_error, "unknown gemm");
     }
 };
 
 template <>
-struct mkldnn_gemm<float, float, float> {
-    static mkldnn_status_t call_packed(const test_params &p,
+struct dnnl_gemm<float, float, float> {
+    static dnnl_status_t call_packed(const test_params &p,
             const test_memory &a_mem, const test_memory &b_mem,
             const test_memory &c_mem) {
         /* Alas, the internal API still uses Fortran notation.
          * So in addition to the changes for pack API, we also need to take
          * care of conversions and layouts */
 
-        using namespace mkldnn::impl::cpu;
+        using namespace dnnl::impl::cpu;
 
         assert(p.alpha == 1.f);
 
@@ -644,13 +644,13 @@ struct mkldnn_gemm<float, float, float> {
         bool pack_a = p.pack_params.pack_b;
         bool pack_b = p.pack_params.pack_a;
 
-        mkldnn_status_t status = mkldnn_success;
+        dnnl_status_t status = dnnl_success;
 
         if (pack_a) {
             size_t a_sz;
             status = sgemm_pack_get_size("A", &trans_a, &trans_b, &m, &n, &k,
                     &lda, &ldb, &a_sz, &pack_a);
-            if (status != mkldnn_success) return status;
+            if (status != dnnl_success) return status;
 
             if (pack_a) {
                 a_pack_buf.resize(a_sz / sizeof(float));
@@ -658,7 +658,7 @@ struct mkldnn_gemm<float, float, float> {
 
                 status = sgemm_pack("A", &trans_a, &trans_b, &m, &n, &k, &lda,
                         &ldb, A, a_eff);
-                if (status != mkldnn_success) return status;
+                if (status != dnnl_success) return status;
             }
         }
 
@@ -666,7 +666,7 @@ struct mkldnn_gemm<float, float, float> {
             size_t b_sz;
             status = sgemm_pack_get_size("B", &trans_a, &trans_b, &m, &n, &k,
                     &lda, &ldb, &b_sz, &pack_b);
-            if (status != mkldnn_success) return status;
+            if (status != dnnl_success) return status;
 
             if (pack_b) {
                 b_pack_buf.resize(b_sz / sizeof(float));
@@ -674,7 +674,7 @@ struct mkldnn_gemm<float, float, float> {
 
                 status = sgemm_pack("B", &trans_a, &trans_b, &m, &n, &k, &lda,
                         &ldb, B, b_eff);
-                if (status != mkldnn_success) return status;
+                if (status != dnnl_success) return status;
             }
         }
 
@@ -687,7 +687,7 @@ struct mkldnn_gemm<float, float, float> {
         return status;
     }
 
-    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
 
@@ -697,17 +697,17 @@ struct mkldnn_gemm<float, float, float> {
         engine eng = a_mem.get().get_engine();
         stream s(eng);
 
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl_command_queue q = s.get_ocl_command_queue();
-            auto status = mkldnn_ocl_sgemm(q, p.transA, p.transB, p.M, p.N, p.K,
+            auto status = dnnl_ocl_sgemm(q, p.transA, p.transB, p.M, p.N, p.K,
                     p.alpha, a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
                     b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb, p.beta,
                     c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc);
             s.wait();
             return status;
         }
-#elif MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl::sycl::queue sycl_queue = s.get_sycl_queue();
             if (p.test_usm_api) {
@@ -715,19 +715,19 @@ struct mkldnn_gemm<float, float, float> {
                 auto a = static_cast<float *>(a_mem.get().get_data_handle());
                 auto b = static_cast<float *>(b_mem.get().get_data_handle());
                 auto c = static_cast<float *>(c_mem.get().get_data_handle());
-                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
                         p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
             } else {
                 // Test buffer API
                 auto a = a_mem.get().get_sycl_buffer<float>();
                 auto b = b_mem.get().get_sycl_buffer<float>();
                 auto c = c_mem.get().get_sycl_buffer<float>();
-                mkldnn::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
+                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
                         p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
                         c, p.off.c, p.ldc);
             }
             s.wait();
-            return mkldnn_success;
+            return dnnl_success;
         }
 #endif
         if (get_test_engine_kind() == engine::kind::cpu) {
@@ -735,17 +735,17 @@ struct mkldnn_gemm<float, float, float> {
             auto B = map_memory<float>(b_mem);
             auto C = map_memory<float>(c_mem);
 
-            return mkldnn_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A,
+            return dnnl_sgemm(p.transA, p.transB, p.M, p.N, p.K, p.alpha, A,
                     p.lda, B, p.ldb, p.beta, C, p.ldc);
         }
 
-        throw error(mkldnn_runtime_error, "unknown gemm");
+        throw error(dnnl_runtime_error, "unknown gemm");
     }
 };
 
 template <>
-struct mkldnn_gemm<int8_t, int8_t, int32_t> {
-    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+struct dnnl_gemm<int8_t, int8_t, int32_t> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &oc_mem) {
 
@@ -755,22 +755,22 @@ struct mkldnn_gemm<int8_t, int8_t, int32_t> {
         auto oc = map_memory<int32_t>(oc_mem);
         int8_t oa = p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
-        return mkldnn_gemm_s8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
+        return dnnl_gemm_s8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob, p.beta, C,
                 p.ldc, oc);
     }
 };
 
 template <>
-struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
-    static mkldnn_status_t call_packed(const test_params &p,
+struct dnnl_gemm<uint8_t, int8_t, int32_t> {
+    static dnnl_status_t call_packed(const test_params &p,
             const test_memory &a_mem, const test_memory &b_mem,
             const test_memory &c_mem, const test_memory &oc_mem) {
         /* Alas, the internal API still uses Fortran notation.
          * So in addition to the changes for pack API, we also need to take
          * care of conversions and layouts */
 
-        using namespace mkldnn::impl::cpu;
+        using namespace dnnl::impl::cpu;
 
         assert(p.alpha == 1.f);
         assert(p.igemm_params.oa() == 0);
@@ -802,13 +802,13 @@ struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
         bool pack_a = p.pack_params.pack_b;
         bool pack_b = p.pack_params.pack_a;
 
-        mkldnn_status_t status = mkldnn_success;
+        dnnl_status_t status = dnnl_success;
 
         if (pack_a) {
             size_t a_sz;
             status = gemm_s8u8s32_pack_get_size(
                     "A", &trans_a, &trans_b, &m, &n, &k, &lda, &ldb, &a_sz);
-            if (status != mkldnn_success) return status;
+            if (status != dnnl_success) return status;
 
             if (pack_a) {
                 a_pack_buf.resize(a_sz);
@@ -816,7 +816,7 @@ struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
 
                 status = gemm_s8u8s32_pack("A", &trans_a, &trans_b, &m, &n, &k,
                         &lda, &ldb, A, a_eff);
-                if (status != mkldnn_success) return status;
+                if (status != dnnl_success) return status;
             }
         }
 
@@ -832,7 +832,7 @@ struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
 
                 status = gemm_s8u8s32_pack("B", &trans_a, &trans_b, &m, &n, &k,
                         &lda, &ldb, B, b_eff);
-                if (status != mkldnn_success) return status;
+                if (status != dnnl_success) return status;
             }
         }
 
@@ -845,7 +845,7 @@ struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
         return status;
     }
 
-    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &oc_mem) {
         assert(p.igemm_params.oa() >= 0);
@@ -860,22 +860,22 @@ struct mkldnn_gemm<uint8_t, int8_t, int32_t> {
         uint8_t oa = (uint8_t)p.igemm_params.oa();
         int8_t ob = p.igemm_params.ob();
 
-        return mkldnn_gemm_u8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
+        return dnnl_gemm_u8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob, p.beta, C,
                 p.ldc, oc);
     }
 };
 
 template <>
-struct mkldnn_gemm<bfloat16_t, bfloat16_t, float> {
-    static mkldnn_status_t call(const test_params &p, const test_memory &a_mem,
+struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
         auto A = map_memory<bfloat16_t>(a_mem);
         auto B = map_memory<bfloat16_t>(b_mem);
         auto C = map_memory<float>(c_mem);
-        return mkldnn_gemm_bf16bf16f32(p.transA, p.transB, p.M, p.N, p.K,
-                p.alpha, A, p.lda, B, p.ldb, p.beta, C, p.ldc);
+        return dnnl_gemm_bf16bf16f32(p.transA, p.transB, p.M, p.N, p.K, p.alpha,
+                A, p.lda, B, p.ldb, p.beta, C, p.ldc);
     }
 };
 
@@ -885,10 +885,10 @@ struct run_test_gemm {
         if (p.expect_to_fail) {
             engine eng(get_test_engine_kind(), 0);
             test_memory zero_mem({}, eng);
-            auto status = mkldnn_gemm<a_dt, b_dt, c_dt>::call(
+            auto status = dnnl_gemm<a_dt, b_dt, c_dt>::call(
                     p, zero_mem, zero_mem, zero_mem, zero_mem);
-            if (status != mkldnn_success)
-                throw error(status, "mkldnn gemm returned error");
+            if (status != dnnl_success)
+                throw error(status, "dnnl gemm returned error");
             return;
         }
 
@@ -909,10 +909,10 @@ struct run_test_gemm {
         fill_matrices<a_dt, b_dt, c_dt>(
                 p, mapper_m, mapper_n, a_mem, b_mem, c_mem, c_ref_mem, oc_mem);
 
-        auto status = mkldnn_gemm<a_dt, b_dt, c_dt>::call(
+        auto status = dnnl_gemm<a_dt, b_dt, c_dt>::call(
                 p, a_mem, b_mem, c_mem, oc_mem);
 
-        if (status == mkldnn_success) {
+        if (status == dnnl_success) {
             ref_gemm<a_dt, b_dt, c_dt>::call(
                     p, M_test, N_test, a_mem, b_mem, c_ref_mem, oc_mem);
             extend_matrix<c_dt>(
@@ -920,8 +920,8 @@ struct run_test_gemm {
             compare<a_dt, c_dt>(p, c_mem, c_ref_mem);
         }
 
-        if (status != mkldnn_success)
-            throw error(status, "mkldnn gemm returned error");
+        if (status != dnnl_success)
+            throw error(status, "dnnl gemm returned error");
     }
 };
 
@@ -939,7 +939,7 @@ protected:
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
 
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
         SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
                 "SYCL CPU GEMM not implemented.");
 #endif
@@ -968,7 +968,7 @@ protected:
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
     void Test() {
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             const auto &p = ::testing::TestWithParam<test_params>::GetParam();
 
@@ -982,7 +982,7 @@ protected:
 
             // TODO: enable USM tests after OpenCL driver update
 #if 0
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
             // Test SYCL USM interfaces
             auto p_usm = p;
             p_usm.test_usm_api = true;
@@ -997,5 +997,5 @@ protected:
         run_test_gemm<a_dt, b_dt, c_dt>::call(p);
     }
 };
-} // namespace mkldnn
+} // namespace dnnl
 #endif

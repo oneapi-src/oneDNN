@@ -22,11 +22,13 @@
 
 #include "memory_storage.hpp"
 #include "nstl.hpp"
-#include "primitive_exec_types.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
+
+struct exec_ctx_t;
+
 namespace memory_tracking {
 
 /* Memory tracking capabilities
@@ -121,7 +123,7 @@ namespace memory_tracking {
  *
  *      void exec() {
  *          // get the base pointer to a scratchpad memory from a user
- *          void *scratchpad_ptr = this->input(MKLDNN_MEM_SCRATCHPAD);
+ *          void *scratchpad_ptr = this->input(DNNL_MEM_SCRATCHPAD);
  *
  *          // create a grantor to the scratchpad (and provide the base
  *          // pointer).
@@ -323,7 +325,7 @@ struct grantor_t {
     T *get(const key_t &key) const {
         std::unique_ptr<memory_storage_t> mem_storage(get_memory_storage(key));
         if (!mem_storage) return nullptr;
-        return static_cast<T *>(exec_ctx_->host_ptr(mem_storage.get()));
+        return static_cast<T *>(get_host_ptr(mem_storage.get()));
     }
 
     memory_storage_t *get_memory_storage(const key_t &key) const {
@@ -332,6 +334,8 @@ struct grantor_t {
     }
 
 protected:
+    void *get_host_ptr(const memory_storage_t *mem_storage) const;
+
     const registry_t &registry_;
     const key_t prefix_;
     const memory_storage_t *base_mem_storage_;
@@ -347,6 +351,6 @@ inline grantor_t registry_t::grantor(
 }
 } // namespace memory_tracking
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

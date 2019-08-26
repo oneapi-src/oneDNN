@@ -25,7 +25,7 @@ file(GLOB_RECURSE SOURCES
 
 add_library(${TARGET_NAME} OBJECT ${SOURCES})
 
-if(MKLDNN_SYCL_COMPUTECPP)
+if(DNNL_SYCL_COMPUTECPP)
     add_sycl_to_target(
         TARGET ${TARGET_NAME}
         SOURCES ${SOURCES}

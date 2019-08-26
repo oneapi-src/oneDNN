@@ -21,14 +21,14 @@
 
 #include "cpu_batch_normalization_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace bnorm_utils {
 
 void cache_balance(size_t working_set_size, dim_t C_blks,
         dim_t &C_blks_per_iter, int64_t &iters) {
-    int nthrs = mkldnn_get_max_threads();
+    int nthrs = dnnl_get_max_threads();
     int l3_size = get_cache_size(3, true) * nthrs / 2;
 
     C_blks_per_iter = l3_size / working_set_size;
@@ -43,7 +43,7 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
         int nthr, dim_t N, dim_t C_blks, dim_t SP, int &C_ithr, int &C_nthr,
         dim_t &C_blk_s, dim_t &C_blk_e, int &N_ithr, int &N_nthr, dim_t &N_s,
         dim_t &N_e, int &S_ithr, int &S_nthr, dim_t &S_s, dim_t &S_e) {
-    if (nthr <= C_blks || !mkldnn_thr_syncable()) {
+    if (nthr <= C_blks || !dnnl_thr_syncable()) {
         C_ithr = ithr;
         C_nthr = nthr;
         N_ithr = 0;
@@ -95,9 +95,9 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
 
 bool is_spatial_thr(
         const batch_normalization_pd_t *bdesc, int simd_w, int data_size) {
-    if (!mkldnn_thr_syncable()) return false;
+    if (!dnnl_thr_syncable()) return false;
 
-    dim_t nthr = mkldnn_get_max_threads();
+    dim_t nthr = dnnl_get_max_threads();
     dim_t SP = bdesc->W() * bdesc->D() * bdesc->H();
     dim_t C_PADDED = memory_desc_wrapper(bdesc->src_md()).padded_dims()[1];
     assert(C_PADDED % simd_w == 0);
@@ -138,4 +138,4 @@ bool is_spatial_thr(
 } // namespace bnorm_utils
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

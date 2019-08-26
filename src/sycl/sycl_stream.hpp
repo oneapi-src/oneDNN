@@ -28,7 +28,7 @@
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream_cpu_thunk.hpp"
 
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
 #include "sycl/sycl_stream_submit_cpu_primitive.hpp"
 #endif
 
@@ -39,7 +39,7 @@
 #include <CL/cl.h>
 #include <CL/sycl.hpp>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -86,18 +86,19 @@ struct sycl_stream_t : public compute::compute_stream_t {
     cl::sycl::queue &queue() { return *queue_; }
 
     virtual status_t enqueue_primitive(
-            const primitive_t *prim, const exec_ctx_t &exec_ctx) override {
+            const primitive_t *prim, exec_ctx_t &exec_ctx) override {
         auto execute_func = [&]() {
             status_t status = status::success;
             if (engine()->kind() == engine_kind::cpu) {
-#if MKLDNN_CPU_RUNTIME == MKLDNN_RUNTIME_SYCL
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
                 auto event = queue_->submit([&](cl::sycl::handler &cgh) {
-#ifdef MKLDNN_SYCL_INTEL
+#ifdef DNNL_SYCL_INTEL
                     cgh.depends_on(deps_);
 #endif
                     submit_cpu_primitive(this, prim, exec_ctx, cgh);
                 });
-                deps_ = { event };
+                deps_ = {event};
 #else
                 assert(!"not expected");
                 return status::runtime_error;
@@ -172,6 +173,6 @@ private:
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

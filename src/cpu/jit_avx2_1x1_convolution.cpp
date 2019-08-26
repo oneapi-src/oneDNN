@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -23,13 +23,13 @@
 
 #include "jit_avx2_1x1_convolution.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::memory_tracking::names;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::memory_tracking::names;
+using namespace dnnl::impl::utils;
 
 #define data_blk_off(f, n, c, h, w) \
     ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
@@ -38,10 +38,10 @@ using namespace mkldnn::impl::utils;
 
 void jit_avx2_1x1_convolution_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);
-    auto bias = CTX_IN_MEM(const data_t *, MKLDNN_ARG_BIAS);
-    auto dst = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
+    auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
+    auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -49,7 +49,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
-            ? scratchpad(ctx).get<data_t>(key_conv_rtus_space)
+            ? ctx.get_scratchpad_grantor().get<data_t>(key_conv_rtus_space)
             : NULL;
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -155,7 +155,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     };
 
     if (pd()->wants_padded_bias()) {
-        auto padded_bias = scratchpad(ctx).get<data_t>(key_conv_padded_bias);
+        auto padded_bias = ctx.get_scratchpad_grantor().get<data_t>(
+                key_conv_padded_bias);
         utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
         utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
                 jcp.oc - jcp.oc_without_padding);
@@ -164,16 +165,16 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
 
     parallel(0, ker);
 
-    if (pd()->wants_zero_pad_dst()) ctx.memory(MKLDNN_ARG_DST)->zero_pad(ctx);
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);
 }
 
 /* convolution backward wtr data */
 
 void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto weights = CTX_IN_MEM(const data_t *, MKLDNN_ARG_WEIGHTS);
-    auto diff_src = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_SRC);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
+    auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -181,7 +182,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
-            ? scratchpad(ctx).get<data_t>(key_conv_rtus_space)
+            ? ctx.get_scratchpad_grantor().get<data_t>(key_conv_rtus_space)
             : NULL;
 
     // TODO (Roma): remove this restriction
@@ -281,7 +282,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
 jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
         const pd_t *apd)
-    : cpu_primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+    : primitive_impl_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
     reducer_weights_
             = new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_);
@@ -291,12 +292,12 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
 
 void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
-    auto diff_dst = CTX_IN_MEM(const data_t *, MKLDNN_ARG_DIFF_DST);
-    auto src = CTX_IN_MEM(const data_t *, MKLDNN_ARG_SRC);
-    auto diff_weights = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_WEIGHTS);
-    auto diff_bias_in = CTX_OUT_MEM(data_t *, MKLDNN_ARG_DIFF_BIAS);
+    auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
+    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto diff_weights = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_WEIGHTS);
+    auto diff_bias_in = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_BIAS);
 
-    auto scratchpad = this->scratchpad(ctx);
+    auto scratchpad = ctx.get_scratchpad_grantor();
 
     const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -479,7 +480,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                     g, jcp.ngroups, load_i, load_work, bcast_i, bcast_work);
         }
 
-        if (mkldnn_thr_syncable())
+        if (dnnl_thr_syncable())
             rw->reduce(ithr, diff_weights, reducer_wei_scratchpad);
     };
 
@@ -525,11 +526,11 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
             }
         }
 
-        if (mkldnn_thr_syncable())
+        if (dnnl_thr_syncable())
             rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
-#if MKLDNN_THR_SYNC == 1
+#if DNNL_THR_SYNC == 1
     parallel(0, [&](const int ithr, const int nthr) {
         ker(ithr, nthr);
         if (pd()->with_bias()) ker_bias(ithr, nthr);
@@ -563,4 +564,4 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

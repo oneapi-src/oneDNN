@@ -20,7 +20,7 @@
 #include <assert.h>
 #include <memory>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "memory_desc_wrapper.hpp"
@@ -28,7 +28,7 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct exec_ctx_t;
@@ -38,34 +38,33 @@ enum memory_flags_t {
     use_backend_ptr = 0x2,
 };
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
-struct mkldnn_memory : public mkldnn::impl::c_compatible {
-    mkldnn_memory(mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::memory_desc_t *md, unsigned flags,
-            void *handle);
-    mkldnn_memory(mkldnn::impl::engine_t *engine,
-            const mkldnn::impl::memory_desc_t *md,
-            mkldnn::impl::memory_storage_t *memory_storage,
+struct dnnl_memory : public dnnl::impl::c_compatible {
+    dnnl_memory(dnnl::impl::engine_t *engine,
+            const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle);
+    dnnl_memory(dnnl::impl::engine_t *engine,
+            const dnnl::impl::memory_desc_t *md,
+            dnnl::impl::memory_storage_t *memory_storage,
             bool do_zero_pad = true);
-    virtual ~mkldnn_memory() {}
+    virtual ~dnnl_memory() {}
 
     /** returns memory's engine */
-    mkldnn::impl::engine_t *engine() const { return engine_; }
+    dnnl::impl::engine_t *engine() const { return engine_; }
     /** returns memory's description */
-    const mkldnn::impl::memory_desc_t *md() const { return &md_; }
+    const dnnl::impl::memory_desc_t *md() const { return &md_; }
     /** returns the underlying memory storage */
-    mkldnn::impl::memory_storage_t *memory_storage() const {
+    dnnl::impl::memory_storage_t *memory_storage() const {
         return memory_storage_.get();
     }
     /** returns data handle */
-    mkldnn::impl::status_t get_data_handle(void **handle) const {
+    dnnl::impl::status_t get_data_handle(void **handle) const {
         return memory_storage()->get_data_handle(handle);
     }
 
     /** sets data handle */
-    mkldnn::impl::status_t set_data_handle(void *handle) {
-        using namespace mkldnn::impl;
+    dnnl::impl::status_t set_data_handle(void *handle) {
+        using namespace dnnl::impl;
 
         void *old_handle;
         CHECK(memory_storage()->get_data_handle(&old_handle));
@@ -77,21 +76,21 @@ struct mkldnn_memory : public mkldnn::impl::c_compatible {
     }
 
     /** zeros padding */
-    mkldnn::impl::status_t zero_pad() const;
-    mkldnn::impl::status_t zero_pad(const mkldnn::impl::exec_ctx_t &ctx) const;
+    dnnl::impl::status_t zero_pad() const;
+    dnnl::impl::status_t zero_pad(const dnnl::impl::exec_ctx_t &ctx) const;
 
 protected:
-    mkldnn::impl::engine_t *engine_;
-    const mkldnn::impl::memory_desc_t md_;
+    dnnl::impl::engine_t *engine_;
+    const dnnl::impl::memory_desc_t md_;
 
 private:
-    template <mkldnn::impl::data_type_t>
-    mkldnn::impl::status_t typed_zero_pad(void *ptr) const;
+    template <dnnl::impl::data_type_t>
+    dnnl::impl::status_t typed_zero_pad(void *ptr) const;
 
-    mkldnn_memory() = delete;
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(mkldnn_memory);
+    dnnl_memory() = delete;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_memory);
 
-    std::unique_ptr<mkldnn::impl::memory_storage_t> memory_storage_;
+    std::unique_ptr<dnnl::impl::memory_storage_t> memory_storage_;
 };
 
 #endif

@@ -24,7 +24,7 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace ocl {
 
@@ -58,7 +58,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         } else {
             set_err = clSetKernelArg(ocl_kernel_, i, arg.size(), arg.value());
         }
-        status_t status = ocl_utils::convert_to_mkldnn(set_err);
+        status_t status = ocl_utils::convert_to_dnnl(set_err);
         if (status != status::success) return status;
     }
 
@@ -66,10 +66,10 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     if (range.is_zero()) { return status::success; }
     cl_int err = clEnqueueNDRangeKernel(queue, ocl_kernel_, ndims, nullptr,
             range.global_range(), range.local_range(), 0, nullptr, nullptr);
-    status_t status = ocl_utils::convert_to_mkldnn(err);
+    status_t status = ocl_utils::convert_to_dnnl(err);
     return status;
 }
 
 } // namespace ocl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

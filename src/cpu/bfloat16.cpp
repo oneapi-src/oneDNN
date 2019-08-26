@@ -19,7 +19,7 @@
 #include "cpu_isa_traits.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 using namespace cpu::bf16_support;
@@ -117,4 +117,4 @@ void add_floats_and_cvt_to_bfloat16(
 }
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

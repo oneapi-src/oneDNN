@@ -21,14 +21,14 @@
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
 status_t sycl_engine_base_t::create_memory_storage(memory_storage_t **storage,
         unsigned flags, size_t size, size_t alignment, void *handle) {
 
-#ifdef MKLDNN_SYCL_COMPUTECPP
+#ifdef DNNL_SYCL_COMPUTECPP
     return safe_ptr_assign<memory_storage_t>(*storage,
             new memory_storage_t(new sycl_buffer_memory_storage_t(
                     this, flags, size, alignment, handle)));
@@ -36,9 +36,8 @@ status_t sycl_engine_base_t::create_memory_storage(memory_storage_t **storage,
     // XXX: if handle doesn't have a special value then always assume it's a
     // USM pointer. Initialization with a SYCL buffer always goes through
     // ctor() -> set_data_handle() calls.
-#if MKLDNN_SYCL_MEMORY_API == MKLDNN_SYCL_MEMORY_API_BUFFER
-    if (utils::one_of(
-                handle, (void *)MKLDNN_MEMORY_NONE, MKLDNN_MEMORY_ALLOCATE)) {
+#if DNNL_SYCL_MEMORY_API == DNNL_SYCL_MEMORY_API_BUFFER
+    if (utils::one_of(handle, (void *)DNNL_MEMORY_NONE, DNNL_MEMORY_ALLOCATE)) {
         return safe_ptr_assign<memory_storage_t>(*storage,
                 new memory_storage_t(new sycl_buffer_memory_storage_t(
                         this, flags, size, alignment, handle)));
@@ -60,4 +59,4 @@ status_t sycl_engine_base_t::create_stream(
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

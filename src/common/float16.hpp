@@ -22,7 +22,7 @@
 #include <limits>
 #include <type_traits>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace f16_support {
 
@@ -146,6 +146,6 @@ inline float16_t::operator float() const {
 using f16_support::float16_t;
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

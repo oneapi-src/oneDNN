@@ -1,11 +1,11 @@
 Developer Guide {#dev_guide}
 ============================
 
-Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN) is an
+Deep Neural Network Library (DNNL) is an
 open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
 for Intel Architecture Processors and Intel Processor Graphics.
-Intel MKL-DNN is intended for deep learning applications and framework
+DNNL is intended for deep learning applications and framework
 developers intersted in improving application performance
 on Intel CPUs and GPUs.
 
@@ -18,8 +18,8 @@ on Intel CPUs and GPUs.
 # Programming Model
 
  * @ref dev_guide_basic_concepts
- * @ref cpu_getting_started_cpp
- * @ref gpu_getting_started_cpp
+ * @ref getting_started_cpp
+ * @ref cross_engine_reorder_cpp
  * @ref cpu_memory_format_propagation_cpp
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
@@ -59,11 +59,12 @@ Data manipulation:
  * @ref dev_guide_benchdnn
  * @ref dev_guide_vtune
  * @ref dev_guide_inspecting_jit
- * @ref cpu_performance_profiling_cpp
+ * @ref performance_profiling_cpp
 
 # Advanced topics
 
  * @ref dev_guide_transition_to_v1
+ * @ref dev_guide_transition_to_dnnl
  * @ref dev_guide_understanding_memory_formats
  * @ref dev_guide_int8_computations
  * @ref dev_guide_opencl_interoperability
@@ -73,16 +74,16 @@ Data manipulation:
 
 | Topic          | Engine   | C++ API                                | C API                        |
 | :----          | :---     | :----                                  | :---                         |
-| Tutorials      | CPU      | @ref cpu_getting_started_cpp           |                              |
-|                |          | @ref cpu_memory_format_propagation_cpp |                              |
-|                |          | @ref cpu_performance_profiling_cpp     |                              |
-|                | GPU      | @ref gpu_getting_started_cpp           | @ref gpu_getting_started_c   |
+| Tutorials      | CPU/GPU  | @ref getting_started_cpp               |                              |
+|                | CPU      | @ref cpu_memory_format_propagation_cpp |                              |
+|                | CPU/GPU  | @ref performance_profiling_cpp         |                              |
+|                | CPU/GPU  | @ref cross_engine_reorder_cpp          | @ref cross_engine_reorder_c  |
 |                | GPU      | @ref gpu_opencl_interop_cpp            |                              |
-|                | GPU      | @ref gpu_sycl_interop_cpp              |                              |
-| f32 inference  | CPU      | @ref cpu_cnn_inference_f32_cpp         | @ref cpu_cnn_inference_f32_c |
+| f32 inference  | CPU/GPU  | @ref cnn_inference_f32_cpp             | @ref cnn_inference_f32_c     |
 |                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
-| int8 inference | CPU      | @ref cpu_cnn_inference_int8_cpp        |                              |
+| int8 inference | CPU/GPU  | @ref cnn_inference_int8_cpp            |                              |
 |                | CPU      | @ref cpu_rnn_inference_int8_cpp        |                              |
-| f32 training   | CPU      | @ref cpu_cnn_training_f32_cpp          | @ref cpu_cnn_training_f32_c  |
-|                | CPU      | @ref cpu_rnn_training_f32_cpp          |                              |
+| f32 training   | CPU/GPU  | @ref cnn_training_f32_cpp              |                              |
+|                | CPU      |                                        | @ref cpu_cnn_training_f32_c  |
+|                | CPU/GPU  | @ref rnn_training_f32_cpp              |                              |
 | bf16 training  | CPU      | @ref cpu_cnn_training_bf16_cpp         |                              |

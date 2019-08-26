@@ -15,17 +15,17 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
@@ -36,9 +36,8 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data, backward)
             && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr)
-            && (flags & ~(mkldnn_use_global_stats | mkldnn_use_scaleshift)) == 0
-            && IMPLICATION(
-                    flags & mkldnn_use_global_stats, stat_desc != nullptr);
+            && (flags & ~(dnnl_use_global_stats | dnnl_use_scaleshift)) == 0
+            && IMPLICATION(flags & dnnl_use_global_stats, stat_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
     auto ld = layer_normalization_desc_t();
@@ -63,14 +62,14 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
                     = data_strides[i] > data_strides[data_desc->ndims - 1]
                     ? data_strides[i]
                     : data_strides[i] / data_strides[data_desc->ndims - 1];
-        mkldnn_memory_desc_init_by_strides(&ld.stat_desc, stat_ndims, stat_dims,
+        dnnl_memory_desc_init_by_strides(&ld.stat_desc, stat_ndims, stat_dims,
                 data_type::f32, stat_strides);
     }
 
     int ndims = data_desc->ndims;
     dims_t scaleshift_dims = {2, data_desc->dims[ndims - 1]};
-    mkldnn_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2, scaleshift_dims,
-            data_type::f32, mkldnn_nc);
+    dnnl_memory_desc_init_by_tag(&ld.data_scaleshift_desc, 2, scaleshift_dims,
+            data_type::f32, dnnl_nc);
     ld.diff_data_scaleshift_desc = zero_md();
     if (ld.prop_kind == backward) {
         ld.diff_data_scaleshift_desc = ld.data_scaleshift_desc;
@@ -96,7 +95,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 }
 } // namespace
 
-status_t mkldnn_layer_normalization_forward_desc_init(
+status_t dnnl_layer_normalization_forward_desc_init(
         layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, const memory_desc_t *stat_desc,
         float epsilon, unsigned flags) {
@@ -106,7 +105,7 @@ status_t mkldnn_layer_normalization_forward_desc_init(
             epsilon, flags);
 }
 
-status_t mkldnn_layer_normalization_backward_desc_init(
+status_t dnnl_layer_normalization_backward_desc_init(
         layer_normalization_desc_t *lnorm_desc, prop_kind_t prop_kind,
         const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
         const memory_desc_t *stat_desc, float epsilon, unsigned flags) {

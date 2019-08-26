@@ -23,7 +23,7 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -55,6 +55,6 @@ inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

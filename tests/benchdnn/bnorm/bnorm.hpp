@@ -25,9 +25,9 @@
 
 #include "common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_debug.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_debug.hpp"
+#include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
 namespace bnorm {
@@ -37,9 +37,9 @@ check_alg_t str2check_alg(const char *str);
 const char *check_alg2str(check_alg_t alg);
 
 using flags_t = unsigned;
-const flags_t GLOB_STATS = mkldnn_use_global_stats;
-const flags_t USE_SCALESHIFT = mkldnn_use_scaleshift;
-const flags_t FUSE_NORM_RELU = mkldnn_fuse_norm_relu;
+const flags_t GLOB_STATS = dnnl_use_global_stats;
+const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
+const flags_t FUSE_NORM_RELU = dnnl_fuse_norm_relu;
 flags_t str2flags(const char *str);
 const char *flags2str(flags_t flags);
 
@@ -52,8 +52,8 @@ int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, int64_t mb, dir_t dir, mkldnn_data_type_t dt,
-            mkldnn_format_tag_t tag, flags_t flags, bool inplace,
+    prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
+            dnnl_format_tag_t tag, flags_t flags, bool inplace,
             const attr_t &attr, check_alg_t check_alg)
         : desc_t(desc)
         , check_alg(check_alg)
@@ -70,8 +70,8 @@ struct prb_t : public desc_t {
     check_alg_t check_alg;
 
     dir_t dir;
-    mkldnn_data_type_t dt;
-    mkldnn_format_tag_t tag;
+    dnnl_data_type_t dt;
+    dnnl_format_tag_t tag;
     flags_t flags;
     bool inplace;
     attr_t attr;
@@ -98,8 +98,8 @@ struct perf_report_t : public base_perf_report_t {
     virtual const attr_t *attr() const override { return &p_->attr; }
     virtual const char *name() const override { return p_->name; }
     virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const mkldnn_data_type_t *dt() const override { return &p_->dt; }
-    virtual const mkldnn_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

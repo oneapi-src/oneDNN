@@ -15,17 +15,17 @@
 *******************************************************************************/
 
 #include <assert.h>
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::utils;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::types;
+using namespace dnnl::impl;
+using namespace dnnl::impl::utils;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::types;
 
 namespace {
 status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
@@ -74,7 +74,7 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
 }
 } // namespace
 
-status_t mkldnn_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
+status_t dnnl_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
         prop_kind_t prop_kind, const memory_desc_t *src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_desc) {
@@ -84,14 +84,14 @@ status_t mkldnn_inner_product_forward_desc_init(inner_product_desc_t *ip_desc,
             ip_desc, prop_kind, src_desc, weights_desc, bias_desc, dst_desc);
 }
 
-status_t mkldnn_inner_product_backward_data_desc_init(
+status_t dnnl_inner_product_backward_data_desc_init(
         inner_product_desc_t *ip_desc, const memory_desc_t *diff_src_desc,
         const memory_desc_t *weights_desc, const memory_desc_t *diff_dst_desc) {
     return ip_desc_init(ip_desc, backward_data, diff_src_desc, weights_desc,
             nullptr, diff_dst_desc);
 }
 
-status_t mkldnn_inner_product_backward_weights_desc_init(
+status_t dnnl_inner_product_backward_weights_desc_init(
         inner_product_desc_t *ip_desc, const memory_desc_t *src_desc,
         const memory_desc_t *diff_weights_desc,
         const memory_desc_t *diff_bias_desc,

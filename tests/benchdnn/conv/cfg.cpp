@@ -20,9 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-#include "mkldnn_common.hpp"
+#include "dnnl_common.hpp"
 
 #include "conv/conv_common.hpp"
 
@@ -35,220 +35,220 @@ namespace conv {
 
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
                 0.},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -2, 2, -2, 1, 1.0,
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, -2, 1, 1.0,
                 0.},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, 1, 1.0,
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, 1, 1.0,
                 0.},
-        {mkldnn_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
+        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
                 0.},
         {
-                mkldnn_f16,
+                dnnl_f16,
         },
 };
 
 const int int_max_exact = 1 << 24;
 const _dt_conf_t conf_f32 = {
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_f32_no_limits = {
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, .25, 0.},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -512, 512, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, .25, 0.},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, .25, 0.},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, 1.0, 0.},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -512, 512, 0, 1, 1.0, 0.},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -32, 32, 0, 1, .25, 0.},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_f32_full = {
-        {mkldnn_f32, -int_max_exact, int_max_exact, -64, 64, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -64, 64, 0, 1, 1.0, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, 1, 1.0, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -512, 512, 0, 1, 1.0, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -64, 64, 0, 1, 1.0, 0.},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_f32_wino = {
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -16, 128, 3, 1, .25, 1e-5},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, 2, 64, 2, 1, .75, 6e-6},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, 1, 128, 1, 1, .25, 2e-7},
-        {mkldnn_f32, -FLT_MAX, FLT_MAX, -16, 128, 3, 1, .25, 2e-5},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -16, 128, 3, 1, .25, 1e-5},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, 2, 64, 2, 1, .75, 6e-6},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, 1, 128, 1, 1, .25, 2e-7},
+        {dnnl_f32, -FLT_MAX, FLT_MAX, -16, 128, 3, 1, .25, 2e-5},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_bf16bf16f32 = {
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_bf16bf16bf16 = {
         /* eps is 1e-2 because of loss in precision of
      * output when converted from fp32 to bf16.
-     * MKL-DNN output is compared against reference computed in fp32.*/
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+     * DNNL output is compared against reference computed in fp32.*/
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 1e-2},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_f32bf16bf16 = {
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_bf16f32bf16 = {
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
-        {mkldnn_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
+        {dnnl_bf16, -int_max_exact, int_max_exact, -32, 32, 0, 1, .75, 0.},
         {
-                mkldnn_f32,
+                dnnl_f32,
         },
 };
 
 const _dt_conf_t conf_u8s8f32s32 = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8s32s32 = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8s8s32 = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8u8s32 = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_s8s8f32s32 = {
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_s8s8s32s32 = {
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_s8s8s8s32 = {
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_s8s8u8s32 = {
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
-        {mkldnn_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8f32s32_wino = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8s32s32_wino = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
-        {mkldnn_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8s8s32_wino = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 
 const _dt_conf_t conf_u8s8u8s32_wino = {
-        {mkldnn_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
-        {mkldnn_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {mkldnn_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
-        {mkldnn_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
+        {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
         {
-                mkldnn_s32,
+                dnnl_s32,
         },
 };
 

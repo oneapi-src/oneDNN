@@ -18,17 +18,17 @@
 
 #include <sstream>
 
-#include "mkldnn.h"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl.h"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "reorder.hpp"
 
 namespace reorder {
 
-std::vector<mkldnn_data_type_t> sdt {mkldnn_f32}, ddt {mkldnn_f32};
-std::vector<mkldnn_format_tag_t> stag {mkldnn_nchw}, dtag {mkldnn_nchw};
+std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
+std::vector<dnnl_format_tag_t> stag {dnnl_nchw}, dtag {dnnl_nchw};
 std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
 std::vector<flag_t> oflag {FLAG_NONE};
 
@@ -44,10 +44,10 @@ const char *perf_template_def
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
-    sdt = {mkldnn_f32};
-    ddt = {mkldnn_f32};
-    stag = {mkldnn_nchw};
-    dtag = {mkldnn_nchw};
+    sdt = {dnnl_f32};
+    ddt = {dnnl_f32};
+    stag = {dnnl_nchw};
+    dtag = {dnnl_nchw};
     def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
     oflag = {FLAG_NONE};
     alg = ALG_REF;

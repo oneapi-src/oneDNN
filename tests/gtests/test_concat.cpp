@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
 #include "cpu_isa_traits.hpp"
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 struct concat_test_params {
     size_t concat_dimension;
@@ -29,7 +29,7 @@ struct concat_test_params {
     std::vector<memory::dims> srcs_cds;
     memory::dims dst_cds;
     bool expect_to_fail;
-    mkldnn_status_t expected_status;
+    dnnl_status_t expected_status;
 };
 
 template <typename data_t>
@@ -40,7 +40,7 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
         const auto &dst_d = dst.get_desc();
         const auto dst_dims = dst_d.data.dims;
         const auto dst_pdims = dst_d.data.padded_dims;
-        const mkldnn::impl::memory_desc_wrapper dst_mdw(dst_d.data);
+        const dnnl::impl::memory_desc_wrapper dst_mdw(dst_d.data);
 
         memory::dim acc_concat_dim = 0;
         const auto ndims = dst_d.data.ndims;
@@ -50,7 +50,7 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
             const auto &src_d = srcs[num].get_desc();
             const auto src_dims = src_d.data.dims;
             const auto src_pdims = src_d.data.padded_dims;
-            const mkldnn::impl::memory_desc_wrapper src_mdw(src_d.data);
+            const dnnl::impl::memory_desc_wrapper src_mdw(src_d.data);
 
             auto N = src_dims[0];
             auto C = src_dims[1];
@@ -150,9 +150,9 @@ protected:
         ASSERT_EQ(concat_pd.dst_desc().data.ndims, dst_desc.data.ndims);
 
         concat c(concat_pd);
-        std::unordered_map<int, memory> args = {{MKLDNN_ARG_DST, dst}};
+        std::unordered_map<int, memory> args = {{DNNL_ARG_DST, dst}};
         for (int i = 0; i < (int)srcs.size(); i++) {
-            args.insert({MKLDNN_ARG_MULTIPLE_SRC + i, srcs[i]});
+            args.insert({DNNL_ARG_MULTIPLE_SRC + i, srcs[i]});
         }
         c.execute(strm, args);
         strm.wait();
@@ -204,31 +204,31 @@ static auto cases_EF = []() {
     return ::testing::Values(
             concat_test_params {1, {fmt::nChw8c, fmt::nChw16c}, fmt::nchw,
                     {{4, 2, 5, 5}, {4, 5, 5, 5}}, {4, 5, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {2, {fmt::nChw8c, fmt::nChw16c}, fmt::nchw,
                     {{4, 2, 5, 5}, {4, 3, 5, 5}}, {4, 5, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {5, {fmt::nChw8c, fmt::nChw16c}, fmt::nchw,
                     {{4, 4, 5, 5}, {4, 0, 5, 5}}, {4, 4, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {1, {fmt::nChw8c, fmt::nChw8c}, fmt::nChw8c,
                     {{4, -1, 5, 5}, {4, 5, 5, 5}}, {4, 5, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {1, {fmt::nChw8c, fmt::nChw8c}, fmt::nChw8c,
                     {{4, 4, 5, 5}, {4, 4, 5, 5}}, {4, 4, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {1, {fmt::nChw8c, fmt::nChw16c}, fmt::nchw,
                     {{0, 4, 5, 5}, {0, 4, 5, 5}}, {0, 6, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {1, {fmt::nChw8c, fmt::nChw16c}, fmt::nchw,
                     {{2, 4, 2, 5}, {2, 2, 1, 5}}, {2, 6, 2, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {1, {fmt::nhwc, fmt::nhwc}, fmt::nhwc,
                     {{1, 4, 5, 5}, {1, 2, 5, 5}}, {1, 7, 5, 5}, true,
-                    mkldnn_invalid_arguments},
+                    dnnl_invalid_arguments},
             concat_test_params {1, {fmt::nchw, fmt::nchw}, fmt::nchw,
                     {{1, 4, 5, 5}, {1, 2, 5, 5}}, {1, 6, 6, 5}, true,
-                    mkldnn_invalid_arguments});
+                    dnnl_invalid_arguments});
 };
 INSTANTIATE_TEST_SUITE_P(TestConcat_EF, concat_test_float, cases_EF());
 CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF_bf16, concat_test_bf16, cases_EF());
@@ -237,7 +237,7 @@ static auto cases_padded = []() {
     return ::testing::Values(
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}, true,
-                    mkldnn_unimplemented},
+                    dnnl_unimplemented},
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             concat_test_params {1, {fmt::nChw8c, fmt::nChw8c}, fmt::nchw,
@@ -248,12 +248,12 @@ static auto cases_padded = []() {
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
                     {{4, 4, 5, 5}, {4, 6, 5, 5}}, {4, 10, 5, 5}, true,
-                    mkldnn_unimplemented},
+                    dnnl_unimplemented},
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,
                     {{4, 4, 5, 5}, {4, 6, 5, 5}}, {4, 10, 5, 5}},
             concat_test_params {1, {fmt::nchw, fmt::nChw16c}, fmt::nChw16c,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}, true,
-                    mkldnn_unimplemented},
+                    dnnl_unimplemented},
             concat_test_params {1, {fmt::nchw, fmt::nChw16c}, fmt::nchw,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             // right border
@@ -387,4 +387,4 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, cases_concat_gpu());
 GPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat, concat_test_float16, cases_concat_gpu());
 
-} // namespace mkldnn
+} // namespace dnnl

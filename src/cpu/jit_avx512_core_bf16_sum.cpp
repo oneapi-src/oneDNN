@@ -19,12 +19,12 @@
 
 #define GET_OFF(field) offsetof(jit_sum_call_s, field)
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-using namespace mkldnn::impl::prop_kind;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl::prop_kind;
+using namespace dnnl::impl::utils;
 
 using namespace Xbyak;
 void jit_avx512_core_bf16_sum_kernel::loop_iteration(int current_unroll) {
@@ -230,7 +230,7 @@ status_t jit_avx512_core_bf16_sum_kernel::init_conf(
 template <data_type_t src_data_type, data_type_t dst_data_type>
 status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
         const exec_ctx_t &ctx) const {
-    auto output = CTX_OUT_MEM(dst_data_t *, MKLDNN_ARG_DST);
+    auto output = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
     const memory_desc_wrapper o_d(pd()->dst_md());
     output += o_d.blk_off(0);
     const int num_arrs = pd()->n_inputs();
@@ -243,7 +243,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
         const memory_desc_wrapper i_d(pd()->src_md(a));
 
         input_ptrs[a]
-                = CTX_IN_MEM(const src_data_t *, MKLDNN_ARG_MULTIPLE_SRC + a)
+                = CTX_IN_MEM(const src_data_t *, DNNL_ARG_MULTIPLE_SRC + a)
                 + i_d.blk_off(0);
     }
     cvt_float_to_bfloat16(scales, &pd()->scales()[0], num_arrs);
@@ -299,4 +299,4 @@ template struct jit_bf16_sum_t<data_type::bf16, data_type::bf16>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

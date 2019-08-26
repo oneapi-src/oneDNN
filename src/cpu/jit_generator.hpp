@@ -19,7 +19,7 @@
 
 #include <limits.h>
 
-#include "mkldnn_thread.hpp"
+#include "dnnl_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_isa_traits.hpp"
@@ -39,7 +39,7 @@
     const char *name() const override { return STRINGIFY(jit_name); } \
     const char *source_file() const override { return __FILE__; }
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -113,7 +113,7 @@ inline unsigned int get_cache_size(int level, bool per_core = true) {
         const int L1_cache_per_core = 32000;
         const int L2_cache_per_core = 512000;
         const int L3_cache_per_core = 1024000;
-        int num_cores = per_core ? 1 : mkldnn_get_max_threads();
+        int num_cores = per_core ? 1 : dnnl_get_max_threads();
         switch (l) {
             case (0): return L1_cache_per_core * num_cores;
             case (1): return L2_cache_per_core * num_cores;
@@ -796,7 +796,7 @@ public:
         mov(out, tmp);
     }
 
-    MKLDNN_DISALLOW_COPY_AND_ASSIGN(jit_generator);
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator);
 
 public:
     jit_generator(void *code_ptr = nullptr, size_t code_size = 256 * 1024)
@@ -821,6 +821,6 @@ public:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

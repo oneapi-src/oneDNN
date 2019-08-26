@@ -24,8 +24,8 @@
 #include "common.hpp"
 #include "conv/conv_common.hpp"
 #include "dnn_types.hpp"
-#include "mkldnn_common.hpp"
-#include "mkldnn_memory.hpp"
+#include "dnnl_common.hpp"
+#include "dnnl_memory.hpp"
 
 namespace deconv {
 int doit(const conv::prb_t *p, res_t *res);

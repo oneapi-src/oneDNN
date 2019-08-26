@@ -18,19 +18,19 @@
 
 #include "utils.hpp"
 
-#ifndef MKLDNN_ENABLE_JIT_PROFILING
-#define MKLDNN_ENABLE_JIT_PROFILING 1
+#ifndef DNNL_ENABLE_JIT_PROFILING
+#define DNNL_ENABLE_JIT_PROFILING 1
 #endif
 
-#ifndef MKLDNN_ENABLE_JIT_DUMP
-#define MKLDNN_ENABLE_JIT_DUMP 1
+#ifndef DNNL_ENABLE_JIT_DUMP
+#define DNNL_ENABLE_JIT_DUMP 1
 #endif
 
-#if MKLDNN_ENABLE_JIT_PROFILING
+#if DNNL_ENABLE_JIT_PROFILING
 #include "jitprofiling/jitprofiling.h"
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace jit_utils {
@@ -39,13 +39,13 @@ namespace jit_utils {
 // mutex
 
 void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
-#if MKLDNN_ENABLE_JIT_DUMP
+#if DNNL_ENABLE_JIT_DUMP
     if (code && jit_dump_enabled()) {
         static int counter = 0;
 #define MAX_FNAME_LEN 256
         char fname[MAX_FNAME_LEN + 1];
         // TODO (Roma): support prefix for code / linux perf dumps
-        snprintf(fname, MAX_FNAME_LEN, "mkldnn_dump_%s.%d.bin", code_name,
+        snprintf(fname, MAX_FNAME_LEN, "dnnl_dump_%s.%d.bin", code_name,
                 counter);
         counter++;
 
@@ -67,7 +67,7 @@ void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
 
 void register_jit_code_vtune(const void *code, size_t code_size,
         const char *code_name, const char *source_file_name) {
-#if MKLDNN_ENABLE_JIT_PROFILING
+#if DNNL_ENABLE_JIT_PROFILING
     if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
         auto jmethod = iJIT_Method_Load();
         jmethod.method_id = iJIT_GetNewMethodID(); // XXX: not thread-safe
@@ -93,7 +93,7 @@ void register_jit_code(const void *code, size_t code_size,
         const char *code_name, const char *source_file_name) {
     // The #ifdef guards are required to avoid generating a function that only
     // consists of lock and unlock code
-#if MKLDNN_ENABLE_JIT_PROFILING || MKLDNN_ENABLE_JIT_DUMP
+#if DNNL_ENABLE_JIT_PROFILING || DNNL_ENABLE_JIT_DUMP
     static std::mutex m;
     std::lock_guard<std::mutex> guard(m);
 
@@ -110,4 +110,4 @@ void register_jit_code(const void *code, size_t code_size,
 } // namespace jit_utils
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

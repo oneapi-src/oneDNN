@@ -18,9 +18,8 @@
 #define CPU_JIT_AVX512_CORE_U8S8S32X_DECONVOLUTION_HPP
 
 #include "c_types_map.hpp"
-#include "cpu_primitive.hpp"
+#include "dnnl_thread.hpp"
 #include "memory.hpp"
-#include "mkldnn_thread.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -30,7 +29,7 @@
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -155,7 +154,7 @@ private:
 };
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
+struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
@@ -163,8 +162,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
                                     ((jcp_.ver == ver_vnni) ? avx512_core_vnni
                                                             : avx512_core),
                                     ""),
-                _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
-                        dst_type>);
+                _jit_avx512_core_x8s8s32x_deconvolution_fwd_t);
 
         status_t init() {
             bool ok = true && is_fwd()
@@ -196,7 +194,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
     };
 
     _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd) {
+        : primitive_impl_t(apd) {
         kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
                 pd()->jcp_, *pd()->attr());
     }
@@ -218,13 +216,13 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public cpu_primitive_t {
 private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

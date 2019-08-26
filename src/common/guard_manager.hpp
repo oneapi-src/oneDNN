@@ -23,7 +23,7 @@
 #include <mutex>
 #include <unordered_map>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 // Service class to support RAII semantics with parameterized "finalization".
@@ -64,6 +64,6 @@ private:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

@@ -22,7 +22,7 @@ static const bool is_windows = true;
 static const bool is_windows = false;
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -440,4 +440,4 @@ jit_avx2_kernel_sgemm_kern::jit_avx2_kernel_sgemm_kern(bool beta_zero)
 }
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

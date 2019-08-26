@@ -23,7 +23,7 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace sycl {
 
@@ -32,6 +32,6 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
 
 } // namespace sycl
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

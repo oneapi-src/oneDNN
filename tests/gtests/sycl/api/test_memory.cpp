@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include <algorithm>
 #include <memory>
@@ -29,7 +29,7 @@ using namespace cl::sycl;
 class neg_sign_kernel;
 class init_kernel;
 
-namespace mkldnn {
+namespace dnnl {
 
 TEST(sycl_memory_test, BasicInteropCtor) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
@@ -146,7 +146,7 @@ TEST(sycl_memory_test, InteropReorder) {
 // FIXME: Intel SYCL does not support compilation with host compiler and
 // Intel SYCL does not support mixing fat binaries and host binaries.
 // So the test is enabled for ComputeCpp SYCL only
-#ifdef MKLDNN_SYCL_COMPUTECPP
+#ifdef DNNL_SYCL_COMPUTECPP
 TEST(sycl_memory_test, InteropReorderAndUserKernel) {
     SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
 
@@ -238,7 +238,7 @@ TEST(sycl_memory_test, EltwiseWithUserKernel) {
     auto eltwise = eltwise_forward({eltwise_d, eng});
 
     stream s(eng);
-    eltwise.execute(s, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}});
+    eltwise.execute(s, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}});
     s.wait();
 
     auto host_acc = sycl_buf.get_access<access::mode::read>();
@@ -250,4 +250,4 @@ TEST(sycl_memory_test, EltwiseWithUserKernel) {
     }
 }
 
-} // namespace mkldnn
+} // namespace dnnl

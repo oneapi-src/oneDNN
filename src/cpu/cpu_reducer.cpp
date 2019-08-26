@@ -16,14 +16,14 @@
 
 #include <assert.h>
 
-#include "mkldnn_thread.hpp"
-#include "mkldnn_types.h"
+#include "dnnl_thread.hpp"
+#include "dnnl_types.h"
 #include "nstl.hpp"
 #include "utils.hpp"
 
 #include "cpu_reducer.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -140,7 +140,7 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
 
     const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize
-            = sizeof(typename mkldnn::impl::prec_traits<data_type>::type);
+            = sizeof(typename dnnl::impl::prec_traits<data_type>::type);
     Xbyak::Reg64 reg_dst = abi_param1;
     Xbyak::Reg64 reg_src = abi_param2;
     Xbyak::Reg64 reg_ny = abi_param3;
@@ -555,6 +555,6 @@ template struct cpu_accumulator_1d_t<data_type::s32>;
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

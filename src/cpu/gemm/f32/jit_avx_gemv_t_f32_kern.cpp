@@ -25,7 +25,7 @@ static const bool is_windows = true;
 static const bool is_windows = false;
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -358,4 +358,4 @@ jit_avx_gemv_t_f32_kern::jit_avx_gemv_t_f32_kern()
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

@@ -14,14 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace rnn {
 
-int get_gates_count(mkldnn_alg_kind_t cell_kind);
-
+int get_gates_count(dnnl_alg_kind_t cell_kind);
 }
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl

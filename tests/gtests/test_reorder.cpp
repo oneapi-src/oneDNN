@@ -17,14 +17,14 @@
 #include <numeric>
 #include <utility>
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.hpp"
+#include "dnnl.hpp"
 
 #include "test_reorder_common.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 
 using f32_f32 = std::pair<float, float>;
 using s32_s32 = std::pair<int32_t, int32_t>;
@@ -52,7 +52,7 @@ TEST_P(reorder_simple_test_s8_s8, TestsReorder) {
 
 INSTANTIATE_TEST_SUITE_P(CornerCases, reorder_simple_test_f32_f32,
         ::testing::Values(cfg_f32 {fmt::nchw, fmt::nc, {2, 16, 8, 8}, true,
-                                  mkldnn_invalid_arguments},
+                                  dnnl_invalid_arguments},
                 cfg_f32 {fmt::nchw, fmt::nchw, {0, 16, 8, 8}},
                 cfg_f32 {fmt::nchw, fmt::nChw8c, {0, 5, 8, 8}},
                 cfg_f32 {fmt::nchw, fmt::nChw16c, {0, 5, 8, 8}},
@@ -306,4 +306,4 @@ GPU_INSTANTIATE_TEST_SUITE_P(PaddedWeights, reorder_simple_test_f32_f32,
         ::testing::Values(cfg_f32 {fmt::oihw, fmt::IOhw16i16o, {17, 23, 2, 1}},
                 cfg_f32 {fmt::goihw, fmt::gOIhw16o16i, {2, 17, 23, 1, 2}}));
 
-} // namespace mkldnn
+} // namespace dnnl

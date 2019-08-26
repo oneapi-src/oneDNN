@@ -21,7 +21,7 @@
 #include "memory_storage.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 memory_storage_t *create_scratchpad_memory_storage(
@@ -30,11 +30,12 @@ memory_storage_t *create_scratchpad_memory_storage(
 struct scratchpad_t {
     virtual ~scratchpad_t() {}
     virtual const memory_storage_t *get_memory_storage() const = 0;
+    //virtual char *get() const = 0;
 };
 
 scratchpad_t *create_scratchpad(engine_t *engine, size_t size);
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

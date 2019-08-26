@@ -20,21 +20,21 @@
 #include <math.h>
 #include <stdint.h>
 
-#include "mkldnn_traits.hpp"
+#include "dnnl_traits.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
 
-#if defined(MKLDNN_X86_64)
+#if defined(DNNL_X86_64)
 #include "immintrin.h"
 #endif
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace math {
 
 /** rounds @p f to an integer according to the mxcsr register */
 inline int mxcsr_round(float f) {
-#if defined(MKLDNN_X86_64)
+#if defined(DNNL_X86_64)
     return _mm_cvtss_si32(_mm_load_ss(&f));
 #else
     return (int)nearbyintf(f); // optimism
@@ -345,6 +345,6 @@ inline float get_bias(const char *bias, size_t offset, data_type_t data_type) {
 
 } // namespace math
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

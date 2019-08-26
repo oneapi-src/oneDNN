@@ -19,7 +19,7 @@
 
 #include <cstdlib>
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace jit_utils {
@@ -30,5 +30,5 @@ void register_jit_code(const void *code, size_t code_size,
 }
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 #endif

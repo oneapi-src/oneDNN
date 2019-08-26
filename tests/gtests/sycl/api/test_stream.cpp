@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include <memory>
 #include <CL/cl.h>
@@ -25,7 +25,7 @@
 
 using namespace cl::sycl;
 
-namespace mkldnn {
+namespace dnnl {
 class sycl_stream_test : public ::testing::Test {
 protected:
     virtual void SetUp() {
@@ -100,7 +100,7 @@ TEST_F(sycl_stream_test, InteropIncompatibleQueue) {
     SKIP_IF(cpu_sycl_queue.get_device().is_gpu(), "CPU-only device not found");
 
     catch_expected_failures([&] { stream s(*eng, cpu_sycl_queue); }, true,
-            mkldnn_invalid_arguments);
+            dnnl_invalid_arguments);
 }
 
-} // namespace mkldnn
+} // namespace dnnl

@@ -14,23 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "cpu/gemm/os_blas.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace rnn {
 
-int get_gates_count(mkldnn_alg_kind_t cell_kind) {
+int get_gates_count(dnnl_alg_kind_t cell_kind) {
     switch (cell_kind) {
-        case mkldnn::impl::alg_kind::vanilla_rnn: return 1;
-        case mkldnn::impl::alg_kind::vanilla_gru: return 3;
-        case mkldnn::impl::alg_kind::lbr_gru: return 3;
-        case mkldnn::impl::alg_kind::vanilla_lstm: return 4;
+        case dnnl::impl::alg_kind::vanilla_rnn: return 1;
+        case dnnl::impl::alg_kind::vanilla_gru: return 3;
+        case dnnl::impl::alg_kind::lbr_gru: return 3;
+        case dnnl::impl::alg_kind::vanilla_lstm: return 4;
         default: assert(!"unknown cell kind"); return 0;
     }
     return 0;
@@ -38,13 +38,13 @@ int get_gates_count(mkldnn_alg_kind_t cell_kind) {
 
 } // namespace rnn
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 namespace {
-using namespace mkldnn::impl;
-using namespace mkldnn::impl::status;
-using namespace mkldnn::impl::types;
-using namespace mkldnn::impl::utils;
+using namespace dnnl::impl;
+using namespace dnnl::impl::status;
+using namespace dnnl::impl::types;
+using namespace dnnl::impl::utils;
 
 memory_desc_t copy_maybe_null(const memory_desc_t *md) {
     return md ? *md : zero_md();
@@ -69,7 +69,7 @@ rnn_desc_t zero_rnn_desc() {
     return rd;
 }
 
-status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
+status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
         prop_kind_t prop_kind, const memory_desc_t *src_layer_desc,
         const memory_desc_t *src_iter_desc,
         const memory_desc_t *src_iter_c_desc,
@@ -128,7 +128,7 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
     bool is_inference = prop_kind == prop_kind::forward_inference;
-    bool is_lstm = cell_kind == mkldnn_vanilla_lstm;
+    bool is_lstm = cell_kind == dnnl_vanilla_lstm;
 
     return cell_state_check
                     && (is_f32 || is_f16
@@ -138,7 +138,7 @@ status_t check_data_type_consistency_fwd(mkldnn_alg_kind_t cell_kind,
             : unimplemented;
 }
 
-status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
+status_t check_dim_consistency(dnnl_alg_kind_t cell_kind,
         rnn_direction_t direction, int L, int D, int T, int N, int G, int SLC,
         int SIC, int DLC, int DIC, const memory_desc_t *src_layer_desc,
         const memory_desc_t *src_iter_desc,
@@ -204,7 +204,7 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
     if (!args_ok) return invalid_arguments;
 
     // * on num gates
-    args_ok = true && G == mkldnn::impl::rnn::get_gates_count(cell_kind)
+    args_ok = true && G == dnnl::impl::rnn::get_gates_count(cell_kind)
             && G == weights_layer_desc->dims[3]
             && G == weights_iter_desc->dims[3]
             && IMPLICATION(!is_zero_md(bias_desc),
@@ -223,7 +223,7 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
     if (!args_ok) return invalid_arguments;
 
     // * on dlc
-    int dlc_multiplier = (direction == mkldnn_bidirectional_concat) ? 2 : 1;
+    int dlc_multiplier = (direction == dnnl_bidirectional_concat) ? 2 : 1;
     args_ok = true && DLC == dlc_multiplier * DIC
             && DLC == dst_layer_desc->dims[2];
     if (!args_ok) return invalid_arguments;
@@ -248,8 +248,8 @@ status_t check_dim_consistency(mkldnn_alg_kind_t cell_kind,
     return success;
 }
 
-status_t rnn_common_fwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        prop_kind_t prop_kind, mkldnn_alg_kind_t cell_kind,
+status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        prop_kind_t prop_kind, dnnl_alg_kind_t cell_kind,
         const rnn_direction_t direction, const memory_desc_t *src_layer_desc,
         const memory_desc_t *src_iter_desc,
         const memory_desc_t *src_iter_c_desc,
@@ -257,13 +257,13 @@ status_t rnn_common_fwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
         const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
         const memory_desc_t *dst_layer_desc, const memory_desc_t *dst_iter_desc,
         const memory_desc_t *dst_iter_c_desc, unsigned flags,
-        mkldnn_alg_kind_t activation = mkldnn_alg_kind_undef,
-        float alpha = 0.0f, float beta = 0.0f) {
+        dnnl_alg_kind_t activation = dnnl_alg_kind_undef, float alpha = 0.0f,
+        float beta = 0.0f) {
 
     // check that a supported cell kind has been passed
     bool args_ok = true
-            && one_of(cell_kind, mkldnn_vanilla_rnn, mkldnn_vanilla_lstm,
-                    mkldnn_vanilla_gru, mkldnn_lbr_gru);
+            && one_of(cell_kind, dnnl_vanilla_rnn, dnnl_vanilla_lstm,
+                    dnnl_vanilla_gru, dnnl_lbr_gru);
     if (!args_ok) return invalid_arguments;
 
     // check that all mandatory parameters are non-null
@@ -279,7 +279,7 @@ status_t rnn_common_fwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     };
 
     args_ok = args_ok
-            && IMPLICATION(cell_kind == mkldnn_vanilla_lstm,
+            && IMPLICATION(cell_kind == dnnl_vanilla_lstm,
                     xnor_md(src_iter_desc, src_iter_c_desc)
                             && xnor_md(dst_iter_desc, dst_iter_c_desc));
 
@@ -287,11 +287,11 @@ status_t rnn_common_fwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     int L = weights_layer_desc->dims[0];
     int T = src_layer_desc->dims[0];
     int N = src_layer_desc->dims[1];
-    const int D = one_of(direction, mkldnn_unidirectional_left2right,
-                          mkldnn_unidirectional_right2left)
+    const int D = one_of(direction, dnnl_unidirectional_left2right,
+                          dnnl_unidirectional_right2left)
             ? 1
             : 2;
-    int G = mkldnn::impl::rnn::get_gates_count(cell_kind);
+    int G = dnnl::impl::rnn::get_gates_count(cell_kind);
     int SLC = src_layer_desc->dims[2];
     int SIC = weights_iter_desc->dims[2];
     int DLC = dst_layer_desc->dims[2];
@@ -308,7 +308,7 @@ status_t rnn_common_fwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
             dst_iter_c_desc));
 
     // Create the descriptor
-    mkldnn_rnn_desc_t rd = zero_rnn_desc();
+    dnnl_rnn_desc_t rd = zero_rnn_desc();
 
     rd.primitive_kind = primitive_kind::rnn;
     rd.prop_kind = prop_kind;
@@ -334,34 +334,34 @@ status_t rnn_common_fwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     return success;
 }
 
-status_t rnn_common_bwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_alg_kind_t cell_kind,
-        const mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *src_iter_c_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc,
-        const mkldnn_memory_desc_t *dst_iter_c_desc,
-        const mkldnn_memory_desc_t *diff_src_layer_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_c_desc,
-        const mkldnn_memory_desc_t *diff_weights_layer_desc,
-        const mkldnn_memory_desc_t *diff_weights_iter_desc,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_layer_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
-        mkldnn_alg_kind_t activation = mkldnn_alg_kind_undef,
-        float alpha = 0.0f, float beta = 0.0f) {
+status_t rnn_common_bwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_alg_kind_t cell_kind,
+        const dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_src_iter_c_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags,
+        dnnl_alg_kind_t activation = dnnl_alg_kind_undef, float alpha = 0.0f,
+        float beta = 0.0f) {
 
     // check that a supported cell kind has been passed
     bool args_ok = true
-            && one_of(cell_kind, mkldnn_vanilla_rnn, mkldnn_vanilla_lstm,
-                    mkldnn_vanilla_gru, mkldnn_lbr_gru);
+            && one_of(cell_kind, dnnl_vanilla_rnn, dnnl_vanilla_lstm,
+                    dnnl_vanilla_gru, dnnl_lbr_gru);
     if (!args_ok) return invalid_arguments;
 
     // check that all mandatory parameters are non-null
@@ -380,7 +380,7 @@ status_t rnn_common_bwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     };
 
     args_ok = args_ok
-            && IMPLICATION(cell_kind == mkldnn_vanilla_lstm,
+            && IMPLICATION(cell_kind == dnnl_vanilla_lstm,
                     xnor_md(src_iter_desc, src_iter_c_desc)
                             && xnor_md(dst_iter_desc, dst_iter_c_desc));
 
@@ -395,11 +395,11 @@ status_t rnn_common_bwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     int L = weights_layer_desc->dims[0];
     int T = src_layer_desc->dims[0];
     int N = src_layer_desc->dims[1];
-    const int D = one_of(direction, mkldnn_unidirectional_left2right,
-                          mkldnn_unidirectional_right2left)
+    const int D = one_of(direction, dnnl_unidirectional_left2right,
+                          dnnl_unidirectional_right2left)
             ? 1
             : 2;
-    int G = mkldnn::impl::rnn::get_gates_count(cell_kind);
+    int G = dnnl::impl::rnn::get_gates_count(cell_kind);
     int SLC = src_layer_desc->dims[2];
     int SIC = weights_iter_desc->dims[2];
     int DLC = dst_layer_desc->dims[2];
@@ -418,7 +418,7 @@ status_t rnn_common_bwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
             diff_dst_iter_desc, diff_dst_iter_c_desc);
     if (st != success) return st;
 
-    mkldnn_rnn_desc_t rd = zero_rnn_desc();
+    dnnl_rnn_desc_t rd = zero_rnn_desc();
 
     rd.primitive_kind = primitive_kind::rnn;
     rd.prop_kind = prop_kind;
@@ -458,96 +458,96 @@ status_t rnn_common_bwd_desc_init(mkldnn_rnn_desc_t *rnn_desc,
 
 /* Public C Api */
 
-status_t mkldnn_vanilla_rnn_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, const mkldnn_alg_kind_t activation,
-        const mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc, unsigned flags, float alpha,
+status_t dnnl_vanilla_rnn_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, const dnnl_alg_kind_t activation,
+        const dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags, float alpha,
         float beta) {
     status_t st = rnn_common_fwd_desc_init(rnn_desc, prop_kind,
-            mkldnn_vanilla_rnn, direction, src_layer_desc, src_iter_desc,
+            dnnl_vanilla_rnn, direction, src_layer_desc, src_iter_desc,
             &glob_zero_md, weights_layer_desc, weights_iter_desc, bias_desc,
             dst_layer_desc, dst_iter_desc, &glob_zero_md, flags, activation,
             alpha, beta);
     return st;
 }
 
-status_t mkldnn_lstm_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *src_iter_c_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc,
-        const mkldnn_memory_desc_t *dst_iter_c_desc, unsigned flags) {
+status_t dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags) {
 
     status_t st = rnn_common_fwd_desc_init(rnn_desc, prop_kind,
-            mkldnn_vanilla_lstm, direction, src_layer_desc, src_iter_desc,
+            dnnl_vanilla_lstm, direction, src_layer_desc, src_iter_desc,
             src_iter_c_desc, weights_layer_desc, weights_iter_desc, bias_desc,
             dst_layer_desc, dst_iter_desc, dst_iter_c_desc, flags);
     return st;
 }
 
-status_t mkldnn_gru_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc, unsigned flags) {
+status_t dnnl_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags) {
     status_t st = rnn_common_fwd_desc_init(rnn_desc, prop_kind,
-            mkldnn_vanilla_gru, direction, src_layer_desc, src_iter_desc,
+            dnnl_vanilla_gru, direction, src_layer_desc, src_iter_desc,
             &glob_zero_md, weights_layer_desc, weights_iter_desc, bias_desc,
             dst_layer_desc, dst_iter_desc, &glob_zero_md, flags);
     return st;
 }
 
-status_t mkldnn_lbr_gru_forward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc, unsigned flags) {
-    status_t st = rnn_common_fwd_desc_init(rnn_desc, prop_kind, mkldnn_lbr_gru,
+status_t dnnl_lbr_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc, unsigned flags) {
+    status_t st = rnn_common_fwd_desc_init(rnn_desc, prop_kind, dnnl_lbr_gru,
             direction, src_layer_desc, src_iter_desc, &glob_zero_md,
             weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
             dst_iter_desc, &glob_zero_md, flags);
     return st;
 }
 
-status_t mkldnn_vanilla_rnn_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, const mkldnn_alg_kind_t activation,
-        const mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc,
-        const mkldnn_memory_desc_t *diff_src_layer_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_desc,
-        const mkldnn_memory_desc_t *diff_weights_layer_desc,
-        const mkldnn_memory_desc_t *diff_weights_iter_desc,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_layer_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_desc, unsigned flags,
+status_t dnnl_vanilla_rnn_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, const dnnl_alg_kind_t activation,
+        const dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags,
         float alpha, float beta) {
     status_t st = rnn_common_bwd_desc_init(rnn_desc, prop_kind,
-            mkldnn_vanilla_rnn, direction, src_layer_desc, src_iter_desc,
+            dnnl_vanilla_rnn, direction, src_layer_desc, src_iter_desc,
             &glob_zero_md, weights_layer_desc, weights_iter_desc, bias_desc,
             dst_layer_desc, dst_iter_desc, &glob_zero_md, diff_src_layer_desc,
             diff_src_iter_desc, &glob_zero_md, diff_weights_layer_desc,
@@ -556,29 +556,29 @@ status_t mkldnn_vanilla_rnn_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     return st;
 }
 
-status_t mkldnn_lstm_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *src_iter_c_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc,
-        const mkldnn_memory_desc_t *dst_iter_c_desc,
-        const mkldnn_memory_desc_t *diff_src_layer_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_c_desc,
-        const mkldnn_memory_desc_t *diff_weights_layer_desc,
-        const mkldnn_memory_desc_t *diff_weights_iter_desc,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_layer_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_c_desc, unsigned flags) {
+status_t dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_src_iter_c_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags) {
 
     status_t st = rnn_common_bwd_desc_init(rnn_desc, prop_kind,
-            mkldnn_vanilla_lstm, direction, src_layer_desc, src_iter_desc,
+            dnnl_vanilla_lstm, direction, src_layer_desc, src_iter_desc,
             src_iter_c_desc, weights_layer_desc, weights_iter_desc, bias_desc,
             dst_layer_desc, dst_iter_desc, dst_iter_c_desc, diff_src_layer_desc,
             diff_src_iter_desc, diff_src_iter_c_desc, diff_weights_layer_desc,
@@ -587,24 +587,24 @@ status_t mkldnn_lstm_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     return st;
 }
 
-status_t mkldnn_gru_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc,
-        const mkldnn_memory_desc_t *diff_src_layer_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_desc,
-        const mkldnn_memory_desc_t *diff_weights_layer_desc,
-        const mkldnn_memory_desc_t *diff_weights_iter_desc,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_layer_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_desc, unsigned flags) {
+status_t dnnl_gru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags) {
     status_t st = rnn_common_bwd_desc_init(rnn_desc, prop_kind,
-            mkldnn_vanilla_gru, direction, src_layer_desc, src_iter_desc,
+            dnnl_vanilla_gru, direction, src_layer_desc, src_iter_desc,
             &glob_zero_md, weights_layer_desc, weights_iter_desc, bias_desc,
             dst_layer_desc, dst_iter_desc, &glob_zero_md, diff_src_layer_desc,
             diff_src_iter_desc, &glob_zero_md, diff_weights_layer_desc,
@@ -613,23 +613,23 @@ status_t mkldnn_gru_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
     return st;
 }
 
-status_t mkldnn_lbr_gru_backward_desc_init(mkldnn_rnn_desc_t *rnn_desc,
-        mkldnn_prop_kind_t prop_kind, mkldnn_rnn_direction_t direction,
-        const mkldnn_memory_desc_t *src_layer_desc,
-        const mkldnn_memory_desc_t *src_iter_desc,
-        const mkldnn_memory_desc_t *weights_layer_desc,
-        const mkldnn_memory_desc_t *weights_iter_desc,
-        const mkldnn_memory_desc_t *bias_desc,
-        const mkldnn_memory_desc_t *dst_layer_desc,
-        const mkldnn_memory_desc_t *dst_iter_desc,
-        const mkldnn_memory_desc_t *diff_src_layer_desc,
-        const mkldnn_memory_desc_t *diff_src_iter_desc,
-        const mkldnn_memory_desc_t *diff_weights_layer_desc,
-        const mkldnn_memory_desc_t *diff_weights_iter_desc,
-        const mkldnn_memory_desc_t *diff_bias_desc,
-        const mkldnn_memory_desc_t *diff_dst_layer_desc,
-        const mkldnn_memory_desc_t *diff_dst_iter_desc, unsigned flags) {
-    status_t st = rnn_common_bwd_desc_init(rnn_desc, prop_kind, mkldnn_lbr_gru,
+status_t dnnl_lbr_gru_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc, unsigned flags) {
+    status_t st = rnn_common_bwd_desc_init(rnn_desc, prop_kind, dnnl_lbr_gru,
             direction, src_layer_desc, src_iter_desc, &glob_zero_md,
             weights_layer_desc, weights_iter_desc, bias_desc, dst_layer_desc,
             dst_iter_desc, &glob_zero_md, diff_src_layer_desc,

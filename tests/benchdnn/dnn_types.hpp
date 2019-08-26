@@ -25,15 +25,15 @@
 #include <vector>
 
 #include "common.hpp"
-#include "mkldnn_types.h"
+#include "dnnl_types.h"
 
 struct dims_t : public std::vector<int64_t> {};
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<mkldnn_data_type_t> &v_dt);
+        std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt);
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<mkldnn_format_tag_t> &v_tag);
+        std::ostream &s, const std::vector<dnnl_format_tag_t> &v_tag);
 
 enum dir_t {
     DIR_UNDEF = 0,
@@ -55,8 +55,8 @@ dir_t str2dir(const char *str);
 const char *dir2str(dir_t dir);
 
 /* TODO: merge prop and dir_t (in favor of prop) */
-const char *prop2str(mkldnn_prop_kind_t prop);
-mkldnn_prop_kind_t prop2prop_kind(dir_t dir);
+const char *prop2str(dnnl_prop_kind_t prop);
+dnnl_prop_kind_t prop2prop_kind(dir_t dir);
 
 typedef int data_kind_t;
 enum { SRC = 0, WEI, BIA, DST, ACC, DATA, MEAN, VAR, SS, GWEI, DAT_TOTAL };
@@ -109,7 +109,7 @@ struct attr_t {
         };
         static kind_t str2kind(const char *str);
         static const char *kind2str(kind_t kind);
-        static mkldnn_alg_kind_t kind2mkldnn_kind(kind_t kind);
+        static dnnl_alg_kind_t kind2dnnl_kind(kind_t kind);
 
         struct entry_t {
             kind_t kind;
@@ -118,7 +118,7 @@ struct attr_t {
                     float scale;
                 } sum;
                 struct {
-                    mkldnn_alg_kind_t alg;
+                    dnnl_alg_kind_t alg;
                     float scale, alpha, beta;
                 } eltwise;
             };
@@ -149,16 +149,16 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
 std::ostream &dump_global_params(std::ostream &s);
 
-mkldnn_format_tag_t get_default_tag(int ndims);
-mkldnn_primitive_attr_t create_mkldnn_attr(const attr_t &attr,
-        int64_t scale_cnt, int scale_mask, const float *scales);
-inline mkldnn_primitive_attr_t create_mkldnn_attr(
+dnnl_format_tag_t get_default_tag(int ndims);
+dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
+        int scale_mask, const float *scales);
+inline dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, int64_t scale_cnt, const float *scales) {
-    return create_mkldnn_attr(attr, scale_cnt, -1, scales);
+    return create_dnnl_attr(attr, scale_cnt, -1, scales);
 }
 
-mkldnn_engine_kind_t str2engine_kind(const char *str);
-const char *engine_kind2str(mkldnn_engine_kind_t engine);
+dnnl_engine_kind_t str2engine_kind(const char *str);
+const char *engine_kind2str(dnnl_engine_kind_t engine);
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,

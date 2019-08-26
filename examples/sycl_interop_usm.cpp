@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn.hpp"
 #include "examples_utils.hpp"
+#include "mkldnn.hpp"
 #include "mkldnn_debug.h"
 #include <CL/sycl.hpp>
 

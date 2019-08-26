@@ -1,7 +1,7 @@
 Naming Conventions {#dev_guide_conventions}
 ===========================================
 
-The Intel(R) MKL-DNN documentation relies on a set of standard naming
+The DNNL documentation relies on a set of standard naming
 conventions for variables. This section describes these conventions.
 
 ## Variable (Tensor) Names
@@ -16,14 +16,14 @@ to the \f$src\f$ and \f$weights\f$ respectively:
 \f[ diff\_src = df_{src}(diff\_dst, src, weights, dst), \f] and
 \f[ diff\_weights = df_{weights}(diff\_dst, src, weights, dst). \f]
 
-While Intel MKL-DNN uses _src_, _dst_, and _weights_ as generic names for the
+While DNNL uses _src_, _dst_, and _weights_ as generic names for the
 activations and learnable tensors, for a specific operation there might be
 commonly used and widely known specific names for these tensors.
 For instance, the [convolution](@ref dev_guide_convolution) operation has a
-learnable tensor called bias. For usability reasons, Intel MKL-DNN primitives
+learnable tensor called bias. For usability reasons, DNNL primitives
 use such names in initialization or other functions to simplify the coding.
 
-To summarize, Intel MKL-DNN uses the following commonly used notations for
+To summarize, DNNL uses the following commonly used notations for
 tensors:
 
 | Name                  | Meaning
@@ -46,7 +46,7 @@ tensors:
 
 ## Formulas and Verbose Output
 
-Intel MKL-DNN uses the following notations in the documentation formulas and
+DNNL uses the following notations in the documentation formulas and
 verbose output.
 
 | Name                                     | Semantics
@@ -92,7 +92,7 @@ The following notations are used when describing RNN primitives.
 
 ## Memory Formats Tags
 
-When describing tensor memory formats, which is the Intel MKL-DNN term for the
+When describing tensor memory formats, which is the DNNL term for the
 way that the data is laid out in memory, documentation uses letters of the
 English alphabet to describe an order of dimensions and their semantics.
 
@@ -119,7 +119,7 @@ last block in the in-memory representation will contain padding zeroes.
 @todo Picture here
 
 Since there are many widely used names for specific deep learning domains like
-convolutional neural networks (CNNs), Intel MKL-DNN also supports memory
+convolutional neural networks (CNNs), DNNL also supports memory
 format tags in which dimensions have specifically assigned meaning like 'image
 width', 'image height', etc. The following table summarizes notations used in
 such memory format tags.

@@ -18,8 +18,8 @@
 #define CPU_JIT_AVX2_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
-#include "mkldnn_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
@@ -27,11 +27,11 @@
 
 #include "jit_avx2_conv_kernel_f32.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct jit_avx2_convolution_fwd_t : public cpu_primitive_t {
+struct jit_avx2_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -81,7 +81,7 @@ struct jit_avx2_convolution_fwd_t : public cpu_primitive_t {
         }
     };
 
-    jit_avx2_convolution_fwd_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    jit_avx2_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
         kernel_ = new jit_avx2_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
     }
     ~jit_avx2_convolution_fwd_t() { delete kernel_; }
@@ -95,12 +95,12 @@ struct jit_avx2_convolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx2_conv_fwd_kernel_f32 *kernel_;
 };
 
-struct jit_avx2_convolution_bwd_data_t : public cpu_primitive_t {
+struct jit_avx2_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -145,7 +145,7 @@ struct jit_avx2_convolution_bwd_data_t : public cpu_primitive_t {
         }
     };
 
-    jit_avx2_convolution_bwd_data_t(const pd_t *apd) : cpu_primitive_t(apd) {
+    jit_avx2_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {
         kernel_ = new jit_avx2_conv_bwd_data_kernel_f32(pd()->jcp_);
     }
     ~jit_avx2_convolution_bwd_data_t() { delete kernel_; }
@@ -159,12 +159,12 @@ struct jit_avx2_convolution_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx2_conv_bwd_data_kernel_f32 *kernel_;
 };
 
-struct jit_avx2_convolution_bwd_weights_t : public cpu_primitive_t {
+struct jit_avx2_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -229,7 +229,7 @@ struct jit_avx2_convolution_bwd_weights_t : public cpu_primitive_t {
 
     private:
         void init_balancers() {
-            const int max_threads = mkldnn_get_max_threads();
+            const int max_threads = dnnl_get_max_threads();
             const size_t max_buffer_size = 1 << 21; /* just a heuristic */
 
             if (with_bias()) {
@@ -246,7 +246,7 @@ struct jit_avx2_convolution_bwd_weights_t : public cpu_primitive_t {
     };
 
     jit_avx2_convolution_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd)
+        : primitive_impl_t(apd)
         , kernel_(nullptr)
         , reducer_weights_(nullptr)
         , reducer_bias_(nullptr) {
@@ -272,7 +272,7 @@ struct jit_avx2_convolution_bwd_weights_t : public cpu_primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx2_conv_bwd_weights_kernel_f32 *kernel_;
     cpu_reducer_t<data_type::f32> *reducer_weights_, *reducer_bias_;
@@ -280,7 +280,7 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

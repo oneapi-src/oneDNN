@@ -22,9 +22,9 @@
 #include "sycl/capi.hpp"
 #include "sycl/sycl_engine.hpp"
 
-using namespace mkldnn::impl;
+using namespace dnnl::impl;
 
-status_t mkldnn_engine_create_sycl(engine_t **engine, engine_kind_t kind,
+status_t dnnl_engine_create_sycl(engine_t **engine, engine_kind_t kind,
         const void *dev, const void *ctx) {
     bool args_ok = !utils::any_null(engine, dev, ctx);
     if (!args_ok) return status::invalid_arguments;
@@ -37,7 +37,7 @@ status_t mkldnn_engine_create_sycl(engine_t **engine, engine_kind_t kind,
     return ef->engine_create(engine, sycl_dev, sycl_ctx);
 }
 
-status_t mkldnn_engine_get_sycl_context(engine_t *engine, void **ctx) {
+status_t dnnl_engine_get_sycl_context(engine_t *engine, void **ctx) {
     bool args_ok = true && !utils::any_null(ctx, engine)
             && engine->backend_kind() == backend_kind::sycl;
 
@@ -49,7 +49,7 @@ status_t mkldnn_engine_get_sycl_context(engine_t *engine, void **ctx) {
     return status::success;
 }
 
-status_t mkldnn_engine_get_sycl_device(engine_t *engine, void **dev) {
+status_t dnnl_engine_get_sycl_device(engine_t *engine, void **dev) {
     bool args_ok = true && !utils::any_null(dev, engine)
             && engine->backend_kind() == backend_kind::sycl;
 

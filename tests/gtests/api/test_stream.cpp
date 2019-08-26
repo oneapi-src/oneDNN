@@ -14,26 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "mkldnn_test_common.hpp"
+#include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include <tuple>
 
-namespace mkldnn {
+namespace dnnl {
 
 static bool are_valid_flags(
-        mkldnn_engine_kind_t engine_kind, mkldnn_stream_flags_t stream_flags) {
+        dnnl_engine_kind_t engine_kind, dnnl_stream_flags_t stream_flags) {
     bool ok = true;
-#if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
-    if (engine_kind == mkldnn_gpu
-            && (stream_flags & mkldnn_stream_out_of_order))
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    if (engine_kind == dnnl_gpu && (stream_flags & dnnl_stream_out_of_order))
         ok = false;
 #endif
-#if MKLDNN_CPU_RUNTIME != MKLDNN_RUNTIME_SYCL
-    if (engine_kind == mkldnn_cpu
-            && (stream_flags & mkldnn_stream_out_of_order))
+#if DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL
+    if (engine_kind == dnnl_cpu && (stream_flags & dnnl_stream_out_of_order))
         ok = false;
 #endif
     return ok;
@@ -41,62 +39,69 @@ static bool are_valid_flags(
 
 class stream_test_c
     : public ::testing::TestWithParam<
-              std::tuple<mkldnn_engine_kind_t, mkldnn_stream_flags_t>> {
+              std::tuple<dnnl_engine_kind_t, dnnl_stream_flags_t>> {
 protected:
     void SetUp() override {
         std::tie(eng_kind, stream_flags) = GetParam();
 
-        if (mkldnn_engine_get_count(eng_kind) == 0) return;
+        if (dnnl_engine_get_count(eng_kind) == 0) return;
 
-        MKLDNN_CHECK(mkldnn_engine_create(&engine, eng_kind, 0));
+        DNNL_CHECK(dnnl_engine_create(&engine, eng_kind, 0));
 
         // Check that the flags are compatible with the engine
         if (!are_valid_flags(eng_kind, stream_flags)) {
-            MKLDNN_CHECK(mkldnn_engine_destroy(engine));
+            DNNL_CHECK(dnnl_engine_destroy(engine));
             engine = nullptr;
             return;
         }
 
-        MKLDNN_CHECK(mkldnn_stream_create(&stream, engine, stream_flags));
+        DNNL_CHECK(dnnl_stream_create(&stream, engine, stream_flags));
     }
 
     void TearDown() override {
-        if (stream) { MKLDNN_CHECK(mkldnn_stream_destroy(stream)); }
-        if (engine) { MKLDNN_CHECK(mkldnn_engine_destroy(engine)); }
+        if (stream) { DNNL_CHECK(dnnl_stream_destroy(stream)); }
+        if (engine) { DNNL_CHECK(dnnl_engine_destroy(engine)); }
     }
 
-    mkldnn_engine_kind_t eng_kind;
-    mkldnn_stream_flags_t stream_flags;
+    dnnl_engine_kind_t eng_kind;
+    dnnl_stream_flags_t stream_flags;
 
-    mkldnn_engine_t engine = nullptr;
-    mkldnn_stream_t stream = nullptr;
+    dnnl_engine_t engine = nullptr;
+    dnnl_stream_t stream = nullptr;
 };
 
 class stream_test_cpp
     : public ::testing::TestWithParam<
-              std::tuple<mkldnn_engine_kind_t, mkldnn_stream_flags_t>> {};
+              std::tuple<dnnl_engine_kind_t, dnnl_stream_flags_t>> {};
 
 TEST_P(stream_test_c, Create) {
     SKIP_IF(!engine, "Engines not found or stream flags are incompatible.");
 
-    MKLDNN_CHECK(mkldnn_stream_wait(stream));
+    DNNL_CHECK(dnnl_stream_wait(stream));
 }
 
 TEST(stream_test_c, WaitNullStream) {
-    mkldnn_stream_t stream = nullptr;
-    mkldnn_status_t status = mkldnn_stream_wait(stream);
-    ASSERT_EQ(status, mkldnn_invalid_arguments);
+    dnnl_stream_t stream = nullptr;
+    dnnl_status_t status = dnnl_stream_wait(stream);
+    ASSERT_EQ(status, dnnl_invalid_arguments);
 }
 
-TEST_P(stream_test_c, Wait) {
-    SKIP_IF(!engine, "Engines not found or stream flags are incompatible.");
+TEST(stream_test_c, Wait) {
+    dnnl_engine_t engine;
+    DNNL_CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0));
 
-    MKLDNN_CHECK(mkldnn_stream_wait(stream));
+    dnnl_stream_t stream;
+    DNNL_CHECK(dnnl_stream_create(&stream, engine, dnnl_stream_default_flags));
+
+    DNNL_CHECK(dnnl_stream_wait(stream));
+
+    DNNL_CHECK(dnnl_stream_destroy(stream));
+    DNNL_CHECK(dnnl_engine_destroy(engine));
 }
 
 TEST_P(stream_test_cpp, Wait) {
-    mkldnn_engine_kind_t eng_kind_c = mkldnn_cpu;
-    mkldnn_stream_flags_t stream_flags_c = mkldnn_stream_in_order;
+    dnnl_engine_kind_t eng_kind_c = dnnl_cpu;
+    dnnl_stream_flags_t stream_flags_c = dnnl_stream_in_order;
     std::tie(eng_kind_c, stream_flags_c) = GetParam();
 
     engine::kind eng_kind = static_cast<engine::kind>(eng_kind_c);
@@ -104,7 +109,7 @@ TEST_P(stream_test_cpp, Wait) {
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engines not found.");
 
     engine eng(eng_kind, 0);
-    SKIP_IF(!are_valid_flags(static_cast<mkldnn_engine_kind_t>(eng.get_kind()),
+    SKIP_IF(!are_valid_flags(static_cast<dnnl_engine_kind_t>(eng.get_kind()),
                     stream_flags_c),
             "Incompatible stream flags.");
 
@@ -122,9 +127,9 @@ struct PrintToStringParamName {
     }
 };
 
-auto all_params = ::testing::Combine(::testing::Values(mkldnn_cpu, mkldnn_gpu),
-        ::testing::Values(mkldnn_stream_default_flags, mkldnn_stream_in_order,
-                mkldnn_stream_out_of_order));
+auto all_params = ::testing::Combine(::testing::Values(dnnl_cpu, dnnl_gpu),
+        ::testing::Values(dnnl_stream_default_flags, dnnl_stream_in_order,
+                dnnl_stream_out_of_order));
 
 } // namespace
 
@@ -133,4 +138,4 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
         AllEngineKinds, stream_test_cpp, all_params, PrintToStringParamName());
 
-} // namespace mkldnn
+} // namespace dnnl

@@ -17,12 +17,12 @@
 #ifndef SHUFFLE_PD_HPP
 #define SHUFFLE_PD_HPP
 
-#include "mkldnn.h"
+#include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "primitive_desc.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 
 struct shuffle_pd_t : public primitive_desc_t {
@@ -56,13 +56,13 @@ struct shuffle_pd_t : public primitive_desc_t {
 
     virtual arg_usage_t arg_usage(int arg) const override {
         if (is_fwd()) {
-            if (arg == MKLDNN_ARG_SRC) return arg_usage_t::input;
+            if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
 
-            if (arg == MKLDNN_ARG_DST) return arg_usage_t::output;
+            if (arg == DNNL_ARG_DST) return arg_usage_t::output;
         } else {
-            if (arg == MKLDNN_ARG_DIFF_DST) return arg_usage_t::input;
+            if (arg == DNNL_ARG_DIFF_DST) return arg_usage_t::input;
 
-            if (arg == MKLDNN_ARG_DIFF_SRC) return arg_usage_t::output;
+            if (arg == DNNL_ARG_DIFF_SRC) return arg_usage_t::output;
         }
 
         return primitive_desc_t::arg_usage(arg);
@@ -113,7 +113,7 @@ protected:
 };
 
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
 

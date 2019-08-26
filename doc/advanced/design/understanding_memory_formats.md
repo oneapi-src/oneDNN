@@ -11,7 +11,7 @@ memory to facilitate performing operations fast and in the most convenient way.
 This article is devoted to **data format** -- one form of data representation
 that describes how multidimensional arrays (nD) are stored in linear (1D) memory
 address space and why this is important for
-[Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)](https://github.com/intel/mkl-dnn/).
+[Deep Neural Network Library (DNNL)](https://github.com/intel/mkl-dnn/).
 
 @note For the purpose of this article, data *format* and *layout* are used
 interchangeably.
@@ -115,10 +115,10 @@ TensorFlow\* also supports this data format.
 in this example.
 
 One can create memory with **NCHW** data layout using
-#mkldnn_nchw of the enum type #mkldnn_format_tag_t defined in
-[mkldnn_types.h](https://github.com/intel/mkl-dnn/blob/master/include/mkldnn_types.h)
-for the C API, and mkldnn::memory::format_tag::nchw defined in
-[mkldnn.hpp](https://github.com/intel/mkl-dnn/blob/master/include/mkldnn.hpp)
+#dnnl_nchw of the enum type #dnnl_format_tag_t defined in
+[dnnl_types.h](https://github.com/intel/mkl-dnn/blob/master/include/dnnl_types.h)
+for the C API, and dnnl::memory::format_tag::nchw defined in
+[dnnl.hpp](https://github.com/intel/mkl-dnn/blob/master/include/dnnl.hpp)
 for the C++ API.
 
 
@@ -141,7 +141,7 @@ required information about colors (for instance, three channels for 24bit BMP).
 NHWC data format is the default one for
 [TensorFlow](https://www.tensorflow.org/performance/performance_guide#data_formats).
 
-This layout corresponds to #mkldnn_nhwc or mkldnn::memory::format_tag::nhwc.
+This layout corresponds to #dnnl_nhwc or dnnl::memory::format_tag::nhwc.
 
 
 #### CHWN
@@ -161,7 +161,7 @@ The offset function for **CHWN** format is defined as:
     offset_chwn(n, c, h, w) = c * HWN + h * WN + w * N + n
 ~~~
 
-This layout corresponds to #mkldnn_chwn or mkldnn::memory::format_tag::chwn.
+This layout corresponds to #dnnl_chwn or dnnl::memory::format_tag::chwn.
 
 ![Different plain layouts](mem_fmt_img2.png)
 
@@ -203,15 +203,15 @@ the format with strides. For example, for **NCHW** we have:
 
 A user can initialize a memory descriptor with strides:
 ~~~cpp
-    mkldnn_dims_t dims = {N, C, H, W};
-    mkldnn_dims_t strides = {stride_n, stride_c, stride_h, stride_w};
+    dnnl_dims_t dims = {N, C, H, W};
+    dnnl_dims_t strides = {stride_n, stride_c, stride_h, stride_w};
 
-    mkldnn_memory_desc_t md;
-    mkldnn_memory_desc_init_by_strides(&md, 4, dims, mkldnn_f32, strides);
+    dnnl_memory_desc_t md;
+    dnnl_memory_desc_init_by_strides(&md, 4, dims, dnnl_f32, strides);
 ~~~
 
 
-Intel MKL-DNN supports strides via blocking structure. The pseudo-code for
+DNNL supports strides via blocking structure. The pseudo-code for
 the function above is:
 ~~~cpp
     memory_desc_t md; // memory descriptor object
@@ -221,13 +221,13 @@ the function above is:
     md.dims = {N, C, H, W}; // dimensions themselves
 
     // physical description
-    md.format_kind = mkldnn_blocked; // generic blocked format
+    md.format_kind = dnnl_blocked; // generic blocked format
     md.format_desc.blocking.strides = {
         stride_n, stride_c, stride_h, stride_w
     };
 ~~~
-In particular, whenever a user creates memory with the #mkldnn_nchw format,
-Intel MKL-DNN computes the strides and fills the structure on behalf of the
+In particular, whenever a user creates memory with the #dnnl_nchw format,
+DNNL computes the strides and fills the structure on behalf of the
 user.
 
 
@@ -238,9 +238,9 @@ why most of the frameworks and applications use either the **NCHW** or **NHWC**
 layout. However, depending on the operation that is performed on data, it might
 turn out that those layouts are sub-optimal from the performance perspective.
 
-In order to achieve better vectorization and cache re-usage Intel MKL-DNN
+In order to achieve better vectorization and cache re-usage DNNL
 introduces blocked layout that splits one or several dimensions into the
-blocks of fixed size. The most popular Intel MKL-DNN data format is
+blocks of fixed size. The most popular DNNL data format is
 **nChw16c** on AVX512+ systems and **nChw8c** on SSE4.1+ systems. As one might
 guess from the name the only dimension that is blocked is channels and the
 block size is either 16 in the former case or 8 in the later case.
@@ -268,7 +268,7 @@ between the blocks (e.g. 8c) and the remaining co-dimension (**C** = channels
 The reason behind the format choice can be found in
 [this paper](https://arxiv.org/pdf/1602.06709v1.pdf).
 
-Intel MKL-DNN describes this type of memory via blocking structure as well. The
+DNNL describes this type of memory via blocking structure as well. The
 pseudo-code is:
 ~~~cpp
     memory_desc_t md;
@@ -277,7 +277,7 @@ pseudo-code is:
     md.dims = {N, C, H, W}; // dimensions themselves
 
     // physical description
-    md.memory_format = mkldnn_blocked; // blocked layout
+    md.memory_format = dnnl_blocked; // blocked layout
 
     ptrdiff_t stride_n = C*H*W;
     ptrdiff_t stride_C = H*W*8;
@@ -307,7 +307,7 @@ One of the possible ways to handle that would be to use blocked layout for as
 many channels as possible by rounding them down to a number that is a multiple
 of the block size (in this case `16 = 17 / 8 * 8`) and process the tail somehow.
 However, that would lead to the introduction of very special tail-processing
-code into many Intel MKL-DNN kernels.
+code into many DNNL kernels.
 
 So we came up with another solution using zero-padding. The idea is to round the
 channels up to make them multiples of the block size and pad the resulting tail
@@ -328,8 +328,8 @@ during computation of `d0`, but that does not affect the result.
 
 Some pitfalls of the given approach:
 
-- To keep *padded data are zeros* invariant, mkldnn_memory_set_data_handle()
-  and mkldnn::memory::set_data_handle() physically add zeros whenever the user
+- To keep *padded data are zeros* invariant, dnnl_memory_set_data_handle()
+  and dnnl::memory::set_data_handle() physically add zeros whenever the user
   attaches a pointer to a memory that uses zero padding. That might affect
   performance if too many unnecessary calls to these functions are made. We
   might consider extending our API in the future to allow attaching pointers
@@ -338,32 +338,32 @@ Some pitfalls of the given approach:
 
 - The memory size required to keep the data cannot be computed by the formula
   `sizeof(data_type) * N * C * H * W` anymore. The actual size should always be
-  queried via mkldnn_memory_desc_get_size() in C and
-  mkldnn::memory::desc::get_size() in C++.
+  queried via dnnl_memory_desc_get_size() in C and
+  dnnl::memory::desc::get_size() in C++.
 
 - Element-wise operations that are implemented in the user's code and directly
-  operate on Intel MKL-DNN blocked layout like this:
+  operate on DNNL blocked layout like this:
   ~~~
       for (int e = 0; e < phys_size; ++e)
           x[e] = eltwise_op(x[e])
   ~~~
   are not safe if the data is padded with zeros and `eltwise_op(0) != 0`.
 
-Relevant Intel MKL-DNN code:
+Relevant DNNL code:
 ~~~cpp
     const int C = 17;
     const int C_padded = div_up(17, 8) * 8; // 24
 
     // logical description, layout independent
     const int ndims    = 4;            // # of dimensions
-    mkldnn_dims_t dims = {N, C, H, W}; // dimensions themselves
+    dnnl_dims_t dims = {N, C, H, W}; // dimensions themselves
 
     memory_desc_t md;
     // initialize memory descriptor
-    mkldnn_memory_desc_init(&md, ndims,
+    dnnl_memory_desc_init(&md, ndims,
                                  dims,
-                                 mkldnn_f32,   // single precision data type
-                                 mkldnn_nChw8c // blocked layout
+                                 dnnl_f32,   // single precision data type
+                                 dnnl_nChw8c // blocked layout
                                  );
 
     ptrdiff_t expect_stride_n = C_padded*H*W;   // note C_padded here, not C

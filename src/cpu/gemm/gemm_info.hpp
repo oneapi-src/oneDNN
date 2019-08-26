@@ -23,7 +23,7 @@
 #include "gemm_pack_storage.hpp"
 #include "gemm_threading.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -119,6 +119,6 @@ private:
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif // BLAS_STRUCTURE_HPP

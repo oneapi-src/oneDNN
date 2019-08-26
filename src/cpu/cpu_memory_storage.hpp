@@ -25,7 +25,7 @@
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
@@ -63,10 +63,12 @@ public:
 
 private:
     std::unique_ptr<void, std::function<void(void *)>> data_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_memory_storage_t);
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif

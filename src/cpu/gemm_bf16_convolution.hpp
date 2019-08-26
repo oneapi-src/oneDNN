@@ -28,12 +28,12 @@
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_uni_eltwise.hpp"
 
-namespace mkldnn {
+namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t dst_data_type>
-struct gemm_bf16_convolution_fwd_t : public cpu_primitive_t {
+struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -41,7 +41,8 @@ struct gemm_bf16_convolution_fwd_t : public cpu_primitive_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_convolution_fwd_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_convolution_fwd_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && is_fwd()
@@ -63,7 +64,7 @@ struct gemm_bf16_convolution_fwd_t : public cpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md(), weights_md(0), dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         bool is_postprocess_required() const {
@@ -109,7 +110,7 @@ struct gemm_bf16_convolution_fwd_t : public cpu_primitive_t {
     };
 
     gemm_bf16_convolution_fwd_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), pp_ker_(nullptr) {
+        : primitive_impl_t(apd), pp_ker_(nullptr) {
         const auto &post_ops = pd()->attr()->post_ops_;
         const acc_data_t one = 1.0, zero = 0.0;
         beta_ = dst_data_type == data_type::f32
@@ -135,7 +136,7 @@ struct gemm_bf16_convolution_fwd_t : public cpu_primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     class pp_ker_t : jit_generator {
     public:
@@ -240,7 +241,7 @@ private:
 };
 
 template <data_type_t diff_src_data_type>
-struct gemm_bf16_convolution_bwd_data_t : public cpu_primitive_t {
+struct gemm_bf16_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -248,7 +249,8 @@ struct gemm_bf16_convolution_bwd_data_t : public cpu_primitive_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_convolution_bwd_data_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
@@ -266,7 +268,7 @@ struct gemm_bf16_convolution_bwd_data_t : public cpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), diff_src_md(), weights_md(0), diff_dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -284,8 +286,7 @@ struct gemm_bf16_convolution_bwd_data_t : public cpu_primitive_t {
         }
     };
 
-    gemm_bf16_convolution_bwd_data_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true) {}
+    gemm_bf16_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -299,11 +300,11 @@ struct gemm_bf16_convolution_bwd_data_t : public cpu_primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
 template <data_type_t diff_wei_data_type>
-struct gemm_bf16_convolution_bwd_weights_t : public cpu_primitive_t {
+struct gemm_bf16_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -311,7 +312,8 @@ struct gemm_bf16_convolution_bwd_weights_t : public cpu_primitive_t {
             : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_convolution_bwd_weights_t,
+                USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
@@ -332,7 +334,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public cpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             return jit_gemm_convolution_utils::init_conf(jcp_, scratchpad,
                     *desc(), src_md(), diff_weights_md(0), diff_dst_md(),
-                    mkldnn_get_max_threads());
+                    dnnl_get_max_threads());
         }
 
         jit_gemm_conv_conf_t jcp_;
@@ -351,7 +353,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public cpu_primitive_t {
     };
 
     gemm_bf16_convolution_bwd_weights_t(const pd_t *apd)
-        : cpu_primitive_t(apd, true), acc_ker_(nullptr) {
+        : primitive_impl_t(apd), acc_ker_(nullptr) {
         acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
     }
 
@@ -374,13 +376,13 @@ private:
             diff_wei_data_t *weights_base) const;
 
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
 };
 
 } // namespace cpu
 } // namespace impl
-} // namespace mkldnn
+} // namespace dnnl
 
 #endif
