@@ -36,7 +36,7 @@ namespace lnorm {
 dims_t dims;
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<dnnl_format_tag_t> data_tag {dnnl_tnc};
+std::vector<dnnl_format_tag_t> tag {dnnl_tnc};
 std::vector<dnnl_format_tag_t> stat_tag {dnnl_tn};
 std::vector<flags_t> flags {0};
 std::vector<bool> inplace {true};
@@ -56,7 +56,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    data_tag = {dnnl_tnc};
+    tag = {dnnl_tnc};
     stat_tag = {dnnl_tn};
     flags = {0};
     inplace = {true};
@@ -69,12 +69,12 @@ void reset_parameters() {
 void check_correctness() {
     for_(const auto &i_dir : dir)
     for_(const auto &i_dt : dt)
-    for_(const auto &i_data_tag : data_tag)
+    for_(const auto &i_tag : tag)
     for_(const auto &i_stat_tag : stat_tag)
     for_(const auto &i_flags : flags)
     for (const auto &i_inplace : inplace) {
-        const prb_t p(dims, i_data_tag, i_stat_tag, i_dir, i_dt, i_flags,
-                i_inplace, attr, check_alg);
+        const prb_t p(dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags, i_inplace,
+                attr, check_alg);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -104,8 +104,7 @@ int bench(int argc, char **argv) {
     for (; argc > 0; --argc, ++argv) {
         const bool parsed_options = false || parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
-                || parse_dt(dt, argv[0])
-                || parse_tag(data_tag, argv[0], "data_tag")
+                || parse_dt(dt, argv[0]) || parse_tag(tag, argv[0])
                 || parse_tag(stat_tag, argv[0], "stat_tag")
                 || parse_vector_option(flags, str2flags, argv[0], "flags")
                 || parse_inplace(inplace, argv[0]) || parse_attr(attr, argv[0])

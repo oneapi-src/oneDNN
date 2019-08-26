@@ -364,7 +364,7 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
     const int64_t *data_dims = &p->dims[0];
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, ndims, data_dims, p->dt, p->data_tag),
+                     &data_d, ndims, data_dims, p->dt, p->tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(

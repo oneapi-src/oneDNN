@@ -59,8 +59,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
     if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.data_tag != dnnl_tnc)
-        s << "--data_tag=" << fmt_tag2str(p.data_tag) << " ";
+    if (p.tag != dnnl_tnc) s << "--tag=" << fmt_tag2str(p.tag) << " ";
     if (p.stat_tag != dnnl_tn)
         s << "--stat_tag=" << fmt_tag2str(p.stat_tag) << " ";
     if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";

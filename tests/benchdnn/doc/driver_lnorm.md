@@ -11,7 +11,7 @@ where *lnorm-knobs* are:
             Refer to the common glossary in README.md for details.
  - `--dt={f32 [default]}` -- src and dst data types.
             Refer to the common glossary in README.md for details.
- - `--data_tag={tnc [default], ...}` -- physical src and dst memory format.
+ - `--tag={tnc [default], ...}` -- physical src and dst memory format.
             Refer to the common glossary in README.md for details.
  - `--stat_tag={tn [default], ...}` -- physical mean and variance memory format.
             Refer to the common glossary in README.md for details.
@@ -54,7 +54,7 @@ Run a named problem with single precision src/dst, iterating by:
 3) forward training, backward by data and weights prop_kinds,
 4) all flag combinations:
 ``` sh
-    ./benchdnn --lnorm --dt=f32 --data_tag=tnc,ntc --stat_tag=tn,nt\
+    ./benchdnn --lnorm --dt=f32 --tag=tnc,ntc --stat_tag=tn,nt\
                --dir=FWD_D,BWD_DW --flags=GS,S \
                8x32x1024
 ```
