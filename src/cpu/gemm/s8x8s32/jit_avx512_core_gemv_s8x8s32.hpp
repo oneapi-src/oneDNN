@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMV_HPP
-#define GEMV_HPP
+#ifndef JIT_AVX512_CORE_GEMV_S8X8S32_HPP
+#define JIT_AVX512_CORE_GEMV_S8X8S32_HPP
 
 #include <cstdint>
 
@@ -33,4 +33,4 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg);
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMV_HPP
+#endif // JIT_AVX512_CORE_GEMV_S8X8S32_HPP

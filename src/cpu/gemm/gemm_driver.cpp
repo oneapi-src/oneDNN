@@ -33,7 +33,7 @@
 #include "gemv_driver.hpp"
 #include "jit_generator.hpp"
 #include "nstl.hpp"
-#include "s8x8s32/gemv.hpp"
+#include "s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
 #include "utils.hpp"
 
 namespace dnnl {

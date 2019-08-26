@@ -32,7 +32,7 @@
 #include "jit_generator.hpp"
 #include "s8x8s32/common_u8.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
-#include "s8x8s32/jit_avx512_core_kernel_gemv_s8u8s32_kern.hpp"
+#include "s8x8s32/jit_avx512_core_kernel_gemv_s8x8s32_kern.hpp"
 
 namespace dnnl {
 namespace impl {

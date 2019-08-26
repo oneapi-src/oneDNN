@@ -14,8 +14,8 @@
  * limitations under the License.
  ******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP
-#define JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP
+#ifndef JIT_AVX512_CORE_KERNEL_GEMV_S8X8S32_KERN_HPP
+#define JIT_AVX512_CORE_KERNEL_GEMV_S8X8S32_KERN_HPP
 
 #include <cstdint>
 
@@ -71,4 +71,4 @@ public:
 } // namespace impl
 } // namespace dnnl
 
-#endif // JIT_AVX512_CORE_KERNEL_GEMV_S8U8S32_KERN_HPP
+#endif // JIT_AVX512_CORE_KERNEL_GEMV_S8X8S32_KERN_HPP

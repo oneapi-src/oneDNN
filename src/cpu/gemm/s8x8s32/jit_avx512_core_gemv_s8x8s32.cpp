@@ -14,7 +14,7 @@
  * limitations under the License.
  ******************************************************************************/
 
-#include "gemv.hpp"
+#include "jit_avx512_core_gemv_s8x8s32.hpp"
 
 #include "../gemm_info.hpp"
 #include "common/bfloat16.hpp"
