@@ -73,8 +73,11 @@ inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
     switch (p->dir) {
         case FWD_D:
         case FWD_B:
-            DNN_SAFE(dnnl_inner_product_forward_desc_init(&ipd, dnnl_forward,
-                             &src_d, &wei_d, p->dir == FWD_D ? NULL : &bia_d,
+        case FWD_I:
+            DNN_SAFE(dnnl_inner_product_forward_desc_init(&ipd,
+                             p->dir == FWD_I ? dnnl_forward_inference
+                                             : dnnl_forward_training,
+                             &src_d, &wei_d, p->dir == FWD_B ? &bia_d : NULL,
                              &dst_d),
                     WARN);
             break;

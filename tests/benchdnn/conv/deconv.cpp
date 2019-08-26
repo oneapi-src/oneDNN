@@ -122,9 +122,12 @@ inline int init_pd(const prb_t *p, dnnl_deconvolution_desc_t &cd,
     switch (p->dir) {
         case FWD_D:
         case FWD_B:
+        case FWD_I:
             DNN_SAFE(dnnl_dilated_deconvolution_forward_desc_init(&cd,
-                             dnnl_forward_inference, alg, &src_d, &wei_d,
-                             p->dir == FWD_D ? NULL : &bia_d, &dst_d, strides,
+                             p->dir == FWD_I ? dnnl_forward_inference
+                                             : dnnl_forward_training,
+                             alg, &src_d, &wei_d,
+                             p->dir == FWD_B ? &bia_d : NULL, &dst_d, strides,
                              dilates, padding, padding_r),
                     WARN);
             break;

@@ -38,11 +38,10 @@ static bool parse_vector_str(
         T &vec, F process_func, const char *str, char delimeter = ',') {
     const std::string s = str;
     vec.clear();
-    for (size_t start = 0, delim = 0; delim != eol; start = delim + 1) {
-        delim = s.find_first_of(delimeter, start);
-        size_t val_len = (delim == eol ? s.size() : delim) - start;
-        std::string sub_s(s, start, val_len);
-        vec.push_back(process_func(sub_s.c_str()));
+    for (size_t pos_st = 0, pos_en = s.find_first_of(delimeter, pos_st); true;
+            pos_st = pos_en + 1, pos_en = s.find_first_of(delimeter, pos_st)) {
+        vec.push_back(process_func(s.substr(pos_st, pos_en - pos_st).c_str()));
+        if (pos_en == eol) break;
     }
     return true;
 }
