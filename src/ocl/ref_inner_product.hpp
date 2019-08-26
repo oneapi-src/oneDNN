@@ -69,6 +69,8 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                                     s8, s8, data_type::undef, s32, s32),
                             expect_data_types(
                                     bf16, bf16, data_type::undef, bf16, f32),
+                            expect_data_types(
+                                    bf16, bf16, data_type::undef, f32, f32),
                             expect_data_types(f32, f32, f32, f32, f32),
                             expect_data_types(f16, f16, f16, f16, f16))
                     && IMPLICATION(with_bias(),
@@ -181,6 +183,8 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
                             expect_data_types(
                                     bf16, bf16, data_type::undef, bf16, f32),
                             expect_data_types(
+                                    f32, bf16, data_type::undef, bf16, f32),
+                            expect_data_types(
                                     f32, f32, data_type::undef, f32, f32))
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -244,6 +248,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
                     && this->set_default_params() == status::success
                     && utils::one_of(true,
                             expect_data_types(bf16, bf16, bf16, bf16, f32),
+                            expect_data_types(bf16, f32, f32, bf16, f32),
                             expect_data_types(f32, f32, f32, f32, f32))
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;

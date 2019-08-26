@@ -235,9 +235,11 @@
 #if SRC_DT_BF16
 #define SRC_TO_REF(x) convert_bf16_to_f32(x)
 #define SRC_TO_REF8(x) convert_bf16_to_f32_vec8(x)
+#define REF_TO_SRC(x) convert_f32_to_bf16(x)
 #else
 #define SRC_TO_REF(x) (x)
 #define SRC_TO_REF8(x) (x)
+#define REF_TO_SRC(x) (x)
 #endif
 #if SRC_DT_BF16
 #define TO_SRC(x) convert_f32_to_bf16(x)
