@@ -14,6 +14,8 @@
  * limitations under the License.
  ******************************************************************************/
 
+#include <type_traits>
+
 #include "jit_avx512_core_gemv_s8x8s32.hpp"
 
 #include "../gemm_info.hpp"
@@ -27,96 +29,24 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <typename T>
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(T *arg);
+namespace {
 
-template <>
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(gemm_info_t<float, float, float> *arg) {
-    return 0;
-}
-
-template <>
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(
-        gemm_info_t<int8_t, int8_t, int32_t> *arg) {
-    return 0;
-}
-template <>
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(
-        gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) {
-    return 0;
-}
-
-template <>
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(
-        gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
-
-    gemm_info_t<int8_t, uint8_t, int32_t> arg_gemv = *arg;
-
-    if ((arg->offsetc == offset_type::fixed) && // Fix offset
-            (arg->ao == 0) && (arg->bo == 0) && (arg->co[0] == 0)
-            && (arg->alpha == 1.0f)
-            && (arg->beta == 1.0f || arg->beta == 0.0f)) {
-
-        if (arg->n == 1) {
-
-            if (arg->transa == do_trans) {
-                arg_gemv.n = arg->k;
-                arg_gemv.ldc = 1;
-                arg_gemv.swap = 0;
-                if (arg->transb == no_trans) { arg_gemv.ldb = 1; }
-                // B transpose arg_gemv.ldb = arg->ldb
-                return gemv_threading_driver(&arg_gemv);
-            }
-        }
-
-        if (arg->m == 1) {
-
-            if (arg->transb == no_trans) {
-                arg_gemv.transa = do_trans;
-                arg_gemv.m = arg->n;
-                arg_gemv.n = arg->k;
-                arg_gemv.a = (int8_t *)arg->b;
-                arg_gemv.lda = arg->ldb;
-                arg_gemv.b = (uint8_t *)arg->a;
-                arg_gemv.swap = 1;
-                if (arg->transa == no_trans) {
-                    arg_gemv.ldb = arg->lda;
-                } else { // A transpose
-                    arg_gemv.ldb = 1;
-                }
-                return gemv_threading_driver(&arg_gemv);
-            }
-        }
-    }
-
-    return 0;
-}
-
-int gemv_kernel_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
-
-    dim_t m = arg->m;
-    dim_t n = arg->n;
-    uint8_t *a = (uint8_t *)arg->a;
-    dim_t lda = arg->lda;
-    int8_t *b = (int8_t *)arg->b;
-    float beta = arg->beta;
-
+template <typename GEMM_INFO_T>
+void gemv_kernel_driver(GEMM_INFO_T *arg) {
     if (arg->swap) {
-        arg->gemv_u8s8s32_kernel(m, n, 1.0f, a, lda, b, beta, arg->c);
+        arg->gemv_u8s8s32_kernel(arg->m, arg->n, 1.0f, (const uint8_t *)arg->a,
+                arg->lda, (const int8_t *)arg->b, arg->beta, arg->c);
     } else {
-        arg->gemv_s8u8s32_kernel(
-                arg->m, arg->n, 1.0f, arg->a, arg->lda, arg->b, beta, arg->c);
+        arg->gemv_s8u8s32_kernel(arg->m, arg->n, 1.0f, (const int8_t *)arg->a,
+                arg->lda, (const uint8_t *)arg->b, arg->beta, arg->c);
     }
-
-    return 1;
 }
 
-int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
-
+template <typename GEMM_INFO_T>
+int gemv_threading_driver(GEMM_INFO_T *arg) {
     dim_t nthr_m, nthr_n = 1;
     dim_t MB, NB, UM = 16, UN = 64;
     dim_t BLOCKM = 192, BLOCKN = 3072;
-    int status;
     dim_t i;
 
     dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
@@ -126,7 +56,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
 
     dim_t m = arg->m, n = arg->n;
 
-    gemm_info_t<int8_t, uint8_t, int32_t> arg_seq = *arg;
+    GEMM_INFO_T arg_seq = *arg;
     float zero = 0.0f;
 
     nthr_m = nstl::min(nstl::max(m / BLOCKM, (dim_t)1), nthr);
@@ -170,7 +100,6 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
 
     // GEMV computation
     if (nthr == 1) {
-
         if (arg->ldc != 1) {
             if (arg->beta != 0.0f) {
                 for (i = 0; i < m; i++) {
@@ -179,7 +108,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
             }
         }
 
-        status = gemv_kernel_driver(&arg_seq);
+        gemv_kernel_driver(&arg_seq);
 
         if (arg->ldc != 1) {
             for (i = 0; i < m; i++) {
@@ -189,7 +118,8 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
 
         if (arg->ldb != 1) { free(new_x); }
         if (arg->ldc != 1) { free(new_y); }
-        return status;
+
+        return 1;
     }
 
     if (nthr_n > 1) {
@@ -210,7 +140,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
         dim_t loc_incy = 1;
         int32_t *loc_y;
 
-        gemm_info_t<int8_t, uint8_t, int32_t> arg_loc = arg_seq;
+        GEMM_INFO_T arg_loc = arg_seq;
         int j;
 
         m_id = ithr / nthr_n;
@@ -283,10 +213,76 @@ int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
     }
 
     if (arg->ldb != 1) { free(new_x); }
-
     if (arg->ldc != 1) { free(new_y); }
 
     return 1;
+}
+
+template <typename GEMM_INFO_T>
+typename std::enable_if<
+        std::is_same<GEMM_INFO_T, gemm_info_t<int8_t, uint8_t, int32_t>>::value,
+        int>::type
+jump_to_gemv_s8x8s32_impl(GEMM_INFO_T *arg) {
+    GEMM_INFO_T arg_gemv = *arg;
+
+    bool applicable = (arg->offsetc == offset_type::fixed) && // Fix offset
+            (arg->ao == 0) && (arg->bo == 0) && (arg->co[0] == 0)
+            && (arg->alpha == 1.0f) && (arg->beta == 1.0f || arg->beta == 0.0f);
+
+    if (!applicable) return 0;
+
+    if (arg->n == 1) {
+        if (arg->transa == do_trans) {
+            arg_gemv.n = arg->k;
+            arg_gemv.ldc = 1;
+            arg_gemv.swap = 0;
+            if (arg->transb == no_trans) { arg_gemv.ldb = 1; }
+            // B transpose arg_gemv.ldb = arg->ldb
+            return gemv_threading_driver(&arg_gemv);
+        }
+    }
+
+    if (arg->m == 1) {
+        if (arg->transb == no_trans) {
+            arg_gemv.transa = do_trans;
+            arg_gemv.m = arg->n;
+            arg_gemv.n = arg->k;
+            arg_gemv.a = (int8_t *)arg->b;
+            arg_gemv.lda = arg->ldb;
+            arg_gemv.b = (uint8_t *)arg->a;
+            arg_gemv.swap = 1;
+            if (arg->transa == no_trans) {
+                arg_gemv.ldb = arg->lda;
+            } else { // A transpose
+                arg_gemv.ldb = 1;
+            }
+            return gemv_threading_driver(&arg_gemv);
+        }
+    }
+
+    return 0;
+}
+
+} // namespace
+
+template <>
+int jump_to_gemv_s8x8s32(gemm_info_t<float, float, float> *arg) {
+    return 0;
+}
+
+template <>
+int jump_to_gemv_s8x8s32(gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) {
+    return 0;
+}
+
+template <>
+int jump_to_gemv_s8x8s32(gemm_info_t<int8_t, int8_t, int32_t> *arg) {
+    return 0;
+}
+
+template <>
+int jump_to_gemv_s8x8s32(gemm_info_t<int8_t, uint8_t, int32_t> *arg) {
+    return jump_to_gemv_s8x8s32_impl(arg);
 }
 
 } // namespace cpu

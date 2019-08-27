@@ -408,12 +408,12 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             }
         }
 
-        static jit_avx512_core_gemv_s8u8s32_kern *gemv_s8u8s32_kernel = NULL;
-        static jit_avx512_core_gemv_s8u8s32_kern *gemv_u8s8s32_kernel = NULL;
+        static jit_avx512_core_gemv_s8x8s32_kern *gemv_s8u8s32_kernel = NULL;
+        static jit_avx512_core_gemv_s8x8s32_kern *gemv_u8s8s32_kernel = NULL;
         if (data_traits<a_type>::data_type == data_type::s8) {
             if (mayiuse(avx512_core)) {
-                gemv_s8u8s32_kernel = new jit_avx512_core_gemv_s8u8s32_kern();
-                gemv_u8s8s32_kernel = new jit_avx512_core_gemv_s8u8s32_kern();
+                gemv_s8u8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
+                gemv_u8s8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
             }
         }
 
@@ -465,13 +465,13 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
         // Set gemv integer gemm kernels
         if (data_traits<a_type>::data_type == data_type::s8) {
-            gemv_s8u8s32_kern = gemv_s8u8s32_kernel->generate<
-                    jit_avx512_core_gemv_s8u8s32_kern::gemv_s8u8s32_kernel_t>(
-                    mayiuse(avx512_core_vnni));
+            gemv_s8u8s32_kern
+                    = gemv_s8u8s32_kernel->generate<gemv_s8u8s32_kernel_t>(
+                            mayiuse(avx512_core_vnni));
 
-            gemv_u8s8s32_kern = gemv_u8s8s32_kernel->generate<
-                    jit_avx512_core_gemv_s8u8s32_kern::gemv_u8s8s32_kernel_t>(
-                    mayiuse(avx512_core_vnni));
+            gemv_u8s8s32_kern
+                    = gemv_u8s8s32_kernel->generate<gemv_u8s8s32_kernel_t>(
+                            mayiuse(avx512_core_vnni));
         }
     });
 

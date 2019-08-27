@@ -1477,7 +1477,7 @@ static dnnl_status_t gemm_threading_driver(
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)
-            && gemm_s8u8s32_jump_to_gemv_s8u8s32(arg))
+            && jump_to_gemv_s8x8s32(arg))
         return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && (arg->packing == pack_type::none)

@@ -19,6 +19,8 @@
 
 #include <cstdint>
 
+#include "cpu/cpu_isa_traits.hpp"
+
 #include "../gemm_info.hpp"
 #include "common_u8.hpp"
 #include "jit_generator.hpp"
@@ -27,44 +29,55 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-class jit_avx512_core_gemv_s8u8s32_kern : jit_generator {
+// m, n, alpha, a, lda, x, beta, y
+typedef void (*gemv_s8u8s32_kernel_t)(const dim_t, const dim_t, const float,
+        const int8_t *, const dim_t, const uint8_t *, const float, int32_t *);
+typedef void (*gemv_u8s8s32_kernel_t)(const dim_t, const dim_t, const float,
+        const uint8_t *, const dim_t, const int8_t *, const float, int32_t *);
 
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemv_s8u8s32_kern);
+class jit_avx512_core_gemv_s8x8s32_kern : jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_gemv_s8x8s32_kern);
+
+    void vnni(Xbyak::Zmm acc, Xbyak::Zmm b, Xbyak::Zmm a);
+    void n_loop_body(int nreg_acc, Xbyak::Reg64 A, Xbyak::Reg64 lda,
+            Xbyak::Reg64 X, int use_mask, Xbyak::Opmask mask_n);
+    void shuffle_and_add(
+            Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm);
+    void update_c(int, Xbyak::Reg64, int, Xbyak::Opmask);
+
+    cpu_isa_t isa;
+    enum class ver_t { undef, s8u8, u8s8 } ver;
 
     // Assumes unroll_{m,n} are a power of 2.
     static constexpr unsigned int unroll_m_ = 4; // Unrolling is 2^unroll_m_.
-    const int mask_um_ = 0xFFFFFFF0;
     static constexpr unsigned int unroll_n_ = 6; // Unrolling is 2^unroll_n_.
-    const int mask_un_ = 0xFFFFFFC0;
-    const int size_vec_reg_ = 64; // bytes
 
-    void aligned_label(Xbyak::Label &label, int alignment = 16) {
-        align(alignment);
-        L(label);
+    enum {
+        zmm_a_idx_start = 4,
+        zmm_a_idx_count = 1 << (unroll_m_ - 1), // nreg_A
+        zmm_acc_idx_start = zmm_a_idx_start + zmm_a_idx_count,
+        zmm_acc_idx_count = 1 << unroll_m_, // nreg_acc
+    };
+
+    Xbyak::Zmm zmm_tmp = Xbyak::Zmm(0);
+    Xbyak::Zmm zmm_one = Xbyak::Zmm(2);
+    Xbyak::Xmm xmm_beta = Xbyak::Xmm(1);
+
+    Xbyak::Zmm zmm_b = Xbyak::Zmm(3); // x-vector
+    Xbyak::Zmm zmm_a(int idx) { // matrix
+        assert(idx < zmm_a_idx_count);
+        return Xbyak::Zmm(zmm_a_idx_start + idx);
+    }
+    Xbyak::Zmm zmm_acc(int idx) { // y-vector
+        assert(idx < zmm_acc_idx_count);
+        return Xbyak::Zmm(zmm_acc_idx_start + idx);
     }
 
-    void vnni(Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, bool,
-            int);
-    void n_loop_body(int, int, int, int, Xbyak::Reg64, Xbyak::Reg64,
-            Xbyak::Reg64, Xbyak::Zmm, Xbyak::Zmm, bool, int, int,
-            Xbyak::Opmask);
-    void shuffle_and_add(
-            Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm, Xbyak::Zmm);
-    void update_c(int, Xbyak::Reg64, int, int, Xbyak::Xmm, int, Xbyak::Opmask);
-
 public:
-    jit_avx512_core_gemv_s8u8s32_kern() : jit_generator(nullptr, 16384) {};
+    jit_avx512_core_gemv_s8x8s32_kern() : jit_generator(nullptr, 16384) {};
 
-    // m, n, alpha, a, lda, x, beta, y
-    typedef void (*gemv_s8u8s32_kernel_t)(const dim_t, const dim_t, const float,
-            const int8_t *, const dim_t, const uint8_t *, const float,
-            int32_t *);
-    typedef void (*gemv_u8s8s32_kernel_t)(const dim_t, const dim_t, const float,
-            const uint8_t *, const dim_t, const int8_t *, const float,
-            int32_t *);
-
-    template <typename T>
-    T generate(int use_vnni);
+    template <typename gemv_kernel_t>
+    gemv_kernel_t generate(int use_vnni);
 };
 
 } // namespace cpu
