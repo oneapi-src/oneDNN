@@ -57,6 +57,9 @@ struct memory_storage_impl_t : public c_compatible {
     // Offset in bytes from the "perfectly" aligned address
     virtual uintptr_t base_offset() const = 0;
 
+    // True if data handle can be accessed from the host
+    virtual bool is_host_accessible() const = 0;
+
 private:
     engine_t *engine_;
     size_t size_;
@@ -152,6 +155,10 @@ public:
     explicit operator bool() const { return !is_null(); }
 
     uintptr_t base_offset() const { return impl_ ? impl_->base_offset() : 0; }
+
+    bool is_host_accessible() const {
+        return impl_ ? impl_->is_host_accessible() : true;
+    }
 
 private:
     std::shared_ptr<memory_storage_impl_t> impl_;

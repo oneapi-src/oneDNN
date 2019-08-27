@@ -61,6 +61,8 @@ public:
         return reinterpret_cast<uintptr_t>(data_.get());
     }
 
+    virtual bool is_host_accessible() const override { return true; }
+
 private:
     std::unique_ptr<void, std::function<void(void *)>> data_;
 

@@ -50,6 +50,7 @@ public:
     cl_mem mem_object() const { return mem_object_.get(); }
 
     virtual uintptr_t base_offset() const override { return 0; }
+    virtual bool is_host_accessible() const override { return false; }
 
 private:
     ocl_utils::ocl_wrapper_t<cl_mem> mem_object_;

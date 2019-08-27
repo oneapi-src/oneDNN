@@ -28,12 +28,10 @@ namespace dnnl {
 
 #ifdef DNNL_SYCL_INTEL
 
-// TODO: enable after a USM bug related to mixed CPU/GPU execution is fixed.
-#if 0
 TEST(sycl_memory_usm_test, Constructor) {
     engine eng(engine::kind::cpu, 0);
     memory::dim n = 100;
-    memory::desc mem_d({ n }, memory::data_type::f32, memory::format_tag::x);
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
 
     void *ptr = cl::sycl::malloc_shared(
             sizeof(float) * n, eng.get_sycl_device(), eng.get_sycl_context());
@@ -56,7 +54,6 @@ TEST(sycl_memory_usm_test, Constructor) {
 
     cl::sycl::free(ptr, eng.get_sycl_context());
 }
-#endif
 
 #endif
 

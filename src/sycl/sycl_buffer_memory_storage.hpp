@@ -55,6 +55,7 @@ public:
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
     virtual uintptr_t base_offset() const override { return 0; }
+    virtual bool is_host_accessible() const override { return false; }
 
 private:
     std::shared_ptr<buffer_u8_t> buffer_;
