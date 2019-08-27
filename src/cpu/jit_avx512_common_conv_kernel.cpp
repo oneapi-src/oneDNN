@@ -2372,8 +2372,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         }
     }
 
-    jcp.loop_order = loop_gnc;
-
     // Heuristic to optimize code size on KNX
     bool large_code_size = (jcp.ur_w != jcp.ow)
             && ((l_overflow <= 0 && n_oi > 0) || (l_overflow > 0 && n_oi > 1))
