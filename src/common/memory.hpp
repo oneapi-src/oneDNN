@@ -81,7 +81,7 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     }
 
     /** sets data handle */
-    dnnl::impl::status_t set_data_handle(void *handle, int index = 0) const;
+    dnnl::impl::status_t set_data_handle(void *handle, int index = 0, bool pads_zeroing = false);
 
     /** zeros padding */
     dnnl::impl::status_t zero_pad(const dnnl::impl::exec_ctx_t &ctx) const;

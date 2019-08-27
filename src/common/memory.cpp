@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "common/primitive_exec_types.hpp"
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl.hpp"
 
@@ -96,14 +97,17 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     this->reset_memory_storage(std::move(memory_storage));
 }
 
-status_t dnnl_memory::set_data_handle(void *handle, int index) const {
+status_t dnnl_memory::set_data_handle(void *handle, int index, bool pads_zeroing) {
     using namespace dnnl::impl;
     void *old_handle;
     CHECK(memory_storage(index)->get_data_handle(&old_handle));
     if (handle != old_handle) {
         CHECK(memory_storage(index)->set_data_handle(handle));
     }
-    return status::success;
+
+    memory_arg_t mem_arg = {this, true};
+    exec_args_t args = {{0, mem_arg}};
+    return pads_zeroing ? zero_pad(exec_ctx_t(nullptr, std::move(args))) : dnnl_success;
 }
 
 status_t dnnl_memory::reset_memory_storage(
@@ -225,7 +229,13 @@ status_t dnnl_memory_get_data_handle(const memory_t *memory, void **handle) {
 
 status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
     if (any_null(memory)) return invalid_arguments;
-    CHECK(memory->set_data_handle(handle));
+    CHECK(memory->set_data_handle(handle, true));
+    return status::success;
+}
+
+status_t dnnl_memory_set_data_handle_no_pads_proc(memory_t *memory, void *handle) {
+    if (any_null(memory)) return invalid_arguments;
+    CHECK(memory->set_data_handle(handle, false));
     return status::success;
 }
 

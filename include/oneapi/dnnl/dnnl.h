@@ -1193,6 +1193,9 @@ dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
         dnnl_memory_t memory, void *handle, int index);
 #endif
 
+dnnl_status_t DNNL_API dnnl_memory_set_data_handle_no_pads_proc(
+        dnnl_memory_t memory, void *handle);
+
 /// Destroys a memory object.
 ///
 /// @param memory Memory object to destroy.
