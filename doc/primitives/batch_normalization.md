@@ -43,7 +43,8 @@ used:
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
 In training mode the primitive also optionally supports fusion with ReLU
-activation applied to the result (see #dnnl_fuse_norm_relu flag).
+activation with zero negative slope applied to the result
+(see #dnnl_fuse_norm_relu flag).
 
 @note
 * The batch normalization primitive computes population mean and variance and

@@ -752,9 +752,13 @@ typedef enum {
 
     /// Fuse with ReLU
     ///
+    /// The flag implies negative slope being 0. On training this is the only
+    /// configuration supported. For inference, to use non-zero negative slope
+    /// consider using @ref dev_guide_attributes_post_ops.
+    ///
     /// If specified:
     ///  - on inference this option behaves the same as if the primitive were
-    ///    fused with ReLU via post ops API
+    ///    fused with ReLU using post ops API with zero negative slope.
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
     dnnl_fuse_norm_relu = 0x4U,
