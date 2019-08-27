@@ -28,20 +28,30 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-void jit_avx512_core_gemv_s8x8s32_kern::vnni(Zmm acc, Zmm a, Zmm b) {
+void jit_avx512_core_gemv_s8x8s32_kern::vnni(
+        Zmm acc, Zmm a, Zmm b, vnni_op_t op) {
     if (isa == avx512_core_vnni) {
+        if (op == vnni_op_t::sub) vxorps(acc, acc, zmm_1_u1); // acc = -acc
+
         if (ver == ver_t::u8s8)
             vpdpbusd(acc, a, b);
         else
             vpdpbusd(acc, b, a);
+
+        if (op == vnni_op_t::sub) vxorps(acc, acc, zmm_1_u1); // acc = -acc
     } else {
         assert(isa == avx512_core);
+
         if (ver == ver_t::u8s8)
             vpmaddubsw(zmm_tmp, a, b);
         else
             vpmaddubsw(zmm_tmp, b, a);
-        vpmaddwd(zmm_tmp, zmm_tmp, zmm_one);
-        vpaddd(acc, zmm_tmp, acc);
+        vpmaddwd(zmm_tmp, zmm_tmp, zmm_1_s16);
+
+        if (op == vnni_op_t::sub)
+            vpsubd(acc, acc, zmm_tmp);
+        else
+            vpaddd(acc, zmm_tmp, acc);
     }
 }
 
@@ -54,6 +64,7 @@ void jit_avx512_core_gemv_s8x8s32_kern::n_loop_body(int nreg_acc, Reg64 A,
         vmovdqu8(zmm_b | mask_n | T_z, ptr[X]);
     else
         vmovdqu8(zmm_b, ptr[X]);
+    if (ver == ver_t::s8s8) vxorps(zmm_b, zmm_b, zmm_128_u8);
 
     xor_(r14, r14);
     // load values of A
@@ -66,7 +77,11 @@ void jit_avx512_core_gemv_s8x8s32_kern::n_loop_body(int nreg_acc, Reg64 A,
     }
 
     for (int i = 0; i < nreg_A; i++)
-        vnni(zmm_acc(i), zmm_a(i), zmm_b);
+        vnni(zmm_acc(i), zmm_a(i), zmm_b, vnni_op_t::add);
+
+    if (ver == ver_t::s8s8)
+        for (int i = 0; i < nreg_A; i++)
+            vnni(zmm_acc(i), zmm_a(i), zmm_128_u8, vnni_op_t::sub);
 
     for (int i = 0; i < nreg_A - (nreg_acc % 2); i++) {
         if (use_mask)
@@ -77,7 +92,11 @@ void jit_avx512_core_gemv_s8x8s32_kern::n_loop_body(int nreg_acc, Reg64 A,
     }
 
     for (int i = 0; i < nreg_A - (nreg_acc % 2); i++)
-        vnni(zmm_acc(nreg_A + i), zmm_a(i), zmm_b);
+        vnni(zmm_acc(nreg_A + i), zmm_a(i), zmm_b, vnni_op_t::add);
+
+    if (ver == ver_t::s8s8)
+        for (int i = 0; i < nreg_A - (nreg_acc % 2); i++)
+            vnni(zmm_acc(nreg_A + i), zmm_a(i), zmm_128_u8, vnni_op_t::sub);
 }
 
 void jit_avx512_core_gemv_s8x8s32_kern::shuffle_and_add(
@@ -157,10 +176,14 @@ void jit_avx512_core_gemv_s8x8s32_kern::update_c(
 
 template <typename gemv_kernel_t>
 gemv_kernel_t jit_avx512_core_gemv_s8x8s32_kern::generate(int use_vnni) {
+    const int vec_len = 64; // bytes
+
     isa = use_vnni ? avx512_core_vnni : avx512_core;
 
     ver = ver_t::undef;
-    if (std::is_same<gemv_kernel_t, gemv_s8u8s32_kernel_t>::value)
+    if (std::is_same<gemv_kernel_t, gemv_s8s8s32_kernel_t>::value)
+        ver = ver_t::s8s8;
+    else if (std::is_same<gemv_kernel_t, gemv_s8u8s32_kernel_t>::value)
         ver = ver_t::s8u8;
     else if (std::is_same<gemv_kernel_t, gemv_u8s8s32_kernel_t>::value)
         ver = ver_t::u8s8;
@@ -211,8 +234,15 @@ gemv_kernel_t jit_avx512_core_gemv_s8x8s32_kern::generate(int use_vnni) {
     kmovq(mask_m, rbx);
     // mask_m set (AVX512 only), can use rax and rbx again
 
-    // setup register of ones when VNNI instructions not available
-    if (!use_vnni) { vmovdqu16(zmm_one, ptr[rip + one_label]); }
+    // setup const registers
+    if (isa == avx512_core)
+        vmovdqu16(zmm_1_s16, ptr[rip + one_label + 0 * vec_len]);
+    if (isa == avx512_core_vnni && ver == ver_t::s8s8)
+        vmovdqu16(zmm_1_u1, ptr[rip + one_label + 1 * vec_len]);
+    if (ver == ver_t::s8s8)
+        vmovdqu16(zmm_128_u8, ptr[rip + one_label + 2 * vec_len]);
+
+    assert(zmm_1_s16 == zmm_1_u1);
 
     // M loop
     // base pointer for A rax contains a + i * lda
@@ -334,15 +364,19 @@ gemv_kernel_t jit_avx512_core_gemv_s8x8s32_kern::generate(int use_vnni) {
 
     postamble();
 
-    const int size_vec_reg = 64; // bytes
-    if (!use_vnni) {
-        L_aligned(one_label);
-        for (int i = 0; i < size_vec_reg / 8; i++)
-            dq(0x0001000100010001);
-    }
+    L_aligned(one_label);
+    for (int i = 0; i < vec_len / 2; i++) // 1_s16
+        dw((int16_t)0x0001);
+    for (int i = 0; i < vec_len / 2; i++) // 1_u1
+        dw((int16_t)0xffff);
+    for (int i = 0; i < vec_len / 2; i++) // 128_u8
+        dw((int16_t)0x8080);
 
     return (gemv_kernel_t)getCode();
 }
+
+template gemv_s8s8s32_kernel_t
+jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_s8s8s32_kernel_t>(int);
 
 template gemv_s8u8s32_kernel_t
 jit_avx512_core_gemv_s8x8s32_kern::generate<gemv_s8u8s32_kernel_t>(int);

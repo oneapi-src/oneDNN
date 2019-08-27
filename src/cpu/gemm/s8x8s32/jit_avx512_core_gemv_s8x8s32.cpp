@@ -31,9 +31,12 @@ namespace cpu {
 
 namespace {
 
-template <typename GEMM_INFO_T>
-void gemv_kernel_driver(GEMM_INFO_T *arg) {
-    if (arg->swap) {
+template <typename b_type>
+void gemv_kernel_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
+    if (std::is_same<b_type, int8_t>::value) {
+        arg->gemv_s8s8s32_kernel(arg->m, arg->n, 1.0f, (const int8_t *)arg->a,
+                arg->lda, (const int8_t *)arg->b, arg->beta, arg->c);
+    } else if (arg->swap) {
         arg->gemv_u8s8s32_kernel(arg->m, arg->n, 1.0f, (const uint8_t *)arg->a,
                 arg->lda, (const int8_t *)arg->b, arg->beta, arg->c);
     } else {
@@ -42,8 +45,8 @@ void gemv_kernel_driver(GEMM_INFO_T *arg) {
     }
 }
 
-template <typename GEMM_INFO_T>
-int gemv_threading_driver(GEMM_INFO_T *arg) {
+template <typename b_type>
+int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
     dim_t nthr_m, nthr_n = 1;
     dim_t MB, NB, UM = 16, UN = 64;
     dim_t BLOCKM = 192, BLOCKN = 3072;
@@ -51,12 +54,12 @@ int gemv_threading_driver(GEMM_INFO_T *arg) {
 
     dim_t nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
-    uint8_t *new_x = NULL;
+    b_type *new_x = NULL;
     int32_t *tmp_y = NULL, *new_y = NULL;
 
     dim_t m = arg->m, n = arg->n;
 
-    GEMM_INFO_T arg_seq = *arg;
+    gemm_info_t<int8_t, b_type, int32_t> arg_seq = *arg;
     float zero = 0.0f;
 
     nthr_m = nstl::min(nstl::max(m / BLOCKM, (dim_t)1), nthr);
@@ -77,7 +80,7 @@ int gemv_threading_driver(GEMM_INFO_T *arg) {
     nthr = nthr_m * nthr_n;
 
     if (arg->ldb != 1) {
-        new_x = (uint8_t *)malloc(n, 64);
+        new_x = (decltype(new_x))malloc(n, 64);
         if (new_x == NULL) return 0;
         for (i = 0; i < n; i++) {
             new_x[i] = (arg->b)[i * arg->ldb];
@@ -85,7 +88,7 @@ int gemv_threading_driver(GEMM_INFO_T *arg) {
         arg_seq.b = new_x;
         arg_seq.ldb = 1;
     } else
-        new_x = (uint8_t *)arg->b;
+        new_x = (b_type *)arg->b;
 
     if (arg->ldc != 1) {
         new_y = (int32_t *)malloc(
@@ -140,7 +143,7 @@ int gemv_threading_driver(GEMM_INFO_T *arg) {
         dim_t loc_incy = 1;
         int32_t *loc_y;
 
-        GEMM_INFO_T arg_loc = arg_seq;
+        gemm_info_t<int8_t, b_type, int32_t> arg_loc = arg_seq;
         int j;
 
         m_id = ithr / nthr_n;
@@ -218,16 +221,21 @@ int gemv_threading_driver(GEMM_INFO_T *arg) {
     return 1;
 }
 
-template <typename GEMM_INFO_T>
-typename std::enable_if<
-        std::is_same<GEMM_INFO_T, gemm_info_t<int8_t, uint8_t, int32_t>>::value,
+template <typename b_type>
+typename std::enable_if<std::is_same<b_type, uint8_t>::value
+                || std::is_same<b_type, int8_t>::value,
         int>::type
-jump_to_gemv_s8x8s32_impl(GEMM_INFO_T *arg) {
-    GEMM_INFO_T arg_gemv = *arg;
+jump_to_gemv_s8x8s32_impl(gemm_info_t<int8_t, b_type, int32_t> *arg) {
+    gemm_info_t<int8_t, b_type, int32_t> arg_gemv = *arg;
+
+    bool bo_ok
+            = IMPLICATION((std::is_same<b_type, int8_t>::value), arg->bo == 128)
+            || IMPLICATION(
+                    (std::is_same<b_type, uint8_t>::value), arg->bo == 0);
 
     bool applicable = (arg->offsetc == offset_type::fixed) && // Fix offset
-            (arg->ao == 0) && (arg->bo == 0) && (arg->co[0] == 0)
-            && (arg->alpha == 1.0f) && (arg->beta == 1.0f || arg->beta == 0.0f);
+            (arg->ao == 0) && bo_ok && (arg->co[0] == 0) && (arg->alpha == 1.0f)
+            && (arg->beta == 1.0f || arg->beta == 0.0f);
 
     if (!applicable) return 0;
 
@@ -247,9 +255,9 @@ jump_to_gemv_s8x8s32_impl(GEMM_INFO_T *arg) {
             arg_gemv.transa = do_trans;
             arg_gemv.m = arg->n;
             arg_gemv.n = arg->k;
-            arg_gemv.a = (int8_t *)arg->b;
+            arg_gemv.a = (decltype(arg_gemv.a))arg->b;
             arg_gemv.lda = arg->ldb;
-            arg_gemv.b = (uint8_t *)arg->a;
+            arg_gemv.b = (decltype(arg_gemv.b))arg->a;
             arg_gemv.swap = 1;
             if (arg->transa == no_trans) {
                 arg_gemv.ldb = arg->lda;
@@ -277,7 +285,7 @@ int jump_to_gemv_s8x8s32(gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) {
 
 template <>
 int jump_to_gemv_s8x8s32(gemm_info_t<int8_t, int8_t, int32_t> *arg) {
-    return 0;
+    return jump_to_gemv_s8x8s32_impl(arg);
 }
 
 template <>

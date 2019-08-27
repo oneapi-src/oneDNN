@@ -181,6 +181,10 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             const b_type *x, const dim_t *incy, c_type *y)
             = {NULL};
 
+    static void (*gemv_s8s8s32_kern)(const dim_t, const dim_t, const float,
+            const int8_t *, const dim_t, const int8_t *, const float, int32_t *)
+            = {NULL};
+
     static void (*gemv_s8u8s32_kern)(const dim_t, const dim_t, const float,
             const int8_t *, const dim_t, const uint8_t *, const float,
             int32_t *)
@@ -408,10 +412,12 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
             }
         }
 
+        static jit_avx512_core_gemv_s8x8s32_kern *gemv_s8s8s32_kernel = NULL;
         static jit_avx512_core_gemv_s8x8s32_kern *gemv_s8u8s32_kernel = NULL;
         static jit_avx512_core_gemv_s8x8s32_kern *gemv_u8s8s32_kernel = NULL;
         if (data_traits<a_type>::data_type == data_type::s8) {
             if (mayiuse(avx512_core)) {
+                gemv_s8s8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
                 gemv_s8u8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
                 gemv_u8s8s32_kernel = new jit_avx512_core_gemv_s8x8s32_kern();
             }
@@ -465,10 +471,12 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
 
         // Set gemv integer gemm kernels
         if (data_traits<a_type>::data_type == data_type::s8) {
+            gemv_s8s8s32_kern
+                    = gemv_s8s8s32_kernel->generate<gemv_s8s8s32_kernel_t>(
+                            mayiuse(avx512_core_vnni));
             gemv_s8u8s32_kern
                     = gemv_s8u8s32_kernel->generate<gemv_s8u8s32_kernel_t>(
                             mayiuse(avx512_core_vnni));
-
             gemv_u8s8s32_kern
                     = gemv_u8s8s32_kernel->generate<gemv_u8s8s32_kernel_t>(
                             mayiuse(avx512_core_vnni));
@@ -497,9 +505,11 @@ void gemm_info_t<a_type, b_type, c_type>::jit_init(void) {
     for (int isTrans : {no_trans, do_trans})
         this->gemv_kernel[isTrans] = gemv_kern[isTrans];
 
+    this->gemv_s8s8s32_kernel = NULL;
     this->gemv_s8u8s32_kernel = NULL;
     this->gemv_u8s8s32_kernel = NULL;
     if (data_traits<a_type>::data_type == data_type::s8) {
+        this->gemv_s8s8s32_kernel = gemv_s8s8s32_kern;
         this->gemv_s8u8s32_kernel = gemv_s8u8s32_kern;
         this->gemv_u8s8s32_kernel = gemv_u8s8s32_kern;
     }
@@ -522,7 +532,8 @@ bool gemm_info_t<a_type, b_type, c_type>::hasKernels(void) {
                                              [isRowOffset])
                                 return false;
 
-                if (!this->gemv_s8u8s32_kernel || !this->gemv_u8s8s32_kernel)
+                if (!this->gemv_s8u8s32_kernel || !this->gemv_u8s8s32_kernel
+                        || !this->gemv_s8s8s32_kernel)
                     return false;
 
                 if (!this->copyA || !this->copyB) return false;
