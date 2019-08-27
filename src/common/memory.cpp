@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <cpu/cpu_primitive.hpp>
 
 #include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl.hpp"
@@ -89,7 +90,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     this->reset_memory_storage(std::move(memory_storage));
 }
 
-status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
+status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream, bool pads_zeroing) {
     using namespace dnnl::impl;
 
     void *old_handle;
@@ -98,7 +99,10 @@ status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
     if (handle != old_handle) {
         CHECK(memory_storage_->set_data_handle(handle));
     }
-    return status::success;
+
+    memory_arg_t mem_arg = {this, true};
+    exec_args_t args = {{0, mem_arg}};
+    return pads_zeroing ? zero_pad(exec_ctx_t(stream, std::move(args))) : dnnl_success;
 }
 
 status_t dnnl_memory::reset_memory_storage(
@@ -557,11 +561,24 @@ status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
     return dnnl_memory_set_data_handle_v2(memory, handle, nullptr);
 }
 
+status_t dnnl_memory_set_data_handle_no_pads_proc(memory_t *memory, void *handle) {
+    return dnnl_memory_set_data_handle_v2_no_pads_proc(memory, handle, nullptr);
+}
+
 status_t dnnl_memory_set_data_handle_v2(
         memory_t *memory, void *handle, stream_t *stream) {
     if (any_null(memory)) return invalid_arguments;
     if (stream) stream->before_exec_hook();
-    status_t status = memory->set_data_handle(handle, stream);
+    status_t status = memory->set_data_handle(handle, stream, true);
+    if (stream) stream->after_exec_hook();
+    return status;
+}
+
+status_t dnnl_memory_set_data_handle_v2_no_pads_proc(
+        memory_t *memory, void *handle, stream_t *stream) {
+    if (any_null(memory)) return invalid_arguments;
+    if (stream) stream->before_exec_hook();
+    status_t status = memory->set_data_handle(handle, stream, false);
     if (stream) stream->after_exec_hook();
     return status;
 }

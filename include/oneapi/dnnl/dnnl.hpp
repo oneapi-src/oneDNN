@@ -2833,6 +2833,12 @@ struct memory : public handle<dnnl_memory_t> {
                 "could not set native handle of a memory object");
     }
 
+    void set_data_handle_no_pads_proc(void *handle) const {
+        error::wrap_c_api(
+                dnnl_memory_set_data_handle_v2_no_pads_proc(get(), handle, nullptr),
+                "could not set native handle of a memory object");
+    }
+
     /// Maps a memory object and returns a host-side pointer to a memory
     /// buffer with a copy of its contents.
     ///
