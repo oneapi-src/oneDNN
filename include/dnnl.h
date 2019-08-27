@@ -1144,6 +1144,9 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
         dnnl_memory_t memory, void *handle);
 
+dnnl_status_t DNNL_API dnnl_memory_set_data_handle_no_pads_proc(
+        dnnl_memory_t memory, void *handle);
+
 /// Sets the underlying memory buffer.
 ///
 /// This function may write zero values to the memory specified by the @p
@@ -1173,6 +1176,9 @@ dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
+        dnnl_memory_t memory, void *handle, dnnl_stream_t stream);
+
+dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2_no_pads_proc(
         dnnl_memory_t memory, void *handle, dnnl_stream_t stream);
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL

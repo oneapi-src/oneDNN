@@ -53,7 +53,7 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
     }
 
     /** sets data handle */
-    dnnl::impl::status_t set_data_handle(void *handle, dnnl_stream *stream);
+    dnnl::impl::status_t set_data_handle(void *handle, dnnl_stream *stream, bool pads_zeroing);
 
     /** zeros padding */
     dnnl::impl::status_t zero_pad(dnnl_stream *stream) const;

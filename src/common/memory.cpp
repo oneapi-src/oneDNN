@@ -52,7 +52,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     if (!(flags & omit_zero_pad)) zero_pad(nullptr);
 }
 
-status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
+status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream, bool pads_zeroing) {
     using namespace dnnl::impl;
 
     void *old_handle;
@@ -61,7 +61,7 @@ status_t dnnl_memory::set_data_handle(void *handle, stream_t *stream) {
     if (handle != old_handle) {
         CHECK(memory_storage()->set_data_handle(handle));
     }
-    return zero_pad(stream);
+    return pads_zeroing ? zero_pad(stream) : dnnl_success;
 }
 
 status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
@@ -493,10 +493,20 @@ status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
     return dnnl_memory_set_data_handle_v2(memory, handle, nullptr);
 }
 
+status_t dnnl_memory_set_data_handle_no_pads_proc(memory_t *memory, void *handle) {
+    return dnnl_memory_set_data_handle_v2_no_pads_proc(memory, handle, nullptr);
+}
+
 status_t dnnl_memory_set_data_handle_v2(
         memory_t *memory, void *handle, stream_t *stream) {
     if (any_null(memory)) return invalid_arguments;
-    return memory->set_data_handle(handle, stream);
+    return memory->set_data_handle(handle, stream, true);
+}
+
+status_t dnnl_memory_set_data_handle_v2_no_pads_proc(
+        memory_t *memory, void *handle, stream_t *stream) {
+    if (any_null(memory)) return invalid_arguments;
+    return memory->set_data_handle(handle, stream, false);
 }
 
 status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {
