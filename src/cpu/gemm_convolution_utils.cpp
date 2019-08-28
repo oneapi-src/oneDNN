@@ -1073,7 +1073,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         if (is_bwd_w) {
             jcp.need_wei_reduction = jcp.mb != 1 && jcp.nthr != 1;
             scratchpad.book(key_conv_wei_reduction,
-                    sizeof(float) * jcp.nthr * jcp.ngroups * weights_d.size());
+                    sizeof(float) * jcp.nthr * weights_d.size());
         }
 
         if (is_bf16_to_bf16_conv) {
