@@ -129,8 +129,10 @@ static inline void write_to_mkldnn_memory(void *handle, mkldnn_memory_t mem) {
     if (eng_kind == mkldnn_cpu) {
         void *ptr = NULL;
         CHECK(mkldnn_memory_get_data_handle(mem, &ptr));
-        for (size_t i = 0; i < bytes; ++i) {
-            ((char *)handle)[i] = ((char *)ptr)[i];
+        if (ptr) {
+            for (size_t i = 0; i < bytes; ++i) {
+                ((char *)handle)[i] = ((char *)ptr)[i];
+            }
         }
     }
 #if MKLDNN_GPU_RUNTIME == MKLDNN_RUNTIME_OCL
