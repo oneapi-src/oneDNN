@@ -971,28 +971,35 @@ static inline std::tuple<int, int> partition_2d_minblk(dim_t m, dim_t n,
     return std::make_tuple(nthr_m, nthr_n);
 }
 
+// TODO Reorder arguments for do_{m,n,k}_blocking
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_min_blk_2d_partition(int nthrs,
-        blas_thread_t &thread_info,
-        const gemm_info_t<a_type, b_type, c_type> *arg) {
+static inline void set_partition_3d(int nthrs, blas_thread_t &thread_info,
+        const gemm_info_t<a_type, b_type, c_type> *arg,
+        bool do_k_blocking = true, bool do_m_blocking = true,
+        bool do_n_blocking = true) {
 
     constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
+    bool do_m_blocking_only = do_m_blocking && !do_n_blocking;
 
-    auto m = arg->m, n = arg->n;
+    auto m = arg->m, n = arg->n, k = arg->k;
 
     auto &nthr_m = thread_info.nthrs_m;
     auto &nthr_n = thread_info.nthrs_n;
+    auto &nthr_k = thread_info.nthrs_k;
     auto &thread_m = thread_info.thread_m;
     auto &thread_n = thread_info.thread_n;
+    auto &thread_k = thread_info.thread_k;
     auto &block_m = thread_info.block_m;
     auto &block_n = thread_info.block_n;
+    auto &block_k = thread_info.block_k;
 
     constexpr auto MBLK = 64;
     constexpr auto NBLK = 64;
+    constexpr auto KBLK = is_int8 ? 384 : 256;
 
-    nthr_m = nthr_n = 1;
+    nthr_m = nthr_n = nthr_k = 1;
     thread_info.copy_type = COPY_NONE;
-    thread_info.partition = PARTITION_2D_MIN_BLK;
+    thread_info.partition = PARTITION_3D;
 
     auto choose_blocking
             = [](dim_t size_z, dim_t &thread_z, int &nthr_z,
@@ -1007,76 +1014,54 @@ static inline void set_min_blk_2d_partition(int nthrs,
               };
 
     auto choose_m_blocking = [&]() {
-        auto align = is_int8 ? 16 : get_vector_length<a_type>();
+        dim_t align = is_int8 ? 16 : get_vector_length<a_type>();
+        align = do_m_blocking_only ? arg->um : align;
         choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, align);
     };
     auto choose_n_blocking = [&]() {
         choose_blocking(n, thread_n, nthr_n, arg->bn, block_n, arg->un);
     };
+    auto choose_k_blocking = [&]() {
+        dim_t align = nstl::max(arg->uk, dim_t(4));
+        choose_blocking(k, thread_k, nthr_k, arg->bk, block_k, align);
+    };
+
+    // Choose k blocking.
+    if ((m / MBLK + n / NBLK) < nthrs && do_k_blocking)
+        for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
+            if (nthrs % nk == 0) nthr_k = nk;
+
+    choose_k_blocking();
 
     // Choose m/n blocking.
     auto min_mblk = mayiuse(avx512_core) ? (MBLK / 2) : arg->um;
+    min_mblk = do_m_blocking ? min_mblk : m;
+    min_mblk = do_m_blocking_only ? arg->um : min_mblk;
+    auto min_nblk = do_n_blocking ? NBLK / 2 : n;
+
     std::tie(nthr_m, nthr_n) = partition_2d_minblk(
-            m, n, MBLK, NBLK, min_mblk, NBLK / 2, nthrs);
+            m, n, MBLK, NBLK, min_mblk, min_nblk, nthrs / nthr_k);
 
     auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
 
     choose_m_blocking();
     choose_n_blocking();
 
-    if (is_int8) {
+    if (is_int8 && do_m_blocking && do_n_blocking) {
         // If we lost a thread in one dimension because we padded the blocking
         // size, try to rebalance the other dimensions.
         if ((nthr_n != nthr_n_init)
-                && ((nthr_m + 1) * nthr_n <= nthrs)) {
+                && ((nthr_m + 1) * nthr_n * nthr_k <= nthrs)) {
             nthr_m++;
             choose_m_blocking();
         }
 
         if ((nthr_m != nthr_m_init)
-                && (nthr_m * (nthr_n + 1) <= nthrs)) {
+                && (nthr_m * (nthr_n + 1) * nthr_k <= nthrs)) {
             nthr_n++;
             choose_n_blocking();
         }
     }
-}
-
-template <typename a_type, typename b_type, typename c_type>
-static inline void set_min_blk_1d_partition(int nthrs,
-        blas_thread_t &thread_info,
-        const gemm_info_t<a_type, b_type, c_type> *arg) {
-
-    auto m = arg->m;
-
-    auto &nthr_m = thread_info.nthrs_m;
-    auto &thread_m = thread_info.thread_m;
-    auto &block_m = thread_info.block_m;
-
-    thread_info.copy_type = COPY_NONE;
-    thread_info.partition = PARTITION_1D_ROW_MIN_BLK;
-
-    auto choose_blocking
-            = [](dim_t size_z, dim_t &thread_z, int &nthr_z,
-                    dim_t block_z_init, dim_t &block_z, dim_t block_align) {
-                  thread_z = utils::div_up(size_z, nthr_z);
-                  auto num_blk = utils::div_up(thread_z, block_z_init);
-                  block_z = utils::div_up(thread_z, num_blk);
-                  block_z = utils::rnd_up(block_z, block_align);
-                  thread_z = num_blk * block_z;
-                  if (thread_z * nthr_z > size_z)
-                      nthr_z = (int) utils::div_up(size_z, thread_z);
-              };
-
-    auto choose_m_blocking = [&]() {
-        choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, arg->um);
-    };
-
-    // Compute # threads in m-direction.
-    dim_t part_m = nstl::max(dim_t(1), utils::div_up(m, arg->um));
-    nthr_m = (int)nstl::min(part_m, (dim_t)nthrs);
-
-    // Choose m blocking.
-    choose_m_blocking();
 }
 
 #define N2D_MAX 384
@@ -1214,8 +1199,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
                 thread_info->nthrs_n = nthrs_n;
                 thread_info->partition = PARTITION_2D;
             } else {
-                // Use 3D decompostition from pack api without k-partitioning.
-                set_min_blk_2d_partition(nthrs, *thread_info, arg);
+                // Use 3D decomposition without k-partitioning.
+                set_partition_3d(nthrs, *thread_info, arg, false);
             }
         }
 
@@ -1237,7 +1222,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         if (m > n && (m >= nthrs * veclen || n < nthrs)) {
 
             if (n <= 20 && isInteger) {
-                set_min_blk_1d_partition(nthrs, *thread_info, arg);
+                // Use 3D decompostition forcing m-blocking only.
+                set_partition_3d(nthrs, *thread_info, arg, false, true, false);
             } else {
                 thread_info->partition = PARTITION_1D_ROW;
             }
@@ -1248,93 +1234,6 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
 }
 #undef N2D_MAX
 #undef M2D_MIN
-
-// TODO Give a better name for this function. It is supposed to do k-blocking.
-template <typename a_type, typename b_type, typename c_type>
-static inline void set_thread_opts_pack(int nthrs,
-        blas_thread_t &thread_info,
-        const gemm_info_t<a_type, b_type, c_type> *arg,
-        bool do_k_blocking = true) {
-
-    constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
-
-    auto m = arg->m, n = arg->n, k = arg->k;
-
-    auto &nthr_m = thread_info.nthrs_m;
-    auto &nthr_n = thread_info.nthrs_n;
-    auto &nthr_k = thread_info.nthrs_k;
-    auto &thread_m = thread_info.thread_m;
-    auto &thread_n = thread_info.thread_n;
-    auto &thread_k = thread_info.thread_k;
-    auto &block_m = thread_info.block_m;
-    auto &block_n = thread_info.block_n;
-    auto &block_k = thread_info.block_k;
-
-    constexpr auto MBLK = 64;
-    constexpr auto NBLK = 64;
-    constexpr auto KBLK = is_int8 ? 384 : 256;
-
-    nthr_m = nthr_n = nthr_k = 1;
-    thread_info.copy_type = COPY_NONE;
-    thread_info.partition = PARTITION_3D;
-
-    auto choose_blocking
-            = [](dim_t size_z, dim_t &thread_z, int &nthr_z,
-                    dim_t block_z_init, dim_t &block_z, dim_t block_align) {
-                  thread_z = utils::div_up(size_z, nthr_z);
-                  auto num_blk = utils::div_up(thread_z, block_z_init);
-                  block_z = utils::div_up(thread_z, num_blk);
-                  block_z = utils::rnd_up(block_z, block_align);
-                  thread_z = num_blk * block_z;
-                  if (thread_z * nthr_z > size_z)
-                      nthr_z = (int) utils::div_up(size_z, thread_z);
-              };
-
-    auto choose_m_blocking = [&]() {
-        auto align = is_int8 ? 16 : get_vector_length<a_type>();
-        choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, align);
-    };
-    auto choose_n_blocking = [&]() {
-        choose_blocking(n, thread_n, nthr_n, arg->bn, block_n, arg->un);
-    };
-    auto choose_k_blocking = [&]() {
-        auto align = nstl::max(arg->uk, dim_t(4));
-        choose_blocking(k, thread_k, nthr_k, arg->bk, block_k, align);
-    };
-
-    // Choose k blocking.
-    if ((m / MBLK + n / NBLK) < nthrs && do_k_blocking)
-        for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
-            if (nthrs % nk == 0) nthr_k = nk;
-
-    choose_k_blocking();
-
-    // Choose m/n blocking.
-    auto min_mblk = mayiuse(avx512_core) ? (MBLK / 2) : arg->um;
-    std::tie(nthr_m, nthr_n) = partition_2d_minblk(
-            m, n, MBLK, NBLK, min_mblk, NBLK / 2, nthrs / nthr_k);
-
-    auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
-
-    choose_m_blocking();
-    choose_n_blocking();
-
-    if (is_int8) {
-        // If we lost a thread in one dimension because we padded the blocking
-        // size, try to rebalance the other dimensions.
-        if ((nthr_n != nthr_n_init)
-                && ((nthr_m + 1) * nthr_n * nthr_k <= nthrs)) {
-            nthr_m++;
-            choose_m_blocking();
-        }
-
-        if ((nthr_m != nthr_m_init)
-                && (nthr_m * (nthr_n + 1) * nthr_k <= nthrs)) {
-            nthr_n++;
-            choose_n_blocking();
-        }
-    }
-}
 
 template <typename a_type, typename b_type, typename c_type>
 static inline void decompose_matrices(const int ithr, int *nthrs,
@@ -1360,46 +1259,6 @@ static inline void decompose_matrices(const int ithr, int *nthrs,
             dim_t offset = 0;
             dim_t block = 0;
             partition_1d(ithr, *nthrs, arg->m, &offset, &block);
-
-            *ithr_m = ithr;
-
-            *m = block;
-            *n = arg->n;
-            *k = arg->k;
-
-            if (a && b && c && co) {
-                // Set matrix A.
-                *a = arg->a + offset * strideAm;
-
-                // Set matrix B.
-                *b = arg->b;
-
-                // Set matrix C.
-                *c = arg->c + offset;
-
-                // Set offset vector for C matrix.
-                if (isInteger) {
-                    dim_t co_stride = 0;
-                    if (offsetc == FIX_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == ROW_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == COL_OFFSET) {
-                        co_stride = offset;
-                    }
-                    *co = arg->co + co_stride;
-                }
-            }
-            break;
-        }
-
-    case PARTITION_1D_ROW_MIN_BLK:
-        {
-            dim_t thread_m = thread_info->thread_m;
-            assert(thread_m > 0);
-
-            dim_t offset = ithr * thread_m;
-            dim_t block = nstl::min(thread_m, arg->m - offset);
 
             *ithr_m = ithr;
 
@@ -1488,54 +1347,6 @@ static inline void decompose_matrices(const int ithr, int *nthrs,
 
             *ithr_m = ithr_i;
             *ithr_n = ithr_j;
-
-            *m = m_band;
-            *n = n_band;
-            *k = arg->k;
-
-            if (a && b && c && co) {
-                // Set matrix A.
-                *a = arg->a + m_disp * strideAm;
-
-                // Set matrix B.
-                *b = arg->b + n_disp * strideBn;
-
-                // Set matrix C.
-                *c = arg->c + m_disp + n_disp * arg->ldc;
-
-                // Set offset vector for C matrix
-                if (isInteger) {
-                    dim_t co_stride = 0;
-                    if (offsetc == FIX_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == ROW_OFFSET) {
-                        co_stride = n_disp;
-                    } else if (offsetc == COL_OFFSET) {
-                        co_stride = m_disp;
-                    }
-                    *co = arg->co + co_stride;
-                }
-            }
-            break;
-        }
-
-    case PARTITION_2D_MIN_BLK:
-        {
-            dim_t thread_m = thread_info->thread_m;
-            dim_t thread_n = thread_info->thread_n;
-            assert(thread_m > 0 && thread_n > 0);
-
-            int nthrs_m = thread_info->nthrs_m;
-            int ithr_m_ = ithr % nthrs_m;
-            int ithr_n_ = ithr / nthrs_m;
-
-            dim_t m_disp = ithr_m_ * thread_m;
-            dim_t m_band = nstl::min(thread_m, arg->m - m_disp);
-            dim_t n_disp = ithr_n_ * thread_n;
-            dim_t n_band = nstl::min(thread_n, arg->n - n_disp);
-
-            *ithr_m = ithr_m_;
-            *ithr_n = ithr_n_;
 
             *m = m_band;
             *n = n_band;
@@ -1918,7 +1729,7 @@ static mkldnn_status_t gemm_threading_driver(
     // Use k-partitioning for large k and small n.
     constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
     if (arg->n <= 128 && arg->k >= 3072 && is_int8) {
-        set_thread_opts_pack(nthr_goal, force_k_decomp, arg);
+        set_partition_3d(nthr_goal, force_k_decomp, arg, true, true, false);
 
         // Decide type of partition later if no partitions in k and m
         // dimensions.
