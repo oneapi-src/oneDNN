@@ -153,8 +153,11 @@ extern const char *perf_template; /* performance output template */
 inline size_t src_off_f(const prb_t *p, int mb, int g, int ic,
                         int id, int ih, int iw)
 {
-    return ((((size_t)mb * p->ic + g * p->ic/p->g + ic)
-        * p->id + id) * p->ih + ih) * p->iw + iw;
+    return ((((size_t)mb * p->ic + (size_t)g * p->ic / p->g + ic) * p->id + id)
+                           * p->ih
+                   + ih)
+            * p->iw
+            + iw;
 }
 
 inline void inv_src_off_f(const prb_t *p, size_t off, int &mb, int &g, int &ic,
@@ -196,11 +199,13 @@ inline void inv_bia_off_f(const prb_t *p, size_t off, int &g, int &oc) {
     assert(off == 0);
 }
 
-inline size_t dst_off_f(const prb_t *p, int mb, int g, int oc,
-                        int od, int oh, int ow)
-{
-    return ((((size_t)mb * p->oc + g * p->oc/p->g + oc) * p->od + od)
-        * p->oh + oh) * p->ow + ow;
+inline size_t dst_off_f(
+        const prb_t *p, int mb, int g, int oc, int od, int oh, int ow) {
+    return ((((size_t)mb * p->oc + (size_t)g * p->oc / p->g + oc) * p->od + od)
+                           * p->oh
+                   + oh)
+            * p->ow
+            + ow;
 }
 
 inline void inv_dst_off_f(const prb_t *p, size_t off, int &mb, int &g, int &oc,
