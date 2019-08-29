@@ -60,6 +60,20 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
+# XXX: Compilation with SYCL compiler takes too long for JIT kernels
+if(DNNL_SYCL_INTEL)
+    set(FILES_WITHNO_OPT)
+    foreach(src in ${SOURCES})
+        string(REGEX MATCH ".*jit.*kern.cpp" match ${src})
+        if(match)
+            list(APPEND FILES_WITHNO_OPT ${src})
+        endif()
+    endforeach()
+
+    set_source_files_properties(${FILES_WITHNO_OPT}
+        PROPERTIES COMPILE_FLAGS "-O0")
+endif()
+
 set(OBJ_LIB ${LIB_NAME}_cpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set(${LIB_NAME}_SUB_OBJS ${${LIB_NAME}_SUB_OBJS}
