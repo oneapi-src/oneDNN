@@ -1835,7 +1835,11 @@ static mkldnn_status_t gemm_threading_driver(
 
     char *shared_mem = NULL;
 
-    parallel(nthr_goal, [&](int ithr, const int nthr) {
+    // If force_threading is active, always use the maximum number of threads
+    // to avoid OMP overhead that can occur due to changing thread counts.
+    int nthr_spawn = (force_threading) ? nthr_max : nthr_goal;
+
+    parallel(nthr_spawn, [&](int ithr, const int nthr) {
         int nthr_eff = force_threading? nthr_goal : nstl::min(nthr_goal, nthr);
         if (nthr_eff == 1) {
             thread_arg[0].result = gemm_kernel_driver(arg->m, arg->n, arg->k,
