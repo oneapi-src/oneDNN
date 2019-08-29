@@ -245,7 +245,6 @@ TEST(sycl_memory_test, EltwiseWithUserKernel) {
 
     for (int i = 0; i < N; i++) {
         float exp_value = (i - N / 2) <= 0 ? 0 : (i - N / 2);
-        assert(host_acc[i] == float(exp_value));
         EXPECT_EQ(host_acc[i], float(exp_value));
     }
 }
