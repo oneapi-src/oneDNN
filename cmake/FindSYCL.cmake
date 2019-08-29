@@ -21,6 +21,7 @@
 list(APPEND sycl_root_hints
             ${SYCLROOT}
             $ENV{SYCLROOT}
+            $ENV{DPCPP_ROOT}/compiler/latest/linux
             ${SYCL_BUNDLE_ROOT}
             $ENV{SYCL_BUNDLE_ROOT})
 
@@ -28,6 +29,12 @@ list(APPEND sycl_root_hints
 set(original_cmake_prefix_path ${CMAKE_PREFIX_PATH})
 if(sycl_root_hints)
     list(INSERT CMAKE_PREFIX_PATH 0 ${sycl_root_hints})
+endif()
+
+# XXX: workaround to use OpenCL from DPC++ builds
+if(DEFINED ENV{DPCPP_ROOT})
+    list(INSERT CMAKE_PREFIX_PATH 0
+        $ENV{DPCPP_ROOT}/compiler/latest/linux/lib/clang/9.0.0)
 endif()
 
 include(FindPackageHandleStandardArgs)
