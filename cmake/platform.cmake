@@ -49,6 +49,8 @@ if(WIN32 AND DNNL_SYCL_INTEL)
     add_definitions(-U__GNUC__ -U__STDC__)
     # XXX: workaround for 'unknown type name IUnknown' from combaseapi.h
     add_definitions(-DCINTERFACE)
+    # XXX: Intel SYCL compiler generates a lot of warnings
+    append(CMAKE_CCXX_FLAGS "-w")
     # XXX: ignore __declspec warning
     append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
     # XXX: ignore 'XXX is deprecated' coming from Intel TBB headers
