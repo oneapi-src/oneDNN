@@ -2594,6 +2594,12 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.back_pad = (jcp.od - 1) * jcp.stride_d
             + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
 
+    /* XXX BUGBUGBUG: current workaround to support negative padding: use the
+     * 'stride-complement' of padding instead. */
+    if (jcp.kh == 1 && jcp.b_pad < 0) jcp.b_pad = jcp.stride_h + jcp.b_pad;
+    if (jcp.kd == 1 && jcp.back_pad < 0)
+        jcp.back_pad = jcp.stride_d + jcp.back_pad;
+
     jcp.aligned_threads = 0;
 
     jcp.is_1stconv = false;
