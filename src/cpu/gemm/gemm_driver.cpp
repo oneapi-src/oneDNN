@@ -1027,9 +1027,18 @@ static inline void set_partition_3d(int nthrs, blas_thread_t &thread_info,
     };
 
     // Choose k blocking.
-    if ((m / MBLK + n / NBLK) < nthrs && do_k_blocking)
+    if ((m / MBLK + n / NBLK) < nthrs && do_k_blocking) {
         for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
             if (nthrs % nk == 0) nthr_k = nk;
+
+        // Sacrifice one thread and try again if parallelism is too small in
+        // n-dimension.
+        if (nthr_k == 1 && nthrs > 1 && do_m_blocking_only) {
+            nthrs--;
+            for (int nk = 1; nk <= 4 && k >= ((KBLK + 1) * nk); nk++)
+                if (nthrs % nk == 0) nthr_k = nk;
+        }
+    }
 
     choose_k_blocking();
 
