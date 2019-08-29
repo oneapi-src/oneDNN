@@ -63,8 +63,8 @@ else()
     endif()
 endif()
 
-find_package(mkldnn @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${MKLDNNROOT})
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MKLDNN_COMPILE_FLAGS}")
+find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DNNL_COMPILE_FLAGS}")
 
 if(WIN32)
     set(CTESTCONFIG_PATH "${DNNLROOT}/bin")
@@ -86,13 +86,14 @@ function(maybe_configure_test name kind)
     endif()
 endfunction()
 
+find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT})
+
 # Register example
 #   name -- name of the executable
 #   srcs -- list of source, if many must be enclosed with ""
 #   test -- "test" to mark executable as a test, "" otherwise
 function(register_example name srcs test)
     add_executable(${name} ${srcs})
-    find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT})
     target_link_libraries(${name} DNNL::dnnl ${LIBM})
     if("x${test}" STREQUAL "xtest")
         add_test(${name} ${name})
@@ -105,36 +106,31 @@ file(GLOB sources *.cpp *.c)
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "sycl*")
-         if(DNNL_GPU_RUNTIME STREQUAL "SYCL")
-            if(NOT ${example_name} MATCHES ".*usm" OR DNNL_SYCL_INTEL)
-                register_exe(${example_name} ${src} "test" ${LIBM})
-                if(DNNL_SYCL_COMPUTECPP AND NOT ${example_name} MATCHES ".*usm")
-                    add_sycl_to_target(TARGET ${example_name} SOURCES ${src})
-                endif()
-            endif()
-        endif()     
-    elseif(${example_name} MATCHES ".*opencl")
-        if (DNNL_GPU_RUNTIME STREQUAL "OCL")
-            register_exe(${example_name} ${src} "test" ${LIBM})
-        endif(
-    elseif(${example_name} MATCHES "^(cpu)")
-        # Example name contains cpu-
-        register_example(${example_name} ${src} "test" ${LIBM})
-    elseif(${example_name} MATCHES "^(cross-engine|gpu)")
-        # Example Name contains cross-engine or gpu-
-        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    if(${example_name} MATCHES "^(cross-engine|gpu)")
+        # Example name contains cross-engine or gpu-
+        if(NOT ${example_name} MATCHES ".*opencl" OR DNNL_GPU_RUNTIME STREQUAL "OCL")
             register_example(${example_name} ${src} "test" ${LIBM})
         endif()
     else()
-        register_example(${example_name} ${src} "" ${LIBM})
-        # Adding test for CPU
-        add_test("cpu-${example_name}" "${example_name}" cpu)
-        maybe_configure_test("cpu-${example_name}" TEST)
-        # Adding test for GPU
-        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+        set(cpu_rt_pattern "(SEQ|OMP|TBB|SYCL)")
+        set(gpu_rt_pattern "(OCL|SYCL)")
+        if(${example_name} MATCHES "sycl.*")
+            set(cpu_rt_pattern "SYCL")
+            set(gpu_rt_pattern "SYCL")
+        endif()
+        if(DNNL_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
+            # Adding test for CPU
+            add_test("cpu-${example_name}" "${example_name}" cpu)
+            maybe_configure_test("cpu-${example_name}" TEST)
+        endif()
+        if(DNNL_GPU_RUNTIME MATCHES ${gpu_rt_pattern})
+            # Adding test for GPU
             add_test("gpu-${example_name}" "${example_name}" gpu)
             maybe_configure_test("gpu-${example_name}" TEST)
+        endif()
+        register_example(${example_name} ${src} "" ${LIBM})
+        if(DNNL_SYCL_COMPUTECPP)
+            add_sycl_to_target(TARGET ${example_name} SOURCES ${src})
         endif()
     endif()
 endforeach()

@@ -17,6 +17,7 @@
 #ifndef EXAMPLE_UTILS_H
 #define EXAMPLE_UTILS_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,19 +81,26 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-    if (eng_kind == dnnl_cpu) {
-        void *ptr = NULL;
-        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
-        if ((char *)ptr != NULL) {
+#if DNNL_WITH_SYCL
+    bool is_cpu_sycl
+            = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
+    bool is_gpu_sycl
+            = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_gpu);
+    if (is_cpu_sycl || is_gpu_sycl) {
+        void *mapped_ptr = NULL;
+        CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
+        if (mapped_ptr) {
             for (size_t i = 0; i < bytes; ++i) {
-                ((char *)handle)[i] = ((char *)ptr)[i];
+                ((char *)handle)[i] = ((char *)mapped_ptr)[i];
             }
-        } else {
-            handle = NULL;
         }
+        CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
+        return;
     }
+#endif
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    else if (eng_kind == dnnl_gpu) {
+    if (eng_kind == dnnl_gpu) {
         dnnl_stream_t s;
         cl_command_queue q;
         cl_mem m;
@@ -115,6 +123,19 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
         dnnl_stream_destroy(s);
     }
 #endif
+
+    if (eng_kind == dnnl_cpu) {
+        void *ptr = NULL;
+        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
+        if (ptr) {
+            for (size_t i = 0; i < bytes; ++i) {
+                ((char *)handle)[i] = ((char *)ptr)[i];
+            }
+        }
+        return;
+    }
+
+    assert(!"not expected");
 }
 
 // Read from handle, write to memory
@@ -128,19 +149,26 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-    if (eng_kind == dnnl_cpu) {
-        void *ptr = NULL;
-        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
-        if ((char *)ptr != NULL) {
+#if DNNL_WITH_SYCL
+    bool is_cpu_sycl
+            = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
+    bool is_gpu_sycl
+            = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_gpu);
+    if (is_cpu_sycl || is_gpu_sycl) {
+        void *mapped_ptr = NULL;
+        CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
+        if (mapped_ptr) {
             for (size_t i = 0; i < bytes; ++i) {
-                ((char *)handle)[i] = ((char *)ptr)[i];
+                ((char *)mapped_ptr)[i] = ((char *)handle)[i];
             }
-        } else {
-            handle = NULL;
         }
+        CHECK(dnnl_memory_unmap_data(mem, mapped_ptr));
+        return;
     }
+#endif
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    else if (eng_kind == dnnl_gpu) {
+    if (eng_kind == dnnl_gpu) {
         dnnl_stream_t s;
         cl_command_queue q;
         cl_mem m;
@@ -161,8 +189,24 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
         }
 
         dnnl_stream_destroy(s);
+        return;
     }
 #endif
+
+    if (eng_kind == dnnl_cpu) {
+        void *ptr = NULL;
+        CHECK(dnnl_memory_get_data_handle(mem, &ptr));
+        if ((char *)ptr != NULL) {
+            for (size_t i = 0; i < bytes; ++i) {
+                ((char *)handle)[i] = ((char *)ptr)[i];
+            }
+        } else {
+            handle = NULL;
+        }
+        return;
+    }
+
+    assert(!"not expected");
 }
 
 #endif

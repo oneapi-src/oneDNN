@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "examples_utils.hpp"
+#include "example_utils.hpp"
 #include "mkldnn.hpp"
 #include "mkldnn_debug.h"
 #include <CL/sycl.hpp>
@@ -75,7 +75,7 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
 
 int main(int argc, char **argv) {
     try {
-        engine::kind engine_kind = get_engine_kind(argc, argv);
+        engine::kind engine_kind = parse_engine_kind(argc, argv);
         sycl_usm_tutorial(engine_kind);
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl

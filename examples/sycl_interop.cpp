@@ -50,7 +50,7 @@
 // [Prologue]
 
 #include <mkldnn.hpp>
-#include "examples_utils.hpp"
+#include "example_utils.hpp"
 #include "mkldnn_debug.h"
 #include <CL/sycl.hpp>
 
@@ -222,7 +222,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
 // [Main]
 int main(int argc, char **argv) {
     try {
-        engine::kind engine_kind = get_engine_kind(argc, argv);
+        engine::kind engine_kind = parse_engine_kind(argc, argv);
         sycl_interop_tutorial(engine_kind);
     } catch (mkldnn::error &e) {
         std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
