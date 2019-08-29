@@ -112,8 +112,8 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 
-if(MKLDNN_CPU_RUNTIME STREQUAL "SYCL" OR
-   MKLDNN_GPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR
+   DNNL_GPU_RUNTIME STREQUAL "SYCL")
     add_subdirectory(sycl)
 endif()
 
