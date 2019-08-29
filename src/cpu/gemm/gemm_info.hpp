@@ -24,21 +24,6 @@ namespace impl {
 namespace cpu {
 
 enum {
-    PARTITION_1D_ROW,
-    PARTITION_1D_ROW_MIN_BLK,
-    PARTITION_1D_COL,
-    PARTITION_2D_COL_MAJOR,
-    PARTITION_2D = PARTITION_2D_COL_MAJOR,
-    PARTITION_3D,
-};
-
-enum {
-    COPY_NONE,
-    COPY_A,
-    NO_COPY,
-};
-
-enum {
     NO_OFFSET,
     FIX_OFFSET,
     COL_OFFSET,

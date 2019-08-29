@@ -25,6 +25,8 @@
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
 #include "gemm_info.hpp"
+#include "gemm_partition.hpp"
+#include "gemm_threading.hpp"
 #include "jit_generator.hpp"
 #include "mkldnn_traits.hpp"
 #include "mkldnn_types.h"
@@ -46,21 +48,8 @@ struct alignas(64) gemm_per_thread_t {
     dim_t ldc_global;
     c_type *c_local;
     c_type *volatile c_global;
-    dim_t m;
-    dim_t n;
-    dim_t k;
-    int ithr_m;
-    int ithr_n;
-    int ithr_k;
+    gemm_slice_t slice;
 };
-
-typedef struct {
-    int nthrs_m, nthrs_n, nthrs_k;
-    dim_t thread_m, thread_n, thread_k;
-    dim_t block_m, block_n, block_k;
-    int partition;
-    int copy_type;
-} blas_thread_t;
 
 template <typename T>
 int get_vector_length() {
@@ -269,119 +258,6 @@ void scale_matrix(dim_t m, dim_t n, scale_t alpha, mat_t * __restrict p_mat,
     }
 }
 
-static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
-        dim_t *t_offset, dim_t *t_block) {
-
-    dim_t band = n / nthrs;
-
-    dim_t tail = n - (nthrs - 1) * band;
-    if (tail > (band + 1))
-        band++;
-    tail = n - (nthrs - 1) * band;
-
-    if (ithr < (nthrs - 1))
-        *t_block = band;
-    else
-        *t_block = tail;
-
-    *t_offset = ithr * band;
-
-    if (*t_offset >= n) {
-        *t_block = 0;
-        *t_offset = 0;
-    } else if ((*t_offset + *t_block) > n) {
-        *t_block = n - *t_offset;
-    }
-}
-
-static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
-        const int ithr_j, const int nthrs_m, const int nthrs_n, const dim_t m,
-        const dim_t n, dim_t *p_m_disp, dim_t *p_m_band, dim_t *p_n_disp,
-        dim_t *p_n_band) {
-
-    dim_t m_disp = 0, n_disp = 0;
-    dim_t m_band = 0, n_band = 0;
-
-    int mdiv = nthrs_m;
-    int ndiv = nthrs_n;
-
-    dim_t m_bandt = m / mdiv; /* size per thread */
-    dim_t n_bandt = n / ndiv; /* size per thread */
-    int firstmgroup = mdiv - 1;
-    int firstngroup = ndiv - 1;
-    dim_t firstmval = m_bandt;
-    dim_t firstnval = n_bandt;
-
-    int mthr_used = mdiv;
-    if (m - (mdiv - 1) * m_bandt > m_bandt + 1) {
-        if (m - (mdiv - 1) * m_bandt > mdiv)
-            ++m_bandt;
-
-        firstmval = m_bandt + 1;
-        mthr_used = (int) (m / firstmval);
-
-        if (mthr_used * firstmval < m)
-            ++mthr_used;
-
-        firstmgroup = mthr_used - 1;
-    }
-
-    int nthr_used = ndiv;
-    if (n - (ndiv - 1) * n_bandt > n_bandt + 1) {
-        firstnval = n_bandt + 1;
-        nthr_used = (int) (n / firstnval);
-
-        if (nthr_used * firstnval < n)
-            ++nthr_used;
-
-        firstngroup = nthr_used - 1;
-    }
-
-    *nthrs = mthr_used * nthr_used;
-
-    if (ithr < *nthrs) {
-        if (ithr_i < firstmgroup) {
-            m_band = firstmval;
-            m_disp = ithr_i * firstmval;
-        } else if (ithr_i <= mthr_used - 2) {
-            m_band = m_bandt;
-            m_disp = firstmgroup * firstmval + (ithr_i - firstmgroup) * m_bandt;
-        } else {
-            m_disp = firstmgroup * firstmval
-                + (mthr_used - 1 - firstmgroup) * m_bandt;
-            m_band = nstl::max(0LL, m - m_disp);
-        }
-
-        if (ithr_j < firstngroup) {
-            n_band = firstnval;
-            n_disp = ithr_j * firstnval;
-        } else if (ithr_j <= nthr_used - 2) {
-            n_band = n_bandt;
-            n_disp = firstngroup * firstnval + (ithr_j - firstngroup) * n_bandt;
-        } else {
-            n_disp = firstngroup * firstnval
-                + (nthr_used - 1 - firstngroup) * n_bandt;
-            n_band = nstl::max(0LL, n - n_disp);
-        }
-        m_disp = nstl::max(nstl::min(m_disp, m - 1), 0LL);
-        n_disp = nstl::max(nstl::min(n_disp, n - 1), 0LL);
-    }
-
-    if (ithr < *nthrs) {
-        *p_m_disp = m_disp;
-        *p_n_disp = n_disp;
-        *p_m_band = m_band;
-        *p_n_band = n_band;
-    } else {
-        *p_m_disp = 0;
-        *p_n_disp = 0;
-        *p_m_band = 0;
-        *p_n_band = 0;
-    }
-
-    return;
-}
-
 template <typename mat_t>
 static void sum_matrices(dim_t m, dim_t n, mat_t *__restrict dst, dim_t ld_dst,
         mat_t *__restrict src, dim_t ld_src) {
@@ -397,9 +273,9 @@ template <typename c_type>
 static void sum_k_blocks(
         int ithr, gemm_per_thread_t<c_type> *thread_arg, bool wait) {
 
-    auto m = thread_arg[ithr].m;
-    auto n = thread_arg[ithr].n;
-    auto ithr_k = thread_arg[ithr].ithr_k;
+    auto m = thread_arg[ithr].slice.m;
+    auto n = thread_arg[ithr].slice.n;
+    auto ithr_k = thread_arg[ithr].slice.ithr_k;
     auto nthr_k = thread_arg[ithr].nthr_k;
     auto stride = thread_arg[ithr].thr_k_stride;
     dim_t n0, nn;
@@ -862,118 +738,10 @@ static inline int nocopy_checker(const int nthr, const int transa,
     }
 }
 
-static inline std::tuple<int, int> partition_2d_minblk_with_primes(dim_t m,
-        dim_t n, dim_t block_m, dim_t block_n, dim_t min_m, dim_t min_n,
-        int nthr) {
-
-    auto part_m = nstl::max(dim_t(1), m / block_m);
-    auto part_n = nstl::max(dim_t(1), n / block_n);
-
-    // Quick exit if there are enough partitions in one direction
-    // and there is only 1 partition in the other one
-    if (part_m == 1 && part_n >= nthr)
-        return std::make_tuple(1, (int)nstl::min(part_n, (dim_t)nthr));
-
-    if (part_n == 1 && part_m >= nthr)
-        return std::make_tuple((int)nstl::min(part_m, (dim_t)nthr), 1);
-
-    auto num_parts = part_m * part_n;
-
-    int nthr_ite = nthr;
-    int nthr_m = 1, nthr_n = 1;
-    dim_t band_m = m, band_n = n;
-
-    for (auto p : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29}) {
-        bool finished = false;
-
-        while ((nthr_ite % p) == 0 && !finished) {
-            nthr_ite /= p;
-            auto nthr_m_ite = nthr_m * p;
-            auto nthr_n_ite = nthr_n * p;
-
-            auto band_m_ite = band_m / p;
-            auto band_n_ite = band_n / p;
-
-            // Try partitioning with block size bm x bn
-            auto try_partition = [&](dim_t bm, dim_t bn, bool pick_small) {
-                float ratio_m = (float)band_m_ite / bm;
-                float ratio_n = (float)band_n_ite / bn;
-                bool do_m = false, do_n = false;
-
-                if (ratio_m < 1. && ratio_n >= 1.)
-                    do_n = true;
-                else if (ratio_m >= 1. && ratio_n < 1.)
-                    do_m = true;
-                else if (ratio_m >= 1. && ratio_n >= 1.) {
-                    // Pick either the smaller or larger ratio as appropriate.
-                    (((ratio_m < ratio_n) == pick_small) ? do_m : do_n) = true;
-                }
-
-                if (do_m) {
-                    // Partition m.
-                    nthr_m = nthr_m_ite;
-                    band_m = band_m_ite;
-                } else if (do_n) {
-                    // Partition n.
-                    nthr_n = nthr_n_ite;
-                    band_n = band_n_ite;
-                }
-
-                return do_m || do_n;
-            };
-
-            // If we will need min based partitioning do it now
-            if (num_parts < nthr) {
-                num_parts *= p;
-                if (try_partition(min_m, min_n, true)) continue;
-            }
-
-            if (try_partition(block_m, block_n, false)) continue;
-            if (try_partition(min_m, min_n, true)) continue;
-
-            // Both band_m/n are smaller than min_m/n
-            // exit the loops, nothing to partition
-            finished = true;
-        }
-
-        if (finished) break;
-    }
-
-    return std::make_tuple(nthr_m, nthr_n);
-}
-
-static inline std::tuple<int, int> partition_2d_minblk(dim_t m, dim_t n,
-        dim_t block_m, dim_t block_n, dim_t min_m, dim_t min_n, int nthr) {
-
-    dim_t part_m = nstl::max(dim_t(1), m / min_m);
-    dim_t part_n = nstl::max(dim_t(1), n / min_n);
-
-    // Quick exit if one of the dimensions is too small to partition.
-    if (part_m == 1) {
-        part_n = nstl::max(dim_t(1), utils::div_up(n, min_n));
-        return std::make_tuple(1, (int)nstl::min(part_n, (dim_t)nthr));
-    }
-
-    if (part_n == 1) {
-        part_m = nstl::max(dim_t(1), utils::div_up(m, min_m));
-        return std::make_tuple((int)nstl::min(part_m, (dim_t)nthr), 1);
-    }
-
-    int nthr_m = 0, nthr_n = 0;
-    auto nthr_thresh = nstl::min(0.95 * nthr, (double)(part_m * part_n));
-
-    for (int nthr_new = nthr; nthr_new > nthr / 2; nthr_new--) {
-        if (nthr_m * nthr_n >= nthr_thresh) break;
-        std::tie(nthr_m, nthr_n) = partition_2d_minblk_with_primes(
-                m, n, block_m, block_n, min_m, min_n, nthr_new);
-    }
-
-    return std::make_tuple(nthr_m, nthr_n);
-}
 
 // TODO Reorder arguments for do_{m,n,k}_blocking
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_partition_3d(int nthrs, blas_thread_t &thread_info,
+static inline void set_partition_3d(int nthrs, gemm_threading_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg,
         bool do_k_blocking = true, bool do_m_blocking = true,
         bool do_n_blocking = true) {
@@ -1076,7 +844,7 @@ static inline void set_partition_3d(int nthrs, blas_thread_t &thread_info,
 #define N2D_MAX 384
 #define M2D_MIN 384
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
+static inline void set_thread_opts(int *p_nthrs, gemm_threading_t *thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
     int nthrs = *p_nthrs;
@@ -1131,8 +899,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
     }
 
     // TODO Check if we can use dynamic scheduling for sgemm.
-
     // TODO Check if we should use 3D blocking.
+    thread_info->nthrs_k = 1;
 
     int condition_2D_bsrc = -1;
     if (isSgemm) {
@@ -1220,6 +988,8 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
         // Use parallel copy A algorithm
         thread_info->copy_type = COPY_A;
         thread_info->partition = PARTITION_1D_COL;
+        thread_info->nthrs_m = 1;
+        thread_info->nthrs_n = nthrs;
     } else {
         int veclen = 0;
         if (mayiuse(avx512_core)) {
@@ -1235,9 +1005,13 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
                 set_partition_3d(nthrs, *thread_info, arg, false, true, false);
             } else {
                 thread_info->partition = PARTITION_1D_ROW;
+                thread_info->nthrs_m = nthrs;
+                thread_info->nthrs_n = 1;
             }
         } else {
             thread_info->partition = PARTITION_1D_COL;
+            thread_info->nthrs_m = 1;
+            thread_info->nthrs_n = nthrs;
         }
     }
 }
@@ -1245,204 +1019,29 @@ static inline void set_thread_opts(int *p_nthrs, blas_thread_t *thread_info,
 #undef M2D_MIN
 
 template <typename a_type, typename b_type, typename c_type>
-static inline void decompose_matrices(const int ithr, int *nthrs,
-        int *ithr_m, int *ithr_n, int *ithr_k, dim_t *m, dim_t *n, dim_t *k,
-        const a_type **a, const b_type **b, c_type **c, const c_type **co,
-        const blas_thread_t *thread_info, const gemm_info_t<a_type, b_type, c_type> *arg) {
+static inline std::tuple<const a_type *, const b_type *, c_type *,
+        const c_type *>
+decompose_matrices(const gemm_slice_t &slice,
+        const gemm_info_t<a_type, b_type, c_type> *arg) {
 
-    dim_t strideAm = (arg->transa == no_trans) ? 1 : arg->lda;
-    dim_t strideAk = (arg->transa != no_trans) ? 1 : arg->lda;
-    dim_t strideBn = (arg->transb != no_trans) ? 1 : arg->ldb;
-    dim_t strideBk = (arg->transb == no_trans) ? 1 : arg->ldb;
-    int offsetc = arg->offsetc;
+    dim_t stride_am = (arg->transa == no_trans) ? 1 : arg->lda;
+    dim_t stride_ak = (arg->transa != no_trans) ? 1 : arg->lda;
+    dim_t stride_bn = (arg->transb != no_trans) ? 1 : arg->ldb;
+    dim_t stride_bk = (arg->transb == no_trans) ? 1 : arg->ldb;
 
-    bool isInteger = data_traits<a_type>::data_type == data_type::s8;
+    auto a = arg->a + slice.off_m * stride_am + slice.off_k * stride_ak;
+    auto b = arg->b + slice.off_n * stride_bn + slice.off_k * stride_bk;
+    auto c = arg->c + slice.off_m + slice.off_n * arg->ldc;
 
-    *ithr_m = 0;
-    *ithr_n = 0;
-    *ithr_k = 0;
-
-    switch (thread_info->partition) {
-    case PARTITION_1D_ROW:
-        {
-            dim_t offset = 0;
-            dim_t block = 0;
-            partition_1d(ithr, *nthrs, arg->m, &offset, &block);
-
-            *ithr_m = ithr;
-
-            *m = block;
-            *n = arg->n;
-            *k = arg->k;
-
-            if (a && b && c && co) {
-                // Set matrix A.
-                *a = arg->a + offset * strideAm;
-
-                // Set matrix B.
-                *b = arg->b;
-
-                // Set matrix C.
-                *c = arg->c + offset;
-
-                // Set offset vector for C matrix.
-                if (isInteger) {
-                    dim_t co_stride = 0;
-                    if (offsetc == FIX_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == ROW_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == COL_OFFSET) {
-                        co_stride = offset;
-                    }
-                    *co = arg->co + co_stride;
-                }
-            }
-            break;
-        }
-
-    case PARTITION_1D_COL:
-        {
-            dim_t offset = 0;
-            dim_t block = 0;
-            partition_1d(ithr, *nthrs, arg->n, &offset, &block);
-
-            *ithr_n = ithr;
-
-            *m = arg->m;
-            *n = block;
-            *k = arg->k;
-
-            if (a && b && c && co) {
-                // Set matrix A.
-                *a = arg->a;
-
-                // Set matrix B.
-                *b = arg->b + offset * strideBn;
-
-                // Set matrix C.
-                *c = arg->c + offset * arg->ldc;
-
-                // Set offset vector for C matrix
-                if (isInteger) {
-                    dim_t co_stride = 0;
-                    if (offsetc == FIX_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == ROW_OFFSET) {
-                        co_stride = offset;
-                    } else if (offsetc == COL_OFFSET) {
-                        co_stride = 0;
-                    }
-                    *co = arg->co + co_stride;
-                }
-            }
-            break;
-        }
-
-    case PARTITION_2D_COL_MAJOR:
-        {
-            int nthrs_m = thread_info->nthrs_m;
-            int nthrs_n = thread_info->nthrs_n;
-            int ithr_i = ithr % nthrs_m;
-            int ithr_j = ithr / nthrs_m;
-
-            dim_t m_disp = 0;
-            dim_t m_band = 0;
-            dim_t n_disp = 0;
-            dim_t n_band = 0;
-
-            partition_2d(ithr, nthrs, ithr_i, ithr_j, nthrs_m, nthrs_n,
-                    arg->m, arg->n, &m_disp, &m_band, &n_disp, &n_band);
-
-            *ithr_m = ithr_i;
-            *ithr_n = ithr_j;
-
-            *m = m_band;
-            *n = n_band;
-            *k = arg->k;
-
-            if (a && b && c && co) {
-                // Set matrix A.
-                *a = arg->a + m_disp * strideAm;
-
-                // Set matrix B.
-                *b = arg->b + n_disp * strideBn;
-
-                // Set matrix C.
-                *c = arg->c + m_disp + n_disp * arg->ldc;
-
-                // Set offset vector for C matrix
-                if (isInteger) {
-                    dim_t co_stride = 0;
-                    if (offsetc == FIX_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == ROW_OFFSET) {
-                        co_stride = n_disp;
-                    } else if (offsetc == COL_OFFSET) {
-                        co_stride = m_disp;
-                    }
-                    *co = arg->co + co_stride;
-                }
-            }
-            break;
-        }
-
-    case PARTITION_3D:
-        {
-            dim_t thread_m = thread_info->thread_m;
-            dim_t thread_n = thread_info->thread_n;
-            dim_t thread_k = thread_info->thread_k;
-            assert(thread_m > 0 && thread_n > 0 && thread_k > 0);
-
-            int nthrs_m = thread_info->nthrs_m;
-            int nthrs_n = thread_info->nthrs_n;
-
-            int ithr_m_ = ithr % nthrs_m;
-            int ithr_n_ = (ithr / nthrs_m) % nthrs_n;
-            int ithr_k_ = (ithr / nthrs_m) / nthrs_n;
-
-            dim_t m_disp = ithr_m_ * thread_m;
-            dim_t n_disp = ithr_n_ * thread_n;
-            dim_t k_disp = ithr_k_ * thread_k;
-
-            dim_t m_band = nstl::min(thread_m, arg->m - m_disp);
-            dim_t n_band = nstl::min(thread_n, arg->n - n_disp);
-            dim_t k_band = nstl::min(thread_k, arg->k - k_disp);
-
-            *ithr_m = ithr_m_;
-            *ithr_n = ithr_n_;
-            *ithr_k = ithr_k_;
-
-            *m = m_band;
-            *n = n_band;
-            *k = k_band;
-
-            if (a && b && c && co) {
-                // Set matrix A.
-                *a = arg->a + m_disp * strideAm + k_disp * strideAk;
-
-                // Set matrix B.
-                *b = arg->b + n_disp * strideBn + k_disp * strideBk;
-
-                // Set matrix C.
-                *c = arg->c + m_disp + n_disp * arg->ldc;
-
-                // Set offset vector for C matrix
-                if (isInteger) {
-                    dim_t co_stride = 0;
-                    if (offsetc == FIX_OFFSET) {
-                        co_stride = 0;
-                    } else if (offsetc == ROW_OFFSET) {
-                        co_stride = n_disp;
-                    } else if (offsetc == COL_OFFSET) {
-                        co_stride = m_disp;
-                    }
-                    *co = arg->co + co_stride;
-                }
-            }
-            break;
-        }
+    dim_t co_stride;
+    switch (arg->offsetc) {
+        case ROW_OFFSET: co_stride = slice.off_n; break;
+        case COL_OFFSET: co_stride = slice.off_m; break;
+        default: co_stride = 0; break;
     }
+    auto co = arg->co + co_stride;
+
+    return std::make_tuple(a, b, c, co);
 }
 
 #define MULTIPLIER 10
@@ -1732,8 +1331,8 @@ static mkldnn_status_t gemm_threading_driver(
     }
     get_omp_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr_goal);
 
-    blas_thread_t *force_threading = NULL;
-    blas_thread_t force_k_decomp;
+    gemm_threading_t *force_threading = NULL;
+    gemm_threading_t force_k_decomp;
 
     // Use k-partitioning for large k and small n.
     constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
@@ -1747,8 +1346,7 @@ static mkldnn_status_t gemm_threading_driver(
     }
 
     if (force_threading) {
-        nthr_goal = force_threading->nthrs_m * force_threading->nthrs_n
-            * force_threading->nthrs_k;
+        nthr_goal = force_threading->nthrs();
         arg->bm = force_threading->block_m;
         arg->bn = force_threading->block_n;
         arg->bk = force_threading->block_k;
@@ -1784,36 +1382,14 @@ static mkldnn_status_t gemm_threading_driver(
         thread_arg[ithr].ldc_local = 0;
 
         if (force_threading) {
-            // XXX Do we need to setup the slice?
-            int ithr_m = -1;
-            int ithr_n = -1;
-            int ithr_k = -1;
-            dim_t m = -1;
-            dim_t n = -1;
-            dim_t k = -1;
-            // XXX What does it mean that we change the number of threads here?
-            // NOTE: This will work for 3d-partition only, which doesn't change
-            // the number of threads I think. Since it was already set by
-            // force_threading above.
-            decompose_matrices(ithr, &nthr_goal, &ithr_m, &ithr_n, &ithr_k,
-                    &m, &n, &k, (const a_type **) NULL, (const b_type **) NULL,
-                    (c_type **) NULL, (const c_type **) NULL, force_threading,
-                    arg);
-            thread_arg[ithr].m = m;
-            thread_arg[ithr].n = n;
-            thread_arg[ithr].k = k;
-            thread_arg[ithr].ithr_m = ithr_m;
-            thread_arg[ithr].ithr_n = ithr_n;
-            thread_arg[ithr].ithr_k = ithr_k;
+            thread_arg[ithr].slice = force_threading->get_thread_slice(
+                    ithr, arg->m, arg->n, arg->k);
             thread_arg[ithr].nthr_k = force_threading->nthrs_k;
-            thread_arg[ithr].thr_k_stride =
-                force_threading->nthrs_m * force_threading->nthrs_n;
-            max_mt = nstl::max(max_mt, m);
-            max_nt = nstl::max(max_nt, n);
+            thread_arg[ithr].thr_k_stride = force_threading->thr_k_stride();
+            max_mt = nstl::max(max_mt, thread_arg[ithr].slice.m);
+            max_nt = nstl::max(max_nt, thread_arg[ithr].slice.n);
         } else {
-            thread_arg[ithr].m = 0;
-            thread_arg[ithr].n = 0;
-            thread_arg[ithr].k = 0;
+            thread_arg[ithr].slice = {0, 0, 0, 0, 0, 0, 0, 0, 0};
             thread_arg[ithr].nthr_k = 1;
             thread_arg[ithr].thr_k_stride = 0;
         }
@@ -1846,21 +1422,13 @@ static mkldnn_status_t gemm_threading_driver(
                 arg->a, arg->b, *arg->beta, arg->c, arg->ldc, arg->offsetc,
                 arg->co, arg);
         } else {
-            blas_thread_t thread_info;
+            gemm_threading_t thread_info;
             if (force_threading) {
-                thread_info.nthrs_m = force_threading->nthrs_m;
-                thread_info.nthrs_n = force_threading->nthrs_n;
-                thread_info.nthrs_k = force_threading->nthrs_k;
-                thread_info.thread_m = force_threading->thread_m;
-                thread_info.thread_n = force_threading->thread_n;
-                thread_info.thread_k = force_threading->thread_k;
-                thread_info.block_m = force_threading->block_m;
-                thread_info.block_n = force_threading->block_n;
-                thread_info.block_k = force_threading->block_k;
-                thread_info.partition = force_threading->partition;
-                thread_info.copy_type = force_threading->copy_type;
+                thread_info = *force_threading;
             } else {
                 set_thread_opts(&nthr_eff, &thread_info, arg);
+                thread_arg[ithr].slice = thread_info.get_thread_slice(
+                    ithr, arg->m, arg->n, arg->k);
             }
 
             for (; ithr < nthr_eff; ithr += nthr) {
@@ -1868,18 +1436,12 @@ static mkldnn_status_t gemm_threading_driver(
                 const b_type *b = NULL;
                 c_type *c = NULL;
                 const c_type *co = NULL;
-                int ithr_m = -1;
-                int ithr_n = -1;
-                int ithr_k = -1;
-                dim_t m = -1;
-                dim_t n = -1;
-                dim_t k = -1;
-                // XXX Is changing nthrs this a potential bug?
-                // TODO We need to split decompose matrix such that it doesn't
-                // change number of threads.
-                decompose_matrices(ithr, &nthr_eff, &ithr_m, &ithr_n, &ithr_k,
-                        &m, &n, &k, &a, &b, &c, &co, &thread_info, arg);
+                std::tie(a, b, c, co)
+                        = decompose_matrices(thread_arg[ithr].slice, arg);
 
+                auto m = thread_arg[ithr].slice.m;
+                auto n = thread_arg[ithr].slice.n;
+                auto k = thread_arg[ithr].slice.k;
                 thread_arg[ithr].c_global = c;
                 auto c_eff = c;
                 auto ldc_eff = arg->ldc;
@@ -1888,66 +1450,63 @@ static mkldnn_status_t gemm_threading_driver(
 
                 // For all but first k block: substitute local C matrix and
                 // disable postops.
-                if (k_summing && thread_arg[ithr].ithr_k > 0) {
+                if (k_summing && thread_arg[ithr].slice.ithr_k > 0) {
                     c_eff = thread_arg[ithr].c_local;
                     ldc_eff = thread_arg[ithr].ldc_local;
                     beta_eff = 0;
                     offsetc_eff = NO_OFFSET;
                 }
 
-                // XXX If decompose matrix doesn't change the number of threads we don't need to check this here.
-                if (ithr < nthr_eff) {
-                    switch (thread_info.copy_type) {
-                    case COPY_A:
-                        thread_arg[ithr].result = parallel_a_copy(ithr,
-                                nthr_eff, m, n, k, a, b, beta_eff, c_eff,
-                                ldc_eff, offsetc_eff, co, arg, &shared_mem);
-                        break;
+                switch (thread_info.copy_type) {
+                case COPY_A:
+                    thread_arg[ithr].result = parallel_a_copy(ithr,
+                            nthr_eff, m, n, k, a, b, beta_eff, c_eff,
+                            ldc_eff, offsetc_eff, co, arg, &shared_mem);
+                    break;
 
-                    default:
-                    case COPY_NONE:
-                        thread_arg[ithr].result = gemm_kernel_driver(m, n, k,
-                                a, b, beta_eff, c_eff, ldc_eff, offsetc_eff,
-                                co, arg);
-                        break;
+                default:
+                case COPY_NONE:
+                    thread_arg[ithr].result = gemm_kernel_driver(m, n, k,
+                            a, b, beta_eff, c_eff, ldc_eff, offsetc_eff,
+                            co, arg);
+                    break;
 
-                    case NO_COPY:
-                        if (data_traits<a_type>::data_type == data_type::f32) {
-                            if (mayiuse(avx512_core)) {
-                                avx512_common_gemm_f32::sgemm_nocopy_driver(
-                                        arg->transa == no_trans ? "N" : "T",
-                                        arg->transb == no_trans ? "N" : "T",
-                                        (int) m, (int) n, (int) k, arg->alpha,
-                                        (float *) a, arg->lda,
-                                        (float *) b, arg->ldb,
-                                        &beta_eff, (float *) c, ldc_eff,
-                                        NULL, NULL);
-                            } else {
-                                avx_gemm_f32::sgemm_nocopy_driver(
-                                        arg->transa == no_trans ? "N" : "T",
-                                        arg->transb == no_trans ? "N" : "T",
-                                        (int) m, (int) n, (int) k, arg->alpha,
-                                        (float *) a, arg->lda,
-                                        (float *) b, arg->ldb,
-                                        &beta_eff, (float *)c, ldc_eff,
-                                        NULL, NULL);
-                            }
-                            thread_arg[ithr].result = mkldnn_success;
+                case NO_COPY:
+                    if (data_traits<a_type>::data_type == data_type::f32) {
+                        if (mayiuse(avx512_core)) {
+                            avx512_common_gemm_f32::sgemm_nocopy_driver(
+                                    arg->transa == no_trans ? "N" : "T",
+                                    arg->transb == no_trans ? "N" : "T",
+                                    (int) m, (int) n, (int) k, arg->alpha,
+                                    (float *) a, arg->lda,
+                                    (float *) b, arg->ldb,
+                                    &beta_eff, (float *) c, ldc_eff,
+                                    NULL, NULL);
+                        } else {
+                            avx_gemm_f32::sgemm_nocopy_driver(
+                                    arg->transa == no_trans ? "N" : "T",
+                                    arg->transb == no_trans ? "N" : "T",
+                                    (int) m, (int) n, (int) k, arg->alpha,
+                                    (float *) a, arg->lda,
+                                    (float *) b, arg->ldb,
+                                    &beta_eff, (float *)c, ldc_eff,
+                                    NULL, NULL);
                         }
-                        break;
+                        thread_arg[ithr].result = mkldnn_success;
                     }
-
-                    // Sum thread results along k dimension, parallelized in
-                    // the n dimension. To avoid deadlocks, results are summed
-                    // later if not all threads are running concurrently. We
-                    // can only detect if this is safe when using OpenMP.
-#if MKLDNN_THR_SYNC == 1
-                    if (k_summing && (nthr >= nthr_eff)) {
-                        thread_arg[ithr].compute_done = true;
-                        sum_k_blocks(ithr, thread_arg, true);
-                    }
-#endif
+                    break;
                 }
+
+                // Sum thread results along k dimension, parallelized in
+                // the n dimension. To avoid deadlocks, results are summed
+                // later if not all threads are running concurrently. We
+                // can only detect if this is safe when using OpenMP.
+#if MKLDNN_THR_SYNC == 1
+                if (k_summing && (nthr >= nthr_eff)) {
+                    thread_arg[ithr].compute_done = true;
+                    sum_k_blocks(ithr, thread_arg, true);
+                }
+#endif
             }
         }
     });
