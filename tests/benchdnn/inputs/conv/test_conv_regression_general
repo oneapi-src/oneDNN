@@ -95,3 +95,10 @@ mb1_ic16oc16_iw80ow80kw31sw1dw0pw15
 
 # MFDNN-1968 1x1 conv asymmetrical strides with stride_h=1
 --reset --dir=BWD_D mb1ic2ih10iw8oc4oh10ow4kh1kw1sh1sw2ph0pw0dh0dw0
+
+# MFDNN-1995 1x1 2d & 3d conv with negative padding
+--reset --allow-unimpl=true
+--dir=BWD_D
+--cfg=f32
+mb1_g1_ic16oc16_kd1kh1kw1_id1ih2iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
+mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
