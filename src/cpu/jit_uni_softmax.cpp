@@ -81,20 +81,29 @@ struct jit_softmax_t : public jit_generator {
     Vmm vsum = Vmm(isa == avx512_common ? 30 : 14);
     Vmm vmax = Vmm(isa == avx512_common ? 31 : 15);
 
-    size_t simd_w_;
+    size_t simd_w_ = vlen / sizeof(data_t);
+    size_t unroll_regs_ = 4;
+
     size_t axis_simd_full_;
     size_t axis_simd_tail_;
-    size_t unroll_regs_;
     size_t n_loops_;
     size_t loop_tail_;
+    size_t axis_stride_;
 
     void compute_predefined_variables() {
-        simd_w_ = vlen / sizeof(data_t);
         axis_simd_full_ = sdesc_->axis_size() / simd_w_;
         axis_simd_tail_ = sdesc_->axis_size() % simd_w_;
-        unroll_regs_ = 4;
         n_loops_ = axis_simd_full_ / unroll_regs_;
         loop_tail_ = axis_simd_full_ - n_loops_ * unroll_regs_;
+        axis_stride_ = compute_axis_stride();
+    }
+
+    size_t compute_axis_stride() {
+        const memory_desc_wrapper data_d(sdesc_->src_md());
+        const auto &bd = data_d.blocking_desc();
+
+        if (bd.inner_nblks) return sizeof(data_t) * bd.strides[sdesc_->axis()];
+        return vlen;
     }
 
     void load_common_params() {
@@ -205,12 +214,12 @@ struct jit_softmax_t : public jit_generator {
         L(main_loop);
         {
             if (n_loops_) {
-                cmp(reg_rsoff, unroll_regs_ * vlen);
+                cmp(reg_rsoff, unroll_regs_ * axis_stride_);
                 jl(tail_loop, T_NEAR);
 
                 body(unroll_regs_);
-                sub(reg_rsoff, unroll_regs_ * vlen);
-                add(reg_soff, unroll_regs_ * vlen);
+                sub(reg_rsoff, unroll_regs_ * axis_stride_);
+                add(reg_soff, unroll_regs_ * axis_stride_);
                 jmp(main_loop);
             }
         }
@@ -219,7 +228,7 @@ struct jit_softmax_t : public jit_generator {
         {
             if (loop_tail_) {
                 body(loop_tail_);
-                add(reg_soff, loop_tail_ * vlen);
+                add(reg_soff, loop_tail_ * axis_stride_);
             }
         }
 
@@ -233,13 +242,14 @@ struct jit_softmax_t : public jit_generator {
         auto accumulate_vmax = [&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 if (!tail)
-                    uni_vmaxps(vmax, vmax, src_ptr(vlen * i));
+                    uni_vmaxps(vmax, vmax, src_ptr(axis_stride_ * i));
                 else {
                     if (isa == avx512_common)
-                        uni_vmaxps(vmax | ktail_mask, vmax, src_ptr(vlen * i));
+                        uni_vmaxps(vmax | ktail_mask, vmax,
+                                src_ptr(axis_stride_ * i));
                     else if (isa == avx2) {
                         vtmp = Vmm(i + 1);
-                        uni_vmovups_tail(vtmp, src_ptr(vlen * i));
+                        uni_vmovups_tail(vtmp, src_ptr(axis_stride_ * i));
                         uni_vblendvps(vtmp, vneg_flt_max, vtmp, vtail_mask);
                         uni_vmaxps(vmax, vmax, vtmp);
                     }
@@ -251,13 +261,13 @@ struct jit_softmax_t : public jit_generator {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg = Vmm(i + 1);
                 if (!tail) {
-                    uni_vmovups(vreg, src_ptr(vlen * i));
+                    uni_vmovups(vreg, src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg, vreg, vmax);
                     eltwise_injector_->compute_vector(vreg.getIdx());
                     uni_vaddps(vsum, vsum, vreg);
-                    uni_vmovups(dst_ptr(vlen * i), vreg);
+                    uni_vmovups(dst_ptr(axis_stride_ * i), vreg);
                 } else {
-                    uni_vmovups_tail(vreg, src_ptr(vlen * i));
+                    uni_vmovups_tail(vreg, src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg, vreg, vmax);
                     eltwise_injector_->compute_vector(vreg.getIdx());
                     if (isa == avx512_common)
@@ -268,7 +278,7 @@ struct jit_softmax_t : public jit_generator {
                         uni_vblendvps(vtmp, vtmp, vreg, vtail_mask);
                         uni_vaddps(vsum, vsum, vtmp);
                     }
-                    uni_vmovups_tail(dst_ptr(vlen * i), vreg);
+                    uni_vmovups_tail(dst_ptr(axis_stride_ * i), vreg);
                 }
             }
         };
@@ -277,22 +287,23 @@ struct jit_softmax_t : public jit_generator {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg = Vmm(i + 1);
                 if (!tail) {
-                    uni_vmulps(vreg, vsum, dst_ptr(vlen * i));
-                    uni_vmovups(dst_ptr(vlen * i), vreg);
+                    uni_vmulps(vreg, vsum, dst_ptr(axis_stride_ * i));
+                    uni_vmovups(dst_ptr(axis_stride_ * i), vreg);
                 } else {
                     if (isa == avx512_common)
-                        uni_vmulps(vreg | ktail_mask, vsum, dst_ptr(vlen * i));
+                        uni_vmulps(vreg | ktail_mask, vsum,
+                                dst_ptr(axis_stride_ * i));
                     else if (isa == avx2) {
-                        uni_vmovups_tail(vreg, dst_ptr(vlen * i));
+                        uni_vmovups_tail(vreg, dst_ptr(axis_stride_ * i));
                         uni_vmulps(vreg, vreg, vsum);
                     }
-                    uni_vmovups_tail(dst_ptr(vlen * i), vreg);
+                    uni_vmovups_tail(dst_ptr(axis_stride_ * i), vreg);
                 }
             }
         };
 
-        uni_vmovups(
-                vmax, vneg_flt_max); // flush to -FLT_MAX before accumulation
+        // flush to -FLT_MAX before accumulation
+        uni_vmovups(vmax, vneg_flt_max);
         axis_loop(accumulate_vmax);
 
         get_horizontal_op(vmax, vtmp = vsum, op_t::max);
@@ -372,14 +383,15 @@ void jit_softmax_t<sse41>::forward() {
             Vmm vreg = Vmm(i + 1);
             if (!tail) {
                 // SIGSEGV on unaligned addr if do maxps directly on memory
-                uni_vmovups(vreg, src_ptr(vlen * i));
+                uni_vmovups(vreg, src_ptr(axis_stride_ * i));
                 uni_vmaxps(vmax, vmax, vreg);
             } else {
                 vtmp = Vmm(vreg.getIdx() + 1); // next after vreg
 
                 for (size_t j = 0; j < axis_simd_tail_; j++) {
                     uni_vmovups(vreg, vneg_flt_max);
-                    uni_vmovss(vtmp, src_ptr(vlen * i + sizeof(data_t) * j));
+                    uni_vmovss(vtmp,
+                            src_ptr(axis_stride_ * i + sizeof(data_t) * j));
                     uni_vblendvps(vreg, vreg, vtmp, vtail_mask);
                     uni_vmaxps(vmax, vmax, vreg);
                 }
@@ -391,22 +403,24 @@ void jit_softmax_t<sse41>::forward() {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg = Vmm(i + 1);
             if (!tail) {
-                uni_vmovups(vreg, src_ptr(vlen * i));
+                uni_vmovups(vreg, src_ptr(axis_stride_ * i));
                 uni_vsubps(vreg, vreg, vmax);
                 eltwise_injector_->compute_vector(vreg.getIdx());
                 uni_vaddps(vsum, vsum, vreg);
-                uni_vmovups(dst_ptr(vlen * i), vreg);
+                uni_vmovups(dst_ptr(axis_stride_ * i), vreg);
             } else {
                 vtmp = Vmm(vreg.getIdx() + 1); // next after vreg
 
                 for (size_t j = 0; j < axis_simd_tail_; j++) {
-                    uni_vmovss(vreg, src_ptr(vlen * i + sizeof(data_t) * j));
+                    uni_vmovss(vreg,
+                            src_ptr(axis_stride_ * i + sizeof(data_t) * j));
                     uni_vsubps(vreg, vreg, vmax);
                     eltwise_injector_->compute_vector(vreg.getIdx());
                     uni_vpxor(vtmp, vtmp, vtmp);
                     uni_vblendvps(vtmp, vtmp, vreg, vtail_mask);
                     uni_vaddps(vsum, vsum, vtmp);
-                    uni_vmovss(dst_ptr(vlen * i + sizeof(data_t) * j), vreg);
+                    uni_vmovss(dst_ptr(axis_stride_ * i + sizeof(data_t) * j),
+                            vreg);
                 }
             }
         }
@@ -416,14 +430,16 @@ void jit_softmax_t<sse41>::forward() {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg = Vmm(i + 1);
             if (!tail) {
-                uni_vmovups(vreg, dst_ptr(vlen * i));
+                uni_vmovups(vreg, dst_ptr(axis_stride_ * i));
                 uni_vmulps(vreg, vreg, vsum);
-                uni_vmovups(dst_ptr(vlen * i), vreg);
+                uni_vmovups(dst_ptr(axis_stride_ * i), vreg);
             } else {
                 for (size_t j = 0; j < axis_simd_tail_; j++) {
-                    uni_vmovss(vreg, dst_ptr(vlen * i + sizeof(data_t) * j));
+                    uni_vmovss(vreg,
+                            dst_ptr(axis_stride_ * i + sizeof(data_t) * j));
                     uni_vmulps(vreg, vreg, vsum);
-                    uni_vmovss(dst_ptr(vlen * i + sizeof(data_t) * j), vreg);
+                    uni_vmovss(dst_ptr(axis_stride_ * i + sizeof(data_t) * j),
+                            vreg);
                 }
             }
         }
@@ -461,12 +477,21 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const auto ou_stride = pd()->outer_stride();
+    const memory_desc_wrapper data_d(pd()->src_md());
+    const auto &bd = data_d.blocking_desc();
+    const auto axis = pd()->axis();
 
-    parallel_nd(pd()->outer_size(), [&](int ou) {
-        const data_t *src_ptr = src + ou * ou_stride;
-        data_t *dst_ptr = dst + ou * ou_stride;
-        softmax_driver_->exec(src_ptr, dst_ptr);
+    const auto inner_stride
+            = bd.inner_nblks ? bd.inner_blks[bd.inner_nblks - 1] : (dim_t)1;
+    const auto inner_size = bd.strides[axis] / inner_stride;
+    const auto outer_stride = data_d.padded_dims()[axis] * inner_size;
+    const auto outer_size = data_d.nelems(true) / outer_stride;
+
+    parallel_nd(outer_size, inner_size, [&](dim_t ou, dim_t in) {
+        dim_t offset = ou * outer_stride + in * inner_stride;
+        const data_t *src_ptr = src + offset;
+        data_t *dst_ptr = dst + offset;
+        softmax_driver_->exec(src_ptr, dst_ptr, outer_stride);
     });
 
     return status::success;
@@ -480,9 +505,9 @@ struct driver_t : public c_compatible {
     driver_t(const softmax_pd_t *sdesc) : sdesc_(sdesc), ker_(sdesc_) {}
     ~driver_t() {}
 
-    void exec(const data_t *src, data_t *dst) {
+    void exec(const data_t *src, data_t *dst, const dim_t outer_stride) {
         typename jit_softmax_t<isa>::call_params_t p;
-        p.soff_max = sizeof(data_t) * sdesc_->axis_size();
+        p.soff_max = outer_stride * sizeof(data_t);
         p.src = src;
         p.dst = dst;
         ker_(&p);
