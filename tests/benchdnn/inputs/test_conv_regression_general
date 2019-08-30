@@ -102,3 +102,9 @@ mb1_ic16oc16_iw80ow80kw31sw1dw0pw15
 --cfg=f32
 mb1_g1_ic16oc16_kd1kh1kw1_id1ih2iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
 mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
+
+# Depthwise with large right padding
+--reset --dir=BWD_D
+mb1_g3ic3oc3_ih10oh9kh2sh2dh0ph4
+mb1_g16ic16oc16_ih5oh2kh2sh5ph0
+mb1_g16ic16oc16_ih5oh2kh2sh3ph0
