@@ -72,8 +72,8 @@ endif()
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "^(cross-engine|gpu)")
-        # Example name contains cross-engine or gpu-
+    if(${example_name} MATCHES "^(cross-engine|cpu|gpu)")
+        # Example name contains cross-engine, cpu or gpu
         if(NOT ${example_name} MATCHES ".*opencl" OR DNNL_GPU_RUNTIME STREQUAL "OCL")
             register_exe(${example_name} ${src} "test" ${LIBM})
         endif()
