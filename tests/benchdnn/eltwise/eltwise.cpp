@@ -49,8 +49,12 @@ static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
                          &ed, prop, alg, &data_d, p->alpha, p->beta),
                 WARN);
     } else {
+        dnnl_memory_desc_t diff_data_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims,
+                         p->dims.data(), p->dt, dnnl_format_tag_any),
+                WARN);
         DNN_SAFE(dnnl_eltwise_backward_desc_init(
-                         &ed, alg, &data_d, &data_d, p->alpha, p->beta),
+                         &ed, alg, &diff_data_d, &data_d, p->alpha, p->beta),
                 WARN);
     }
 
@@ -221,15 +225,8 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
-    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt),
-            d_dst_dt(data_desc, engine_tgt);
-
-    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_tgt);
-    dnn_mem_t d_src_dt;
-    if (!p->inplace) {
-        d_src_dt = dnn_mem_t(data_desc, engine_tgt);
-        SAFE(d_src_dt.reorder(d_src_fp), WARN);
-    }
+    dnn_mem_t d_dst_fp, d_dst_dt;
+    dnn_mem_t d_src_fp, d_src_dt;
 
     args_t args;
     args.set(DNNL_ARG_SRC, src_dt);
@@ -245,6 +242,20 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
         }
     } else {
+        const_dnnl_primitive_desc_t const_epd;
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(e, &const_epd), CRIT);
+        const auto &d_data_desc = *dnnl_primitive_desc_query_md(
+                const_epd, dnnl_query_diff_src_md, 0);
+
+        d_dst_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
+        d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
+
+        d_src_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
+        if (!p->inplace) {
+            d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
+            SAFE(d_src_dt.reorder(d_src_fp), WARN);
+        }
+
         SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
 
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);

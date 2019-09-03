@@ -127,6 +127,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                             alg_kind::eltwise_gelu, alg_kind::eltwise_swish)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
+                    && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

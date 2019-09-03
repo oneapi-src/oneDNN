@@ -121,6 +121,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::bf16,
                             mayiuse(avx512_core))
+                    && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

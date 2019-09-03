@@ -52,8 +52,7 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
     ed.alg_kind = alg_kind;
 
     ed.data_desc = *data_desc;
-    ed.diff_data_desc
-            = (ed.prop_kind == backward_data) ? *diff_data_desc : zero_md();
+    if (ed.prop_kind == backward_data) ed.diff_data_desc = *diff_data_desc;
 
     ed.alpha = alpha;
     ed.beta = beta;
