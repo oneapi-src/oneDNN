@@ -85,6 +85,7 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
             using namespace data_type;
             bool ok = true && is_bwd()
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+                    && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && stat_md()->data_type == f32

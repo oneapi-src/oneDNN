@@ -221,6 +221,7 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_impl_t {
             const memory_desc_wrapper stat_d(stat_md());
 
             bool ok = true && is_bwd() && !has_zero_dim_memory()
+                    && set_default_formats_common()
                     && utils::everyone_is(f32, src_md()->data_type,
                             diff_src_md()->data_type, stat_md()->data_type)
                     && IMPLICATION(use_scaleshift(),

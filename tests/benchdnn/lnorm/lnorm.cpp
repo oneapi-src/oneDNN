@@ -380,9 +380,13 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
                 WARN);
 
     } else {
+        dnnl_memory_desc_t diff_data_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims, data_dims,
+                         p->dt, dnnl_format_tag_any),
+                WARN);
         auto prop = p->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
-        DNN_SAFE(dnnl_layer_normalization_backward_desc_init(
-                         &ld, prop, &data_d, &data_d, &stat_d, p->eps, flags),
+        DNN_SAFE(dnnl_layer_normalization_backward_desc_init(&ld, prop,
+                         &diff_data_d, &data_d, &stat_d, p->eps, flags),
                 WARN);
     }
 
@@ -455,13 +459,9 @@ int doit(const prb_t *p, res_t *r) {
     if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt); }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
-    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt);
-    dnn_mem_t d_dst_dt(data_desc, engine_tgt);
+    dnn_mem_t d_dst_fp, d_dst_dt;
     dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
     dnn_mem_t placeholder_d_src_dt;
-    if (!p->inplace) {
-        placeholder_d_src_dt = dnn_mem_t(data_desc, engine_tgt);
-    }
     dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
     const int stat_ndims = ld.data_desc.ndims - 1;
@@ -520,6 +520,15 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
         }
     } else {
+        const_dnnl_primitive_desc_t const_lpd;
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_lpd), CRIT);
+        const auto &d_data_desc = *dnnl_primitive_desc_query_md(
+                const_lpd, dnnl_query_diff_src_md, 0);
+
+        d_dst_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
+        d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
+        if (!p->inplace)
+            placeholder_d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
 
         if (prepare_bwd(p, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp) != OK)
             return r->state = MISTRUSTED, OK;
