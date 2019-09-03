@@ -33,15 +33,12 @@ void gru_fwd_postgemm_part1_template(T func1, const prb_t &p, float *gates_,
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dic);
 
     for (int64_t i = 0; i < p.mb; i++)
-        for (int64_t j = 0; j < p.n_gates() - 1; j++)
-            for (int64_t k = 0; k < p.dic; k++) {
-                gates(i, j, k) = func1(
-                        p.linear_scales[j], gates(i, j, k) + bias(j, k));
-            }
-
-    for (int64_t i = 0; i < p.mb; i++)
         for (int64_t k = 0; k < p.dic; k++) {
-            dst_iter_h(i, k) = src_iter_h(i, k) * gates(i, 1, k);
+            auto G0 = func1(p.linear_scales[0], gates(i, 0, k) + bias(0, k));
+            auto G1 = func1(p.linear_scales[1], gates(i, 1, k) + bias(1, k));
+            gates(i, 0, k) = G0;
+            gates(i, 1, k) = G1;
+            dst_iter_h(i, k) = src_iter_h(i, k) * G1;
         }
 }
 
@@ -66,14 +63,11 @@ void gru_fwd_postgemm_part2_template(T func1, const prb_t &p, float *gates_,
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dic);
     for (int64_t i = 0; i < p.mb; i++)
         for (int64_t k = 0; k < p.dic; k++) {
-            gates(i, 2, k)
-                    = func1(p.linear_scales[2], gates(i, 2, k) + bias(2, k));
-        }
+            double G0 = gates(i, 0, k);
+            double G2 = func1(p.linear_scales[2], gates(i, 2, k) + bias(2, k));
+            dst_iter_h(i, k) = (float)(G0 * src_iter_h(i, k) + (1.0 - G0) * G2);
 
-    for (int64_t i = 0; i < p.mb; i++)
-        for (int64_t k = 0; k < p.dic; k++) {
-            dst_iter_h(i, k) = (float)((double)gates(i, 0, k) * src_iter_h(i, k)
-                    + (1.0 - (double)gates(i, 0, k)) * gates(i, 2, k));
+            gates(i, 2, k) = G2;
         }
 }
 
