@@ -1048,7 +1048,7 @@ static inline void set_thread_opts_nopack(int nthrs,
                 thread_info.nthrs_n = nthrs_n;
                 thread_info.partition = partition_type::col_major_2d;
             } else {
-                // Use 3D decompostition from pack api without k-partitioning.
+                // Use 3D decomposition from pack api without k-partitioning.
                 set_thread_opts_pack(nthrs, thread_info, arg, false);
             }
         }
@@ -1063,9 +1063,14 @@ static inline void set_thread_opts_nopack(int nthrs,
         auto veclen = get_vector_length<c_type>();
 
         if (m > n && (m >= nthrs * veclen || n < nthrs)) {
-            thread_info.partition = partition_type::row_1d;
-            thread_info.nthrs_m = nthrs;
-            thread_info.nthrs_n = 1;
+            if (n <= 20 && isInteger) {
+                // Use 3D decomposition forcing m-blocking only.
+                set_thread_opts_pack(nthrs, thread_info, arg, false, true, false);
+            } else {
+                thread_info.partition = partition_type::row_1d;
+                thread_info.nthrs_m = nthrs;
+                thread_info.nthrs_n = 1;
+            }
         } else {
             thread_info.partition = partition_type::col_1d;
             thread_info.nthrs_m = 1;
@@ -1078,9 +1083,11 @@ template <typename a_type, typename b_type, typename c_type>
 static inline void set_thread_opts_pack(int nthrs,
         gemm_threading_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg,
-        bool do_k_blocking = true) {
+        bool do_k_blocking = true, bool do_m_blocking = true,
+        bool do_n_blocking = true) {
 
     constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
+    bool do_m_blocking_only = do_m_blocking && !do_n_blocking;
 
     auto m = arg->m, n = arg->n, k = arg->k;
 
@@ -1096,7 +1103,8 @@ static inline void set_thread_opts_pack(int nthrs,
 
     constexpr auto MBLK = 64;
     constexpr auto NBLK = 64;
-    constexpr auto KBLK = is_int8 ? 3072 : 256;
+    auto KBLK = is_int8 ? 3072 : 256;
+    KBLK = do_m_blocking_only && is_int8 ? 384 : KBLK;
 
     nthr_m = nthr_n = nthr_k = 1;
     thread_info.copy = copy_type::nonshared;
@@ -1116,6 +1124,7 @@ static inline void set_thread_opts_pack(int nthrs,
 
     auto choose_m_blocking = [&]() {
         auto align = is_int8 ? 16 : get_vector_length<a_type>();
+        align = do_m_blocking_only ? arg->um : align;
         choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, align);
     };
     auto choose_n_blocking = [&]() {
@@ -1135,15 +1144,19 @@ static inline void set_thread_opts_pack(int nthrs,
 
     // Choose m/n blocking.
     auto min_mblk = mayiuse(avx512_core) ? (MBLK / 2) : arg->um;
+    min_mblk = do_m_blocking ? min_mblk : m;
+    min_mblk = do_m_blocking_only ? arg->um : min_mblk;
+    auto min_nblk = do_n_blocking ? NBLK / 2 : n;
+
     std::tie(nthr_m, nthr_n) = partition_2d_minblk(
-            m, n, MBLK, NBLK, min_mblk, NBLK / 2, nthrs / nthr_k);
+            m, n, MBLK, NBLK, min_mblk, min_nblk, nthrs / nthr_k);
 
     auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
 
     choose_m_blocking();
     choose_n_blocking();
 
-    if (is_int8) {
+    if (is_int8 && do_m_blocking && do_n_blocking) {
         // If we lost a thread in one dimension because we padded the blocking
         // size, try to rebalance the other dimensions.
         if ((nthr_n != nthr_n_init)
@@ -1496,7 +1509,11 @@ static dnnl_status_t gemm_threading_driver(
     adjust_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr_goal);
 
     const gemm_threading_t *force_threading = nullptr;
+    gemm_threading_t force_k_decomp;
 
+    // Initialize per-thread data.
+    // Note: to support k blocking with non-packed GEMM, threading must be
+    //   chosen now and force_threading set.
     if (!packing) {
         // Override choice of thread count if data is pre-packed for a particular
         //  number of threads.
@@ -1507,6 +1524,17 @@ static dnnl_status_t gemm_threading_driver(
             force_threading = &arg->a_packed->threading();
         else if (is_b_packed)
             force_threading = &arg->b_packed->threading();
+        else
+            // Use k-partitioning if necessary.
+            if (arg->n <= 128 && arg->k >= 3072 && is_integer) {
+                // Use 3D decomposition from pack api without n-partitioning.
+                set_thread_opts_pack(nthr_goal, force_k_decomp, arg, true, true,
+                        false);
+
+                // Decide partition type later if no partitions in k-dimension.
+                if (force_k_decomp.nthrs_k > 1 && force_k_decomp.nthrs_m > 1)
+                    force_threading = &force_k_decomp;
+            }
 
         if (force_threading) {
             nthr_goal = force_threading->nthrs();
@@ -1564,9 +1592,6 @@ static dnnl_status_t gemm_threading_driver(
         return gemm_kernel_driver(0, arg->m, arg->n, arg->k, arg->a, arg->b,
                 arg->beta, arg->c, arg->ldc, arg->offsetc, arg->co, arg);
 
-    // Initialize per-thread data.
-    // Note: to support k blocking with non-packed GEMM, threading must be
-    //   chosen now and force_threading set.
     bool k_blocking = force_threading && (force_threading->nthrs_k > 1);
     bool k_summing = k_blocking && !packing;
 
