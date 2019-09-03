@@ -19,6 +19,8 @@ if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
         find_path(_tbbroot
             NAMES "include/tbb/tbb.h"
             PATHS "${sycl_lib_dir}/../../tbb"
+                  "${sycl_lib_dir}/../../../tbb"
+            PATH_SUFFIXES "latest"
         NO_DEFAULT_PATH)
         if(_tbbroot)
             set(TBBROOT "${_tbbroot}" CACHE STRING "" FORCE)
