@@ -45,9 +45,7 @@ configure_file(
     "${PROJECT_BINARY_DIR}/include/dnnl_version.h"
 )
 
-# FIXME: Add resource file for DPC++ when the testing scripts will be updated
-# to use rc.exe as the RC compiler
-if(WIN32 AND NOT DNNL_SYCL_INTEL)
+if(WIN32)
     string(TIMESTAMP DNNL_VERSION_YEAR "%Y")
     set(VERSION_RESOURCE_FILE ${PROJECT_BINARY_DIR}/src/version.rc)
     configure_file(${PROJECT_SOURCE_DIR}/cmake/version.rc.in
