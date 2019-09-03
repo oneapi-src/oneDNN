@@ -31,8 +31,10 @@ namespace {
 status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, int axis, dim_t group_size) {
     bool args_ok = true && !any_null(shuffle_desc, data_desc)
-            && one_of(prop_kind, forward_training, forward_inference, backward,
+            && one_of(prop_kind, forward_training, forward_inference,
                     backward_data)
+            && IMPLICATION(prop_kind != backward_data,
+                    data_desc->format_kind != format_kind::any)
             && axis >= 0 && axis < data_desc->ndims && group_size > 0
             && group_size <= data_desc->dims[axis];
     if (!args_ok) return invalid_arguments;

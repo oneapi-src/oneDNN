@@ -92,28 +92,42 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_shuffle_desc_t &sd,
-        dnnl_primitive_desc_t &spd, res_t *r) {
-    dnnl_memory_desc_t data_d;
-
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
+    dnnl_status_t init_status = dnnl_success;
     const int ndims = (int)p->dims.size();
+
+    dnnl_memory_desc_t data_d;
+    dnnl_shuffle_desc_t sd;
+    dnnl_primitive_desc_t fspd;
+
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &data_d, ndims, p->dims.data(), p->dt, p->tag),
             WARN);
+    DNN_SAFE(dnnl_shuffle_forward_desc_init(
+                     &sd, dnnl_forward_training, &data_d, p->axis, p->group),
+            WARN);
+    init_status
+            = dnnl_primitive_desc_create(&fspd, &sd, NULL, engine_tgt, NULL);
 
     if (p->dir == FWD_D) {
-        auto prop = dnnl_forward_training;
-        DNN_SAFE(dnnl_shuffle_forward_desc_init(
-                         &sd, prop, &data_d, p->axis, p->group),
-                WARN);
+        spd = fspd;
     } else if (p->dir == BWD_D) {
+        if (init_status == dnnl_unimplemented)
+            return r->state = UNIMPLEMENTED, OK;
+        else
+            SAFE(init_status, WARN);
+
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, ndims, p->dims.data(),
+                         p->dt, dnnl_format_tag_any),
+                WARN);
         DNN_SAFE(dnnl_shuffle_backward_desc_init(
                          &sd, &data_d, p->axis, p->group),
                 WARN);
-    }
+        init_status
+                = dnnl_primitive_desc_create(&spd, &sd, NULL, engine_tgt, fspd);
 
-    dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(&spd, &sd, NULL, engine_tgt, NULL);
+        DNN_SAFE(dnnl_primitive_desc_destroy(fspd), CRIT);
+    }
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -129,26 +143,28 @@ static int init_pd(const prb_t *p, dnnl_shuffle_desc_t &sd,
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_shuffle_desc_t sd;
     dnnl_primitive_desc_t spd;
     dnnl_primitive_t s {};
 
-    SAFE(init_pd(p, sd, spd, r), WARN);
+    SAFE(init_pd(p, spd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     DNN_SAFE(dnnl_primitive_create(&s, spd), WARN);
     DNN_SAFE(dnnl_primitive_desc_destroy(spd), CRIT);
 
-    auto &src_dt_d = sd.data_desc;
+    const_dnnl_primitive_desc_t const_spd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_spd), CRIT);
+    const auto &data_dt_d = *dnnl_primitive_desc_query_md(const_spd,
+            p->dir & FLAG_FWD ? dnnl_query_src_md : dnnl_query_diff_src_md, 0);
 
     const auto fp = dnnl_f32;
     const int ndims = (int)p->dims.size();
     const auto src_tag = get_default_tag(ndims);
 
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_tgt),
-            src_dt(src_dt_d, engine_tgt);
-    dnn_mem_t dst_fp(src_dt_d, fp, src_tag, engine_tgt),
-            dst_dt(src_dt_d, engine_tgt);
+    dnn_mem_t src_fp(data_dt_d, fp, src_tag, engine_tgt),
+            src_dt(data_dt_d, engine_tgt);
+    dnn_mem_t dst_fp(data_dt_d, fp, src_tag, engine_tgt),
+            dst_dt(data_dt_d, engine_tgt);
 
     SAFE(fill_src(p, src_dt, src_fp), WARN);
 
