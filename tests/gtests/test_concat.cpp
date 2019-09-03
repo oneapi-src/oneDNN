@@ -102,7 +102,7 @@ protected:
         concat_test_params p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
 
     virtual void Test() {
