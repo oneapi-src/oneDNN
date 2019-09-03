@@ -236,7 +236,7 @@ static void sum_k_blocks(
     auto stride = thread_arg[ithr].thr_k_stride;
     dim_t n0, nn;
 
-    partition_1d(ithr_k, nthr_k, n, &n0, &nn);
+    partition_1d(ithr_k, nthr_k, n, n0, nn);
 
     auto get_thread_arg = [&](int thr_k) -> gemm_per_thread_t<c_type> & {
         return thread_arg[ithr + (thr_k - ithr_k) * stride];
@@ -1111,7 +1111,7 @@ static inline void set_thread_opts_pack(int nthrs,
     thread_info.partition = partition_type::mnk_3d;
 
     auto choose_blocking
-            = [&](dim_t size_z, dim_t &thread_z, int &nthr_z, int block_z_init,
+            = [](dim_t size_z, dim_t &thread_z, int &nthr_z, int block_z_init,
                       int &block_z, int block_align) {
                   thread_z = utils::div_up(size_z, nthr_z);
                   auto num_blk = utils::div_up(thread_z, block_z_init);

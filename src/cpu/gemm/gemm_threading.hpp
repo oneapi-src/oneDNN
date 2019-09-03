@@ -70,12 +70,12 @@ struct gemm_threading_t {
         switch (partition) {
             case partition_type::row_1d:
                 ithr_m = ithr;
-                partition_1d(ithr, nthrs(), m, &off_m, &size_m);
+                partition_1d(ithr, nthrs(), m, off_m, size_m);
                 break;
 
             case partition_type::col_1d:
                 ithr_n = ithr;
-                partition_1d(ithr, nthrs(), n, &off_n, &size_n);
+                partition_1d(ithr, nthrs(), n, off_n, size_n);
                 break;
 
             case partition_type::col_major_2d: {
@@ -84,7 +84,7 @@ struct gemm_threading_t {
                 ithr_n = ithr / nthrs_m;
 
                 partition_2d(ithr, &nthr_eff, ithr_m, ithr_n, nthrs_m, nthrs_n,
-                        m, n, &off_m, &size_m, &off_n, &size_n);
+                        m, n, off_m, size_m, off_n, size_n);
                 break;
             }
 
