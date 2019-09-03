@@ -197,7 +197,6 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
     // [Create and execute relu]
     // execute relu (on convolution's destination format, whatever it is)
     create_and_execute_relu(user_dst, eng, s);
-    s.wait();
     // [Create and execute relu]
     /// @page performance_profiling_cpp
     /// @note The function for creation and execution of ReLU primitive is
@@ -331,8 +330,6 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
         auto r_pd = reorder::primitive_desc(conv_dst, user_dst);
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
-    s.wait();
-
     /// @page performance_profiling_cpp
     /// Blocked memory format is recommended for Intel MKL-DNN primitive
     /// execution and provides better performance, as shown in the
@@ -460,8 +457,6 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
         auto r_pd = reorder::primitive_desc(conv_dst, user_dst);
         reorder(r_pd).execute(s, conv_dst, user_dst);
     }
-    s.wait();
-
     /// @page performance_profiling_cpp
     /// This implementation complies with best practices for f32 inference by
     /// using the Intel MKL-DNN recommended blocked format for convolution and

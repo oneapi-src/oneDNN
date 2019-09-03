@@ -28,45 +28,30 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-if(UNIX)
-    find_library(LIBM m)
-endif()
+set_if(UNIX LIBM m)
 
 file(GLOB sources *.cpp *.c)
 
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
-    string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})  
-    if(${example_name} MATCHES "sycl*")
-        if(DNNL_GPU_RUNTIME STREQUAL "SYCL")
-           if(NOT ${example_name} MATCHES ".*usm" OR DNNL_SYCL_INTEL)
-                register_exe(${example_name} ${src} "test" ${LIBM})
-                if(MKLDNN_SYCL_COMPUTECPP AND NOT ${example_name} MATCHES ".*usm")
-                    add_sycl_to_target(TARGET ${example_name} SOURCES ${src})
-                endif()
-            endif()
-        endif()
-    elseif(${example_name} MATCHES ".*opencl")
-        if(DNNL_GPU_RUNTIME STREQUAL "OCL")
-            register_exe("mkldnn-compat-ocl-${example_name}" ${src} "test" ${LIBM})
-        endif()
-    elseif(${example_name} MATCHES "^(cpu)")
-        if(NOT ${example_name} MATCHES "^(cpu-rnn|cpu-cnn)" AND NOT DNNL_WITH_SYCL)
-            # Example name contains cpu-
-            register_exe("mkldnn-compat-${example_name}" ${src} "test" ${LIBM})
-        endif()
+    string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
+    if(${example_name} MATCHES "^(cpu)")
+        # Example name contains cpu-
+        register_exe(mkldnn-compat-${example_name} ${src} "test" ${LIBM})
     elseif(${example_name} MATCHES "^(cross-engine|gpu)")
         # Example name contains cross-engine or gpu-
-        if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
-            register_exe("mkldnn-compat-${example_name}" ${src} "test" ${LIBM})
+        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+            register_exe(mkldnn-compat-${example_name} ${src} "test" ${LIBM})
         endif()
     else()
-        register_exe("mkldnn-compat-${example_name}" ${src} "" ${LIBM})
+        register_exe(mkldnn-compat-${example_name} ${src} "" ${LIBM})
+
         # Adding test for CPU
         add_test("mkldnn-compat-cpu-${example_name}" "mkldnn-compat-${example_name}" cpu)
         maybe_configure_windows_test("mkldnn-compat-cpu-${example_name}" TEST)
+
         # Adding test for GPU
-        if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+        if (NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
            add_test("mkldnn-compat-gpu-${example_name}" "mkldnn-compat-${example_name}" gpu)
            maybe_configure_windows_test("mkldnn-compat-gpu-${example_name}" TEST)
         endif()

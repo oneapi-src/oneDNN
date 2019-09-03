@@ -104,17 +104,11 @@ void simple_net_int8(engine::kind engine_kind) {
     //[Allocate buffers]
     auto user_src_memory = memory({{conv_src_tz}, dt::f32, tag::nchw}, eng);
     write_to_mkldnn_memory(user_src.data(), user_src_memory);
-    // Copy user_src to user_src_memory
-    // ...
     auto user_weights_memory
             = memory({{conv_weights_tz}, dt::f32, tag::oihw}, eng);
     write_to_mkldnn_memory(conv_weights.data(), user_weights_memory);
-    // Copy conv_weights to user_weights_memory
-    // ...
     auto user_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
     write_to_mkldnn_memory(conv_bias.data(), user_bias_memory);
-    // Copy conv_bias to user_bias_memory
-    // ...
     //[Allocate buffers]
 
     /// Create a memory descriptor for each convolution parameter.
@@ -261,10 +255,7 @@ void simple_net_int8(engine::kind engine_kind) {
     /// @snippet cnn_inference_int8.cpp Dequantize the result
     ///[Dequantize the result]
     auto user_dst_memory = memory({{conv_dst_tz}, dt::f32, tag::nchw}, eng);
-    // copy user_dst to user_dst_memory
-    // ...
     write_to_mkldnn_memory(user_dst.data(), user_dst_memory);
-
     primitive_attr dst_attr;
     dst_attr.set_output_scales(dst_mask, dst_scales);
     auto dst_reorder_pd

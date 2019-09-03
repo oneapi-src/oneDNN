@@ -96,9 +96,6 @@ static void init_data_memory(uint32_t dim, const mkldnn_dim_t *dims,
             &user_md, dim, dims, mkldnn_f32, user_tag));
     CHECK(mkldnn_memory_create(
             memory, &user_md, engine, MKLDNN_MEMORY_ALLOCATE));
-
-    // copy data to memory
-    // ...
     write_to_mkldnn_memory(data, *memory);
 }
 
@@ -422,6 +419,9 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
 
     mkldnn_stream_destroy(stream);
 
+    free(net_src);
+    free(net_dst);
+
     mkldnn_memory_destroy(conv_user_src_memory);
     mkldnn_memory_destroy(conv_user_weights_memory);
     mkldnn_memory_destroy(conv_user_bias_memory);
@@ -431,6 +431,9 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
     mkldnn_primitive_destroy(conv_reorder_src);
     mkldnn_primitive_destroy(conv_reorder_weights);
     mkldnn_primitive_destroy(conv);
+
+    free(conv_weights);
+    free(conv_bias);
 
     mkldnn_memory_destroy(relu_dst_memory);
     mkldnn_primitive_destroy(relu);
@@ -446,12 +449,6 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
     mkldnn_primitive_destroy(pool);
 
     mkldnn_engine_destroy(engine);
-
-    free(net_src);
-    free(net_dst);
-
-    free(conv_weights);
-    free(conv_bias);
 
     return mkldnn_success;
 }
