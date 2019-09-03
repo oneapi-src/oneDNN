@@ -87,7 +87,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = true && !is_fwd()
+            bool ok = true && !is_fwd() && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))

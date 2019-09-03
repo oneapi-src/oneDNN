@@ -49,10 +49,8 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
     ld.data_desc = *data_desc;
-    if (!is_fwd)
-        ld.diff_data_desc = *diff_data_desc;
-    else
-        ld.diff_data_desc = zero_md();
+    if (!is_fwd) ld.diff_data_desc = *diff_data_desc;
+
     ld.local_size = local_size;
     ld.lrn_alpha = alpha;
     ld.lrn_beta = beta;
