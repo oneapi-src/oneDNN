@@ -502,6 +502,16 @@ inline status_t memory_desc_init_by_blocking_desc(
     return status::success;
 }
 
+/** inits memory descriptor @p md based on another one memory descriptor
+ * @p md_base and given @p data_type.
+ * Essentially: { md = md_base; md.dt = data_type; } */
+inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
+        const memory_desc_t &md_base, data_type_t data_type) {
+    if (&md != &md_base) md = md_base;
+    md.data_type = data_type;
+    return status::success;
+}
+
 /** returns true if memory desc @p md corresponds to the given format tag and
  * strides.
  * If strides are not passed (or passed as nullptr) the dense structure is
