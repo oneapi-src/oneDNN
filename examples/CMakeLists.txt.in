@@ -86,8 +86,6 @@ function(maybe_configure_test name kind)
     endif()
 endfunction()
 
-find_package(dnnl @PROJECT_VERSION@ CONFIG REQUIRED HINTS ${DNNLROOT})
-
 # Register example
 #   name -- name of the executable
 #   srcs -- list of source, if many must be enclosed with ""
