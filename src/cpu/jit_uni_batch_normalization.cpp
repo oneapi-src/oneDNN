@@ -1411,6 +1411,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
              * jit_uni_tbb_batch_normalization instead */
             && dnnl_thr_syncable() && mayiuse(isa) && is_bwd()
             && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
+            && set_default_formats_common()
             && one_of(true,
                     everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type),

@@ -146,7 +146,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
-            bool ok = true && is_bwd()
+            bool ok = true && is_bwd() && set_default_formats_common()
                     && (utils::everyone_is(f32, src_md()->data_type,
                                 diff_src_md()->data_type)
                             || utils::everyone_is(bf16, src_md()->data_type,

@@ -248,6 +248,14 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
 protected:
     memory_desc_t diff_data_md_;
     memory_desc_t diff_scaleshift_md_;
+
+    bool set_default_formats_common() {
+        if (diff_data_md_.format_kind != format_kind::any) return true;
+
+        return memory_desc_init_by_md_and_dt(
+                       diff_data_md_, data_md_, diff_data_md_.data_type)
+                == status::success;
+    }
 };
 
 } // namespace impl
