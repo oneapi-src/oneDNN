@@ -280,7 +280,7 @@ static void sum_k_blocks(
     auto stride = thread_arg[ithr].thr_k_stride;
     dim_t n0, nn;
 
-    partition_1d(ithr_k, nthr_k, n, &n0, &nn);
+    partition_1d(ithr_k, nthr_k, n, n0, nn);
 
     auto get_thread_arg = [&](int thr_k) -> gemm_per_thread_t<c_type> & {
         return thread_arg[ithr + (thr_k - ithr_k) * stride];
