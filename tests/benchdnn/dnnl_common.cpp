@@ -80,8 +80,8 @@ inline int measure_perf_individual(benchdnn_timer_t &t, dnnl_primitive_t prim,
         std::vector<dnnl_exec_arg_t> &dnnl_args) {
     t.reset();
     while (true) {
-        DNN_SAFE(dnnl_primitive_execute(
-                         prim, stream_tgt, (int)dnnl_args.size(), dnnl_args.data()),
+        DNN_SAFE(dnnl_primitive_execute(prim, stream_tgt, (int)dnnl_args.size(),
+                         dnnl_args.data()),
                 WARN);
         t.stamp();
         if (should_stop(t)) break;
