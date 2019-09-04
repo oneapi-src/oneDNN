@@ -135,9 +135,8 @@ int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-int init_pd(const prb_t *p, dir_t dir, dnnl_pooling_desc_t &pd,
-        dnnl_primitive_desc_t &ppd, const_dnnl_primitive_desc_t hint,
-        res_t *r) {
+int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &ppd,
+        const_dnnl_primitive_desc_t hint, res_t *r) {
     dnnl_memory_desc_t src_d, dst_d;
 
     const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
@@ -179,6 +178,8 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_pooling_desc_t &pd,
     dnnl_dim_t *padding_r = padding_r_nd + (5 - ndims);
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
+    dnnl_pooling_desc_t pd;
+
     if (dir & FLAG_FWD) {
         auto prop_kind = p->dir & FLAG_INF ? dnnl_forward_inference
                                            : dnnl_forward_training;
@@ -208,56 +209,47 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_pooling_desc_t &pd,
         print(5, "dnnl implementation: %s\n", impl_str);
     }
 
-    const auto q = [=](dnnl_query_t query, int index = 0) {
-        return *dnnl_primitive_desc_query_md(ppd, query, index);
-    };
-
-    if (dir & FLAG_FWD) {
-        pd.src_desc = q(dnnl_query_src_md);
-        pd.dst_desc = q(dnnl_query_dst_md);
-    } else {
-        pd.diff_src_desc = q(dnnl_query_diff_src_md);
-        pd.diff_dst_desc = q(dnnl_query_diff_dst_md);
-    }
-
     return OK;
 }
 
-int init_pd_fwd(const prb_t *p, dnnl_pooling_desc_t &pd,
-        dnnl_primitive_desc_t &ppd, res_t *r) {
-    return init_pd(p, FLAG_FWD, pd, ppd, nullptr, r);
+int init_pd_fwd(const prb_t *p, dnnl_primitive_desc_t &ppd, res_t *r) {
+    return init_pd(p, FLAG_FWD, ppd, nullptr, r);
 }
 
-int init_pd_bwd(const prb_t *p, dnnl_pooling_desc_t &pd,
-        dnnl_primitive_desc_t &ppd, const_dnnl_primitive_desc_t hint,
-        res_t *r) {
-    return init_pd(p, FLAG_BWD, pd, ppd, hint, r);
+int init_pd_bwd(const prb_t *p, dnnl_primitive_desc_t &ppd,
+        const_dnnl_primitive_desc_t hint, res_t *r) {
+    return init_pd(p, FLAG_BWD, ppd, hint, r);
 }
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_pooling_desc_t pfd, pbd;
     dnnl_primitive_desc_t pfpd, pbpd;
     dnnl_primitive_t pf, pb;
 
-    SAFE(init_pd_fwd(p, pfd, pfpd, r), WARN);
+    SAFE(init_pd_fwd(p, pfpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) { return OK; }
 
     DNN_SAFE(dnnl_primitive_create(&pf, pfpd), WARN);
 
+    auto q_md = [](const_dnnl_primitive_desc_t pd, dnnl_query_t what) {
+        const dnnl_memory_desc_t *md
+                = dnnl_primitive_desc_query_md(pd, what, 0);
+        SAFE_V(md != nullptr ? OK : FAIL);
+        return md;
+    };
+
     dnn_mem_t ws_dt, ws_fp;
     if (p->alg == MAX && !(p->dir & FLAG_INF)) {
-        const auto &ws_d = *dnnl_primitive_desc_query_md(
-                pfpd, dnnl_query_workspace_md, 0);
+        const auto &ws_d = *q_md(pfpd, dnnl_query_workspace_md);
         ws_dt = dnn_mem_t(ws_d, engine_tgt);
         ws_fp = dnn_mem_t(ws_d, engine_tgt);
         // to catch usage of uninitialized values in the library
         SAFE(fill_ws(p, ws_dt, ws_fp, r), WARN);
     }
 
-    const auto &src_desc = pfd.src_desc;
-    const auto &dst_desc = pfd.dst_desc;
+    const auto &src_desc = *q_md(pfpd, dnnl_query_src_md);
+    const auto &dst_desc = *q_md(pfpd, dnnl_query_dst_md);
     dnn_mem_t src_dt(src_desc, p->cfg[SRC].dt, engine_tgt);
     dnn_mem_t dst_dt(dst_desc, p->cfg[DST].dt, engine_tgt);
     dnn_mem_t d_src_dt, d_dst_dt;
@@ -291,14 +283,17 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     if (p->dir & FLAG_BWD) {
-        SAFE(init_pd_bwd(p, pbd, pbpd, pfpd, r), WARN);
+        SAFE(init_pd_bwd(p, pbpd, pfpd, r), WARN);
         if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
         DNN_SAFE(dnnl_primitive_create(&pb, pbpd), WARN);
         DNN_SAFE(dnnl_primitive_desc_destroy(pbpd), CRIT);
 
-        const auto &d_src_desc = pbd.diff_src_desc;
-        const auto &d_dst_desc = pbd.diff_dst_desc;
+        const_dnnl_primitive_desc_t const_pbpd;
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(pb, &const_pbpd), CRIT);
+
+        const auto &d_src_desc = *q_md(const_pbpd, dnnl_query_diff_src_md);
+        const auto &d_dst_desc = *q_md(const_pbpd, dnnl_query_diff_dst_md);
         d_dst_dt = dnn_mem_t(d_dst_desc, p->cfg[DST].dt, engine_tgt);
         d_src_dt = dnn_mem_t(d_src_desc, p->cfg[SRC].dt, engine_tgt);
 
