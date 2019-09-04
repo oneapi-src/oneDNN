@@ -119,3 +119,10 @@ mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg
 mb1_g3ic3oc3_ih10oh9kh2sh2dh0ph4
 mb1_g16ic16oc16_ih5oh2kh2sh5ph0
 mb1_g16ic16oc16_ih5oh2kh2sh3ph0
+
+# 1x1 Conv with spatial padding
+--reset --dir=FWD_B
+--cfg=f32 g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
+--allow-unimpl=true
+--cfg=u8s8u8s32 g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
+--cfg=bf16bf16f32 g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
