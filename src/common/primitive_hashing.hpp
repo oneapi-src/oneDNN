@@ -246,7 +246,9 @@ static inline size_t get_md_hash(const memory_desc_t &md) {
 
     if (md.extra.flags != dnnl_memory_extra_flag_none) {
         seed = hash_combine(seed, md.extra.flags);
-        if (md.extra.flags & dnnl_memory_extra_flag_compensation_conv_s8s8) {
+        if (md.extra.flags
+                & (dnnl_memory_extra_flag_compensation_conv_s8s8
+                        | dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation)) {
             seed = hash_combine(seed, md.extra.compensation_mask);
         }
 

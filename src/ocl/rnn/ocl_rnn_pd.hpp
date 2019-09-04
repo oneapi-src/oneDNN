@@ -35,10 +35,6 @@ struct ocl_rnn_fwd_pd_t : public rnn_fwd_pd_t {
         using namespace format_tag;
         if (src_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
-        if (weights_layer_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(weights_layer_md_, ldigo));
-        if (weights_iter_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(weights_iter_md_, ldigo));
         if (dst_layer_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
 

@@ -27,6 +27,7 @@
 #include "compute/compute.hpp"
 
 #include "ocl/jit_gen9_gemm.hpp"
+#include "ocl/jit_gen9_gemm_x8x8s32.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
@@ -59,6 +60,8 @@ template <prop_kind_t aprop, impl::data_type_t src_type,
 struct _ref_rnn_common_t : public primitive_impl_t {
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<weights_type>::type weights_data_t;
+    typedef typename utils::conditional3<src_type == data_type::u8, int32_t,
+            src_type == data_type::f16, float16_t, float>::type acc_data_t;
 
     using class_name = _ref_rnn_common_t<aprop, src_type, weights_type>;
 
@@ -95,6 +98,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         status_t init() {
             using namespace prop_kind;
             using namespace utils;
+            using namespace rnn_utils;
             using namespace format_tag;
 
             assert(this->engine()->kind() == engine_kind::gpu);
@@ -122,7 +126,9 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     && everyone_is(
                             weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
-                    && IMPLICATION(src_type == data_type::f16,
+                    && this->with_bias()
+                    && IMPLICATION(src_type == data_type::f16
+                                    || src_type == data_type::u8,
                             this->desc()->prop_kind == forward_inference)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
@@ -133,29 +139,18 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
-            if (!ok) { return status::unimplemented; }
+            if (!ok) return status::unimplemented;
 
             init_rnn_conf(rnn_conf_, *this->desc(), this->src_md(0),
                     this->src_md(1), this->weights_md(0), this->weights_md(1),
                     this->dst_md(0));
 
-            ok = ok
-                    && utils::one_of(cell_kind, alg_kind::vanilla_rnn,
-                            alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                            alg_kind::lbr_gru);
+            if (one_of(rnn_conf_.dt_conf, all_f32, all_f16))
+                ok = ok && this->attr()->has_default_values();
 
-            ok = ok && this->with_bias();
+            // TODO: implement something like check layout consistency
             switch (aprop) {
-                case (prop_kind::forward):
-                    ok = ok
-                            && utils::one_of(this->desc()->prop_kind,
-                                    forward_training, forward_inference);
-                    ok = ok
-                            && memory_desc_matches_one_of_tag(
-                                    this->weights_layer_md_, ldigo)
-                            && memory_desc_matches_one_of_tag(
-                                    this->weights_iter_md_, ldigo);
-                    break;
+                case (prop_kind::forward): break;
                 case (prop_kind::backward):
                     ok = ok && utils::one_of(this->desc()->prop_kind, backward);
                     ok = ok
@@ -166,11 +161,12 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     break;
                 default: ok = false;
             }
-            if (!ok) { return status::unimplemented; }
+            if (!ok) return status::unimplemented;
 
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
             CHECK(set_expected_desc(rnn_conf_, new_weights_layer_md, false));
+
             if (this->weights_layer_md_.format_kind == format_kind::any) {
                 this->weights_layer_md_ = new_weights_layer_md;
             } else if (this->weights_layer_md_.format_kind
@@ -179,6 +175,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                             this->weights_layer_md_, new_weights_layer_md))
                     return status::unimplemented;
             }
+
             memory_desc_t new_weights_iter_md = *this->weights_md(1);
             CHECK(set_expected_desc(rnn_conf_, new_weights_iter_md, true));
             if (this->weights_iter_md_.format_kind == format_kind::any) {
@@ -198,7 +195,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     && ((ls_multiplier * this->SLC()) == this->DLC()
                             || (this->L() == 1))
                     && (this->SIC() == this->DIC() || (this->T() == 1));
-            if (!ok) { return status::unimplemented; }
+            if (!ok) return status::unimplemented;
 
             set_rnn_conf(rnn_conf_, *this->desc(), this->weights_md(0),
                     this->weights_md(1), this->diff_weights_md(0),
@@ -218,6 +215,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             init_scratchpad(scratchpad_sz);
 #endif
 
+            rnn_conf_.acc_data_type = data_traits<acc_data_t>::data_type;
+            rnn_conf_.acc_data_type_elsz = sizeof(acc_data_t);
             status_t status
                     = init_jit<aprop>(jrnn_, rnn_conf_, this, this->jit_off_);
             if (status != status::success) { return status; }
@@ -244,6 +243,10 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 gemm_desc.b_type = b_dt;
                 gemm_desc.c_type = c_dt;
 
+                gemm_desc.ao = 0;
+                gemm_desc.bo = 0;
+                gemm_desc.offsetc = offsetc::fixed;
+
                 primitive_attr_t dummy_attr;
 
                 return dnnl_primitive_desc_create(gemm_pd,
@@ -268,13 +271,15 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                                             rnn_conf_.weights_layer_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.gates_ws_ld, weights_type,
-                                            src_type, src_type, false, 0.0),
+                                            src_type, rnn_conf_.acc_data_type,
+                                            false, 0.0),
                                     create_gemm_pd(&gemm_iter_pd_,
                                             n_gates * dic, batch, sic,
                                             rnn_conf_.weights_iter_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.gates_ws_ld, weights_type,
-                                            src_type, src_type, false, 1.0));
+                                            src_type, rnn_conf_.acc_data_type,
+                                            false, 1.0));
                     break;
                 case prop_kind::backward:
                     gemm_ok = true
@@ -313,8 +318,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     return status::invalid_arguments;
             }
 
-            if (!gemm_ok) { return status::unimplemented; }
-
+            if (!gemm_ok) return status::unimplemented;
             return status::success;
         }
 
@@ -368,32 +372,49 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         jit_ref_rnn_kernel::init_const_def(
                 kernel_ctx, pd()->jrnn_, pd()->jit_off_);
 
-        std::vector<const char *> kernel_names = {
-                "ref_rnn_copy_init_layer_kernel",
-                "ref_rnn_copy_init_iter_kernel",
-                "ref_rnn_copy_res_layer_kernel", "ref_rnn_copy_res_iter_kernel",
-                "ref_rnn_ws_set_kernel", "ref_rnn_elemwise_fwd_kernel",
-                "ref_rnn_elemwise_bwd_kernel",
-                "ref_rnn_gates_reduction_kernel"};
+        std::vector<const char *> kernel_names
+                = { "ref_rnn_bias_prepare_kernel",
+                      "ref_rnn_copy_init_layer_kernel",
+                      "ref_rnn_copy_init_iter_kernel",
+                      "ref_rnn_copy_res_layer_kernel",
+                      "ref_rnn_copy_res_iter_kernel",
+                      "ref_rnn_ws_set_kernel",
+                      "ref_rnn_elemwise_fwd_kernel",
+                      "ref_rnn_elemwise_bwd_kernel",
+                      "ref_rnn_gates_reduction_kernel"
+#if DEBUGPRINT
+                      ,
+                      "ref_rnn_ws_print_kernel"
+#endif
+                  };
 
         std::vector<compute::kernel_t> kernels;
         auto status = compute_engine->create_kernels(
                 &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
-        copy_init_layer_kernel_ = kernels[0];
-        copy_init_iter_kernel_ = kernels[1];
-        copy_res_layer_kernel_ = kernels[2];
-        copy_res_iter_kernel_ = kernels[3];
-        ws_set_kernel_ = kernels[4];
-        elemwise_fwd_kernel_ = kernels[5];
-        elemwise_bwd_kernel_ = kernels[6];
-        gates_reduction_kernel_ = kernels[7];
-
+        bias_prepare_kernel_ = kernels[0];
+        copy_init_layer_kernel_ = kernels[1];
+        copy_init_iter_kernel_ = kernels[2];
+        copy_res_layer_kernel_ = kernels[3];
+        copy_res_iter_kernel_ = kernels[4];
+        ws_set_kernel_ = kernels[5];
+        elemwise_fwd_kernel_ = kernels[6];
+        elemwise_bwd_kernel_ = kernels[7];
+        gates_reduction_kernel_ = kernels[8];
 #if DEBUGPRINT
-        ws_print_kernel_ = jit.get_kernel("ref_rnn_ws_print_kernel");
-        if (!ws_print_kernel_) return status::runtime_error;
+        ws_print_kernel_ = kernels[9];
 #endif
+
+        if (pd()->rnn_conf_.is_int8) {
+            size_t size = pd()->rnn_conf_.n_gates * pd()->rnn_conf_.dic
+                    * sizeof(float); // G * O * sizeof(float);
+            memory_storage_t *temp_buf_ptr;
+            engine()->create_memory_storage(&temp_buf_ptr, size);
+            scales_buf.reset(temp_buf_ptr);
+            if (!scales_buf) return status::runtime_error;
+        }
+
         bool gemm_ok = true;
 
         switch (aprop) {
@@ -429,15 +450,13 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             size_t scratchpad_sz {0}, ws_sz {0};
             get_scratchpad_and_workspace_sizes(
                     pd()->rnn_conf_, scratchpad_sz, ws_sz);
-            engine()->create_memory_storage(
-                    &scratchpad_, scratchpad_sz * sizeof(src_data_t));
+            engine()->create_memory_storage(&scratchpad_, scratchpad_sz);
         }
 #endif
         return status::success;
     } // status_t init() override
 
     _ref_rnn_common_t(const pd_t *apd) : primitive_impl_t(apd) {
-
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dic and sic != dic
@@ -537,6 +556,11 @@ private:
     free_packed_sig(free_no_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
+    void bias_prepare(compute::compute_stream_t *compute_stream, int n_layer,
+            int n_dir, int n_bias, int n_gates, int dic,
+            const memory_storage_t &ws, const memory_storage_t &scales,
+            const memory_storage_t &wei_layer, const memory_storage_t &wei_iter,
+            const memory_storage_t &bias) const;
     void copy_init_layer(compute::compute_stream_t *compute_stream, bool lr,
             bool rl, int n_iter, int batch, int slc, const memory_storage_t &ws,
             const memory_storage_t &input,
@@ -546,32 +570,34 @@ private:
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
-            const memory_storage_t &diff_dst_iter_c) const;
+            const memory_storage_t &diff_dst_iter_c, const float shift,
+            const float scale, const bool quantize) const;
     void copy_res_layer(compute::compute_stream_t *compute_stream, bool lr,
             bool rl, int n_iter, int batch, int slc, int dlc,
             const memory_storage_t &dst_last_layer,
-            const memory_storage_t &diff_src_layer,
-            const memory_storage_t &ws) const;
+            const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
+            const float shift, const float scale, const bool dequantize) const;
     void copy_res_iter(compute::compute_stream_t *compute_stream, int n_layer,
             int n_dir, int batch, int sic, int dic,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
-            const memory_storage_t &diff_src_iter_c,
-            const memory_storage_t &ws) const;
+            const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
+            const float shift, const float scale, const bool dequantize) const;
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dic, int batch, const memory_storage_t &gates,
             const memory_storage_t &diff_bias) const;
     void ws_set(compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
-            const float val, const size_t size) const;
+            const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
     void ws_print(compute::compute_stream_t *s,
             const memory_storage_t &workspace) const;
-    ocl_kernel_t ws_print_kernel_;
+    compute::kernel_t ws_print_kernel_;
 #endif
 
     jit_ref_rnn_kernel *ker_;
+    compute::kernel_t bias_prepare_kernel_;
     compute::kernel_t copy_init_layer_kernel_;
     compute::kernel_t copy_init_iter_kernel_;
     compute::kernel_t copy_res_layer_kernel_;
@@ -589,6 +615,7 @@ private:
     primitive_t *gemm_diff_wei_iter_ = nullptr;
 
     memory_storage_t *scratchpad_;
+    std::unique_ptr<memory_storage_t> scales_buf;
 
     cl_ulong ws_gates_offset_;
     cl_ulong ws_states_offset_;
@@ -614,6 +641,8 @@ private:
     free_packed_t weights_input_free_packed_func;
     free_packed_t weights_state_free_packed_func;
 };
+using ref_rnn_fwd_u8s8_t
+        = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
 using ref_rnn_fwd_f16_t
         = _ref_rnn_common_t<prop_kind::forward, data_type::f16, data_type::f16>;
 using ref_rnn_fwd_f32_t

@@ -95,19 +95,25 @@ struct memory_desc_wrapper : public c_compatible {
     size_t additional_buffer_data_size() const {
         if (extra().flags & memory_extra_flags::compensation_conv_s8s8)
             return sizeof(int32_t);
+        if (extra().flags & memory_extra_flags::gpu_rnn_u8s8_compensation)
+            return sizeof(float);
         return 0;
     }
 
     /** return true if memory format has additional buffer */
     bool is_additional_buffer() const {
-        return (extra().flags & memory_extra_flags::compensation_conv_s8s8);
+        return (extra().flags
+                & (memory_extra_flags::compensation_conv_s8s8
+                        | memory_extra_flags::gpu_rnn_u8s8_compensation));
     }
 
     /** returns the size of additional buffer */
     size_t additional_buffer_size() const {
-        if (extra().flags & memory_extra_flags::compensation_conv_s8s8) {
+        if (extra().flags
+                & (memory_extra_flags::compensation_conv_s8s8
+                        | memory_extra_flags::gpu_rnn_u8s8_compensation)) {
             int cmask = extra().compensation_mask;
-            assert(cmask == 1 || cmask == 3);
+            assert(cmask == 1 || cmask == 3 || cmask == 27);
             dim_t prod = 1;
             for (int d = 0; d < ndims(); ++d)
                 if (cmask & (1 << d)) prod *= padded_dims()[d];

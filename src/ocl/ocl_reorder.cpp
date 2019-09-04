@@ -18,6 +18,7 @@
 #include "ocl/cross_engine_reorder.hpp"
 #include "ocl/ocl_engine.hpp"
 #include "ocl/ocl_reorder_pd.hpp"
+#include "ocl/rnn/rnn_reorders.hpp"
 #include "ocl/simple_reorder.hpp"
 
 namespace dnnl {
@@ -31,8 +32,9 @@ namespace {
 using namespace dnnl::impl::data_type;
 
 static const rpd_create_f ocl_ce_reorder_impl_list[]
-        = {cross_engine_reorder_t::pd_t::create, simple_reorder_t::pd_t::create,
-                nullptr};
+        = {rnn_weights_reorder_t::pd_t::create,
+                cross_engine_reorder_t::pd_t::create,
+                simple_reorder_t::pd_t::create, nullptr};
 } // namespace
 
 const rpd_create_f *

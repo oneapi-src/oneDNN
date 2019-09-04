@@ -419,6 +419,8 @@ const memory_extra_flags_t none = dnnl_memory_extra_flag_none;
 const memory_extra_flags_t compensation_conv_s8s8
         = dnnl_memory_extra_flag_compensation_conv_s8s8;
 const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
+const memory_extra_flags_t gpu_rnn_u8s8_compensation
+        = dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation;
 } // namespace memory_extra_flags
 
 using engine_kind_t = dnnl_engine_kind_t;

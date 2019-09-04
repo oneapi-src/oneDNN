@@ -23,3 +23,12 @@
 --alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC --batch=rnn_small
 --alg=VANILLA_LSTM --activation=TANH               --batch=rnn_small
 
+# LSTM int8
+--alg=VANILLA_LSTM
+--direction=left2right
+--activation=TANH
+--allow-unimpl=true
+--prop=FWD_D
+
+--cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small
+--cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small

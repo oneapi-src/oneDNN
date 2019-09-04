@@ -103,6 +103,9 @@ inline bool memory_extra_desc_is_equal(
             && IMPLICATION(
                     lhs.flags & memory_extra_flags::compensation_conv_s8s8,
                     lhs.compensation_mask == rhs.compensation_mask)
+            && IMPLICATION(
+                    lhs.flags & memory_extra_flags::gpu_rnn_u8s8_compensation,
+                    lhs.compensation_mask == rhs.compensation_mask)
             && IMPLICATION(lhs.flags & memory_extra_flags::scale_adjust,
                     lhs.scale_adjust == rhs.scale_adjust);
 }

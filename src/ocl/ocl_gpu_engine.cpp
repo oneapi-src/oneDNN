@@ -193,6 +193,7 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(jit_gen9_gemm_t<f16>),
         INSTANCE(jit_gen9_gemm_t<f32>),
         /*rnn*/
+        INSTANCE(ref_rnn_fwd_u8s8_t),
         INSTANCE(ref_rnn_fwd_f16_t),
         INSTANCE(ref_rnn_fwd_f32_t),
         INSTANCE(ref_rnn_bwd_f32_t),

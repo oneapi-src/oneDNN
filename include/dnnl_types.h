@@ -861,6 +861,7 @@ typedef enum {
     ///  -128 * SUM(ic : 0,IC; kh : 0,KH; kw : 0,KW){ weights(oc, ic, kh, kw) }
     dnnl_memory_extra_flag_compensation_conv_s8s8 = 0x1U,
     dnnl_memory_extra_flag_scale_adjust = 0x2U,
+    dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation = 0x4U,
 } dnnl_memory_extra_flags_t;
 
 /// Description of extra information stored in memory
