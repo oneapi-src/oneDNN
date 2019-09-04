@@ -54,11 +54,11 @@ struct desc_t {
 };
 
 inline bool is_problem_3d(const desc_t *p) {
-    return p->id > 1 || p->kd > 1;
+    return p->id > 1 || p->kd > 1 || p-> od > 1;
 }
 
 inline bool is_problem_1d(const desc_t *p) {
-    return !is_problem_3d(p) && p->ih == 1 && p->kh == 1;
+    return !is_problem_3d(p) && p->ih == 1 && p->kh == 1 && p->oh == 1;
 }
 
 const size_t max_desc_len = 196;
