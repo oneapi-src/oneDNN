@@ -662,11 +662,10 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         && jcp.wei_tag == wei_tag;
     if (!args_ok) return status::unimplemented;
 
-    args_ok = true
-        && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
-        && jcp.t_pad == 0 && jcp.l_pad == 0
-        && jcp.stride_w == 1 && jcp.stride_h == 1
-        && jcp.kh == 1 && jcp.kw == 1;
+    args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
+            && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
+            && jcp.stride_h == 1 && jcp.kh == 1 && jcp.kw == 1
+            && jcp.ow == jcp.iw && jcp.oh == jcp.ih; // enforce rpad=0
     if (!args_ok) return status::unimplemented;
 
     jcp.ic_block = jcp.oc_block = simd_w;
