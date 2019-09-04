@@ -32,11 +32,13 @@
 namespace conv {
 
 inline bool is_conv_3d(const prb_t *p) {
-    return p->id > 1;
+    const auto id_p = p->id + p->pd;
+    return id_p > 1 || p->kd > 1 || p->od > 1;
 }
 
 inline bool is_conv_1d(const prb_t *p) {
-    return !is_conv_3d(p) && p->ih == 1 && p->kh == 1;
+    const auto ih_p = p->ih + p->ph;
+    return !is_conv_3d(p) && ih_p == 1 && p->kh == 1 && p->oh == 1;
 }
 
 double get_trust_nz_level(const prb_t *p, data_kind_t kind,

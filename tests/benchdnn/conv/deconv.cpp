@@ -40,11 +40,13 @@ inline static void swap(int64_t &a, int64_t &b) {
 }
 
 inline bool is_deconv_3d(const prb_t *p) {
-    return p->id > 1;
+    const auto id_p = p->id + p->pd;
+    return id_p > 1 || p->kd > 1 || p->od > 1;
 }
 
 inline bool is_deconv_1d(const prb_t *p) {
-    return !is_deconv_3d(p) && p->ih == 1 && p->kh == 1;
+    const auto ih_p = p->ih + p->ph;
+    return !is_deconv_3d(p) && ih_p == 1 && p->kh == 1 && p->oh == 1;
 }
 
 inline int transpose_data_wei(const prb_t *p, dnn_mem_t &wei, dnn_mem_t &wei_tr) {
