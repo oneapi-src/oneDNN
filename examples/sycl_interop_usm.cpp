@@ -16,16 +16,16 @@
 
 #define DNNL_USE_DPCPP_USM
 
+#include "dnnl.hpp"
+#include "dnnl_debug.h"
 #include "example_utils.hpp"
-#include "mkldnn.hpp"
-#include "mkldnn_debug.h"
 #include <CL/sycl.hpp>
 
 #include <cassert>
 #include <iostream>
 #include <numeric>
 
-using namespace mkldnn;
+using namespace dnnl;
 using namespace cl::sycl;
 
 class kernel_tag;
@@ -34,7 +34,7 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
 
     engine eng(engine_kind, 0);
 
-    mkldnn::stream strm(eng);
+    dnnl::stream strm(eng);
 
     memory::dims tz_dims = {2, 3, 4, 5};
     const size_t N = std::accumulate(tz_dims.begin(), tz_dims.end(), (size_t)1,
@@ -61,7 +61,7 @@ void sycl_usm_tutorial(engine::kind engine_kind) {
     auto relu = eltwise_forward(relu_pd);
 
     auto relu_e = relu.execute_sycl(
-            strm, {{MKLDNN_ARG_SRC, mem}, {MKLDNN_ARG_DST, mem}}, {fill_e});
+            strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}}, {fill_e});
     relu_e.wait();
 
     for (size_t i = 0; i < N; i++) {
@@ -79,10 +79,9 @@ int main(int argc, char **argv) {
     try {
         engine::kind engine_kind = parse_engine_kind(argc, argv);
         sycl_usm_tutorial(engine_kind);
-    } catch (mkldnn::error &e) {
-        std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-                  << "Error status: " << mkldnn_status2str(e.status)
-                  << std::endl;
+    } catch (dnnl::error &e) {
+        std::cerr << "DNNL error: " << e.what() << std::endl
+                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;

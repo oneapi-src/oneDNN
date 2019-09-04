@@ -21,7 +21,7 @@
 /// Full example text: @ref sycl_interop.cpp
 ///
 /// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with SYCL extensions API in Intel MKL-DNN.
+/// Graphics with SYCL extensions API in DNNL.
 /// The workflow includes following steps:
 ///   - Create a GPU or CPU engine. It uses SYCL as the runtime in this sample.
 ///   - Create a memory descriptor/object.
@@ -37,28 +37,28 @@
 
 /// @section sycl_interop_cpp_headers Public headers
 ///
-/// To start using Intel MKL-DNN, we must first include the @ref mkldnn.hpp
+/// To start using DNNL, we must first include the @ref dnnl.hpp
 /// header file in the application. We also include CL/sycl.hpp from DPC++ for
-/// using SYCL APIs and @ref mkldnn_debug.h, which  contains some debugging
+/// using SYCL APIs and @ref dnnl_debug.h, which  contains some debugging
 /// facilities such as returning a string representation
-/// for common Intel MKL-DNN C types.
-/// All C++ API types and functions reside in the `mkldnn` namespace, and
+/// for common DNNL C types.
+/// All C++ API types and functions reside in the `dnnl` namespace, and
 /// SYCL API types and functions reside in the `cl::sycl` namespace.
 /// For simplicity of the example we import both namespaces.
 /// @page sycl_interop_cpp
 /// @snippet  sycl_interop.cpp Prologue
 // [Prologue]
 
-#include <mkldnn.hpp>
+#include "dnnl.hpp"
+#include "dnnl_debug.h"
 #include "example_utils.hpp"
-#include "mkldnn_debug.h"
 #include <CL/sycl.hpp>
 
 #include <cassert>
 #include <iostream>
 #include <numeric>
 
-using namespace mkldnn;
+using namespace dnnl;
 using namespace cl::sycl;
 // [Prologue]
 
@@ -72,8 +72,8 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// @page sycl_interop_cpp
     /// @subsection sycl_interop_cpp_sub1 Engine and stream
     ///
-    /// All Intel MKL-DNN primitives and memory objects are attached to a
-    /// particular @ref mkldnn::engine, which is an abstraction of a
+    /// All DNNL primitives and memory objects are attached to a
+    /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device to which they are
     /// attached, and the memory objects refer to memory residing on the
@@ -81,7 +81,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// nor primitives that were created for one engine can be used on
     /// another.
     ///
-    /// To create engines, we must specify the @ref mkldnn::engine::kind
+    /// To create engines, we must specify the @ref dnnl::engine::kind
     /// and the index of the device of the given kind. In this example we use
     /// the first available GPU or CPU engine, so the index for the engine is 0.
     /// This example assumes SYCL being a runtime. In such case,
@@ -93,7 +93,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     engine eng(engine_kind, 0);
     // [Initialize engine]
 
-    /// In addition to an engine, all primitives require a @ref mkldnn::stream
+    /// In addition to an engine, all primitives require a @ref dnnl::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
     ///
@@ -103,15 +103,15 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     ///
     /// @snippet  sycl_interop.cpp Initialize stream
     // [Initialize stream]
-    mkldnn::stream strm(eng);
+    dnnl::stream strm(eng);
     // [Initialize stream]
 
-    /// @subsection  sycl_interop_cpp_sub2 Wrapping data into Intel MKL-DNN memory object
+    /// @subsection  sycl_interop_cpp_sub2 Wrapping data into DNNL memory object
     ///
     /// Next, we create a memory object. We need to specify dimensions of our
     /// memory by passing a memory::dims object. Then we create a memory
-    /// descriptor with these dimensions, with the mkldnn::memory::data_type::f32
-    /// data type, and with the mkldnn::memory::format_tag::nchw memory format.
+    /// descriptor with these dimensions, with the dnnl::memory::data_type::f32
+    /// data type, and with the dnnl::memory::format_tag::nchw memory format.
     /// Finally, we construct a memory object and pass the memory descriptor.
     /// The library allocates memory internally.
     /// @snippet  sycl_interop.cpp memory alloc
@@ -129,7 +129,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// @subsection  sycl_interop_cpp_sub3 Initialize the data executing a custom SYCL kernel
     ///
     /// The underlying SYCL buffer can be extracted from the memory object using
-    /// the interoperability interface: `mkldnn::memory::get_sycl_buffer<T>()`.
+    /// the interoperability interface: `dnnl::memory::get_sycl_buffer<T>()`.
     ///
     /// @snippet  sycl_interop.cpp get sycl buf
     // [get sycl buf]
@@ -153,7 +153,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     // [sycl kernel exec]
 
     /// @subsection sycl_interop_cpp_sub4 Create and execute a primitive
-    /// There are three steps to create an operation primitive in Intel MKL-DNN:
+    /// There are three steps to create an operation primitive in DNNL:
     /// 1. Create an operation descriptor.
     /// 2. Create a primitive descriptor.
     /// 3. Create a primitive.
@@ -182,7 +182,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     ///
     ///@note
     ///    With SYCL runtime, both CPU and GPU have asynchronous execution; However, the user can
-    ///    call mkldnn::stream::wait() to synchronize the stream and ensure that all
+    ///    call dnnl::stream::wait() to synchronize the stream and ensure that all
     ///    previously submitted primitives are completed.
     ///
 
@@ -212,10 +212,10 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
 ///
 /// We now just call everything we prepared earlier.
 ///
-/// Because we are using the Intel MKL-DNN C++ API, we use exceptions to handle
-/// errors (see @ref dev_guide_c_and_cpp_apis). The Intel MKL-DNN C++ API throws
-/// exceptions of type @ref mkldnn::error, which contains the error status
-/// (of type @ref mkldnn_status_t) and a human-readable error message accessible
+/// Because we are using the DNNL C++ API, we use exceptions to handle
+/// errors (see @ref dev_guide_c_and_cpp_apis). The DNNL C++ API throws
+/// exceptions of type @ref dnnl::error, which contains the error status
+/// (of type @ref dnnl_status_t) and a human-readable error message accessible
 /// through the regular `what()` method.
 /// @page sycl_interop_cpp
 /// @snippet sycl_interop.cpp Main
@@ -224,10 +224,9 @@ int main(int argc, char **argv) {
     try {
         engine::kind engine_kind = parse_engine_kind(argc, argv);
         sycl_interop_tutorial(engine_kind);
-    } catch (mkldnn::error &e) {
-        std::cerr << "Intel MKL-DNN error: " << e.what() << std::endl
-                  << "Error status: " << mkldnn_status2str(e.status)
-                  << std::endl;
+    } catch (dnnl::error &e) {
+        std::cerr << "DNNL error: " << e.what() << std::endl
+                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
         return 1;
     } catch (std::string &e) {
         std::cerr << "Error in the example: " << e << std::endl;
