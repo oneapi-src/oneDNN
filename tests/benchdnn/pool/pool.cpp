@@ -153,12 +153,15 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &ppd,
     dnnl_dim_t *dst_dims
             = is_3d(p) ? dst_3d_dims : is_1d(p) ? dst_1d_dims : dst_2d_dims;
 
+    dnnl_format_tag_t tag_src = (dir & FLAG_FWD) ? p->tag : dnnl_format_tag_any;
+    dnnl_format_tag_t tag_dst = dnnl_format_tag_any;
+
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, ndims, src_dims, p->cfg[SRC].dt, p->tag),
+                     &src_d, ndims, src_dims, p->cfg[SRC].dt, tag_src),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, ndims, dst_dims, p->cfg[DST].dt, p->tag),
+                     &dst_d, ndims, dst_dims, p->cfg[DST].dt, tag_dst),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
