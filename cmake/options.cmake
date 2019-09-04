@@ -98,13 +98,13 @@ option(DNNL_ENABLE_JIT_PROFILING
 
 set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     "specifies the threading runtime for CPU engines;
-    supports OMP (default), TBB or SYCL (SYCL CPU engines).
+    supports OMP (default), TBB or DPCPP (DPC++ CPU engines).
 
     To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
     location.
 
-    Using SYCL for CPU requires setting SYCLROOT if the libraries are
+    Using DPC++ for CPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
 
 set(TBBROOT "" CACHE STRING
@@ -114,21 +114,40 @@ set(TBBROOT "" CACHE STRING
 set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
     Can be NONE (default; no GPU engines), OCL (OpenCL GPU engines)
-    or SYCL (SYCL GPU engines).
+    or DPCPP (DPC++ GPU engines).
 
     Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
     installed in a non-standard location.
 
-    Using SYCL for GPU requires setting SYCLROOT if the libraries are
+    Using DPC++ for GPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
 
 set(OPENCLROOT "" CACHE STRING
     "path to Intel(R) SDK for OpenCL(TM).
     Use this option to specify custom location for OpenCL.")
 
-set(SYCLROOT "" CACHE STRING
-    "path to SYCL installation.
-    Use this option to specify custom location for SYCL")
+set(DPCPPROOT "" CACHE STRING
+    "path to DPC++ installation.
+    Use this option to specify custom location for DPC++")
+
+# Shortcuts for SYCL/DPC++
+if(DNNL_CPU_RUNTIME STREQUAL "DPCPP" OR DNNL_CPU_RUNTIME STREQUAL "SYCL")
+    set(DNNL_CPU_SYCL true)
+else()
+    set(DNNL_CPU_SYCL false)
+endif()
+
+if(DNNL_GPU_RUNTIME STREQUAL "DPCPP" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
+    set(DNNL_GPU_SYCL true)
+else()
+    set(DNNL_GPU_SYCL false)
+endif()
+
+if(DNNL_CPU_SYCL OR DNNL_GPU_SYCL)
+    set(DNNL_WITH_SYCL true)
+else()
+    set(DNNL_WITH_SYCL false)
+endif()
 
 # =============
 # Miscellaneous

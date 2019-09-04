@@ -34,7 +34,7 @@ status_t sycl_engine_base_t::create_memory_storage(memory_storage_t **storage,
                 new memory_storage_t(new sycl_buffer_memory_storage_t(
                         this, flags, size, alignment, handle)));
     }
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
     return safe_ptr_assign<memory_storage_t>(*storage,
             new memory_storage_t(new sycl_usm_memory_storage_t(
                     this, flags, size, alignment, handle)));

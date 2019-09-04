@@ -276,13 +276,10 @@ Runtime specific dependencies:
 | `cpu_iomp`            | Intel OpenMP runtime for Intel C/C++ Compiler 17.0 or later
 | `cpu_tbb`             | Threading Building Blocks 2017 or later
 
-### SYCL Support
-The following additional requirements apply when SYCL runtime is used:
-* SYCL compiler with SYCL 1.2.1 support:
-    * DPC++ Compiler June 2019 release or later
-    * [ComputeCpp* Compiler](https://developer.codeplay.com/computecppce/) 1.0.3 or later
-* [Intel(R) SDK for OpenCL\* applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3 or later
-    * Not required for Intel Compiler for SYCL - it includes OpenCL libraries
+### DPC++ Support
+The following additional requirements apply when DPC++ runtime is used:
+* DPC++ compiler
+* OpenCL GPU driver compatible with the DPC++ compiler
 
 > **Note**
 > Building Intel MKL-DNN with optional dependencies may introduce additional

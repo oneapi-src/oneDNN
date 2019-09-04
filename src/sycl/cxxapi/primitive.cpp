@@ -23,7 +23,7 @@
 #include "common/primitive_exec_types.hpp"
 #include "sycl/sycl_stream.hpp"
 
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
 
 namespace dnnl {
 

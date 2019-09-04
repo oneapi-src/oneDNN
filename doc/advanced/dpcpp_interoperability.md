@@ -1,10 +1,10 @@
-SYCL Interoperability {#dev_guide_sycl_interoperability}
+DPC++ Interoperability {#dev_guide_dpcpp_interoperability}
 ===============================================================
 
-DNNL may use the SYCL runtime for CPU and GPU engines to interact with
-the hardware. Users may need to use DNNL with other code that uses
-SYCL. For that purpose, the library provides API extensions to interoperate
-with underlying SYCL objects.
+DNNL may use the DPC++ runtime for CPU and GPU engines to interact with the
+hardware. Users may need to use DNNL with other code that uses DPC++. For that
+purpose, the library provides API extensions to interoperate with underlying
+SYCL objects.
 
 One of the possible scenarios is executing a SYCL kernel for a custom
 operation not provided by DNNL. In this case, the library provides
@@ -29,7 +29,7 @@ however user may initialize and access memory using SYCL buffers of a
 different type, in this case buffers will be reinterpreted to the underlying
 type `cl::sycl::buffer<uint8_t, 1>`.
 
-## C++ API Extensions for Interoperability with SYCL
+## C++ API Extensions for Interoperability with DPC++
 
 ### API to Construct DNNL Objects
 

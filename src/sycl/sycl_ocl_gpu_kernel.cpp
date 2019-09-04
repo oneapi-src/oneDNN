@@ -61,7 +61,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     auto &queue = sycl_stream->queue();
     cl::sycl::kernel sycl_kernel(ocl_kernel_, sycl_engine->context());
     auto event = queue.submit([&](cl::sycl::handler &cgh) {
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
         cgh.depends_on(sycl_stream->get_deps());
 #endif
         for (int i = 0; i < arg_list.nargs(); ++i) {
@@ -85,7 +85,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                                             cgh));
                             break;
                         }
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
                         case memory_api_kind_t::usm: {
                             auto *m = utils::downcast<
                                     const sycl_usm_memory_storage_t *>(

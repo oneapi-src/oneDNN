@@ -19,7 +19,7 @@
 
 #include "dnnl_config.h"
 
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
 
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"

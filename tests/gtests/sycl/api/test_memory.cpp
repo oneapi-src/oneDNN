@@ -143,8 +143,8 @@ TEST(sycl_memory_test, InteropReorder) {
     }
 }
 
-// FIXME: Intel SYCL does not support compilation with host compiler and
-// Intel SYCL does not support mixing fat binaries and host binaries.
+// FIXME: DPC++ does not support compilation with host compiler and
+// DPC++ does not support mixing fat binaries and host binaries.
 // So the test is enabled for ComputeCpp SYCL only
 #ifdef DNNL_SYCL_COMPUTECPP
 TEST(sycl_memory_test, InteropReorderAndUserKernel) {

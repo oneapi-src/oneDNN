@@ -72,7 +72,7 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
         const void *a, dim_t offset_a, dim_t lda, const void *b, dim_t offset_b,
         dim_t ldb, float beta, void *c, dim_t offset_c, dim_t ldc) {
 
-#ifndef DNNL_SYCL_INTEL
+#ifndef DNNL_SYCL_DPCPP
     if (memory_api_kind == memory_api_kind_t::usm)
         error::wrap_c_api(
                 status::runtime_error, "USM interface is not supported.");

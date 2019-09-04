@@ -93,7 +93,7 @@ struct sycl_stream_t : public compute::compute_stream_t {
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
                 auto event = queue_->submit([&](cl::sycl::handler &cgh) {
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
                     cgh.depends_on(deps_);
 #endif
                     submit_cpu_primitive(this, prim, exec_ctx, cgh);

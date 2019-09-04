@@ -23,7 +23,7 @@ endif()
 set(TBB_cmake_included true)
 include("cmake/Threading.cmake")
 
-if(DNNL_CPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_CPU_SYCL)
     if(NOT TBBROOT AND NOT DEFINED ENV{TBBROOT})
         return()
     endif()
@@ -41,8 +41,9 @@ endif()
 
 include_directories(${TBB_INCLUDE_DIRS})
 
-# XXX: workaround for SYCL. SYCL "unbundles" tbb.lib and loses its abosulte path
-if(DNNL_SYCL_INTEL)
+# XXX: workaround for DPC++. DPC++ compiler "unbundles" tbb.lib and loses its
+# abosulte path
+if(DNNL_SYCL_DPCPP)
     get_target_property(tbb_lib_path TBB::tbb IMPORTED_LOCATION_RELEASE)
     get_filename_component(tbb_lib_dir "${tbb_lib_path}" PATH)
     link_directories(${tbb_lib_dir})

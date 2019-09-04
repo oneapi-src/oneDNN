@@ -100,7 +100,7 @@ enable_testing()
 
 include_directories(include)
 
-if(DNNL_CPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_CPU_SYCL)
     if(TBB_FOUND)
         set(DNNL_CPU_THREADING_RUNTIME "TBB")
     else()

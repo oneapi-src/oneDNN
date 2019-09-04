@@ -235,7 +235,7 @@ public:
     void execute(
             stream &astream, const std::unordered_map<int, memory> &args) const;
 
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
     cl::sycl::event DNNL_API execute_sycl(stream &astream,
             const std::unordered_map<int, memory> &args,
             const std::vector<cl::sycl::event> &deps = {}) const;
@@ -1759,7 +1759,7 @@ struct reorder : public primitive {
         primitive::execute(astream, {{DNNL_ARG_FROM, src}, {DNNL_ARG_TO, dst}});
     }
 
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
     using primitive::execute_sycl;
 
     cl::sycl::event execute_sycl(stream &astream, memory &src, memory &dst,

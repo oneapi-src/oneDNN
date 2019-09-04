@@ -83,6 +83,6 @@ endif()
 add_subdirectory(gtests)
 add_subdirectory(benchdnn)
 
-if(NOT DNNL_CPU_RUNTIME STREQUAL "SYCL" AND NOT DNNL_GPU_RUNTIME STREQUAL "SYCL")
+if(NOT DNNL_WITH_SYCL)
     add_subdirectory(mkldnn_compat)
 endif()

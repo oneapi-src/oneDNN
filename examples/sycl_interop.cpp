@@ -23,7 +23,7 @@
 /// This C++ API example demonstrates programming for Intel(R) Processor
 /// Graphics with SYCL extensions API in DNNL.
 /// The workflow includes following steps:
-///   - Create a GPU or CPU engine. It uses SYCL as the runtime in this sample.
+///   - Create a GPU or CPU engine. It uses DPC++ as the runtime in this sample.
 ///   - Create a memory descriptor/object.
 ///   - Create a SYCL kernel for data initialization.
 ///   - Access a SYCL buffer via SYCL interoperability interface.
@@ -84,7 +84,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// To create engines, we must specify the @ref dnnl::engine::kind
     /// and the index of the device of the given kind. In this example we use
     /// the first available GPU or CPU engine, so the index for the engine is 0.
-    /// This example assumes SYCL being a runtime. In such case,
+    /// This example assumes DPC++ being a runtime. In such case,
     /// during engine creation, an SYCL context is also created and attaches
     /// to the created engine.
     ///
@@ -98,7 +98,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// tied to a particular engine.
     ///
     /// In this example, a stream is created.
-    /// This example assumes SYCL being a runtime. During stream creation,
+    /// This example assumes DPC++ being a runtime. During stream creation,
     /// a SYCL queue is also created and attaches to this stream.
     ///
     /// @snippet  sycl_interop.cpp Initialize stream
@@ -181,7 +181,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     // [relu exec]
     ///
     ///@note
-    ///    With SYCL runtime, both CPU and GPU have asynchronous execution; However, the user can
+    ///    With DPC++ runtime, both CPU and GPU have asynchronous execution; However, the user can
     ///    call dnnl::stream::wait() to synchronize the stream and ensure that all
     ///    previously submitted primitives are completed.
     ///

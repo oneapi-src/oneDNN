@@ -28,7 +28,7 @@ using namespace cl::sycl;
 
 namespace dnnl {
 
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
 
 TEST(sycl_memory_usm_test, Constructor) {
     engine eng(engine::kind::cpu, 0);

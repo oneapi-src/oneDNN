@@ -45,15 +45,13 @@ foreach(f ${sources})
     if(DNNL_GPU_RUNTIME STREQUAL "NONE" AND ${f_name} MATCHES "^(cross_engine|gpu)")
         list(REMOVE_ITEM sources "${f}")
     endif()
-    if(NOT DNNL_CPU_RUNTIME STREQUAL "SYCL" AND
-       NOT DNNL_GPU_RUNTIME STREQUAL "SYCL" AND
-       ${f_name} MATCHES "^sycl")
+    if(NOT DNNL_WITH_SYCL AND ${f_name} MATCHES "^sycl")
         list(REMOVE_ITEM sources "${f}")
     endif()
 endforeach()
 
 # Skip CPU examples that do not work with SYCL
-if(DNNL_CPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_CPU_SYCL)
     foreach(f
             cpu_cnn_training_f32.c
             cpu_rnn_inference_int8.cpp
@@ -78,11 +76,11 @@ foreach(src ${sources})
             register_exe(${example_name} ${src} "test" ${LIBM})
         endif()
     else()
-        set(cpu_rt_pattern "(SEQ|OMP|TBB|SYCL)")
-        set(gpu_rt_pattern "(OCL|SYCL)")
+        set(cpu_rt_pattern "(SEQ|OMP|TBB|SYCL|DPCPP)")
+        set(gpu_rt_pattern "(OCL|SYCL|DPCPP)")
         if(${example_name} MATCHES "sycl.*")
-            set(cpu_rt_pattern "SYCL")
-            set(gpu_rt_pattern "SYCL")
+            set(cpu_rt_pattern "(SYCL|DPCPP)")
+            set(gpu_rt_pattern "(SYCL|DPCPP)")
         endif()
         if(DNNL_CPU_RUNTIME MATCHES ${cpu_rt_pattern})
             # Adding test for CPU

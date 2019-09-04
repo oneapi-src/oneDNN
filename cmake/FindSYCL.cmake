@@ -14,39 +14,16 @@
 # limitations under the License.
 #===============================================================================
 
-# The sycl_root_hint is not required to find the SYCL as SYCL will be found
-# by the CC and CXX. However, it is used to set special OpenCL path. The list
-# will be processed from left to right so SYCLROOT will always have priority
-# against SYCL_BUNDLE_ROOT
-list(APPEND sycl_root_hints
-            ${SYCLROOT}
-            $ENV{SYCLROOT}
-            $ENV{DPCPP_ROOT}/compiler/latest/linux
-            ${SYCL_BUNDLE_ROOT}
-            $ENV{SYCL_BUNDLE_ROOT})
-
-# This is used to prioritize Intel OpenCL against the system OpenCL
-set(original_cmake_prefix_path ${CMAKE_PREFIX_PATH})
-if(sycl_root_hints)
-    list(INSERT CMAKE_PREFIX_PATH 0 ${sycl_root_hints})
-endif()
-
-# XXX: workaround to use OpenCL from DPC++ builds
-if(DEFINED ENV{DPCPP_ROOT})
-    list(INSERT CMAKE_PREFIX_PATH 0
-        $ENV{DPCPP_ROOT}/compiler/latest/linux/lib/clang/9.0.0)
-endif()
-
 include(FindPackageHandleStandardArgs)
 
-find_package(IntelSYCL)
+find_package(DPCPP)
 
-if(IntelSYCL_FOUND)
-    set(SYCL_TARGET Intel::SYCL)
-    set(SYCL_FLAGS ${INTEL_SYCL_FLAGS})
-    set(SYCL_INCLUDE_DIRS ${INTEL_SYCL_INCLUDE_DIRS})
-    set(SYCL_LIBRARIES ${INTEL_SYCL_LIBRARIES})
-    set(DNNL_SYCL_INTEL true CACHE INTERNAL "" FORCE)
+if(DPCPP_FOUND)
+    set(SYCL_TARGET DPCPP::DPCPP)
+    set(SYCL_FLAGS ${DPCPP_FLAGS})
+    set(SYCL_INCLUDE_DIRS ${DPCPP_INCLUDE_DIRS})
+    set(SYCL_LIBRARIES ${DPCPP_LIBRARIES})
+    set(DNNL_SYCL_DPCPP true CACHE INTERNAL "" FORCE)
 else()
     find_package(ComputeCpp)
     if(ComputeCpp_FOUND)
@@ -79,6 +56,3 @@ if(SYCL_FOUND AND NOT TARGET SYCL::SYCL)
         IMPORTED_LOCATION_DEBUG "${imp_location_debug}"
         INTERFACE_INCLUDE_DIRECTORIES "${imp_include_dirs}")
 endif()
-
-# Reverting the CMAKE_PREFIX_PATH to its original state
-set(CMAKE_PREFIX_PATH ${original_cmake_prefix_path})

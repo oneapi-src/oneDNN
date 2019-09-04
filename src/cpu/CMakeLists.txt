@@ -60,8 +60,8 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
-# XXX: Compilation with SYCL compiler takes too long for JIT kernels
-if(DNNL_SYCL_INTEL)
+# XXX: Compilation with DPC++ compiler takes too long for JIT kernels
+if(DNNL_SYCL_DPCPP)
     set(FILES_WITHNO_OPT)
     foreach(src in ${SOURCES})
         string(REGEX MATCH ".*jit.*kern.cpp" match ${src})

@@ -6,8 +6,8 @@ DNNL supports the following build-time options.
 | Option                      | Supported values (defaults in bold)  | Description
 | :---                        | :---                                 | :---
 | DNNL_LIBRARY_TYPE         | **SHARED**, STATIC                   | Defines the resulting library type
-| DNNL_CPU_RUNTIME          | **OMP**, TBB, SYCL                   | Defines the threading runtime for CPU engines
-| DNNL_GPU_RUNTIME          | **NONE**, OCL, SYCL                  | Defines the offload runtime for GPU engines
+| DNNL_CPU_RUNTIME          | **OMP**, TBB, DPCPP                  | Defines the threading runtime for CPU engines
+| DNNL_GPU_RUNTIME          | **NONE**, OCL, DPCPP                 | Defines the offload runtime for GPU engines
 | DNNL_BUILD_EXAMPLES       | **ON**, OFF                          | Controls building the examples
 | DNNL_BUILD_TESTS          | **ON**, OFF                          | Controls building the tests
 | DNNL_ARCH_OPT_FLAGS       | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
@@ -99,19 +99,19 @@ explicitly specify the path to the SDK using `-DOPENCLROOT` CMake option.
 cmake -DDNNL_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ~~~
 
-## SYCL\* (experimental)
-SYCL runtime requires a SYCL compiler with SYCL 1.2.1 standard support.  You
-can explicitly specify the path to the SYCL installation using `-DSYCLROOT` CMake option.
+## DPC++ (experimental)
+DPC++ runtime requires the DPC++ compiler. You can explicitly specify the path
+to the DPC++ installation using `-DDPCPPROOT` CMake option.
 
-Intel DNNL has a limitation for SYCL runtime, which makes primitive
+Intel DNNL has a limitation for DPC++ runtime, which makes primitive
 submission into stream not thread-safe. This issue can be workarounded by using
 a separate stream per thread.
 
-You need to set C and C++ compilers to point to the SYCL compilers.
+You need to set C and C++ compilers to point to the DPC++ compilers.
 
 ~~~sh
-export CC=path/to/c/compiler
-export CXX=path/to/cpp/sycl/compiler
+export CC=path/to/c/dpcpp/compiler
+export CXX=path/to/cpp/dpcpp/compiler
 
-cmake -DDNNL_CPU_RUNTIME=SYCL -DDNNL_GPU_RUNTIME=SYCL -DSYCLROOT=/path/to/sycl ..
+cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DDPCPPROOT=/path/to/dpcpp ..
 ~~~

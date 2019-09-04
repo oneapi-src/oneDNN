@@ -537,7 +537,7 @@ inline test_memory get_matrix_memory(
         const test_params &p, memory::dim n, memory::dim off, engine &eng) {
     auto d = create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
     if (p.test_usm_api) {
         auto dev = eng.get_sycl_device();
         auto ctx = eng.get_sycl_context();
@@ -1106,7 +1106,7 @@ protected:
 
             // TODO: enable USM tests after OpenCL driver update
 #if 0
-#ifdef DNNL_SYCL_INTEL
+#ifdef DNNL_SYCL_DPCPP
             // Test SYCL USM interfaces
             auto p_usm = p;
             p_usm.test_usm_api = true;

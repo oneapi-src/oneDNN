@@ -14,8 +14,8 @@
 # limitations under the License.
 #===============================================================================
 
-# XXX: Intel SYCL compiler doesn't support SEH with -fsycl option
-if(WIN32 AND DNNL_SYCL_INTEL)
+# XXX: DPC++ compiler doesn't support SEH with -fsycl option
+if(WIN32 AND DNNL_SYCL_DPCPP)
     add_definitions(-DGTEST_HAS_SEH=0)
 endif()
 
@@ -125,8 +125,7 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 
-if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR
-   DNNL_GPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_WITH_SYCL)
     add_subdirectory(sycl)
 endif()
 

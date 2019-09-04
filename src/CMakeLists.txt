@@ -70,7 +70,7 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
     add_subdirectory(ocl)
 endif()
 
-if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_WITH_SYCL)
     add_subdirectory(ocl)
     add_subdirectory(sycl)
 endif()
@@ -152,11 +152,11 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
-if(DNNL_CPU_RUNTIME STREQUAL "SYCL" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
+if(DNNL_WITH_SYCL)
     install(FILES
         "../cmake/FindOpenCL.cmake"
         "../cmake/FindSYCL.cmake"
-        "../cmake/FindIntelSYCL.cmake"
+        "../cmake/FindDPCPP.cmake"
         "../cmake/FindComputeCpp.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()

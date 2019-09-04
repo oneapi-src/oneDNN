@@ -43,13 +43,13 @@ if($ENV{DNNL_WERROR})
     set(DNNL_WERROR $ENV{DNNL_WERROR})
 endif()
 
-if(WIN32 AND DNNL_SYCL_INTEL)
-    # XXX: Intel SYCL compiler defines __GNUC__ and __STDC__ macros on
+if(WIN32 AND DNNL_SYCL_DPCPP)
+    # XXX: DPC++ compiler defines __GNUC__ and __STDC__ macros on
     # Windows. It is not aligned with clang behavior so manually undefine them.
     add_definitions(-U__GNUC__ -U__STDC__)
     # XXX: workaround for 'unknown type name IUnknown' from combaseapi.h
     add_definitions(-DCINTERFACE)
-    # XXX: Intel SYCL compiler generates a lot of warnings
+    # XXX: DPC++ compiler generates a lot of warnings
     append(CMAKE_CCXX_FLAGS "-w")
     # XXX: ignore __declspec warning
     append(CMAKE_CCXX_FLAGS "-Wno-ignored-attributes")
@@ -95,7 +95,7 @@ if(MSVC)
     endif()
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
-    # XXX: Intel SYCL compiler generates a lot of warnings
+    # XXX: DPC++ compiler generates a lot of warnings
     append(CMAKE_CCXX_FLAGS "-w")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
     append(CMAKE_CCXX_FLAGS "-fvisibility=internal")
