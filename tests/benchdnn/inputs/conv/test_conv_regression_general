@@ -118,3 +118,8 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 
 # MFDNN-2027 2d corner case (large kernel and top padding, negative bottom padding + stride)
 --dir=BWD_W --cfg=f32 g1ic16ih7iw1oc16oh1ow1kh11kw1sh2sw1ph5pw0n
+
+# 1x1 Conv with spatial padding
+--reset --dir=FWD_B
+--cfg=f32 g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
+--cfg=bf16bf16f32,u8s8u8 --allow-unimpl=true g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0

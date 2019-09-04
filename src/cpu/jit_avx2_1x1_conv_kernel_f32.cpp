@@ -502,6 +502,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
             && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0 && jcp.t_pad == 0
             && jcp.l_pad == 0 && jcp.stride_w == 1
             && jcp.stride_h == 1 // TODO: support some strides
+            && jcp.ow == jcp.iw && jcp.oh == jcp.ih // enforce rpad=0
             && jcp.kh == 1 && jcp.kw == 1;
     if (!args_ok) return status::unimplemented;
 
