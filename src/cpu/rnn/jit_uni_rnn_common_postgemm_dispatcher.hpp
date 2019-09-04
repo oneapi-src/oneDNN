@@ -62,6 +62,7 @@ struct rnn_postgemm_dispatcher {
         bool jit_path = utils::one_of(pd->desc()->prop_kind,
                                 prop_kind::forward_inference,
                                 prop_kind::forward_training)
+                && utils::one_of(src_type, data_type::f32, data_type::u8)
                 && !pd->attr()->rnn_tparams_.test_mode_;
 
         switch (pd->cell_kind()) {

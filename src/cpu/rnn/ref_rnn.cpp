@@ -323,8 +323,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
 
     const bool quantize = pd()->with_src_iter()
-            && pd()->src_md(1)->data_type == data_type::f32
-            && rnn.dt_conf != all_f32;
+            && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8();
     auto maybe_q = [&](input_data_t f) {
         if (quantize) {
             float qf = f * data_scale + data_shift;
@@ -412,8 +411,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
     float shift = (pd()->attr()->rnn_data_qparams_.shift_);
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
-    const bool dequantize = pd()->dst_md(0)->data_type == data_type::f32
-            && rnn.dt_conf != all_f32;
+    const bool dequantize
+            = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8();
     auto maybe_deq = [&](src_data_t s) {
         if (dequantize)
             return (dst_data_t)(((float)s - shift) / scale);
@@ -501,8 +500,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
 
     const bool dequantize = pd()->with_dst_iter()
-            && pd()->dst_md(1)->data_type == data_type::f32
-            && rnn.dt_conf != all_f32;
+            && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8();
     auto maybe_deq = [&](src_data_t s) {
         if (dequantize)
             return (output_data_t)(((float)s - data_shift) / data_scale);
@@ -586,7 +584,7 @@ rnn_bias_prepare_sig(
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 rnn_bias_finalize_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::bias_finalize)) {
-    if (rnn.dt_conf != all_f32) {
+    if (rnn.is_int8()) {
         float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
         float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
         float *weights_scales = pd()->attr()->rnn_weights_qparams_.scales_;
@@ -687,7 +685,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto ptr_bias = scratchpad.template get<float *>(key_rnn_ptrs_bia);
     auto scratch_cell = scratchpad.template get<acc_data_t>(key_rnn_cell);
 
-    // fetchihg buffers from the workspace
+    // Fetching buffers from the workspace
     // if no workspace was provided we use the scratchpad
     char *scratch_ptr = scratchpad.template get<char>(key_rnn_space);
     char *ws_ptr = nullptr;
@@ -743,17 +741,14 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
     // we first need to copy the initial states and input into ws
     copy_init_layer(rnn, ws_states, ws_diff_states, input, diff_dst_layer);
-    if (rnn.dt_conf == f32u8f32u8 || rnn.dt_conf == f32u8f32f32
-            || rnn.dt_conf == all_f32)
+    if (pd()->src_md(1)->data_type == data_type::f32)
         copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
-                (const float *)states, c_states, diff_dst_iter,
-                diff_dst_iter_c);
-    else if (rnn.dt_conf == u8u8u8u8 || rnn.dt_conf == u8u8u8f32)
-        copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
-                (const uint8_t *)states, c_states, diff_dst_iter,
+                (const src_data_t *)states, c_states, diff_dst_iter,
                 diff_dst_iter_c);
     else
-        assert(!"unimplemented");
+        copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
+                (const src_data_t *)states, c_states, diff_dst_iter,
+                diff_dst_iter_c);
 
     // run the execution on the grid
     (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter, ptr_bias,
@@ -761,27 +756,21 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             ws_grid, diff_weights_layer, diff_weights_iter, diff_bias);
 
     // Finally we copy the results to the result buffers
-    if (rnn.dt_conf == u8u8u8f32 || rnn.dt_conf == f32u8f32f32
-            || rnn.dt_conf == all_f32)
+    if (pd()->dst_md(0)->data_type == data_type::f32)
         copy_res_layer(rnn, (float *)dst_last_layer, diff_src_layer, ws_states,
                 ws_diff_states);
-    else if (rnn.dt_conf == u8u8u8u8 || rnn.dt_conf == f32u8f32u8)
-        copy_res_layer(rnn, (uint8_t *)dst_last_layer, diff_src_layer,
-                ws_states, ws_diff_states);
     else
-        assert(!"unimplemented");
+        copy_res_layer(rnn, (src_data_t *)dst_last_layer, diff_src_layer,
+                ws_states, ws_diff_states);
 
-    if (rnn.dt_conf == f32u8f32u8 || rnn.dt_conf == f32u8f32f32
-            || rnn.dt_conf == all_f32)
+    if (pd()->dst_md(1)->data_type == data_type::f32)
         copy_res_iter(rnn, (float *)dst_last_iter, dst_last_iter_c,
                 diff_src_iter, diff_src_iter_c, ws_states, ws_c_states,
                 ws_diff_states);
-    else if (rnn.dt_conf == u8u8u8u8 || rnn.dt_conf == u8u8u8f32)
-        copy_res_iter(rnn, (uint8_t *)dst_last_iter, dst_last_iter_c,
+    else
+        copy_res_iter(rnn, (src_data_t *)dst_last_iter, dst_last_iter_c,
                 diff_src_iter, diff_src_iter_c, ws_states, ws_c_states,
                 ws_diff_states);
-    else
-        assert(!"unimplemented");
 };
 
 /* Fix for MSVS warning C4661 */

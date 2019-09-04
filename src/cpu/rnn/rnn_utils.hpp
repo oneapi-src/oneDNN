@@ -116,6 +116,11 @@ struct rnn_conf_t {
             scratch_cell_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
     bool merge_gemm_iter, merge_gemm_layer, force_nocopy, use_layer_packed_gemm,
             use_iter_packed_gemm;
+
+    inline bool is_int8() const {
+        return utils::one_of(
+                dt_conf, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8);
+    }
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);

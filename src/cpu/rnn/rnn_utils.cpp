@@ -123,33 +123,33 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Decide wich gemm implementation to use: packed/nonpacked jit/cblas
      * and if to mergre gemm across iterations */
-    bool is_int8 = rnn.dt_conf != all_f32;
-    rnn.merge_gemm_layer
-            = ((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || is_int8;
+    bool is_f32 = rnn.dt_conf == all_f32;
     bool is_gru = utils::one_of(
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
-    rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru);
     bool is_inference = !rnn.is_training;
 
+    rnn.merge_gemm_layer
+            = ((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8();
+    rnn.merge_gemm_iter = !(rnn.is_fwd || is_gru);
     rnn.force_nocopy = !mayiuse(avx512_mic) && mayiuse(avx)
             && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
                     || (rnn.is_training && rnn.dic < 500));
 
     /* Decide to copy bias */
-    rnn.copy_bias = rnn.dt_conf != all_f32;
+    rnn.copy_bias = rnn.is_int8();
 
     rnn.use_layer_packed_gemm
             = (pack_sgemm_supported()
                       && (utils::one_of(weights_layer_d.format_kind(),
                                   format_kind::any, format_kind::rnn_packed)
                               && is_inference && rnn.n_iter == 1))
-            || is_int8;
+            || rnn.is_int8();
     rnn.use_iter_packed_gemm
             = (pack_sgemm_supported()
                       && (utils::one_of(weights_iter_d.format_kind(),
                                   format_kind::any, format_kind::rnn_packed)
                               && is_inference && rnn.mb >= 16))
-            || is_int8;
+            || rnn.is_int8();
 
     int sizeof_states_dt
             = rnn.dt_conf == all_f32 ? sizeof(float) : sizeof(uint8_t);
@@ -184,10 +184,9 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         // NOTE: pack is updated only for f32. We force pack for int8
         do_pack = (rnn.dt_conf == all_f32) ? pack : true;
         comp_offset = weights_pack_size;
-        const bool need_compensation = rnn.dt_conf == all_f32;
-        weights_pack_size += need_compensation ? 0
-                                               : rnn.n_layer * rnn.n_dir
-                        * rnn.n_gates * rnn.dlc * sizeof(float);
+        const bool need_compensation = rnn.is_int8();
+        weights_pack_size += (need_compensation ? rnn.n_layer * rnn.n_dir : 0)
+                * rnn.n_gates * rnn.dlc * sizeof(float);
     };
     if (rnn.use_layer_packed_gemm)
         set_pack_sizes(rnn.merge_gemm_layer, rnn.use_layer_packed_gemm,
