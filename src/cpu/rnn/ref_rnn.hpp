@@ -94,8 +94,15 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             init_conf(rnn_, *this->desc(), this->src_md(0), this->src_md(1),
                     this->weights_md(0), this->weights_md(1), this->dst_md(0));
 
-            if (rnn_.dt_conf == all_f32)
-                ok = ok && this->attr()->has_default_values();
+            /* check that only supported attr have been passed */
+            primitive_attr_t::skip_mask_t attr_mask
+                    = primitive_attr_t::skip_mask_t::rnn_tparams;
+            if (weights_layer_dt == data_type::s8)
+                attr_mask = attr_mask
+                        | primitive_attr_t::skip_mask_t::rnn_data_qparams
+                        | primitive_attr_t::skip_mask_t::rnn_weights_qparams;
+            ok = ok && this->attr()->has_default_values(attr_mask);
+            if (!ok) return status::unimplemented;
 
             // Set weights descriptors to desired format
             memory_desc_t new_weights_layer_md = *this->weights_md(0);
