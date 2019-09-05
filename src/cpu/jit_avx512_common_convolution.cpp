@@ -696,8 +696,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                                 - jcp.t_pad) / jcp.stride_h);
                             int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
                                 - jcp.b_pad) / jcp.stride_h);
-                            int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                + jcp.b_pad - ij) % jcp.stride_h);
+                            int overflow_kh_hi = jcp.kh - 1
+                              - modulo(jcp.ih - 1 + jcp.b_pad - ij,
+                                       jcp.stride_h);
                             int overflow_kh_lo = (ij + jcp.t_pad)
                                 % jcp.stride_h;
 
@@ -818,8 +819,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                                 - jcp.f_pad) / jcp.stride_d);
                     int d_b_overflow = max(0, (jcp.kd - jcp.id + id_s
                                 - jcp.back_pad) / jcp.stride_d);
-                    int overflow_kd_hi = jcp.kd - 1 - abs((jcp.id - 1
-                                + jcp.back_pad - id_s) % jcp.stride_d);
+                    int overflow_kd_hi = jcp.kd - 1
+                            - modulo(jcp.id - 1 + jcp.back_pad - id_s,
+                                    jcp.stride_d);
                     int overflow_kd_lo = (id_s + jcp.f_pad)
                         % jcp.stride_d;
 
@@ -867,8 +869,9 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                                 - jcp.t_pad) / jcp.stride_h);
                             int i_b_overflow = max(0, (jcp.kh - jcp.ih + ij
                                 - jcp.b_pad) / jcp.stride_h);
-                            int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                + jcp.b_pad - ij) % jcp.stride_h);
+                            int overflow_kh_hi = jcp.kh - 1
+                              - modulo(jcp.ih - 1 + jcp.b_pad - ij,
+                                       jcp.stride_h);
                             int overflow_kh_lo = (ij + jcp.t_pad)
                                 % jcp.stride_h;
 

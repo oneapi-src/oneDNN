@@ -110,6 +110,10 @@ mb1_g2ic6oc16_ih5oh5kh1sh1dh0ph0_iw5ow5kw1sw1dw0pw0
 mb1_g1_ic16oc16_kd1kh1kw1_id1ih2iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
 mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
 
+# Negative padding creates negative remainder in calculation of overflow_kh_hi
+--dir=BWD_D mb1_g1_ic16oc16_kd1kh2kw1_id1ih3iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"2D_Neg-Padding"
+--dir=BWD_D mb1_g1_ic16oc16_kd2kh1kw1_id3ih1iw1_od1oh1ow1_sd3sh1sw1_pd0ph0pw0_dd0dh0dw0n"3D_Neg-Padding"
+
 # Depthwise with large right padding
 --reset --dir=BWD_D
 mb1_g3ic3oc3_ih10oh9kh2sh2dh0ph4
