@@ -130,10 +130,6 @@ set(SYCLROOT "" CACHE STRING
     "path to SYCL installation.
     Use this option to specify custom location for SYCL")
 
-set(DNNL_SYCL_MEMORY_API "BUFFER" CACHE STRING
-    "specifies default API for memory objects when the SYCL runtime is used.
-    Can be BUFFER (default) or USM (unified shared memory).")
-
 # =============
 # Miscellaneous
 # =============

@@ -1479,7 +1479,7 @@ struct memory : public handle<dnnl_memory_t> {
         reset(result);
     }
 
-#if DNNL_WITH_SYCL
+#if DNNL_WITH_SYCL && defined(DNNL_USE_SYCL_BUFFERS)
     /// Constructs a memory from a SYCL buffer.
     ///
     /// @param md Memory descriptor.
@@ -1493,12 +1493,27 @@ struct memory : public handle<dnnl_memory_t> {
     }
 #endif
 
+#if DNNL_WITH_SYCL
+    /// Constructs a memory.
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine.
+    memory(const desc &md, const engine &aengine)
+#ifdef DNNL_USE_DPCPP_USM
+        : memory(with_sycl_tag {}, md, aengine, true) {
+    }
+#else
+        : memory(with_sycl_tag {}, md, aengine, false) {
+    }
+#endif
+#else
     /// Constructs a memory.
     ///
     /// @param md Memory descriptor.
     /// @param aengine Engine.
     memory(const desc &md, const engine &aengine)
         : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
+#endif
 
     /// Returns the descriptor of the memory.
     desc get_desc() const {
@@ -1583,7 +1598,7 @@ struct memory : public handle<dnnl_memory_t> {
     }
 #endif
 
-#if DNNL_WITH_SYCL
+#if DNNL_WITH_SYCL && defined(DNNL_USE_SYCL_BUFFERS)
     /// Returns the underlying SYCL buffer object.
     ///
     /// @tparam T Type of the requested buffer.
@@ -1629,6 +1644,14 @@ struct memory : public handle<dnnl_memory_t> {
     static dnnl_format_tag_t convert_to_c(format_tag aformat) {
         return static_cast<dnnl_format_tag_t>(aformat);
     }
+
+private:
+#if DNNL_WITH_SYCL
+    struct with_sycl_tag {};
+
+    DNNL_API memory(
+            with_sycl_tag, const desc &md, const engine &aengine, bool is_usm);
+#endif
 };
 
 inline bool operator==(dnnl_data_type_t a, memory::data_type b) {

@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define DNNL_USE_DPCPP_USM
+
 #include "example_utils.hpp"
 #include "mkldnn.hpp"
 #include "mkldnn_debug.h"

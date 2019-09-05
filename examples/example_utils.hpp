@@ -64,9 +64,15 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
+#ifdef DNNL_USE_SYCL_BUFFERS
         auto buffer = mem.get_sycl_buffer<uint8_t>();
         auto src = buffer.get_access<cl::sycl::access::mode::read>();
         uint8_t *src_ptr = src.get_pointer();
+#elif defined(DNNL_USE_DPCPP_USM)
+        uint8_t *src_ptr = (uint8_t *)mem.get_data_handle();
+#else
+#error "Not expected"
+#endif
         std::copy(src_ptr, src_ptr + size, (uint8_t *)handle);
         return;
     }
@@ -106,9 +112,15 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
     bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
             && eng.get_kind() == dnnl::engine::kind::gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
+#ifdef DNNL_USE_SYCL_BUFFERS
         auto buffer = mem.get_sycl_buffer<uint8_t>();
         auto dst = buffer.get_access<cl::sycl::access::mode::write>();
         uint8_t *dst_ptr = dst.get_pointer();
+#elif defined(DNNL_USE_DPCPP_USM)
+        uint8_t *dst_ptr = (uint8_t *)mem.get_data_handle();
+#else
+#error "Not expected"
+#endif
         std::copy((uint8_t *)handle, (uint8_t *)handle + size, dst_ptr);
         return;
     }

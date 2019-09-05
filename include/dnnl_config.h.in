@@ -66,11 +66,6 @@
 // SYCL runtime
 #define DNNL_RUNTIME_SYCL 512u
 
-// Buffer memory API
-#define DNNL_SYCL_MEMORY_API_BUFFER 0
-// Unified shared memory API
-#define DNNL_SYCL_MEMORY_API_USM 1
-
 // clang-format off
 
 // DNNL CPU threading runtime
@@ -81,9 +76,6 @@
 
 // DNNL GPU engine runtime
 #cmakedefine DNNL_GPU_RUNTIME DNNL_RUNTIME_${DNNL_GPU_RUNTIME}
-
-// MKL-DNN SYCL memory API
-#cmakedefine DNNL_SYCL_MEMORY_API DNNL_SYCL_MEMORY_API_${DNNL_SYCL_MEMORY_API}
 
 // clang-format on
 
@@ -122,5 +114,10 @@
 
 // When defined, ComputeCpp SYCL is used.
 #cmakedefine DNNL_SYCL_COMPUTECPP
+
+// Use SYCL buffers by default
+#if !defined(DNNL_USE_DPCPP_USM)
+#define DNNL_USE_SYCL_BUFFERS
+#endif
 
 #endif

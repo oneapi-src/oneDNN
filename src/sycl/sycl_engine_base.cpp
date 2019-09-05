@@ -28,24 +28,18 @@ namespace sycl {
 status_t sycl_engine_base_t::create_memory_storage(memory_storage_t **storage,
         unsigned flags, size_t size, size_t alignment, void *handle) {
 
-#ifdef DNNL_SYCL_COMPUTECPP
-    return safe_ptr_assign<memory_storage_t>(*storage,
-            new memory_storage_t(new sycl_buffer_memory_storage_t(
-                    this, flags, size, alignment, handle)));
-#else
-    // XXX: if handle doesn't have a special value then always assume it's a
-    // USM pointer. Initialization with a SYCL buffer always goes through
-    // ctor() -> set_data_handle() calls.
-#if DNNL_SYCL_MEMORY_API == DNNL_SYCL_MEMORY_API_BUFFER
+    // Do not allow constructing buffer-backed memory with a pointer
     if (utils::one_of(handle, (void *)DNNL_MEMORY_NONE, DNNL_MEMORY_ALLOCATE)) {
         return safe_ptr_assign<memory_storage_t>(*storage,
                 new memory_storage_t(new sycl_buffer_memory_storage_t(
                         this, flags, size, alignment, handle)));
     }
-#endif
+#ifdef DNNL_SYCL_INTEL
     return safe_ptr_assign<memory_storage_t>(*storage,
             new memory_storage_t(new sycl_usm_memory_storage_t(
                     this, flags, size, alignment, handle)));
+#else
+    return status::invalid_arguments;
 #endif
 }
 

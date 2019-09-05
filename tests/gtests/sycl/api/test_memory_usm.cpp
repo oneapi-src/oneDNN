@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define DNNL_USE_DPCPP_USM
+
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
