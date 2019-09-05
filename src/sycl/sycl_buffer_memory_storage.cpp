@@ -35,13 +35,13 @@ sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine,
 
     // Do not allocate memory if one of these is true:
     // 1) size is 0
-    // 2) handle is nullptr and flags have use_backend_ptr
+    // 2) handle is nullptr and flags have use_runtime_ptr
     if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0))
         return;
 
     if (flags & memory_flags_t::alloc) {
         buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
-    } else if (flags & memory_flags_t::use_backend_ptr) {
+    } else if (flags & memory_flags_t::use_runtime_ptr) {
         auto &buf_u8 = *static_cast<buffer_u8_t *>(handle);
         buffer_.reset(new buffer_u8_t(buf_u8));
     }

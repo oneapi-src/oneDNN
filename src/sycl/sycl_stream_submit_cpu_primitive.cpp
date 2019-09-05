@@ -217,7 +217,7 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
 
     std::vector<const memory_storage_t *> sycl_mem_storages;
     for (auto &a : exec_ctx.args()) {
-        if (a.second.mem->engine()->backend_kind() == backend_kind::sycl) {
+        if (a.second.mem->engine()->runtime_kind() == runtime_kind::sycl) {
             auto *mem_storage = a.second.mem->memory_storage();
             if (!mem_storage->is_null()) {
                 sycl_mem_storages.push_back(mem_storage);

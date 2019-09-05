@@ -1,7 +1,5 @@
 --reset
 
---allow-unimpl=true # tailed cases on blocked layouts are not implemented if dtag is forced and blocked as well
-
 --sdt=bf16
 --ddt=bf16
 --dtag=undef,nchw,nhwc,nChw16c

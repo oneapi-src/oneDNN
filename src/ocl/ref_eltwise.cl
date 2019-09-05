@@ -14,9 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl/ocl_types.h"
-
 #include "ocl/ocl_post_ops.h"
+#include "ocl/ocl_types.h"
 
 #define DATA_OFF(x0, x1, x2, x3, x4, x5) \
     (((x0) % DATA_B0) * DATA_SB0 + ((x0) / DATA_B0) * DATA_S0 \

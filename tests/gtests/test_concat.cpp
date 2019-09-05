@@ -236,8 +236,9 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF_bf16, concat_test_bf16, cases_EF());
 static auto cases_padded = []() {
     return ::testing::Values(
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
-                    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}, true,
-                    dnnl_unimplemented},
+                    {{1, 12, 28, 28}, {1, 12, 28, 28}}, {1, 24, 28, 28}},
+            concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
+                    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             concat_test_params {1, {fmt::nChw8c, fmt::nChw8c}, fmt::nchw,
@@ -247,13 +248,11 @@ static auto cases_padded = []() {
             concat_test_params {1, {fmt::nChw8c, fmt::nChw16c}, fmt::nchw,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
-                    {{4, 4, 5, 5}, {4, 6, 5, 5}}, {4, 10, 5, 5}, true,
-                    dnnl_unimplemented},
+                    {{4, 4, 5, 5}, {4, 6, 5, 5}}, {4, 10, 5, 5}},
             concat_test_params {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nchw,
                     {{4, 4, 5, 5}, {4, 6, 5, 5}}, {4, 10, 5, 5}},
             concat_test_params {1, {fmt::nchw, fmt::nChw16c}, fmt::nChw16c,
-                    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}, true,
-                    dnnl_unimplemented},
+                    {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             concat_test_params {1, {fmt::nchw, fmt::nChw16c}, fmt::nchw,
                     {{4, 25, 5, 5}, {4, 45, 5, 5}}, {4, 70, 5, 5}},
             // right border

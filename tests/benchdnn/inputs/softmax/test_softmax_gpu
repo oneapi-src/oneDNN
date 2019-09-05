@@ -1,5 +1,6 @@
 --reset
 
+--dt=f32,bf16
 --dir=FWD_D
 --inplace=true,false
 --tag=nc           --axis=0,1     --batch=softmax_2d

@@ -380,6 +380,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_inner_product) return "inner_product";
     if (v == dnnl_rnn) return "rnn";
     if (v == dnnl_gemm) return "gemm";
+    if (v == dnnl_binary) return "binary";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }
@@ -399,11 +400,11 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_sqrt) return "eltwise_sqrt";
     if (v == dnnl_eltwise_linear) return "eltwise_linear";
     if (v == dnnl_eltwise_bounded_relu) return "eltwise_bounded_relu";
-    if (v == dnnl_eltwise_swish) return "eltwise_swish";
     if (v == dnnl_eltwise_soft_relu) return "eltwise_soft_relu";
     if (v == dnnl_eltwise_logistic) return "eltwise_logistic";
     if (v == dnnl_eltwise_exp) return "eltwise_exp";
     if (v == dnnl_eltwise_gelu) return "eltwise_gelu";
+    if (v == dnnl_eltwise_swish) return "eltwise_swish";
     if (v == dnnl_pooling_max) return "pooling_max";
     if (v == dnnl_pooling_avg_include_padding) return "pooling_avg_include_padding";
     if (v == dnnl_pooling_avg_exclude_padding) return "pooling_avg_exclude_padding";
@@ -414,16 +415,10 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_vanilla_lstm) return "vanilla_lstm";
     if (v == dnnl_vanilla_gru) return "vanilla_gru";
     if (v == dnnl_lbr_gru) return "lbr_gru";
+    if (v == dnnl_binary_add) return "binary_add";
+    if (v == dnnl_binary_mul) return "binary_mul";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
-}
-
-const char *dnnl_normalization_flags2str(dnnl_normalization_flags_t v) {
-    if (v == dnnl_use_global_stats) return "use_global_stats";
-    if (v == dnnl_use_scaleshift) return "use_scaleshift";
-    if (v == dnnl_fuse_norm_relu) return "fuse_norm_relu";
-    assert(!"unknown normalization_flags");
-    return "unknown normalization_flags";
 }
 
 const char *dnnl_rnn_flags2str(dnnl_rnn_flags_t v) {

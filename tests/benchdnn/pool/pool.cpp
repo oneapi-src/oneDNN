@@ -31,14 +31,6 @@
 
 namespace pool {
 
-inline bool is_3d(const prb_t *p) {
-    return p->id > 1 || p->od > 1 || p->kd > 1;
-}
-
-inline bool is_1d(const prb_t *p) {
-    return !is_3d(p) && p->ih == 1 && p->oh == 1 && p->kh == 1;
-}
-
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
@@ -257,7 +249,7 @@ int doit(const prb_t *p, res_t *r) {
         const auto &ws_d = *dnnl_primitive_desc_query_md(
                 pfpd, dnnl_query_workspace_md, 0);
         ws_dt = dnn_mem_t(ws_d, engine_tgt);
-        ws_fp = dnn_mem_t(ws_d, engine_ref);
+        ws_fp = dnn_mem_t(ws_d, engine_tgt);
         // to catch usage of uninitialized values in the library
         SAFE(fill_ws(p, ws_dt, ws_fp, r), WARN);
     }
@@ -271,27 +263,27 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag(src_dt.md_.ndims);
     const auto fp = dnnl_f32;
 
-    dnn_mem_t src_fp(src_desc, fp, tag, engine_ref);
-    dnn_mem_t dst_fp(dst_desc, fp, tag, engine_ref);
+    dnn_mem_t src_fp(src_desc, fp, tag, engine_tgt);
+    dnn_mem_t dst_fp(dst_desc, fp, tag, engine_tgt);
     dnn_mem_t d_dst_fp, d_src_fp;
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
 
     args_t args_fwd, args_bwd;
-    args_fwd.set(DNNL_ARG_SRC, src_dt.m_);
-    args_fwd.set(DNNL_ARG_DST, dst_dt.m_);
+    args_fwd.set(DNNL_ARG_SRC, src_dt);
+    args_fwd.set(DNNL_ARG_DST, dst_dt);
     if (p->alg == MAX && !(p->dir & FLAG_INF))
-        args_fwd.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+        args_fwd.set(DNNL_ARG_WORKSPACE, ws_dt);
 
     args_t &args = args_fwd;
     dnnl_primitive_t pl = pf;
 
-    DNN_SAFE(execute_and_wait(pl, stream_tgt, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(pl, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref_fwd(p, src_fp, dst_fp, ws_fp);
         if (p->dir & FLAG_FWD) {
-            dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare_dst(p, dst, dst_fp, r), WARN);
         }
     }
@@ -308,23 +300,23 @@ int doit(const prb_t *p, res_t *r) {
         d_dst_dt = dnn_mem_t(d_dst_desc, p->cfg[DST].dt, engine_tgt);
         d_src_dt = dnn_mem_t(d_src_desc, p->cfg[SRC].dt, engine_tgt);
 
-        d_dst_fp = dnn_mem_t(d_dst_desc, fp, tag, engine_ref);
-        d_src_fp = dnn_mem_t(d_src_desc, fp, tag, engine_ref);
+        d_dst_fp = dnn_mem_t(d_dst_desc, fp, tag, engine_tgt);
+        d_src_fp = dnn_mem_t(d_src_desc, fp, tag, engine_tgt);
 
         SAFE(fill_dst(p, d_dst_dt, d_dst_fp, r), WARN);
 
-        args_bwd.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args_bwd.set(DNNL_ARG_DIFF_SRC, d_src_dt.m_);
-        if (p->alg == MAX) args_bwd.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+        args_bwd.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args_bwd.set(DNNL_ARG_DIFF_SRC, d_src_dt);
+        if (p->alg == MAX) args_bwd.set(DNNL_ARG_WORKSPACE, ws_dt);
 
         args = args_bwd;
         pl = pb;
 
-        DNN_SAFE(execute_and_wait(pl, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(pl, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, d_src_fp, d_dst_fp, ws_fp);
-            dnn_mem_t diff_src(d_src_dt, fp, tag, engine_ref);
+            dnn_mem_t diff_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare_src(p, diff_src, d_src_fp, r), WARN);
         }
     }

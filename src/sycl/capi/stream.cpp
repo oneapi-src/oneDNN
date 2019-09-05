@@ -39,7 +39,7 @@ status_t dnnl_stream_create_sycl(
 
 status_t dnnl_stream_get_sycl_queue(stream_t *stream, void **queue) {
     bool args_ok = true && !utils::any_null(queue, stream)
-            && stream->engine()->backend_kind() == backend_kind::sycl;
+            && stream->engine()->runtime_kind() == runtime_kind::sycl;
 
     if (!args_ok) return status::invalid_arguments;
 

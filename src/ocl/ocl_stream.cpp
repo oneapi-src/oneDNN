@@ -70,13 +70,13 @@ status_t ocl_stream_t::init() {
     return status::success;
 }
 
-status_t ocl_stream_t::copy(const memory_storage_t &src,
-        const memory_storage_t &dst, size_t size) const {
+status_t ocl_stream_t::copy(
+        const memory_storage_t &src, const memory_storage_t &dst, size_t size) {
 
     if (size == 0) return status::success;
 
     if (src.engine()->kind() == engine_kind::cpu
-            && src.engine()->backend_kind() == backend_kind::native) {
+            && is_native_runtime(src.engine()->runtime_kind())) {
         assert(dst.engine()->kind() == engine_kind::gpu);
 
         void *src_ptr;
@@ -88,7 +88,8 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
         cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
                 src_ptr, 0, nullptr, nullptr);
         OCL_CHECK(err);
-    } else {
+    } else if (dst.engine()->kind() == engine_kind::cpu
+            && is_native_runtime(dst.engine()->runtime_kind())) {
         assert(src.engine()->kind() == engine_kind::gpu);
 
         void *dst_ptr;
@@ -100,6 +101,21 @@ status_t ocl_stream_t::copy(const memory_storage_t &src,
         cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
                 dst_ptr, 0, nullptr, nullptr);
         OCL_CHECK(err);
+    } else {
+        wait();
+
+        // Use map/unmap
+        void *src_mapped_ptr;
+        void *dst_mapped_ptr;
+
+        CHECK(src.map_data(&src_mapped_ptr));
+        CHECK(dst.map_data(&dst_mapped_ptr));
+
+        utils::array_copy(static_cast<uint8_t *>(dst_mapped_ptr),
+                static_cast<const uint8_t *>(src_mapped_ptr), size);
+
+        CHECK(src.unmap_data(src_mapped_ptr));
+        CHECK(dst.unmap_data(dst_mapped_ptr));
     }
     return status::success;
 }

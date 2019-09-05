@@ -32,12 +32,12 @@ static engine_t *get_reorder_engine(
         engine_t *src_engine, engine_t *dst_engine) {
     auto s_ek = src_engine->kind();
     auto d_ek = dst_engine->kind();
-    auto s_bk = src_engine->backend_kind();
-    auto d_bk = dst_engine->backend_kind();
+    auto s_rk = src_engine->runtime_kind();
+    auto d_rk = dst_engine->runtime_kind();
 
-    if (d_bk == backend_kind::native) return src_engine;
+    if (is_native_runtime(d_rk)) return src_engine;
 
-    if (s_bk == backend_kind::native) return dst_engine;
+    if (is_native_runtime(s_rk)) return dst_engine;
 
     if (d_ek == engine_kind::cpu) return src_engine;
 

@@ -40,34 +40,22 @@ namespace dnnl {
 namespace impl {
 
 static inline std::unique_ptr<engine_factory_t> get_engine_factory(
-        engine_kind_t kind, backend_kind_t backend_kind) {
-    if (kind == engine_kind::cpu && backend_kind == backend_kind::native) {
+        engine_kind_t kind, runtime_kind_t runtime_kind) {
+    if (kind == engine_kind::cpu && is_native_runtime(runtime_kind)) {
         return std::unique_ptr<engine_factory_t>(
                 new cpu::cpu_engine_factory_t());
     }
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    if (kind == engine_kind::gpu && backend_kind == backend_kind::ocl) {
+    if (kind == engine_kind::gpu && runtime_kind == runtime_kind::ocl) {
         return std::unique_ptr<engine_factory_t>(
                 new ocl::ocl_engine_factory_t(kind));
     }
 #endif
 #if DNNL_WITH_SYCL
-    if (backend_kind == backend_kind::sycl)
+    if (runtime_kind == runtime_kind::sycl)
         return sycl::get_engine_factory(kind);
 #endif
     return nullptr;
-}
-
-static inline backend_kind_t get_default_backend(engine_kind_t kind) {
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (kind == engine_kind::cpu) return backend_kind::sycl;
-#endif
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-    if (kind == engine_kind::gpu) return backend_kind::sycl;
-#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    if (kind == engine_kind::gpu) return backend_kind::ocl;
-#endif
-    return backend_kind::native;
 }
 
 } // namespace impl
@@ -89,7 +77,7 @@ int dnnl_engine::dnnl_get_max_threads() {
 }
 
 size_t dnnl_engine_get_count(engine_kind_t kind) {
-    auto ef = get_engine_factory(kind, get_default_backend(kind));
+    auto ef = get_engine_factory(kind, get_default_runtime(kind));
     return ef != nullptr ? ef->count() : 0;
 }
 
@@ -97,17 +85,7 @@ status_t dnnl_engine_create(
         engine_t **engine, engine_kind_t kind, size_t index) {
     if (engine == nullptr) return invalid_arguments;
 
-    auto ef = get_engine_factory(kind, get_default_backend(kind));
-    if (ef == nullptr || index >= ef->count()) return invalid_arguments;
-
-    return ef->engine_create(engine, index);
-}
-
-extern "C" status_t DNNL_API dnnl_engine_create_with_backend(
-        engine_t **engine, engine_kind_t kind, int backend_kind, size_t index) {
-    if (engine == nullptr) return invalid_arguments;
-
-    auto ef = get_engine_factory(kind, (backend_kind_t)backend_kind);
+    auto ef = get_engine_factory(kind, get_default_runtime(kind));
     if (ef == nullptr || index >= ef->count()) return invalid_arguments;
 
     return ef->engine_create(engine, index);
@@ -116,15 +94,6 @@ extern "C" status_t DNNL_API dnnl_engine_create_with_backend(
 status_t dnnl_engine_get_kind(engine_t *engine, engine_kind_t *kind) {
     if (engine == nullptr) return invalid_arguments;
     *kind = engine->kind();
-    return success;
-}
-
-extern "C" status_t DNNL_API dnnl_engine_get_backend_kind(
-        engine_t *engine, backend_kind_t *backend_kind) {
-    bool args_ok = !any_null(engine, backend_kind);
-    if (!args_ok) return invalid_arguments;
-
-    *backend_kind = engine->backend_kind();
     return success;
 }
 

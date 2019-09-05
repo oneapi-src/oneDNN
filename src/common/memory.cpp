@@ -215,6 +215,53 @@ int dnnl_memory_desc_equal(const memory_desc_t *lhs, const memory_desc_t *rhs) {
     return memory_desc_wrapper(*lhs) == memory_desc_wrapper(*rhs);
 }
 
+status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
+        const memory_desc_t *in_md, int ndims, const dims_t dims) {
+    if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
+            || !memory_desc_sanity_check(
+                    ndims, dims, in_md->data_type, in_md->format_kind)
+            || !(in_md->format_kind == format_kind::blocked))
+        return invalid_arguments;
+
+    // TODO: right now only appending is supported.
+    if (ndims < in_md->ndims) return invalid_arguments;
+
+    // TODO: right now the functionality is limited to append ones to the end.
+    for (int d = 0; d < in_md->ndims; ++d)
+        if (dims[d] != in_md->dims[d]) return invalid_arguments;
+    for (int d = in_md->ndims; d < ndims; ++d)
+        if (dims[d] != 1) return invalid_arguments;
+
+    auto md = memory_desc_t();
+
+    // copy values from in_md to md
+    md.ndims = ndims;
+    array_copy(md.dims, in_md->dims, ndims);
+    md.data_type = in_md->data_type;
+    array_copy(md.padded_dims, in_md->padded_dims, ndims);
+    md.format_kind = in_md->format_kind;
+    array_copy(md.padded_offsets, in_md->padded_offsets, ndims);
+    md.offset0 = in_md->offset0;
+
+    // copy blocking_desc values from in_md to md
+    const auto &bds = in_md->format_desc.blocking;
+    auto &bd = md.format_desc.blocking;
+    array_copy(bd.strides, bds.strides, ndims);
+    bd.inner_nblks = bds.inner_nblks;
+    array_copy(bd.inner_blks, bds.inner_blks, ndims);
+    array_copy(bd.inner_idxs, bds.inner_idxs, ndims);
+
+    // assign new values
+    for (int d = in_md->ndims; d < ndims; ++d) {
+        md.dims[d] = 1;
+        md.padded_dims[d] = 1;
+        bd.strides[d] = bd.strides[d - 1];
+    }
+
+    *out_md = md;
+    return success;
+}
+
 size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
     if (md == nullptr) return 0;
     return memory_desc_wrapper(*md).size();
@@ -231,7 +278,7 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
 
     unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
-            : memory_flags_t::use_backend_ptr;
+            : memory_flags_t::use_runtime_ptr;
     return safe_ptr_assign<memory_t>(
             *memory, new memory_t(engine, md, flags, handle));
 }

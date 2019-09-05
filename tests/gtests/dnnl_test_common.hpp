@@ -519,18 +519,11 @@ static void test_free(char *ptr) {
 }
 #undef TEST_MALLOC_OFFSET
 
-extern "C" dnnl_status_t dnnl_engine_get_backend_kind(
-        dnnl_engine_t engine, int *backend_kind);
-
 class test_memory {
 public:
     test_memory(const memory::desc &d, const dnnl::engine &e) {
-        int backend_kind;
-        dnnl::error::wrap_c_api(
-                dnnl_engine_get_backend_kind(e.get(), &backend_kind),
-                "internal error");
         bool is_cpu_native = (e.get_kind() == dnnl::engine::kind::cpu)
-                && (backend_kind == 0);
+                && DNNL_CPU_RUNTIME != DNNL_RUNTIME_SYCL;
 
         size_ = d.get_size();
         if (is_cpu_native) {
@@ -547,10 +540,6 @@ public:
     template <typename malloc_t, typename free_t>
     test_memory(const memory::desc &d, const dnnl::engine &e,
             const malloc_t &f_malloc, const free_t &f_free) {
-        int backend_kind;
-        dnnl::error::wrap_c_api(
-                dnnl_engine_get_backend_kind(e.get(), &backend_kind),
-                "internal error");
         size_ = d.get_size();
         data_.reset(static_cast<char *>(f_malloc(size_)), f_free);
         mem_ = memory(d, e, data_.get());

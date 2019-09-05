@@ -20,7 +20,7 @@ on Intel CPUs and GPUs.
  * @ref dev_guide_basic_concepts
  * @ref getting_started_cpp
  * @ref cross_engine_reorder_cpp
- * @ref cpu_memory_format_propagation_cpp
+ * @ref memory_format_propagation_cpp
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
    * @ref dev_guide_inference_int8
@@ -49,6 +49,7 @@ Memory bandwidth limited operations:
  * [Sum](@ref dev_guide_sum)
  * [Concat](@ref dev_guide_concat)
  * [Shuffle](@ref dev_guide_shuffle)
+ * [Binary](@ref dev_guide_binary)
 
 Data manipulation:
  * [Reorder](@ref dev_guide_reorder)
@@ -75,7 +76,7 @@ Data manipulation:
 | Topic          | Engine   | C++ API                                | C API                        |
 | :----          | :---     | :----                                  | :---                         |
 | Tutorials      | CPU/GPU  | @ref getting_started_cpp               |                              |
-|                | CPU      | @ref cpu_memory_format_propagation_cpp |                              |
+|                | CPU/GPU  | @ref memory_format_propagation_cpp     |                              |
 |                | CPU/GPU  | @ref performance_profiling_cpp         |                              |
 |                | CPU/GPU  | @ref cross_engine_reorder_cpp          | @ref cross_engine_reorder_c  |
 |                | GPU      | @ref gpu_opencl_interop_cpp            |                              |

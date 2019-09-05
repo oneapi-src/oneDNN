@@ -63,6 +63,8 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
             if (desc_.prop_kind == prop_kind::forward_training) {
                 ws_md_ = *src_md();
+                if (ws_md_.data_type == data_type::bf16)
+                    ws_md_.data_type = data_type::f32;
             }
 
             gws[0] = H() * W();
@@ -178,8 +180,8 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::lrn_across_channels,
                             alg_kind::lrn_within_channel)
-                    && utils::everyone_is(
-                            data_type::f32, desc()->data_desc.data_type)
+                    && utils::one_of(desc()->data_desc.data_type,
+                            data_type::f32, data_type::bf16)
                     && desc()->data_desc == desc()->diff_data_desc
                     && attr()->has_default_values()
                     && IMPLICATION(
@@ -189,6 +191,8 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             ws_md_ = *src_md();
+            if (ws_md_.data_type == data_type::bf16)
+                ws_md_.data_type = data_type::f32;
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
 
             gws[0] = H() * W();

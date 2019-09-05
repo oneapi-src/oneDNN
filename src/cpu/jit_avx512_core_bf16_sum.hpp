@@ -166,7 +166,7 @@ struct jit_bf16_sum_t : public primitive_impl_t {
     struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
-        DECLARE_SUM_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_", avx512_core, ""),
+        DECLARE_SUM_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_", jsp_.isa, ""),
                 jit_bf16_sum_t);
 
         virtual status_t init() {

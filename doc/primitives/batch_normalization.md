@@ -43,7 +43,8 @@ used:
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
 In training mode the primitive also optionally supports fusion with ReLU
-activation applied to the result (see #dnnl_fuse_norm_relu flag).
+activation with zero negative slope applied to the result
+(see #dnnl_fuse_norm_relu flag).
 
 @note
 * The batch normalization primitive computes population mean and variance and
@@ -171,7 +172,7 @@ The batch normalization primitive is optimized for the following memory formats:
 | 3D      | NCDHW          | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^*
 
 Here *optimized^* means the format that
-[comes out](@ref cpu_memory_format_propagation_cpp)
+[comes out](@ref memory_format_propagation_cpp)
 of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes

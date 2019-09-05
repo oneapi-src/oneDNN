@@ -1,7 +1,8 @@
 --reset
 --mb=2
 
-# f32
+# f32, bf16
+--cfg=f32,bf16
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
 --tag=ncw,nCw16c   --batch=pool_1d
@@ -17,6 +18,7 @@
 --mb=16
 
 # f32
+--cfg=f32
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
 --tag=NChw16n16c   --batch=pool_2d_small

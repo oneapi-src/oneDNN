@@ -151,6 +151,10 @@ register_benchdnn_test(test_benchdnn_lrn
     cpu "-v1 --lrn --batch=inputs/lrn/test_lrn_all")
 register_benchdnn_test(test_benchdnn_lrn_bf16
     cpu "-v1 --lrn --batch=inputs/lrn/test_lrn_bfloat16")
+register_benchdnn_test(test_benchdnn_binary
+    cpu "-v1 --binary --batch=inputs/binary/test_binary_all")
+register_benchdnn_test(test_benchdnn_binary_bf16
+    cpu "-v1 --binary --batch=inputs/binary/test_binary_bfloat16")
 register_benchdnn_test(test_benchdnn_regression
     cpu
     "-v1 --conv --batch=inputs/conv/test_conv_regression"
@@ -178,6 +182,8 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --reorder --batch=inputs/reorder/test_reorder_gpu")
     register_benchdnn_test(test_benchdnn_pool
         gpu "-v1 --pool --batch=inputs/pool/test_pool_gpu")
+    register_benchdnn_test(test_benchdnn_eltwise
+        gpu "-v1 --eltwise --batch=inputs/eltwise/test_eltwise_gpu")
     register_benchdnn_test(test_benchdnn_shuffle
         gpu "-v1 --shuffle --batch=inputs/shuffle/test_shuffle_gpu")
     register_benchdnn_test(test_benchdnn_softmax

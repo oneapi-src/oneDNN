@@ -3,7 +3,7 @@
 --group=4
 
 --dir=FWD_D,BWD_D
---dt=f32,f16,s8,u8
+--dt=f32,f16,bf16,s8,u8
 --tag=nchw --axis=1,2 1x68x56x56
 --tag=nchw,nChw16c --axis=1,2 1x272x56x56
 --tag=ncdhw,nCdhw16c --axis=1,3,4 1x272x2x56x56

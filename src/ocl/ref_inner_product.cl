@@ -86,7 +86,7 @@ __kernel void ref_inner_product_bwd_data_kernel(__global SRC_DATA_T *diff_src,
         ds += DST_TO_REF(diff_dst[diff_dst_off]) * WEI_TO_REF(wht[wht_off]);
     }
     const uint diff_src_off = SRC_OFF(mb, ic, kd, kh, kw);
-    diff_src[diff_src_off] = REF_TO_DST(ds);
+    diff_src[diff_src_off] = REF_TO_SRC(ds);
 }
 #endif
 

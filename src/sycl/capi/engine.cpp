@@ -39,7 +39,7 @@ status_t dnnl_engine_create_sycl(engine_t **engine, engine_kind_t kind,
 
 status_t dnnl_engine_get_sycl_context(engine_t *engine, void **ctx) {
     bool args_ok = true && !utils::any_null(ctx, engine)
-            && engine->backend_kind() == backend_kind::sycl;
+            && engine->runtime_kind() == runtime_kind::sycl;
 
     if (!args_ok) return status::invalid_arguments;
 
@@ -51,7 +51,7 @@ status_t dnnl_engine_get_sycl_context(engine_t *engine, void **ctx) {
 
 status_t dnnl_engine_get_sycl_device(engine_t *engine, void **dev) {
     bool args_ok = true && !utils::any_null(dev, engine)
-            && engine->backend_kind() == backend_kind::sycl;
+            && engine->runtime_kind() == runtime_kind::sycl;
 
     if (!args_ok) return status::invalid_arguments;
 

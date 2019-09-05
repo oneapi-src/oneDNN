@@ -208,6 +208,8 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
         return par_conv;
     };
 
+    const int aux_w
+            = nstl::min(jcp.iw, jcp.iw - jcp.kw + jcp.r_pad + jcp.stride_w);
     const int chb_work = utils::div_up(jcp.nb_ch, jcp.nb_ch_blocking);
     parallel_nd(jcp.mb, chb_work, jcp.ih, [&](int n, int chb, int ih) {
         int ch = chb * jcp.nb_ch_blocking;
@@ -236,8 +238,7 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
             }
 
             // main loop
-            ur_str_w = nstl::min(
-                    (jcp.iw - jcp.kw + jcp.r_pad - iw) / jcp.stride_w, jcp.iw);
+            ur_str_w = (aux_w - iw) / jcp.stride_w;
             if (ur_str_w > 0) {
                 jit_conv_call_s par_conv
                         = kernel_params(ur_str_w, iw, oh, ih, i_t_overflow,

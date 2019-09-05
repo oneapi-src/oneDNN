@@ -25,8 +25,8 @@
 --dir=FWD_D --attr=post_ops='sum:1;relu' mb1_ic4oc4_ih13oh13kh3ph1_n"gemm_acc"
 
 # DNNL-623
---reset --cfg=u8s8u8s32 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
---reset --allow-unimpl=true --cfg=s8s8u8s32 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --cfg=u8s8u8 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
+--reset --allow-unimpl=true --cfg=s8s8u8 --dir=FWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --cfg=f32 --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --cfg=f32 --dir=BWD_D --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 --reset --cfg=f32 --dir=BWD_WB --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
@@ -36,8 +36,8 @@
 
 # DNNL-796: large asymmetric padding
 --reset --cfg=f32_full mb2_g1ic32oc32_ih7oh11kh3ph2
---reset --cfg=u8s8u8s32 mb2_g1ic32oc32_ih7oh11kh3ph2
---reset --allow-unimpl=true --cfg=s8s8u8s32 mb2_g1ic32oc32_ih7oh11kh3ph2
+--reset --cfg=u8s8u8 mb2_g1ic32oc32_ih7oh11kh3ph2
+--reset --allow-unimpl=true --cfg=s8s8u8 mb2_g1ic32oc32_ih7oh11kh3ph2
 
 # DNNL-860
 --reset --dir=BWD_WB --cfg=f32_wino --allow-unimpl=true --alg=wino  mb2ic16ih13oc16oh13kh3ph1
@@ -47,8 +47,8 @@
 
 # DNNL-930
 --reset mb2ic3ih300oc32oh150kh3sh2
---reset --cfg=u8s8u8s32 mb2ic3ih84oc16oh42kh3sh2
---reset --allow-unimpl=true --cfg=s8s8u8s32 mb2ic3ih84oc16oh42kh3sh2
+--reset --cfg=u8s8u8 mb2ic3ih84oc16oh42kh3sh2
+--reset --allow-unimpl=true --cfg=s8s8u8 mb2ic3ih84oc16oh42kh3sh2
 
 # DNNL-949
 --reset --dir=BWD_D mb2_g1ic1oc2_ih3oh1kh2sh1dh1ph0_iw5ow3kw2sw1dw1pw0
@@ -89,3 +89,22 @@ mb1_g2ic6oc16_ih5oh5kh1sh1dh0ph0_iw5ow5kw1sw1dw0pw0
 --reset --mb=1 --dir=FWD_D,BWD_D --cfg=f32
 mb1_ic16oc16_iw80ow80kw31sw1dw0pw15
 
+# github #542
+# r_overflow1 corner case
+--reset --dir=bwd_d mb1_ic9oc3_ih32oh10kh5sh3dh0ph1
+
+# MFDNN-1968 1x1 conv asymmetrical strides with stride_h=1
+--reset --dir=BWD_D mb1ic2ih10iw8oc4oh10ow4kh1kw1sh1sw2ph0pw0dh0dw0
+
+# MFDNN-1995 1x1 2d & 3d conv with negative padding
+--reset --allow-unimpl=true
+--dir=BWD_D
+--cfg=f32
+mb1_g1_ic16oc16_kd1kh1kw1_id1ih2iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
+mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
+
+# Depthwise with large right padding
+--reset --dir=BWD_D
+mb1_g3ic3oc3_ih10oh9kh2sh2dh0ph4
+mb1_g16ic16oc16_ih5oh2kh2sh5ph0
+mb1_g16ic16oc16_ih5oh2kh2sh3ph0

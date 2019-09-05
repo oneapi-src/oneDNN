@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -73,15 +74,57 @@ static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
     return OK;
 }
 
-static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
-        const dnn_mem_t &mem_dt, res_t *r) {
-    float trh = 1e-6;
-    if (p->alg == alg_t::GELU) // when x < -3 (tanh(g(x)) + 1) has cancellation
-        trh = 4e-6; // subtract, which leads to low accuracy.
-    if (p->alg == alg_t::ELU) // when x -> -0, a(exp(-x) - 1) has cancellation
-        trh = 4e-5; // subtract, which leads to low accuracy.
+static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
+    float approx_machine_eps = 2e-7;
+
+    switch (p->alg) {
+        case alg_t::GELU: {
+            // catch catastrophic cancellation
+            const float sqrt_2_over_pi = 0.797884;
+            const float fitting_const = 0.044715;
+            float v = tanhf(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
+            float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
+            if (p->dir & FLAG_FWD)
+                return fabsf(1.f + v) <= (approx_machine_eps / trh);
+            else
+                return fabsf(1.f + v) <= (approx_machine_eps / trh)
+                        || (std::signbit(s)
+                                && fabsf(1.f + s * (1.f - v) * dg)
+                                        <= (approx_machine_eps / trh));
+        }
+        case alg_t::TANH:
+            // catch catastrophic cancellation,
+            // which occurs when err in tanh(s) is high
+            // and tanh(s) is close to 1.
+            return (p->dir & FLAG_BWD)
+                    && fabsf(1.f - tanhf(fabsf(s)))
+                    <= (approx_machine_eps / trh);
+        case alg_t::SRELU:
+            // when s is negative, expf(s) -> 0 rapidly
+            // which leads to log1pf(expf(s)) -> 0
+            // which leads to high relative error,
+            // while abs error is still low.
+            // (10.f is magic scale for bf16)
+            return (p->dir & FLAG_FWD) && std::signbit(s)
+                    && log1pf(expf(s)) <= 10.f * (approx_machine_eps / trh);
+        default: return false;
+    }
+}
+
+static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
+        const dnn_mem_t &mem_fp, const dnn_mem_t &mem_dt, res_t *r) {
+    // Tolerate ~3 ulp of relative error for fp32.
+    float trh = 2e-6;
+    // Tolerate only rounding error(~1/2 ulp) for reduced precision.
     if (p->dt == dnnl_f16) trh = 1e-3;
-    if (p->dt == dnnl_bf16) trh = 1e-2;
+    if (p->dt == dnnl_bf16) trh = 8e-3;
+
+    // Tolerate ~7ulp for complex primitives in fp32.
+    if (p->dt == dnnl_f32
+            && (p->alg == alg_t::GELU || p->alg == alg_t::ELU
+                    || p->alg == alg_t::SWISH || p->alg == alg_t::TANH
+                    || p->alg == alg_t::SRELU))
+        trh = 3e-5;
 
     const auto nelems = mem_dt.nelems();
     r->errors = 0;
@@ -94,11 +137,10 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_fp,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
+
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
 
-        // check just absolute error for srelu due to log(1 + e(x)) gives bad
-        // accuracy for negative inputs.
-        if (p->alg == alg_t::SRELU && fp < 0.7) // log(1 + e(0)) = log(2)
+        if (!ok && check_abs_err(p, mem_src_fp.get_elem(i), trh))
             ok = diff <= trh;
 
         r->errors += !ok;
@@ -165,10 +207,10 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = dnnl_f32;
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = ed.data_desc;
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref),
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt),
             src_dt(data_desc, engine_tgt);
 
-    dnn_mem_t dst_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t dst_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t dst_dt;
     if (!p->inplace) {
         dst_dt = dnn_mem_t(data_desc, engine_tgt);
@@ -177,10 +219,10 @@ int doit(const prb_t *p, res_t *r) {
 
     SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
-    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref),
+    dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt),
             d_dst_dt(data_desc, engine_tgt);
 
-    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t d_src_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t d_src_dt;
     if (!p->inplace) {
         d_src_dt = dnn_mem_t(data_desc, engine_tgt);
@@ -188,31 +230,31 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     args_t args;
-    args.set(DNNL_ARG_SRC, src_dt.m_);
+    args.set(DNNL_ARG_SRC, src_dt);
 
     if (p->dir & FLAG_FWD) {
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
 
-        DNN_SAFE(execute_and_wait(e, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(e, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
-            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_ref);
-            SAFE(compare(p, dst_fp, dst, r), WARN);
+            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_tgt);
+            SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
         }
     } else {
         SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
 
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(DNNL_ARG_DIFF_SRC, p->inplace ? d_dst_dt.m_ : d_src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, p->inplace ? d_dst_dt : d_src_dt);
 
-        DNN_SAFE(execute_and_wait(e, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(e, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(
-                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_ref);
-            SAFE(compare(p, d_src_fp, d_src, r), WARN);
+                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_tgt);
+            SAFE(compare(p, src_fp, d_src_fp, d_src, r), WARN);
         }
     }
 

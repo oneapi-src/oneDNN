@@ -47,7 +47,7 @@ void reset_parameters() {
     sdt = {dnnl_f32};
     ddt = {dnnl_f32};
     stag = {{dnnl_nchw, dnnl_nchw}};
-    dtag = {dnnl_nchw};
+    dtag = {dnnl_format_tag_undef};
     axis = {1};
     allow_unimpl = false;
 }

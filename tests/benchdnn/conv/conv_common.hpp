@@ -54,6 +54,17 @@ struct desc_t {
 
     const char *name;
 };
+
+inline bool is_problem_3d(const desc_t *p) {
+    const auto id_p = p->id + p->pd;
+    return id_p > 1 || p->kd > 1 || p->od > 1;
+}
+
+inline bool is_problem_1d(const desc_t *p) {
+    const auto ih_p = p->ih + p->ph;
+    return !is_problem_3d(p) && ih_p == 1 && p->kh == 1 && p->oh == 1;
+}
+
 int str2desc(desc_t *desc, const char *str, bool is_deconv);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
@@ -86,16 +97,16 @@ extern const _dt_conf_t conf_f16;
 extern const _dt_conf_t conf_f32;
 extern const _dt_conf_t conf_f32_full;
 extern const _dt_conf_t conf_f32_wino;
-extern const _dt_conf_t conf_u8s8s32s32;
-extern const _dt_conf_t conf_u8s8s8s32;
-extern const _dt_conf_t conf_u8s8u8s32;
-extern const _dt_conf_t conf_s8s8s32s32;
-extern const _dt_conf_t conf_s8s8s8s32;
-extern const _dt_conf_t conf_s8s8u8s32;
-extern const _dt_conf_t conf_u8s8f32s32_wino;
-extern const _dt_conf_t conf_u8s8s32s32_wino;
-extern const _dt_conf_t conf_u8s8s8s32_wino;
-extern const _dt_conf_t conf_u8s8u8s32_wino;
+extern const _dt_conf_t conf_u8s8s32;
+extern const _dt_conf_t conf_u8s8s8;
+extern const _dt_conf_t conf_u8s8u8;
+extern const _dt_conf_t conf_s8s8s32;
+extern const _dt_conf_t conf_s8s8s8;
+extern const _dt_conf_t conf_s8s8u8;
+extern const _dt_conf_t conf_u8s8f32_wino;
+extern const _dt_conf_t conf_u8s8s32_wino;
+extern const _dt_conf_t conf_u8s8s8_wino;
+extern const _dt_conf_t conf_u8s8u8_wino;
 extern const _dt_conf_t conf_bf16bf16f32;
 extern const _dt_conf_t conf_bf16bf16bf16;
 extern const _dt_conf_t conf_f32bf16bf16;

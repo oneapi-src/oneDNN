@@ -59,7 +59,9 @@ struct rnn_postgemm_dispatcher {
             MAYBE_UNUSED(ngates);
         }
 
-        bool jit_path = pd->desc()->prop_kind == prop_kind::forward_inference
+        bool jit_path = utils::one_of(pd->desc()->prop_kind,
+                                prop_kind::forward_inference,
+                                prop_kind::forward_training)
                 && !pd->attr()->rnn_tparams_.test_mode_;
 
         switch (pd->cell_kind()) {

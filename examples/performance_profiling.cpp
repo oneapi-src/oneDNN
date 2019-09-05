@@ -36,7 +36,7 @@
 ///
 /// It will assume knowledge of memory formats and their usage in
 /// DNNL. You can read more about this topic
-/// [here](@ref cpu_memory_format_propagation_cpp).
+/// [here](@ref memory_format_propagation_cpp).
 ///
 /// The example has three different implementations of the mathematical
 /// operation:

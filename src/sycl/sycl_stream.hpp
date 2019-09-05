@@ -117,7 +117,7 @@ struct sycl_stream_t : public compute::compute_stream_t {
     }
 
     virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) const override {
+            const memory_storage_t &dst, size_t size) override {
         if (size == 0) return status::success;
 
         // TODO: add src and dst sizes check

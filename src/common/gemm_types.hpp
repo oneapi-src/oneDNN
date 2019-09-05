@@ -29,6 +29,14 @@ const transpose_t notrans = dnnl_notrans;
 const transpose_t trans = dnnl_trans;
 } // namespace transpose
 
+enum offsetc_t { dnnl_fixed, dnnl_column, dnnl_row };
+
+namespace offsetc {
+const offsetc_t fixed = dnnl_fixed;
+const offsetc_t column = dnnl_column;
+const offsetc_t row = dnnl_row;
+} // namespace offsetc
+
 /** A descriptor for a matrix multiplication (gemm) operation */
 typedef struct {
     /** The kind of primitive. Used for self identifying the primitive
@@ -38,6 +46,8 @@ typedef struct {
     transpose_t transa;
     /** Flag for transposing matrix B. */
     transpose_t transb;
+    /** Flag for offset of matrix C. */
+    offsetc_t offsetc;
     /** Number of rows of C. */
     dnnl_dim_t m;
     /** Number of columns of C. */
@@ -50,6 +60,12 @@ typedef struct {
     dnnl_dim_t ldb;
     /** Leading dimension of C. */
     dnnl_dim_t ldc;
+
+    /** Offset of A. */
+    dnnl_dim_t ao;
+    /** Offset of B. */
+    dnnl_dim_t bo;
+
     /** Scaling factor for A*B. */
     float alpha;
     /** Scaling factor for C. */

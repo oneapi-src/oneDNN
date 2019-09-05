@@ -772,9 +772,8 @@ void jit_avx2_conv_bwd_data_kernel_f32::generate() {
     int l_overflow = nstl::max(0, (jcp.kw - 1 - jcp.l_pad) / jcp.stride_w);
     int r_overflow = nstl::max(
             0, (jcp.kw - 1 - nstl::max(0, jcp.r_pad)) / jcp.stride_w);
-    int r_overflow1 = nstl::max(0,
-            (jcp.kw - 1 - nstl::max(0, jcp.r_pad) - jcp.ur_w_tail)
-                    / jcp.stride_w);
+    int r_overflow1 = nstl::max(
+            0, (jcp.kw - 1 - jcp.r_pad - jcp.ur_w_tail) / jcp.stride_w);
 
     int n_oi = jcp.iw / jcp.ur_w;
     if (r_overflow1 > 0) n_oi--;
@@ -962,16 +961,17 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
 
-    int r_overflow_no_tail = nstl::max(0,
-            (jcp.kw - 1 - jcp.ur_w_tail - nstl::max(0, jcp.r_pad)
-                    - jcp.ur_w_tail)
-                    / jcp.stride_w);
-    /* maximum 1 ur_w block with r_overflow so far */
-    if (r_overflow_no_tail * jcp.stride_w > jcp.ur_w)
-        return status::unimplemented;
+    int r_overflow_no_tail = nstl::max(
+            0, (jcp.kw - 1 - jcp.r_pad - jcp.ur_w_tail) / jcp.stride_w);
 
-    if ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))
-        return status::unimplemented;
+    bool tails_not_ok = false
+            /* maximum 1 ur_w block with r_overflow so far */
+            || r_overflow_no_tail * jcp.stride_w > jcp.ur_w
+            /* ur_w must be a multiple of stride */
+            || ((jcp.iw > jcp.ur_w) && (jcp.ur_w % jcp.stride_w != 0))
+            /* r_pad must not extend beyond ur_w_tail */
+            || ((jcp.iw > jcp.ur_w) && (jcp.r_pad + jcp.ur_w_tail < 0));
+    if (tails_not_ok) return status::unimplemented;
 
     return status::success;
 }

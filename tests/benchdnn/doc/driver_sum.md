@@ -56,7 +56,7 @@ pass it.
 
 ## Examples
 
-Run the set of sum from sum/test_default with the default settings:
+Run the set of sum from sum/test_sum_all with the default settings:
 ``` sh
     ./benchdnn --sum --batch=inputs/sum/test_sum_all
 ```

@@ -59,7 +59,7 @@ memory_storage_t *create_scratchpad_memory_storage(
     // cases.
     engine_t *mem_engine
             = (engine->kind() == engine_kind::cpu
-                      && engine->backend_kind() != backend_kind::native)
+                      && !is_native_runtime(engine->runtime_kind()))
             ? get_cpu_engine()
             : engine;
 

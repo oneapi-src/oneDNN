@@ -103,7 +103,7 @@ void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
         base_ptr = static_cast<uint8_t *>(
                 memory_storage_mapping_.at(mem_storage->impl()));
     } else {
-        assert(mem_storage->engine()->backend_kind() == backend_kind::native);
+        assert(is_native_runtime(mem_storage->engine()->runtime_kind()));
         base_ptr = static_cast<uint8_t *>(mem_storage->data_handle());
     }
     return base_ptr + mem_storage->offset();

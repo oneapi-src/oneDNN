@@ -132,7 +132,7 @@ const _dt_conf_t conf_bf16f32bf16 = {
         },
 };
 
-const _dt_conf_t conf_u8s8f32s32 = {
+const _dt_conf_t conf_u8s8f32 = {
         {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -142,7 +142,7 @@ const _dt_conf_t conf_u8s8f32s32 = {
         },
 };
 
-const _dt_conf_t conf_u8s8s32s32 = {
+const _dt_conf_t conf_u8s8s32 = {
         {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -152,7 +152,7 @@ const _dt_conf_t conf_u8s8s32s32 = {
         },
 };
 
-const _dt_conf_t conf_u8s8s8s32 = {
+const _dt_conf_t conf_u8s8s8 = {
         {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -162,7 +162,7 @@ const _dt_conf_t conf_u8s8s8s32 = {
         },
 };
 
-const _dt_conf_t conf_u8s8u8s32 = {
+const _dt_conf_t conf_u8s8u8 = {
         {dnnl_u8, 0, UINT8_MAX, 0, 8, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -172,7 +172,7 @@ const _dt_conf_t conf_u8s8u8s32 = {
         },
 };
 
-const _dt_conf_t conf_s8s8f32s32 = {
+const _dt_conf_t conf_s8s8f32 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -182,7 +182,7 @@ const _dt_conf_t conf_s8s8f32s32 = {
         },
 };
 
-const _dt_conf_t conf_s8s8s32s32 = {
+const _dt_conf_t conf_s8s8s32 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -192,7 +192,7 @@ const _dt_conf_t conf_s8s8s32s32 = {
         },
 };
 
-const _dt_conf_t conf_s8s8s8s32 = {
+const _dt_conf_t conf_s8s8s8 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -202,7 +202,7 @@ const _dt_conf_t conf_s8s8s8s32 = {
         },
 };
 
-const _dt_conf_t conf_s8s8u8s32 = {
+const _dt_conf_t conf_s8s8u8 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, 1, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -8, 3, 0, 4, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -8, 32, 0, 1, .25, 0.},
@@ -212,7 +212,7 @@ const _dt_conf_t conf_s8s8u8s32 = {
         },
 };
 
-const _dt_conf_t conf_u8s8f32s32_wino = {
+const _dt_conf_t conf_u8s8f32_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
@@ -222,7 +222,7 @@ const _dt_conf_t conf_u8s8f32s32_wino = {
         },
 };
 
-const _dt_conf_t conf_u8s8s32s32_wino = {
+const _dt_conf_t conf_u8s8s32_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
@@ -232,7 +232,7 @@ const _dt_conf_t conf_u8s8s32s32_wino = {
         },
 };
 
-const _dt_conf_t conf_u8s8s8s32_wino = {
+const _dt_conf_t conf_u8s8s8_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
@@ -242,7 +242,7 @@ const _dt_conf_t conf_u8s8s8s32_wino = {
         },
 };
 
-const _dt_conf_t conf_u8s8u8s32_wino = {
+const _dt_conf_t conf_u8s8u8_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
@@ -260,18 +260,18 @@ const dt_conf_t *str2cfg(const char *str) {
     CASE(f32_no_limits);
     CASE(f32_full);
     CASE(f32_wino);
-    CASE(u8s8f32s32);
-    CASE(u8s8s32s32);
-    CASE(u8s8s8s32);
-    CASE(u8s8u8s32);
-    CASE(s8s8f32s32);
-    CASE(s8s8s32s32);
-    CASE(s8s8s8s32);
-    CASE(s8s8u8s32);
-    CASE(u8s8f32s32_wino);
-    CASE(u8s8s32s32_wino);
-    CASE(u8s8s8s32_wino);
-    CASE(u8s8u8s32_wino);
+    CASE(u8s8f32);
+    CASE(u8s8s32);
+    CASE(u8s8s8);
+    CASE(u8s8u8);
+    CASE(s8s8f32);
+    CASE(s8s8s32);
+    CASE(s8s8s8);
+    CASE(s8s8u8);
+    CASE(u8s8f32_wino);
+    CASE(u8s8s32_wino);
+    CASE(u8s8s8_wino);
+    CASE(u8s8u8_wino);
     CASE(bf16bf16f32);
     CASE(bf16bf16bf16);
     CASE(f32bf16bf16);
@@ -292,18 +292,18 @@ const char *cfg2str(const dt_conf_t *cfg) {
     CASE(f32_no_limits);
     CASE(f32_full);
     CASE(f32_wino);
-    CASE(u8s8f32s32);
-    CASE(u8s8s32s32);
-    CASE(u8s8s8s32);
-    CASE(u8s8u8s32);
-    CASE(s8s8f32s32);
-    CASE(s8s8s32s32);
-    CASE(s8s8s8s32);
-    CASE(s8s8u8s32);
-    CASE(u8s8f32s32_wino);
-    CASE(u8s8s32s32_wino);
-    CASE(u8s8s8s32_wino);
-    CASE(u8s8u8s32_wino);
+    CASE(u8s8f32);
+    CASE(u8s8s32);
+    CASE(u8s8s8);
+    CASE(u8s8u8);
+    CASE(s8s8f32);
+    CASE(s8s8s32);
+    CASE(s8s8s8);
+    CASE(s8s8u8);
+    CASE(u8s8f32_wino);
+    CASE(u8s8s32_wino);
+    CASE(u8s8s8_wino);
+    CASE(u8s8u8_wino);
     CASE(bf16bf16f32);
     CASE(bf16bf16bf16);
     CASE(f32bf16bf16);
@@ -322,10 +322,10 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg) {
     if (alg == WINO && !strcmp(cfg_s, STRINGIFY(_cfg_))) \
     return CONCAT2(conf_, CONCAT2(_cfg_, _wino))
     CASE(f32);
-    CASE(u8s8f32s32);
-    CASE(u8s8s32s32);
-    CASE(u8s8s8s32);
-    CASE(u8s8u8s32);
+    CASE(u8s8f32);
+    CASE(u8s8s32);
+    CASE(u8s8s8);
+    CASE(u8s8u8);
 #undef CASE
     return cfg;
 }

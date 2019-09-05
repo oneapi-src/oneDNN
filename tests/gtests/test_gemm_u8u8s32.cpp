@@ -14,23 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMV_HPP
-#define GEMV_HPP
+#include "dnnl_test_common.hpp"
+#include "gtest/gtest.h"
 
-#include <cstdint>
-
-#include "../gemm_info.hpp"
+#include "dnnl.h"
+#include "test_gemm_common.hpp"
 
 namespace dnnl {
-namespace impl {
-namespace cpu {
 
-template <typename T>
-int gemm_s8u8s32_jump_to_gemv_s8u8s32(T *arg);
-int gemv_threading_driver(gemm_info_t<int8_t, uint8_t, int32_t> *arg);
+using gemm_test = gemm_test_common<uint8_t, uint8_t, int32_t>;
 
-} // namespace cpu
-} // namespace impl
+TEST_P(gemm_test, TestGEMM) {}
+
+#define TEST_CASE_NAME_PREFIX u8u8s32
+#define U8U8S32
+#include "gemm_in.h"
 } // namespace dnnl
-
-#endif // GEMV_HPP

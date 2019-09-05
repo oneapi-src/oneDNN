@@ -170,16 +170,8 @@ inline float maybe_saturate(dnnl_data_type_t dt, float value) {
 /* simplification */
 extern dnnl_engine_kind_t engine_tgt_kind;
 
-extern dnnl_engine_t engine_ref;
 extern dnnl_engine_t engine_tgt;
-
-extern dnnl_stream_t stream_ref;
 extern dnnl_stream_t stream_tgt;
-
-extern "C" dnnl_status_t dnnl_engine_create_with_backend(dnnl_engine_t *engine,
-        dnnl_engine_kind_t kind, int backend_kind, size_t index);
-extern "C" dnnl_status_t dnnl_engine_get_backend_kind(
-        dnnl_engine_t engine, int *backend_kind);
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_reorder_set_engine_kind(
@@ -187,13 +179,6 @@ extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_reorder_set_engine_kind(
 #endif
 
 inline int init() {
-    /* Create engine with CPU native backend: backend_kind == 0 */
-    DNN_SAFE(
-            dnnl_engine_create_with_backend(&engine_ref, dnnl_cpu, 0, 0), CRIT);
-    DNN_SAFE(dnnl_stream_create(
-                     &stream_ref, engine_ref, dnnl_stream_default_flags),
-            CRIT);
-
     if (!engine_tgt) {
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
         DNN_SAFE(dnnl_stream_create(
@@ -222,10 +207,7 @@ inline int init() {
 }
 
 inline int finalize() {
-    DNN_SAFE(dnnl_stream_destroy(stream_ref), CRIT);
     DNN_SAFE(dnnl_stream_destroy(stream_tgt), CRIT);
-
-    DNN_SAFE(dnnl_engine_destroy(engine_ref), CRIT);
     DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
     return OK;
 }
@@ -236,45 +218,24 @@ inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     return str;
 }
 
+struct dnn_mem_t;
+
 struct args_t {
-    args_t &set(int arg, dnnl_memory_t memory) {
-        dnnl_exec_arg_t a = {arg, memory};
-        args_.push_back(a);
-        return *this;
-    }
+    args_t &set(int arg, const dnn_mem_t &mem);
     void clear() { args_.clear(); }
 
     int size() const { return (int)args_.size(); }
-    const dnnl_exec_arg_t *args() const { return args_.data(); }
-    operator const dnnl_exec_arg_t *() const { return args(); }
+
+    int arg(int index) const { return args_[index].first; }
+    const dnn_mem_t &dnn_mem(int index) const { return *args_[index].second; }
 
 private:
-    std::vector<dnnl_exec_arg_t> args_;
+    std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
-inline dnnl_status_t execute_and_wait(dnnl_primitive_t prim,
-        dnnl_stream_t stream, int nargs, const dnnl_exec_arg_t *args) {
-    dnnl_status_t status = dnnl_primitive_execute(prim, stream, nargs, args);
-    if (status != dnnl_success) return status;
-    return dnnl_stream_wait(stream);
-}
+dnnl_status_t execute_and_wait(
+        dnnl_primitive_t prim, dnnl_stream_t stream, const args_t &args);
 
-inline int measure_perf(
-        benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
-    if (bench_mode & PERF) {
-        t.reset();
-        while (true) {
-            DNN_SAFE(execute_and_wait(prim, stream_tgt, args.size(), args),
-                    WARN);
-            t.stamp();
-            const bool stop = false
-                    || (fix_times_per_prb && t.times() >= fix_times_per_prb)
-                    || (!fix_times_per_prb && t.total_ms() >= max_ms_per_prb
-                            && t.times() >= min_times_per_prb);
-            if (stop) break;
-        }
-    }
-    return OK;
-}
+int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
 #endif

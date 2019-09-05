@@ -44,6 +44,16 @@ static inline status_t check_gemm_input(char transa, char transb, int m, int n,
     return success;
 }
 
+static inline status_t check_gemm_x8x8s32_input(char offsetc, char transa,
+        char transb, int m, int n, int k, int lda, int ldb, int ldc,
+        float alpha, float beta) {
+    using namespace status;
+    if (!utils::one_of(offsetc, 'F', 'f', 'C', 'c', 'R', 'r'))
+        return invalid_arguments;
+    return check_gemm_input(
+            transa, transb, m, n, k, lda, ldb, ldc, alpha, beta);
+}
+
 static inline status_t create_gemm_memory_desc(memory_desc_t *m_desc,
         const gemm_desc_t *desc, int index, data_type_t data_type) {
     using namespace status;

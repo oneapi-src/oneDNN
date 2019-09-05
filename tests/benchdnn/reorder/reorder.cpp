@@ -127,9 +127,6 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 int compare_bootstrap(
         dnn_mem_t &mem_expected, dnn_mem_t &mem_computed, res_t *r) {
     int diff = 0;
-    // map memory to allow direct memory access
-    mem_expected.map();
-    mem_computed.map();
     // demand bit-wise identical results
     size_t expected_size = mem_expected.size();
     size_t computed_size = mem_computed.size();
@@ -138,9 +135,6 @@ int compare_bootstrap(
                 (void *)mem_expected, (void *)mem_computed, expected_size);
     else
         diff = 1;
-    // unmap memory now that we are done with it
-    mem_expected.unmap();
-    mem_computed.unmap();
     // set results and check state for failure
     r->errors = diff == 0 ? 0 : 1;
     r->state = diff == 0 ? PASSED : FAILED;
@@ -273,15 +267,15 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     dnn_mem_t mem_dt_in_fmt_ref(
-            ndims, dims, p->conf_in->dt, nullptr, engine_ref);
+            ndims, dims, p->conf_in->dt, nullptr, engine_tgt);
     dnn_mem_t mem_dt_in_fmt_in(
             ndims, dims, p->conf_in->dt, r.tag_in, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out,
             mem_extra_dt_out_fmt_out, engine_tgt);
     dnn_mem_t mem_dt_out_fmt_ref(
-            ndims, dims, p->conf_out->dt, nullptr, engine_ref);
+            ndims, dims, p->conf_out->dt, nullptr, engine_tgt);
     dnn_mem_t mem_test_dt_out_fmt_ref(
-            ndims, dims, p->conf_out->dt, nullptr, engine_ref);
+            ndims, dims, p->conf_out->dt, nullptr, engine_tgt);
     dnn_mem_t mem_test_dt_out_fmt_out(ndims, dims, p->conf_out->dt, r.tag_out,
             mem_extra_test_dt_out_fmt_out, engine_tgt);
 
@@ -376,8 +370,8 @@ int check_reorder(const prb_t *p, res_t *res) {
         DNN_SAFE_V(dnnl_primitive_desc_destroy(perf_r_pd));
 
         args_t args;
-        args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in.m_);
-        args.set(DNNL_ARG_TO, mem_dt_out_fmt_out.m_);
+        args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in);
+        args.set(DNNL_ARG_TO, mem_dt_out_fmt_out);
 
         measure_perf(res->timer, perf_r, args);
 

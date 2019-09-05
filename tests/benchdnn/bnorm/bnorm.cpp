@@ -51,13 +51,14 @@ static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
 
                 const int64_t sp = d * p->ih * p->iw + h * p->iw + w;
                 const int64_t l = l_base + sp;
-                s[sp] = maybe_saturate(p->dt, (l % 256) - 128);
+                const int64_t value = (l % 65) - 32;
+                s[sp] = maybe_saturate(p->dt, value);
 
                 ((float *)mean)[c] = 4 * ((c % 5) - 2);
                 ((float *)var)[c] = ((c % 7) << 1);
 
                 if (p->flags & USE_SCALESHIFT) {
-                    ((float *)ss)[c] = 8 * (1 << (c % 7));
+                    ((float *)ss)[c] = (1 << (c % 7));
                     ((float *)ss)[p->ic + c] = ((c % 3) - 1) * ((float *)ss)[c];
                 } else {
                     ((float *)ss)[c] = 1;
@@ -390,7 +391,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
         r->errors += !ok;
 
         bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
-                || (verbose >= 50 && i < 30);
+                || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
             std::stringstream ss;
             if (kind == DATA) {
@@ -586,14 +587,10 @@ static int cvt_mask_to_ws(
     dnn_mem_t mean(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
     dnn_mem_t var(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
 
-    mean.map();
-    var.map();
     for (int64_t c = 0; c < p->ic; ++c)
         ((float *)mean)[c] = 0.5;
     for (int64_t c = 0; c < p->ic; ++c)
         ((float *)var)[c] = 1;
-    mean.unmap();
-    var.unmap();
 
     dnnl_batch_normalization_desc_t bd;
     auto flags = (dnnl_normalization_flags_t)(
@@ -611,12 +608,12 @@ static int cvt_mask_to_ws(
     DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
 
     args_t args;
-    args.set(DNNL_ARG_SRC, data.m_);
-    args.set(DNNL_ARG_MEAN, mean.m_);
-    args.set(DNNL_ARG_VARIANCE, var.m_);
-    args.set(DNNL_ARG_DST, data.m_);
-    args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
-    DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+    args.set(DNNL_ARG_SRC, data);
+    args.set(DNNL_ARG_MEAN, mean);
+    args.set(DNNL_ARG_VARIANCE, var);
+    args.set(DNNL_ARG_DST, data);
+    args.set(DNNL_ARG_WORKSPACE, ws_dt);
+    DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
     DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
 
     return OK;
@@ -634,7 +631,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag(bd.data_desc.ndims);
     const auto &data_desc = bd.data_desc;
 
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_ref);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_desc, engine_tgt);
 
     dnn_mem_t &dst_fp = src_fp; // in-place in ref code
@@ -643,18 +640,18 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
     const dnnl_dims_t dims1d = {p->ic};
-    dnn_mem_t mean_fp(1, dims1d, fp, dnnl_x, engine_ref),
+    dnn_mem_t mean_fp(1, dims1d, fp, dnnl_x, engine_tgt),
             mean_dt(mean_fp.md_, engine_tgt);
-    dnn_mem_t var_fp(1, dims1d, fp, dnnl_x, engine_ref),
+    dnn_mem_t var_fp(1, dims1d, fp, dnnl_x, engine_tgt),
             var_dt(var_fp.md_, engine_tgt);
 
     const dnnl_dims_t dims2d = {2, p->ic};
-    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
+    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             ss_dt(ss_fp.md_, engine_tgt);
-    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_ref),
+    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             d_ss_dt(d_ss_fp.md_, engine_tgt);
 
-    dnn_mem_t ws_fp(src_fp.md_, engine_ref);
+    dnn_mem_t ws_fp(src_fp.md_, engine_tgt);
     dnn_mem_t ws_dt;
     if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
         const auto ws_md
@@ -676,49 +673,41 @@ int doit(const prb_t *p, res_t *r) {
 
         SAFE(src_dt.reorder(src_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt.m_ : dst_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
+        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
             SAFE(mean_dt.reorder(mean_fp), WARN);
             SAFE(var_dt.reorder(var_fp), WARN);
         }
-        args.set(DNNL_ARG_MEAN, mean_dt.m_);
-        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         }
 
-        if (p->flags & FUSE_NORM_RELU) args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+        if (p->flags & FUSE_NORM_RELU) args.set(DNNL_ARG_WORKSPACE, ws_dt);
 
-        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
-                mean_dt.map();
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
-                mean_dt.unmap();
 
-                var_dt.map();
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
-                var_dt.unmap();
             }
-            dnn_mem_t dst(dst_dt, fp, tag, engine_ref);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, DATA, dst_fp, dst, r, &ss_fp), WARN);
             if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
-                dst_dt.map();
-                ws_dt.map();
                 SAFE(check_fwd_ws(dst_dt, ws_dt, r), WARN);
-                dst_dt.unmap();
-                ws_dt.unmap();
             }
         }
     } else {
-        dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_ref);
+        dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt);
         d_dst_dt = dnn_mem_t(data_desc, engine_tgt);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
@@ -734,38 +723,36 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(src_dt.reorder(src_fp), WARN);
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
 
-        args.set(DNNL_ARG_SRC, src_dt.m_);
+        args.set(DNNL_ARG_SRC, src_dt);
 
-        args.set(DNNL_ARG_DIFF_DST, d_dst_dt.m_);
-        args.set(DNNL_ARG_DIFF_SRC, d_src_dt.m_);
+        args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
 
         SAFE(mean_dt.reorder(mean_fp), WARN);
         SAFE(var_dt.reorder(var_fp), WARN);
-        args.set(DNNL_ARG_MEAN, mean_dt.m_);
-        args.set(DNNL_ARG_VARIANCE, var_dt.m_);
+        args.set(DNNL_ARG_MEAN, mean_dt);
+        args.set(DNNL_ARG_VARIANCE, var_dt);
 
         if (p->flags & USE_SCALESHIFT) {
             SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt.m_);
-            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt.m_);
+            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
         }
 
         if (p->flags & FUSE_NORM_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
-            args.set(DNNL_ARG_WORKSPACE, ws_dt.m_);
+            args.set(DNNL_ARG_WORKSPACE, ws_dt);
         }
 
-        DNN_SAFE(execute_and_wait(b, stream_tgt, args.size(), args), WARN);
+        DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp, ws_fp,
                     d_src_fp, d_ss_fp);
             if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
-                d_ss_dt.map();
                 SAFE(compare(p, SS, d_ss_fp, d_ss_dt, r), WARN);
-                d_ss_dt.unmap();
             }
-            dnn_mem_t d_src(d_src_dt, fp, tag, engine_ref);
+            dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, DATA, d_src_fp, d_src, r), WARN);
         }
     }

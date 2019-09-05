@@ -113,9 +113,10 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
     status_t init() override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
+        auto *dev_info = compute_engine->device_info();
 
-        eu_count_ = compute_engine->get_eu_count();
-        hw_threads_ = compute_engine->get_hw_threads();
+        eu_count_ = dev_info->eu_count();
+        hw_threads_ = dev_info->hw_threads();
 
         gemm_type_ = get_gemm_type();
 
@@ -327,9 +328,10 @@ private:
         //  versions.
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
+        auto *dev_info = compute_engine->device_info();
         compute::runtime_version_t min_version = {19, 11, 12599};
 
-        if (compute_engine->get_runtime_version() < min_version) return false;
+        if (dev_info->runtime_version() < min_version) return false;
 
         bool transa = (pd()->desc()->transa == dnnl_trans);
         auto k = pd()->desc()->k;

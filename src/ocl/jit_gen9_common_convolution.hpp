@@ -57,7 +57,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
 
             auto src_data_t = this->desc()->src_desc.data_type;
 
-            bool ok = true
+            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(this->desc()->prop_kind, forward_training,
                             forward_inference)
                     && this->desc()->alg_kind == alg_kind::convolution_direct
@@ -147,7 +147,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true && this->desc()->prop_kind == backward_data
+            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
+                    && this->desc()->prop_kind == backward_data
                     && this->desc()->alg_kind == alg_kind::convolution_direct
                     && utils::one_of(true,
                             expect_data_types(
@@ -233,7 +234,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true && this->desc()->prop_kind == backward_weights
+            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
+                    && this->desc()->prop_kind == backward_weights
                     && this->desc()->alg_kind == alg_kind::convolution_direct
                     && expect_data_types(f32, f32, f32, f32, f32)
                     && compute_engine->mayiuse(

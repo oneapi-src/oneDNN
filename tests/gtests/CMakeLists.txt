@@ -73,9 +73,12 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_gemm_f32.cpp
                               test_gemm_u8s8s32.cpp
                               test_gemm_s8s8s32.cpp
+                              test_gemm_s8u8s32.cpp
+                              test_gemm_u8u8s32.cpp
                               test_gemm_bf16bf16f32.cpp
                               test_rnn_forward.cpp
                               test_layer_normalization.cpp
+                              test_binary.cpp
                               )
 
 # Workaround for an Intel compiler bug: stack unwinding does not restore
@@ -86,15 +89,25 @@ if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
             PROPERTIES COMPILE_FLAGS "/O1")
 endif()
 
+# Tests that don't support '--engine' parameter
+set_source_files_properties(test_cross_engine_reorder.cpp
+        PROPERTIES NO_ENGINE_PARAM true)
+
 foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     get_filename_component(exe ${TEST_FILE} NAME_WE)
 
     add_executable(${exe} ${MAIN_SRC_GTEST} ${TEST_FILE})
     add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
     target_link_libraries(${exe} ${LIB_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
-    target_compile_definitions(${exe} PUBLIC -DDNNL_TEST_WITH_ENGINE_PARAM)
 
-    if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    get_source_file_property(no_engine_param ${TEST_FILE} NO_ENGINE_PARAM)
+
+    if (NOT no_engine_param)
+        target_compile_definitions(${exe} PUBLIC
+                -DDNNL_TEST_WITH_ENGINE_PARAM)
+    endif()
+
+    if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE" AND NOT no_engine_param)
         add_test(${exe}_cpu ${exe} COMMAND ${exe} --engine=cpu)
         maybe_configure_windows_test(${exe}_cpu TEST)
 

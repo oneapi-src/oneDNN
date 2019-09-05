@@ -221,6 +221,8 @@ public:
         inner_product = dnnl_inner_product,
         /// A rnn primitive.
         rnn = dnnl_rnn,
+        /// A binary primitive.
+        binary = dnnl_binary,
     };
 
     primitive(const_dnnl_primitive_desc_t c_pd);
@@ -364,6 +366,10 @@ enum class algorithm {
     /// Primitive expects 4 biases on input:
     /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
     lbr_gru = dnnl_lbr_gru,
+    /// Binary add
+    binary_add = dnnl_binary_add,
+    /// Binary mul
+    binary_mul = dnnl_binary_mul,
 };
 
 inline dnnl_alg_kind_t convert_to_c(algorithm aalgorithm) {
@@ -537,6 +543,8 @@ enum class query {
     inner_product_d = dnnl_query_inner_product_d,
     /// rnn descriptor
     rnn_d = dnnl_query_rnn_d,
+    /// binary descriptor
+    binary_d = dnnl_query_binary_d,
 
     /// source memory desc
     src_md = dnnl_query_src_md,
@@ -1431,6 +1439,15 @@ struct memory : public handle<dnnl_memory_t> {
                                       &sub_md, &data, &adims[0], &offsets[0]),
                     "could not initialize a sub-memory");
             return desc(sub_md);
+        }
+
+        /// Constructs a memory descriptor by reshaping existing one.
+        desc reshape(const dims &adims) {
+            dnnl_memory_desc_t out_md;
+            error::wrap_c_api(dnnl_memory_desc_reshape(&out_md, &data,
+                                      (int)adims.size(), &adims[0]),
+                    "could not reshape a memory descriptor");
+            return desc(out_md);
         }
 
         /// Returns the number of bytes required to allocate the memory
@@ -5229,6 +5246,62 @@ struct shuffle_backward : public primitive {
     shuffle_backward() = default;
 
     shuffle_backward(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// @}
+
+/// @addtogroup cpp_api_binary Binary
+/// A primitive to perform tensor operations over two tensors.
+///
+/// @sa @ref dev_guide_binary in developer guide
+/// @sa @ref c_api_binary in @ref c_api
+/// @{
+
+/// Implements descriptor, primitive descriptor, and primitive
+/// for the binary.
+struct binary : public primitive {
+
+    /// Descriptor for binary.
+    struct desc {
+        dnnl_binary_desc_t data;
+
+        /// Initializes a binary descriptor using @p algorithm, memory
+        /// descriptors @p src0_desc, @p src1_desc and @p dst_desc.
+        desc(algorithm aalgorithm, const memory::desc &src0,
+                const memory::desc &src1, const memory::desc &dst) {
+            error::wrap_c_api(
+                    dnnl_binary_desc_init(&data, dnnl::convert_to_c(aalgorithm),
+                            &src0.data, &src1.data, &dst.data),
+                    "could not create a binary descriptor");
+        }
+    };
+
+    struct primitive_desc : public dnnl::primitive_desc {
+        primitive_desc() = default;
+
+        /// Initializes a primitive descriptor for binary.
+        primitive_desc(const desc &desc, const engine &e)
+            : dnnl::primitive_desc(&desc.data, nullptr, e, nullptr) {}
+
+        /// Initializes a primitive descriptor for binary with attributes
+        /// defined by @p attr.
+        primitive_desc(
+                const desc &desc, const primitive_attr &attr, const engine &e)
+            : dnnl::primitive_desc(&desc.data, &attr, e, nullptr) {}
+
+        /// Queries source 0 memory descriptor.
+        memory::desc src0_desc() const { return query_md(query::src_md, 0); }
+
+        /// Queries source 1 memory descriptor.
+        memory::desc src1_desc() const { return query_md(query::src_md, 1); }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+    };
+
+    binary() = default;
+
+    binary(const primitive_desc &pd) : primitive(pd) {}
 };
 
 /// @}

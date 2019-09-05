@@ -94,11 +94,22 @@ protected:
 
 protected:
     concat_desc_t desc_;
-    /* inits src_image_mds_ and dst_md_ in simple cases. The call may fail */
-    status_t init() {
-        bool ok = true && set_default_params() == status::success
-                && attr()->has_default_values();
+
+    /* inits src_image_mds_ and dst_md_ in simple cases. It is possible to
+     * override dst_md_ by using force_dst_md.
+     * Rationale: if user forces particular dst_md, that cannot be used to
+     *            create src_img_mds, the implementation might need to use
+     *            intermediate (force_dst_md) memory with some plain format.
+     *
+     * @warning The call may fail. */
+    status_t init(const memory_desc_t *force_dst_md = nullptr) {
+        bool ok = attr()->has_default_values();
+        if (force_dst_md == nullptr)
+            ok = ok && set_default_params() == status::success;
         if (!ok) return status::unimplemented;
+
+        /* work with force_dst_md */
+        if (force_dst_md == nullptr) force_dst_md = &dst_md_;
 
         for (int i = 0; i < n_; ++i) {
             const memory_desc_wrapper i_d(&src_mds_[i]);
@@ -106,19 +117,22 @@ protected:
                 return status::unimplemented;
         }
 
-        const int ndims = dst_md_.ndims;
+        const int ndims = force_dst_md->ndims;
         int current_concat_dim_offset = 0;
         for (int i = 0; i < n_; ++i) {
             const int dim = src_mds_[i].dims[concat_dim_];
             dims_t dims, offsets = {};
-            utils::array_copy(dims, dst_md_.dims, ndims);
+            utils::array_copy(dims, force_dst_md->dims, ndims);
             dims[concat_dim_] = dim;
             offsets[concat_dim_] = current_concat_dim_offset;
 
             memory_desc_t src_img_d;
             status_t status = dnnl_memory_desc_init_submemory(
-                    &src_img_d, &dst_md_, dims, offsets);
-            if (status != status::success) return status;
+                    &src_img_d, force_dst_md, dims, offsets);
+            if (status != status::success) {
+                src_image_mds_.clear();
+                return status;
+            }
             src_image_mds_.push_back(src_img_d);
             current_concat_dim_offset += dim;
         }

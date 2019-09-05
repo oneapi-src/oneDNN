@@ -108,26 +108,30 @@ void benchdnn_timer_t::start() {
     ms_start_ = ms_now();
 }
 
-void benchdnn_timer_t::stop() {
+void benchdnn_timer_t::stop(int add_times) {
     long long d_ticks = ticks_now() - ticks_start_; /* FIXME: overflow? */
     double d_ms = ms_now() - ms_start_;
 
     ticks_start_ += d_ticks;
     ms_start_ += d_ms;
 
+    ms_[benchdnn_timer_t::avg] += d_ms;
+    ticks_[benchdnn_timer_t::avg] += d_ticks;
+
+    d_ticks /= add_times;
+    d_ms /= add_times;
+
     ms_[benchdnn_timer_t::min]
             = times_ ? MIN2(ms_[benchdnn_timer_t::min], d_ms) : d_ms;
-    ms_[benchdnn_timer_t::avg] += d_ms;
     ms_[benchdnn_timer_t::max]
             = times_ ? MAX2(ms_[benchdnn_timer_t::max], d_ms) : d_ms;
 
     ticks_[benchdnn_timer_t::min]
             = times_ ? MIN2(ticks_[benchdnn_timer_t::min], d_ticks) : d_ticks;
-    ticks_[benchdnn_timer_t::avg] += d_ticks;
     ticks_[benchdnn_timer_t::max]
             = times_ ? MAX2(ticks_[benchdnn_timer_t::max], d_ticks) : d_ticks;
 
-    times_++;
+    times_ += add_times;
 }
 
 benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {

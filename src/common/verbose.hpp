@@ -43,13 +43,14 @@ const char *get_isa_info();
 #endif
 
 void init_info(batch_normalization_pd_t *s, char *buffer);
-void init_info(layer_normalization_pd_t *s, char *buffer);
+void init_info(binary_pd_t *s, char *buffer);
 void init_info(concat_pd_t *s, char *buffer);
 void init_info(convolution_pd_t *s, char *buffer);
 void init_info(deconvolution_pd_t *s, char *buffer);
 void init_info(eltwise_pd_t *s, char *buffer);
 void init_info(gemm_pd_t *s, char *buffer);
 void init_info(inner_product_pd_t *s, char *buffer);
+void init_info(layer_normalization_pd_t *s, char *buffer);
 void init_info(lrn_pd_t *s, char *buffer);
 void init_info(pooling_pd_t *s, char *buffer);
 void init_info(reorder_pd_t *s, char *buffer);

@@ -143,9 +143,9 @@ int doit(const prb_t *p, res_t *r) {
     const int ndims = (int)p->dims.size();
     const auto src_tag = get_default_tag(ndims);
 
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_ref),
+    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_tgt),
             src_dt(src_dt_d, engine_tgt);
-    dnn_mem_t dst_fp(src_dt_d, fp, src_tag, engine_ref),
+    dnn_mem_t dst_fp(src_dt_d, fp, src_tag, engine_tgt),
             dst_dt(src_dt_d, engine_tgt);
 
     SAFE(fill_src(p, src_dt, src_fp), WARN);
@@ -153,14 +153,14 @@ int doit(const prb_t *p, res_t *r) {
     const int i_arg = p->dir == FWD_D ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const int o_arg = p->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
     args_t args;
-    args.set(i_arg, src_dt.m_);
-    args.set(o_arg, dst_dt.m_);
+    args.set(i_arg, src_dt);
+    args.set(o_arg, dst_dt);
 
-    DNN_SAFE(execute_and_wait(s, stream_tgt, args.size(), args), WARN);
+    DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);
-        dnn_mem_t data(dst_dt, fp, src_tag, engine_ref);
+        dnn_mem_t data(dst_dt, fp, src_tag, engine_tgt);
         SAFE(compare(p, dst_fp, data, r), WARN);
     }
 

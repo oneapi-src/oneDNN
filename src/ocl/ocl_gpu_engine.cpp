@@ -21,6 +21,7 @@
 #include "ocl/gemm_inner_product.hpp"
 #include "ocl/jit_gen9_common_convolution.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
+#include "ocl/jit_gen9_gemm_x8x8s32.hpp"
 #include "ocl/ocl_kernel_list.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -186,6 +187,10 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_softmax_fwd_t),
         INSTANCE(ref_softmax_bwd_t),
         /* gemm */
+        INSTANCE(jit_gen9_gemm_x8x8s32_t<s8, s8, s32>),
+        INSTANCE(jit_gen9_gemm_x8x8s32_t<s8, u8, s32>),
+        INSTANCE(jit_gen9_gemm_x8x8s32_t<u8, s8, s32>),
+        INSTANCE(jit_gen9_gemm_x8x8s32_t<u8, u8, s32>),
         INSTANCE(jit_gen9_gemm_t<f16>),
         INSTANCE(jit_gen9_gemm_t<f32>),
         /*rnn*/

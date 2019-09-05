@@ -42,7 +42,7 @@ public:
         if (flags & memory_flags_t::alloc) {
             void *data_ptr = malloc(size, (int)alignment);
             data_ = decltype(data_)(data_ptr, [](void *ptr) { free(ptr); });
-        } else if (flags & memory_flags_t::use_backend_ptr) {
+        } else if (flags & memory_flags_t::use_runtime_ptr) {
             data_ = decltype(data_)(handle, [](void *) {});
         }
     }

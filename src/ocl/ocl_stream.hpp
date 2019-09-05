@@ -73,7 +73,7 @@ struct ocl_stream_t : public compute::compute_stream_t {
     cl_command_queue queue() const { return queue_; }
 
     virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) const override;
+            const memory_storage_t &dst, size_t size) override;
 
     ~ocl_stream_t() {
         wait();

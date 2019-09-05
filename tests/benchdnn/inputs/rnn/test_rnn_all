@@ -6,6 +6,12 @@
 # small test case to check GEMM and non-GEMM ops accuracy
 --skip-nonlinear=true,false
 --prop=FWD_D,BWD_DW
+--alg=vanilla_rnn
+--activation=relu,tanh,logistic
+--batch=rnn_small
+
+--alg=vanilla_lstm,vanilla_gru,lbr_gru
+--activation=undef
 --batch=rnn_small
 
 #larger test cases

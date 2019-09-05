@@ -22,7 +22,7 @@ where *concat-knobs* are:
 
 and *concat-desc* is a problem descriptor. The canonical form is:
 ```
-    NxNxNxNxN
+    NxNxNxNxN:NxNxNxNxN[:NxNxNxNxN...]
 ```
 where N is an integer number. This represents a 3D spatial problem with the
 following logical dimensions: N, C, D, H, W. Consider removing each `xN` from
@@ -45,7 +45,7 @@ expect a precise answer with the reference implementation.
 
 ## Examples
 
-Run the set of concat from concat/test_default with the default settings:
+Run the set of concat from concat/test_concat_all with the default settings:
 ``` sh
     ./benchdnn --concat --batch=inputs/concat/test_concat_all
 ```

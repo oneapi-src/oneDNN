@@ -160,14 +160,13 @@ const char *fmt_tag2str(dnnl_format_tag_t tag) {
 
 def maybe_skip(enum):
     return enum in (
-        'dnnl_batch_normalization_flag_t',
         'dnnl_memory_extra_flags_t',
-        'dnnl_wino_memory_format_t',
+        'dnnl_normalization_flags_t',
+        'dnnl_query_t',
         'dnnl_rnn_cell_flags_t',
         'dnnl_rnn_packed_memory_format_t',
-        'dnnl_batch_normalization_flags_t',
-        'dnnl_query_t',
         'dnnl_stream_flags_t',
+        'dnnl_wino_memory_format_t',
         )
 
 

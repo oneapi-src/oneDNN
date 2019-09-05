@@ -201,11 +201,11 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
+    const bool print_d = is_3d(&d);
     const bool half_form = (d.ih == d.iw && d.kh == d.kw && d.oh == d.ow
                                    && d.sh == d.sw && d.ph == d.pw)
-            && d.id == 1;
+            && !print_d;
 
-    const bool print_d = d.id > 1;
     const bool print_w = canonical || print_d || !half_form;
 
     auto print_spatial = [&](const char *sd, int64_t vd, const char *sh,
@@ -223,8 +223,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (canonical || d.sh != 1 || d.sw != 1 || d.sd != 1)
         print_spatial("sd", d.sd, "sh", d.sh, "sw", d.sw);
 
-    if (canonical || d.ph != 0 || d.pw != 0 || d.pd != 0)
-        print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
+    print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
 
     s << "n" << d.name;
 

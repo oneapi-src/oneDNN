@@ -58,6 +58,31 @@ dnnl_status_t dnnl_ocl_hgemm(cl_command_queue queue, char transa, char transb,
         dnnl_dim_t offset_a, dnnl_dim_t lda, cl_mem b, dnnl_dim_t offset_b,
         dnnl_dim_t ldb, cl_float beta, cl_mem c, dnnl_dim_t offset_c,
         dnnl_dim_t ldc);
+
+dnnl_status_t dnnl_ocl_gemm_s8s8s32(cl_command_queue queue, char transa,
+        char transb, char offsetc, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k,
+        cl_float alpha, cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda,
+        int8_t ao, cl_mem b, dnnl_dim_t offset_b, dnnl_dim_t ldb, int8_t bo,
+        cl_float beta, cl_mem c, dnnl_dim_t offset_c, dnnl_dim_t ldc, cl_mem co,
+        dnnl_dim_t offset_co);
+dnnl_status_t dnnl_ocl_gemm_u8s8s32(cl_command_queue queue, char transa,
+        char transb, char offsetc, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k,
+        cl_float alpha, cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda,
+        uint8_t ao, cl_mem b, dnnl_dim_t offset_b, dnnl_dim_t ldb, int8_t bo,
+        cl_float beta, cl_mem c, dnnl_dim_t offset_c, dnnl_dim_t ldc, cl_mem co,
+        dnnl_dim_t offset_co);
+dnnl_status_t dnnl_ocl_gemm_s8u8s32(cl_command_queue queue, char transa,
+        char transb, char offsetc, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k,
+        cl_float alpha, cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda,
+        int8_t ao, cl_mem b, dnnl_dim_t offset_b, dnnl_dim_t ldb, uint8_t bo,
+        cl_float beta, cl_mem c, dnnl_dim_t offset_c, dnnl_dim_t ldc, cl_mem co,
+        dnnl_dim_t offset_co);
+dnnl_status_t dnnl_ocl_gemm_u8u8s32(cl_command_queue queue, char transa,
+        char transb, char offsetc, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k,
+        cl_float alpha, cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda,
+        uint8_t ao, cl_mem b, dnnl_dim_t offset_b, dnnl_dim_t ldb, uint8_t bo,
+        cl_float beta, cl_mem c, dnnl_dim_t offset_c, dnnl_dim_t ldc, cl_mem co,
+        dnnl_dim_t offset_co);
 }
 #endif
 
@@ -161,6 +186,7 @@ struct gemm_offset {
     int64_t a;
     int64_t b;
     int64_t c;
+    int64_t co;
 };
 
 struct test_params {
@@ -412,13 +438,13 @@ struct ref_gemm {
     }
 };
 
-template <typename a_dt>
-struct ref_gemm<a_dt, int8_t, int32_t> {
+template <typename a_dt, typename b_dt>
+struct ref_gemm<a_dt, b_dt, int32_t> {
     static void call(const test_params &p, int64_t M, int64_t N,
             const test_memory &a_mem, const test_memory &b_mem,
             const test_memory &c_mem, const test_memory &oc_mem) {
         auto A = map_memory<a_dt>(a_mem);
-        auto B = map_memory<int8_t>(b_mem);
+        auto B = map_memory<b_dt>(b_mem);
         auto C = map_memory<int32_t>(c_mem);
         auto oc = map_memory<int32_t>(oc_mem);
 
@@ -749,6 +775,23 @@ struct dnnl_gemm<int8_t, int8_t, int32_t> {
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &oc_mem) {
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            engine eng(get_test_engine_kind(), 0);
+            stream s(eng);
+            cl_command_queue q = s.get_ocl_command_queue();
+            auto status = dnnl_ocl_gemm_s8s8s32(q, p.transA, p.transB,
+                    p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
+                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
+                    p.igemm_params.oa(), b_mem.get().get_ocl_mem_object(),
+                    p.off.b, p.ldb, p.igemm_params.ob(), p.beta,
+                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
+                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+            s.wait();
+            return status;
+        }
+#endif
+
         auto A = map_memory<int8_t>(a_mem);
         auto B = map_memory<int8_t>(b_mem);
         auto C = map_memory<int32_t>(c_mem);
@@ -758,6 +801,58 @@ struct dnnl_gemm<int8_t, int8_t, int32_t> {
         return dnnl_gemm_s8s8s32(p.transA, p.transB, p.igemm_params.offsetc,
                 p.M, p.N, p.K, p.alpha, A, p.lda, oa, B, p.ldb, ob, p.beta, C,
                 p.ldc, oc);
+    }
+};
+
+template <>
+struct dnnl_gemm<int8_t, uint8_t, int32_t> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &oc_mem) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            engine eng(get_test_engine_kind(), 0);
+            stream s(eng);
+            cl_command_queue q2 = s.get_ocl_command_queue();
+            auto status = dnnl_ocl_gemm_s8u8s32(q2, p.transA, p.transB,
+                    p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
+                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
+                    p.igemm_params.oa(), b_mem.get().get_ocl_mem_object(),
+                    p.off.b, p.ldb, (uint8_t)p.igemm_params.ob(), p.beta,
+                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
+                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+            s.wait();
+            return status;
+        }
+#endif
+        throw error(dnnl_runtime_error, "unknown gemm");
+    }
+};
+
+template <>
+struct dnnl_gemm<uint8_t, uint8_t, int32_t> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &oc_mem) {
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            engine eng(get_test_engine_kind(), 0);
+            stream s(eng);
+            cl_command_queue q = s.get_ocl_command_queue();
+            auto status = dnnl_ocl_gemm_u8u8s32(q, p.transA, p.transB,
+                    p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
+                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
+                    (uint8_t)p.igemm_params.oa(),
+                    b_mem.get().get_ocl_mem_object(), p.off.b, p.ldb,
+                    (uint8_t)p.igemm_params.ob(), p.beta,
+                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
+                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+            s.wait();
+            return status;
+        }
+#endif
+        throw error(dnnl_runtime_error, "unknown gemm");
     }
 };
 
@@ -850,6 +945,23 @@ struct dnnl_gemm<uint8_t, int8_t, int32_t> {
             const test_memory &oc_mem) {
         assert(p.igemm_params.oa() >= 0);
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            engine eng(get_test_engine_kind(), 0);
+            stream s(eng);
+            cl_command_queue q = s.get_ocl_command_queue();
+            auto status = dnnl_ocl_gemm_u8s8s32(q, p.transA, p.transB,
+                    p.igemm_params.offsetc, p.M, p.N, p.K, p.alpha,
+                    a_mem.get().get_ocl_mem_object(), p.off.a, p.lda,
+                    p.igemm_params.oa(), b_mem.get().get_ocl_mem_object(),
+                    p.off.b, p.ldb, p.igemm_params.ob(), p.beta,
+                    c_mem.get().get_ocl_mem_object(), p.off.c, p.ldc,
+                    oc_mem.get().get_ocl_mem_object(), p.off.co);
+            s.wait();
+            return status;
+        }
+#endif
+
         if (p.pack_params.pack_a || p.pack_params.pack_b)
             return call_packed(p, a_mem, b_mem, c_mem, oc_mem);
 
@@ -900,7 +1012,8 @@ struct run_test_gemm {
         test_memory b_mem = get_matrix_memory<b_dt>(p, sizeB, p.off.b, eng);
         test_memory c_mem = get_matrix_memory<c_dt>(p, sizeC, p.off.c, eng);
         test_memory c_ref_mem = get_matrix_memory<c_dt>(p, sizeC, p.off.c, eng);
-        test_memory oc_mem = get_matrix_memory<c_dt>(p, p.size_oc(), 0, eng);
+        test_memory oc_mem
+                = get_matrix_memory<c_dt>(p, p.size_oc(), p.off.co, eng);
 
         mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
         const int64_t M_test = mapper_m.dim_test();
@@ -963,6 +1076,9 @@ protected:
                         || p.igemm_params.ob() != 0)
                         && pack,
                 "Packed GEMM doesn't support alpha or non-zero offset{A,B}.");
+        SKIP_IF(data_traits<b_dt>::data_type == memory::data_type::u8
+                        && get_test_engine_kind() == engine::kind::cpu,
+                "CPU does not support s8u8s32 and u8u8s32 GEMM.");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

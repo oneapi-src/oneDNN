@@ -39,7 +39,7 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_impl_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", jcp_.isa, ""),
                 jit_uni_dw_convolution_fwd_t);
 
         status_t init() {
@@ -123,7 +123,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_impl_t {
             : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", jcp_.isa, ""),
                 jit_uni_dw_convolution_bwd_data_t);
 
         status_t init() {
@@ -205,7 +205,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_impl_t {
         using jit_uni_dw_convolution_bwd_weights
                 = jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
                         diff_weights_type>;
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", isa, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_dw:", jcp_.isa, ""),
                 jit_uni_dw_convolution_bwd_weights);
 
         status_t init() {

@@ -32,7 +32,7 @@ auto conv_descr = convolution_forward::desc(prop_kind::forward_inference, ...);
 
 Compute-intensive DNNL primitives execute with highest performance
 on CPU-friendly data formats. Please see description of data formats
-[here](@ref cpu_memory_format_propagation_cpp).
+[here](@ref memory_format_propagation_cpp).
 
 Performance gains are maximized by reordering once, and then propagating the
 CPU-friendly format through as many layers as possible in your topology. 

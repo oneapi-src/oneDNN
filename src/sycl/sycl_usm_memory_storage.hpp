@@ -43,7 +43,7 @@ public:
 
         // Do not allocate memory if one of these is true:
         // 1) size is 0
-        // 2) handle is nullptr and flags have use_backend_ptr
+        // 2) handle is nullptr and flags have use_runtime_ptr
         if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0))
             return;
 
@@ -56,7 +56,7 @@ public:
                     = cl::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
             usm_ptr_ = decltype(usm_ptr_)(usm_ptr_alloc,
                     [&](void *ptr) { cl::sycl::free(ptr, sycl_ctx); });
-        } else if (flags & memory_flags_t::use_backend_ptr) {
+        } else if (flags & memory_flags_t::use_runtime_ptr) {
             usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
         }
     }

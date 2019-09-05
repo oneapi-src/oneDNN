@@ -113,7 +113,8 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
 
         status_t init() {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && desc()->data_desc.data_type == data_type::f32
+                    && utils::one_of(desc()->data_desc.data_type,
+                            data_type::f32, data_type::bf16)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

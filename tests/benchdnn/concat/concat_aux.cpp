@@ -19,13 +19,6 @@
 
 namespace concat {
 
-std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> sdims) {
-    s << sdims[0];
-    for (int i = 1; i < (int)sdims.size(); ++i)
-        s << ":" << sdims[i];
-    return s;
-}
-
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 

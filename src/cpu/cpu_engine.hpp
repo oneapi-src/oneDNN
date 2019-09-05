@@ -41,7 +41,7 @@ public:
 
 class cpu_engine_t : public engine_t {
 public:
-    cpu_engine_t() : engine_t(engine_kind::cpu, backend_kind::native) {}
+    cpu_engine_t() : engine_t(engine_kind::cpu, get_cpu_native_runtime()) {}
 
     /* implementation part */
 

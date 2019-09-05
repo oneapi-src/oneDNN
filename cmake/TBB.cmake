@@ -27,7 +27,7 @@ if(DNNL_CPU_RUNTIME STREQUAL "SYCL")
     if(NOT TBBROOT AND NOT DEFINED ENV{TBBROOT})
         return()
     endif()
-elseif(NOT DNNL_CPU_RUNTIME STREQUAL "TBB")
+elseif(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
     return()
 endif()
 

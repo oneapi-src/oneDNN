@@ -32,11 +32,13 @@ namespace compute {
 
 class compute_engine_t : public engine_t {
 public:
-    compute_engine_t(engine_kind_t kind, backend_kind_t backend_kind,
+    compute_engine_t(engine_kind_t kind, runtime_kind_t runtime_kind,
             device_info_t *device_info)
-        : engine_t(kind, backend_kind), device_info_(device_info) {}
+        : engine_t(kind, runtime_kind), device_info_(device_info) {}
 
     status_t init() { return device_info_->init(); }
+
+    const device_info_t *device_info() const { return device_info_.get(); }
 
     status_t create_kernel(kernel_t *kernel, const char *kernel_name,
             const kernel_ctx_t &kernel_ctx) const {
@@ -53,13 +55,6 @@ public:
             const kernel_ctx_t &kernel_ctx) const = 0;
 
     bool mayiuse(device_ext_t ext) const { return device_info_->has(ext); }
-
-    int get_eu_count() const { return device_info_->eu_count(); }
-    int get_hw_threads() const { return device_info_->hw_threads(); }
-
-    const runtime_version_t get_runtime_version() const {
-        return device_info_->runtime_version();
-    }
 
 private:
     std::unique_ptr<device_info_t> device_info_;

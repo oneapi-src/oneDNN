@@ -35,8 +35,6 @@ template <cpu_isa_t isa>
 status_t jit_uni_pool_kernel<isa>::init_conf(
         jit_pool_conf_t &jpp, const pooling_pd_t *ppd) {
 
-    jpp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : isa;
-
     const auto &pd = *ppd->desc();
     const memory_desc_wrapper src_d(
             ppd->is_fwd() ? ppd->src_md() : ppd->diff_src_md());
@@ -45,6 +43,9 @@ status_t jit_uni_pool_kernel<isa>::init_conf(
 
     jpp.is_bf16 = (src_d.data_type() == data_type::bf16
             && dst_d.data_type() == data_type::bf16);
+
+    jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
+                                                         : isa;
 
     bool args_ok = true && mayiuse(isa)
             && IMPLICATION(jpp.is_bf16, mayiuse(avx512_core))
@@ -651,7 +652,7 @@ void jit_uni_pool_kernel<isa>::generate() {
         vmovups(vmm_idx(), ptr[tmp_gpr]);
     }
 
-    if (jpp.is_backward) maybe_zero_diff_src();
+    if (jpp.is_backward && jpp.simple_alg) maybe_zero_diff_src();
 
     if (jpp.alg == pooling_max && (jpp.is_training || jpp.is_backward)) {
         mov(tmp_gpr, 1);

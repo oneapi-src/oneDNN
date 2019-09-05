@@ -48,8 +48,7 @@ struct ref_shuffle_t : public primitive_impl_t {
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(
-                                    compute::device_ext_t::khr_fp16))
-                    && desc()->data_desc.data_type != data_type::bf16;
+                                    compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
             dat_tag_ = any;

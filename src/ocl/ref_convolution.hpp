@@ -39,7 +39,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         status_t init() {
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
-            bool ok = true
+            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(desc()->prop_kind,
                             prop_kind::forward_training,
                             prop_kind::forward_inference)
@@ -143,7 +143,8 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_data_t);
 
         status_t init() {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
+                    && desc()->prop_kind == prop_kind::backward_data
                     && desc()->alg_kind == alg_kind::convolution_direct
                     && this->set_default_formats();
             if (!ok) return status::unimplemented;
@@ -203,7 +204,8 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_weights_t);
 
         status_t init() {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+            bool ok = set_default_alg_kind(alg_kind::convolution_direct)
+                    && desc()->prop_kind == prop_kind::backward_weights
                     && desc()->alg_kind == alg_kind::convolution_direct
                     && this->set_default_formats();
             if (!ok) return status::unimplemented;

@@ -645,6 +645,8 @@ typedef enum {
     dnnl_rnn,
     /// A matrix multiplication primitive.
     dnnl_gemm,
+    /// A binary primitive.
+    dnnl_binary,
 } dnnl_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -714,6 +716,10 @@ typedef enum {
     /// Primitive expects 4 biases on input:
     /// \f$[b_{u}, b_{r}, b_{c_x}, b_{c_h}]\f$
     dnnl_lbr_gru = 0x4fff,
+    /// Binary add
+    dnnl_binary_add = 0x1fff0,
+    /// Binary mul
+    dnnl_binary_mul = 0x1fff1,
 } dnnl_alg_kind_t;
 
 /// Flags for batch normalization primitive.
@@ -746,9 +752,13 @@ typedef enum {
 
     /// Fuse with ReLU
     ///
+    /// The flag implies negative slope being 0. On training this is the only
+    /// configuration supported. For inference, to use non-zero negative slope
+    /// consider using @ref dev_guide_attributes_post_ops.
+    ///
     /// If specified:
     ///  - on inference this option behaves the same as if the primitive were
-    ///    fused with ReLU via post ops API
+    ///    fused with ReLU using post ops API with zero negative slope.
     ///  - on training primitive requires workspace (required to be able to
     ///    perform backward pass)
     dnnl_fuse_norm_relu = 0x4U,
@@ -1287,6 +1297,20 @@ typedef struct {
 
 } dnnl_rnn_desc_t;
 
+/// A descriptor of a binary operation.
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_binary.
+    dnnl_primitive_kind_t primitive_kind;
+    /// The kind of the binary algorithm. Possible values:
+    /// #dnnl_binary_add and #dnnl_binary_mul.
+    dnnl_alg_kind_t alg_kind;
+    /// Source memory descriptors.
+    dnnl_memory_desc_t src_desc[2];
+    /// Destination memory descriptor.
+    dnnl_memory_desc_t dst_desc;
+} dnnl_binary_desc_t;
+
 /// @}
 
 /// @addtogroup c_api_engine_types Engine
@@ -1565,6 +1589,7 @@ typedef enum {
     dnnl_query_inner_product_d, ///< inner product descriptor
     dnnl_query_rnn_d, ///< rnn descriptor
     dnnl_query_gemm_d, ///< GEMM descriptor
+    dnnl_query_binary_d, ///< binary descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub

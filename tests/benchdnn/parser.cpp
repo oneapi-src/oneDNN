@@ -27,6 +27,7 @@ namespace parser {
 
 bool last_parsed_is_problem = false;
 
+// vector types
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name /* = "dir"*/) {
     return parse_vector_option(dir, str2dir, str, option_name);
@@ -92,6 +93,13 @@ bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
     return parse_vector_option(skip, str2bool, str, option_name);
 }
 
+bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
+        const std::string &option_name /*= "scaling"*/) {
+    return parse_vector_option(
+            policy, attr_t::scale_t::str2policy, str, option_name);
+}
+
+// plain types
 bool parse_skip_impl(const char *&skip_impl, const char *str,
         const std::string &option_name /* = "skip-impl"*/) {
     const std::string pattern = get_pattern(option_name);
@@ -146,7 +154,55 @@ bool parse_batch(const bench_f bench, const char *str,
     return false;
 }
 
-/* benchdnn common settings */
+// dim_t type
+static bool parse_dims_as_desc(dims_t &dims, const char *str) {
+    dims.clear();
+
+    auto mstrtol = [](const char *nptr, char **endptr) {
+        return strtol(nptr, endptr, 10);
+    };
+
+#define CASE_NN(p, c, cvfunc) \
+    do { \
+        if (!strncmp(p, str, strlen(p))) { \
+            ok = 1; \
+            str += strlen(p); \
+            char *end_s; \
+            int64_t c = cvfunc(str, &end_s); \
+            str += (end_s - str); \
+            if (c < 0) return false; \
+            dims.push_back(c); \
+        } \
+    } while (0)
+#define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
+    while (*str) {
+        int ok = 0;
+        CASE_N(mb, mstrtol);
+        CASE_N(ic, mstrtol);
+        CASE_N(id, mstrtol);
+        CASE_N(ih, mstrtol);
+        CASE_N(iw, mstrtol);
+        if (*str == '_') ++str;
+        if (!ok) return false;
+    }
+#undef CASE_NN
+#undef CASE_N
+
+    return true;
+}
+
+void parse_dims(dims_t &dims, const char *str) {
+    // func below provides fragile compatibility of verbose output for v0
+    // eltwise and softmax. Remove once we stop supporting v0.
+    if (parse_dims_as_desc(dims, str)) return;
+    parse_vector_str(dims, atoi, str, 'x');
+}
+
+void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
+    parse_multivector_str(dims, atoi, str, ':', 'x');
+}
+
+// service functions
 static bool parse_bench_mode(
         const char *str, const std::string &option_name = "mode") {
     return parse_single_value_option(
@@ -219,15 +275,6 @@ bool parse_bench_settings(const char *str) {
     return true;
 }
 
-void parse_dims(dims_t &dims, const char *str) {
-    parse_vector_str(dims, atoi, str, 'x');
-}
-
-void parse_multi_dims(std::vector<dims_t> &dims, const char *str) {
-    parse_multivector_str(dims, atoi, str, ':', 'x');
-}
-
-/* utilities */
 void catch_unknown_options(const char *str) {
     last_parsed_is_problem = true; // if reached, means problem parsing
 

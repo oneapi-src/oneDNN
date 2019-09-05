@@ -193,7 +193,6 @@ void parallel_nd(Args &&... args) {
     }
 #endif
 }
-
 #else // DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_TBB
 
 // gcc 4.8 has a bug with passing parameter pack to lambdas.

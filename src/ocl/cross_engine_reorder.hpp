@@ -55,7 +55,9 @@ struct cross_engine_reorder_t : public primitive_impl_t {
         engine_kind_t reorder_engine_kind_ = engine_kind::gpu;
     };
 
-    ~cross_engine_reorder_t() { reorder_->release(); }
+    ~cross_engine_reorder_t() {
+        if (reorder_) reorder_->release();
+    }
 
     virtual status_t init() override {
         status_t status;
@@ -94,7 +96,7 @@ struct cross_engine_reorder_t : public primitive_impl_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
-    primitive_t *reorder_;
+    primitive_t *reorder_ = nullptr;
     std::unique_ptr<memory_t> temp_buf;
     bool do_reorder_ = true;
 };

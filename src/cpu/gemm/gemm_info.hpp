@@ -88,6 +88,10 @@ struct gemm_info_t {
             const a_type *a, const dim_t *lda, const b_type *x,
             const dim_t *incy, c_type *y);
 
+    void (*gemv_s8s8s32_kernel)(const dim_t, const dim_t, const float,
+            const int8_t *, const dim_t, const int8_t *, const float,
+            int32_t *);
+
     void (*gemv_s8u8s32_kernel)(const dim_t, const dim_t, const float,
             const int8_t *, const dim_t, const uint8_t *, const float,
             int32_t *);

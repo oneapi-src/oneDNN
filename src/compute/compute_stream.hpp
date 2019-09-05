@@ -34,7 +34,8 @@ public:
     using stream_t::stream_t;
 
     virtual status_t copy(const memory_storage_t &src,
-            const memory_storage_t &dst, size_t size) const = 0;
+            const memory_storage_t &dst, size_t size)
+            = 0;
     virtual status_t parallel_for(const nd_range_t &range,
             const kernel_t &kernel, const kernel_arg_list_t &arg_list) {
         return kernel.parallel_for(*this, range, arg_list);

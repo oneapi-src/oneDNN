@@ -314,7 +314,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///    **implements** given operation. User can query different
     ///    characteristics of the chosen implementation like memory
     ///    consumptions and some others that will be covered in the next topic
-    ///    (@ref cpu_memory_format_propagation_cpp).
+    ///    (@ref memory_format_propagation_cpp).
     /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
     ///    executed on memory objects to compute the operation.
     ///
@@ -364,7 +364,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// Compute-intensive primitives (like @ref dev_guide_convolution) have an
     /// ability to define the appropriate memory format on their own. This is
     /// one of the key features of the library and will be discussed in detail
-    /// in the next topic: @ref cpu_memory_format_propagation_cpp.
+    /// in the next topic: @ref memory_format_propagation_cpp.
 
     /// @subsection getting_started_cpp_sub5 Executing the ReLU primitive
     ///

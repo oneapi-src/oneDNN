@@ -125,6 +125,7 @@ enum prim_t {
     ELTWISE,
     CONCAT,
     LRN,
+    BINARY,
     DEF = CONV,
 };
 
@@ -151,9 +152,9 @@ struct benchdnn_timer_t {
     void reset(); /** fully reset the measurements */
 
     void start(); /** restart timer */
-    void stop(); /** stop timer & update statistics */
+    void stop(int add_times = 1); /** stop timer & update statistics */
 
-    void stamp() { stop(); }
+    void stamp(int add_times = 1) { stop(add_times); }
 
     int times() const { return times_; }
 

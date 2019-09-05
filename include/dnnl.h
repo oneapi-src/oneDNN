@@ -407,7 +407,7 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_eltwise(
 /// If a *zero-volume* memory is passed to a primitive, the primitive does
 /// not perform any computations on this memory. For example:
 ///  - Convolution with `(0 batch, 3 input channels, 13 height, 13 width)`
-///    source and `(16 output channels, 3 inputs, channel, 3 height, 3 width)`
+///    source and `(16 output channels, 3 input channels, 3 height, 3 width)`
 ///    weights would produce `(0 batch, 16 output channels, 11 height, 11 width)`
 ///    destination (assuming strides are `1` and paddings are zero) and perform
 ///    zero multiply-add operations.
@@ -463,6 +463,19 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_submemory(
         dnnl_memory_desc_t *memory_desc,
         const dnnl_memory_desc_t *parent_memory_desc, const dnnl_dims_t dims,
         const dnnl_dims_t offsets);
+
+/// Initializes an @p out_memory_desc with new @p ndims and @p dims from a @p
+/// in_memory_desc. If @p in_memory_desc and @p out_memory_desc point to the
+/// same memory descriptor, then @p in_memory_desc is re-initialized with new
+/// values. @p out_memory_desc inherits data type from @p in_memory_desc and has
+/// same blocked format_kind. Others format_kind's are not supported.
+///
+/// @note Limitation: the only currently supported reshape operation is
+///                   appending 1-sized dimensions to the end.
+dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
+        dnnl_memory_desc_t *out_memory_desc,
+        const dnnl_memory_desc_t *in_memory_desc, int ndims,
+        const dnnl_dims_t dims);
 
 /// Compares two memory descriptors.
 /// @return 1 if the descriptors are the same.
@@ -628,6 +641,37 @@ dnnl_status_t DNNL_API dnnl_sum_primitive_desc_create(
         const dnnl_memory_desc_t *dst_mds, int n, const float *scales,
         const dnnl_memory_desc_t *src_mds, const_dnnl_primitive_attr_t attr,
         dnnl_engine_t engine);
+
+/// @}
+
+/// @addtogroup c_api_binary Binary
+/// A primitive to perform tensor operations over two tensors.
+///
+///  @sa @ref dev_guide_binary in developer guide
+///  @sa @ref cpp_api_binary in @ref cpp_api
+/// @{
+
+/// Initializes a binary descriptor @p binary_desc, @p alg_kind (possible
+/// values are #dnnl_binary_add and #dnnl_binary_mul), and memory descriptors.
+///
+/// @note Memory descriptor @p dst_desc can have @p format_kind set to
+///       #dnnl_format_kind_any.
+///
+/// @note Both memory descriptors must have the same number of dimensions.
+///       Element broadcasting is supported for memory descriptor @p src1_desc
+///       and are applied to dimensions for which @ src1_desc has size equal
+///       to 1.
+///
+/// Inputs:
+///  - src0 (#dnnl_query_src_md, 0)
+///  - src1 (#dnnl_query_src_md, 1)
+///
+/// Outputs:
+///  - dst (#dnnl_query_dst_md, 0)
+dnnl_status_t DNNL_API dnnl_binary_desc_init(dnnl_binary_desc_t *binary_desc,
+        dnnl_alg_kind_t alg_kind, const dnnl_memory_desc_t *src0_desc,
+        const dnnl_memory_desc_t *src1_desc,
+        const dnnl_memory_desc_t *dst_desc);
 
 /// @}
 

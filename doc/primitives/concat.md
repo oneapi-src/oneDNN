@@ -52,8 +52,18 @@ The concat primitive doesn't support any post-ops or attributes.
 
 ## Implementation Limitations
 
-1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
-   limitations related to data types support.
+1. The primitive works with blocked memory formats, such as plain formats
+   #dnnl_nchw, #dnnl_nhwc, and blocked formats #dnnl_nChw16c, #dnnl_nCdhw8c that
+   appear in convolutions. The primitive does not support non-blocked formats
+   that are typically used in prepacked weights, such as:
+   - [Winograd](@ref dev_guide_convolution) format #dnnl_format_kind_wino,
+   - [RNN](@ref dev_guide_rnn) format #dnnl_format_kind_rnn_packed, or
+   - Blocked format with attached [compensation](@ref dg_i8_comp_s12)
+     (#dnnl_memory_extra_flag_compensation_conv_s8s8),
+     that is used in `s8s8` convolutions (see @ref dev_guide_int8_computations).
+
+2. Refer to @ref dev_guide_data_types for limitations related to data types
+   support.
 
 
 ## Performance Tips

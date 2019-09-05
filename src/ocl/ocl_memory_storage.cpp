@@ -45,7 +45,7 @@ ocl_memory_storage_t::ocl_memory_storage_t(engine_t *engine, unsigned flags,
         OCL_CHECK_V(err);
         mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(mem_object_ptr, false);
 
-    } else if (flags & memory_flags_t::use_backend_ptr) {
+    } else if (flags & memory_flags_t::use_runtime_ptr) {
         mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
                 static_cast<cl_mem>(handle), true);
     }

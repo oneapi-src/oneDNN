@@ -158,6 +158,7 @@ enum {
     key_concat_istrides,
     key_concat_nelems,
     key_concat_optrs,
+    key_concat_tent_dst,
     key_conv_adjusted_scales,
     key_conv_bia_reduction,
     key_conv_bias_bf16_convert_wsp,

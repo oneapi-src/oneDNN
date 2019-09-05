@@ -208,7 +208,8 @@ status_t jit_avx512_core_bf16_sum_kernel::init_conf(
         jit_sum_conf_t &jsp, const int num_srcs, const memory_desc_t &dst_d) {
     jsp.num_srcs = num_srcs;
     jsp.loop_unroll = 0;
-    jsp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16 : avx512_core;
+    jsp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
+                                        : bf16_emulation_t::get_isa();
 
     const int max_unroll = 6; // maximum possible value of unroll is 6
     for (/*continue*/; jsp.loop_unroll < max_unroll; jsp.loop_unroll++) {

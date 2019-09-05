@@ -22,6 +22,10 @@ if(Threading_cmake_included)
 endif()
 set(Threading_cmake_included true)
 
+# CPU threading runtime specifies the threading used by the library:
+# sequential, OpenMP or TBB. In future it may be different from CPU runtime.
+set(DNNL_CPU_THREADING_RUNTIME "${DNNL_CPU_RUNTIME}")
+
 # Always require pthreads even for sequential threading (required for e.g.
 # std::call_once that relies on mutexes)
 find_package(Threads REQUIRED)

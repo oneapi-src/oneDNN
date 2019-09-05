@@ -89,6 +89,13 @@ include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 
+# Handle cases when OpenMP runtime is requested but not found: override CPU
+# runtime to be sequential
+if(DNNL_CPU_RUNTIME STREQUAL "OMP" AND
+   DNNL_CPU_THREADING_RUNTIME STREQUAL "SEQ")
+    set(DNNL_CPU_RUNTIME "SEQ" CACHE STRING "" FORCE)
+endif()
+
 enable_testing()
 
 include_directories(include)

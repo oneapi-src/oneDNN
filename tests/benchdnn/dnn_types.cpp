@@ -50,6 +50,13 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
     return s;
 }
 
+std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims) {
+    s << sdims[0];
+    for (size_t d = 1; d < sdims.size(); ++d)
+        s << ":" << sdims[d];
+    return s;
+}
+
 std::ostream &operator<<(
         std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt) {
     s << dt2str(v_dt[0]);
@@ -370,7 +377,10 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
 
         using pk = attr_t::post_ops_t::kind_t;
         switch (e.kind) {
-            case pk::SUM: s << kind2str(e.kind) << ":" << e.sum.scale; break;
+            case pk::SUM:
+                s << kind2str(e.kind);
+                if (e.sum.scale != 1.0f) s << ":" << e.sum.scale;
+                break;
             case pk::RELU:
             case pk::TANH:
             case pk::ELU:
@@ -384,9 +394,14 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
             case pk::EXP:
             case pk::GELU:
             case pk::SWISH:
-                s << kind2str(e.kind) << ":" << e.eltwise.alpha;
-                if (e.eltwise.beta != 0.f || e.eltwise.scale != 1.f)
-                    s << ":" << e.eltwise.beta << ":" << e.eltwise.scale;
+                s << kind2str(e.kind);
+                if (e.eltwise.scale != 1.f)
+                    s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"
+                      << e.eltwise.scale;
+                else if (e.eltwise.beta != 0.f)
+                    s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta;
+                else if (e.eltwise.alpha != 0.f)
+                    s << ":" << e.eltwise.alpha;
                 break;
             default: assert(!"unknown kind"); s << "unknown_kind";
         }
@@ -514,7 +529,6 @@ dnnl_format_tag_t get_default_tag(int ndims) {
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {
     if (!attr.oscale.is_def()) {
-        using policy_t = attr_t::scale_t::policy_t;
         const auto &s = attr.oscale;
         if (s.policy == policy_t::COMMON) {
             d *= s.scale;

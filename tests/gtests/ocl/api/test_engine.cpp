@@ -88,15 +88,14 @@ TEST_P(ocl_engine_test, BasicInteropC) {
                             || p.actx_kind == ctx_kind::cpu),
             "OpenCL CPU-only device not found.");
 
-    dnnl_engine_t eng;
+    dnnl_engine_t eng = nullptr;
     dnnl_status_t s = dnnl_engine_create_ocl(&eng, dnnl_gpu, ocl_dev, ocl_ctx);
 
     ASSERT_EQ(s, p.expected_status);
 
     if (s == dnnl_success) {
-
-        cl_device_id dev;
-        cl_context ctx;
+        cl_device_id dev = nullptr;
+        cl_context ctx = nullptr;
 
         DNNL_CHECK(dnnl_engine_get_ocl_device(eng, &dev));
         DNNL_CHECK(dnnl_engine_get_ocl_context(eng, &ctx));

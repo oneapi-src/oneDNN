@@ -41,7 +41,7 @@ public:
     sycl_engine_base_t(engine_kind_t kind, const cl::sycl::device &dev,
             const cl::sycl::context &ctx)
         : compute::compute_engine_t(
-                kind, backend_kind::sycl, new sycl_device_info_t(dev))
+                kind, runtime_kind::sycl, new sycl_device_info_t(dev))
         , device_(dev)
         , context_(ctx) {}
 

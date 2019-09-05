@@ -96,6 +96,10 @@ software includes the following third-party components:
 [3-clause BSD license](tests/gtests/gtest/LICENSE)
 * [ittnotify](https://github.com/intel/IntelSEAPI) distributed under
 [3-clause BSD license](src/cpu/jit_utils/jitprofiling/LICENSE.BSD)
+* [Cmake](https://github.com/Kitware/CMake) distributed under
+[3-clause BSD license](cmake/Copyright.txt)
+* [MathJax](https://github.com/mathjax/MathJax) distributed under
+[Apache License Version 2.0](doc/assets/mathjax/LICENSE)
 
 # Documentation
 * [Developer guide](https://intel.github.io/mkl-dnn) explains programming
