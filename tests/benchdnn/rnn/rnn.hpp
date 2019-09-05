@@ -213,10 +213,11 @@ struct prb_t : public desc_t {
         , ops(0.0)
         , skip_nonlinear(skip_nonlinear)
         , linear_cscale(0.0f) {
+
+        if (mb) this->mb = mb;
         count_ops();
         wc = MAX2(sic, MAX2(slc, dic));
 
-        if (mb) this->mb = mb;
         wei_oc_scales = nullptr;
         linear_scales = nullptr;
 
