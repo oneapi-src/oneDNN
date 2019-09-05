@@ -28,6 +28,7 @@ namespace cpu {
 using namespace mkldnn::impl::status;
 using namespace mkldnn::impl::memory_tracking::names;
 using namespace mkldnn::impl::utils;
+using namespace nstl;
 
 #define src_blk_off(f, n, c, d, h, w) \
     (pd()->ndims() == 3) \
@@ -211,8 +212,8 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
                                         - ih - jcp.t_pad) / jcp.stride_h);
                     const int i_b_overflow = nstl::max(0, (jcp.kh - jcp.ih
                                         + ih - jcp.b_pad) / jcp.stride_h);
-                    int overflow_kh_hi = jcp.kh - 1 - abs((jcp.ih - 1
-                                + jcp.b_pad - ih) % jcp.stride_h);
+                    int overflow_kh_hi = jcp.kh - 1
+                            - modulo(jcp.ih - 1 + jcp.b_pad - ih, jcp.stride_h);
                     int overflow_kh_lo = (ih + jcp.t_pad) % jcp.stride_h;
 
                     par_conv.kd_padding = jcp.kd - d_t_overflow - d_b_overflow;
