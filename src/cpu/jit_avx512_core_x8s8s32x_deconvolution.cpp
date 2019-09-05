@@ -964,7 +964,8 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                             ((oj + jcp.kh) - (jcp.oh + jcp.b_pad))
                                     / jcp.stride_h);
                     int overflow_kh_hi = jcp.kh - 1
-                            - abs(jcp.oh + jcp.b_pad - (oj + 1)) % jcp.stride_h;
+                            - modulo(jcp.oh + jcp.b_pad - (oj + 1),
+                                    jcp.stride_h);
                     int overflow_kh_lo = (oj + jcp.t_pad) % jcp.stride_h;
 
                     kh_len = (overflow_kh_hi - overflow_kh_lo) / jcp.stride_h
