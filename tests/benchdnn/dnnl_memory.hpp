@@ -233,7 +233,7 @@ private:
         if (engine_kind_ == dnnl_cpu) {
             // Allocate memory for native runtime directly
             is_data_owner_ = true;
-            const size_t alignment = 64;
+            const size_t alignment = 2 * 1024 * 1024;
             data_ = zmalloc(sz, alignment);
             DNN_SAFE(data_ == NULL ? dnnl_out_of_memory : dnnl_success, CRIT);
             DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, data_), CRIT);
