@@ -127,8 +127,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         double ms = dnnl::impl::get_msec();
 
         // create a key for the requested primitive
-        dnnl::impl::primitive_hashing::key_t key(pd->kind(), pd->op_desc(),
-                pd->attr(), pd->impl_id(), this->dnnl_get_max_threads());
+        dnnl::impl::primitive_hashing::key_t key(
+                pd, this->dnnl_get_max_threads());
 
         // lock cache
         recursive_mutex_.lock();
