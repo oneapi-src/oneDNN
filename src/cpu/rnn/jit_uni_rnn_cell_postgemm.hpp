@@ -150,15 +150,20 @@ protected:
             uni_vmulps(s, s, tmp1);
         };
 
+        auto is_training
+                = pd_->desc()->prop_kind == prop_kind::forward_training;
         // We start code generations here
         preamble();
 
         // extract addresses passed as parameter
         auto addr_ws_gates_reg = abi_param1;
-        auto addr_bias_reg = abi_param2;
-        auto addr_states_t_l_reg = abi_param3;
+        auto addr_scratch_gates_reg = abi_param2;
+        auto addr_bias_reg = abi_param3;
+        auto addr_states_t_l_reg = abi_param4;
 
-        auto G_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
+        auto sg_addr
+                = ptr[addr_scratch_gates_reg + 0 * rnn_.dic * gate_dt_size];
+        auto wg_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
         auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size];
 
         // initialize registers with addresses and constants
@@ -173,7 +178,7 @@ protected:
         L(vector_loop_start_label);
         {
             // load G
-            uni_vmovups(G, G_addr);
+            uni_vmovups(G, sg_addr);
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -188,8 +193,7 @@ protected:
             injector_->compute_vector(G.getIdx());
 
             // if training we write back the gates
-            if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovups(G_addr, G);
+            if (is_training) uni_vmovups(wg_addr, G);
 
             // if int8, we quantize the resulting state
             if (src_data_t == data_type::u8) { q_d(G, tmp1_vmm, tmp_reg); }
@@ -214,9 +218,10 @@ protected:
                 }
 
             // increment address pointers
-            add(addr_ws_gates_reg, vlen);
+            add(addr_scratch_gates_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
+            if (is_training) add(addr_ws_gates_reg, vlen);
             if (mask != 0) add(weights_scales_reg, vlen);
 
             // increment loop counter
@@ -237,7 +242,7 @@ protected:
             Xmm tmp1s_vmm(tmp1_vmm.getIdx());
 
             // load G
-            uni_vmovss(Gs, G_addr);
+            uni_vmovss(Gs, sg_addr);
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -252,8 +257,7 @@ protected:
             injector_->compute_vector(Gs.getIdx());
 
             // if training we write back the gates
-            if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovss(G_addr, Gs);
+            if (is_training) uni_vmovss(wg_addr, Gs);
 
             // if int8, we quantize the resulting state
             if (src_data_t == data_type::u8) { q_d(G, tmp1_vmm, tmp_reg); }
@@ -265,9 +269,10 @@ protected:
             }
 
             // increment address pointers
-            add(addr_ws_gates_reg, gate_dt_size);
+            add(addr_scratch_gates_reg, gate_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
+            if (is_training) add(addr_ws_gates_reg, gate_dt_size);
             if (mask != 0) add(weights_scales_reg, qscale_dt_size);
 
             // increment loop counter

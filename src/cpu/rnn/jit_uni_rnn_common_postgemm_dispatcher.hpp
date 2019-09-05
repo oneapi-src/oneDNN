@@ -40,6 +40,8 @@ struct rnn_postgemm_dispatcher {
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename utils::conditional<src_type == data_type::u8, int32_t,
             float>::type acc_data_t;
+    typedef typename utils::conditional<aprop == prop_kind::forward, acc_data_t,
+            src_data_t>::type scratch_data_t;
 
     using class_name = rnn_postgemm_dispatcher<aprop, src_type>;
     typedef rnn_postgemm_sig((class_name::*postgemm_f));
@@ -178,27 +180,27 @@ struct rnn_postgemm_dispatcher {
     // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute) {
         if (rnn_postgemm_)
-            rnn_postgemm_->execute(rnn, ws_gates_, states_t_l_, c_states_t_l_,
-                    states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
-                    diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                    scratch_cell_);
+            rnn_postgemm_->execute(rnn, ws_gates_, scratch_gates_, states_t_l_,
+                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+                    diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                    bias_, ws_grid_, scratch_cell_);
         else
-            (this->*postgemm_func)(rnn, ws_gates_, states_t_l_, c_states_t_l_,
-                    states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,
-                    diff_states_t_lp1_, diff_states_tp1_l_, bias_, ws_grid_,
-                    scratch_cell_);
+            (this->*postgemm_func)(rnn, ws_gates_, scratch_gates_, states_t_l_,
+                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+                    diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                    bias_, ws_grid_, scratch_cell_);
     }
 
     // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute_part2) {
         if (rnn_postgemm_part2_)
-            rnn_postgemm_part2_->execute(rnn, ws_gates_, states_t_l_,
-                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+            rnn_postgemm_part2_->execute(rnn, ws_gates_, scratch_gates_,
+                    states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
                     diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
                     bias_, ws_grid_, scratch_cell_);
         else
-            (this->*postgemm_part2_func)(rnn, ws_gates_, states_t_l_,
-                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+            (this->*postgemm_part2_func)(rnn, ws_gates_, scratch_gates_,
+                    states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
                     diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
                     bias_, ws_grid_, scratch_cell_);
     }

@@ -71,6 +71,8 @@ protected:
     void generate() {
         using namespace Xbyak;
 
+        auto is_training
+                = (pd_->desc()->prop_kind == prop_kind::forward_training);
         const primitive_attr_t *attr = pd_->attr();
         int mask = attr->rnn_weights_qparams_.mask_;
         float *weights_scales = attr->rnn_weights_qparams_.scales_;
@@ -169,20 +171,29 @@ protected:
 
         // extract addresses passed as parameter
         auto addr_ws_gates_reg = abi_param1;
-        auto addr_bias_reg = abi_param2;
-        auto addr_states_t_l_reg = abi_param3;
-        auto addr_c_states_tm1_l_reg = abi_param4;
+        auto addr_scratch_gates_reg = abi_param2;
+        auto addr_bias_reg = abi_param3;
+        auto addr_states_t_l_reg = abi_param4;
 #ifdef _WIN32
+        auto addr_c_states_tm1_l_reg = r12;
         auto addr_c_states_t_l_reg = r10;
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
-        mov(addr_c_states_t_l_reg, ptr[rsp + get_size_of_abi_save_regs() + 40]);
+        mov(addr_c_states_tm1_l_reg,
+                ptr[rsp + get_size_of_abi_save_regs() + 40]);
+        mov(addr_c_states_t_l_reg, ptr[rsp + get_size_of_abi_save_regs() + 48]);
 #else
-        auto addr_c_states_t_l_reg = abi_param5;
+        auto addr_c_states_tm1_l_reg = abi_param5;
+        auto addr_c_states_t_l_reg = abi_param6;
 #endif
+
         // helper lambda to address the gates and biases
-        auto G_addr = [&](int i) {
+        auto sg_addr = [&](int i) {
+            return ptr[addr_scratch_gates_reg + i * rnn_.dic * gate_dt_size];
+        };
+
+        auto wg_addr = [&](int i) {
             return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
         };
         auto B_addr = [&](int i) {
@@ -202,10 +213,10 @@ protected:
         L(vector_loop_start_label);
         {
             // load G0 G1 G2 G3
-            uni_vmovups(G0, G_addr(0));
-            uni_vmovups(G1, G_addr(1));
-            uni_vmovups(G2, G_addr(2));
-            uni_vmovups(G3, G_addr(3));
+            uni_vmovups(G0, sg_addr(0));
+            uni_vmovups(G1, sg_addr(1));
+            uni_vmovups(G2, sg_addr(2));
+            uni_vmovups(G3, sg_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -232,11 +243,11 @@ protected:
             sigmoid_injector_->compute_vector(G3.getIdx());
 
             // if training we write back the gates
-            if (pd_->desc()->prop_kind == prop_kind::forward_training) {
-                uni_vmovups(G_addr(0), G0);
-                uni_vmovups(G_addr(1), G1);
-                uni_vmovups(G_addr(2), G2);
-                uni_vmovups(G_addr(3), G3);
+            if (is_training) {
+                uni_vmovups(wg_addr(0), G0);
+                uni_vmovups(wg_addr(1), G1);
+                uni_vmovups(wg_addr(2), G2);
+                uni_vmovups(wg_addr(3), G3);
             }
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
@@ -275,11 +286,12 @@ protected:
                 }
 
             // increment address pointers
-            add(addr_ws_gates_reg, vlen);
+            add(addr_scratch_gates_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
             add(addr_c_states_tm1_l_reg, vlen);
             add(addr_c_states_t_l_reg, vlen);
+            if (is_training) add(addr_ws_gates_reg, vlen);
             if (mask != 0) add(weights_scales_reg, vlen);
 
             // increment loop counter
@@ -295,10 +307,10 @@ protected:
         L(rem_loop_start_label);
         {
             // load G0 G1 G2 G3
-            uni_vmovss(G0, G_addr(0));
-            uni_vmovss(G1, G_addr(1));
-            uni_vmovss(G2, G_addr(2));
-            uni_vmovss(G3, G_addr(3));
+            uni_vmovss(G0, sg_addr(0));
+            uni_vmovss(G1, sg_addr(1));
+            uni_vmovss(G2, sg_addr(2));
+            uni_vmovss(G3, sg_addr(3));
 
             // dequantize the gates from s32 to f32 if needed
             if (src_data_t == data_type::u8) {
@@ -325,11 +337,11 @@ protected:
             sigmoid_injector_->compute_vector(G3.getIdx());
 
             // if training we write back the gates
-            if (pd_->desc()->prop_kind == prop_kind::forward_training) {
-                uni_vmovss(G_addr(0), G0);
-                uni_vmovss(G_addr(1), G1);
-                uni_vmovss(G_addr(2), G2);
-                uni_vmovss(G_addr(3), G3);
+            if (is_training) {
+                uni_vmovss(wg_addr(0), G0);
+                uni_vmovss(wg_addr(1), G1);
+                uni_vmovss(wg_addr(2), G2);
+                uni_vmovss(wg_addr(3), G3);
             }
 
             // compute c_states_t_l = G1 * c_tm1_l + G0 * G2
@@ -356,11 +368,12 @@ protected:
             }
 
             // increment address pointers
-            add(addr_ws_gates_reg, gate_dt_size);
+            add(addr_scratch_gates_reg, gate_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
             add(addr_c_states_tm1_l_reg, cstate_dt_size);
             add(addr_c_states_t_l_reg, cstate_dt_size);
+            if (is_training) add(addr_ws_gates_reg, gate_dt_size);
             if (mask != 0) add(weights_scales_reg, qscale_dt_size);
 
             // increment loop counter

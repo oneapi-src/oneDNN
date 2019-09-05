@@ -62,7 +62,8 @@ protected:
 
     void generate() {
         using namespace Xbyak;
-
+        auto is_training
+                = pd_->desc()->prop_kind == prop_kind::forward_training;
         // Labels declaration
         Label vector_loop_start_label, vector_loop_end_label;
         Label rem_loop_start_label, rem_loop_end_label;
@@ -80,12 +81,20 @@ protected:
 
         // extract addresses passed as parameter
         auto addr_ws_gates_reg = abi_param1;
-        auto addr_bias_reg = abi_param2;
-        auto addr_states_t_l_reg = abi_param3;
-        auto addr_states_tm1_l_reg = abi_param4;
-
+        auto addr_scratch_gates_reg = abi_param2;
+        auto addr_bias_reg = abi_param3;
+        auto addr_states_t_l_reg = abi_param4;
+#if _WIN32
+        auto addr_states_tm1_l_reg = r10;
+        mov(addr_states_tm1_l_reg, ptr[rsp + get_size_of_abi_save_regs() + 40]);
+#else
+        auto addr_states_tm1_l_reg = abi_param5;
+#endif
         // helper lambda to address the gates and biases
-        auto G_addr = [&](int i) {
+        auto sg_addr = [&](int i) {
+            return ptr[addr_scratch_gates_reg + i * rnn_.dic * gate_dt_size];
+        };
+        auto wg_addr = [&](int i) {
             return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
         };
         auto B_addr = [&](int i) {
@@ -105,21 +114,22 @@ protected:
         L(vector_loop_start_label);
         {
             // Compute gate 0: G0 = sigmoid(G0 + b0)
-            uni_vmovups(G0, G_addr(0));
+            uni_vmovups(G0, sg_addr(0));
             uni_vmovups(tmp1_vmm, B_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
             sigmoid_injector_->compute_vector(G0.getIdx());
             // we store it for use in postgemm_part2
-            uni_vmovups(G_addr(0), G0);
+            uni_vmovups(sg_addr(0), G0);
+            if (is_training) uni_vmovups(wg_addr(0), G0);
 
             // Compute gate 1:  G1 = sigmoid(G1 + b1)
-            uni_vmovups(G1, G_addr(1));
+            uni_vmovups(G1, sg_addr(1));
             uni_vmovups(tmp1_vmm, B_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
             sigmoid_injector_->compute_vector(G1.getIdx());
+            uni_vmovups(sg_addr(1), G1);
             // if training we write back the gates
-            if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovups(G_addr(1), G1);
+            if (is_training) uni_vmovups(wg_addr(1), G1);
 
             // states_t_l = states_tm1_l * G1
             uni_vmovups(tmp1_vmm, ptr[addr_states_tm1_l_reg]);
@@ -127,10 +137,11 @@ protected:
             uni_vmovups(ptr[addr_states_t_l_reg], G1);
 
             // increment address pointers
-            add(addr_ws_gates_reg, vlen);
+            add(addr_scratch_gates_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
             add(addr_states_tm1_l_reg, vlen_dst);
+            if (is_training) add(addr_ws_gates_reg, vlen);
 
             // increment loop counter
             sub(loop_cnt, vlen);
@@ -149,29 +160,31 @@ protected:
             Xmm G0s(G0.getIdx()), G1s(G1.getIdx());
 
             // Compute gate 0:  G0 = sigmoid(G0 + b0)
-            uni_vmovss(G0s, G_addr(0));
+            uni_vmovss(G0s, sg_addr(0));
             uni_vaddss(G0s, G0s, B_addr(0));
             sigmoid_injector_->compute_vector(G0s.getIdx());
             // we store it for use in postgemm_part2
-            uni_vmovss(G_addr(0), G0s);
+            uni_vmovss(sg_addr(0), G0s);
+            if (is_training) uni_vmovss(wg_addr(0), G0);
 
             // Compute gate 1: G1 = sigmoid(G1 + b1)
-            uni_vmovss(G1s, G_addr(1));
+            uni_vmovss(G1s, sg_addr(1));
             uni_vaddss(G1s, G1s, B_addr(1));
             sigmoid_injector_->compute_vector(G1s.getIdx());
+            uni_vmovss(sg_addr(1), G1);
             // if training we write back the gates
-            if (pd_->desc()->prop_kind == prop_kind::forward_training)
-                uni_vmovss(G_addr(1), G1);
+            if (is_training) uni_vmovss(wg_addr(1), G1);
 
             // states_t_l = states_tm1_l * G1
             uni_vmulss(G1s, G1s, ptr[addr_states_tm1_l_reg]);
             uni_vmovss(ptr[addr_states_t_l_reg], G1s);
 
             // increment address pointers
-            add(addr_ws_gates_reg, gate_dt_size);
+            add(addr_scratch_gates_reg, gate_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
             add(addr_states_tm1_l_reg, hstate_dt_size);
+            if (is_training) add(addr_ws_gates_reg, gate_dt_size);
 
             // increment loop counter
             sub(loop_cnt, gate_dt_size);
