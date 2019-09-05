@@ -40,7 +40,7 @@ static dnnl::engine::kind parse_engine_kind(
             if (dnnl::engine::get_count(dnnl::engine::kind::gpu) == 0) {
                 std::cerr << "Application couldn't find GPU, please run with "
                              "CPU instead. Thanks!\n";
-                exit(1);
+                exit(0);
             }
             return dnnl::engine::kind::gpu;
         }

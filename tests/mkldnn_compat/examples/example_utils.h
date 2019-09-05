@@ -58,7 +58,7 @@ static mkldnn_engine_kind_t parse_engine_kind(int argc, char **argv) {
                 fprintf(stderr,
                         "Application couldn't find GPU, please run with CPU "
                         "instead. Thanks!\n");
-                exit(1);
+                exit(0);
             }
             return mkldnn_gpu;
         }

@@ -39,7 +39,7 @@ static mkldnn::engine::kind parse_engine_kind(
             if (mkldnn::engine::get_count(mkldnn::engine::kind::gpu) == 0) {
                 std::cerr << "Application couldn't find GPU, please run with "
                              "CPU instead. Thanks!\n";
-                exit(1);
+                exit(0);
             }
             return mkldnn::engine::kind::gpu;
         }
