@@ -51,6 +51,21 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
 } // namespace impl
 } // namespace dnnl
 
+bool primitive_attr_t::has_default_values(
+        dnnl_primitive_attr::skip_mask_t mask) const {
+    return true
+            && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
+                    output_scales_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
+                    post_ops_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
+                    rnn_data_qparams_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
+                    rnn_weights_qparams_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_tparams),
+                    rnn_tparams_.has_default_values());
+}
+
 status_t post_ops_t::append_sum(float scale) {
     if (len_ == capacity) return out_of_memory;
 
