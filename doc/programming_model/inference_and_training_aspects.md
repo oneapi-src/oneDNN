@@ -163,10 +163,23 @@ with DNNL:
    the formats will be the same, but this would by no means always be true.
 
 7. For the memory bandwidth bound primitives like @ref dev_guide_eltwise,
-   @ref dev_guide_pooling, and @ref dev_guide_batch_normalization, it is highly
-   recommended to make `diff_dst` memory format the same as the original `dst`.
-   The mismatch of the formats would be handled correctly, but it might lead
-   to highly suboptimal performance.
+   @ref dev_guide_pooling, and @ref dev_guide_batch_normalization, it is
+   important to have `diff_dst` in the same memory format as the original
+   `dst`. The mismatch of the formats would lead to significant performance
+   issues. To ensure the proper format, users should always use
+   #dnnl::memory::format_tag::any memory format for gradient tensors
+   (`diff_dst`, `diff_src`). If a primitive requires original data tensors
+   (e.g. `src` in @ref dev_guide_eltwise or `dst` in @ref dev_guide_softmax)
+   user **must** pass fully defined memory descriptor for these tensors. In
+   other words `src` and `dst` memory descriptors cannot be initialized with
+   #dnnl::memory::format_tag::any for backward propagation.
+   Based on the format of the original tensors, if any, and on forward
+   primitive descriptor hint (see bullet 9 below) a primitive picks the proper
+   format for the gradients.  Occasionally, it might appear that the `diff_dst`
+   that comes in is in other memory format than the primitive requires, hence
+   robust integration code must be prepared to emit a reorder.
+   - Alternatively, users may manually enforce `diff_dst` to have the same
+     memory format as `dst`, though this is not recommended.
 
 8. Some primitives require an additional tensor to be passed between forward
    and backward propagation, which is called
