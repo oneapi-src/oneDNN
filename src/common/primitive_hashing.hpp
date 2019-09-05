@@ -17,6 +17,8 @@
 #ifndef PRIMITIVE_HASHING_HPP
 #define PRIMITIVE_HASHING_HPP
 
+#include <typeindex>
+
 #include "c_types_map.hpp"
 #include "dnnl.h"
 #include "type_helpers.hpp"
@@ -35,6 +37,7 @@ struct key_t {
     const primitive_attr_t *attr_;
     std::type_index impl_id_;
     int impl_nthr_;
+    std::vector<memory_desc_t> mds;
 
 private:
     template <typename T>
@@ -42,6 +45,8 @@ private:
         return *(reinterpret_cast<const T *>(lhs))
                 == *(reinterpret_cast<const T *>(rhs));
     }
+
+    void init_mds(const primitive_desc_t *pd);
 };
 
 // Hash related functions, which are used in a specialization of std::hash
@@ -616,6 +621,9 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
                 break;
             default: assert(!"unknown primitive_kind");
         }
+
+        seed = get_array_hash(seed, key.mds.data(), (int)key.mds.size());
+
         return seed;
     }
 };
