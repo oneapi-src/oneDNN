@@ -25,6 +25,7 @@
 #include "utils.hpp"
 
 #include "../cpu_isa_traits.hpp"
+#include "../gemm/gemm.hpp"
 #include "../gemm/os_blas.hpp"
 
 #include "cpu_rnn_pd.hpp"
@@ -117,6 +118,11 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
             init_conf(rnn_, *this->desc(), this->src_md(0), this->src_md(1),
                     this->weights_md(0), this->weights_md(1), this->dst_md(0));
+
+            // check that bf16 gemm is available
+            ok = ok
+                    && IMPLICATION(
+                            rnn_.dt_conf == all_bf16, mayiuse(avx512_core));
 
             /* check that only supported attr have been passed */
             primitive_attr_t::skip_mask_t attr_mask
@@ -319,8 +325,13 @@ using ref_rnn_fwd_f32_t
         = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
 using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
+using ref_rnn_fwd_bf16_t = _ref_rnn_common_t<prop_kind::forward,
+        data_type::bf16, data_type::bf16>;
+using ref_rnn_bwd_bf16_t = _ref_rnn_common_t<prop_kind::backward,
+        data_type::bf16, data_type::bf16>;
 using ref_rnn_fwd_u8s8_t
         = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -112,6 +112,24 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
 }
 
 template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::rnn_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    auto act_f = [this](float a, float alpha, float clipping) {
+        return bfloat16_t(this->activation_func(a, alpha, clipping));
+    };
+    auto linear_f = [](float a, float alpha, float clipping) {
+        return bfloat16_t(linear(a, alpha, clipping));
+    };
+    auto alpha = pd_->desc()->alpha;
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, ws_gates_,
+                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+    else
+        rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, ws_gates_,
+                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+}
+
+template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::rnn_postgemm) {
     assert(!"VANILLA RNN int8 is not supported");
 }
@@ -150,6 +168,26 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::rnn_postgemm) {
         return linear(a, alpha, 0);
     };
     auto to_src = [&](float a) { return a; };
+    auto alpha = pd_->desc()->alpha;
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        rnn_bwd_postgemm_template(act_f, to_src, nullptr, alpha, rnn, ws_gates_,
+                scratch_gates_, diff_states_tp1_l_, diff_states_t_lp1_);
+    else
+        rnn_bwd_postgemm_template(linear_f, to_src, scales, alpha, rnn,
+                ws_gates_, scratch_gates_, diff_states_tp1_l_,
+                diff_states_t_lp1_);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::rnn_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    auto act_f = [this](float a, float alpha, float clipping) {
+        return this->activation_func(a, alpha, 0);
+    };
+    auto linear_f = [](float a, float alpha, float clipping) {
+        return linear(a, alpha, 0);
+    };
+    auto to_src = [&](float a) { return bfloat16_t(a); };
     auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         rnn_bwd_postgemm_template(act_f, to_src, nullptr, alpha, rnn, ws_gates_,

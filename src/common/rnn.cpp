@@ -101,6 +101,14 @@ status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
                     !is_zero_md(dst_iter_desc), dst_iter_desc->data_type == f32)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
+    bool is_bf16 = everyone_is(bf16, src_layer_dt, dst_layer_dt,
+                           weights_iter_dt, weights_layer_dt)
+            && IMPLICATION(!is_zero_md(src_iter_desc),
+                    src_iter_desc->data_type == bf16)
+            && IMPLICATION(!is_zero_md(dst_iter_desc),
+                    dst_iter_desc->data_type == bf16)
+            && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
+
     bool is_f16 = is_forward
             && everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,
                     weights_layer_dt)
@@ -133,7 +141,7 @@ status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
     return cell_state_check
-                    && (is_f32 || is_f16 || is_u8u8u8 || is_f32u8f32)
+                    && (is_f32 || is_bf16 || is_f16 || is_u8u8u8 || is_f32u8f32)
             ? success
             : unimplemented;
 }

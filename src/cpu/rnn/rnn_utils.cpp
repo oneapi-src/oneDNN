@@ -79,6 +79,9 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     if (everyone_is(f32, src_layer_d.data_type(), dst_layer_d.data_type(),
                 weights_layer_d.data_type()))
         rnn.dt_conf = all_f32;
+    else if (everyone_is(bf16, src_layer_d.data_type(), dst_layer_d.data_type(),
+                     weights_layer_d.data_type()))
+        rnn.dt_conf = all_bf16;
     else if (dst_layer_d.data_type() == u8) {
         if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
             rnn.dt_conf = u8u8u8u8;
@@ -170,13 +173,21 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             int n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
-            if (rnn.dt_conf == all_f32) {
-                sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p, &m_p,
-                        &rnn.states_ws_ld, &parts_pack_size[p], &pack_part);
-            } else
-                gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
-                        &m_p, &rnn.states_ws_ld, &parts_pack_size[p],
-                        &pack_part);
+            switch (rnn.dt_conf) {
+                case all_f32:
+                    sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p, &m_p,
+                            &rnn.states_ws_ld, &parts_pack_size[p], &pack_part);
+                    break;
+                case u8u8u8f32:
+                case f32u8f32f32:
+                case u8u8u8u8:
+                case f32u8f32u8:
+                    gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
+                            &m_p, &rnn.states_ws_ld, &parts_pack_size[p],
+                            &pack_part);
+                    break;
+                default: assert(!"Unsupported configuration");
+            }
             pack = pack && pack_part;
             weights_pack_size += rnn.n_layer * rnn.n_dir * parts_pack_size[p];
         }

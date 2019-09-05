@@ -72,8 +72,24 @@ rnn_gemm_sig((ref_rnn_bwd_f32_t::gemm)) {
 }
 
 template <>
+rnn_gemm_sig((ref_rnn_fwd_bf16_t::gemm)) {
+    assert(ldA * ldB * ldC != 0);
+    dim_t M = m, N = n, K = k, LDA = ldA, LDB = ldB, LDC = ldC;
+    auto st = gemm_bf16bf16f32(&transA, &transB, &M, &N, &K, &alpha, a_, &LDA,
+            b_, &LDB, &beta, c_, &LDC);
+    assert(st == dnnl_success);
+    MAYBE_UNUSED(st);
 }
 
+template <>
+rnn_gemm_sig((ref_rnn_bwd_bf16_t::gemm)) {
+    assert(ldA * ldB * ldC != 0);
+    dim_t M = m, N = n, K = k, LDA = ldA, LDB = ldB, LDC = ldC;
+    auto st = gemm_bf16bf16f32(&transA, &transB, &M, &N, &K, &alpha, a_, &LDA,
+            b_, &LDB, &beta, c_, &LDC);
+    assert(st == dnnl_success);
+    MAYBE_UNUSED(st);
+}
 
 // packed GEMM functions wrapper definitions
 
@@ -291,6 +307,7 @@ void copy_init_layer_bwd_template(const rnn_conf_t &rnn,
     }
 
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_f32_t)
+RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_u8s8_t)
 
 #define RNN_DECL_COPY_INIT_LAYER_BWD(cname) \
@@ -303,6 +320,7 @@ RNN_DECL_COPY_INIT_LAYER_FWD(ref_rnn_fwd_u8s8_t)
     }
 
 RNN_DECL_COPY_INIT_LAYER_BWD(ref_rnn_bwd_f32_t)
+RNN_DECL_COPY_INIT_LAYER_BWD(ref_rnn_bwd_bf16_t)
 
 /* For int8 configuration, input iteration states may be of types f32 or u8
  * Internally h_state is always stored in u8 and c_state is always stored in f32
@@ -414,6 +432,7 @@ void copy_init_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     }
 
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_f32_t)
+RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_u8s8_t)
 
 #define RNN_DECL_COPY_INIT_ITER_BWD(cname) \
@@ -432,6 +451,7 @@ RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_u8s8_t)
     }
 
 RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_bwd_f32_t)
+RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_bwd_bf16_t)
 
 template <typename src_data_t, typename dst_data_t>
 void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
@@ -521,6 +541,7 @@ void copy_res_layer_bwd_template(const rnn_conf_t &rnn,
     }
 
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_f32_t)
+RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_u8s8_t)
 
 #define RNN_DECL_COPY_RES_LAYER_BWD(cname) \
@@ -535,6 +556,7 @@ RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_u8s8_t)
     }
 
 RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_bwd_f32_t)
+RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_bwd_bf16_t)
 
 template <typename src_data_t, typename output_data_t>
 void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
@@ -616,6 +638,7 @@ void copy_res_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     }
 
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_f32_t)
+RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_bf16_t)
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_u8s8_t)
 
 #define RNN_DECL_COPY_RES_ITER_BWD(cname) \
@@ -632,6 +655,8 @@ RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_u8s8_t)
     }
 
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_bwd_f32_t)
+RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_bwd_bf16_t)
+
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 rnn_bias_prepare_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare)) {
@@ -766,7 +791,7 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     // Here we use scratch_gates for the output of GEMMs on FWD and on input of GEMMs for BWD.
     // None of the values are kept for bwd
     auto scratch_gates = scratchpad.template get<scratch_data_t>(key_rnn_gates);
-    auto scratch_cell = scratchpad.template get<acc_data_t>(key_rnn_cell);
+    auto scratch_cell = scratchpad.template get<scratch_data_t>(key_rnn_cell);
 
     // Fetching buffers from the workspace
     // if no workspace was provided we use the scratchpad
@@ -866,28 +891,48 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
 template <>
-rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
-template <>
-rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
-template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
-template <>
-rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
-template <>
-rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template <>
-rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
 
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
+
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
+template <>
+rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
+
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
         data_type::f32>;
-template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
-        data_type::s8>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
+
+template struct _ref_rnn_common_t<prop_kind::forward, data_type::bf16,
+        data_type::bf16>;
+template struct _ref_rnn_common_t<prop_kind::backward, data_type::bf16,
+        data_type::bf16>;
+
+template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
+        data_type::s8>;
 
 #undef AOC
 } // namespace cpu

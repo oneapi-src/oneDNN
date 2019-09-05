@@ -70,6 +70,7 @@ rnn_cell_execution_sig((
 }
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
+template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
 template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru) {
     assert(!"GRU int8 is not supported");
@@ -175,8 +176,39 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
             diff_states_tp1_l_, diff_states_t_lp1_, diff_bias_, scratch_cell_);
 }
 
-#undef AOC
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru) {
+    auto gemm_iter_f = [&](int m, int n, int k, weights_data_t *A,
+                               src_data_t *B, float beta, acc_data_t *C) {
+        (this->*gemm_iter_func)('N', 'N', m, n, k, 1.0f, A, rnn.weights_iter_ld,
+                B, rnn.gates_ws_ld, beta, C, rnn.states_ws_ld);
+    };
+    auto gemm_layer_f = [&](weights_data_t *A, src_data_t *B, acc_data_t *C) {
+        (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
+                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_layer_ld, B,
+                rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
+    };
+    auto gemm_weights_layer_f
+            = [&](src_data_t *A, weights_data_t *B, acc_data_t *C) {
+                  gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, A,
+                          rnn.gates_ws_ld, B, rnn.states_ws_ld, 1.0, C,
+                          rnn.diff_weights_layer_ld);
+              };
+    auto gemm_weights_iter_f
+            = [&](int m, int n, int k, weights_data_t *A, src_data_t *B,
+                      float beta, acc_data_t *C) {
+                  gemm('N', 'T', m, n, k, 1.0f, A, rnn.gates_ws_ld, B,
+                          rnn.states_ws_ld, 1.0f, C, rnn.diff_weights_iter_ld);
+              };
 
+    gru_bwd_cell_exec_template(gemm_layer_f, gemm_iter_f, gemm_weights_layer_f,
+            gemm_weights_iter_f, this->rnn_postgemm_, rnn, ws_gates_,
+            scratch_gates_, states_t_l_, states_tm1_l_, states_t_lm1_, w_layer_,
+            w_iter_, diff_w_layer_, diff_w_iter_, diff_states_t_l_,
+            diff_states_tp1_l_, diff_states_t_lp1_, diff_bias_, scratch_cell_);
+}
+
+#undef AOC
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

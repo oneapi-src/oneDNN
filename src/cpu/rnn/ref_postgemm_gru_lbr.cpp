@@ -94,6 +94,28 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_lbr_postgemm) {
 }
 
 template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_lbr_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto to_src = [](float a) { return bfloat16_t(a); };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        gru_lbr_fwd_postgemm_template(logistic_f, tanh_f, to_src, scales, rnn,
+                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_,
+                ws_grid_, scratch_cell_);
+    else
+        gru_lbr_fwd_postgemm_template(linear_f, linear_f, to_src, scales, rnn,
+                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_,
+                ws_grid_, scratch_cell_);
+}
+
+template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_lbr_postgemm) {
     assert(!"GRU LBR int8 is not supported");
 }
@@ -142,6 +164,14 @@ void gru_lbr_bwd_postgemm_template(T1 to_src, const rnn_utils::rnn_conf_t &rnn,
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_lbr_postgemm) {
     auto to_src = [&](float a) { return a; };
+    gru_lbr_bwd_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
+            states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
+            diff_states_t_lp1_, scratch_cell_, ws_grid_);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_lbr_postgemm) {
+    auto to_src = [&](float a) { return bfloat16_t(a); };
     gru_lbr_bwd_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
             states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
             diff_states_t_lp1_, scratch_cell_, ws_grid_);

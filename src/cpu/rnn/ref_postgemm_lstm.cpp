@@ -103,7 +103,28 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
                 c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
 }
 
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
+    auto round_f32_bf16 = [&](float f) { return bfloat16_t(f); };
+    auto deq_id = [&](float f, int i, int j) { return f; };
 
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        lstm_fwd_postgemm_template(logistic_f, tanh_f, round_f32_bf16, deq_id,
+                scales, cscale, rnn, ws_gates_, scratch_gates_, states_t_l_,
+                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
+    else
+        lstm_fwd_postgemm_template(linear_f, linear_f, round_f32_bf16, deq_id,
+                scales, cscale, rnn, ws_gates_, scratch_gates_, states_t_l_,
+                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
 }
 
 template <>
@@ -202,6 +223,26 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm) {
     auto tanh_f
             = [](const float *scale, float a) { return tanh_fwd<float>(a); };
     auto to_src_dt = [](float a) { return a; };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn, ws_gates_,
+                scratch_gates_, c_states_t_l_, c_states_tm1_l_,
+                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                bias_);
+    else
+        lstm_bwd_postgemm_template(linear_f, to_src_dt, cscale, rnn, ws_gates_,
+                scratch_gates_, c_states_t_l_, c_states_tm1_l_,
+                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                bias_);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_postgemm) {
+    const float *cscale = &(pd_->attr()->rnn_tparams_.cscale_);
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto to_src_dt = [](float a) { return bfloat16_t(a); };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn, ws_gates_,

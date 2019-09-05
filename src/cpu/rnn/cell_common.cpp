@@ -42,6 +42,7 @@ rnn_cell_execution_sig(
             scratch_cell_);
 }
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
 
 template <typename T1, typename T2, typename T3, typename T4, typename T5,
@@ -100,6 +101,36 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
                 rnn.diff_weights_layer_ld);
     };
     auto gemm_weights_iter = [&](float *A, float *B, float *C) {
+        gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic, rnn.mb, 1.0, A,
+                rnn.gates_ws_ld, B, rnn.states_ws_ld, 1.0, C,
+                rnn.diff_weights_iter_ld);
+    };
+    common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
+            gemm_weights_iter, rnn_postgemm_, rnn, states_t_l_, c_states_t_l_,
+            diff_states_t_l_, w_layer_, w_iter_, bias_, states_t_lm1_,
+            states_tm1_l_, c_states_tm1_l_, diff_states_t_lp1_,
+            diff_states_tp1_l_, diff_w_layer_, diff_w_iter_, diff_bias_,
+            ws_gates_, scratch_gates_, ws_grid_, scratch_cell_);
+}
+
+template <>
+rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution) {
+    auto gemm_layer = [&](bfloat16_t *A, bfloat16_t *B, float *C) {
+        (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
+                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_layer_ld, B,
+                rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
+    };
+    auto gemm_iter = [&](bfloat16_t *A, bfloat16_t *B, float *C) {
+        (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
+                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_iter_ld, B,
+                rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
+    };
+    auto gemm_weights_layer = [&](bfloat16_t *A, bfloat16_t *B, float *C) {
+        gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, A,
+                rnn.gates_ws_ld, B, rnn.states_ws_ld, 1.0, C,
+                rnn.diff_weights_layer_ld);
+    };
+    auto gemm_weights_iter = [&](bfloat16_t *A, bfloat16_t *B, float *C) {
         gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic, rnn.mb, 1.0, A,
                 rnn.gates_ws_ld, B, rnn.states_ws_ld, 1.0, C,
                 rnn.diff_weights_iter_ld);

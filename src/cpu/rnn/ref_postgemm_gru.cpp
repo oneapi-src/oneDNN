@@ -125,6 +125,38 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
 }
 
 template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part1_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto to_src = [](float a) { return bfloat16_t(a); };
+    auto logistic_f = [](const float *scale, float a) {
+        return logistic_fwd<float>(a);
+    };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        gru_fwd_part1_postgemm_template(logistic_f, to_src, scales, rnn,
+                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+    else
+        gru_fwd_part1_postgemm_template(linear_f, to_src, scales, rnn,
+                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+}
+template <>
+rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
+    const float *scales = pd_->attr()->rnn_tparams_.scales_;
+    auto linear_f = [](const float *scale, float a) { return *scale * a; };
+    auto tanh_f
+            = [](const float *scale, float a) { return tanh_fwd<float>(a); };
+    auto to_src = [](float a) { return bfloat16_t(a); };
+
+    if (!pd_->attr()->rnn_tparams_.test_mode_)
+        gru_fwd_part2_postgemm_template(tanh_f, to_src, scales, rnn, ws_gates_,
+                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+    else
+        gru_fwd_part2_postgemm_template(linear_f, to_src, scales, rnn,
+                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+}
+
+template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part1_postgemm) {
     assert(!"GRU int8 is not supported");
 }
@@ -216,6 +248,24 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part1_postgemm) {
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part2_postgemm) {
     auto to_src = [](float a) { return a; };
+
+    gru_bwd_part2_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
+            states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
+            diff_states_t_lp1_, (scratch_data_t *)scratch_cell_);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part1_postgemm) {
+    auto to_src = [](float a) { return bfloat16_t(a); };
+
+    gru_bwd_part1_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
+            states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
+            diff_states_t_lp1_);
+}
+
+template <>
+rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part2_postgemm) {
+    auto to_src = [](float a) { return bfloat16_t(a); };
 
     gru_bwd_part2_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
             states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,

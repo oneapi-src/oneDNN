@@ -85,7 +85,14 @@ enum execution_direction_t {
     bi_sum,
 };
 
-enum data_type_conf_t { all_f32, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8 };
+enum data_type_conf_t {
+    all_f32,
+    all_bf16,
+    u8u8u8f32,
+    f32u8f32f32,
+    u8u8u8u8,
+    f32u8f32u8
+};
 
 struct rnn_conf_t {
     execution_direction_t exec_dir;
