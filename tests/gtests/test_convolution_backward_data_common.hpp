@@ -100,7 +100,7 @@ protected:
         auto p = ::testing::TestWithParam<
                 test_convolution_params_t>::GetParam();
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
         auto data_type_diff_src = data_traits<data_t_diff_src>::data_type;
         auto data_type_diff_dst = data_traits<data_t_diff_dst>::data_type;

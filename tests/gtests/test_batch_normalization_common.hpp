@@ -83,7 +83,7 @@ protected:
         using bf = normalization_flags;
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        eng = engine(get_test_engine_kind(), 0);
+        eng = get_test_engine();
         strm = stream(eng);
 
         memory::data_type data_type = data_traits<data_t>::data_type;

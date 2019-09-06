@@ -68,7 +68,7 @@ protected:
         binary_test_params p
                 = ::testing::TestWithParam<binary_test_params>::GetParam();
 
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
 
         std::vector<memory::desc> srcs_md;

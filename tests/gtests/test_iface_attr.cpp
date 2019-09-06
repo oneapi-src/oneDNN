@@ -35,7 +35,7 @@ TEST_F(attr_test, TestScratchpadMode) {
 }
 
 TEST_F(attr_test, TestScratchpadModeEx) {
-    engine eng(get_test_engine_kind(), 0);
+    engine eng = get_test_engine();
 
     const memory::dim N = 2, C = 2, W = 2;
 
@@ -64,7 +64,7 @@ TEST_F(attr_test, TestScratchpadModeEx) {
 }
 
 TEST_F(attr_test, TestScratchpadArg) {
-    engine eng(get_test_engine_kind(), 0);
+    engine eng = get_test_engine();
 
     const memory::dim N = 2, C = 2, W = 2;
 

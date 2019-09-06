@@ -93,7 +93,7 @@ protected:
     }
 
     void Test() {
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
 
         memory::data_type prec = data_traits<data_t>::data_type;
