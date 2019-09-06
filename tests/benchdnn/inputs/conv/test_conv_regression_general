@@ -112,3 +112,9 @@ mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg
 mb1_g3ic3oc3_ih10oh9kh2sh2dh0ph4
 mb1_g16ic16oc16_ih5oh2kh2sh5ph0
 mb1_g16ic16oc16_ih5oh2kh2sh3ph0
+
+# MFDNN-2023 3d corner case (small spatial)
+--dir=BWD_W --cfg=f32 g1ic1id2ih1iw1oc1od2oh1ow1kd3kh1kw1pd2ph0pw0n
+
+# MFDNN-2027 2d corner case (large kernel and top padding, negative bottom padding + stride)
+--dir=BWD_W --cfg=f32 g1ic16ih7iw1oc16oh1ow1kh11kw1sh2sw1ph5pw0n

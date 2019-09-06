@@ -1655,8 +1655,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
     int ow = jcp.tr_ow;
     Label oh_label, oh_label_end, oh_tpad_label, oh_tpad_tail_label,
             oh_bpad_label, oh_bpad_label_end, oh_dilate_label_shift,
-            oh_dilate_label_noshift, oh_dilate_label_end,
-            skip_neg_overlap_label, skip_fpad_label, skip_input_label;
+            oh_dilate_label_noshift, oh_dilate_label_end;
 
     mov(reg_kh, jcp.kh);
     xor_(reg_ih_count, reg_ih_count);
@@ -1683,6 +1682,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
             }
             L(oh_tpad_label);
             {
+                cmp(reg_oj, jcp.oh);
+                jge(oh_label_end, T_NEAR);
+
                 compute_oh_step_disp();
                 add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
                 if (is_dilated) {
@@ -1725,6 +1727,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
             mov(reg_kh, jcp.ih);
             L(oh_tpad_tail_label);
             {
+                cmp(reg_oj, jcp.oh);
+                jge(oh_label_end, T_NEAR);
+
                 compute_oh_step_disp();
                 add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
                 sub(reg_kernel,
@@ -1763,7 +1768,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
     cmp(reg_ih_count, jcp.ihp - b_pad - (jcp.kh - 1) * dilate_h);
     jge(oh_label_end, T_NEAR);
     cmp(reg_oj, jcp.oh);
-    jge(oh_label, T_NEAR);
+    jge(oh_label_end, T_NEAR);
 
     /* Compute middle block(s) */
     mov(reg_kh, jcp.kh);
@@ -1890,7 +1895,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
         /* Final number of kernel elements that overlap with input */
         const int inp_ker_overlap = nstl::min(jcp.kd, jcp.id);
         cmp(reg_kd_count, inp_ker_overlap);
-        jl(common_block_label, T_NEAR);
+        jle(common_block_label, T_NEAR);
 
         /* Correct any excess shifts to kernel and input */
         if (jcp.f_pad <= jcp.od * jcp.stride_d) {
@@ -1906,7 +1911,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
         }
 
         /* Apply correction */
-        mov(reg_kd_count, jcp.kd);
+        mov(reg_kd_count, inp_ker_overlap);
         jmp(common_block_label);
 
         L(fpad_end_label);
