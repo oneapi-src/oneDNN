@@ -505,7 +505,7 @@ dnnl_status_t simple_net() {
     // create backward lrn descriptor
     dnnl_lrn_desc_t lrn_bwd_desc;
     CHECK(dnnl_lrn_backward_desc_init(&lrn_bwd_desc, dnnl_lrn_across_channels,
-            lrn_src_md, lrn_diff_dst_md, local_size, alpha, beta, k));
+            lrn_diff_dst_md, lrn_src_md, local_size, alpha, beta, k));
 
     dnnl_primitive_desc_t lrn_bwd_pd;
     CHECK(dnnl_primitive_desc_create(
