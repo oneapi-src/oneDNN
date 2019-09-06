@@ -754,15 +754,15 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_h_step(
 inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_h_loop(
         int unroll_w, int l_pad, int pad_offset, int ow_block) {
 
-    const size_t io_overlap = jcp.ih / jcp.stride_h < jcp.oh
-            ? jcp.ih / jcp.stride_h - 1
-            : jcp.oh - jcp.b_pad - 1;
+    // last index of output that is not influenced by right padding
+    const size_t io_overlap
+            = jcp.oh - 1 - utils::div_up(jcp.b_pad, jcp.stride_h);
+
     const int ch_offset = jcp.ch_block;
     const int t_overlap_off = jcp.t_pad % jcp.stride_h == 0 ? jcp.stride_h : 1;
     const int b_overlap_off = jcp.b_pad % jcp.stride_h == 0 ? jcp.stride_h : 1;
 
-    Label tpad_loop_label, h_loop_label, skip_tpad_label, skip_bpad_label,
-            end_h_loop_label;
+    Label tpad_loop_label, h_loop_label, skip_tpad_label, skip_bpad_label;
 
     mov(reg_oh, ptr[this->param1 + offsetof(jit_dw_conv_call_s, oh_index)]);
     mov(reg_oh_worksize,
@@ -814,15 +814,11 @@ inline void jit_avx512_dw_conv_bwd_weights_kernel_bf16::compute_h_loop(
 
         L(tpad_loop_label);
 
-        cmp(reg_oh, jcp.ih / jcp.stride_h);
-        jge(end_h_loop_label, T_NEAR);
-
         inc(reg_oh);
 
         cmp(reg_oh, reg_oh_worksize);
         jl(h_loop_label, T_NEAR);
     }
-    L(end_h_loop_label);
 }
 
 inline void
