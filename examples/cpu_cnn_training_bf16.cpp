@@ -137,7 +137,7 @@ void simple_net() {
 
     // AlexNet: relu
     // {batch, 96, 55, 55} -> {batch, 96, 55, 55}
-
+    memory::dims relu_data_tz = {batch, 96, 55, 55};
     const float negative_slope = 1.0f;
 
     // create relu primitive desc
@@ -161,6 +161,7 @@ void simple_net() {
     // alpha: 0.0001
     // beta: 0.75
     // k: 1.0
+    memory::dims lrn_data_tz = {batch, 96, 55, 55};
     const uint32_t local_size = 5;
     const float alpha = 0.0001f;
     const float beta = 0.75f;
@@ -245,8 +246,8 @@ void simple_net() {
 
     // Backward pooling
     // create memory descriptors for pooling
-    auto pool_diff_src_md = lrn_dst_memory.get_desc();
-    auto pool_diff_dst_md = pool_dst_memory.get_desc();
+    auto pool_diff_src_md = memory::desc({lrn_data_tz}, dt::bf16, tag::any);
+    auto pool_diff_dst_md = memory::desc({pool_dst_tz}, dt::bf16, tag::any);
 
     // create backward pooling descriptor
     auto pool_bwd_desc = pooling_backward::desc(algorithm::pooling_max,
@@ -277,13 +278,23 @@ void simple_net() {
             {DNNL_ARG_WORKSPACE, pool_workspace_memory}});
 
     // Backward lrn
-    auto lrn_diff_dst_md = lrn_dst_memory.get_desc();
+    auto lrn_diff_dst_md = memory::desc({lrn_data_tz}, dt::bf16, tag::any);
 
     // create backward lrn primitive descriptor
     auto lrn_bwd_desc = lrn_backward::desc(algorithm::lrn_across_channels,
             lrn_pd.src_desc(), lrn_diff_dst_md, local_size, alpha, beta, k);
     auto lrn_bwd_pd
             = lrn_backward::primitive_desc(lrn_bwd_desc, cpu_engine, lrn_pd);
+
+    // create reorder primitive between pool diff src and lrn diff dst
+    // if required
+    auto lrn_diff_dst_memory = pool_diff_src_memory;
+    if (lrn_diff_dst_memory.get_desc() != lrn_bwd_pd.diff_dst_desc()) {
+        lrn_diff_dst_memory = memory(lrn_bwd_pd.diff_dst_desc(), cpu_engine);
+        net_bwd.push_back(reorder(pool_diff_src_memory, lrn_diff_dst_memory));
+        net_bwd_args.push_back({{DNNL_ARG_FROM, pool_diff_src_memory},
+                {DNNL_ARG_TO, lrn_diff_dst_memory}});
+    }
 
     // create memory for lrn diff src
     auto lrn_diff_src_memory = memory(lrn_bwd_pd.diff_src_desc(), cpu_engine);
@@ -292,12 +303,12 @@ void simple_net() {
     // backward lrn needs src: relu dst in this topology
     net_bwd.push_back(lrn_backward(lrn_bwd_pd));
     net_bwd_args.push_back({{DNNL_ARG_SRC, relu_dst_memory},
-            {DNNL_ARG_DIFF_DST, pool_diff_src_memory},
+            {DNNL_ARG_DIFF_DST, lrn_diff_dst_memory},
             {DNNL_ARG_DIFF_SRC, lrn_diff_src_memory},
             {DNNL_ARG_WORKSPACE, lrn_workspace_memory}});
 
     // Backward relu
-    auto relu_diff_dst_md = lrn_diff_src_memory.get_desc();
+    auto relu_diff_dst_md = memory::desc({relu_data_tz}, dt::bf16, tag::any);
     auto relu_src_md = conv_pd.dst_desc();
 
     // create backward relu primitive_descriptor
@@ -306,13 +317,23 @@ void simple_net() {
     auto relu_bwd_pd = eltwise_backward::primitive_desc(
             relu_bwd_desc, cpu_engine, relu_pd);
 
+    // create reorder primitive between lrn diff src and relu diff dst
+    // if required
+    auto relu_diff_dst_memory = lrn_diff_src_memory;
+    if (relu_diff_dst_memory.get_desc() != relu_bwd_pd.diff_dst_desc()) {
+        relu_diff_dst_memory = memory(relu_bwd_pd.diff_dst_desc(), cpu_engine);
+        net_bwd.push_back(reorder(lrn_diff_src_memory, relu_diff_dst_memory));
+        net_bwd_args.push_back({{DNNL_ARG_FROM, lrn_diff_src_memory},
+                {DNNL_ARG_TO, relu_diff_dst_memory}});
+    }
+
     // create memory for relu diff src
     auto relu_diff_src_memory = memory(relu_bwd_pd.diff_src_desc(), cpu_engine);
 
     // finally create a backward relu primitive
     net_bwd.push_back(eltwise_backward(relu_bwd_pd));
     net_bwd_args.push_back({{DNNL_ARG_SRC, conv_dst_memory},
-            {DNNL_ARG_DIFF_DST, lrn_diff_src_memory},
+            {DNNL_ARG_DIFF_DST, relu_diff_dst_memory},
             {DNNL_ARG_DIFF_SRC, relu_diff_src_memory}});
 
     // Backward convolution with respect to weights
