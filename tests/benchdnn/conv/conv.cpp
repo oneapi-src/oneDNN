@@ -253,7 +253,8 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     }
 
     if (no_trust) {
-        r->state = MISTRUSTED;
+        if (r->state != FAILED)
+            r->state = MISTRUSTED;
         print(0, "@@@ [%s] test-bug: trust is too low. "
                 "range:%.2f (?<%.2f) nz:%.2f (?<%.2f) (nz: %d total: %lu)\n",
                 skind, trust_rg, trust_rg_level, trust_nz, trust_nz_level,
