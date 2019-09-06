@@ -228,7 +228,7 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
-        eng = engine(get_test_engine_kind(), 0);
+        eng = get_test_engine();
         strm = stream(eng);
         ASSERT_EQ(true,
                 dnnl::impl::utils::one_of(data_type,

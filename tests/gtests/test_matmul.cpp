@@ -233,7 +233,7 @@ protected:
         matmul_test_params p
                 = ::testing::TestWithParam<matmul_test_params>::GetParam();
 
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
 
         auto check_matrix_flags = [](unsigned flags, unsigned matrix) {

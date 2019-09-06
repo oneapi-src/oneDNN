@@ -55,7 +55,7 @@ protected:
         using pd_t = softmax_forward::primitive_desc;
         allows_attr_t aa {0}; // doesn't support anything
 
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
         prop_kind pk = p.aprop_kind == prop_kind::backward_data
                 ? prop_kind::forward_training
@@ -137,7 +137,7 @@ protected:
         using hint_pd_t = softmax_forward::primitive_desc;
         allows_attr_t aa {0}; // doesn't support anything
 
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
         auto prec = data_traits<data_t>::data_type;
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);

@@ -140,7 +140,7 @@ protected:
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
         const bool is_lstm_peephole
                 = p.fmts.weights_peephole_fmt != memory::format_tag::undef;
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
         //@todo check algorithm is one of the supported by RNN
         //ASSERT_EQ(p.aalgorithm, algorithm::vanilla_lstm);

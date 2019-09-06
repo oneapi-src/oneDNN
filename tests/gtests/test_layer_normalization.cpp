@@ -67,7 +67,7 @@ protected:
     }
 
     void Test() {
-        eng = engine(get_test_engine_kind(), 0);
+        eng = get_test_engine();
         strm = stream(eng);
 
         data_d.reset(

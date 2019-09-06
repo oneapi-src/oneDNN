@@ -63,16 +63,18 @@ template <typename reorder_types>
 class reorder_simple_test
     : public ::testing::TestWithParam<test_simple_params<reorder_types>> {
 protected:
+#ifdef DNNL_TEST_WITH_ENGINE_PARAM
     void Test() {
         test_simple_params<reorder_types> p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() {
-                    engine eng(get_test_engine_kind(), 0);
+                    engine eng = get_test_engine();
                     RunTest(eng, eng);
                 },
                 p.expect_to_fail, p.expected_status);
     }
+#endif
 
     void Test(engine &eng_i, engine &eng_o) {
         test_simple_params<reorder_types> p

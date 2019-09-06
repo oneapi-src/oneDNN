@@ -60,7 +60,11 @@ using dnnl::impl::f16_support::float16_t;
 using memory = dnnl::memory;
 
 bool is_current_test_failed();
+
+#ifdef DNNL_TEST_WITH_ENGINE_PARAM
 dnnl::engine::kind get_test_engine_kind();
+dnnl::engine get_test_engine();
+#endif
 
 template <typename data_t>
 struct data_traits {};

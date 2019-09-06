@@ -99,7 +99,7 @@ protected:
         bool with_bias = p.bias_format != memory::format_tag::undef;
 
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         auto strm = stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, dnnl::memory::data_type::f32);

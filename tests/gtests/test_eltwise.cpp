@@ -357,7 +357,7 @@ protected:
     void Test() {
         p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
 
-        eng = engine(get_test_engine_kind(), 0);
+        eng = get_test_engine();
         strm = stream(eng);
 
         Forward();

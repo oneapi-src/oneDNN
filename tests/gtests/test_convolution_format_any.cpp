@@ -48,7 +48,7 @@ protected:
 
         ASSERT_EQ(p.aprop_kind, prop_kind::forward);
         ASSERT_EQ(p.aalgorithm, algorithm::convolution_direct);
-        auto eng = engine(get_test_engine_kind(), 0);
+        auto eng = get_test_engine();
         memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 
