@@ -70,21 +70,23 @@ Data manipulation:
  * @ref dev_guide_int8_computations
  * @ref dev_guide_opencl_interoperability
  * @ref dev_guide_sycl_interoperability
+ * @ref dev_guide_dpcpp_usm
 
 # Examples
 
-| Topic          | Engine   | C++ API                                | C API                        |
-| :----          | :---     | :----                                  | :---                         |
-| Tutorials      | CPU/GPU  | @ref getting_started_cpp               |                              |
-|                | CPU/GPU  | @ref memory_format_propagation_cpp     |                              |
-|                | CPU/GPU  | @ref performance_profiling_cpp         |                              |
-|                | CPU/GPU  | @ref cross_engine_reorder_cpp          | @ref cross_engine_reorder_c  |
-|                | GPU      | @ref gpu_opencl_interop_cpp            |                              |
-| f32 inference  | CPU/GPU  | @ref cnn_inference_f32_cpp             | @ref cnn_inference_f32_c     |
-|                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
-| int8 inference | CPU/GPU  | @ref cnn_inference_int8_cpp            |                              |
-|                | CPU      | @ref cpu_rnn_inference_int8_cpp        |                              |
-| f32 training   | CPU/GPU  | @ref cnn_training_f32_cpp              |                              |
-|                | CPU      |                                        | @ref cpu_cnn_training_f32_c  |
-|                | CPU/GPU  | @ref rnn_training_f32_cpp              |                              |
-| bf16 training  | CPU      | @ref cpu_cnn_training_bf16_cpp         |                              |
+| Topic                          | Engine   | C++ API                                | C API                        |
+| :----                          | :---     | :----                                  | :---                         |
+| Tutorials                      | CPU/GPU  | @ref getting_started_cpp               |                              |
+|                                | CPU/GPU  | @ref memory_format_propagation_cpp     |                              |
+|                                | CPU/GPU  | @ref performance_profiling_cpp         |                              |
+|                                | CPU/GPU  | @ref cross_engine_reorder_cpp          | @ref cross_engine_reorder_c  |
+|                                | GPU      | @ref gpu_opencl_interop_cpp            |                              |
+| f32 inference                  | CPU/GPU  | @ref cnn_inference_f32_cpp             | @ref cnn_inference_f32_c     |
+|                                | CPU      | @ref cpu_rnn_inference_f32_cpp         |                              |
+| int8 inference                 | CPU/GPU  | @ref cnn_inference_int8_cpp            |                              |
+|                                | CPU      | @ref cpu_rnn_inference_int8_cpp        |                              |
+| f32 training                   | CPU/GPU  | @ref cnn_training_f32_cpp              |                              |
+|                                | CPU      |                                        | @ref cpu_cnn_training_f32_c  |
+|                                | CPU/GPU  | @ref rnn_training_f32_cpp              |                              |
+| bf16 training                  | CPU      | @ref cpu_cnn_training_bf16_cpp         |                              |
+| SYCL interoperability          | CPU/GPU  | @ref sycl_interop_cpp                  |                              |
