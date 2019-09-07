@@ -444,6 +444,7 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
         && jcp.dst_tag == dat_tag
         && jcp.ngroups % jcp.ch_block == 0 && jcp.dilate_h == 0
         && jcp.dilate_w == 0 && jcp.kw <= 3
+        && jcp.stride_w <= jcp.kw // no gaps in kernel
         && jcp.oh == (jcp.ihp - jcp.kh) / jcp.stride_h + 1
         && jcp.ow == (jcp.iwp - jcp.kw) / jcp.stride_w + 1;
     if (!args_ok)
@@ -456,9 +457,15 @@ status_t jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_conf(
      * but ideally the check should belong to a specific kernel... */
     const int max_hpad = (jcp.kh - 1 + 1) / 2;
     const int max_wpad = (jcp.kw - 1 + 1) / 2;
+    const int min_ih = jcp.kh + nstl::modulo(-jcp.t_pad, jcp.stride_h);
     const bool boundaries_ok = true && jcp.t_pad <= max_hpad
             && jcp.b_pad <= max_hpad && jcp.l_pad <= max_wpad
-            && jcp.r_pad <= max_wpad;
+            && jcp.r_pad <= max_wpad
+            // input must fully accommodate the filter
+            && jcp.ih >= min_ih
+            // non-unit padding must be a multiple of the stride
+            && IMPLICATION(jcp.t_pad > 1, jcp.t_pad % jcp.stride_h == 0)
+            && IMPLICATION(jcp.b_pad > 1, jcp.b_pad % jcp.stride_h == 0);
     if (!boundaries_ok)
         return status::unimplemented;
 
