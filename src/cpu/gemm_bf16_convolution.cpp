@@ -306,17 +306,14 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward() const {
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = (size_t)jcp.oc * M;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
+    const bool is_problem_3d = pd()->ndims() == 5;
 
     assert(IMPLICATION(
-            jcp.id != 1, jcp.oh_block == jcp.oh && jcp.ow_block == jcp.ow));
+            is_problem_3d, jcp.oh_block == jcp.oh && jcp.ow_block == jcp.ow));
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
     const int K = jcp.ic * jcp.ks;
     const int N = jcp.oc;
-
-    if (jcp.im2col_sz && jcp.id != 1)
-        parallel_nd(jcp.im2col_sz * jcp.nthr,
-                [&](ptrdiff_t i) { col[i] = (src_data_t)0; });
 
     const int nb_oh = div_up(jcp.oh, jcp.oh_block);
     const int nb_ow = div_up(jcp.ow, jcp.ow_block);
@@ -324,6 +321,12 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward() const {
         * jcp.mb * jcp.od * nb_oh * nb_ow;
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
+        if (is_problem_3d) {
+            // jit_gemm_convolution_utils::im2col_3d() requires external
+            // data initialization by zeroes
+            for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
+                _col[i] = (src_data_t)0;
+        }
 
         int g{ 0 }, n{ 0 }, od{ 0 }, ohb{ 0 }, owb{ 0 };
         size_t start = 0, end = 0;
@@ -340,7 +343,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward() const {
             const int h_step = nstl::min(jcp.oh_block, jcp.oh - oh);
             const int w_step = nstl::min(jcp.ow_block, jcp.ow - ow);
             if (jcp.im2col_sz) {
-                if (jcp.id == 1)
+                if (!is_problem_3d)
                     jit_gemm_convolution_utils::im2col<src_data_t>(
                             jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                 else
@@ -403,6 +406,7 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
     const int LDC = jcp.im2col_sz ? m : M;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
+    const bool is_problem_3d = pd()->ndims() == 5;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         acc_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
@@ -419,7 +423,7 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
                 ? acc_base + ithr * rnd_up(src_step, 16)
                 : (acc_data_t *)diff_src_local;
 
-            if (jcp.id > 1 && jcp.im2col_sz > 0) {
+            if (is_problem_3d && jcp.im2col_sz > 0) {
                 // jit_gemm_convolution_utils::col2im_3d() assumes that the
                 // accumulator is initialized by zeroes
                 for (size_t i = 0; i < src_step; i++)
@@ -437,7 +441,7 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
                     jcp.im2col_sz ? _col: acc + od * m, &LDC);
 
                 if (jcp.im2col_sz) {
-                    if (jcp.id == 1)
+                    if (!is_problem_3d)
                         jit_gemm_convolution_utils::col2im(jcp, _col,
                             acc);
                     else
@@ -548,9 +552,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     const int N = jcp.oc;
     const int M = jcp.ic * jcp.ks;
     const int LDA = jcp.im2col_sz ? k : K;
-
-    parallel_nd(jcp.im2col_sz * jcp.nthr,
-            [&](ptrdiff_t i) { col[i] = (src_data_t)0; });
+    const bool is_problem_3d = pd()->ndims() == 5;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
@@ -570,6 +572,13 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
             assert(IMPLICATION((g_end - g_start) > 1, need_reduction == 0));
 
             src_data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
+            if (is_problem_3d) {
+                // jit_gemm_convolution_utils::im2col_3d() requires external
+                // data initialization by zeroes
+                for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
+                    _col[i] = (src_data_t)0;
+            }
+
             acc_data_t *weights_reduce_base = wei_reduction
                     + ithr_g * nthr_mb * weights_g_size;
             acc_data_t *weights_reduce = weights_reduce_base
@@ -586,7 +595,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                             + (mb * jcp.ngroups + g) * dst_step + od * k;
 
                     if (jcp.im2col_sz) {
-                        if (jcp.id == 1)
+                        if (!is_problem_3d)
                             jit_gemm_convolution_utils::im2col<src_data_t>(
                                     jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                         else

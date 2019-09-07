@@ -132,3 +132,13 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 
 # MFDNN-2027 2d corner case (large kernel and top padding, negative bottom padding + stride)
 --dir=BWD_W --cfg=f32 g1ic16ih7iw1oc16oh1ow1kh11kw1sh2sw1ph5pw0n
+
+# 3d problem dispatching
+--cfg=f32
+--dir=FWD_B g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+--dir=BWD_D g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+--dir=BWD_W g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+--cfg=bf16bf16bf16
+--dir=FWD_B g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+--dir=BWD_D g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+--dir=BWD_W g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
