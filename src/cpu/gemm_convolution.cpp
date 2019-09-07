@@ -57,16 +57,19 @@ void gemm_convolution_fwd_t::execute_forward() const {
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t weights_oc_size = jcp.ic * jcp.ks;
     const size_t weights_g_size = weights_oc_size * jcp.oc;
+    const bool is_problem_3d = pd()->ndims() == 5;
 
     assert(IMPLICATION(
-            jcp.id != 1, jcp.os_block == jcp.os && jcp.ic_block == jcp.ic));
-
-    if (jcp.im2col_sz && jcp.id != 1)
-        parallel_nd(jcp.im2col_sz * jcp.nthr,
-                [&](ptrdiff_t i) { col[i] = (data_t)0; });
+            is_problem_3d, jcp.os_block == jcp.os && jcp.ic_block == jcp.ic));
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
+        if (is_problem_3d) {
+            // jit_gemm_convolution_utils::im2col_3d() requires external
+            // data initialization by zeroes
+            for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
+                _col[i] = (data_t)0;
+        }
 
         auto inner_ker = [&](int spatial, const im_pos_t &curr, im_pos_t &prev,
                                  im_pos_t &step, const im_pos_t &end) {
@@ -82,7 +85,7 @@ void gemm_convolution_fwd_t::execute_forward() const {
             prev = curr;
 
             if (jcp.im2col_sz && do_im2col) {
-                if (jcp.id == 1)
+                if (!is_problem_3d)
                     jit_gemm_convolution_utils::im2col<float>(
                             jcp, _src, _col, curr.sp, step.sp, curr.ic, step.ic);
                 else
@@ -155,7 +158,7 @@ void gemm_convolution_fwd_t::execute_forward() const {
         im_pos_t start, end;
         end.ic = jcp.ic;
 
-        if (jcp.id == 1) {
+        if (!is_problem_3d) {
             const int sp_work = jcp.mb * jcp.ngroups * jcp.od * jcp.os;
             balance2D(nthr, ithr, sp_work, start.sp, end.sp, jcp.oc, start.oc,
                     end.oc, jcp.nthr_oc);
@@ -218,11 +221,7 @@ void gemm_convolution_bwd_data_t::execute_backward_data() const {
     const int LDC = jcp.im2col_sz ? m : M;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
-
-    if (jcp.id > 1) {
-        const ptrdiff_t diff_src_sz = (ptrdiff_t)(work_amount * src_step);
-        parallel_nd(diff_src_sz, [&](ptrdiff_t i) { diff_src[i] = (data_t)0; });
-    }
+    const bool is_problem_3d = pd()->ndims() == 5;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
@@ -234,6 +233,13 @@ void gemm_convolution_bwd_data_t::execute_backward_data() const {
         for (size_t iwork = start; iwork < end; ++iwork) {
 
             data_t *_diff_src = diff_src + (n * jcp.ngroups + g)*src_step;
+            if (is_problem_3d && jcp.im2col_sz > 0) {
+                // jit_gemm_convolution_utils::col2im_3d() assumes that the
+                // accumulator is initialized by zeroes
+                for (size_t i = 0; i < src_step; i++)
+                    _diff_src[i] = (data_t)0;
+            }
+
             const data_t *_weights = weights + g * weights_g_size;
             for (int od = 0; od < jcp.od; ++od) {
                 const data_t *_diff_dst = diff_dst + (n * jcp.ngroups + g)
@@ -245,7 +251,7 @@ void gemm_convolution_bwd_data_t::execute_backward_data() const {
                     jcp.im2col_sz ? _col:_diff_src + od * m, &LDC);
 
                 if (jcp.im2col_sz) {
-                    if (jcp.id == 1)
+                    if (!is_problem_3d)
                         jit_gemm_convolution_utils::col2im(jcp, _col,
                             _diff_src);
                     else
@@ -278,9 +284,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() const {
     const int N = jcp.oc;
     const int M = jcp.ic * jcp.ks;
     const int LDA = jcp.im2col_sz ? k : K;
-
-    parallel_nd(jcp.im2col_sz * jcp.nthr,
-            [&](ptrdiff_t i) { col[i] = (data_t)0; });
+    const bool is_problem_3d = pd()->ndims() == 5;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int ithr_g, nthr_g, ithr_mb, nthr_mb;
@@ -300,6 +304,13 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() const {
             assert(IMPLICATION((g_end - g_start) > 1, need_reduction == 0));
 
             data_t *_col = col + (ptrdiff_t)ithr * jcp.im2col_sz;
+            if (is_problem_3d) {
+                // jit_gemm_convolution_utils::im2col_3d() requires external
+                // data initialization by zeroes
+                for (ptrdiff_t i = 0; i < jcp.im2col_sz; i++)
+                    _col[i] = (data_t)0;
+            }
+
             data_t *weights_reduce_base = wei_reduction
                     + ithr_g * nthr_mb * weights_g_size;
             data_t *weights_reduce = weights_reduce_base
@@ -315,7 +326,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights() const {
                             + (mb*jcp.ngroups+g)*dst_step + od * k;
 
                     if (jcp.im2col_sz) {
-                        if (jcp.id == 1)
+                        if (!is_problem_3d)
                             jit_gemm_convolution_utils::im2col<float>(
                                     jcp, _src, _col, 0, jcp.os, 0, jcp.ic);
                         else
