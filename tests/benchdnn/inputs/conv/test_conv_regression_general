@@ -123,3 +123,7 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 --reset --dir=FWD_B
 --cfg=f32 g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
 --cfg=bf16bf16f32,u8s8u8 --allow-unimpl=true g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
+
+# 3d problem dispatching
+--dir=FWD_D,BWD_D,BWD_W
+--cfg=f32,bf16bf16bf16 g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1

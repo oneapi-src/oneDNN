@@ -651,8 +651,8 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         if (is_fwd) {
             const int wei_size = jcp.oc * jcp.ic * jcp.kh * jcp.kw;
             bool is_blocking_applicable = true && is_fwd && jcp.im2col_sz
-                    && jcp.id == 1 && jcp.od == 1 && jcp.dilate_h == 0
-                    && jcp.dilate_w == 0 && !is_depthwise && wei_size < L2 / 2;
+                    && !is_3d && jcp.dilate_h == 0 && jcp.dilate_w == 0
+                    && !is_depthwise && wei_size < L2 / 2;
             if (is_blocking_applicable) {
                 // looking for oh and ow blocking
                 int h_block {jcp.oh_block}, w_block {jcp.ow_block};
@@ -803,7 +803,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             // gemm implementation which we cannot control
             bool is_blocking_applicable = true
                     && !is_bf16_conv // TODO: apply blocking to bf16
-                    && jcp.id == 1 && jcp.od == 1
+                    && !is_3d
                     && (!jcp.im2col_sz
                             // spatial is small
                             || spatial >= max_threads * simd_w
