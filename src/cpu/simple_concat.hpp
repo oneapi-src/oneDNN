@@ -29,8 +29,8 @@ namespace cpu {
 template <data_type_t data_type>
 struct simple_concat_t : public primitive_impl_t {
     struct pd_t : public cpu_concat_pd_t {
-		template <typename... args_t>
-		pd_t(args_t ... args) : cpu_concat_pd_t(args...), perm_{}, iperm_{}, blocks_{} {}
+        template <typename... args_t>
+        pd_t(args_t ... args) : cpu_concat_pd_t(args...), perm_{}, iperm_{}, blocks_{} {}
 
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs), perm_{}, iperm_{}, blocks_{} { copy_from(rhs); }
 
