@@ -50,6 +50,7 @@
 #include "cpu/jit_sse41_convolution.hpp"
 #include "cpu/jit_uni_batch_normalization.hpp"
 #include "cpu/jit_uni_batch_normalization_s8.hpp"
+#include "cpu/jit_uni_binary.hpp"
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
 #include "cpu/jit_uni_i8i8_pooling.hpp"
@@ -363,6 +364,8 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_layer_normalization_fwd_t<bf16>),
         INSTANCE(ref_layer_normalization_bwd_t<bf16>),
         /* binary op */
+        INSTANCE(jit_uni_binary_t<avx512_common>),
+        INSTANCE(jit_uni_binary_t<avx2>),
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
         /* eol */
