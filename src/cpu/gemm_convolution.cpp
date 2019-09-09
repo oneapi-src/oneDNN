@@ -192,7 +192,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                         inner_ker(spatial, curr, prev, step, end);
             }
         else
-            assert("Unknown loop order");
+            assert(!"Unknown loop order");
     });
 }
 

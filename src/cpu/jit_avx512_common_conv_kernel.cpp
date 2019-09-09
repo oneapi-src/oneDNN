@@ -2143,7 +2143,7 @@ inline void jit_avx512_common_conv_bwd_data_kernel_f32::compute_loop(
         else
             compute_loop_fma_core(ur_w, l_overflow, r_overflow);
     else
-        assert("!unknown convolution version");
+        assert(!"unknown convolution version");
 
     L(skip_compute_loop);
     store_output(ur_w);
