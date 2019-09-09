@@ -91,8 +91,7 @@ private:
 template <data_type_t type_i, data_type_t type_o>
 struct rnn_weights_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
-        template <typename... args_t>
-        pd_t(args_t ... args) : cpu_reorder_pd_t(args...), itag_(dnnl_format_tag_undef) {}
+        using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
 
@@ -138,7 +137,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
             return status::success;
         }
 
-        format_tag_t itag_;
+        format_tag_t itag_ = dnnl_format_tag_undef;
 
     private:
         void init_scratchpad() {

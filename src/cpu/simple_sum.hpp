@@ -39,8 +39,7 @@ struct sum_bf16_params_t {
 template <data_type_t src_data_type, data_type_t dst_data_type = src_data_type>
 struct simple_sum_t : public primitive_impl_t {
     struct pd_t : public cpu_sum_pd_t {
-        template <typename... args_t>
-        pd_t(args_t ... args) : cpu_sum_pd_t(args...), block_size_(0), nelems_(0), blocks_number_(0), tail_(0) {}
+        using cpu_sum_pd_t::cpu_sum_pd_t;
 
         DECLARE_SUM_PD_T("simple:any", simple_sum_t);
 
@@ -73,7 +72,7 @@ struct simple_sum_t : public primitive_impl_t {
         }
 
         sum_bf16_params_t bf16_p_;
-        dim_t block_size_, nelems_, blocks_number_, tail_;
+        dim_t block_size_ = 0, nelems_ = 0, blocks_number_ = 0, tail_ = 0;
 
     private:
         const dim_t cacheline_size_ = 64; // bytes

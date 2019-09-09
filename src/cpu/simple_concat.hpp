@@ -29,10 +29,9 @@ namespace cpu {
 template <data_type_t data_type>
 struct simple_concat_t : public primitive_impl_t {
     struct pd_t : public cpu_concat_pd_t {
-        template <typename... args_t>
-        pd_t(args_t ... args) : cpu_concat_pd_t(args...), perm_{}, iperm_{}, blocks_{} {}
+        using cpu_concat_pd_t::cpu_concat_pd_t;
 
-        pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs), perm_{}, iperm_{}, blocks_{} { copy_from(rhs); }
+        pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { copy_from(rhs); }
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
@@ -101,9 +100,9 @@ struct simple_concat_t : public primitive_impl_t {
             return status::success;
         }
 
-        int perm_[DNNL_MAX_NDIMS];
-        int iperm_[DNNL_MAX_NDIMS];
-        dims_t blocks_;
+        int perm_[DNNL_MAX_NDIMS]{};
+        int iperm_[DNNL_MAX_NDIMS]{};
+        dims_t blocks_{};
 
         dim_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
             const int ndims = data_d.ndims();
