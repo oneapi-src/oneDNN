@@ -17,6 +17,7 @@
 /*
  * Cell execution GRU with linear before reset
  */
+#pragma warning(disable : 4503) /* name is too long */
 
 #include "dnnl_thread.hpp"
 #include "math_utils.hpp"
@@ -32,9 +33,10 @@ using namespace dnnl::impl::math;
 using namespace rnn_utils;
 #define AOC array_offset_calculator
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type,
-        weights_type>::cell_execution_gru_lbr)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::cell_execution_gru_lbr)) {
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,

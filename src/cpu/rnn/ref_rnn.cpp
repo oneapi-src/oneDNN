@@ -48,8 +48,10 @@ using namespace rnn_utils;
 
 // GEMM functions wrapper definitions
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_gemm_sig(
+        (_ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::gemm)) {
     assert(!"non packed gemm is unavailable for this data type");
 }
 
@@ -93,8 +95,10 @@ rnn_gemm_sig((ref_rnn_bwd_bf16_t::gemm)) {
 
 // packed GEMM functions wrapper definitions
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::packed_gemm)) {
     assert(!"packed gemm is unavailable for this datatype");
 }
 
@@ -125,9 +129,10 @@ rnn_gemm_sig(ref_rnn_fwd_u8s8_t::packed_gemm) {
 }
 
 //*************** Grid computations strategy: linear ***************//
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_grid_execution_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::linear_execution)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::linear_execution)) {
     AOC<src_data_t, 4> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
             rnn.n_iter + 1, rnn.states_nld * rnn.states_ws_ld);
     AOC<float, 4> ws_c_states(ws_c_states_, rnn.n_layer + 1, rnn.n_dir,
@@ -657,9 +662,10 @@ RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_u8s8_t)
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_bwd_f32_t)
 RNN_DECL_COPY_RES_ITER_BWD(ref_rnn_bwd_bf16_t)
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_bias_prepare_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::bias_prepare)) {
     /* Original set of bias provided by the user */
     AOC<const float, 5> b(b_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
     /* Array of pointers initialized in packing */
@@ -685,9 +691,10 @@ rnn_bias_prepare_sig(
     }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_bias_finalize_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::bias_finalize)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_bias_finalize_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::bias_finalize)) {
     if (rnn.is_int8()) {
         float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
         float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
@@ -704,9 +711,10 @@ rnn_bias_finalize_sig(
     }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
-        weights_type>::assign_packed_weights)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::assign_packed_weights)) {
     assert(md->format_kind == format_kind::rnn_packed);
     const auto packed_desc = md->format_desc.rnn_packed_desc;
     AOC<weights_data_t *, 3> weights(
@@ -723,9 +731,10 @@ rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type,
         }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_weights_assign_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::assign_weights)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::assign_weights)) {
     assert(md->format_kind == format_kind::blocked);
     const auto &blk = md->format_desc.blocking;
     /* Original set of weights provided by the user */
@@ -745,8 +754,9 @@ rnn_weights_assign_sig(
 }
 
 //********************* Execution function *********************//
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
         const exec_ctx_t &ctx) const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
     auto input = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC_LAYER);
@@ -922,17 +932,17 @@ template <>
 rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
-        data_type::f32>;
+        data_type::f32, data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
-        data_type::f32>;
+        data_type::f32, data_type::f32>;
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::bf16,
-        data_type::bf16>;
+        data_type::bf16, data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::bf16,
-        data_type::bf16>;
+        data_type::bf16, data_type::f32>;
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
-        data_type::s8>;
+        data_type::s8, data_type::s32>;
 
 #undef AOC
 } // namespace cpu

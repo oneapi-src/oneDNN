@@ -24,9 +24,10 @@ namespace impl {
 namespace cpu {
 using namespace rnn_utils;
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-rnn_cell_execution_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution)) {
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
+        data_type_t acc_type>
+rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
+        acc_type>::cell_execution)) {
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,

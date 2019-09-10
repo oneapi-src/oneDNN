@@ -23,12 +23,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <cpu_isa_t isa, impl::data_type_t src_data_t>
+template <cpu_isa_t isa, impl::data_type_t src_data_t,
+        impl::data_type_t scratch_data_t>
 struct jit_uni_rnn_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_rnn_cell_postgemm_fwd)
 
-    typedef typename utils::conditional<src_data_t == data_type::u8, int32_t,
-            float>::type acc_data_t;
     typedef typename utils::conditional<isa == avx512_core,
             jit_uni_eltwise_injector_f32<avx512_common>,
             jit_uni_eltwise_injector_f32<isa>>::type injector_t;
@@ -39,7 +38,8 @@ struct jit_uni_rnn_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
 
     ~jit_uni_rnn_cell_postgemm_fwd() { delete injector_; }
 
-    void init() override {
+    void init(data_type_t sdt) override {
+        jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for constant tables
         injector_ = new injector_t(
                 this, pd_->activation_kind(), 0.0f, 0.0f, true, rax);
@@ -53,12 +53,12 @@ protected:
     // register size in bytes
     using Vmm = typename jit_uni_eltwise_injector_f32<isa>::Vmm;
     size_t vlen = cpu_isa_traits<isa>::vlen;
-    size_t vlen_dst = (src_data_t == data_type::u8) ? vlen / 4 : vlen;
+    size_t vlen_dst
+            = vlen / (sizeof(float) / types::data_type_size(src_data_t));
     size_t cstate_dt_size = sizeof(float);
-    size_t hstate_dt_size
-            = (src_data_t == data_type::u8) ? sizeof(uint8_t) : sizeof(float);
-    size_t gate_dt_size
-            = (src_data_t == data_type::u8) ? sizeof(uint32_t) : sizeof(float);
+    size_t hstate_dt_size = types::data_type_size(src_data_t);
+    size_t gate_dt_size = types::data_type_size(src_data_t);
+    size_t scratch_dt_size = types::data_type_size(scratch_data_t);
     size_t qscale_dt_size = sizeof(float);
     size_t bias_dt_size = sizeof(float);
 
@@ -90,7 +90,7 @@ protected:
         auto addr_states_t_l_reg = abi_param4;
 
         auto sg_addr
-                = ptr[addr_scratch_gates_reg + 0 * rnn_.dic * gate_dt_size];
+                = ptr[addr_scratch_gates_reg + 0 * rnn_.dic * scratch_dt_size];
         auto wg_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
         auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size];
 
@@ -98,7 +98,7 @@ protected:
         init_regs(vlen);
         injector_->load_table_addr();
 
-        mov(loop_cnt, rnn_.dic * gate_dt_size);
+        mov(loop_cnt, rnn_.dic * scratch_dt_size);
         cmp(loop_cnt, vlen);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 
@@ -120,7 +120,7 @@ protected:
             injector_->compute_vector(G.getIdx());
 
             // if training we write back the gates
-            if (is_training) uni_vmovups(wg_addr, G);
+            if (is_training) to_src<src_data_t>(wg_addr, G, vlen);
 
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G, vlen);
 
@@ -128,7 +128,7 @@ protected:
             add(addr_scratch_gates_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
-            if (is_training) add(addr_ws_gates_reg, vlen);
+            if (is_training) add(addr_ws_gates_reg, vlen_dst);
             inc_regs(vlen);
 
             // increment loop counter
@@ -164,19 +164,19 @@ protected:
             injector_->compute_vector(Gs.getIdx());
 
             // if training we write back the gates
-            if (is_training) uni_vmovss(wg_addr, Gs);
+            if (is_training) to_src<src_data_t>(wg_addr, G, scratch_dt_size);
 
-            to_src<src_data_t>(ptr[addr_states_t_l_reg], G, gate_dt_size);
+            to_src<src_data_t>(ptr[addr_states_t_l_reg], G, scratch_dt_size);
 
             // increment address pointers
-            add(addr_scratch_gates_reg, gate_dt_size);
+            add(addr_scratch_gates_reg, scratch_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
             inc_regs(qscale_dt_size);
 
             // increment loop counter
-            sub(loop_cnt, gate_dt_size);
+            sub(loop_cnt, scratch_dt_size);
             cmp(loop_cnt, 0);
             jg(rem_loop_start_label);
         }

@@ -22,6 +22,7 @@
 #include "c_types_map.hpp"
 #include "utils.hpp"
 
+#include "../jit_avx512_core_bf16cvt.hpp"
 #include "../jit_generator.hpp"
 #include "../jit_uni_eltwise.hpp"
 
@@ -46,9 +47,29 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , zmm_perm_mask_addr(0)
         , weights_scales_reg(r13)
         , qtable(r14)
-        , qd_reg_idx(15) {}
+        , qd_reg_idx(15)
+        , bf16_reg1(zmm31)
+        , bf16_reg2(zmm30)
+        , bf16_reg3(zmm29)
+        , bf16_reg4(r13)
+        , bf16_reg5(zmm28)
+        , bf16_k_mask(k2)
+        , bf16_dq_reg_idx(15) {}
 
-    virtual void init() = 0;
+    ~jit_uni_rnn_postgemm() {
+        if (bf16_emu_) delete bf16_emu_;
+    }
+
+    virtual void init(data_type_t src_data_t) {
+        // no need to check as bf16 is guarded for avx512 and above in rnn primtive
+        using namespace Xbyak;
+        if (src_data_t == data_type::bf16 && !mayiuse(avx512_core_bf16)) {
+            bf16_emu_ = new bf16_emulation_t(this, bf16_reg1, bf16_reg2,
+                    bf16_reg3, bf16_reg4, bf16_reg5);
+
+        } else
+            bf16_emu_ = nullptr;
+    };
 
     template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
     rnn_postgemm_sig(execute) {
@@ -103,6 +124,14 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 protected:
     void init_regs(size_t vlen) {
         switch (pd_->weights_md()->data_type) {
+            case data_type::bf16: {
+                /* bfloat downconvert init */
+                if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
+                /* init mask for upconvert */
+                mov(r13d, 1);
+                kmovd(bf16_k_mask, r13d);
+                break;
+            }
             case data_type::s8: {
                 /* int8 (de)quantization init*/
                 float *weights_scales
@@ -251,6 +280,38 @@ protected:
 #endif
     }
 
+    // upconvert from bf16 to float
+    template <typename Vmm>
+    void bf16_uc(Vmm dst, Xbyak::Address src, int in_len) {
+        switch (in_len) {
+            case 64:
+                vpmovzxwd(dst, src);
+                vpslld(dst, dst, 0x10);
+                break;
+            case 4:
+                vpmovzxwd(dst | bf16_k_mask | T_z, src);
+                vpslld(dst, dst, 0x10);
+                break;
+            default: assert(!"unsupported");
+        }
+    }
+
+    // downconvert from float to bf16
+    template <typename Vmm>
+    void bf16_dc(Xbyak::Address dst, Vmm src, int in_len) {
+        Xbyak::Zmm srcz(src.getIdx());
+        Xbyak::Ymm bf16_reg_dc(bf16_dq_reg_idx);
+        if (bf16_emu_)
+            bf16_emu_->vcvtneps2bf16(bf16_reg_dc, srcz);
+        else
+            vcvtneps2bf16(bf16_reg_dc, srcz);
+        switch (in_len) {
+            case 64: uni_vmovups(dst, bf16_reg_dc); break;
+            case 4: pextrw(dst, Xbyak::Xmm(bf16_reg_dc.getIdx()), 0x0); break;
+            default: assert(!"unsupported case");
+        }
+    }
+
     // handles quantization/conversion and write to memory
     template <data_type_t src_data_t, typename Vmm>
     void to_src(Xbyak::Address dst, Vmm src, int in_len) {
@@ -263,6 +324,7 @@ protected:
                 else
                     assert(!"unsupported");
                 break;
+            case data_type::bf16: bf16_dc(dst, src, in_len); break;
             case data_type::u8: q_d(dst, src, in_len); break;
             default: assert(!"unsupported");
         }
@@ -279,6 +341,7 @@ protected:
                 else
                     assert(!"unsupported");
                 break;
+            case data_type::bf16: bf16_uc(dst, src, in_len); break;
             default: assert(!"unsupported");
         }
     }
@@ -286,6 +349,7 @@ protected:
     kernel_t kernel_;
     const rnn_utils::rnn_conf_t &rnn_;
     const rnn_pd_t *pd_;
+    bf16_emulation_t *bf16_emu_;
 
     // registers/Labels used for int8 quantization and conversions
     Xbyak::Address dscale_off_addr;
@@ -296,6 +360,16 @@ protected:
     Xbyak::Reg64 qtable;
     Xbyak::Label qlabel;
     int qd_reg_idx;
+
+    // registers used for bf16 conversions
+    Xbyak::Zmm bf16_reg1;
+    Xbyak::Zmm bf16_reg2;
+    Xbyak::Zmm bf16_reg3;
+    Xbyak::Reg64 bf16_reg4;
+    Xbyak::Zmm bf16_reg5;
+    Xbyak::Reg64 bf16_reg_mask;
+    Xbyak::Opmask bf16_k_mask;
+    int bf16_dq_reg_idx;
 };
 
 } // namespace cpu
