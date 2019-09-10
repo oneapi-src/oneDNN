@@ -71,7 +71,7 @@ struct simple_sum_t: public cpu_primitive_t {
         }
 
         sum_bf16_params_t bf16_p_;
-        dim_t block_size_, nelems_, blocks_number_, tail_;
+        dim_t block_size_ = 0, nelems_ = 0, blocks_number_ = 0, tail_ = 0;
 
     private:
         const dim_t cacheline_size_ = 64; // bytes
