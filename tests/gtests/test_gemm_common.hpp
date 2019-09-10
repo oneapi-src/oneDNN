@@ -1056,6 +1056,14 @@ protected:
         SKIP_IF(get_test_engine_kind() == engine::kind::cpu,
                 "SYCL CPU GEMM not implemented.");
 #endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        SKIP_IF(get_test_engine_kind() == engine::kind::gpu
+                        && (data_traits<a_dt>::data_type
+                                        == memory::data_type::u8
+                                || data_traits<a_dt>::data_type
+                                        == memory::data_type::s8),
+                "SYCL GPU int GEMM not implemented.");
+#endif
 
         bool is_bfloat16 = true
                 && data_traits<a_dt>::data_type == memory::data_type::bf16
