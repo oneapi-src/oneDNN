@@ -208,7 +208,8 @@ status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
     if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
             || !memory_desc_sanity_check(
                     ndims, dims, in_md->data_type, in_md->format_kind)
-            || !(in_md->format_kind == format_kind::blocked))
+            || !(in_md->format_kind == format_kind::blocked)
+            || types::is_zero_md(in_md))
         return invalid_arguments;
 
     // TODO: right now only appending is supported.
