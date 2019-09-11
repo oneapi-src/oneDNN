@@ -715,8 +715,8 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
     float g_o = logistic_fwd(
             (float)ws_gates[CELL_WS_GATES(i, 3, j)] + bias[OFF_KER_BIAS(3, j)]);
 
-    ws_gates[CELL_WS_GATES(i, 0, j)] = g_f;
-    ws_gates[CELL_WS_GATES(i, 1, j)] = g_i;
+    ws_gates[CELL_WS_GATES(i, 0, j)] = g_i;
+    ws_gates[CELL_WS_GATES(i, 1, j)] = g_f;
     ws_gates[CELL_WS_GATES(i, 2, j)] = g_z;
     ws_gates[CELL_WS_GATES(i, 3, j)] = g_o;
 
