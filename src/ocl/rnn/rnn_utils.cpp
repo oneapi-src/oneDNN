@@ -162,6 +162,12 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     }
 }
 
+void rnn_utils::init_test_mode(rnn_conf_t &rnn, const primitive_attr_t &attr) {
+    rnn.is_testmode = attr.rnn_tparams_.test_mode_;
+    rnn.tm_ngates = attr.rnn_tparams_.ngates_;
+    rnn.tm_cscale = attr.rnn_tparams_.cscale_;
+}
+
 void rnn_utils::set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,

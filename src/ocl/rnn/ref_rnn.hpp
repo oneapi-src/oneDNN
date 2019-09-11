@@ -144,9 +144,16 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             init_rnn_conf(rnn_conf_, *this->desc(), this->src_md(0),
                     this->src_md(1), this->weights_md(0), this->weights_md(1),
                     this->dst_md(0));
+            init_test_mode(rnn_conf_, *this->attr());
 
-            if (one_of(rnn_conf_.dt_conf, all_f32, all_f16))
-                ok = ok && this->attr()->has_default_values();
+            /* check that only supported attr have been passed */
+            primitive_attr_t::skip_mask_t attr_mask
+                    = primitive_attr_t::skip_mask_t::rnn_tparams;
+            if (weights_layer_dt == data_type::s8)
+                attr_mask = attr_mask
+                        | primitive_attr_t::skip_mask_t::rnn_data_qparams
+                        | primitive_attr_t::skip_mask_t::rnn_weights_qparams;
+            ok = ok && this->attr()->has_default_values(attr_mask);
 
             // TODO: implement something like check layout consistency
             switch (aprop) {
@@ -411,8 +418,30 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     * sizeof(float); // G * O * sizeof(float);
             memory_storage_t *temp_buf_ptr;
             engine()->create_memory_storage(&temp_buf_ptr, size);
-            scales_buf.reset(temp_buf_ptr);
-            if (!scales_buf) return status::runtime_error;
+            scales_buf_.reset(temp_buf_ptr);
+            if (!scales_buf_) return status::runtime_error;
+        }
+
+        // Prepare testmode scales defined by attributes. Doesn't introduce
+        // primitive state, because it is a constant memory -- will not be
+        // changed during execution.
+        // TODO: add the testmode scales to ws
+        if (pd()->rnn_conf_.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
+            size_t size = pd()->rnn_conf_.tm_ngates
+                    * sizeof(*pd_->attr()->rnn_tparams_.scales_);
+            memory_storage_t *temp_buf_ptr;
+            engine()->create_memory_storage(&temp_buf_ptr, size);
+            tm_scales_buf_.reset(temp_buf_ptr);
+            if (!tm_scales_buf_) return status::runtime_error;
+
+            void *tmp_ptr = nullptr;
+            status = tm_scales_buf_->map_data(&tmp_ptr);
+            if (status != status::success) return status;
+            utils::array_copy((float *)tmp_ptr,
+                    pd()->attr()->rnn_tparams_.scales_,
+                    pd()->attr()->rnn_tparams_.ngates_);
+            status = tm_scales_buf_->unmap_data(tmp_ptr);
+            if (status != status::success) return status;
         }
 
         bool gemm_ok = true;
@@ -615,7 +644,8 @@ private:
     primitive_t *gemm_diff_wei_iter_ = nullptr;
 
     memory_storage_t *scratchpad_;
-    std::unique_ptr<memory_storage_t> scales_buf;
+    std::unique_ptr<memory_storage_t> scales_buf_;
+    std::unique_ptr<memory_storage_t> tm_scales_buf_;
 
     cl_ulong ws_gates_offset_;
     cl_ulong ws_states_offset_;

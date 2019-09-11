@@ -220,6 +220,7 @@ struct jit_rnn_conf_t {
     bool is_fwd;
     bool copy_bias;
     bool is_int8;
+    bool is_testmode;
     data_type_t src_dt;
     data_type_t wei_dt;
     data_type_t bia_dt;

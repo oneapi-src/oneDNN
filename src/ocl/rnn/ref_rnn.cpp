@@ -200,7 +200,7 @@ grid_execution_sig(
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
                         workspace, w_input, w_state, diff_weights_layer,
-                        diff_weights_iter, diff_bias, scales);
+                        diff_weights_iter, diff_bias, scales, tm_scales);
             }
         }
     }
@@ -588,14 +588,14 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     bool is_rl = !one_of(rnn.exec_dir, l2r, l2r);
 
     // copy bias to memory storage
-    if (rnn.copy_bias && scales_buf) {
+    if (rnn.copy_bias && scales_buf_) {
         void *tmp_ptr = nullptr;
-        status = scales_buf->map_data(&tmp_ptr);
+        status = scales_buf_->map_data(&tmp_ptr);
         if (status != status::success) return status;
         utils::array_copy((float *)tmp_ptr,
                 pd()->attr()->rnn_weights_qparams_.scales_,
                 rnn.n_gates * rnn.dic);
-        status = scales_buf->unmap_data(tmp_ptr);
+        status = scales_buf_->unmap_data(tmp_ptr);
         if (status != status::success) return status;
     }
 
@@ -611,7 +611,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     // bias prepare if needed
     if (rnn.copy_bias) {
         bias_prepare(compute_stream, n_layer, n_dir, n_bias, n_gates, dic,
-                workspace_, *scales_buf, w_input_native_, w_state_native_,
+                workspace_, *scales_buf_, w_input_native_, w_state_native_,
                 bias_native_);
     }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
@@ -638,7 +638,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
             bias_native_, workspace_, w_input_native_, w_state_native_,
             diff_weights_layer_native_, diff_weights_iter_native_,
-            diff_bias_native_, *scales_buf);
+            diff_bias_native_, *scales_buf_, *tm_scales_buf_);
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);

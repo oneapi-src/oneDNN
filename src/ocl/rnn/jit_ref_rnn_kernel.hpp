@@ -64,8 +64,7 @@ struct jit_ref_rnn_kernel {
             const memory_desc_wrapper &diff_dst_layer_d,
             const memory_desc_wrapper &diff_dst_iter_d,
             const memory_desc_wrapper &diff_dst_iter_c_d,
-            const memory_desc_wrapper &ws_d, jit_rnn_offsets &jit_off,
-            const primitive_attr_t &attr) {
+            const memory_desc_wrapper &ws_d, jit_rnn_offsets &jit_off) {
 
         using namespace rnn_utils;
 
@@ -166,6 +165,7 @@ struct jit_ref_rnn_kernel {
         jrnn.direction_kind = rnn_pd->direction();
 
         jrnn.wei_qparam_mask = rnn_pd->attr()->rnn_weights_qparams_.mask_;
+        jrnn.is_testmode = rnn.is_testmode;
 
         return status::success;
     };
@@ -291,6 +291,7 @@ struct jit_ref_rnn_kernel {
         kernel_ctx.define_int("IS_INT8", jrnn.is_int8);
         kernel_ctx.define_int("COPY_BIAS", jrnn.copy_bias);
         kernel_ctx.define_int("WEI_QPARAM_MASK", jrnn.wei_qparam_mask);
+        kernel_ctx.define_int("IS_TESTMODE", jrnn.is_testmode);
 
         kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
 
@@ -312,7 +313,7 @@ inline status_t init_jit(jit_rnn_conf_t &jrnn, const rnn_utils::rnn_conf_t &rnn,
             rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
             rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc,
             fakedesc, fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
-            rnn_pd->workspace_md(0), jit_off, *rnn_pd->attr());
+            rnn_pd->workspace_md(0), jit_off);
 }
 
 template <>
@@ -327,7 +328,7 @@ inline status_t init_jit<prop_kind::backward>(jit_rnn_conf_t &jrnn,
             rnn_pd->diff_weights_md(0), rnn_pd->diff_weights_md(1),
             rnn_pd->diff_weights_md(2), rnn_pd->diff_dst_md(0),
             rnn_pd->diff_dst_md(1), rnn_pd->diff_dst_md(2),
-            rnn_pd->workspace_md(0), jit_off, *rnn_pd->attr());
+            rnn_pd->workspace_md(0), jit_off);
 }
 
 } // namespace ocl

@@ -187,43 +187,90 @@ float tanh_fwd(float s) {
 float logistic_fwd(float s) {
     return 1 / (1 + exp((float)-s));
 }
-float logistic_bwd(float dd, float s) {
-    return dd * x_m_square(s);
+float logistic_bwd(float s) {
+    return x_m_square(s);
 }
-float relu_bwd(float dd, float s, float alpha) {
-    return s > 0 ? dd : dd * alpha;
+float relu_bwd(float s, float alpha) {
+    return s > 0 ? 1.f : alpha;
 }
-float tanh_bwd(float dd, float s) {
-    return dd * (1 - s) * (1 + s);
+float tanh_bwd(float s) {
+    return (1 - s) * (1 + s);
 }
+float linear(float s, float alpha) {
+    return alpha * s;
+}
+
+float relu_fwd_tm(float s, float alpha) {
+#if !IS_TESTMODE
+    return relu_fwd(s, alpha);
+#else
+    return linear(s, alpha);
+#endif
+}
+float tanh_fwd_tm(float s, float alpha) {
+#if !IS_TESTMODE
+    return tanh(s);
+#else
+    return linear(s, alpha);
+#endif
+}
+float logistic_fwd_tm(float s, float alpha) {
+#if !IS_TESTMODE
+    return logistic_fwd(s);
+#else
+    return linear(s, alpha);
+#endif
+}
+
+float relu_bwd_tm(float s, float alpha) {
+#if !IS_TESTMODE
+    return relu_bwd(s, alpha);
+#else
+    return linear(s, alpha);
+#endif
+}
+float tanh_bwd_tm(float s, float alpha) {
+#if !IS_TESTMODE
+    return tanh_bwd(s);
+#else
+    return linear(s, alpha);
+#endif
+}
+float logistic_bwd_tm(float s, float alpha) {
+#if !IS_TESTMODE
+    return logistic_bwd(s);
+#else
+    return linear(s, alpha);
+#endif
+}
+
 float activation_fwd(float s, float alpha, float cliping) {
 #if CELL_KIND == VANILLA_LSTM
     // LSTM doesn't use activation function
     return 0.0f;
-#else
+#else // VANILLA_RNN
 #if ACTIVATION_KIND == ELTWISE_RELU
-    return relu_fwd(s, alpha);
+    return relu_fwd_tm(s, alpha);
 #elif ACTIVATION_KIND == ELTWISE_TANH
-    return tanh_fwd(s);
+    return tanh_fwd_tm(s, alpha);
 #elif ACTIVATION_KIND == ELTWISE_LOGISTIC
-    return logistic_fwd(s);
+    return logistic_fwd_tm(s, alpha);
 #else
 #error "Unsupported activation_kind"
 #endif
 #endif
 }
-
-float activation_bwd(float dd, float s, float alpha, float cliping) {
+float activation_bwd(float s, float alpha, float cliping) {
 #if CELL_KIND == VANILLA_LSTM
     // LSTM doesn't use activation function
     return 0.0f;
-#else
+#else // VANILLA_RNN
 #if ACTIVATION_KIND == ELTWISE_RELU
-    return relu_bwd(dd, s, alpha);
+    return relu_bwd_tm(s, alpha);
 #elif ACTIVATION_KIND == ELTWISE_TANH
-    return tanh_bwd(dd, s);
+    return tanh_bwd_tm(s, alpha);
 #elif ACTIVATION_KIND == ELTWISE_LOGISTIC
-    return logistic_bwd(dd, s);
+    return logistic_bwd_tm(s, alpha);
 #else
 #error "Unsupported activation_kind"
 #endif
@@ -639,9 +686,11 @@ float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
     return (float)(s) * (1.f / (wei_scale * data_scale));
 }
 
+// for int8 LSTM
 __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         __global char *ws, __global float *scales, __global float *bias_base,
-        float data_shift, float data_scale) {
+        float alpha, float data_shift, float data_scale,
+        __global float *tm_scales, float tm_cscale) {
 
     const int i = get_global_id(0); // batch
     const int j = get_global_id(1); // dic
@@ -661,30 +710,35 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
     __global float *c_states_t_l = (__global float *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
-    float G0 = logistic_fwd(
+    float G0 = logistic_fwd_tm(
             deq_w(ws_gates[CELL_WS_GATES(i, 0, j)], 0, j, scales, data_scale)
-            + ws_bias[OFF_WS_BIAS(lay, dir, 0, j)]);
-    float G1 = logistic_fwd(
+                    + ws_bias[OFF_WS_BIAS(lay, dir, 0, j)],
+            tm_scales[0]);
+    float G1 = logistic_fwd_tm(
             deq_w(ws_gates[CELL_WS_GATES(i, 1, j)], 1, j, scales, data_scale)
-            + ws_bias[OFF_WS_BIAS(lay, dir, 1, j)]);
-    float G2 = tanh_fwd(
+                    + ws_bias[OFF_WS_BIAS(lay, dir, 1, j)],
+            tm_scales[1]);
+    float G2 = tanh_fwd_tm(
             deq_w(ws_gates[CELL_WS_GATES(i, 2, j)], 2, j, scales, data_scale)
-            + ws_bias[OFF_WS_BIAS(lay, dir, 2, j)]);
-    float G3 = logistic_fwd(
+                    + ws_bias[OFF_WS_BIAS(lay, dir, 2, j)],
+            tm_scales[2]);
+    float G3 = logistic_fwd_tm(
             deq_w(ws_gates[CELL_WS_GATES(i, 3, j)], 3, j, scales, data_scale)
-            + ws_bias[OFF_WS_BIAS(lay, dir, 3, j)]);
+                    + ws_bias[OFF_WS_BIAS(lay, dir, 3, j)],
+            tm_scales[3]);
 
     float tmp = G1 * c_states_tm1_l[CELL_WS_STATE(i, j)] + G0 * G2;
 
     h_states_t_l[CELL_WS_STATE(i, j)]
-            = q_d(G3 * tanh_fwd(tmp), data_scale, data_shift);
+            = q_d(G3 * tanh_fwd_tm(tmp, tm_cscale), data_scale, data_shift);
     c_states_t_l[CELL_WS_STATE(i, j)] = tmp;
 }
 
 #else
 
 __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
-        __global char *ws, __global PRECISE_DATA_T *bias_base) {
+        __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
+        __global float *tm_scales, float tm_cscale) {
 
     const int i = get_global_id(0); // batch
     const int j = get_global_id(1); // dic
@@ -706,14 +760,18 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
 
 #if CELL_KIND == VANILLA_LSTM
 
-    float g_i = logistic_fwd(
-            (float)ws_gates[CELL_WS_GATES(i, 0, j)] + bias[OFF_KER_BIAS(0, j)]);
-    float g_f = logistic_fwd(
-            (float)ws_gates[CELL_WS_GATES(i, 1, j)] + bias[OFF_KER_BIAS(1, j)]);
-    float g_z = tanh_fwd(
-            (float)ws_gates[CELL_WS_GATES(i, 2, j)] + bias[OFF_KER_BIAS(2, j)]);
-    float g_o = logistic_fwd(
-            (float)ws_gates[CELL_WS_GATES(i, 3, j)] + bias[OFF_KER_BIAS(3, j)]);
+    float g_i = logistic_fwd_tm(
+            (float)ws_gates[CELL_WS_GATES(i, 0, j)] + bias[OFF_KER_BIAS(0, j)],
+            tm_scales[0]);
+    float g_f = logistic_fwd_tm(
+            (float)ws_gates[CELL_WS_GATES(i, 1, j)] + bias[OFF_KER_BIAS(1, j)],
+            tm_scales[1]);
+    float g_z = tanh_fwd_tm(
+            (float)ws_gates[CELL_WS_GATES(i, 2, j)] + bias[OFF_KER_BIAS(2, j)],
+            tm_scales[2]);
+    float g_o = logistic_fwd_tm(
+            (float)ws_gates[CELL_WS_GATES(i, 3, j)] + bias[OFF_KER_BIAS(3, j)],
+            tm_scales[3]);
 
     ws_gates[CELL_WS_GATES(i, 0, j)] = g_i;
     ws_gates[CELL_WS_GATES(i, 1, j)] = g_f;
@@ -721,18 +779,24 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
     ws_gates[CELL_WS_GATES(i, 3, j)] = g_o;
 
     float Ct = g_f * c_states_tm1_l[CELL_WS_STATE(i, j)] + g_i * g_z;
-    float Ht = g_o * tanh_fwd(Ct);
+    float Ht = g_o * tanh_fwd_tm(Ct, tm_cscale);
 
     h_states_t_l[CELL_WS_STATE(i, j)] = Ht;
     c_states_t_l[CELL_WS_STATE(i, j)] = Ct;
 
 #elif CELL_KIND == VANILLA_RNN
+
     float g = activation_fwd(
             (float)ws_gates[CELL_WS_GATES(i, 0, j)] + bias[OFF_KER_BIAS(0, j)],
-            0, 0);
+#if IS_TESTMODE
+            tm_scales[0], 0);
+#else
+            alpha, 0);
+#endif
 
     ws_gates[CELL_WS_GATES(i, 0, j)] = g;
     h_states_t_l[CELL_WS_STATE(i, j)] = g;
+
 #else
 #error "Wrong cell kind"
 #endif
@@ -740,7 +804,9 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
 #endif
 
 __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
-        __global char *ws, __global PRECISE_DATA_T *bias_base) {
+        __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
+        __global float *tm_scales, float tm_cscale) {
+
     const int i = get_global_id(0); // batch
     const int j = get_global_id(1); // dic
 
@@ -767,7 +833,7 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
     float Ct = c_states_t_l[CELL_WS_STATE(i, j)];
     /// @todo save it in the workspace in fwd pass or recompute it to
     /// save bw
-    float tanhCt = tanh_fwd(Ct);
+    float tanhCt = tanh_fwd_tm(Ct, tm_cscale);
     // we have 2 incoming diffs on Ht
     float dHt = (float)diff_states_tp1_l[CELL_WS_DIFF_STATES(0, i, j)]
             + diff_states_t_lp1[CELL_WS_DIFF_STATES(N_STATES, i, j)];
@@ -805,7 +871,12 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
     const float dH = (float)diff_states_t_lp1[0] + diff_states_tp1_l[0];
 
     float g = ws_gates[0];
-    ws_gates[0] = activation_bwd(dH, g, 0., 0.);
+#if IS_TESTMODE
+    ws_gates[0] = dH * activation_bwd(g, tm_scales[0], 0.);
+#else
+    ws_gates[0] = dH * activation_bwd(g, alpha, 0.);
+#endif
+
 #else
 #error "Wrong cell kind"
 #endif

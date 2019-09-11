@@ -65,8 +65,8 @@ cell_execution_sig(
                 workspace, offset_states, workspace, offset_gates, false, 1.0f,
                 gemm_iter);
 
-        (this->*elemwise_func)(
-                ctx, dir, lay, iter, dic, wic, batch, workspace, scales, bias);
+        (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
+                scales, bias, tm_scales);
 
     } else { // backward
 
@@ -75,8 +75,8 @@ cell_execution_sig(
         AOC<size_t, 3> off_weights_st(
                 weights_states, n_layer, n_dir, n_parts_weights_iter);
 
-        (this->*elemwise_func)(
-                ctx, dir, lay, iter, dic, wic, batch, workspace, scales, bias);
+        (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
+                scales, bias, tm_scales);
 
         cl_ulong offset_w_state
                 = (cl_ulong)(off_weights_st(lay, dir, 0)) * sizeof(wei_t);

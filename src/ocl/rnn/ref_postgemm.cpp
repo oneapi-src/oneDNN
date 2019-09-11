@@ -34,6 +34,13 @@ elemwise_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::rnn_elemwise)) {
     arg_list.set(2, iter);
     arg_list.set(3, workspace);
     arg_list.set(4, bias);
+    arg_list.set(5, pd()->desc()->alpha);
+    // for test mode
+    arg_list.set(6,
+            pd()->rnn_conf_.is_testmode ? tm_scales
+                                        : memory_storage_t::empty_storage());
+    arg_list.set(
+            7, pd()->rnn_conf_.is_testmode ? pd()->rnn_conf_.tm_cscale : 0.0f);
     compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
@@ -56,6 +63,13 @@ elemwise_sig(
     arg_list.set(2, iter);
     arg_list.set(3, workspace);
     arg_list.set(4, bias);
+    arg_list.set(5, pd()->desc()->alpha);
+    // for test mode
+    arg_list.set(6,
+            pd()->rnn_conf_.is_testmode ? tm_scales
+                                        : memory_storage_t::empty_storage());
+    arg_list.set(
+            7, pd()->rnn_conf_.is_testmode ? pd()->rnn_conf_.tm_cscale : 0.0f);
     compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
@@ -79,8 +93,15 @@ elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
     arg_list.set(3, workspace);
     arg_list.set(4, scales);
     arg_list.set(5, bias);
-    arg_list.set(6, data_shift);
-    arg_list.set(7, data_scale);
+    arg_list.set(6, pd()->desc()->alpha);
+    arg_list.set(7, data_shift);
+    arg_list.set(8, data_scale);
+    // for test mode
+    arg_list.set(9,
+            pd()->rnn_conf_.is_testmode ? tm_scales
+                                        : memory_storage_t::empty_storage());
+    arg_list.set(
+            10, pd()->rnn_conf_.is_testmode ? pd()->rnn_conf_.tm_cscale : 0.0f);
     compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
