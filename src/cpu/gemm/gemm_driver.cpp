@@ -1065,7 +1065,8 @@ static inline void set_thread_opts_nopack(int nthrs,
         if (m > n && (m >= nthrs * veclen || n < nthrs)) {
             if (n <= 20 && isInteger) {
                 // Use 3D decomposition forcing m-blocking only.
-                set_thread_opts_pack(nthrs, thread_info, arg, false, true, false);
+                set_thread_opts_pack(
+                        nthrs, thread_info, arg, false, true, false);
             } else {
                 thread_info.partition = partition_type::row_1d;
                 thread_info.nthrs_m = nthrs;
@@ -1534,16 +1535,16 @@ static dnnl_status_t gemm_threading_driver(
         else if (is_b_packed)
             force_threading = &arg->b_packed->threading();
         else
-            // Use k-partitioning if necessary.
-            if (arg->n <= 128 && arg->k >= 3072 && is_integer) {
-                // Use 3D decomposition from pack api without n-partitioning.
-                set_thread_opts_pack(nthr_goal, force_k_decomp, arg, true, true,
-                        false);
+                // Use k-partitioning if necessary.
+                if (arg->n <= 128 && arg->k >= 3072 && is_integer) {
+            // Use 3D decomposition from pack api without n-partitioning.
+            set_thread_opts_pack(
+                    nthr_goal, force_k_decomp, arg, true, true, false);
 
-                // Decide partition type later if no partitions in k-dimension.
-                if (force_k_decomp.nthrs_k > 1 && force_k_decomp.nthrs_m > 1)
-                    force_threading = &force_k_decomp;
-            }
+            // Decide partition type later if no partitions in k-dimension.
+            if (force_k_decomp.nthrs_k > 1 && force_k_decomp.nthrs_m > 1)
+                force_threading = &force_k_decomp;
+        }
 
         if (force_threading) {
             nthr_goal = force_threading->nthrs();

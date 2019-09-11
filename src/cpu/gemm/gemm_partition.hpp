@@ -100,8 +100,8 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
             m_disp = ithr_i * first_m_val;
         } else if (ithr_i <= mthr_used - 2) {
             m_band = m_bandt;
-            m_disp = first_m_group * first_m_val +
-                (ithr_i - first_m_group) * m_bandt;
+            m_disp = first_m_group * first_m_val
+                    + (ithr_i - first_m_group) * m_bandt;
         } else {
             m_disp = first_m_group * first_m_val
                     + (mthr_used - 1 - first_m_group) * m_bandt;
@@ -113,8 +113,8 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
             n_disp = ithr_j * first_n_val;
         } else if (ithr_j <= nthr_used - 2) {
             n_band = n_bandt;
-            n_disp = first_n_group * first_n_val +
-                (ithr_j - first_n_group) * n_bandt;
+            n_disp = first_n_group * first_n_val
+                    + (ithr_j - first_n_group) * n_bandt;
         } else {
             n_disp = first_n_group * first_n_val
                     + (nthr_used - 1 - first_n_group) * n_bandt;
