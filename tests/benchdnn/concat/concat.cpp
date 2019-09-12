@@ -109,7 +109,7 @@ int fill_src(
     };
 
     const auto nelems = mem_fp.nelems();
-    const int range = get_range(p->sdt);
+    const int range = MIN2(get_range(p->sdt), get_range(p->ddt));
     const int f_min = p->sdt == dnnl_u8 ? 0 : -range / 2;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
