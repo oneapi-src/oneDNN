@@ -194,7 +194,7 @@ const _dt_conf_t conf_f32u8f32f32 = {
 
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
-#define EPS 1e-1
+#define EPS 1e-3
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
