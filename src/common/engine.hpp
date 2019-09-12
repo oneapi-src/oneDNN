@@ -161,11 +161,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
             if (status != dnnl::impl::status::success) return status;
 
             ms = dnnl::impl::get_msec() - ms;
-            if (dnnl::impl::dnnl_verbose()->level >= 2) {
-                printf("dnnl_verbose,create:cache_hit,%s,%g\n", p->pd()->info(),
-                        ms);
-                fflush(0);
-            }
+            print_verbose(dnnl::impl::dnnl_verbose()->level, true, p, ms);
             (*primitive) = p;
             return status;
         }
@@ -198,11 +194,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         recursive_mutex_.unlock();
 
         ms = dnnl::impl::get_msec() - ms;
-        if (dnnl::impl::dnnl_verbose()->level >= 2) {
-            printf("dnnl_verbose,create:cache_miss,%s,%g\n", p->pd()->info(),
-                    ms);
-            fflush(0);
-        }
+        print_verbose(dnnl::impl::dnnl_verbose()->level, false, p, ms);
         (*primitive) = p;
         return status;
     }
