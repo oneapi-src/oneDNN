@@ -46,6 +46,9 @@ struct lrn_pd_t : public primitive_desc_t {
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
+            case query::prop_kind:
+                *(prop_kind_t *)result = desc()->prop_kind;
+                break;
             case query::lrn_d: *(const lrn_desc_t **)result = desc(); break;
             default: return primitive_desc_t::query(what, idx, result);
         }

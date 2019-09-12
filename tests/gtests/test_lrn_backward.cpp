@@ -286,6 +286,8 @@ protected:
 
         auto lrn_prim_desc = lrn_backward::primitive_desc(
                 lrn_desc, eng, lrn_fwd_prim_desc);
+        // test construction from a C pd
+        lrn_prim_desc = lrn_backward::primitive_desc(lrn_prim_desc.get());
 
         fill_data<data_t>(src->get_size() / sizeof(data_t), src->get());
 

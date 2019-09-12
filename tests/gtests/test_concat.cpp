@@ -143,6 +143,8 @@ protected:
         auto dst_desc = memory::desc(p.dst_cds, data_type, p.dst_format);
         auto concat_pd = concat::primitive_desc(
                 dst_desc, static_cast<int>(p.concat_dimension), srcs_md, eng);
+        // test construction from a C pd
+        concat_pd = concat::primitive_desc(concat_pd.get());
         auto dst = memory(concat_pd.dst_desc(), eng);
         fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
         check_zero_tail<data_t>(1, dst);

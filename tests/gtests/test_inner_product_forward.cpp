@@ -134,6 +134,8 @@ protected:
 
         auto ip_primitive_desc
                 = inner_product_forward::primitive_desc(ip_desc, eng);
+        ip_primitive_desc = inner_product_forward::primitive_desc(
+                ip_primitive_desc.get()); // test construction from a C pd
 
         memory ip_src(ip_primitive_desc.src_desc(), eng);
         memory ip_weights(ip_primitive_desc.weights_desc(), eng);

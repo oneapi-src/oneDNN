@@ -109,6 +109,8 @@ protected:
 
         reorder::primitive_desc r_pd(
                 eng_i, md_i, eng_o, md_o, primitive_attr());
+        // test construction from a C pd
+        r_pd = reorder::primitive_desc(r_pd.get());
         auto r = reorder(r_pd);
 
         auto strm = stream(r_pd.get_engine());

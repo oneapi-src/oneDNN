@@ -484,6 +484,11 @@ const query_t scratchpad_engine = dnnl_query_scratchpad_engine;
 
 const query_t impl_info_str = dnnl_query_impl_info_str;
 
+const query_t reorder_src_engine = dnnl_query_reorder_src_engine;
+const query_t reorder_dst_engine = dnnl_query_reorder_dst_engine;
+
+const query_t prop_kind = dnnl_query_prop_kind;
+
 const query_t some_d = dnnl_query_some_d;
 const query_t op_d = dnnl_query_op_d;
 const query_t convolution_d = dnnl_query_convolution_d;

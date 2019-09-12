@@ -186,6 +186,8 @@ protected:
                 = softmax_forward::desc(p.aprop_kind, mem_desc, p.axis);
         auto softmax_prim_desc
                 = softmax_forward::primitive_desc(softmax_desc, eng);
+        softmax_prim_desc = softmax_forward::primitive_desc(
+                softmax_prim_desc.get()); // test construction from C pd
         auto softmax = softmax_forward(softmax_prim_desc);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {

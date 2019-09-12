@@ -32,6 +32,7 @@ status_t dnnl_primitive_desc_iterator_create(
         const primitive_attr_t *attr, engine_t *engine,
         const primitive_desc_t *hint_fwd_pd) {
     const op_desc_t *op_desc = (const op_desc_t *)c_op_desc;
+    if (utils::any_null(iterator, op_desc, engine)) return invalid_arguments;
 
     auto it = new primitive_desc_iterator_t(engine, op_desc, attr, hint_fwd_pd);
     if (it == nullptr) return out_of_memory;
@@ -77,6 +78,8 @@ status_t dnnl_primitive_desc_create(primitive_desc_t **primitive_desc,
         const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
         engine_t *engine, const primitive_desc_t *hint_fwd_pd) {
     const op_desc_t *op_desc = (const op_desc_t *)c_op_desc;
+    if (utils::any_null(primitive_desc, op_desc, engine))
+        return invalid_arguments;
 
     dnnl_primitive_desc_iterator it(engine, op_desc, attr, hint_fwd_pd);
     ++it;

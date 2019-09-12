@@ -151,6 +151,8 @@ protected:
 
         bnorm_fwd_pd
                 = batch_normalization_forward::primitive_desc(bnorm_fwd_d, eng);
+        bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
+                bnorm_fwd_pd.get()); // test construction from a C pd
 
         weights = memory(bnorm_fwd_pd.weights_desc(), eng);
         if (isTraining || useGlobalStats) {
@@ -190,6 +192,8 @@ protected:
                 pk, *diff_d, *data_d, p.epsilon, flags);
         bnorm_bwd_pd = batch_normalization_backward::primitive_desc(
                 bnorm_bwd_d, eng, bnorm_fwd_pd);
+        bnorm_bwd_pd = batch_normalization_backward::primitive_desc(
+                bnorm_bwd_pd.get()); // test construction from a C pd
 
         if (useScaleShift) weights = memory(bnorm_bwd_pd.weights_desc(), eng);
         diff_weights = memory(bnorm_bwd_pd.diff_weights_desc(), eng);

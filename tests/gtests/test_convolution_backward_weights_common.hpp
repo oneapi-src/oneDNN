@@ -203,6 +203,10 @@ protected:
         auto conv_bwd_weights_primitive_desc
                 = convolution_backward_weights::primitive_desc(
                         conv_bwd_weights_desc, eng, conv_primitive_desc);
+        conv_bwd_weights_primitive_desc
+                = convolution_backward_weights::primitive_desc(
+                        conv_bwd_weights_primitive_desc
+                                .get()); // test construction from a C pd
 
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,

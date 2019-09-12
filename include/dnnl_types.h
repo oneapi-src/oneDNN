@@ -1533,14 +1533,14 @@ typedef struct {
 /// agree with the queried argument. The correspondence table:
 ///      Query                           | type of result
 ///      --------------------------------------------------------------
-///      #dnnl_query_engine            | dnnl_engine_t *
-///      #dnnl_query_scratchpad_engine | dnnl_engine_t *
-///      #dnnl_query_primitive_kind    | dnnl_primitive_kind_t *
+///      #dnnl_query_engine              | dnnl_engine_t *
+///      #dnnl_query_scratchpad_engine   | dnnl_engine_t *
+///      #dnnl_query_primitive_kind      | dnnl_primitive_kind_t *
 ///      *_s32                           | int *
 ///      *_s64                           | dnnl_dim_t * (same as int64_t *)
 ///      *_f64                           | double *
 ///      *_str                           | const char **
-///      #dnnl_query_op_d              | const_dnnl_op_desc_t *
+///      #dnnl_query_op_d                | const_dnnl_op_desc_t *
 ///      *_md                            | const dnnl_memory_desc_t **
 ///      *_${op}_d                       | const dnnl_${op}_desc_t **
 ///      *_pd                            | const_dnnl_primitive_desc_t *
@@ -1574,6 +1574,11 @@ typedef enum {
     ///  for creating scratchpad memory
 
     dnnl_query_impl_info_str, ///< implementation name
+
+    dnnl_query_reorder_src_engine, ///< source engine
+    dnnl_query_reorder_dst_engine, ///< destination engine
+
+    dnnl_query_prop_kind, ///< propagation kind
 
     // memory and op descriptor section
     dnnl_query_some_d = 64, ///< stub

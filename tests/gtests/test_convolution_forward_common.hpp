@@ -178,6 +178,8 @@ protected:
 
         auto conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_desc, attr.mkl_attr, eng);
+        conv_primitive_desc = convolution_forward::primitive_desc(
+                conv_primitive_desc.get()); // test construction from a C pd
 
         convolution_forward(conv_primitive_desc)
                 .execute(strm,

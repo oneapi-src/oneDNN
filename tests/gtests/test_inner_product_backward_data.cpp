@@ -146,6 +146,8 @@ protected:
 
         auto ip_primitive_desc = inner_product_backward_data::primitive_desc(
                 ip_desc, eng, ip_fwd_pdesc);
+        ip_primitive_desc = inner_product_backward_data::primitive_desc(
+                ip_primitive_desc.get()); // test construction from a C pd
 
         memory ip_diff_src(ip_primitive_desc.diff_src_desc(), eng);
         memory ip_weights(ip_primitive_desc.weights_desc(), eng);

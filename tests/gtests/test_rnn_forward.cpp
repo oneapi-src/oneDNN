@@ -176,6 +176,8 @@ protected:
                 dst_layer_md_any, dst_iter_md_any, dst_iter_c_md_any,
                 p.extra.flags, p.extra.alpha, p.extra.beta);
         typename T::primitive_desc ref_pd(ref_d, eng);
+        // test construction from a C pd
+        ref_pd = typename T::primitive_desc(ref_pd.get());
 
         // Query the descriptor for memory descriptors
         auto weights_layer_md_ref = ref_pd.weights_layer_desc();
