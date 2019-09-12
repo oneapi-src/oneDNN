@@ -45,8 +45,8 @@ portable.
 
 ### Runtimes
 CPU engine can use OpenMP or TBB threading runtime. OpenMP threading
-is the default build mode and is recommended for the best performance. 
-This behavior is controlled by the `DNNL_CPU_RUNTIME` CMake option.
+is the default build mode. This behavior is controlled by the `DNNL_CPU_RUNTIME`
+CMake option.
 
 #### OpenMP
 DNNL uses OpenMP runtime library provided by the compiler.
@@ -73,14 +73,6 @@ limitations if built with Intel TBB.
 
 Functional limitations:
 * Winograd convolution algorithm is not supported.
-
-The following primitives have lower performance compared to OpenMP (mostly due
-to limited parallelism):
-* Batch normalization,
-* Convolution backward by weights,
-* Inner product,
-* Layer normalization,
-* `dnnl_*gemm()`.
 
 ## GPU Options
 Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine
