@@ -160,7 +160,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
             ms = dnnl::impl::get_msec() - ms;
             if (dnnl::impl::dnnl_verbose()->level >= 2) {
-                printf("dnnl_verbose,create:cache hit,%s,%g\n",
+                printf("dnnl_verbose,create:cache_hit,%s,%g\n",
                         (*primitive)->pd()->info(), ms);
                 fflush(0);
             }
@@ -194,7 +194,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
         ms = dnnl::impl::get_msec() - ms;
         if (dnnl::impl::dnnl_verbose()->level >= 2) {
-            printf("dnnl_verbose,create:cache miss,%s,%g\n",
+            printf("dnnl_verbose,create:cache_miss,%s,%g\n",
                     (*primitive)->pd()->info(), ms);
             fflush(0);
         }
