@@ -1764,8 +1764,11 @@ struct reorder : public primitive {
 
     cl::sycl::event execute_sycl(stream &astream, memory &src, memory &dst,
             const std::vector<cl::sycl::event> &deps = {}) const {
-        return primitive::execute_sycl(
-                astream, {{DNNL_ARG_FROM, src}, {DNNL_ARG_TO, dst}}, deps);
+        return primitive::execute_sycl(astream,
+                {{DNNL_ARG_FROM, src},
+                        { DNNL_ARG_TO,
+                            dst }},
+                deps);
     }
 #endif
 };
