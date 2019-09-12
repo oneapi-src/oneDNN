@@ -80,7 +80,7 @@
 /// a pooling and consists of the following steps:
 /// 1. Create a pooling primitive descriptor based on the memory format chosen
 ///    by the convolution primitive.
-/// 2. Create memory descriptors for input and output data in the NHWC memory
+/// 2. Create memory descriptors for input and output data in the NCHW memory
 ///    format.
 /// 3. Determine if input and output data needs to be reordered from/to the
 ///    optimized memory format.
@@ -168,9 +168,9 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     /// @subsection memory_format_propagation_sub3 Create source and destination memory objects
     ///
     /// We assume that the 'user' source and destination memory format is
-    /// NHWC. Since there is no result validation in this tutorial, we do not
-    /// bother with filling the data with some values and let the Intel
-    /// DNNL library to allocate the memory.
+    /// NCHW. Since there is no result validation in this tutorial, we do not
+    /// bother with filling the data with some values and let DNNL
+    /// allocate the memory.
     ///
     /// @snippet memory_format_propagation.cpp Create source and destination memory objects
     // [Create source and destination memory objects]
@@ -358,7 +358,7 @@ int main(int argc, char **argv) {
 ///   activations. In this format the channels dimension (denoted by letter B
 ///   since it is the second dimension; see also @ref dev_guide_conventions)
 ///   is blocked by a factor of 8. Because of this memory format is different
-///   from the NHWC format the tutorial uses, the source and destination had
+///   from the NCHW format the tutorial uses, the source and destination had
 ///   to be reordered to and from this optimized memory layout.
 /// * The convolution primitive picked up @ref
 ///   dnnl::memory::format_tag::ABcd8b8a optimized memory format (output (A)
