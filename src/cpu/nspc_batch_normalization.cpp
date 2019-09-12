@@ -32,7 +32,7 @@
 #define SAFE_TO_USE_OMP_SIMD 1
 #endif
 
-#if (__GNUC__ == 5) && (__GNUC_MINOR__ == 4)
+#if (__GNUC__ <= 5)
 #define SIMD_LEN_16
 #else
 #define SIMD_LEN_16 simdlen(16)
