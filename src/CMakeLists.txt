@@ -44,6 +44,11 @@ if(DNNL_ENABLE_CONCURRENT_EXEC)
     add_definitions(-DDNNL_ENABLE_CONCURRENT_EXEC)
 endif()
 
+if(DNNL_ENABLE_PRIMITIVE_CACHE)
+    message(STATUS "Primitive cache is enabled")
+    add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
+endif()
+
 if(NOT DNNL_ENABLE_JIT_PROFILING)
     # XXX: the profiling interface will still be built and present in the
     # library

@@ -37,10 +37,9 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     dnnl_engine(dnnl::impl::engine_kind_t kind,
             dnnl::impl::runtime_kind_t runtime_kind)
         : kind_(kind), runtime_kind_(runtime_kind) {
-        size_t cache_capacity
-                = dnnl::impl::getenv_int("DNNL_CACHE_CAPACITY", 200);
         primitive_cache_ = dnnl::impl::utils::make_unique<
-                dnnl::impl::lru_primitive_cache_t>(cache_capacity);
+                dnnl::impl::lru_primitive_cache_t>(
+                get_primitive_cache_capacity());
 
         static_assert(std::has_virtual_destructor<
                               dnnl::impl::primitive_cache_t>::value,
@@ -124,6 +123,22 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     dnnl::impl::status_t get_primitive(dnnl::impl::primitive_t **primitive,
             const dnnl::impl::primitive_desc_t *pd,
             const F &create_primitive_impl, bool use_global_scratchpad) {
+
+        auto print_verbose = [](int level, bool is_cache_hit,
+                                     dnnl::impl::primitive_t *p, double time) {
+            if (level >= 2) {
+#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+                const char *str = is_cache_hit
+                        ? "dnnl_verbose,create:cache_hit"
+                        : "dnnl_verbose,create:cache_miss";
+#else
+                const char *str = "dnnl_verbose,create";
+#endif
+                printf("%s,%s,%g\n", str, p->pd()->info(), time);
+                fflush(0);
+            }
+        };
+
         double ms = dnnl::impl::get_msec();
 
         // create a key for the requested primitive
@@ -185,6 +200,22 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         }
         return status;
     }
+
+    size_t get_primitive_cache_capacity() const {
+        // Default capacity is 0 - primitive cache is disabled by default
+        // Use call_once to avoid performance impact due to multiple getenv
+        // calls
+        static size_t primitive_cache_capacity = 0;
+#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+        static std::once_flag initialized;
+        std::call_once(initialized, [&] {
+            primitive_cache_capacity = dnnl::impl::getenv_int(
+                    "DNNL_PRIMITIVE_CACHE_CAPACITY", 200);
+        });
+#endif
+        return primitive_cache_capacity;
+    }
+
     int dnnl_get_max_threads();
 
 protected:
