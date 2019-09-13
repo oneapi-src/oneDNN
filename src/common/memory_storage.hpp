@@ -60,6 +60,13 @@ struct memory_storage_t : public c_compatible {
         return status::success;
     }
 
+    /** returns slice of memory storage
+     *
+     * @note: sub-storage lifetime shall not exceed one of the base memory storage
+     * @note: (offset + size) shall not be greater than base memory storage size */
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const = 0;
+
     /** returns true if the pointer associated with the storage is NULL */
     bool is_null() const {
         void *ptr;
@@ -91,6 +98,12 @@ struct empty_memory_storage_t : public memory_storage_t {
     virtual status_t set_data_handle(void *handle) override {
         assert(!"not expected");
         return status::runtime_error;
+    }
+
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override {
+        assert(!"not expected");
+        return nullptr;
     }
 };
 

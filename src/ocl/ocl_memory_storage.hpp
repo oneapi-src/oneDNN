@@ -32,37 +32,29 @@ class ocl_memory_storage_t : public memory_storage_t {
 public:
     ocl_memory_storage_t(
             engine_t *engine, unsigned flags, size_t size, void *handle);
-    ocl_memory_storage_t(ocl_memory_storage_t &&other)
-        : memory_storage_t(other.engine()), mem_object_(other.mem_object_) {
-        other.mem_object_ = nullptr;
-    }
-
-    virtual ~ocl_memory_storage_t() override {
-        if (mem_object_) { OCL_CHECK_V(clReleaseMemObject(mem_object_)); }
-    }
 
     virtual status_t get_data_handle(void **handle) const override {
-        *handle = static_cast<void *>(mem_object_);
+        *handle = static_cast<void *>(mem_object_.get());
         return status::success;
     }
 
     virtual status_t set_data_handle(void *handle) override {
-        if (mem_object_) {
-            OCL_CHECK(clReleaseMemObject(mem_object_));
-            mem_object_ = nullptr;
-        }
-        mem_object_ = static_cast<cl_mem>(handle);
-        OCL_CHECK(clRetainMemObject(mem_object_));
+        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
+                static_cast<cl_mem>(handle), true);
         return status::success;
     }
 
     virtual status_t map_data(void **mapped_ptr) const override;
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
-    cl_mem mem_object() const { return mem_object_; }
+    cl_mem mem_object() const { return mem_object_.get(); }
+
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override;
 
 private:
-    cl_mem mem_object_ = nullptr;
+    ocl_utils::ocl_wrapper_t<cl_mem> mem_object_;
+
     DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_memory_storage_t);
 };
 

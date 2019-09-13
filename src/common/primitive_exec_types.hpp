@@ -37,6 +37,10 @@
 namespace dnnl {
 namespace impl {
 
+namespace memory_tracking {
+struct grantor_t;
+} // namespace memory_tracking
+
 struct memory_arg_t {
     memory_t *mem;
     bool is_const;

@@ -22,6 +22,7 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "memory_storage.hpp"
 #include "memory_tracking.hpp"
 #include "primitive_exec_types.hpp"
 #include "primitive_impl.hpp"
@@ -50,12 +51,9 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     get_primitive_impl() const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
-    ~dnnl_primitive();
-
 private:
     std::shared_ptr<dnnl::impl::primitive_impl_t> primitive_impl_;
-    void *scratchpad_buffer_;
-    dnnl::impl::scratchpad_t *global_scratchpad_;
+    std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
 
     dnnl_primitive() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);

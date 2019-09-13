@@ -31,19 +31,17 @@ ocl_memory_storage_t::ocl_memory_storage_t(
     // Do not allocate memory if one of these is true:
     // 1) size is 0
     // 2) handle is nullptr and 'alloc' flag is not set
-    if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0)) {
-        mem_object_ = nullptr;
-        return;
-    }
+    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc))) return;
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
     cl_int err;
     if (flags & memory_flags_t::alloc) {
-        mem_object_ = clCreateBuffer(
+        cl_mem mem_object_ptr = clCreateBuffer(
                 ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
         OCL_CHECK_V(err);
+        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(mem_object_ptr, false);
     } else if (flags & memory_flags_t::use_runtime_ptr) {
-        mem_object_ = static_cast<cl_mem>(handle);
-        OCL_CHECK_V(clRetainMemObject(mem_object_));
+        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
+                static_cast<cl_mem>(handle), true);
     }
 }
 
@@ -93,6 +91,24 @@ status_t ocl_memory_storage_t::unmap_data(void *mapped_ptr) const {
     OCL_CHECK(clEnqueueUnmapMemObject(service_queue, mem_object_,
             const_cast<void *>(mapped_ptr), 0, nullptr, nullptr));
     return status::success;
+}
+
+std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
+        size_t offset, size_t size) const {
+    cl_mem_flags mem_flags;
+    cl_int err;
+    err = clGetMemObjectInfo(
+            mem_object(), CL_MEM_FLAGS, sizeof(mem_flags), &mem_flags, nullptr);
+    assert(err == CL_SUCCESS);
+
+    cl_buffer_region buffer_region = {offset, size};
+    cl_mem sub_buffer = clCreateSubBuffer(mem_object(), mem_flags,
+            CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
+    assert(err == CL_SUCCESS);
+
+    std::unique_ptr<memory_storage_t> sub_storage(new ocl_memory_storage_t(
+            this->engine(), memory_flags_t::use_runtime_ptr, size, sub_buffer));
+    return sub_storage;
 }
 
 } // namespace ocl

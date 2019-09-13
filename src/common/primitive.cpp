@@ -101,21 +101,15 @@ status_t dnnl_primitive_destroy(primitive_t *primitive) {
 dnnl_primitive::dnnl_primitive(
         const std::shared_ptr<primitive_impl_t> &primitive_impl,
         bool use_global_scratchpad = false)
-    : primitive_impl_(primitive_impl)
-    , scratchpad_buffer_(nullptr)
-    , global_scratchpad_(nullptr) {
+    : primitive_impl_(primitive_impl), scratchpad_(nullptr) {
 
-    // GPU doesn't support scratchpad
-    if (primitive_impl_->pd()->engine()->kind() == engine_kind::cpu) {
-        const size_t scratchpad_size = primitive_impl_->pd()->scratchpad_size(
-                scratchpad_mode::library);
+    const size_t scratchpad_size
+            = primitive_impl_->pd()->scratchpad_size(scratchpad_mode::library);
 
-        if (scratchpad_size) {
-            if (use_global_scratchpad)
-                global_scratchpad_ = create_scratchpad(scratchpad_size);
-            else
-                scratchpad_buffer_ = malloc(scratchpad_size, 64);
-        }
+    if (scratchpad_size) {
+        auto *scratchpad_ptr = create_scratchpad(
+                engine(), scratchpad_size, use_global_scratchpad);
+        scratchpad_.reset(scratchpad_ptr);
     }
 }
 
@@ -137,27 +131,21 @@ dnnl_primitive::get_primitive_impl() const {
 }
 
 status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
-    // GPU doesn't support scratchpad
-    if (primitive_impl_->pd()->engine()->kind() == engine_kind::cpu) {
-        void *ptr = nullptr;
-        if (primitive_impl_->pd()->attr()->scratchpad_mode_
-                == scratchpad_mode::user) {
-            ptr = CTX_OUT_MEM(void *, DNNL_ARG_SCRATCHPAD);
-        } else {
-            ptr = global_scratchpad_ ? global_scratchpad_->get()
-                                     : scratchpad_buffer_;
-        }
-
-        ctx.set_scratchpad_grantor(
-                primitive_impl_->pd()->scratchpad_registry().grantor(ptr));
+    const memory_storage_t *mem_storage = nullptr;
+    if (primitive_impl_->pd()->attr()->scratchpad_mode_
+            == scratchpad_mode::user) {
+        memory_t *scratchpad_memory = ctx.output(DNNL_ARG_SCRATCHPAD);
+        mem_storage = scratchpad_memory ? scratchpad_memory->memory_storage()
+                                        : nullptr;
+    } else if (scratchpad_) {
+        mem_storage = scratchpad_->get_memory_storage();
     }
+
+    ctx.set_scratchpad_grantor(
+            primitive_impl_->pd()->scratchpad_registry().grantor(mem_storage));
+
     auto status = primitive_impl_->execute(ctx);
     return status;
-}
-
-dnnl_primitive::~dnnl_primitive() {
-    delete global_scratchpad_;
-    dnnl::impl::free(scratchpad_buffer_);
 }
 
 // vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s
