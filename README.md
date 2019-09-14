@@ -106,6 +106,8 @@ software includes the following third-party components:
 [3-clause BSD license](cmake/Copyright.txt)
 * [MathJax](https://github.com/mathjax/MathJax) distributed under
 [Apache License Version 2.0](doc/assets/mathjax/LICENSE)
+* [Boost C++ Libraries](https://www.boost.org/) distributed under
+[Boost Software License, Version 1.0](src/common/LICENSE_1_0)
 
 # Documentation
 * [Developer guide](https://intel.github.io/mkl-dnn) explains programming
