@@ -77,6 +77,46 @@ const _dt_conf_t conf_f32 = {
         F32_ENTRY_INEXACT, //diff_last_layer
 };
 
+#define EPS_BF16 8e-3
+
+#define MIN_BF16 0.0f
+#define MAX_BF16 .999999f
+#define MEAN_BF16 .5f
+#define STDDEV_BF16 0.01f
+
+#define BF16_ENTRY_INEXACT \
+    { \
+        dnnl_bf16, -int_max_exact, int_max_exact, MIN_BF16, MAX_BF16, \
+                MEAN_BF16, STDDEV_BF16, EPS_BF16 \
+    }
+
+#define BF16_ENTRY_F32_INEXACT \
+    { \
+        dnnl_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
+                STDDEV_F32, EPS_BF16 \
+    }
+
+const _dt_conf_t conf_bf16 = {
+        BF16_ENTRY_INEXACT, //input
+        BF16_ENTRY_INEXACT, //states
+        BF16_ENTRY_F32_INEXACT, //c_states
+        BF16_ENTRY_INEXACT, //weights_input
+        BF16_ENTRY_INEXACT, //weights_states
+        BF16_ENTRY_F32_INEXACT, //bias
+        BF16_ENTRY_INEXACT, //dst_last_iteration
+        BF16_ENTRY_F32_INEXACT, //dst_c_last_iteration
+        BF16_ENTRY_INEXACT, //dst_last_layer
+        BF16_ENTRY_F32_INEXACT, //dst_diff_input
+        BF16_ENTRY_F32_INEXACT, //dst_diff_states
+        BF16_ENTRY_F32_INEXACT, //dst_diff_c_states
+        BF16_ENTRY_F32_INEXACT, //dst_diff_weights_input
+        BF16_ENTRY_F32_INEXACT, //dst_diff_weights_states
+        BF16_ENTRY_F32_INEXACT, //dst_diff_bias
+        BF16_ENTRY_F32_INEXACT, //diff_last_iteration
+        BF16_ENTRY_F32_INEXACT, //diff_c_last_iteration
+        BF16_ENTRY_F32_INEXACT, //diff_last_layer
+};
+
 #define EPS_U8 4e-3
 #define EPS_S8 8e-3
 
@@ -154,7 +194,7 @@ const _dt_conf_t conf_f32u8f32f32 = {
 
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
-#define EPS 1e-1
+#define EPS 1e-3
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
@@ -171,6 +211,7 @@ const dt_conf_t *str2cfg(const char *str) {
 #define CASE(cfg) \
     if (!strcasecmp(STRINGIFY(cfg), str)) return CONCAT2(conf_, cfg)
     CASE(f32);
+    CASE(bf16);
     CASE(f16);
     CASE(u8u8u8u8);
     CASE(u8u8u8f32);
@@ -188,6 +229,7 @@ const char *cfg2str(const dt_conf_t *cfg) {
 #define CASE(_cfg) \
     if (cfg == CONCAT2(conf_, _cfg)) return STRINGIFY(_cfg)
     CASE(f32);
+    CASE(bf16);
     CASE(f16);
     CASE(u8u8u8u8);
     CASE(u8u8u8f32);

@@ -100,25 +100,25 @@ struct jit_offsets {
 };
 
 struct jit_rnn_offsets {
-    int src_layer_off[3][MAX_NDIMS];
-    int src_iter_off[3][MAX_NDIMS];
-    int src_iter_c_off[3][MAX_NDIMS];
-    int weights_layer_off[3][MAX_NDIMS];
-    int weights_iter_off[3][MAX_NDIMS];
-    int bias_off[3][MAX_NDIMS];
-    int dst_layer_off[3][MAX_NDIMS];
-    int dst_iter_off[3][MAX_NDIMS];
-    int dst_iter_c_off[3][MAX_NDIMS];
-    int diff_src_layer_off[3][MAX_NDIMS];
-    int diff_src_iter_off[3][MAX_NDIMS];
-    int diff_src_iter_c_off[3][MAX_NDIMS];
-    int diff_weights_layer_off[3][MAX_NDIMS];
-    int diff_weights_iter_off[3][MAX_NDIMS];
-    int diff_bias_off[3][MAX_NDIMS];
-    int diff_dst_layer_off[3][MAX_NDIMS];
-    int diff_dst_iter_off[3][MAX_NDIMS];
-    int diff_dst_iter_c_off[3][MAX_NDIMS];
-    int ws_off[3][MAX_NDIMS];
+    int src_layer_off[4][MAX_NDIMS];
+    int src_iter_off[4][MAX_NDIMS];
+    int src_iter_c_off[4][MAX_NDIMS];
+    int weights_layer_off[4][MAX_NDIMS];
+    int weights_iter_off[4][MAX_NDIMS];
+    int bias_off[4][MAX_NDIMS];
+    int dst_layer_off[4][MAX_NDIMS];
+    int dst_iter_off[4][MAX_NDIMS];
+    int dst_iter_c_off[4][MAX_NDIMS];
+    int diff_src_layer_off[4][MAX_NDIMS];
+    int diff_src_iter_off[4][MAX_NDIMS];
+    int diff_src_iter_c_off[4][MAX_NDIMS];
+    int diff_weights_layer_off[4][MAX_NDIMS];
+    int diff_weights_iter_off[4][MAX_NDIMS];
+    int diff_bias_off[4][MAX_NDIMS];
+    int diff_dst_layer_off[4][MAX_NDIMS];
+    int diff_dst_iter_off[4][MAX_NDIMS];
+    int diff_dst_iter_c_off[4][MAX_NDIMS];
+    int ws_off[4][MAX_NDIMS];
 };
 
 /* convolution */
@@ -218,8 +218,17 @@ struct jit_rnn_conf_t {
     bool with_dst_iter_c;
     bool is_lbr;
     bool is_fwd;
+    bool copy_bias;
+    bool is_int8;
+    bool is_testmode;
     data_type_t src_dt;
     data_type_t wei_dt;
+    data_type_t bia_dt;
+    data_type_t dst_dt;
+    data_type_t acc_dt;
+    data_type_t precise_dt;
+    data_type_t input_dt;
+    data_type_t output_dt;
 
     int n_layer;
     int n_dir;
@@ -256,6 +265,8 @@ struct jit_rnn_conf_t {
     int diff_bias_ndims;
     int states_ws_ld, gates_ws_ld;
 
+    int wei_qparam_mask;
+
     size_t ws_gates_offset;
     size_t ws_states_offset;
     size_t ws_diff_states_offset;
@@ -266,6 +277,18 @@ struct jit_rnn_conf_t {
     size_t ws_bias_offset;
     size_t scratchpad_size;
     size_t workspace_size;
+};
+struct jit_rnn_reorder_conf_t {
+    bool do_reorder, with_group, has_padding;
+    bool with_sum_ab, with_sum_a;
+    bool use_ref_impl;
+    int ndims;
+    size_t nelems;
+    size_t gws_d[3], lws_d[3];
+    int block[3];
+    int sub_group_size;
+    int mask;
+    size_t scales_count;
 };
 
 /* bnorm */

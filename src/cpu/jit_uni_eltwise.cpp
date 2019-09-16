@@ -1656,6 +1656,7 @@ status_t jit_uni_eltwise_bwd_t<isa, d_type>::pd_t::init() {
             && IMPLICATION(desc()->data_desc.data_type == data_type::bf16,
                     mayiuse(avx512_core))
             && !has_zero_dim_memory() && mayiuse(isa)
+            && set_default_formats_common()
             && memory_desc_wrapper(src_md()).is_dense()
             && memory_desc_wrapper(diff_dst_md())
                     == memory_desc_wrapper(src_md())

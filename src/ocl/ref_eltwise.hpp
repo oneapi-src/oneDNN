@@ -116,9 +116,6 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
             using namespace utils;
             assert(engine()->kind() == engine_kind::gpu);
 
-            memory_desc_wrapper data_mdw(desc()->data_desc);
-            memory_desc_wrapper diff_data_mdw(desc()->diff_data_desc);
-
             bool ok = true && desc()->prop_kind == backward_data
                     && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
                             alg_kind::eltwise_linear,
@@ -130,6 +127,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                             alg_kind::eltwise_gelu, alg_kind::eltwise_swish)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
+                    && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

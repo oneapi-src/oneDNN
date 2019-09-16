@@ -1,0 +1,17 @@
+# Default
+* @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin
+
+# Documentation
+*.md @fitchbe @ltsai1 @karturov @tprimak @vpirogov
+/doc/ @fitchbe @ltsai1 @karturov @tprimak @vpirogov
+
+# CPU-specific optimizations
+/src/cpu/ @alokbaks @akalinin @akharito @rjoursle @sputta @nshustro @msotoflo @kwiersch
+/src/cpu/rnn/ @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin
+/src/cpu/gemm/ @petercad @lhuot @mmeterel @aaraujom @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin
+ 
+# GPU-specific optimizations
+/src/ocl/ @antonand @echeresh @pevsikov @shelleyg @skazakov @hsadia @igorsafo
+
+# Tests
+/tests/benchdnn/inputs/ @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin @alokbaks @akalinin @akharito @rjoursle @sputta @nshustro @msotoflo @kwiersch @antonand @echeresh @pevsikov @shelleyg @skazakov @hsadia @igorsafo

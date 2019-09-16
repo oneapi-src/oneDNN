@@ -370,6 +370,8 @@ protected:
         auto eltwise_desc = eltwise_forward::desc(prop_kind::forward_training,
                 p.alg_kind, *data_desc, p.alpha, p.beta);
         eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
+        eltwise_prim_desc = eltwise_forward::primitive_desc(
+                eltwise_prim_desc.get()); // test construction from a C pd
         eltwise_forward(eltwise_prim_desc)
                 .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
@@ -398,6 +400,8 @@ protected:
                 p.alg_kind, diff_data_desc, *data_desc, p.alpha, p.beta);
         auto eltwise_bwd_prim_desc = eltwise_backward::primitive_desc(
                 eltwise_bwd_desc, eng, eltwise_prim_desc);
+        eltwise_bwd_prim_desc
+                = eltwise_backward::primitive_desc(eltwise_bwd_prim_desc.get());
 
         eltwise_backward(eltwise_bwd_prim_desc)
                 .execute(strm,

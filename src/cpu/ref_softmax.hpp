@@ -116,6 +116,7 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
             bool ok = true && !is_fwd()
                     && utils::everyone_is(data_type, dst_md()->data_type,
                             diff_src_md()->data_type)
+                    && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

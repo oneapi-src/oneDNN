@@ -318,6 +318,8 @@ protected:
                 p.aalgorithm, *src_desc, *dst_desc, strides, ker, pad_l, pad_r);
         auto pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_desc, eng, pool_prim_desc);
+        pool_bwd_prim_desc = pooling_backward::primitive_desc(
+                pool_bwd_prim_desc.get()); // test construction from a C pd
 
         memory diff_src(*src_desc, eng);
         memory diff_dst(*dst_desc, eng);

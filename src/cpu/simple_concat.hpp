@@ -100,9 +100,9 @@ struct simple_concat_t : public primitive_impl_t {
             return status::success;
         }
 
-        int perm_[DNNL_MAX_NDIMS];
-        int iperm_[DNNL_MAX_NDIMS];
-        dims_t blocks_;
+        int perm_[DNNL_MAX_NDIMS] {};
+        int iperm_[DNNL_MAX_NDIMS] {};
+        dims_t blocks_ {};
 
         dim_t nelems_to_concat(const memory_desc_wrapper &data_d) const {
             const int ndims = data_d.ndims();

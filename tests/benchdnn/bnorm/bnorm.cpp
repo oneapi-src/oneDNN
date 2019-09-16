@@ -517,9 +517,13 @@ static int init_pd(const prb_t *p, dnnl_batch_normalization_desc_t &bd,
                 WARN);
 
     } else {
+        dnnl_memory_desc_t diff_data_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims, data_dims,
+                         p->dt, dnnl_format_tag_any),
+                WARN);
         auto prop = p->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         DNN_SAFE(dnnl_batch_normalization_backward_desc_init(
-                         &bd, prop, &data_d, &data_d, p->eps, flags),
+                         &bd, prop, &diff_data_d, &data_d, p->eps, flags),
                 WARN);
     }
 
@@ -620,6 +624,8 @@ static int cvt_mask_to_ws(
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     dnnl_batch_normalization_desc_t bd;
     dnnl_primitive_desc_t bpd;
     dnnl_primitive_t b;
@@ -707,12 +713,17 @@ int doit(const prb_t *p, res_t *r) {
             }
         }
     } else {
-        dnn_mem_t d_dst_fp(data_desc, fp, tag, engine_tgt);
-        d_dst_dt = dnn_mem_t(data_desc, engine_tgt);
+        const_dnnl_primitive_desc_t const_bpd;
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_bpd), CRIT);
+        const auto &d_data_desc = *dnnl_primitive_desc_query_md(
+                const_bpd, dnnl_query_diff_src_md, 0);
+
+        dnn_mem_t d_dst_fp(d_data_desc, fp, tag, engine_tgt);
+        d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
         if (!p->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(data_desc, engine_tgt);
+            placeholder_d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 

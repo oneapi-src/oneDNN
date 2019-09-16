@@ -220,8 +220,12 @@
 
    CMake, 3-clause BSD license
    Copyright 2000-2019 Kitware, Inc. and Contributors
-   See full copyright notice and license text in cmake/Copyright.txt
+   See full license text in cmake/Copyright.txt
 
    MathJax, Apache License 2.0
    Copyright (c) 2009-2018 The MathJax Consortium
-   See full copyright notice and license text in doc/assets/mathjax/LICENSE
+   See full license text in doc/assets/mathjax/LICENSE
+
+   Boost C++ Libraries, Boost Software License, Version 1.0
+   Copyright 2005-2014 Daniel James.
+   See full license text in src/cpu/LICENSE_1_0

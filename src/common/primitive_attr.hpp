@@ -264,16 +264,19 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         return new dnnl_primitive_attr(*this);
     }
 
+    enum class skip_mask_t : unsigned {
+        none = 0x0,
+        oscale = 0x1,
+        post_ops = 0x2,
+        rnn_data_qparams = 0x4,
+        rnn_weights_qparams = 0x8,
+        rnn_tparams = 0x10
+    };
+
     /** Returns true if the attributes have default values.
      *
      * @note The scratchpad_mode_ is not take into account */
-    bool has_default_values() const {
-        return true && output_scales_.has_default_values()
-                && post_ops_.has_default_values()
-                && rnn_data_qparams_.has_default_values()
-                && rnn_weights_qparams_.has_default_values()
-                && rnn_tparams_.has_default_values();
-    }
+    bool has_default_values(skip_mask_t mask = skip_mask_t::none) const;
 
     bool operator==(const dnnl_primitive_attr &rhs) const {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
@@ -297,5 +300,27 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::scales_t rnn_weights_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
 };
+
+inline dnnl_primitive_attr::skip_mask_t operator|(
+        dnnl_primitive_attr::skip_mask_t lhs,
+        dnnl_primitive_attr::skip_mask_t rhs) {
+    return static_cast<dnnl_primitive_attr::skip_mask_t>(
+            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
+}
+inline dnnl_primitive_attr::skip_mask_t operator&(
+        dnnl_primitive_attr::skip_mask_t lhs,
+        dnnl_primitive_attr::skip_mask_t rhs) {
+    return static_cast<dnnl_primitive_attr::skip_mask_t>(
+            static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
+}
+inline bool operator!=(dnnl_primitive_attr::skip_mask_t lhs,
+        dnnl_primitive_attr::skip_mask_t rhs) {
+    return (static_cast<unsigned>(lhs) != static_cast<unsigned>(rhs));
+}
+inline dnnl_primitive_attr::skip_mask_t operator~(
+        dnnl_primitive_attr::skip_mask_t rhs) {
+    return static_cast<dnnl_primitive_attr::skip_mask_t>(
+            ~static_cast<unsigned>(rhs));
+}
 
 #endif

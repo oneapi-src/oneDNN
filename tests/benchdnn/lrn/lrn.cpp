@@ -133,8 +133,12 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_lrn_desc_t &ld,
                          p->alpha, p->beta, p->k),
                 WARN);
     } else {
-        DNN_SAFE(dnnl_lrn_backward_desc_init(&ld, alg, &data_d, &data_d, p->ls,
-                         p->alpha, p->beta, p->k),
+        dnnl_memory_desc_t diff_data_d;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims, data_dims,
+                         p->dt, dnnl_format_tag_any),
+                WARN);
+        DNN_SAFE(dnnl_lrn_backward_desc_init(&ld, alg, &diff_data_d, &data_d,
+                         p->ls, p->alpha, p->beta, p->k),
                 WARN);
     }
 
@@ -169,6 +173,8 @@ int init_pd_bwd(const prb_t *p, dnnl_lrn_desc_t &ld, dnnl_primitive_desc_t &lpd,
 }
 
 int doit(const prb_t *p, res_t *r) {
+    if (bench_mode == LIST) return r->state = LISTED, OK;
+
     dnnl_lrn_desc_t lfd, lbd;
     dnnl_primitive_desc_t lfpd, lbpd;
     dnnl_primitive_t lf, lb;
@@ -188,7 +194,8 @@ int doit(const prb_t *p, res_t *r) {
 
     DNN_SAFE(dnnl_primitive_create(&lf, lfpd), WARN);
 
-    auto &data_desc = lfd.data_desc;
+    const auto &data_desc
+            = *dnnl_primitive_desc_query_md(lfpd, dnnl_query_src_md, 0);
     dnn_mem_t src_dt(data_desc, engine_tgt);
     dnn_mem_t dst_dt(data_desc, engine_tgt);
     dnn_mem_t d_dst_dt, d_src_dt;
@@ -228,10 +235,15 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(dnnl_primitive_create(&lb, lbpd), WARN);
         DNN_SAFE(dnnl_primitive_desc_destroy(lbpd), CRIT);
 
-        d_dst_dt = dnn_mem_t(data_desc, engine_tgt),
-        d_src_dt = dnn_mem_t(data_desc, engine_tgt),
-        d_dst_fp = dnn_mem_t(data_desc, fp, tag, engine_tgt),
-        d_src_fp = dnn_mem_t(data_desc, fp, tag, engine_tgt);
+        const_dnnl_primitive_desc_t const_lbpd;
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(lb, &const_lbpd), CRIT);
+        const auto &d_data_desc = *dnnl_primitive_desc_query_md(
+                const_lbpd, dnnl_query_diff_src_md, 0);
+
+        d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt),
+        d_src_dt = dnn_mem_t(d_data_desc, engine_tgt),
+        d_dst_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt),
+        d_src_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
 
         SAFE(fill_dst(p, d_dst_dt, d_dst_fp), WARN);
         SAFE(d_src_dt.reorder(d_src_fp), WARN);

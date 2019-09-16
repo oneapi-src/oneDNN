@@ -29,7 +29,7 @@ namespace impl {
 namespace cpu {
 
 static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
-        dim_t *t_offset, dim_t *t_block) {
+        dim_t &t_offset, dim_t &t_block) {
 
     dim_t band = n / nthrs;
 
@@ -38,84 +38,86 @@ static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
     tail = n - (nthrs - 1) * band;
 
     if (ithr < (nthrs - 1))
-        *t_block = band;
+        t_block = band;
     else
-        *t_block = tail;
+        t_block = tail;
 
-    *t_offset = ithr * band;
+    t_offset = ithr * band;
 
-    if (*t_offset >= n) {
-        *t_block = 0;
-        *t_offset = 0;
-    } else if ((*t_offset + *t_block) > n) {
-        *t_block = n - *t_offset;
+    if (t_offset >= n) {
+        t_block = 0;
+        t_offset = 0;
+    } else if ((t_offset + t_block) > n) {
+        t_block = n - t_offset;
     }
 }
 
 static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
         const int ithr_j, const int nthrs_m, const int nthrs_n, const dim_t m,
-        const dim_t n, dim_t *p_m_disp, dim_t *p_m_band, dim_t *p_n_disp,
-        dim_t *p_n_band) {
+        const dim_t n, dim_t &out_m_disp, dim_t &out_m_band, dim_t &out_n_disp,
+        dim_t &out_n_band) {
 
     dim_t m_disp = 0, n_disp = 0;
     dim_t m_band = 0, n_band = 0;
 
-    int mdiv = nthrs_m;
-    int ndiv = nthrs_n;
+    int m_div = nthrs_m;
+    int n_div = nthrs_n;
 
-    dim_t m_bandt = m / mdiv; /* size per thread */
-    dim_t n_bandt = n / ndiv; /* size per thread */
-    int firstmgroup = mdiv - 1;
-    int firstngroup = ndiv - 1;
-    dim_t firstmval = m_bandt;
-    dim_t firstnval = n_bandt;
+    dim_t m_bandt = m / m_div; /* size per thread */
+    dim_t n_bandt = n / n_div; /* size per thread */
+    int first_m_group = m_div - 1;
+    int first_n_group = n_div - 1;
+    dim_t first_m_val = m_bandt;
+    dim_t first_n_val = n_bandt;
 
-    int mthr_used = mdiv;
-    if (m - (mdiv - 1) * m_bandt > m_bandt + 1) {
-        if (m - (mdiv - 1) * m_bandt > mdiv) ++m_bandt;
+    int mthr_used = m_div;
+    if (m - (m_div - 1) * m_bandt > m_bandt + 1) {
+        if (m - (m_div - 1) * m_bandt > m_div) ++m_bandt;
 
-        firstmval = m_bandt + 1;
-        mthr_used = (int)(m / firstmval);
+        first_m_val = m_bandt + 1;
+        mthr_used = (int)(m / first_m_val);
 
-        if (mthr_used * firstmval < m) ++mthr_used;
+        if (mthr_used * first_m_val < m) ++mthr_used;
 
-        firstmgroup = mthr_used - 1;
+        first_m_group = mthr_used - 1;
     }
 
-    int nthr_used = ndiv;
-    if (n - (ndiv - 1) * n_bandt > n_bandt + 1) {
-        firstnval = n_bandt + 1;
-        nthr_used = (int)(n / firstnval);
+    int nthr_used = n_div;
+    if (n - (n_div - 1) * n_bandt > n_bandt + 1) {
+        first_n_val = n_bandt + 1;
+        nthr_used = (int)(n / first_n_val);
 
-        if (nthr_used * firstnval < n) ++nthr_used;
+        if (nthr_used * first_n_val < n) ++nthr_used;
 
-        firstngroup = nthr_used - 1;
+        first_n_group = nthr_used - 1;
     }
 
     *nthrs = mthr_used * nthr_used;
 
     if (ithr < *nthrs) {
-        if (ithr_i < firstmgroup) {
-            m_band = firstmval;
-            m_disp = ithr_i * firstmval;
+        if (ithr_i < first_m_group) {
+            m_band = first_m_val;
+            m_disp = ithr_i * first_m_val;
         } else if (ithr_i <= mthr_used - 2) {
             m_band = m_bandt;
-            m_disp = firstmgroup * firstmval + (ithr_i - firstmgroup) * m_bandt;
+            m_disp = first_m_group * first_m_val
+                    + (ithr_i - first_m_group) * m_bandt;
         } else {
-            m_disp = firstmgroup * firstmval
-                    + (mthr_used - 1 - firstmgroup) * m_bandt;
+            m_disp = first_m_group * first_m_val
+                    + (mthr_used - 1 - first_m_group) * m_bandt;
             m_band = nstl::max(dim_t(0), m - m_disp);
         }
 
-        if (ithr_j < firstngroup) {
-            n_band = firstnval;
-            n_disp = ithr_j * firstnval;
+        if (ithr_j < first_n_group) {
+            n_band = first_n_val;
+            n_disp = ithr_j * first_n_val;
         } else if (ithr_j <= nthr_used - 2) {
             n_band = n_bandt;
-            n_disp = firstngroup * firstnval + (ithr_j - firstngroup) * n_bandt;
+            n_disp = first_n_group * first_n_val
+                    + (ithr_j - first_n_group) * n_bandt;
         } else {
-            n_disp = firstngroup * firstnval
-                    + (nthr_used - 1 - firstngroup) * n_bandt;
+            n_disp = first_n_group * first_n_val
+                    + (nthr_used - 1 - first_n_group) * n_bandt;
             n_band = nstl::max(dim_t(0), n - n_disp);
         }
         m_disp = nstl::max(nstl::min(m_disp, m - 1), dim_t(0));
@@ -123,15 +125,15 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
     }
 
     if (ithr < *nthrs) {
-        *p_m_disp = m_disp;
-        *p_n_disp = n_disp;
-        *p_m_band = m_band;
-        *p_n_band = n_band;
+        out_m_disp = m_disp;
+        out_n_disp = n_disp;
+        out_m_band = m_band;
+        out_n_band = n_band;
     } else {
-        *p_m_disp = 0;
-        *p_n_disp = 0;
-        *p_m_band = 0;
-        *p_n_band = 0;
+        out_m_disp = 0;
+        out_n_disp = 0;
+        out_m_band = 0;
+        out_n_band = 0;
     }
 
     return;

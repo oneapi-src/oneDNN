@@ -33,6 +33,7 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
         const memory_desc_t *data_desc, const memory_desc_t *diff_desc,
         int softmax_axis) {
     bool args_ok = true && !any_null(softmax_desc, data_desc)
+            && IMPLICATION(prop_kind == backward_data, diff_desc != nullptr)
             && 0 <= softmax_axis && softmax_axis < data_desc->ndims;
     if (!args_ok) return invalid_arguments;
 
@@ -40,9 +41,8 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc, prop_kind_t prop_kind,
     sd.primitive_kind = primitive_kind::softmax;
     sd.prop_kind = prop_kind;
 
-    bool is_bwd = (sd.prop_kind == backward_data);
     sd.data_desc = *data_desc;
-    sd.diff_desc = is_bwd ? *diff_desc : zero_md();
+    if (sd.prop_kind == backward_data) sd.diff_desc = *diff_desc;
     sd.softmax_axis = softmax_axis;
 
     *softmax_desc = sd;

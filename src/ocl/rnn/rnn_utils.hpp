@@ -17,11 +17,6 @@
 #ifndef OCL_RNN_UTILS_HPP
 #define OCL_RNN_UTILS_HPP
 
-#include "dnnl_types.h"
-
-#include "c_types_map.hpp"
-#include "memory_desc_wrapper.hpp"
-
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
     ((((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4)) \
                     * (d5) \
@@ -36,7 +31,8 @@
 #define elemwise_sig(f) \
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
             int wic, int batch, const memory_storage_t &workspace, \
-            const memory_storage_t &bias) const
+            const memory_storage_t &scales, const memory_storage_t &bias, \
+            const memory_storage_t &tm_scales) const
 
 #define cell_execution_sig(f) \
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
@@ -48,7 +44,8 @@
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
-            const memory_storage_t &diff_bias) const
+            const memory_storage_t &diff_bias, const memory_storage_t &scales, \
+            const memory_storage_t &tm_scales) const
 
 #define grid_execution_sig(f) \
     void f(const exec_ctx_t &ctx, int dic, int slc, int sic, int wic, \
@@ -60,7 +57,8 @@
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
-            const memory_storage_t &diff_bias) const
+            const memory_storage_t &diff_bias, const memory_storage_t &scales, \
+            const memory_storage_t &tm_scales) const
 
 #define gemm_sig(f) \
     void f(const exec_ctx_t &ctx, int m, int n, int k, int strideA_m, \
@@ -85,17 +83,22 @@ namespace ocl {
 namespace rnn_utils {
 
 enum execution_direction_t {
-    b2t_l2r,
-    b2t_r2l,
-    b2t_bi_concat,
-    b2t_bi_sum,
-    t2b_l2r,
-    t2b_r2l,
-    t2b_bi_concat,
-    t2b_bi_sum
+    l2r,
+    r2l,
+    bi_concat,
+    bi_sum,
 };
 
-enum data_type_conf_t { all_f32, all_f16 };
+enum data_type_conf_t {
+    all_f32,
+    all_f16,
+    u8u8u8f32,
+    f32u8f32f32,
+    u8u8u8u8,
+    f32u8f32u8
+};
+
+enum ws_part_t { gates, states, c_states, diff_states, cell, grid, bias };
 
 struct rnn_conf_t {
     execution_direction_t exec_dir;
@@ -124,9 +127,12 @@ struct rnn_conf_t {
     int diff_weights_iter_ld, diff_weights_iter_nld;
     int states_nld, states_ws_ld;
     int weights_iter_compensation_size, weights_layer_compensation_size;
-
-    bool is_fwd, is_training, is_lbr;
+    bool is_fwd, is_training, is_lbr, is_int8, is_testmode;
     bool use_workspace;
+
+    // for test mode (--skip_nonliner=true of benchdnn)
+    float tm_cscale;
+    int tm_ngates;
 
     // Size of workspace for each tensor in bytes
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
@@ -134,6 +140,17 @@ struct rnn_conf_t {
 
     bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
+
+    // Element size of each workspace part in bytes
+    int ws_gates_elsz, ws_states_elsz, ws_c_states_elsz, ws_diff_states_elsz,
+            ws_cell_comp_elsz, ws_grid_comp_elsz, ws_bias_elsz;
+
+    data_type_t acc_data_type;
+    int acc_data_type_elsz;
+    data_type_t precise_data_type;
+    data_type_t input_data_type;
+    data_type_t output_data_type;
+    data_type_t dst_data_type;
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);
@@ -146,6 +163,7 @@ void init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &dst_layer_d);
+void init_test_mode(rnn_conf_t &rnn, const primitive_attr_t &attr);
 void set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,

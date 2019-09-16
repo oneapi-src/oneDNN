@@ -24,7 +24,7 @@
 #include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
-#include "simple_layer_normalization.hpp"
+#include "jit_uni_layer_normalization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,7 +32,7 @@ namespace cpu {
 
 using namespace memory_tracking::names;
 
-void simple_layer_normalization_fwd_t::execute_forward(
+void jit_uni_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
@@ -56,11 +56,8 @@ void simple_layer_normalization_fwd_t::execute_forward(
     const memory_desc_wrapper src_d(pd()->src_md());
 
     const dim_t N = pd()->across_axis();
-    const dim_t C = pd()->norm_axis();
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
 
-    const float eps = pd()->desc()->layer_norm_epsilon;
-    const bool use_scaleshift = pd()->use_scaleshift();
     const bool save_stats = pd()->is_training();
     const bool calculate_stats = !pd()->stats_are_src();
 
@@ -68,31 +65,11 @@ void simple_layer_normalization_fwd_t::execute_forward(
         auto v_mean = calculate_stats ? 0 : mean[n];
         auto v_variance = calculate_stats ? 0 : variance[n];
 
-        if (calculate_stats) {
-            PRAGMA_OMP_SIMD(reduction(+ : v_mean))
-            for (dim_t c = 0; c < C; ++c) {
-                v_mean += src[n * C_padded + c];
-            }
-            v_mean /= C;
+        if (calculate_stats)
+            (*stat_kernel_)(&src[n * C_padded], &v_mean, &v_variance);
 
-            PRAGMA_OMP_SIMD(reduction(+ : v_variance))
-            for (dim_t c = 0; c < C; ++c) {
-                auto m = src[n * C_padded + c] - v_mean;
-                v_variance += m * m;
-            }
-            v_variance /= C;
-        }
-
-        float sqrt_variance = sqrtf(v_variance + eps);
-        PRAGMA_OMP_SIMD()
-        for (dim_t c = 0; c < C; ++c) {
-            const float sm
-                    = (use_scaleshift ? scaleshift[c] : 1.0f) / sqrt_variance;
-            const float sv = use_scaleshift ? scaleshift[C + c] : 0;
-            const size_t data_off = n * C_padded + c;
-
-            dst[data_off] = sm * (src[data_off] - v_mean) + sv;
-        }
+        (*data_kernel_)(&src[n * C_padded], &dst[n * C_padded], scaleshift,
+                &v_mean, &v_variance);
 
         if (calculate_stats) {
             if (save_stats) {
@@ -103,7 +80,7 @@ void simple_layer_normalization_fwd_t::execute_forward(
     });
 }
 
-void simple_layer_normalization_bwd_t::execute_backward(
+void jit_uni_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
@@ -127,10 +104,6 @@ void simple_layer_normalization_bwd_t::execute_backward(
     const dim_t C = pd()->norm_axis();
     const dim_t C_padded = src_d.padded_dims()[pd()->ndims() - 1];
 
-    const float eps = pd()->desc()->layer_norm_epsilon;
-    const bool use_scaleshift = pd()->use_scaleshift();
-    const bool calculate_diff_stats = !pd()->use_global_stats();
-
     float *reduce = scratchpad.template get<float>(key_lnorm_reduction);
     if (diff_scaleshift == nullptr)
         diff_scaleshift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
@@ -147,17 +120,8 @@ void simple_layer_normalization_bwd_t::execute_backward(
             my_diff_beta[c] = 0.;
         }
         for (dim_t n = N_s; n < N_e; n++) {
-            float v_mean = mean[n];
-            float inv_sqrt_variance
-                    = static_cast<float>(1.0f / sqrtf(variance[n] + eps));
-            PRAGMA_OMP_SIMD()
-            for (dim_t c = 0; c < C; c++) {
-                const size_t data_off = n * C_padded + c;
-                float dd = diff_dst[data_off];
-                my_diff_gamma[c]
-                        += (src[data_off] - v_mean) * dd * inv_sqrt_variance;
-                my_diff_beta[c] += dd;
-            }
+            (*diff_ss_kernel_)(&src[n * C_padded], &diff_dst[n * C_padded],
+                    my_diff_gamma, my_diff_beta, &mean[n], &variance[n]);
         }
     });
 
@@ -183,21 +147,9 @@ void simple_layer_normalization_bwd_t::execute_backward(
         }
 
         for (dim_t n = N_s; n < N_e; n++) {
-            float v_mean = mean[n];
-            float inv_sqrt_variance
-                    = static_cast<float>(1.0f / sqrtf(variance[n] + eps));
-            PRAGMA_OMP_SIMD()
-            for (dim_t c = 0; c < C; c++) {
-                float gamma = use_scaleshift ? scaleshift[c] : 1;
-                const size_t data_off = n * C_padded + c;
-                float v_diff_src = diff_dst[data_off];
-                if (calculate_diff_stats)
-                    v_diff_src -= my_diff_beta[c] / C
-                            + (src[data_off] - v_mean) * my_diff_gamma[c]
-                                    * inv_sqrt_variance / C;
-                v_diff_src *= gamma * inv_sqrt_variance;
-                diff_src[data_off] = v_diff_src;
-            }
+            (*diff_data_kernel_)(&src[n * C_padded], &diff_dst[n * C_padded],
+                    &diff_src[n * C_padded], my_diff_gamma, my_diff_beta,
+                    scaleshift, &mean[n], &variance[n]);
         }
     });
 }

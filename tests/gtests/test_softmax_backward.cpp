@@ -122,6 +122,8 @@ protected:
 
         auto softmax_prim_desc = softmax_backward::primitive_desc(
                 softmax_desc, eng, softmax_fwd_pdesc);
+        softmax_prim_desc = softmax_backward::primitive_desc(
+                softmax_prim_desc.get()); // test construction from C pd
         auto softmax_bwd = softmax_backward(softmax_prim_desc);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {

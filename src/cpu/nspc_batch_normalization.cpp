@@ -94,16 +94,13 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
     const bool use_scaleshift = pd()->use_scaleshift();
     auto maybe_post_op
             = [&](acc_data_t res) { return (with_relu && res < 0) ? 0 : res; };
+    int nthr = dnnl_get_max_threads();
 
-    assert(dnnl_thr_syncable());
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
-        balance211(N, nthr, ithr, N_s, N_e);
-        balance211(C, nthr, ithr, C_s, C_e);
-        acc_data_t *mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
-        acc_data_t *variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
+    if (calculate_stats) {
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            dim_t N_s = 0, N_e = 0;
+            balance211(N, nthr, ithr, N_s, N_e);
 
-        if (calculate_stats) {
             for (dim_t c = 0; c < C; c++)
                 ws_reduce[C * ithr + c] = 0.;
 
@@ -127,17 +124,18 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                     }
                 }
             }
+        });
+        parallel_nd(C, [&](dim_t c) {
+            mean[c] = 0;
+            for (dim_t n = 0; n < nthr; n++)
+                mean[c] += ws_reduce[C * n + c];
+            mean[c] /= SP * N;
+        });
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            dim_t N_s = 0, N_e = 0;
+            balance211(N, nthr, ithr, N_s, N_e);
 
-            dnnl_thr_barrier();
-
-            for (dim_t c = C_s; c < C_e; c++) {
-                mean[c] = 0;
-                for (dim_t n = 0; n < nthr; n++)
-                    mean[c] += ws_reduce[C * n + c];
-                mean[c] /= SP * N;
-            }
-
-            dnnl_thr_barrier();
+            acc_data_t *mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
 
             for (dim_t c = 0; c < C; c++) {
                 mean_loc[c] = mean[c];
@@ -165,23 +163,31 @@ void nspc_batch_normalization_fwd_t<d_type>::execute_forward(
                     }
                 }
             }
-
-            dnnl_thr_barrier();
-
-            for (dim_t c = C_s; c < C_e; c++) {
-                variance[c] = 0;
-                for (dim_t n = 0; n < nthr; n++)
-                    variance[c] += ws_reduce[C * n + c];
-                variance[c] /= SP * N;
-            }
-
-            dnnl_thr_barrier();
-
+        });
+        parallel_nd(C, [&](dim_t c) {
+            variance[c] = 0;
+            for (dim_t n = 0; n < nthr; n++)
+                variance[c] += ws_reduce[C * n + c];
+            variance[c] /= SP * N;
+        });
+        parallel(nthr, [&](const int ithr, const int nthr) {
+            acc_data_t *variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
             for (dim_t c = 0; c < C; c++)
                 variance_loc[c] = variance[c];
+        });
+    }
+
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        dim_t N_s = 0, N_e = 0;
+        balance211(N, nthr, ithr, N_s, N_e);
+
+        acc_data_t *mean_loc, *variance_loc;
+        if (calculate_stats) {
+            mean_loc = tmp_mean + nstl::max(C, (dim_t)16) * ithr;
+            variance_loc = tmp_var + nstl::max(C, (dim_t)16) * ithr;
         } else {
-            variance_loc = variance;
             mean_loc = mean;
+            variance_loc = variance;
         }
 
         for (dim_t n = N_s; n < N_e; n++) {
@@ -278,15 +284,11 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
     const dim_t c_blk = mayiuse(avx512_common) ? 16 : 8;
     const dim_t tail = C % c_blk;
     const dim_t nb_c_blk = (size_t)C / c_blk;
+    int nthr = dnnl_get_max_threads();
 
-    assert(dnnl_thr_syncable());
-    parallel(0, [&](const int ithr, const int nthr) {
-        dim_t N_s = 0, N_e = 0, C_s = 0, C_e = 0;
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        dim_t N_s = 0, N_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
-        balance211(C, nthr, ithr, C_s, C_e);
-
-        acc_data_t *diff_gamma_loc = tmp_diff_ss + 2 * C + C * ithr;
-        acc_data_t *diff_beta_loc = tmp_diff_ss + 2 * C + C * (nthr + ithr);
 
         for (dim_t c = 0; c < C; c++) {
             ws_reduce[C * ithr + c] = 0.;
@@ -329,22 +331,26 @@ void nspc_batch_normalization_bwd_t<d_type>::execute_backward(
                 }
             }
         }
+    });
 
-        dnnl_thr_barrier();
-
-        for (dim_t c = C_s; c < C_e; c++) {
-            acc_data_t sqrt_variance
-                    = static_cast<acc_data_t>(1.0f / sqrtf(variance[c] + eps));
-            diff_gamma[c] = 0;
-            diff_beta[c] = 0;
-            for (dim_t n = 0; n < nthr; n++) {
-                diff_gamma[c] += ws_reduce[C * n + c];
-                diff_beta[c] += ws_reduce[C * nthr + C * n + c];
-            }
-            diff_gamma[c] *= sqrt_variance;
+    parallel_nd(C, [&](dim_t c) {
+        acc_data_t sqrt_variance
+                = static_cast<acc_data_t>(1.0f / sqrtf(variance[c] + eps));
+        diff_gamma[c] = 0;
+        diff_beta[c] = 0;
+        for (dim_t n = 0; n < nthr; n++) {
+            diff_gamma[c] += ws_reduce[C * n + c];
+            diff_beta[c] += ws_reduce[C * nthr + C * n + c];
         }
+        diff_gamma[c] *= sqrt_variance;
+    });
 
-        dnnl_thr_barrier();
+    parallel(nthr, [&](const int ithr, const int nthr) {
+        dim_t N_s = 0, N_e = 0;
+        balance211(N, nthr, ithr, N_s, N_e);
+
+        acc_data_t *diff_gamma_loc = tmp_diff_ss + 2 * C + C * ithr;
+        acc_data_t *diff_beta_loc = tmp_diff_ss + 2 * C + C * (nthr + ithr);
 
         for (dim_t c = 0; c < C; c++) {
             diff_gamma_loc[c] = diff_gamma[c];

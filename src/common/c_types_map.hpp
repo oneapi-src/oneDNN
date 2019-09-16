@@ -419,6 +419,8 @@ const memory_extra_flags_t none = dnnl_memory_extra_flag_none;
 const memory_extra_flags_t compensation_conv_s8s8
         = dnnl_memory_extra_flag_compensation_conv_s8s8;
 const memory_extra_flags_t scale_adjust = dnnl_memory_extra_flag_scale_adjust;
+const memory_extra_flags_t gpu_rnn_u8s8_compensation
+        = dnnl_memory_extra_flag_gpu_rnn_u8s8_compensation;
 } // namespace memory_extra_flags
 
 using engine_kind_t = dnnl_engine_kind_t;
@@ -483,6 +485,11 @@ const query_t memory_consumption_s64 = dnnl_query_memory_consumption_s64;
 const query_t scratchpad_engine = dnnl_query_scratchpad_engine;
 
 const query_t impl_info_str = dnnl_query_impl_info_str;
+
+const query_t reorder_src_engine = dnnl_query_reorder_src_engine;
+const query_t reorder_dst_engine = dnnl_query_reorder_dst_engine;
+
+const query_t prop_kind = dnnl_query_prop_kind;
 
 const query_t some_d = dnnl_query_some_d;
 const query_t op_d = dnnl_query_op_d;

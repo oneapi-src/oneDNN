@@ -27,6 +27,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop, src_type,
         weights_type>::cell_execution_gru_lbr)) {
     assert(!"unimplemented");
 }
+template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
 template cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
 template cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
@@ -36,6 +37,7 @@ cell_execution_sig((
         _ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution_gru)) {
     assert(!"unimplemented");
 }
+template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);

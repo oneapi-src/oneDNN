@@ -111,6 +111,7 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
                     && IMPLICATION(use_scaleshift(),
                             utils::everyone_is(
                                     f32, wei_data_t, diff_wei_data_t))
+                    && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

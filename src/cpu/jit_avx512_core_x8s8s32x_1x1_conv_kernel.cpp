@@ -592,6 +592,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
             && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
             && jcp.stride_h == 1 // TODO: support some strides
+            && jcp.ow == jcp.iw && jcp.oh == jcp.ih // enforce rpad=0
             && jcp.kh == 1 && jcp.kw == 1;
     if (!args_ok) return status::unimplemented;
 

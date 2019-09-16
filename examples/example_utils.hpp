@@ -25,24 +25,30 @@
 
 #include "dnnl.hpp"
 
-static dnnl::engine::kind parse_engine_kind(
+dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
+    // Checking if a GPU exists on the machine
+    if (akind == dnnl::engine::kind::gpu) {
+        if (dnnl::engine::get_count(dnnl::engine::kind::gpu) == 0) {
+            std::cerr << "Application couldn't find GPU, please run with "
+                         "CPU instead. Thanks!\n";
+            exit(0);
+        }
+    }
+    return akind;
+}
+
+dnnl::engine::kind parse_engine_kind(
         int argc, char **argv, int extra_args = 0) {
     // Returns default engine kind, i.e. CPU, if none given
     if (argc == 1) {
-        return dnnl::engine::kind::cpu;
+        return validate_engine_kind(dnnl::engine::kind::cpu);
     } else if (argc <= extra_args + 2) {
         std::string engine_kind_str = argv[1];
         // Checking the engine type, i.e. CPU or GPU
         if (engine_kind_str == "cpu") {
-            return dnnl::engine::kind::cpu;
+            return validate_engine_kind(dnnl::engine::kind::cpu);
         } else if (engine_kind_str == "gpu") {
-            // Checking if a GPU exists on the machine
-            if (dnnl::engine::get_count(dnnl::engine::kind::gpu) == 0) {
-                std::cerr << "Application couldn't find GPU, please run with "
-                             "CPU instead. Thanks!\n";
-                exit(0);
-            }
-            return dnnl::engine::kind::gpu;
+            return validate_engine_kind(dnnl::engine::kind::gpu);
         }
     }
 

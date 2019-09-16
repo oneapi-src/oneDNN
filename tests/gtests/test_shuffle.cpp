@@ -120,6 +120,8 @@ protected:
                 p.aprop_kind, src_desc, p.axis, p.group_size);
         shuffle_fwd_prim_desc
                 = shuffle_forward::primitive_desc(shuffle_desc, eng);
+        shuffle_fwd_prim_desc = shuffle_forward::primitive_desc(
+                shuffle_fwd_prim_desc.get()); // test construction from a C pd
 
         test_memory src(src_desc, eng);
         test_memory dst(dst_desc, eng);
@@ -148,6 +150,8 @@ protected:
 
         auto shuffle_prim_desc = shuffle_backward::primitive_desc(
                 shuffle_desc, eng, shuffle_fwd_prim_desc);
+        shuffle_prim_desc = shuffle_backward::primitive_desc(
+                shuffle_prim_desc.get()); // test construction from a C pd
 
         fill_data<data_t>(diff_dst.get_size() / sizeof(data_t), diff_dst.get());
 

@@ -47,10 +47,7 @@ struct nspc_batch_normalization_fwd_t : public primitive_impl_t {
             using namespace data_type;
             using namespace prop_kind;
 
-            bool ok = true
-                    /* the algorithm requires barriers while switching
-                 * between parallelization over N and C dimensions */
-                    && dnnl_thr_syncable() && is_fwd() && !has_zero_dim_memory()
+            bool ok = true && is_fwd() && !has_zero_dim_memory()
                     && src_md()->data_type == d_type
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
                     && IMPLICATION(
@@ -121,10 +118,8 @@ struct nspc_batch_normalization_bwd_t : public primitive_impl_t {
             using namespace data_type;
             using namespace prop_kind;
 
-            bool ok = true
-                    /* the algorithm requires barriers while switching
-                 * between parallelization over N and C dimensions */
-                    && dnnl_thr_syncable() && is_bwd() && !has_zero_dim_memory()
+            bool ok = true && is_bwd() && !has_zero_dim_memory()
+                    && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))

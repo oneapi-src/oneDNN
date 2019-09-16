@@ -19,9 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "compute/compute.hpp"
-
 #include "ocl/jit_primitive_conf.hpp"
-
 #include "ocl/rnn/ocl_rnn_pd.hpp"
 #include "ocl/rnn/rnn_utils.hpp"
 
@@ -47,7 +45,7 @@ struct jit_ref_rnn_kernel {
     ~jit_ref_rnn_kernel() {};
 
     static status_t init_conf(jit_rnn_conf_t &jrnn,
-            const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
+            const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *rnn_pd,
             const memory_desc_wrapper &src_layer_d,
             const memory_desc_wrapper &src_iter_d,
             const memory_desc_wrapper &src_iter_c_d,
@@ -66,42 +64,48 @@ struct jit_ref_rnn_kernel {
             const memory_desc_wrapper &diff_dst_layer_d,
             const memory_desc_wrapper &diff_dst_iter_d,
             const memory_desc_wrapper &diff_dst_iter_c_d,
-            const memory_desc_wrapper &ws_d, jit_rnn_offsets &jit_off,
-            const primitive_attr_t &attr) {
+            const memory_desc_wrapper &ws_d, jit_rnn_offsets &jit_off) {
 
         using namespace rnn_utils;
 
         jrnn.src_dt = src_layer_d.data_type();
         jrnn.wei_dt = weights_layer_d.data_type();
+        jrnn.acc_dt = rnn.acc_data_type;
+        jrnn.precise_dt = rnn.precise_data_type;
+        jrnn.input_dt = rnn.input_data_type;
+        jrnn.output_dt = rnn.output_data_type;
+        jrnn.dst_dt = rnn.dst_data_type;
 
-        jrnn.is_fwd = rnn_conf.is_fwd;
-        jrnn.n_layer = rnn_conf.n_layer;
-        jrnn.n_dir = rnn_conf.n_dir;
-        jrnn.n_iter = rnn_conf.n_iter;
-        jrnn.n_gates = rnn_conf.n_gates;
-        jrnn.n_bias = rnn_conf.n_bias;
-        jrnn.n_states = rnn_conf.n_states;
+        jrnn.is_fwd = rnn.is_fwd;
+        jrnn.n_layer = rnn.n_layer;
+        jrnn.n_dir = rnn.n_dir;
+        jrnn.n_iter = rnn.n_iter;
+        jrnn.n_gates = rnn.n_gates;
+        jrnn.n_bias = rnn.n_bias;
+        jrnn.n_states = rnn.n_states;
         jrnn.n_weights_input = weights_layer_d.dims()[2];
         jrnn.n_weights_state = weights_iter_d.dims()[2];
-        jrnn.batch = rnn_conf.mb;
-        jrnn.slc = rnn_conf.slc;
-        jrnn.sic = rnn_conf.sic;
-        jrnn.dic = rnn_conf.dic;
-        jrnn.dlc = rnn_conf.dlc;
+        jrnn.batch = rnn.mb;
+        jrnn.slc = rnn.slc;
+        jrnn.sic = rnn.sic;
+        jrnn.dic = rnn.dic;
+        jrnn.dlc = rnn.dlc;
         jrnn.wic = nstl::max(jrnn.slc, nstl::max(jrnn.sic, jrnn.dic));
 
-        jrnn.n_parts_weights_iter = rnn_conf.n_parts_weights_iter;
-        jrnn.n_parts_weights_layer = rnn_conf.n_parts_weights_layer;
+        jrnn.n_parts_weights_iter = rnn.n_parts_weights_iter;
+        jrnn.n_parts_weights_layer = rnn.n_parts_weights_layer;
 
         jrnn.with_bias = rnn_pd->with_bias();
         jrnn.with_src_iter = rnn_pd->with_src_iter();
         jrnn.with_src_iter_c = rnn_pd->with_src_iter_c();
         jrnn.with_dst_iter = rnn_pd->with_dst_iter();
         jrnn.with_dst_iter_c = rnn_pd->with_dst_iter_c();
-        jrnn.is_lbr = rnn_conf.is_lbr;
+        jrnn.is_lbr = rnn.is_lbr;
+        jrnn.copy_bias = rnn.copy_bias;
+        jrnn.is_int8 = rnn.is_int8;
 
-        jrnn.states_ws_ld = rnn_conf.states_ws_ld;
-        jrnn.gates_ws_ld = rnn_conf.gates_ws_ld;
+        jrnn.states_ws_ld = rnn.states_ws_ld;
+        jrnn.gates_ws_ld = rnn.gates_ws_ld;
 
         jrnn.src_layer_ndims = src_layer_d.ndims();
         jrnn.src_iter_ndims = src_iter_d.ndims();
@@ -151,23 +155,23 @@ struct jit_ref_rnn_kernel {
                 set_offsets(diff_dst_iter_c_d, jit_off.diff_dst_iter_c_off);
         }
 
-        rnn_utils::set_offsets(rnn_conf, jrnn.ws_gates_offset,
-                jrnn.ws_states_offset, jrnn.ws_c_state_offset,
-                jrnn.ws_diff_states_offset, jrnn.ws_grid_comp_offset,
-                jrnn.ws_cell_comp_offset, jrnn.ws_bias_offset,
-                jrnn.scratchpad_size, jrnn.workspace_size);
+        rnn_utils::set_offsets(rnn, jrnn.ws_gates_offset, jrnn.ws_states_offset,
+                jrnn.ws_c_state_offset, jrnn.ws_diff_states_offset,
+                jrnn.ws_grid_comp_offset, jrnn.ws_cell_comp_offset,
+                jrnn.ws_bias_offset, jrnn.scratchpad_size, jrnn.workspace_size);
 
         jrnn.cell_kind = rnn_pd->cell_kind();
         jrnn.activation_kind = rnn_pd->activation_kind();
         jrnn.direction_kind = rnn_pd->direction();
+
+        jrnn.wei_qparam_mask = rnn_pd->attr()->rnn_weights_qparams_.mask_;
+        jrnn.is_testmode = rnn.is_testmode;
 
         return status::success;
     };
 
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_rnn_conf_t &jrnn, const jit_rnn_offsets &jit_off) {
-
-        kernel_ctx.set_data_type(jrnn.src_dt);
 
         kernel_ctx.define_int("IS_FWD", jrnn.is_fwd);
         kernel_ctx.define_int("WITH_BIAS", jrnn.with_bias);
@@ -187,6 +191,12 @@ struct jit_ref_rnn_kernel {
         kernel_ctx.define_int("ELTWISE_TANH", alg_kind::eltwise_tanh);
         kernel_ctx.define_int("ELTWISE_LOGISTIC", alg_kind::eltwise_logistic);
         kernel_ctx.define_int("ACTIVATION_KIND", jrnn.activation_kind);
+
+        kernel_ctx.define_int("WS_GATES", rnn_utils::gates);
+        kernel_ctx.define_int("WS_STATES", rnn_utils::states);
+        kernel_ctx.define_int("WS_C_STATES", rnn_utils::c_states);
+        kernel_ctx.define_int("WS_DIFF_STATES", rnn_utils::diff_states);
+        kernel_ctx.define_int("WS_BIAS", rnn_utils::bias);
 
         kernel_ctx.define_int("L2R", dnnl_unidirectional_left2right);
         kernel_ctx.define_int("R2L", dnnl_unidirectional_right2left);
@@ -261,8 +271,28 @@ struct jit_ref_rnn_kernel {
                 "WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
         kernel_ctx.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
         kernel_ctx.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
+        kernel_ctx.define_int("WS_BIAS_OFFSET", jrnn.ws_bias_offset);
         kernel_ctx.define_int("STATES_WS_LD", jrnn.states_ws_ld);
         kernel_ctx.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
+
+        if (jrnn.src_dt == data_type::f16) {
+            kernel_ctx.set_data_type(data_type::f16);
+        } else
+            kernel_ctx.set_data_type(data_type::f32);
+
+        def_data_type(kernel_ctx, jrnn.src_dt, "SRC");
+        def_data_type(kernel_ctx, jrnn.wei_dt, "WEI");
+        def_data_type(kernel_ctx, jrnn.acc_dt, "ACC");
+        def_data_type(kernel_ctx, jrnn.precise_dt, "PRECISE");
+        def_data_type(kernel_ctx, jrnn.dst_dt, "DST");
+        def_data_type(kernel_ctx, jrnn.input_dt, "INPUT");
+        def_data_type(kernel_ctx, jrnn.output_dt, "OUTPUT");
+
+        kernel_ctx.define_int("IS_INT8", jrnn.is_int8);
+        kernel_ctx.define_int("COPY_BIAS", jrnn.copy_bias);
+        kernel_ctx.define_int("WEI_QPARAM_MASK", jrnn.wei_qparam_mask);
+        kernel_ctx.define_int("IS_TESTMODE", jrnn.is_testmode);
+
         kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
 
         DPRINT("\njit_ref_rnn_fwd_kernel: kernel options:\n%s\n\n",
@@ -274,34 +304,31 @@ struct jit_ref_rnn_kernel {
 };
 
 template <prop_kind_t aprop>
-inline status_t init_jit(jit_rnn_conf_t &jrnn,
-        const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
-        jit_rnn_offsets &jit_off) {
+inline status_t init_jit(jit_rnn_conf_t &jrnn, const rnn_utils::rnn_conf_t &rnn,
+        const rnn_pd_t *rnn_pd, jit_rnn_offsets &jit_off) {
 
     const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
-    return jit_ref_rnn_kernel::init_conf(jrnn, rnn_conf, rnn_pd,
-            rnn_pd->src_md(0), rnn_pd->src_md(1), rnn_pd->src_md(2),
-            rnn_pd->weights_md(0), rnn_pd->weights_md(1), rnn_pd->weights_md(2),
-            rnn_pd->dst_md(0), rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc,
+    return jit_ref_rnn_kernel::init_conf(jrnn, rnn, rnn_pd, rnn_pd->src_md(0),
+            rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
+            rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
+            rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc,
             fakedesc, fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
-            fakedesc, fakedesc, rnn_pd->workspace_md(0), jit_off,
-            *rnn_pd->attr());
+            rnn_pd->workspace_md(0), jit_off);
 }
 
 template <>
 inline status_t init_jit<prop_kind::backward>(jit_rnn_conf_t &jrnn,
-        const rnn_utils::rnn_conf_t &rnn_conf, const rnn_pd_t *rnn_pd,
+        const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *rnn_pd,
         jit_rnn_offsets &jit_off) {
-    return jit_ref_rnn_kernel::init_conf(jrnn, rnn_conf, rnn_pd,
-            rnn_pd->src_md(0), rnn_pd->src_md(1), rnn_pd->src_md(2),
-            rnn_pd->weights_md(0), rnn_pd->weights_md(1), rnn_pd->weights_md(2),
-            rnn_pd->dst_md(0), rnn_pd->dst_md(1), rnn_pd->dst_md(2),
-            rnn_pd->diff_src_md(0), rnn_pd->diff_src_md(1),
-            rnn_pd->diff_src_md(2), rnn_pd->diff_weights_md(0),
-            rnn_pd->diff_weights_md(1), rnn_pd->diff_weights_md(2),
-            rnn_pd->diff_dst_md(0), rnn_pd->diff_dst_md(1),
-            rnn_pd->diff_dst_md(2), rnn_pd->workspace_md(0), jit_off,
-            *rnn_pd->attr());
+    return jit_ref_rnn_kernel::init_conf(jrnn, rnn, rnn_pd, rnn_pd->src_md(0),
+            rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
+            rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
+            rnn_pd->dst_md(1), rnn_pd->dst_md(2), rnn_pd->diff_src_md(0),
+            rnn_pd->diff_src_md(1), rnn_pd->diff_src_md(2),
+            rnn_pd->diff_weights_md(0), rnn_pd->diff_weights_md(1),
+            rnn_pd->diff_weights_md(2), rnn_pd->diff_dst_md(0),
+            rnn_pd->diff_dst_md(1), rnn_pd->diff_dst_md(2),
+            rnn_pd->workspace_md(0), jit_off);
 }
 
 } // namespace ocl

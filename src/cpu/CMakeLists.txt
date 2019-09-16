@@ -59,6 +59,15 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
             PROPERTIES COMPILE_FLAGS "-prec-div")
     endif()
 endif()
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    file(GLOB FILES_REQUIRED_BIGOBJ
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp)
+	if(WIN32)
+		set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
+			PROPERTIES COMPILE_FLAGS "/bigobj")
+	endif()
+endif()
 
 # XXX: Compilation with DPC++ compiler takes too long for JIT kernels
 if(DNNL_SYCL_DPCPP)

@@ -46,6 +46,9 @@ struct pooling_pd_t : public primitive_desc_t {
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
+            case query::prop_kind:
+                *(prop_kind_t *)result = desc()->prop_kind;
+                break;
             case query::pooling_d:
                 *(const pooling_desc_t **)result = desc();
                 break;
@@ -226,6 +229,16 @@ protected:
     memory_desc_t diff_dst_md_;
 
     virtual status_t set_default_params() {
+        if (diff_dst_md()->format_kind == format_kind::any) {
+            status_t status = status::success;
+            if (hint_fwd_pd_)
+                status = memory_desc_init_by_md_and_dt(diff_dst_md_,
+                        *hint_fwd_pd_->dst_md(0), diff_dst_md_.data_type);
+            else
+                status = memory_desc_init_by_strides(diff_dst_md_, nullptr);
+            if (status != status::success) return status;
+        }
+
         if (diff_src_md()->format_kind != format_kind::any)
             return status::success;
 

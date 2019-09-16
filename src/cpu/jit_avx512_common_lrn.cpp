@@ -822,8 +822,9 @@ status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init() {
     bool ok = true && mayiuse(avx512_common)
             && IMPLICATION(d_type == bf16, mayiuse(avx512_core)) && !is_fwd()
             && utils::everyone_is(d_type, data_d.data_type())
-            && !has_zero_dim_memory() && data_d.ndims() == 4
-            && data_d.dims()[1] % vsize == 0 && attr()->has_default_values();
+            && set_default_formats_common() && !has_zero_dim_memory()
+            && data_d.ndims() == 4 && data_d.dims()[1] % vsize == 0
+            && attr()->has_default_values();
     if (!ok) return unimplemented;
 
     dims_t ws_dims = {MB(), C(), H(), 2 * W()};

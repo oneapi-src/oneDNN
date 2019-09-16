@@ -22,31 +22,34 @@
 #include "utils.hpp"
 
 #define rnn_postgemm_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, acc_data_t *ws_gates_, \
-            src_data_t *states_t_l_, float *c_states_t_l_, \
-            src_data_t *states_tm1_l_, float *c_states_tm1_l_, \
-            float *diff_states_t_l_, float *diff_states_t_lp1_, \
-            float *diff_states_tp1_l_, float *bias_, float *ws_grid_, \
-            acc_data_t *ws_cell_) const
+    void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_, \
+            scratch_data_t *scratch_gates_, src_data_t *states_t_l_, \
+            float *c_states_t_l_, src_data_t *states_tm1_l_, \
+            float *c_states_tm1_l_, acc_data_t *diff_states_t_l_, \
+            acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_, \
+            float *bias_, src_data_t *ws_grid_, scratch_data_t *scratch_cell_) \
+            const
 
 #define rnn_cell_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *states_t_l_, \
-            float *c_states_t_l_, float *diff_states_t_l_, \
+            float *c_states_t_l_, acc_data_t *diff_states_t_l_, \
             weights_data_t **w_layer_, weights_data_t **w_iter_, \
             float **bias_, src_data_t *states_t_lm1_, \
             src_data_t *states_tm1_l_, float *c_states_tm1_l_, \
-            float *diff_states_t_lp1_, float *diff_states_tp1_l_, \
-            float *diff_w_layer_, float *diff_w_iter_, float *diff_bias_, \
-            acc_data_t *ws_gates_, float *ws_grid_, acc_data_t *ws_cell_) \
-            const
+            acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_, \
+            acc_data_t *diff_w_layer_, acc_data_t *diff_w_iter_, \
+            acc_data_t *diff_bias_, src_data_t *ws_gates_, \
+            scratch_data_t *scratch_gates_, src_data_t *ws_grid_, \
+            scratch_data_t *scratch_cell_) const
 
 #define rnn_grid_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, weights_data_t **weights_layer_, \
-            weights_data_t **weights_states_, float **bias_, \
+            weights_data_t **weights_iter_, float **bias_, \
             src_data_t *ws_states_, float *ws_c_states_, \
-            float *ws_diff_states_, acc_data_t *ws_gates_, \
-            acc_data_t *ws_cell_, float *ws_grid_, float *diff_weights_layer_, \
-            float *diff_weights_iter_, float *diff_bias_) const
+            acc_data_t *ws_diff_states_, src_data_t *ws_gates_, \
+            src_data_t *ws_grid_, scratch_data_t *scratch_gates_, \
+            scratch_data_t *scratch_cell_, acc_data_t *diff_weights_layer_, \
+            acc_data_t *diff_weights_iter_, acc_data_t *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
     void f(const char transA, const char transB, int m, int n, int k, \
@@ -82,7 +85,14 @@ enum execution_direction_t {
     bi_sum,
 };
 
-enum data_type_conf_t { all_f32, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8 };
+enum data_type_conf_t {
+    all_f32,
+    all_bf16,
+    u8u8u8f32,
+    f32u8f32f32,
+    u8u8u8u8,
+    f32u8f32u8
+};
 
 struct rnn_conf_t {
     execution_direction_t exec_dir;
@@ -112,9 +122,16 @@ struct rnn_conf_t {
 
     /* Size of workspace for each tensor in bytes */
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
-            ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
-    bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
+            scratch_gates_size, scratch_cell_size, ws_grid_comp_size,
+            ws_per_cell, ws_bias_size;
+    bool merge_gemm_iter, merge_gemm_layer, force_nocopy, use_layer_packed_gemm,
             use_iter_packed_gemm;
+    int n_iter_scratch_gates;
+
+    inline bool is_int8() const {
+        return utils::one_of(
+                dt_conf, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8);
+    }
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);
@@ -138,8 +155,9 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
-        size_t &scratchpad_size, size_t &workspace_size);
+        size_t &ws_bias_offset, size_t &scratch_gates_offset,
+        size_t &scratch_cell_offset, size_t &scratchpad_size,
+        size_t &workspace_size);
 
 void get_scratchpad_and_workspace_sizes(
         const rnn_conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
@@ -180,19 +198,18 @@ struct ws_states_aoc {
 private:
     dnnl::impl::utils::array_offset_calculator<T, 2> state_;
 };
-using ws_states_aoc_t = ws_states_aoc<float>;
-using ws_states_aoc_u8_t = ws_states_aoc<uint8_t>;
 
-struct ws_diff_states_aoc_t {
-    ws_diff_states_aoc_t(const rnn_conf_t &rnn, float *data)
+template <typename T>
+struct ws_diff_states_aoc {
+    ws_diff_states_aoc(const rnn_conf_t &rnn, T *data)
         : diff_states_(data, rnn.n_states + 1, rnn.n_iter + 1, rnn.states_nld,
                 rnn.states_ws_ld) {}
-    float &operator()(int state_n, int batch, int dic) {
+    T &operator()(int state_n, int batch, int dic) {
         return diff_states_(state_n, 0, batch, dic);
     }
 
 private:
-    dnnl::impl::utils::array_offset_calculator<float, 4> diff_states_;
+    dnnl::impl::utils::array_offset_calculator<T, 4> diff_states_;
 };
 
 struct ws_diff_w_iter_aoc_t {

@@ -87,6 +87,19 @@ struct reorder_pd_t : public primitive_desc_t {
         return scratchpad_engine_;
     }
 
+    virtual status_t query(query_t what, int idx, void *result) const override {
+        switch (what) {
+            case query::reorder_src_engine:
+                *(engine_t **)result = src_engine();
+                break;
+            case query::reorder_dst_engine:
+                *(engine_t **)result = dst_engine();
+                break;
+            default: return primitive_desc_t::query(what, idx, result);
+        }
+        return status::success;
+    }
+
 protected:
     reorder_desc_t desc_;
     engine_t *src_engine_;

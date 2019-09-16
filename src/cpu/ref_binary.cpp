@@ -68,18 +68,11 @@ void ref_binary_t<data_type>::execute_ref(const exec_ctx_t &ctx) const {
         return src1_d.off_v(dims);
     };
 
-    if (pd()->is_tensor_op()) {
-        parallel_nd(nelems_A, [&](dim_t i) {
-            auto off = src0_d.off_l(i);
-            perform_op(&dst[off], src0[off], src1[off]);
-        });
-    } else { // broadcast
-        parallel_nd(nelems_A, [&](dim_t i) {
-            auto off_A = src0_d.off_l(i);
-            auto off_B = map_idx_B(i);
-            perform_op(&dst[off_A], src0[off_A], src1[off_B]);
-        });
-    }
+    parallel_nd(nelems_A, [&](dim_t i) {
+        auto off_A = src0_d.off_l(i);
+        auto off_B = pd()->is_tensor_op() ? src1_d.off_l(i) : map_idx_B(i);
+        perform_op(&dst[off_A], src0[off_A], src1[off_B]);
+    });
 }
 
 template struct ref_binary_t<data_type::f32>;

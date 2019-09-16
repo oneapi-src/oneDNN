@@ -91,8 +91,6 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     } else {
         scratchpad_->get_data_handle(&mem_storage_scratchpad);
     }
-    using src_t = typename prec_traits<src_type>::type;
-    using wei_t = typename prec_traits<weights_type>::type;
     void *mem_storage_weights = nullptr;
     memory_t *weights = nullptr;
     exec_args_t gemm_args;
@@ -101,6 +99,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     std::shared_ptr<memory_t> gemm_mem_B;
     std::shared_ptr<memory_t> gemm_mem_C;
 
+    // offsets (off_a, off_b and off_c) come by bytes
     switch (gemm_kind) {
         case gemm_iter:
         case gemm_layer:
@@ -118,9 +117,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
             gemm_mem_A->set_data_handle(mem_storage_weights);
             gemm_mem_B->set_data_handle(mem_storage_scratchpad);
             gemm_mem_C->set_data_handle(mem_storage_scratchpad);
-            gemm_mem_A->memory_storage()->set_offset(off_a * sizeof(wei_t));
-            gemm_mem_B->memory_storage()->set_offset(off_b * sizeof(src_t));
-            gemm_mem_C->memory_storage()->set_offset(off_c * sizeof(src_t));
+            gemm_mem_A->memory_storage()->set_offset(off_a);
+            gemm_mem_B->memory_storage()->set_offset(off_b);
+            gemm_mem_C->memory_storage()->set_offset(off_c);
             break;
         case gemm_diff_wei_iter:
         case gemm_diff_wei_layer:
@@ -137,9 +136,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
             gemm_mem_A->set_data_handle(mem_storage_scratchpad);
             gemm_mem_B->set_data_handle(mem_storage_scratchpad);
             gemm_mem_C->set_data_handle(mem_storage_weights);
-            gemm_mem_A->memory_storage()->set_offset(off_a * sizeof(src_t));
-            gemm_mem_B->memory_storage()->set_offset(off_b * sizeof(src_t));
-            gemm_mem_C->memory_storage()->set_offset(off_c * sizeof(wei_t));
+            gemm_mem_A->memory_storage()->set_offset(off_a);
+            gemm_mem_B->memory_storage()->set_offset(off_b);
+            gemm_mem_C->memory_storage()->set_offset(off_c);
             break;
         default: assert(!"unknown gemm_kind");
     }
@@ -201,13 +200,36 @@ grid_execution_sig(
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
                         workspace, w_input, w_state, diff_weights_layer,
-                        diff_weights_iter, diff_bias);
+                        diff_weights_iter, diff_bias, scales, tm_scales);
             }
         }
     }
 }
 
 //********* GRID computations strategy: utility functions **********//
+
+template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
+void _ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare(
+        compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+        int n_bias, int n_gates, int dic, const memory_storage_t &ws,
+        const memory_storage_t &scales, const memory_storage_t &wei_layer,
+        const memory_storage_t &wei_iter, const memory_storage_t &bias) const {
+
+    float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
+    float data_scale = pd()->attr()->rnn_data_qparams_.scale_;
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, ws);
+    arg_list.set(1, scales);
+    arg_list.set(2, wei_layer);
+    arg_list.set(3, wei_iter);
+    arg_list.set(4, bias);
+    arg_list.set(5, data_shift);
+    arg_list.set(6, data_scale);
+    compute_stream->parallel_for(
+            compute::nd_range_t({dic, n_bias, n_layer * n_dir}),
+            bias_prepare_kernel_, arg_list);
+}
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
@@ -242,13 +264,17 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
         const memory_storage_t &firstit_states,
         const memory_storage_t &firstit_c_states,
         const memory_storage_t &diff_dst_iter,
-        const memory_storage_t &diff_dst_iter_c) const {
+        const memory_storage_t &diff_dst_iter_c, const float shift,
+        const float scale, const bool quantize) const {
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, firstit_states);
         arg_list.set(2, firstit_c_states);
+        arg_list.set(3, shift);
+        arg_list.set(4, scale);
+        arg_list.set(5, (int)quantize);
         compute_stream->parallel_for(
                 compute::nd_range_t({sic, batch, n_layer * n_dir}),
                 copy_init_iter_kernel_, arg_list);
@@ -267,8 +293,8 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
         int batch, int slc, int dic, const memory_storage_t &dst_last_layer,
-        const memory_storage_t &diff_src_layer,
-        const memory_storage_t &ws) const {
+        const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
+        const float shift, const float scale, const bool dequantize) const {
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -276,6 +302,9 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
         arg_list.set(1, dst_last_layer);
         arg_list.set(2, (cl_int)lr);
         arg_list.set(3, (cl_int)rl);
+        arg_list.set(4, shift);
+        arg_list.set(5, scale);
+        arg_list.set(6, (int)dequantize);
         compute_stream->parallel_for(compute::nd_range_t({dic, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     } else {
@@ -295,14 +324,17 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
         int batch, int sic, int dic, const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
-        const memory_storage_t &diff_src_iter_c,
-        const memory_storage_t &ws) const {
+        const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
+        const float shift, const float scale, const bool dequantize) const {
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, dst_last_iter);
         arg_list.set(2, dst_last_iter_c);
+        arg_list.set(3, shift);
+        arg_list.set(4, scale);
+        arg_list.set(5, (int)dequantize);
         compute_stream->parallel_for(
                 compute::nd_range_t({dic, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
@@ -321,12 +353,13 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_set(
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_, const cl_ulong ws_offset,
-        const float val, const size_t size) const {
+        const int ws_part, const float val, const size_t size) const {
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, workspace_);
     arg_list.set(1, ws_offset);
     arg_list.set(2, val);
+    arg_list.set(3, ws_part);
     auto nd_range = compute::nd_range_t({size});
     compute_stream->parallel_for(nd_range, ws_set_kernel_, arg_list);
 }
@@ -408,33 +441,35 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
         const exec_ctx_t &ctx) const {
 
+    status_t status = status::success;
+
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto rnn = this->pd();
-    const rnn_conf_t &rnn_conf = this->pd()->rnn_conf_;
+    auto rnn_pd = this->pd();
+    const rnn_conf_t &rnn = this->pd()->rnn_conf_;
 
-    int n_layer = rnn_conf.n_layer;
+    int n_layer = rnn.n_layer;
 
-    int n_dir = rnn_conf.n_dir;
-    int n_iter = rnn_conf.n_iter;
-    int n_gates = rnn_conf.n_gates;
-    int n_bias = rnn_conf.n_bias;
-    int n_states = rnn_conf.n_states;
-    int n_weights_input = rnn->SLC();
-    int n_weights_state = rnn->SIC();
-    int batch = rnn_conf.mb;
-    int slc = rnn_conf.slc;
-    int sic = rnn_conf.sic;
-    int dic = rnn_conf.dic;
-    int dlc = rnn_conf.dlc;
+    int n_dir = rnn.n_dir;
+    int n_iter = rnn.n_iter;
+    int n_gates = rnn.n_gates;
+    int n_bias = rnn.n_bias;
+    int n_states = rnn.n_states;
+    int n_weights_input = rnn_pd->SLC();
+    int n_weights_state = rnn_pd->SIC();
+    int batch = rnn.mb;
+    int slc = rnn.slc;
+    int sic = rnn.sic;
+    int dic = rnn.dic;
+    int dlc = rnn.dlc;
     int wic = nstl::max(slc, nstl::max(sic, dic));
 
-    bool is_orig_gru = rnn->cell_kind() == alg_kind::vanilla_gru;
-    int n_parts_weights_iter = rnn_conf.n_parts_weights_iter;
-    int n_parts_weights_layer = rnn_conf.n_parts_weights_layer;
+    bool is_orig_gru = rnn_pd->cell_kind() == alg_kind::vanilla_gru;
+    int n_parts_weights_iter = rnn.n_parts_weights_iter;
+    int n_parts_weights_layer = rnn.n_parts_weights_layer;
 
-    bool is_fwd = rnn_conf.is_fwd;
+    bool is_fwd = rnn.is_fwd;
 
     auto &input_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_LAYER);
     auto &states_native_ = CTX_IN_STORAGE(DNNL_ARG_SRC_ITER);
@@ -455,13 +490,13 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto &diff_dst_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER);
     auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER_C);
 
-    auto &workspace_ = rnn_conf.is_training
-            ? is_fwd ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
-                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
+    auto &workspace_ = rnn.is_training ? is_fwd
+                    ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
+                    : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
 #if !EMULATED_SCRATCHPAD
-            : CTX_IN_STORAGE(DNNL_ARG_SCRATCHPAD);
+                                       : CTX_IN_STORAGE(DNNL_ARG_SCRATCHPAD);
 #else
-            : *scratchpad_;
+                                       : *scratchpad_;
 #endif
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
@@ -495,16 +530,17 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
         DPRINT("%s\n", "+++++++++++++++");
         DPRINT("  is_fwd          = %s\n", is_fwd ? "yes" : "no");
         DPRINT("  is_orig_gru     = %s\n", is_orig_gru ? "yes" : "no");
-        DPRINT("  use_workspace   = %s\n",
-                rnn_conf.use_workspace ? "yes" : "no");
+        DPRINT("  use_workspace   = %s\n", rnn.use_workspace ? "yes" : "no");
         DPRINT("%s\n", "+++++++++++++++");
-        DPRINT("  with_src_iter   = %s\n", rnn->with_src_iter() ? "yes" : "no");
+        DPRINT("  with_src_iter   = %s\n",
+                rnn_pd->with_src_iter() ? "yes" : "no");
         DPRINT("  with_src_iter_c = %s\n",
-                rnn->with_src_iter_c() ? "yes" : "no");
-        DPRINT("  with_bias       = %s\n", rnn->with_bias() ? "yes" : "no");
-        DPRINT("  with_dst_iter   = %s\n", rnn->with_dst_iter() ? "yes" : "no");
+                rnn_pd->with_src_iter_c() ? "yes" : "no");
+        DPRINT("  with_bias       = %s\n", rnn_pd->with_bias() ? "yes" : "no");
+        DPRINT("  with_dst_iter   = %s\n",
+                rnn_pd->with_dst_iter() ? "yes" : "no");
         DPRINT("  with_dst_iter_c = %s\n",
-                rnn->with_dst_iter_c() ? "yes" : "no");
+                rnn_pd->with_dst_iter_c() ? "yes" : "no");
         DPRINT("%s\n", "+++++++++++++++");
     };
 
@@ -520,48 +556,78 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     if (rnn_conf.is_fwd) {
         DPRINT("DEBUG ws NaN filling: (offset, size) states: %ld %ld c_states: "
                "%ld %ld gates: %ld %ld\n",
-                ws_states_offset_, rnn_conf.ws_states_size, ws_c_states_offset_,
-                rnn_conf.ws_c_states_size, ws_gates_offset_,
-                rnn_conf.ws_gates_size);
-        ws_set(compute_stream, workspace_, ws_states_offset_, NAN,
-                rnn_conf.ws_states_size);
-        if (rnn->with_src_iter_c()) {
-            ws_set(compute_stream, workspace_, ws_c_states_offset_, NAN,
-                    rnn_conf.ws_c_states_size);
+                ws_states_offset_, rnn.ws_states_size, ws_c_states_offset_,
+                rnn.ws_c_states_size, ws_gates_offset_, rnn.ws_gates_size);
+
+        ws_set(compute_stream, workspace_, ws_states_offset_, rnn_utils::states,
+                NAN, rnn.ws_states_size / rnn.ws_states_elsz);
+        if (rnn_pd->with_src_iter_c()) {
+            DPRINT("rnn.ws_c_states_elsz = %d\n", rnn.ws_c_states_elsz);
+            ws_set(compute_stream, workspace_, ws_c_states_offset_,
+                    rnn_utils::c_states, NAN,
+                    rnn.ws_c_states_size / rnn.ws_c_states_elsz);
         }
-        ws_set(compute_stream, workspace_, ws_gates_offset_, NAN,
-                rnn_conf.ws_gates_size);
+        ws_set(compute_stream, workspace_, ws_gates_offset_, rnn_utils::gates,
+                NAN, rnn.ws_gates_size / rnn.ws_gates_elsz);
+        ws_set(compute_stream, workspace_, ws_bias_offset_, rnn_utils::bias,
+                NAN, rnn.ws_bias_size / rnn.ws_bias_elsz);
     }
 #endif
 
     // initialize diff_state to 0
     if (aprop == prop_kind::backward) {
-        ws_set(compute_stream, workspace_, ws_diff_states_offset_, 0.0f,
-                rnn_conf.ws_diff_states_size);
+        ws_set(compute_stream, workspace_, ws_diff_states_offset_,
+                rnn_utils::diff_states, 0.0f, rnn.ws_diff_states_size);
     }
 
+    DPRINT("\n%s(%d) WS before bias prepare\n\n", __FUNCTION__, __LINE__);
+    WS_PRINT(compute_stream, workspace_);
+
     // TODO: implement without copies
-    bool is_lr = !one_of(rnn_conf.exec_dir, b2t_r2l, t2b_r2l);
-    bool is_rl = !one_of(rnn_conf.exec_dir, b2t_l2r, t2b_l2r);
+    bool is_lr = !one_of(rnn.exec_dir, r2l, r2l);
+    bool is_rl = !one_of(rnn.exec_dir, l2r, l2r);
+
+    // copy bias to memory storage
+    if (rnn.copy_bias && scales_buf_) {
+        void *tmp_ptr = nullptr;
+        status = scales_buf_->map_data(&tmp_ptr);
+        if (status != status::success) return status;
+        utils::array_copy((float *)tmp_ptr,
+                pd()->attr()->rnn_weights_qparams_.scales_,
+                rnn.n_gates * rnn.dic);
+        status = scales_buf_->unmap_data(tmp_ptr);
+        if (status != status::success) return status;
+    }
 
     // XXX: this function is used for calculating offsets for buffers and not
     // used for packing weights
     (this->*weights_state_pack_func)(n_layer, n_dir, n_weights_state, n_gates,
             batch, dic, sic, offset_wei_state_, n_parts_weights_iter,
-            rnn_conf.parts_weights_iter, w_state_native_);
+            rnn.parts_weights_iter, w_state_native_);
     (this->*weights_input_pack_func)(n_layer, n_dir, n_weights_input, n_gates,
             batch, dic, slc, offset_wei_input_, n_parts_weights_layer,
-            rnn_conf.parts_weights_layer, w_input_native_);
+            rnn.parts_weights_layer, w_input_native_);
 
+    // bias prepare if needed
+    if (rnn.copy_bias) {
+        bias_prepare(compute_stream, n_layer, n_dir, n_bias, n_gates, dic,
+                workspace_, *scales_buf_, w_input_native_, w_state_native_,
+                bias_native_);
+    }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);
+
+    float shift = (pd()->attr()->rnn_data_qparams_.shift_);
+    float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
     // we first need to copy the initial states and input into ws
     copy_init_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc,
             workspace_, input_native_, diff_dst_layer_native_);
+    const bool quantize = pd()->with_src_iter()
+            && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
     copy_init_iter(compute_stream, n_layer, n_dir, batch, sic, dic, workspace_,
             states_native_, c_states_native_, diff_dst_iter_native_,
-            diff_dst_iter_c_native_);
+            diff_dst_iter_c_native_, shift, scale, quantize);
 
     DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);
@@ -572,18 +638,24 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
             bias_native_, workspace_, w_input_native_, w_state_native_,
             diff_weights_layer_native_, diff_weights_iter_native_,
-            diff_bias_native_);
+            diff_bias_native_, *scales_buf_, *tm_scales_buf_);
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);
 
     // Finally we copy the results to the result buffers
 
+    const bool dequantize_l
+            = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
     copy_res_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc, dic,
-            dst_last_layer_native_, diff_src_layer_native_, workspace_);
+            dst_last_layer_native_, diff_src_layer_native_, workspace_, shift,
+            scale, dequantize_l);
+    const bool dequantize_i = pd()->with_dst_iter()
+            && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
     copy_res_iter(compute_stream, n_layer, n_dir, batch, sic, dic,
             dst_last_iter_native_, dst_last_iter_c_native_,
-            diff_src_iter_native_, diff_src_iter_c_native_, workspace_);
+            diff_src_iter_native_, diff_src_iter_c_native_, workspace_, shift,
+            scale, dequantize_i);
 
     // NOT USED YET
 #if 0
@@ -612,11 +684,19 @@ cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template <>
 cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
 template <>
+cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+template <>
+cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
+template <>
+cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
+template <>
 cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution);
 template <>
 cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
 template <>
 cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
+template <>
+elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
 template <>
 elemwise_sig(ref_rnn_fwd_f16_t::rnn_elemwise);
 template <>
@@ -624,11 +704,15 @@ elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
 template <>
+elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
+template <>
 elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
 template <>
 elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
+template <>
+elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
 template <>
 elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
 template <>
@@ -636,6 +720,8 @@ elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
 
+template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
+        data_type::s8>;
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f16,
         data_type::f16>;
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,

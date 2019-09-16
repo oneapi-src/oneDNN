@@ -49,138 +49,126 @@ bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
             && str[0] == str[1] * dims[1];
 };
 
-int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
-    // we want matrices leading dimentions to be 64-byte aligned,
-    // and not divisible by 256 to avoid 4K aliasing effects
-    int ld = rnd_up(dim, 64 / sizeof_dt);
-    return (ld % 256 == 0) ? ld + 64 / sizeof_dt : ld;
-}
-
-void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
-        size_t &ws_states_offset, size_t &ws_c_states_offset,
-        size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
-        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
-        size_t &scratchpad_size, size_t &workspace_size) {
-    const size_t page_size = 4096; // 2097152;
-    size_t current_offset;
-    size_t dt_size
-            = rnn.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
-
-    // Mandatory workspaces: go to workspace if use_workspace, scratchpad
-    // otherwise
-    current_offset = 0; // assumes the workspace base pointer is page aligned
-    ws_gates_offset = current_offset;
-    current_offset += rnn.ws_gates_size * dt_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_states_offset = current_offset;
-    current_offset += rnn.ws_states_size * dt_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_c_states_offset = current_offset;
-    current_offset += rnn.ws_c_states_size * dt_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_offset = current_offset;
-    current_offset += rnn.ws_diff_states_size * dt_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_grid_comp_offset = current_offset;
-    current_offset += rnn.ws_grid_comp_size * dt_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_cell_comp_offset = current_offset;
-    current_offset += rnn.ws_cell_comp_size * dt_size;
-
-    workspace_size = rnn.use_workspace ? current_offset : 0;
-
-    // Optional scratchpads
-    // Assumes the scratchpad base pointer is page aligned.
-    // If use_workspace, the following goes to scratchpad alone,
-    // otherwise, all goes to scratchpad and continue incrementing offset
-    current_offset = rnn.use_workspace ? 0 : current_offset;
-
-    if (rnn.copy_bias) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_bias_offset = current_offset;
-        current_offset += rnn.ws_bias_size * dt_size;
-    }
-
-    scratchpad_size = current_offset;
-}
-
-void rnn_utils::init_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
+void rnn_utils::init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &dst_layer_d) {
-    rnn_conf.is_fwd = utils::one_of(rd.prop_kind, prop_kind::forward_training,
+    rnn.is_fwd = utils::one_of(rd.prop_kind, prop_kind::forward_training,
             prop_kind::forward_inference);
-    rnn_conf.is_training = utils::one_of(
+    rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
-    rnn_conf.is_lbr = rd.cell_kind == dnnl_lbr_gru;
+    rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
 
     switch (rd.direction) {
-        case dnnl_unidirectional_left2right: rnn_conf.exec_dir = b2t_l2r; break;
-        case dnnl_unidirectional_right2left: rnn_conf.exec_dir = b2t_r2l; break;
-        case dnnl_bidirectional_concat:
-            rnn_conf.exec_dir = b2t_bi_concat;
-            break;
-        case dnnl_bidirectional_sum: rnn_conf.exec_dir = b2t_bi_sum; break;
+        case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;
+        case dnnl_unidirectional_right2left: rnn.exec_dir = r2l; break;
+        case dnnl_bidirectional_concat: rnn.exec_dir = bi_concat; break;
+        case dnnl_bidirectional_sum: rnn.exec_dir = bi_sum; break;
         default: break;
     }
 
     if (everyone_is(f32, src_layer_d.data_type(), dst_layer_d.data_type(),
                 weights_layer_d.data_type()))
-        rnn_conf.dt_conf = all_f32;
+        rnn.dt_conf = all_f32;
     else if (everyone_is(f16, src_layer_d.data_type(), dst_layer_d.data_type(),
                      weights_layer_d.data_type()))
-        rnn_conf.dt_conf = all_f16;
-    else
-        assert(!"unsuppoted data type");
+        rnn.dt_conf = all_f16;
+    else if (dst_layer_d.data_type() == u8) {
+        if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
+            rnn.dt_conf = u8u8u8u8;
+        else
+            rnn.dt_conf = f32u8f32u8;
+    } else {
+        if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
+            rnn.dt_conf = u8u8u8f32;
+        else
+            rnn.dt_conf = f32u8f32f32;
+    }
+    rnn.is_int8 = !one_of(rnn.dt_conf, all_f32, all_f16);
 
-    rnn_conf.n_layer = weights_layer_d.dims()[0];
-    rnn_conf.n_iter = src_layer_d.dims()[0];
-    rnn_conf.n_dir = weights_layer_d.dims()[1];
-    rnn_conf.n_gates = weights_layer_d.dims()[3];
-    rnn_conf.n_states = rd.cell_kind == dnnl_vanilla_lstm ? 2 : 1;
-    rnn_conf.n_bias = rnn_conf.n_gates + rnn_conf.is_lbr;
-    rnn_conf.mb = src_layer_d.dims()[1];
+    rnn.precise_data_type
+            = rnn.dt_conf == all_f16 ? data_type::f16 : data_type::f32;
 
-    rnn_conf.sic = weights_iter_d.dims()[2];
-    rnn_conf.slc = weights_layer_d.dims()[2];
-    rnn_conf.dic = weights_layer_d.dims()[4];
-    rnn_conf.dlc = dst_layer_d.dims()[2];
+    rnn.n_layer = weights_layer_d.dims()[0];
+    rnn.n_iter = src_layer_d.dims()[0];
+    rnn.n_dir = weights_layer_d.dims()[1];
+    rnn.n_gates = weights_layer_d.dims()[3];
+    rnn.n_states = rd.cell_kind == dnnl_vanilla_lstm ? 2 : 1;
+    rnn.n_bias = rnn.n_gates + rnn.is_lbr;
+    rnn.mb = src_layer_d.dims()[1];
+    rnn.sic = weights_iter_d.dims()[2];
+    rnn.slc = weights_layer_d.dims()[2];
+    rnn.dic = weights_layer_d.dims()[4];
+    rnn.dlc = dst_layer_d.dims()[2];
 
-    rnn_conf.gates_ld = rnn_conf.dic * rnn_conf.n_gates;
-    rnn_conf.gates_nld = rnn_conf.mb;
-    rnn_conf.states_nld = rnn_conf.mb;
+    rnn.gates_ld = rnn.dic * rnn.n_gates;
+    rnn.gates_nld = rnn.mb;
+    rnn.states_nld = rnn.mb;
 
     // Set the correct number of weights parts
     bool is_orig_gru = rd.cell_kind == alg_kind::vanilla_gru;
-    rnn_conf.n_parts_weights_layer = 1;
-    rnn_conf.parts_weights_layer[0] = rnn_conf.n_gates;
-    rnn_conf.parts_weights_layer[1] = 0;
+    rnn.n_parts_weights_layer = 1;
+    rnn.parts_weights_layer[0] = rnn.n_gates;
+    rnn.parts_weights_layer[1] = 0;
 
-    rnn_conf.n_parts_weights_iter = is_orig_gru ? 2 : 1;
-    rnn_conf.parts_weights_iter[0] = is_orig_gru ? 2 : rnn_conf.n_gates;
-    rnn_conf.parts_weights_iter[1] = is_orig_gru ? 1 : 0;
+    rnn.n_parts_weights_iter = is_orig_gru ? 2 : 1;
+    rnn.parts_weights_iter[0] = is_orig_gru ? 2 : rnn.n_gates;
+    rnn.parts_weights_iter[1] = is_orig_gru ? 1 : 0;
 
-    rnn_conf.n_parts_bias = 1;
-    rnn_conf.parts_bias[0] = rnn_conf.n_bias;
-    rnn_conf.parts_bias[1] = 0;
+    rnn.n_parts_bias = 1;
+    rnn.parts_bias[0] = rnn.n_bias;
+    rnn.parts_bias[1] = 0;
 
-    rnn_conf.use_workspace = rnn_conf.is_training;
+    // Decide to copy bias
+    rnn.copy_bias = rnn.is_int8;
+
+    rnn.use_workspace = rnn.is_training;
 
     int sizeof_states_dt
-            = rnn_conf.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
-    rnn_conf.states_ws_ld = get_good_ld(
-            nstl::max(rnn_conf.slc, nstl::max(rnn_conf.sic, rnn_conf.dic)),
-            sizeof_states_dt);
+            = rnn.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half);
+    rnn.states_ws_ld = get_good_ld(
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)), sizeof_states_dt);
+
+    switch (rnn.dt_conf) {
+        case all_f32:
+        case f32u8f32f32:
+            rnn.input_data_type = f32;
+            rnn.dst_data_type = f32;
+            rnn.output_data_type = f32;
+            break;
+        case all_f16:
+            rnn.input_data_type = f16;
+            rnn.dst_data_type = f16;
+            rnn.output_data_type = f16;
+            break;
+        case u8u8u8u8:
+            rnn.input_data_type = u8;
+            rnn.dst_data_type = u8;
+            rnn.output_data_type = u8;
+            break;
+        case u8u8u8f32:
+            rnn.input_data_type = u8;
+            rnn.dst_data_type = f32;
+            rnn.output_data_type = u8;
+            break;
+        case f32u8f32u8:
+            rnn.input_data_type = f32;
+            rnn.dst_data_type = u8;
+            rnn.output_data_type = f32;
+            break;
+        default: assert(!"unimplemented");
+    }
 }
 
-void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
+void rnn_utils::init_test_mode(rnn_conf_t &rnn, const primitive_attr_t &attr) {
+    rnn.is_testmode = attr.rnn_tparams_.test_mode_;
+    rnn.tm_ngates = attr.rnn_tparams_.ngates_;
+    rnn.tm_cscale = attr.rnn_tparams_.cscale_;
+}
+
+void rnn_utils::set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
@@ -201,51 +189,114 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn_conf, const rnn_desc_t &rd,
                 assert(!"unsupported weights format");
         }
     };
-    set_dims(weights_layer_d, rnn_conf.weights_layer_ld,
-            rnn_conf.weights_layer_nld);
-    set_dims(weights_iter_d, rnn_conf.weights_iter_ld,
-            rnn_conf.weights_iter_nld);
-    if (!rnn_conf.is_fwd) {
-        set_dims(diff_weights_layer_d, rnn_conf.diff_weights_layer_ld,
-                rnn_conf.diff_weights_layer_nld);
-        set_dims(diff_weights_iter_d, rnn_conf.diff_weights_iter_ld,
-                rnn_conf.diff_weights_iter_nld);
+    set_dims(weights_layer_d, rnn.weights_layer_ld, rnn.weights_layer_nld);
+    set_dims(weights_iter_d, rnn.weights_iter_ld, rnn.weights_iter_nld);
+    if (!rnn.is_fwd) {
+        set_dims(diff_weights_layer_d, rnn.diff_weights_layer_ld,
+                rnn.diff_weights_layer_nld);
+        set_dims(diff_weights_iter_d, rnn.diff_weights_iter_ld,
+                rnn.diff_weights_iter_nld);
     }
 
-    rnn_conf.gates_ws_ld = get_good_ld(rnn_conf.gates_ld,
-            rnn_conf.dt_conf == all_f32 ? sizeof(cl_float) : sizeof(cl_half));
+    rnn.ws_states_elsz = rnn.dt_conf == all_f32
+            ? sizeof(cl_float)
+            : (rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(int32_t));
+
+    rnn.gates_ws_ld = get_good_ld(rnn.gates_ld,
+            rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
 
     // Set workspace sizes to store:
     // states to copmute a pass
     // diff states to copmute bwd pass (training only)
     // intermediate results from the gates
 
-    rnn_conf.use_workspace = rnn_conf.is_training;
-    rnn_conf.ws_states_size = (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
-            * (rnn_conf.n_iter + 1) * rnn_conf.mb * rnn_conf.states_ws_ld;
-    bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
-    rnn_conf.ws_c_states_size = is_lstm ? (size_t)(rnn_conf.n_layer + 1)
-                    * rnn_conf.n_dir * (rnn_conf.n_iter + 1) * rnn_conf.mb
-                    * rnn_conf.states_ws_ld
-                                        : 0;
-    rnn_conf.ws_diff_states_size = rnn_conf.is_training
-            ? (size_t)(rnn_conf.n_layer + 1) * rnn_conf.n_dir
-                    * (rnn_conf.n_iter + 1) * (rnn_conf.n_states + 1)
-                    * rnn_conf.mb * rnn_conf.states_ws_ld
-            : (size_t)0;
-    rnn_conf.ws_gates_size = (size_t)rnn_conf.n_layer * rnn_conf.n_dir
-            * rnn_conf.n_iter * rnn_conf.mb * rnn_conf.gates_ws_ld;
+    int precise_elsz = rnn.precise_data_type == data_type::f16 ? sizeof(cl_half)
+                                                               : sizeof(float);
 
-    // set other sizes
-    rnn_conf.ws_per_cell = (size_t)rnn_conf.is_lbr * rnn_conf.mb * rnn_conf.dic;
-    rnn_conf.ws_cell_comp_size = rnn_conf.is_lbr || rnn_conf.dt_conf != all_f32
-            ? (size_t)rnn_conf.gates_nld * rnn_conf.gates_ws_ld
+    rnn.use_workspace = rnn.is_training;
+    rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
+            * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
+    bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
+    rnn.ws_c_states_elsz = precise_elsz;
+    rnn.ws_c_states_size = is_lstm
+            ? (size_t)(rnn.n_layer + 1) * rnn.n_dir * (rnn.n_iter + 1) * rnn.mb
+                    * rnn.states_ws_ld * rnn.ws_c_states_elsz
             : 0;
-    rnn_conf.ws_grid_comp_size = (size_t)rnn_conf.is_lbr * rnn_conf.is_training
-            * rnn_conf.n_layer * rnn_conf.n_dir * rnn_conf.n_iter
-            * rnn_conf.ws_per_cell;
-    rnn_conf.ws_bias_size = (size_t)rnn_conf.n_layer * rnn_conf.n_dir
-            * rnn_conf.n_bias * rnn_conf.dic;
+    rnn.ws_diff_states_elsz = precise_elsz;
+    rnn.ws_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
+                    * rnn.n_dir * (rnn.n_iter + 1) * (rnn.n_states + 1) * rnn.mb
+                    * rnn.states_ws_ld * rnn.ws_diff_states_elsz
+                                              : (size_t)0;
+    rnn.ws_gates_elsz = precise_elsz;
+    rnn.ws_gates_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.mb
+            * rnn.gates_ws_ld * rnn.ws_gates_elsz;
+
+    // set other sizes. Placeholder for gru
+    rnn.ws_cell_comp_elsz = precise_elsz;
+    rnn.ws_per_cell = 0;
+    rnn.ws_cell_comp_size = 0;
+    rnn.ws_grid_comp_elsz = precise_elsz;
+    rnn.ws_grid_comp_size = 0;
+
+    rnn.ws_bias_elsz = precise_elsz;
+    rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic
+            * rnn.ws_bias_elsz;
+}
+
+int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
+    // we want matrices leading dimentions to be 64-byte aligned,
+    // and not divisible by 256 to avoid 4K aliasing effects
+    int ld = rnd_up(dim, 64 / sizeof_dt);
+    return (ld % 256 == 0) ? ld + 64 / sizeof_dt : ld;
+}
+
+void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
+        size_t &ws_states_offset, size_t &ws_c_states_offset,
+        size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
+        size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
+        size_t &scratchpad_size, size_t &workspace_size) {
+    const size_t page_size = 4096; // 2097152;
+    size_t current_offset;
+    // Mandatory workspaces: go to workspace if use_workspace, scratchpad
+    // otherwise
+    current_offset = 0; // assumes the workspace base pointer is page aligned
+    ws_gates_offset = current_offset;
+    current_offset += rnn.ws_gates_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_states_offset = current_offset;
+    current_offset += rnn.ws_states_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_c_states_offset = current_offset;
+    current_offset += rnn.ws_c_states_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_diff_states_offset = current_offset;
+    current_offset += rnn.ws_diff_states_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_grid_comp_offset = current_offset;
+    current_offset += rnn.ws_grid_comp_size;
+
+    current_offset = utils::rnd_up(current_offset, page_size);
+    ws_cell_comp_offset = current_offset;
+    current_offset += rnn.ws_cell_comp_size;
+
+    workspace_size = rnn.use_workspace ? current_offset : 0;
+
+    // Optional scratchpads
+    // Assumes the scratchpad base pointer is page aligned.
+    // If use_workspace, the following goes to scratchpad alone,
+    // otherwise, all goes to scratchpad and continue incrementing offset
+    current_offset = rnn.use_workspace ? 0 : current_offset;
+
+    if (rnn.copy_bias) {
+        current_offset = utils::rnd_up(current_offset, page_size);
+        ws_bias_offset = current_offset;
+        current_offset += rnn.ws_bias_size;
+    }
+    scratchpad_size = current_offset;
 }
 
 void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
@@ -291,6 +342,12 @@ status_t rnn_utils::set_expected_desc(
         CHECK(memory_desc_init_by_tag(weights_md, rnn.is_fwd ? ldigo : ldgoi));
         // Adjust strides for good leading dimension in GEMM
         CHECK(set_good_strides(weights_md, rnn.is_fwd ? ldigo : ldgoi));
+        // set we need extra memory
+        if (rnn.is_fwd && !one_of(rnn.dt_conf, all_f32, all_f16)) {
+            weights_md.extra.flags
+                    = memory_extra_flags::gpu_rnn_u8s8_compensation;
+            weights_md.extra.compensation_mask = 27; // ldigo 11011;
+        }
     }
     return status::success;
 }

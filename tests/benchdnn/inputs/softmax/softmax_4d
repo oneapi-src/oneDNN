@@ -1,6 +1,6 @@
 # 4d dataset
 
-# like 2d but spatial left
+# spatial is 1
 96x1000x1x1
 256x10x1x1
 32x100x1x1
@@ -9,3 +9,4 @@
 # regular 4d
 2x19x128x256
 1x8x1024x16
+1x2x64x64

@@ -223,6 +223,8 @@ protected:
 
         auto deconv_primitive_desc
                 = deconvolution_forward::primitive_desc(deconv_desc, eng);
+        deconv_primitive_desc = deconvolution_forward::primitive_desc(
+                deconv_primitive_desc.get()); // test construction from a C pd
 
         deconvolution_forward(deconv_primitive_desc)
                 .execute(strm,
@@ -288,6 +290,10 @@ protected:
         auto deconv_bwd_data_primitive_desc
                 = deconvolution_backward_data::primitive_desc(
                         deconv_bwd_data_desc, eng, deconv_primitive_desc);
+        deconv_bwd_data_primitive_desc
+                = deconvolution_backward_data::primitive_desc(
+                        deconv_bwd_data_primitive_desc
+                                .get()); // test construction from a C pd
 
         deconvolution_backward_data(deconv_bwd_data_primitive_desc)
                 .execute(strm,
@@ -359,6 +365,10 @@ protected:
         auto conv_bwd_weights_desc = convolution_backward_weights::desc(
                 algorithm::convolution_direct, *con_src_desc, *con_weights_desc,
                 *con_dst_desc, {dd.strh, dd.strw}, {dd.padh, dd.padw}, padR);
+        deconv_bwd_weights_primitive_desc
+                = deconvolution_backward_weights::primitive_desc(
+                        deconv_bwd_weights_primitive_desc
+                                .get()); // test construction from a C pd
 
         auto conv_bwd_weights_primitive_desc
                 = convolution_backward_weights::primitive_desc(

@@ -71,6 +71,7 @@ Data manipulation:
  * @ref dev_guide_opencl_interoperability
  * @ref dev_guide_dpcpp_interoperability
  * @ref dev_guide_dpcpp_usm
+ * @ref dev_guide_primitive_cache
 
 # Examples
 

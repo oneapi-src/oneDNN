@@ -46,6 +46,9 @@ struct shuffle_pd_t : public primitive_desc_t {
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
+            case query::prop_kind:
+                *(prop_kind_t *)result = desc()->prop_kind;
+                break;
             case query::shuffle_d:
                 *(const shuffle_desc_t **)result = desc();
                 break;
@@ -110,6 +113,20 @@ protected:
     shuffle_desc_t desc_;
     const shuffle_pd_t *hint_fwd_pd_;
     memory_desc_t data_md_;
+
+    bool set_default_formats_common() {
+        if (data_md_.format_kind != format_kind::any) return true;
+        assert(!is_fwd() && "fwd should be fully defined");
+
+        status_t status = status::success;
+        if (hint_fwd_pd_)
+            status = memory_desc_init_by_md_and_dt(
+                    data_md_, *hint_fwd_pd_->src_md(0), data_md_.data_type);
+        else
+            status = memory_desc_init_by_strides(data_md_, nullptr);
+
+        return status == status::success;
+    }
 };
 
 } // namespace impl

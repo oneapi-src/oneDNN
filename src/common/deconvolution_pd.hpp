@@ -47,6 +47,9 @@ struct deconvolution_pd_t : public primitive_desc_t {
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
+            case query::prop_kind:
+                *(prop_kind_t *)result = desc()->prop_kind;
+                break;
             case pkind_traits<base_pkind>::query_d:
                 *(const deconvolution_desc_t **)result = desc();
                 break;

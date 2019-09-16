@@ -152,6 +152,8 @@ protected:
         auto lrn_desc = lrn_forward::desc(p.aprop_kind, p.aalgorithm,
                 l_src_desc, ld.local_size, ld.alpha, ld.beta, ld.k);
         auto lrn_prim_desc = lrn_forward::primitive_desc(lrn_desc, eng);
+        // test construction from a C pd
+        lrn_prim_desc = lrn_forward::primitive_desc(lrn_prim_desc.get());
 
         auto l_src = test_memory(l_src_desc, eng);
         auto l_dst = test_memory(l_dst_desc, eng);

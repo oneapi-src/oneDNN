@@ -51,20 +51,26 @@ struct jit_uni_softmax_fwd_t : public primitive_impl_t {
                 const memory_desc_wrapper data_d(src_md());
                 const auto &bd = data_d.blocking_desc();
 
-                dim_t axis_blk_size = 1;
-                for (int iblk = 0; iblk < bd.inner_nblks; ++iblk)
-                    if (bd.inner_idxs[iblk] == axis())
-                        axis_blk_size *= bd.inner_blks[iblk];
+                if (!data_d.is_dense(true) || !data_d.only_padded_dim(axis()))
+                    return false;
 
-                return true && inner_size() == 1 && data_d.is_dense(true)
-                        && data_d.only_padded_dim(axis())
-                        && bd.strides[axis()] == axis_blk_size;
+                const auto blk_size = cpu_isa_traits<isa>::vlen / sizeof(float);
+                if (data_d.is_plain())
+                    return bd.strides[axis()] == 1;
+                else {
+                    // 31 is a general limit, 2 is for unroll_regs_ = 4;
+                    const size_t max_stride = (1LL << (31 - 2)) - 1;
+                    const int last_blk = bd.inner_nblks - 1;
+                    return true && bd.inner_blks[last_blk] == blk_size
+                            && bd.inner_idxs[last_blk] == axis()
+                            && sizeof(float) * bd.strides[axis()] < max_stride;
+                }
             };
 
             bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
                     && src_md()->data_type == data_type::f32
                     && is_dense() // not dense impl can be easily done
-                    && (attr()->has_default_values());
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             return status::success;

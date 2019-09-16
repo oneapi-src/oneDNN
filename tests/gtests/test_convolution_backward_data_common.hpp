@@ -156,6 +156,10 @@ protected:
         auto conv_bwd_data_primitive_desc
                 = convolution_backward_data::primitive_desc(
                         conv_bwd_data_desc, eng, conv_primitive_desc);
+        conv_bwd_data_primitive_desc
+                = convolution_backward_data::primitive_desc(
+                        conv_bwd_data_primitive_desc
+                                .get()); // test construction from a C pd
 
         convolution_backward_data(conv_bwd_data_primitive_desc)
                 .execute(strm,

@@ -103,6 +103,9 @@ inline bool memory_extra_desc_is_equal(
             && IMPLICATION(
                     lhs.flags & memory_extra_flags::compensation_conv_s8s8,
                     lhs.compensation_mask == rhs.compensation_mask)
+            && IMPLICATION(
+                    lhs.flags & memory_extra_flags::gpu_rnn_u8s8_compensation,
+                    lhs.compensation_mask == rhs.compensation_mask)
             && IMPLICATION(lhs.flags & memory_extra_flags::scale_adjust,
                     lhs.scale_adjust == rhs.scale_adjust);
 }
@@ -496,6 +499,16 @@ inline status_t memory_desc_init_by_blocking_desc(
 
     md.extra = utils::zero<memory_extra_desc_t>();
 
+    return status::success;
+}
+
+/** inits memory descriptor @p md based on another one memory descriptor
+ * @p md_base and given @p data_type.
+ * Essentially: { md = md_base; md.dt = data_type; } */
+inline status_t memory_desc_init_by_md_and_dt(memory_desc_t &md,
+        const memory_desc_t &md_base, data_type_t data_type) {
+    if (&md != &md_base) md = md_base;
+    md.data_type = data_type;
     return status::success;
 }
 

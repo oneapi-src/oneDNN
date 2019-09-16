@@ -31,18 +31,31 @@
 /// well-understood to use DNNL correctly.
 ///
 /// Convolution and inner product primitives choose the memory format when you
-/// create them with the placeholder memory format @ref
-/// dnnl::memory::format_tag::any for input or output. The memory format
+/// create them with the placeholder memory format
+/// #dnnl::memory::format_tag::any for input or output. The memory format
 /// chosen is based on different circumstances such as hardware and
 /// convolutional parameters. Using the placeholder memory format is the
 /// recommended practice for convolutions, since they are the most
 /// compute-intensive operations in most topologies where they are present.
 ///
-/// Other primitives, such as ReLU, LRN, batch normalization and other, should
-/// use the same memory format as the preceding layer thus propagating the
-/// memory format through multiple DNNL primitives. This avoids
-/// unnecessary reorders which may be expensive and should be avoided unless a
-/// compute-intensive primitive requires a different format.
+/// Other primitives, such as Elementwise, LRN, batch normalization and other,
+/// on forward propagation should use the same memory format as the preceding
+/// layer thus propagating the memory format through multiple DNNL primitives.
+/// This avoids unnecessary reorders which may be expensive and should be
+/// avoided unless a compute-intensive primitive requires a different format.
+/// For performance reasons, backward computations of such primitives requires
+/// consistent memory format with the corresponding forward computations.
+/// Hence, when initializing there primitives for backward computations you
+/// should use #dnnl::memory::format_tag::any memory format tag as well.
+///
+/// Below is the short summary when to use and not to use memory format
+/// #dnnl::memory::format_tag::any during operation description initialization:
+///
+/// | Primitive Kinds                                                                                                               | Forward Propagation                                                                               | Backward Propagation                                                                                | No Propagation                                                                                    |
+/// | :--                                                                                                                           | :--                                                                                               | :--                                                                                                 | :--                                                                                               |
+/// | Compute intensive: (De-)convolution, Inner product, RNN                                                                       | Use #dnnl::memory::format_tag::any                                                                | Use #dnnl::memory::format_tag::any                                                                  | N/A                                                                                               |
+/// | Memory-bandwidth limited: Pooling, Layer and Batch Normalization, Local Response Normalization, Elementwise, Shuffle, Softmax | Use memory format from preceding layer for inputs, and #dnnl::memory::format_tag::any for outputs | Use #dnnl::memory::format_tag::any for gradient tensors, and actual memory formats for data tensors | N/A                                                                                               |
+/// | Memory-bandwidth limited: Reorder, Concat, Sum, Binary                                                                        | N/A                                                                                               | N/A                                                                                                 | Use memory format from preceding layer for inputs, and #dnnl::memory::format_tag::any for outputs |
 ///
 /// Additional format synchronization is required between forward and backward
 /// computations when running training workloads. This topic is covered in
@@ -67,7 +80,7 @@
 /// a pooling and consists of the following steps:
 /// 1. Create a pooling primitive descriptor based on the memory format chosen
 ///    by the convolution primitive.
-/// 2. Create memory descriptors for input and output data in the NHWC memory
+/// 2. Create memory descriptors for input and output data in the NCHW memory
 ///    format.
 /// 3. Determine if input and output data needs to be reordered from/to the
 ///    optimized memory format.
@@ -155,9 +168,9 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     /// @subsection memory_format_propagation_sub3 Create source and destination memory objects
     ///
     /// We assume that the 'user' source and destination memory format is
-    /// NHWC. Since there is no result validation in this tutorial, we do not
-    /// bother with filling the data with some values and let the Intel
-    /// DNNL library to allocate the memory.
+    /// NCHW. Since there is no result validation in this tutorial, we do not
+    /// bother with filling the data with some values and let DNNL
+    /// allocate the memory.
     ///
     /// @snippet memory_format_propagation.cpp Create source and destination memory objects
     // [Create source and destination memory objects]
@@ -345,7 +358,7 @@ int main(int argc, char **argv) {
 ///   activations. In this format the channels dimension (denoted by letter B
 ///   since it is the second dimension; see also @ref dev_guide_conventions)
 ///   is blocked by a factor of 8. Because of this memory format is different
-///   from the NHWC format the tutorial uses, the source and destination had
+///   from the NCHW format the tutorial uses, the source and destination had
 ///   to be reordered to and from this optimized memory layout.
 /// * The convolution primitive picked up @ref
 ///   dnnl::memory::format_tag::ABcd8b8a optimized memory format (output (A)

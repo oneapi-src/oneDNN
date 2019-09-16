@@ -49,10 +49,8 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
     ld.data_desc = *data_desc;
-    if (!is_fwd)
-        ld.diff_data_desc = *diff_data_desc;
-    else
-        ld.diff_data_desc = zero_md();
+    if (!is_fwd) ld.diff_data_desc = *diff_data_desc;
+
     ld.local_size = local_size;
     ld.lrn_alpha = alpha;
     ld.lrn_beta = beta;
@@ -79,7 +77,7 @@ status_t dnnl_lrn_forward_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
 }
 
 status_t dnnl_lrn_backward_desc_init(lrn_desc_t *lrn_desc, alg_kind_t alg_kind,
-        const memory_desc_t *data_desc, const memory_desc_t *diff_data_desc,
+        const memory_desc_t *diff_data_desc, const memory_desc_t *data_desc,
         dim_t local_size, float alpha, float beta, float k) {
     return lrn_desc_init(lrn_desc, backward_data, alg_kind, data_desc,
             diff_data_desc, local_size, alpha, beta, k);

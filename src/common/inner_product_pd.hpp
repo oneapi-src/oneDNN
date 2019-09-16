@@ -55,6 +55,9 @@ struct inner_product_pd_t : public primitive_desc_t {
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {
+            case query::prop_kind:
+                *(prop_kind_t *)result = desc()->prop_kind;
+                break;
             case query::inner_product_d:
                 *(const inner_product_desc_t **)result = desc();
                 break;

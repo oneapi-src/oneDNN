@@ -48,6 +48,7 @@
 /// @snippet cross_engine_reorder.cpp Prologue
 // [Prologue]
 #include "dnnl.hpp"
+#include "example_utils.hpp"
 
 // Optional header to access debug functions like `dnnl_status2str()`
 #include "dnnl_debug.h"
@@ -110,8 +111,8 @@ void cross_engine_reorder_tutorial() {
     ///
     /// @snippet cross_engine_reorder.cpp Initialize engine
     // [Initialize engine]
-    auto cpu_engine = engine(engine::kind::cpu, 0);
-    auto gpu_engine = engine(engine::kind::gpu, 0);
+    auto cpu_engine = engine(validate_engine_kind(engine::kind::cpu), 0);
+    auto gpu_engine = engine(validate_engine_kind(engine::kind::gpu), 0);
     // [Initialize engine]
 
     /// In addition to an engine, all primitives require a @ref dnnl::stream

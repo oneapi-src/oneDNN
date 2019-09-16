@@ -1333,8 +1333,12 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
             ? isa == avx512_common ? nChw16c : nChw8c
             : isa == avx512_common ? nCdhw16c : nCdhw8c;
 
-    bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-            && one_of(ndims(), 4, 5) && one_of(src_md()->data_type, f32, bf16)
+    bool ok = true
+            /* the algorithm requires barriers for best performance so for TBB we use
+             * jit_uni_tbb_batch_normalization instead */
+            && dnnl_thr_syncable() && mayiuse(isa) && is_fwd()
+            && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
+            && one_of(src_md()->data_type, f32, bf16)
             && IMPLICATION(src_md()->data_type == bf16, mayiuse(avx512_core))
             && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
             && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
@@ -1402,8 +1406,12 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
             ? one_of(isa, sse41, avx2) ? nChw8c : nChw16c
             : one_of(isa, sse41, avx2) ? nCdhw8c : nCdhw16c;
 
-    bool ok = true && mayiuse(isa) && is_bwd() && !has_zero_dim_memory()
-            && one_of(ndims(), 4, 5)
+    bool ok = true
+            /* the algorithm requires barriers for best performance so for TBB we use
+             * jit_uni_tbb_batch_normalization instead */
+            && dnnl_thr_syncable() && mayiuse(isa) && is_bwd()
+            && !has_zero_dim_memory() && one_of(ndims(), 4, 5)
+            && set_default_formats_common()
             && one_of(true,
                     everyone_is(
                             f32, src_md()->data_type, diff_src_md()->data_type),

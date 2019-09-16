@@ -1,15 +1,18 @@
-# f32
+# f32,bf16
 --reset
+--allow-unimpl=true
 
 # RNN
---alg=VANILLA_RNN
 --direction=left2right,right2left,concat,sum
 --activation=RELU,TANH,LOGISTIC
---prop=FWD_D,BWD_DW --batch=rnn_small
+--cfg=f32,bf16
+--prop=FWD_D,BWD_DW
+--alg=VANILLA_RNN          --batch=rnn_small
 
 # LSTM, GRU
 --direction=left2right
 --activation=TANH
+--cfg=f32,bf16
 --prop=FWD_D,BWD_DW
 --alg=VANILLA_LSTM,LBR_GRU --batch=rnn_small
 --alg=VANILLA_GRU          --batch=rnn_gru_small
@@ -18,7 +21,6 @@
 --alg=VANILLA_LSTM
 --direction=left2right
 --activation=TANH
---allow-unimpl=true
 --prop=FWD_D
 
 --cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small

@@ -83,6 +83,10 @@ status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
     data_type_t weights_iter_dt = weights_iter_desc->data_type;
     data_type_t weights_layer_dt = weights_layer_desc->data_type;
 
+    bool is_forward = !(prop_kind == prop_kind::backward);
+    bool is_inference = prop_kind == prop_kind::forward_inference;
+    bool is_lstm = cell_kind == dnnl_vanilla_lstm;
+
     bool cell_state_check
             = IMPLICATION(!is_zero_md(src_iter_c_desc),
                       one_of(src_iter_c_desc->data_type, f32, f16))
@@ -97,15 +101,24 @@ status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
                     !is_zero_md(dst_iter_desc), dst_iter_desc->data_type == f32)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
-    bool is_f16 = everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,
-                          weights_layer_dt)
+    bool is_bf16 = everyone_is(bf16, src_layer_dt, dst_layer_dt,
+                           weights_iter_dt, weights_layer_dt)
+            && IMPLICATION(!is_zero_md(src_iter_desc),
+                    src_iter_desc->data_type == bf16)
+            && IMPLICATION(!is_zero_md(dst_iter_desc),
+                    dst_iter_desc->data_type == bf16)
+            && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
+
+    bool is_f16 = is_forward
+            && everyone_is(f16, src_layer_dt, dst_layer_dt, weights_iter_dt,
+                    weights_layer_dt)
             && IMPLICATION(
                     !is_zero_md(src_iter_desc), src_iter_desc->data_type == f16)
             && IMPLICATION(
                     !is_zero_md(dst_iter_desc), dst_iter_desc->data_type == f16)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f16);
 
-    bool is_u8u8u8 = src_layer_dt == u8
+    bool is_u8u8u8 = is_inference && is_lstm && src_layer_dt == u8
             && IMPLICATION(
                     !is_zero_md(src_iter_desc), src_iter_desc->data_type == u8)
             && IMPLICATION(!is_zero_md(src_iter_c_desc),
@@ -118,7 +131,7 @@ status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
-    bool is_f32u8f32 = src_layer_dt == u8
+    bool is_f32u8f32 = is_inference && is_lstm && src_layer_dt == u8
             && IMPLICATION(
                     !is_zero_md(src_iter_desc), src_iter_desc->data_type == f32)
             && IMPLICATION(
@@ -127,15 +140,43 @@ status_t check_data_type_consistency_fwd(dnnl_alg_kind_t cell_kind,
             && everyone_is(s8, weights_iter_dt, weights_layer_dt)
             && IMPLICATION(!is_zero_md(bias_desc), bias_desc->data_type == f32);
 
-    bool is_inference = prop_kind == prop_kind::forward_inference;
-    bool is_lstm = cell_kind == dnnl_vanilla_lstm;
-
     return cell_state_check
-                    && (is_f32 || is_f16
-                            || ((is_u8u8u8 || is_f32u8f32) && is_lstm
-                                    && is_inference))
+                    && (is_f32 || is_bf16 || is_f16 || is_u8u8u8 || is_f32u8f32)
             ? success
             : unimplemented;
+}
+
+status_t check_data_type_consistency_bwd(dnnl_alg_kind_t cell_kind,
+        prop_kind_t prop_kind, const memory_desc_t *diff_src_layer_desc,
+        const memory_desc_t *diff_src_iter_desc,
+        const memory_desc_t *diff_src_iter_c_desc,
+        const memory_desc_t *diff_weights_layer_desc,
+        const memory_desc_t *diff_weights_iter_desc,
+        const memory_desc_t *diff_bias_desc,
+        const memory_desc_t *diff_dst_layer_desc,
+        const memory_desc_t *diff_dst_iter_desc,
+        const memory_desc_t *diff_dst_iter_c_desc) {
+    using namespace data_type;
+    data_type_t diff_src_layer_dt = diff_src_layer_desc->data_type;
+    data_type_t diff_dst_layer_dt = diff_dst_layer_desc->data_type;
+    data_type_t diff_weights_iter_dt = diff_weights_iter_desc->data_type;
+    data_type_t diff_weights_layer_dt = diff_weights_layer_desc->data_type;
+
+    /* We require diffs to be f32, even for bf16 */
+    bool are_diff_f32 = everyone_is(f32, diff_src_layer_dt, diff_dst_layer_dt,
+                                diff_weights_iter_dt, diff_weights_layer_dt)
+            && IMPLICATION(!is_zero_md(diff_src_iter_desc),
+                    diff_src_iter_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(diff_dst_iter_desc),
+                    diff_dst_iter_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(diff_bias_desc),
+                    diff_bias_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(diff_src_iter_c_desc),
+                    diff_src_iter_c_desc->data_type == f32)
+            && IMPLICATION(!is_zero_md(diff_dst_iter_c_desc),
+                    diff_dst_iter_c_desc->data_type == f32);
+
+    return are_diff_f32 ? success : unimplemented;
 }
 
 status_t check_dim_consistency(dnnl_alg_kind_t cell_kind,
@@ -417,6 +458,16 @@ status_t rnn_common_bwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
             diff_weights_iter_desc, diff_bias_desc, diff_dst_layer_desc,
             diff_dst_iter_desc, diff_dst_iter_c_desc);
     if (st != success) return st;
+
+    CHECK(check_data_type_consistency_fwd(cell_kind, prop_kind, src_layer_desc,
+            src_iter_desc, src_iter_c_desc, weights_layer_desc,
+            weights_iter_desc, bias_desc, dst_layer_desc, dst_iter_desc,
+            dst_iter_c_desc));
+
+    CHECK(check_data_type_consistency_bwd(cell_kind, prop_kind,
+            diff_src_layer_desc, diff_src_iter_desc, diff_src_iter_c_desc,
+            diff_weights_layer_desc, diff_weights_iter_desc, diff_bias_desc,
+            diff_dst_layer_desc, diff_dst_iter_desc, diff_dst_iter_c_desc));
 
     dnnl_rnn_desc_t rd = zero_rnn_desc();
 

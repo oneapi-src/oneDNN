@@ -13,6 +13,13 @@
 --stag=ncdhw:ncdhw:ncdhw
 --axis=1 6x48x3x4x5:6x32x3x4x5:6x16x3x4x5
 
+# sizes less than blocks (+zero dim)
+--dtag=undef,nhwc,nChw16c
+--stag=nChw16c:nchw:nChw8c:nhwc --axis=1
+6x8x3x4:6x2x3x4:6x3x3x4:6x0x3x4
+6x8x3x4:6x1x3x4:6x0x3x4:6x3x3x4
+6x0x3x4:6x3x3x4:6x5x3x4:6x5x3x4
+
 # f16
 --sdt=f16
 --ddt=f16

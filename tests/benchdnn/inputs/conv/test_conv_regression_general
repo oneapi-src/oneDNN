@@ -103,8 +103,27 @@ mb1_ic16oc16_iw80ow80kw31sw1dw0pw15
 mb1_g1_ic16oc16_kd1kh1kw1_id1ih2iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
 mb1_g1_ic16oc16_kd1kh1kw1_id2ih2iw1_od1oh1ow1_sd3sh3sw1_pd0ph0pw0_dd0dh0dw0n"neg-padding(-1)"
 
+# Negative padding creates negative remainder in calculation of overflow_kh_hi
+--dir=BWD_D mb1_g1_ic16oc16_kd1kh2kw1_id1ih3iw1_od1oh1ow1_sd1sh3sw1_pd0ph0pw0_dd0dh0dw0n"2D_Neg-Padding"
+--dir=BWD_D mb1_g1_ic16oc16_kd2kh1kw1_id3ih1iw1_od1oh1ow1_sd3sh1sw1_pd0ph0pw0_dd0dh0dw0n"3D_Neg-Padding"
+
 # Depthwise with large right padding
 --reset --dir=BWD_D
 mb1_g3ic3oc3_ih10oh9kh2sh2dh0ph4
 mb1_g16ic16oc16_ih5oh2kh2sh5ph0
 mb1_g16ic16oc16_ih5oh2kh2sh3ph0
+
+# MFDNN-2023 3d corner case (small spatial)
+--dir=BWD_W --cfg=f32 g1ic1id2ih1iw1oc1od2oh1ow1kd3kh1kw1pd2ph0pw0n
+
+# MFDNN-2027 2d corner case (large kernel and top padding, negative bottom padding + stride)
+--dir=BWD_W --cfg=f32 g1ic16ih7iw1oc16oh1ow1kh11kw1sh2sw1ph5pw0n
+
+# 1x1 Conv with spatial padding
+--reset --dir=FWD_B
+--cfg=f32 g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
+--cfg=bf16bf16f32,u8s8u8 --allow-unimpl=true g1ic64ih31iw1oc64oh32ow1kh1kw1ph0pw0
+
+# 3d problem dispatching
+--dir=FWD_D,BWD_D,BWD_W
+--cfg=f32,bf16bf16bf16 g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1

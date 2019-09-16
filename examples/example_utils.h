@@ -44,24 +44,30 @@
         } \
     } while (0)
 
-static dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
+dnnl_engine_kind_t validate_engine_kind(dnnl_engine_kind_t akind) {
+    // Checking if a GPU exists on the machine
+    if (akind == dnnl_gpu) {
+        if (!dnnl_engine_get_count(dnnl_gpu)) {
+            fprintf(stderr,
+                    "Application couldn't find GPU, please run with CPU "
+                    "instead. Thanks!\n");
+            exit(0);
+        }
+    }
+    return akind;
+}
+
+dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
     // Returns default engine kind, i.e. CPU, if none given
     if (argc == 1) {
-        return dnnl_cpu;
+        return validate_engine_kind(dnnl_cpu);
     } else if (argc == 2) {
         // Checking the engine type, i.e. CPU or GPU
         char *engine_kind_str = argv[1];
         if (!strcmp(engine_kind_str, "cpu")) {
-            return dnnl_cpu;
+            return validate_engine_kind(dnnl_cpu);
         } else if (!strcmp(engine_kind_str, "gpu")) {
-            // Checking if a GPU exists on the machine
-            if (!dnnl_engine_get_count(dnnl_gpu)) {
-                fprintf(stderr,
-                        "Application couldn't find GPU, please run with CPU "
-                        "instead. Thanks!\n");
-                exit(0);
-            }
-            return dnnl_gpu;
+            return validate_engine_kind(dnnl_gpu);
         }
     }
 
