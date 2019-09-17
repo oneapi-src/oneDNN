@@ -16,7 +16,7 @@
 
 #include "ocl/ocl_types.h"
 
-__kernel void gen9_gemm_copy_kernel(long m, long n, __global DATA_T *a,
+__kernel void gen9_gemm_copy_kernel(long m, long n, __global SRC_DATA_T *a,
         long offseta, long lda, DATA_T alpha, __global DATA_T *b,
         long offsetb) {
     int idx = get_group_id(0);
@@ -34,7 +34,7 @@ __kernel void gen9_gemm_copy_kernel(long m, long n, __global DATA_T *a,
     n -= idy;
 
     for (i = 0; i < COPY_UNROLL; i++) {
-        b[offsetb] = (i < n) ? (alpha * a[offseta]) : DATA_ZERO;
+        b[offsetb] = (i < n) ? (alpha * SRC_TO_REF(a[offseta])) : DATA_ZERO;
 
 #ifdef USE_TRANS
         offseta++;

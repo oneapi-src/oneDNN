@@ -36,13 +36,16 @@ using namespace dnnl::impl::ocl;
 
 namespace {
 
-template <data_type_t data_type>
+template <data_type_t a_type, data_type_t b_type = a_type,
+        data_type_t c_type = a_type, data_type_t acc_type = c_type>
 dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
         const char *transb, dim_t m, dim_t n, dim_t k, cl_float alpha, cl_mem a,
         dim_t offset_a, dim_t lda, cl_mem b, dim_t offset_b, dim_t ldb,
         cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
 
-    using data_t = typename prec_traits<data_type>::type;
+    using a_t = typename prec_traits<a_type>::type;
+    using b_t = typename prec_traits<b_type>::type;
+    using c_t = typename prec_traits<c_type>::type;
 
     status_t status;
 
@@ -76,7 +79,8 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     s.reset(s_ptr);
 
     // Create primitive descriptor
-    using pd_type = typename jit_gen9_gemm_t<data_type>::pd_t;
+    using pd_type =
+            typename jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::pd_t;
 
     gemm_desc_t op_desc;
     op_desc.primitive_kind = dnnl_gemm;
@@ -92,17 +96,18 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     op_desc.ldc = ldc;
     op_desc.alpha = alpha;
     op_desc.beta = beta;
-    op_desc.a_type = data_type;
-    op_desc.b_type = data_type;
-    op_desc.c_type = data_type;
+    op_desc.a_type = a_type;
+    op_desc.b_type = b_type;
+    op_desc.c_type = c_type;
+    op_desc.acc_type = acc_type;
 
     dnnl_memory_desc_t a_desc, b_desc, c_desc;
 
-    status = create_gemm_memory_desc(&a_desc, &op_desc, 0, data_type);
+    status = create_gemm_memory_desc(&a_desc, &op_desc, 0, a_type);
     assert(status == status::success);
-    status = create_gemm_memory_desc(&b_desc, &op_desc, 1, data_type);
+    status = create_gemm_memory_desc(&b_desc, &op_desc, 1, b_type);
     assert(status == status::success);
-    status = create_gemm_memory_desc(&c_desc, &op_desc, 2, data_type);
+    status = create_gemm_memory_desc(&c_desc, &op_desc, 2, c_type);
     assert(status == status::success);
 
     std::unique_ptr<primitive_desc_t> pd;
@@ -123,9 +128,9 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
             engine.get(), &c_desc, memory_flags_t::use_runtime_ptr, c));
     if (!a_mem || !b_mem || !c_mem) return status::out_of_memory;
 
-    a_mem->memory_storage()->set_offset(offset_a * sizeof(data_t));
-    b_mem->memory_storage()->set_offset(offset_b * sizeof(data_t));
-    c_mem->memory_storage()->set_offset(offset_c * sizeof(data_t));
+    a_mem->memory_storage()->set_offset(offset_a * sizeof(a_t));
+    b_mem->memory_storage()->set_offset(offset_b * sizeof(b_t));
+    c_mem->memory_storage()->set_offset(offset_c * sizeof(c_t));
 
     // Create primitive
     std::unique_ptr<primitive_t> gemm_prim;
@@ -213,6 +218,7 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
     op_desc.a_type = a_type;
     op_desc.b_type = b_type;
     op_desc.c_type = c_type;
+    op_desc.acc_type = c_type;
 
     dnnl_memory_desc_t a_desc, b_desc, c_desc, co_desc;
 
@@ -297,6 +303,24 @@ dnnl_status_t DNNL_API dnnl_ocl_hgemm(cl_command_queue queue, char transa,
         cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
     return gemm_generic<data_type::f16>(queue, &transb, &transa, n, m, k, alpha,
             b, offset_b, ldb, a, offset_a, lda, beta, c, offset_c, ldc);
+}
+
+dnnl_status_t DNNL_API dnnl_ocl_gemm_bf16bf16f32(cl_command_queue queue,
+        char transa, char transb, dim_t m, dim_t n, dim_t k, cl_float alpha,
+        cl_mem a, dim_t offset_a, dim_t lda, cl_mem b, dim_t offset_b,
+        dim_t ldb, cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
+    return gemm_generic<data_type::bf16, data_type::bf16, data_type::f32>(queue,
+            &transb, &transa, n, m, k, alpha, b, offset_b, ldb, a, offset_a,
+            lda, beta, c, offset_c, ldc);
+}
+
+dnnl_status_t DNNL_API dnnl_ocl_gemm_bf16bf16bf16(cl_command_queue queue,
+        char transa, char transb, dim_t m, dim_t n, dim_t k, cl_float alpha,
+        cl_mem a, dim_t offset_a, dim_t lda, cl_mem b, dim_t offset_b,
+        dim_t ldb, cl_float beta, cl_mem c, dim_t offset_c, dim_t ldc) {
+    return gemm_generic<data_type::bf16, data_type::bf16, data_type::bf16,
+            data_type::f32>(queue, &transb, &transa, n, m, k, alpha, b,
+            offset_b, ldb, a, offset_a, lda, beta, c, offset_c, ldc);
 }
 
 dnnl_status_t DNNL_API dnnl_ocl_gemm_s8s8s32(cl_command_queue queue,

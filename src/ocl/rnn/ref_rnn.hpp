@@ -249,6 +249,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 gemm_desc.a_type = a_dt;
                 gemm_desc.b_type = b_dt;
                 gemm_desc.c_type = c_dt;
+                gemm_desc.acc_type = c_dt;
 
                 gemm_desc.ao = 0;
                 gemm_desc.bo = 0;

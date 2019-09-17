@@ -17,7 +17,7 @@
 #include "ocl/ocl_types.h"
 
 __kernel void gen9_gemm_beta_kernel(long m, long n, DATA_T alpha,
-        __global DATA_T *a, long offset, long lda) {
+        __global DST_DATA_T *a, long offset, long lda) {
     int idy = get_group_id(1);
     long count = m;
 
@@ -25,7 +25,7 @@ __kernel void gen9_gemm_beta_kernel(long m, long n, DATA_T alpha,
 
     if (idy < n) {
         while (count > 0) {
-            a[offset] *= alpha;
+            a[offset] = REF_TO_DST(DST_TO_REF(a[offset]) * alpha);
             offset++;
             count--;
         }

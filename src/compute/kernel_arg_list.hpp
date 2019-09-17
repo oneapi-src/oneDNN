@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <type_traits>
 
+#include "common/bfloat16.hpp"
 #include "common/float16.hpp"
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
@@ -52,7 +53,8 @@ public:
 
     template <typename T,
             typename = typename std::enable_if<std::is_arithmetic<T>::value
-                    || std::is_same<T, float16_t>::value>::type>
+                    || std::is_same<T, float16_t>::value
+                    || std::is_same<T, bfloat16_t>::value>::type>
     void set_value(const T &value) {
         kind_ = kind_t::scalar;
         new (&scalar_storage_) T(value);
@@ -91,7 +93,8 @@ public:
 
     template <class T,
             typename = typename std::enable_if<std::is_arithmetic<T>::value
-                    || std::is_same<T, float16_t>::value>::type>
+                    || std::is_same<T, float16_t>::value
+                    || std::is_same<T, bfloat16_t>::value>::type>
     void set(int index, const T &value) {
         static_assert(
                 sizeof(T) <= kernel_arg_t::max_size, "Type size is too large");

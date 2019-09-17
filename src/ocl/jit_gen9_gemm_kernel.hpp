@@ -26,11 +26,15 @@ namespace impl {
 namespace ocl {
 
 struct jit_gen9_gemm_kernel {
-    template <impl::data_type_t type>
+    template <impl::data_type_t type, impl::data_type_t src_type = type,
+            impl::data_type_t dst_type = type>
     static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx) {
         using namespace data_type;
 
         if (type != f32 && type != f16) return status::unimplemented;
+
+        def_data_type(kernel_ctx, src_type, "SRC");
+        def_data_type(kernel_ctx, dst_type, "DST");
 
         kernel_ctx.define_int("DT_F32", type == f32);
         kernel_ctx.define_int("DT_F16", type == f16);
@@ -51,10 +55,10 @@ struct jit_gen9_gemm_kernel {
     };
 };
 
-template <impl::data_type_t type>
+template <impl::data_type_t src_type, impl::data_type_t type = src_type>
 struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx) {
-        auto status = init_cl_options<type>(kernel_ctx);
+        auto status = init_cl_options<type, src_type, src_type>(kernel_ctx);
         if (status) return status;
 
         kernel_ctx.print_options();
@@ -62,11 +66,11 @@ struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-template <impl::data_type_t type>
+template <impl::data_type_t src_type, impl::data_type_t type = src_type>
 struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(
             compute::kernel_ctx_t &kernel_ctx, bool outer, bool trans) {
-        auto status = init_cl_options<type>(kernel_ctx);
+        auto status = init_cl_options<type, src_type>(kernel_ctx);
         if (status) return status;
 
         kernel_ctx.define_int("COPY_UNROLL",
@@ -84,11 +88,11 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-template <impl::data_type_t type>
+template <impl::data_type_t type, impl::data_type_t dst_type = type>
 struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(
             compute::kernel_ctx_t &kernel_ctx, bool beta0) {
-        auto status = init_cl_options<type>(kernel_ctx);
+        auto status = init_cl_options<type, type, dst_type>(kernel_ctx);
         if (status) return status;
 
         if (beta0) kernel_ctx.add_option("-DBETA_ZERO");
