@@ -367,6 +367,24 @@ public:
         vmovups(x, op);
     }
 
+    void uni_vmovups_tail(const Xbyak::Address &addr, const Xbyak::Ymm &mask,
+            const Xbyak::Ymm &x) {
+        vmaskmovps(addr, mask, x);
+    }
+    void uni_vmovups_tail(const Xbyak::Ymm &x, const Xbyak::Ymm &mask,
+            const Xbyak::Address &addr) {
+        vmaskmovps(x, mask, addr);
+    }
+
+    void uni_vmovups_tail(const Xbyak::Address &addr, const Xbyak::Opmask &mask,
+            const Xbyak::Zmm &x) {
+        vmovups(addr | mask, x);
+    }
+    void uni_vmovups_tail(const Xbyak::Zmm &x, const Xbyak::Opmask &mask,
+            const Xbyak::Address &addr) {
+        vmovups(x | mask | T_z, addr);
+    }
+
     void uni_vmovntps(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
         movntps(addr, x);
     }
