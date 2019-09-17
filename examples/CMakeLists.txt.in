@@ -62,7 +62,7 @@ else()
 endif()
 
 if(WIN32)
-    set(CTESTCONFIG_PATH "${DNNLROOT}/bin")
+    set(CTESTCONFIG_PATH "${DNNLROOT}\\bin")
 elseif(APPLE)
     set(CTESTCONFIG_PATH "${DNNLROOT}/lib")
 endif()
