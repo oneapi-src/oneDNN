@@ -331,6 +331,21 @@ struct jit_simple_sum_conf_t {
     int ndims;
 };
 
+/* binary */
+struct jit_binary_conf_t {
+    int ndims;
+    data_type_t data_type;
+    bool is_mul;
+    bool is_add;
+    bool is_tensor_op;
+    size_t gws_d[3];
+    int dim0[MAX_NDIMS];
+    int bcast_dims[MAX_NDIMS];
+    jit_memory_desc_info_t src0_md_info;
+    jit_memory_desc_info_t src1_md_info;
+    jit_memory_desc_info_t dst_md_info;
+};
+
 /* simple reorder */
 struct jit_reorder_conf_t {
     bool do_reorder, with_group, has_padding;

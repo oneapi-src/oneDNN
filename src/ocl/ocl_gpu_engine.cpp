@@ -28,6 +28,7 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 #include "ocl/ref_batch_normalization.hpp"
+#include "ocl/ref_binary.hpp"
 #include "ocl/ref_convolution.hpp"
 #include "ocl/ref_deconvolution.hpp"
 #include "ocl/ref_eltwise.hpp"
@@ -204,6 +205,8 @@ static const pd_create_f ocl_impl_list[] = {
         /*layer normalization */
         INSTANCE(ref_layer_normalization_fwd_t),
         INSTANCE(ref_layer_normalization_bwd_t),
+        /* binary */
+        INSTANCE(ref_binary_t),
         nullptr,
 };
 
