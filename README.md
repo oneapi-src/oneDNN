@@ -108,6 +108,8 @@ software includes the following third-party components:
 [Apache License Version 2.0](doc/assets/mathjax/LICENSE)
 * [Boost C++ Libraries](https://www.boost.org/) distributed under
 [Boost Software License, Version 1.0](src/common/LICENSE_1_0)
+* [ComputeCPP SDK](https://github.com/codeplaysoftware/computecpp-sdk) distributed under
+[Apache License Version 2.0](cmake/FindComputeCpp.cmake)
 
 # Documentation
 * [Developer guide](https://intel.github.io/mkl-dnn) explains programming

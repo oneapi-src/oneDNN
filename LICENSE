@@ -229,3 +229,7 @@
    Boost C++ Libraries, Boost Software License, Version 1.0
    Copyright 2005-2014 Daniel James.
    See full license text in src/cpu/LICENSE_1_0
+
+   ComputeCpp SDK, Apache License 2.0
+   Copyright (c) 2016-2018 Codeplay Software Ltd.
+   See copyright notice in cmake/FindComputeCpp.cmake
