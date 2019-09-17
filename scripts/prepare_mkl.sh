@@ -15,7 +15,7 @@
 # limitations under the License.
 #===============================================================================
 
-MKLURLROOT="https://github.com/intel/mkl-dnn/releases/download/v0.20-rc/"
+MKLURLROOT="https://github.com/intel/mkl-dnn/releases/download/v0.21/"
 MKLVERSION="2019.0.5.20190502"
 
 os=`uname`
