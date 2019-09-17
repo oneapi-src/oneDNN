@@ -151,8 +151,6 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type>::launch_compute(
     size_t gws[3] = {size_t(nthreads_x) * 8, size_t(nthreads_y), 1};
     size_t lws[3] = {8, size_t(lws_y), 1};
 
-    if (c_type == data_type::f16) lws[1] = 1;
-
     auto nd_range = compute::nd_range_t(gws, lws);
 
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
