@@ -1175,10 +1175,12 @@ struct jit_bnorm_bwd_diff_ss_t : public jit_generator {
 
             uni_vmulps(vdiff_gamma, vdiff_gamma, vsqrtvar);
 
-            uni_vaddps(vdiff_gamma, vdiff_gamma,
+            jit_tail_.uni_vmovups_maybe_tail(vtmp,
                     vmmword[reg_ptr_diff_gamma + reg_off_c]);
-            uni_vaddps(vdiff_beta, vdiff_beta,
+            uni_vaddps(vdiff_gamma, vdiff_gamma, vtmp);
+            jit_tail_.uni_vmovups_maybe_tail(vtmp,
                     vmmword[reg_ptr_diff_beta + reg_off_c]);
+            uni_vaddps(vdiff_beta, vdiff_beta, vtmp);
             jit_tail_.uni_vmovups_maybe_tail(
                     vmmword[reg_ptr_diff_gamma + reg_off_c], vdiff_gamma);
             jit_tail_.uni_vmovups_maybe_tail(
