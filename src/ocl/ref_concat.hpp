@@ -124,11 +124,8 @@ struct ref_concat_t : public primitive_impl_t {
 
     virtual status_t init() override {
         if (pd()->use_tent_dst()) {
-            auto &tent_dst_md = pd()->tent_dst_md_;
-            size_t size = dnnl_memory_desc_get_size(&tent_dst_md);
-            memory_storage_t *tent_dst_ptr;
-            engine()->create_memory_storage(&tent_dst_ptr, size);
-            tent_dst_.reset(tent_dst_ptr);
+            tent_dst_.reset(new memory_t(pd()->engine(), &pd()->tent_dst_md_,
+                    memory_flags_t::alloc, nullptr));
             if (!tent_dst_) return status::runtime_error;
         }
 
@@ -149,16 +146,12 @@ struct ref_concat_t : public primitive_impl_t {
                   };
 
         if (pd()->use_tent_dst()) {
-            auto tent_dst_ptr = tent_dst_->data_handle();
-            memory_t tent_dst(pd()->engine(), &pd()->tent_dst_md_,
-                    memory_flags_t::use_runtime_ptr, tent_dst_ptr);
-
             for (int i = 0; i < n; ++i)
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false});
+                        {tent_dst_.get(), false});
 
-            execute_reorder(reorders_[n], {&tent_dst, true},
+            execute_reorder(reorders_[n], {tent_dst_.get(), true},
                     ctx.args().at(DNNL_ARG_DST));
         } else {
             for (int i = 0; i < n; ++i)
@@ -173,7 +166,7 @@ struct ref_concat_t : public primitive_impl_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     std::vector<primitive_t *> reorders_;
-    std::unique_ptr<memory_storage_t> tent_dst_;
+    std::unique_ptr<memory_t> tent_dst_;
 };
 
 } // namespace ocl
