@@ -150,7 +150,8 @@ struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
         auto status = jit_gen9_gemm_x8x8s32_kernel<a_type, b_type,
                 c_type>::init_const_def(kernel_ctx, pd()->desc()->transa,
                 pd()->desc()->transb, fixed_c, column_c, row_c,
-                pd()->with_eltwise(), pd()->eltwise_alg_kind());
+                pd()->with_eltwise(), pd()->eltwise_alg_kind(), pd()->desc()->m,
+                pd()->desc()->n, pd()->desc()->k);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
