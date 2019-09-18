@@ -65,6 +65,12 @@ dnnl_status_t dnnl_ocl_gemm_bf16bf16f32(cl_command_queue queue, char transa,
         dnnl_dim_t offset_b, dnnl_dim_t ldb, cl_float beta, cl_mem c,
         dnnl_dim_t offset_c, dnnl_dim_t ldc);
 
+dnnl_status_t dnnl_ocl_gemm_bf16bf16bf16(cl_command_queue queue, char transa,
+        char transb, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k, cl_float alpha,
+        cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda, cl_mem b,
+        dnnl_dim_t offset_b, dnnl_dim_t ldb, cl_float beta, cl_mem c,
+        dnnl_dim_t offset_c, dnnl_dim_t ldc);
+
 dnnl_status_t dnnl_ocl_gemm_s8s8s32(cl_command_queue queue, char transa,
         char transb, char offsetc, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k,
         cl_float alpha, cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda,
@@ -910,6 +916,29 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
     }
 };
 
+template <>
+struct dnnl_gemm<bfloat16_t, bfloat16_t, bfloat16_t> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            engine eng = a_mem.get().get_engine();
+            stream s(eng);
+            cl_command_queue q = s.get_ocl_command_queue();
+            auto status = dnnl_ocl_gemm_bf16bf16bf16(q, p.transA, p.transB, p.M,
+                    p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
+                    p.off.a, p.lda, b_mem.get().get_ocl_mem_object(), p.off.b,
+                    p.ldb, p.beta, c_mem.get().get_ocl_mem_object(), p.off.c,
+                    p.ldc);
+            s.wait();
+            return status;
+        }
+#endif
+        return dnnl_unimplemented;
+    }
+};
+
 template <typename a_dt, typename b_dt, typename c_dt>
 struct run_test_gemm {
     static void call(const test_params &p) {
@@ -971,12 +1000,12 @@ protected:
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
 
-        bool is_bfloat16 = true
+        bool is_bf16bf16f32 = true
                 && data_traits<a_dt>::data_type == memory::data_type::bf16
                 && data_traits<b_dt>::data_type == memory::data_type::bf16
                 && data_traits<c_dt>::data_type == memory::data_type::f32;
 
-        SKIP_IF(is_bfloat16 && get_test_engine_kind() == engine::kind::cpu
+        SKIP_IF(is_bf16bf16f32 && get_test_engine_kind() == engine::kind::cpu
                         && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "Skip test for systems that do not support avx512_core.");
 
@@ -992,6 +1021,9 @@ protected:
         SKIP_IF(data_traits<b_dt>::data_type == memory::data_type::u8
                         && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support s8u8s32 and u8u8s32 GEMM.");
+        SKIP_IF(data_traits<c_dt>::data_type == memory::data_type::bf16
+                        && get_test_engine_kind() == engine::kind::cpu,
+                "CPU does not support bf16bf16bf16 GEMM.");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

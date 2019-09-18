@@ -128,6 +128,48 @@ INST_TEST_CASE(TestGEMM_packed,
                 3.0f, 200, 300, 300));
 #endif
 
+#elif defined(BF16BF16BF16)
+
+INST_TEST_CASE(TestGEMM,
+        test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {}, true,
+                dnnl_invalid_arguments},
+        test_params {'n', 'n', 3, 2, 2, 1.0, 0.0, 1, 5, 8, {}, {}, true,
+                dnnl_invalid_arguments},
+        test_params {'n', 't', 3, 2, 2, 1.0, 0.0, 3, 1, 8, {}, {}, true,
+                dnnl_invalid_arguments},
+        test_params {'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {}, true,
+                dnnl_invalid_arguments},
+
+        test_params {'N', 'N', 1, 1, 1, 1.0, 0.0, 4, 4, 4},
+        test_params {'N', 'n', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
+        test_params {'n', 'T', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
+        test_params {'T', 'N', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
+        test_params {'t', 't', 30, 20, 10, 2.0, 1.0, 60, 50, 80},
+        test_params {'N', 'n', 31, 21, 11, 2.5, 1.5, 61, 51, 81},
+        test_params {'n', 'T', 31, 21, 11, 2.5, 1.5, 61, 51, 81},
+        test_params {'T', 'N', 31, 21, 11, 2.5, 1.5, 61, 51, 81},
+        test_params {'t', 't', 31, 21, 11, 2.5, 1.5, 61, 51, 81},
+        test_params {'n', 'n', 100, 100, 2, 1.0, 2.0, 100, 100, 100},
+        test_params {'n', 't', 100, 2, 58, 1.0, 2.0, 100, 100, 100},
+        test_params {'t', 'n', 2, 100, 61, 1.0, 2.0, 100, 100, 100},
+        test_params {'t', 't', 2, 100, 60, 1.0, 2.0, 100, 100, 100},
+        test_params {'n', 'n', 2, 2, 11, 1.0, -1.0, 20, 2, 2},
+        test_params {'t', 't', 2, 2, 11, 1.0, -1.0, 2, 20, 2},
+
+        make_test_params_with_offset(
+                {1, 2, 3}, 'n', 'n', 100, 100, 2, 1.0f, 2.0f, 100, 100, 100),
+        make_test_params_with_offset(
+                {30, 20, 10}, 'n', 't', 100, 2, 100, 1.0f, 2.0f, 100, 100, 100),
+
+        test_params {'n', 'n', 2000, 2000, 20, 1.0, 0.0, 20, 2000, 2000},
+        test_params {'n', 'n', 3000, 3000, 30, 1.0, 0.0, 30, 3000, 3000},
+        test_params {'t', 'n', 2000, 2000, 20, 1.0, 0.0, 2000, 2000, 2000},
+        test_params {'t', 'n', 3000, 3000, 30, 1.0, 0.0, 3000, 3000, 3000},
+        test_params {'n', 't', 2000, 2000, 20, 1.0, 0.0, 20, 20, 2000},
+        test_params {'n', 't', 3000, 3000, 30, 1.0, 0.0, 30, 30, 3000},
+        test_params {'t', 't', 2000, 2000, 20, 1.0, 0.0, 2000, 20, 2000},
+        test_params {'t', 't', 3000, 3000, 30, 1.0, 0.0, 3000, 30, 3000});
+
 #else
 constexpr test_igemm_params fix_use_oc = {'F', false, false, true};
 constexpr test_igemm_params col_use_oc = {'C', false, false, true};

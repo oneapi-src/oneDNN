@@ -72,6 +72,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_gemm_s8u8s32.cpp
                               test_gemm_u8u8s32.cpp
                               test_gemm_bf16bf16f32.cpp
+                              test_gemm_bf16bf16bf16.cpp
                               test_rnn_forward.cpp
                               test_layer_normalization.cpp
                               test_binary.cpp
