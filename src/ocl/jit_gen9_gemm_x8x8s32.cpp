@@ -24,20 +24,6 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-template <data_type_t c_type, bool nocopy>
-struct jit_gen9_gemm_x8x8s32_driver_params {};
-
-template <>
-struct jit_gen9_gemm_x8x8s32_driver_params<data_type::s32, true> {
-    //unroll_m = 32, unroll_n = 16
-    static constexpr auto block_m = 6 * 32;
-    static constexpr auto block_n = 4 * 16;
-    static constexpr auto block_k
-            = ((32768 / ((block_m >= block_n) ? block_m : block_n)
-                       - sizeof(int))
-                    & ~3);
-};
-
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_x8x8s32(
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
@@ -50,15 +36,12 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_x8x8s32(
     auto &kernel = compute_x8x8s32_kernel_;
     assert(kernel);
 
-    int unroll_m, unroll_n, block_m, block_n;
+    int unroll_m, unroll_n, block_m, block_n, block_k;
     jit_gen9_gemm_x8x8s32_kernel<a_type, b_type, c_type>::get_unrolls(
             unroll_m, unroll_n);
-    block_m = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_m;
-    block_n = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_n;
-    int kk = ((k + 3) & ~3);
 
-    int sizea = block_m * (kk + sizeof(int));
-    int sizeb = block_n * (kk + sizeof(int));
+    jit_gen9_gemm_x8x8s32_kernel<a_type, b_type, c_type>::get_blocks(
+            block_m, block_n, block_k, true);
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
@@ -79,11 +62,9 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_x8x8s32(
     arg_list.set(15, co);
     arg_list.set(16, offset_co);
     arg_list.set(17, apply_co);
-    arg_list.set(18, sizea, nullptr);
-    arg_list.set(19, sizeb, nullptr);
-    arg_list.set(20, apply_eltwise);
-    arg_list.set(21, eltwise_alpha);
-    arg_list.set(22, eltwise_beta);
+    arg_list.set(18, apply_eltwise);
+    arg_list.set(19, eltwise_alpha);
+    arg_list.set(20, eltwise_beta);
 
     size_t nthreads_x = (m + block_m - 1) / block_m;
     size_t nthreads_y = (n + block_n - 1) / block_n;
@@ -223,9 +204,8 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     jit_gen9_gemm_x8x8s32_kernel<a_type, b_type, c_type>::get_unrolls(
             unroll_m, unroll_n);
 
-    block_m = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_m;
-    block_n = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_n;
-    block_k = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_k;
+    jit_gen9_gemm_x8x8s32_kernel<a_type, b_type, c_type>::get_blocks(
+            block_m, block_n, block_k, true);
 
     slices = eu_count_ / 24; //24EUs per slice
 

@@ -57,7 +57,11 @@ template <impl::data_type_t a_type, impl::data_type_t b_type,
 struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
-            bool with_eltwise, alg_kind_t alg) {
+            bool with_eltwise, alg_kind_t alg, int m, int n, int k) {
+
+        MAYBE_UNUSED(m);
+        MAYBE_UNUSED(n);
+        MAYBE_UNUSED(k);
 
         auto status = init_cl_options<a_type, b_type, c_type>(kernel_ctx);
         if (status) return status;
@@ -96,6 +100,13 @@ struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
         else
             return status::unimplemented;
 
+        int block_m, block_n, block_k;
+        get_blocks(block_m, block_n, block_k, true);
+
+        int kk = ((block_k + 3) & ~3);
+        kernel_ctx.define_int("A_LOCAL_SIZE", (kk + sizeof(int)) * block_m);
+        kernel_ctx.define_int("B_LOCAL_SIZE", (kk + sizeof(int)) * block_n);
+
         kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
         kernel_ctx.define_int("UNROLL_K", copy_params::unroll_k);
@@ -110,6 +121,15 @@ struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
     static void get_unrolls(int &unroll_m, int &unroll_n) {
         unroll_m = copy_params::unroll_m;
         unroll_n = copy_params::unroll_n;
+    }
+
+    static void get_blocks(
+            int &block_m, int &block_n, int &block_k, bool nocopy) {
+        block_m = 6 * 32;
+        block_n = 4 * 16;
+        block_k = ((32768 / ((block_m >= block_n) ? block_m : block_n)
+                           - sizeof(int))
+                & ~3);
     }
 };
 

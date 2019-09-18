@@ -193,8 +193,7 @@ gen9_gemm_compute_x8x8s32_kernel(global FLOATA *a, global FLOATB *b,
         global FLOATC *c, long offsetA, long offsetB, long offsetC, long lda,
         long ldb, long ldc, long m, long n, long k, int beta, FLOATA ao,
         FLOATB bo, global FLOATC *co, long offsetCO, int apply_co,
-        local FLOATA *sa, local FLOATB *sb, int apply_eltwise,
-        float eltwise_alpha, float eltwise_beta) {
+        int apply_eltwise, float eltwise_alpha, float eltwise_beta) {
 
     long kk = (k + UNROLL_K - 1) & ~(UNROLL_K - 1);
     long i, j, l, ll;
@@ -216,10 +215,14 @@ gen9_gemm_compute_x8x8s32_kernel(global FLOATA *a, global FLOATB *b,
             + ((cid * nwidth) & (UNROLL_N - 1)) * UNROLL_K;
 
     // Accumulation array for A and B
-    __local FLOATC *xa = (__local FLOATC *)sa;
+    local FLOATA local_a[A_LOCAL_SIZE];
+    local FLOATA *sa = (__local FLOATA *)local_a;
+    local FLOATC *xa = (__local FLOATC *)sa;
     sa += UNROLL_M * get_local_size(1) * sizeof(FLOATC);
 
-    __local FLOATC *xb = (__local FLOATC *)sb;
+    local FLOATB local_b[B_LOCAL_SIZE];
+    local FLOATB *sb = (__local FLOATB *)local_b;
+    local FLOATC *xb = (__local FLOATC *)sb;
     sb += UNROLL_N * get_local_size(2) * sizeof(FLOATC);
 
     FLOATC sumA = 0, sumB = (FLOATC)bo * k;
