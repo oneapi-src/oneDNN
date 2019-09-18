@@ -37,6 +37,38 @@
 #endif
 /// @endcond
 
+// __cpp_exceptions is referred from
+// https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_exceptions.html
+// gcc < 5 does not define __cpp_exceptions but __EXCEPTIONS, 
+// _CPPUNWIND is used by MSVC, see
+// https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros?view=vs-2019
+#ifndef DNNL_ENABLE_EXCEPTIONS
+ #if __cpp_exceptions || __EXCEPTIONS || \
+     (defined(_MSC_VER) && defined(_CPPUNWIND))
+#define DNNL_ENABLE_EXCEPTIONS 1
+#else
+#define DNNL_ENABLE_EXCEPTIONS 0
+#endif
+#endif
+
+#if defined(__GNUC__) || defined(__clang__)
+#define dnnl_trap() __builtin_trap()
+#elif defined(__INTEL_COMPILER) || defined(_MSC_VER)
+#define dnnl_trap() __debugbreak()
+#else
+  #error "unknown compiler"
+#endif
+
+#if DNNL_ENABLE_EXCEPTIONS
+#define DNNL_THROW_ERROR(status, msg) throw error(status, msg);
+#else
+#define DNNL_THROW_ERROR(status, msg) \
+    do { \
+        fprintf(stderr, msg); \
+        dnnl_trap(); \
+    } while (0);
+#endif
+
 namespace dnnl {
 
 /// @addtogroup cpp_api C++ API
@@ -69,7 +101,7 @@ struct error : public std::exception {
     /// @param status The error status returned by the C API.
     /// @param message The error message.
     static void wrap_c_api(dnnl_status_t status, const char *message) {
-        if (status != dnnl_success) throw error(status, message);
+        if (status != dnnl_success) DNNL_THROW_ERROR(status, message); 
     }
 };
 
@@ -134,9 +166,8 @@ public:
         T result = _data.get();
 
         if (allow_emtpy == false && result == nullptr)
-            throw dnnl::error(dnnl_invalid_arguments,
+            DNNL_THROW_ERROR(dnnl_invalid_arguments,
                     "attempt to use uninitialized object");
-
         return result;
     }
 
@@ -1035,7 +1066,7 @@ struct memory : public handle<dnnl_memory_t> {
     template <typename T>
     static void validate_dims(const std::vector<T> &v) {
         if (v.size() > DNNL_MAX_NDIMS)
-            throw error(dnnl_invalid_arguments, "invalid dimensions");
+            DNNL_THROW_ERROR(dnnl_invalid_arguments, "invalid dimensions");
     }
 
     /// Data type specification
@@ -1628,7 +1659,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
                 query::diff_dst_md, query::workspace_md, query::scratchpad_md};
         if (!std::any_of(valid_q.cbegin(), valid_q.cend(),
                     [=](query q) { return what == q; }))
-            throw error(dnnl_invalid_arguments, "invalid memory query");
+            DNNL_THROW_ERROR(dnnl_invalid_arguments, "invalid memory query");
 
         const dnnl_memory_desc_t *cdesc = dnnl_primitive_desc_query_md(
                 get(), dnnl::convert_to_c(what), idx);
@@ -1707,7 +1738,7 @@ protected:
         error::wrap_c_api(rc,
                 "could not get primitive kind from the primitive descriptor");
         if (pd_kind != c_prim_kind)
-            throw error(dnnl_invalid_arguments,
+            DNNL_THROW_ERROR(dnnl_invalid_arguments,
                     "primitive descriptor operation kind mismatch");
 
         // Check that propagation kind matches
@@ -1717,7 +1748,7 @@ protected:
 
         // Something went wrong
         if (rc != dnnl_success && rc != dnnl_unimplemented)
-            throw error(dnnl_invalid_arguments,
+            DNNL_THROW_ERROR(dnnl_invalid_arguments,
                     "could not get propagation kind "
                     "from the primitive descriptor");
 
@@ -1731,7 +1762,7 @@ protected:
         }
 
         // We could get the propagation kind but there is a mismatch
-        throw error(dnnl_invalid_arguments,
+        DNNL_THROW_ERROR(dnnl_invalid_arguments,
                 "primitive descriptor propagation kind mismatch");
     }
 };
@@ -4189,7 +4220,8 @@ protected:
                         || rnn_d->prop_kind == c_prop_kind2)
                 && rnn_d->cell_kind == c_cell_kind;
 
-        if (!ok) throw error(dnnl_invalid_arguments, "rnn descriptor mismatch");
+        if (!ok) 
+            DNNL_THROW_ERROR(dnnl_invalid_arguments, "rnn descriptor mismatch");
 
         reset_with_clone(pd);
     }
