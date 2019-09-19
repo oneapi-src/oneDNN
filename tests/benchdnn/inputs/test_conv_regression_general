@@ -142,3 +142,6 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 --dir=FWD_B g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
 --dir=BWD_D g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
 --dir=BWD_W g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+
+# AVX JIT incorrectly calculates output when 'nb_oc_block' results in a prime number
+--reset --dir=FWD_I mb1ic3ih320oc51oh160kh7sh2ph3n"regression_oc-channel"
