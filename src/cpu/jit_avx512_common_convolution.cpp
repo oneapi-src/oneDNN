@@ -517,7 +517,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
     int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
@@ -599,7 +599,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
     int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
@@ -732,7 +732,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
     int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.id * jcp.ih;

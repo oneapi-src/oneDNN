@@ -74,6 +74,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(decab);
     CASE(Abc16a);
     CASE(ABc16a16b);
+    CASE(ABc4a4b);
     CASE(aBc16b);
     CASE(ABc16b16a);
     CASE(Abc4a);
@@ -97,8 +98,10 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aBcd4b);
     CASE(ABcd4b16a4b);
     CASE(ABcd4b4a);
+    CASE(ABcd4a4b);
     CASE(aBCd4c16b4c);
     CASE(aBCd4c4b);
+    CASE(aBCd4b4c);
     CASE(ABcd8a16b2a);
     CASE(ABcd8a8b);
     CASE(aBcd8b);
@@ -122,6 +125,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(Abcde4a);
     CASE(aBcde4b);
     CASE(ABcde4b4a);
+    CASE(ABcde4a4b);
     CASE(aBCde4b4c);
     CASE(aBCde4c16b4c);
     CASE(aBCde4c4b);
@@ -145,6 +149,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(aBCdef16c16b);
     CASE(aBcdef4b);
     CASE(aBCdef4c4b);
+    CASE(aBCdef4b4c);
     CASE(aBCdef8b8c);
     CASE(aBCdef8c16b2c);
     CASE(aBCdef8b16c2b);
@@ -238,6 +243,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(Oiw16o);
     CASE(OIw4i16o4i);
     CASE(OIw4i4o);
+    CASE(OIw4o4i);
     CASE(Oiw4o);
     CASE(OIw8i16o2i);
     CASE(OIw8i8o);
@@ -258,6 +264,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(Oihw16o);
     CASE(OIhw4i16o4i);
     CASE(OIhw4i4o);
+    CASE(OIhw4o4i);
     CASE(Oihw4o);
     CASE(OIhw8i16o2i);
     CASE(OIhw8i8o);
@@ -271,6 +278,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(OIdhw16o16i);
     CASE(Oidhw16o);
     CASE(OIdhw4i4o);
+    CASE(OIdhw4o4i);
     CASE(Oidhw4o);
     CASE(OIdhw8i16o2i);
     CASE(OIdhw8i8o);
@@ -286,6 +294,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOiw16o);
     CASE(gOIw4i16o4i);
     CASE(gOIw4i4o);
+    CASE(gOIw4o4i);
     CASE(gOiw4o);
     CASE(gOIw8i16o2i);
     CASE(gOIw8i8o);
@@ -328,6 +337,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIdhw16o16i);
     CASE(gOidhw16o);
     CASE(gOIdhw4i4o);
+    CASE(gOIdhw4o4i);
     CASE(gOidhw4o);
     CASE(gOIdhw8i16o2i);
     CASE(gOIdhw8i8o);

@@ -103,6 +103,7 @@
 #define mkldnn dnnl
 #define mkldnn_ dnnl_
 #define mkldnn_ABc16a16b dnnl_ABc16a16b
+#define mkldnn_ABc4a4b dnnl_ABc4a4b
 #define mkldnn_ABc16b16a dnnl_ABc16b16a
 #define mkldnn_ABc4b16a4b dnnl_ABc4b16a4b
 #define mkldnn_ABc4b4a dnnl_ABc4b4a
@@ -117,6 +118,7 @@
 #define mkldnn_ABcd4a8b8a4b dnnl_ABcd4a8b8a4b
 #define mkldnn_ABcd4b16a4b dnnl_ABcd4b16a4b
 #define mkldnn_ABcd4b4a dnnl_ABcd4b4a
+#define mkldnn_ABcd4a4b dnnl_ABcd4a4b
 #define mkldnn_ABcd8a16b2a dnnl_ABcd8a16b2a
 #define mkldnn_ABcd8a8b dnnl_ABcd8a8b
 #define mkldnn_ABcd8b16a2b dnnl_ABcd8b16a2b
@@ -124,6 +126,7 @@
 #define mkldnn_ABcde16a16b dnnl_ABcde16a16b
 #define mkldnn_ABcde16b16a dnnl_ABcde16b16a
 #define mkldnn_ABcde4b4a dnnl_ABcde4b4a
+#define mkldnn_ABcde4a4b dnnl_ABcde4a4b
 #define mkldnn_ABcde8a16b2a dnnl_ABcde8a16b2a
 #define mkldnn_ABcde8a8b dnnl_ABcde8a8b
 #define mkldnn_ABcde8b16a2b dnnl_ABcde8b16a2b
@@ -173,6 +176,7 @@
 #define mkldnn_OIdhw16i16o dnnl_OIdhw16i16o
 #define mkldnn_OIdhw16o16i dnnl_OIdhw16o16i
 #define mkldnn_OIdhw4i4o dnnl_OIdhw4i4o
+#define mkldnn_OIdhw4o4i dnnl_OIdhw4o4i
 #define mkldnn_OIdhw8i16o2i dnnl_OIdhw8i16o2i
 #define mkldnn_OIdhw8i8o dnnl_OIdhw8i8o
 #define mkldnn_OIdhw8o16i2o dnnl_OIdhw8o16i2o
@@ -182,6 +186,7 @@
 #define mkldnn_OIhw2o8i8o2i dnnl_OIhw2o8i8o2i
 #define mkldnn_OIhw4i16o4i dnnl_OIhw4i16o4i
 #define mkldnn_OIhw4i4o dnnl_OIhw4i4o
+#define mkldnn_OIhw4o4i dnnl_OIhw4o4i
 #define mkldnn_OIhw4o8i8o4i dnnl_OIhw4o8i8o4i
 #define mkldnn_OIhw8i16o2i dnnl_OIhw8i16o2i
 #define mkldnn_OIhw8i8o dnnl_OIhw8i8o
@@ -191,6 +196,7 @@
 #define mkldnn_OIw16o16i dnnl_OIw16o16i
 #define mkldnn_OIw4i16o4i dnnl_OIw4i16o4i
 #define mkldnn_OIw4i4o dnnl_OIw4i4o
+#define mkldnn_OIw4o4i dnnl_OIw4o4i
 #define mkldnn_OIw8i16o2i dnnl_OIw8i16o2i
 #define mkldnn_OIw8i8o dnnl_OIw8i8o
 #define mkldnn_OIw8o16i2o dnnl_OIw8o16i2o
@@ -216,6 +222,7 @@
 #define mkldnn_aBCd16c16b dnnl_aBCd16c16b
 #define mkldnn_aBCd4c16b4c dnnl_aBCd4c16b4c
 #define mkldnn_aBCd4c4b dnnl_aBCd4c4b
+#define mkldnn_aBCd4b4c dnnl_aBCd4b4c
 #define mkldnn_aBCd8b16c2b dnnl_aBCd8b16c2b
 #define mkldnn_aBCd8b8c dnnl_aBCd8b8c
 #define mkldnn_aBCd8c16b2c dnnl_aBCd8c16b2c
@@ -235,6 +242,7 @@
 #define mkldnn_aBCdef16b16c dnnl_aBCdef16b16c
 #define mkldnn_aBCdef16c16b dnnl_aBCdef16c16b
 #define mkldnn_aBCdef4c4b dnnl_aBCdef4c4b
+#define mkldnn_aBCdef4b4c dnnl_aBCdef4b4c
 #define mkldnn_aBCdef8b16c2b dnnl_aBCdef8b16c2b
 #define mkldnn_aBCdef8b8c dnnl_aBCdef8b8c
 #define mkldnn_aBCdef8c16b2c dnnl_aBCdef8c16b2c
@@ -409,6 +417,7 @@
 #define mkldnn_gOIdhw16i16o dnnl_gOIdhw16i16o
 #define mkldnn_gOIdhw16o16i dnnl_gOIdhw16o16i
 #define mkldnn_gOIdhw4i4o dnnl_gOIdhw4i4o
+#define mkldnn_gOIdhw4o4i dnnl_gOIdhw4o4i
 #define mkldnn_gOIdhw8i16o2i dnnl_gOIdhw8i16o2i
 #define mkldnn_gOIdhw8i8o dnnl_gOIdhw8i8o
 #define mkldnn_gOIdhw8o16i2o dnnl_gOIdhw8o16i2o
@@ -429,6 +438,7 @@
 #define mkldnn_gOIw16o16i dnnl_gOIw16o16i
 #define mkldnn_gOIw4i16o4i dnnl_gOIw4i16o4i
 #define mkldnn_gOIw4i4o dnnl_gOIw4i4o
+#define mkldnn_gOIw4o4i dnnl_gOIw4o4i
 #define mkldnn_gOIw8i16o2i dnnl_gOIw8i16o2i
 #define mkldnn_gOIw8i8o dnnl_gOIw8i8o
 #define mkldnn_gOIw8o16i2o dnnl_gOIw8o16i2o
