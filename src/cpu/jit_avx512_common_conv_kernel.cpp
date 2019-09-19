@@ -59,6 +59,20 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
     }
 }
 
+inline status_t init_tag(format_tag_t &tag, memory_desc_t &md,
+        const memory_desc_wrapper &mdw, const format_tag_t tag_value) {
+    if (mdw.format_kind() == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(md, tag_value));
+        tag = tag_value;
+    } else {
+        tag = mdw.matches_one_of_tag(tag_value);
+    }
+
+    if (tag != tag_value) return status::unimplemented;
+
+    return status::success;
+}
+
 inline bool is_1stconv(const jit_conv_conf_t &jcp) {
     if (mayiuse(avx512_core))
         return (jcp.ic < 16 && jcp.ngroups == 1);
@@ -1219,21 +1233,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                                  : pick(ndims - 3, OIw16i16o, OIhw16i16o,
                                          OIdhw16i16o));
 
-    if (src_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(src_md, src_tag));
-        jcp.src_tag = src_tag;
-    } else {
-        jcp.src_tag = src_d.matches_one_of_tag(src_tag);
-    }
-    if (jcp.src_tag != src_tag) return status::unimplemented;
-
-    if (dst_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(dst_md, dst_tag));
-        jcp.dst_tag = dst_tag;
-    } else {
-        jcp.dst_tag = dst_d.matches_one_of_tag(dst_tag);
-    }
-    if (jcp.dst_tag != dst_tag) return status::unimplemented;
+    if (init_tag(jcp.src_tag, src_md, src_d, src_tag) != status::success)
+        return status::unimplemented;
+    if (init_tag(jcp.dst_tag, dst_md, dst_d, dst_tag) != status::success)
+        return status::unimplemented;
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
     if (jcp.with_bias) {
@@ -1291,13 +1294,9 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
     }
 
-    if (weights_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(weights_md, wei_tag));
-        jcp.wei_tag = wei_tag;
-    } else {
-        jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
-    }
-    if (jcp.wei_tag != wei_tag) return status::unimplemented;
+    if (init_tag(jcp.wei_tag, weights_md, weights_d, wei_tag)
+            != status::success)
+        return status::unimplemented;
 
     if (jcp.is_1stconv) {
         jcp.ur_w = nstl::min(jcp.ow, regs);
@@ -4353,13 +4352,9 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             ? pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
             : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
 
-    if (diff_dst_d.format_kind() == format_kind::any) {
-        CHECK(memory_desc_init_by_tag(diff_dst_md, dst_tag));
-        jcp.dst_tag = dst_tag;
-    } else {
-        jcp.dst_tag = diff_dst_d.matches_one_of_tag(dst_tag);
-    }
-    if (jcp.dst_tag != dst_tag) return status::unimplemented;
+    if (init_tag(jcp.dst_tag, diff_dst_md, diff_dst_d, dst_tag)
+            != status::success)
+        return status::unimplemented;
 
     /* conditions on bias memory */
     jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
@@ -4450,33 +4445,19 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
                     ? pick(ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
                     : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
 
-            if (diff_weights_d.format_kind() == format_kind::any) {
-                CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
-                jcp.wei_tag = wei_tag;
-            } else {
-                jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
-            }
-            if (jcp.wei_tag != wei_tag) return status::unimplemented;
+            if (init_tag(jcp.wei_tag, diff_weights_md, diff_weights_d, wei_tag)
+                    != status::success)
+                return status::unimplemented;
         }
 
         jcp.nb_ic = jcp.ic / jcp.ic_block;
     } else {
         auto src_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-        if (src_d.format_kind() == format_kind::any) {
-            CHECK(memory_desc_init_by_tag(src_md, src_tag));
-            jcp.src_tag = src_tag;
-        } else {
-            jcp.src_tag = src_d.matches_one_of_tag(src_tag);
-        }
-        if (jcp.src_tag != src_tag) return status::unimplemented;
-
-        if (diff_weights_d.format_kind() == format_kind::any) {
-            CHECK(memory_desc_init_by_tag(diff_weights_md, wei_tag));
-            jcp.wei_tag = wei_tag;
-        } else {
-            jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
-        }
-        if (jcp.wei_tag != wei_tag) return status::unimplemented;
+        if (init_tag(jcp.src_tag, src_md, src_d, src_tag) != status::success)
+            return status::unimplemented;
+        if (init_tag(jcp.wei_tag, diff_weights_md, diff_weights_d, wei_tag)
+                != status::success)
+            return status::unimplemented;
 
         jcp.ic_block = jcp.simd_w;
         if (ok_to_pad_channels) jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
