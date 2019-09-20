@@ -179,8 +179,7 @@ struct jit_avx512_common_conv_fwd_kernel {
     jit_avx512_common_conv_fwd_kernel(
             jit_conv_conf_t ajcp, const primitive_attr_t &attr)
         : jit_ker(nullptr), zmm_kernel_(nullptr), xmm_kernel_(nullptr) {
-        int ch_block = ajcp.is_depthwise ? ajcp.ch_block : ajcp.oc_block;
-        switch (ch_block) {
+        switch (ajcp.oc_block) {
             case 16:
                 zmm_kernel_
                         = new _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm>(
