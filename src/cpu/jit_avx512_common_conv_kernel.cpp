@@ -1185,7 +1185,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     bool ok_to_pad_channels
             = true && jcp.ngroups == 1 && src_d.data_type() == data_type::f32;
 
-    const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
     jcp.simd_w = full_simd_w;
     bool ok_to_try_xmm = true && mayiuse(avx512_core)
             && src_d.data_type() == data_type::f32 && !jcp.is_1stconv
@@ -1248,8 +1248,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             && weights_d.data_type() == data_type::f32
             && dst_d.data_type() == data_type::f32) {
         jcp.ver = ver_fma;
-        jcp.typesize_in = sizeof(float);
-        jcp.typesize_out = sizeof(float);
+        jcp.typesize_in = typesize;
+        jcp.typesize_out = typesize;
         if (mayiuse(avx512_mic_4ops)) jcp.ver = ver_4fma;
 
         if (jcp.is_1stconv) {
@@ -1557,7 +1557,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, thr_eff);
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
-    const int L2_size = get_cache_size(2, true) / sizeof(float);
+    const int L2_size = get_cache_size(2, true) / typesize;
     // Source and output data needs to fit in L2,
     // leaving some space for weights and prefetching.
     int h_L2 = int(((0.6f * L2_size) / jcp.simd_w
@@ -2308,7 +2308,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     bool ok_to_pad_channels = true && jcp.ngroups == 1
             && diff_src_d.data_type() == data_type::f32;
 
-    const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
     jcp.simd_w = full_simd_w;
     bool ok_to_try_xmm = true && mayiuse(avx512_core)
             && diff_src_d.data_type() == data_type::f32 && !jcp.is_1stconv
@@ -2374,8 +2374,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             && weights_d.data_type() == data_type::f32
             && diff_src_d.data_type() == data_type::f32) {
         jcp.ver = ver_fma;
-        jcp.typesize_in = sizeof(float);
-        jcp.typesize_out = sizeof(float);
+        jcp.typesize_in = typesize;
+        jcp.typesize_out = typesize;
         if (mayiuse(avx512_mic_4ops) && jcp.stride_w == 1 && jcp.stride_h == 1
                 && jcp.stride_d == 1) {
             jcp.ver = ver_4fma;
@@ -4301,7 +4301,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp = zero<decltype(jcp)>();
 
-    jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
@@ -4523,8 +4523,8 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     if (utils::one_of(jcp.ver, ver_4fma, ver_fma)) {
-        jcp.typesize_in = sizeof(float);
-        jcp.typesize_out = sizeof(float);
+        jcp.typesize_in = typesize;
+        jcp.typesize_out = typesize;
     } else
         return status::unimplemented;
 
