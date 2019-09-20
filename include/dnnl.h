@@ -1932,10 +1932,6 @@ dnnl_status_t DNNL_API dnnl_engine_get_ocl_device(
         dnnl_engine_t engine, cl_device_id *device);
 #endif
 
-/// Returns the kind of an @p engine.
-dnnl_status_t DNNL_API dnnl_engine_get_kind(
-        dnnl_engine_t engine, dnnl_engine_kind_t *kind);
-
 /// Destroys an @p engine.
 dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);
 
