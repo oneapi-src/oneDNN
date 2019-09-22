@@ -119,6 +119,14 @@ struct softmax_fwd_pd_t : public softmax_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC: return src_md(0);
+            case DNNL_ARG_DST: return dst_md(0);
+            default: return softmax_pd_t::arg_md(arg);
+        }
+    }
+
     virtual const memory_desc_t *src_md(int index = 0) const override {
         return index == 0 ? &data_md_ : &glob_zero_md;
     }
@@ -151,6 +159,15 @@ struct softmax_bwd_pd_t : public softmax_pd_t {
             return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
+    }
+
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            default: return softmax_pd_t::arg_md(arg);
+        }
     }
 
     virtual const memory_desc_t *dst_md(int index = 0) const override {

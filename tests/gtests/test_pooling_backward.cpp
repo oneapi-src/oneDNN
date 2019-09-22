@@ -321,6 +321,16 @@ protected:
         pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_prim_desc.get()); // test construction from a C pd
 
+        ASSERT_TRUE(pool_bwd_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == pool_bwd_prim_desc.diff_src_desc());
+        ASSERT_TRUE(pool_bwd_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == pool_bwd_prim_desc.diff_dst_desc());
+        ASSERT_TRUE(pool_bwd_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == pool_bwd_prim_desc.workspace_desc());
+
         memory diff_src(*src_desc, eng);
         memory diff_dst(*dst_desc, eng);
 

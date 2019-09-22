@@ -111,8 +111,13 @@ protected:
                 eng_i, md_i, eng_o, md_o, primitive_attr());
         // test construction from a C pd
         r_pd = reorder::primitive_desc(r_pd.get());
-        auto r = reorder(r_pd);
 
+        ASSERT_TRUE(r_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == r_pd.src_desc());
+        ASSERT_TRUE(r_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == r_pd.dst_desc());
+
+        auto r = reorder(r_pd);
         auto strm = stream(r_pd.get_engine());
         r.execute(strm, src, dst);
         strm.wait();

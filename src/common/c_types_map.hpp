@@ -522,6 +522,7 @@ const query_t weights_md = dnnl_query_weights_md;
 const query_t diff_weights_md = dnnl_query_diff_weights_md;
 const query_t dst_md = dnnl_query_dst_md;
 const query_t diff_dst_md = dnnl_query_diff_dst_md;
+const query_t exec_arg_md = dnnl_query_exec_arg_md;
 
 const query_t workspace_md = dnnl_query_workspace_md;
 const query_t scratchpad_md = dnnl_query_scratchpad_md;

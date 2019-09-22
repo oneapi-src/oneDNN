@@ -160,6 +160,13 @@ protected:
         // test construction from a C pd
         sum_pd = sum::primitive_desc(sum_pd.get());
 
+        ASSERT_TRUE(sum_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == sum_pd.dst_desc());
+        for (size_t i = 0; i < srcs.size(); i++)
+            ASSERT_TRUE(sum_pd.query_md(
+                                query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
+                    == sum_pd.src_desc(i));
+
         {
             auto dst_data = map_memory<dst_data_t>(dst);
             const size_t sz = dst.get_desc().get_size() / sizeof(dst_data_t);

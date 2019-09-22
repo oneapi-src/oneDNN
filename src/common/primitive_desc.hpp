@@ -72,6 +72,14 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
         return arg_usage_t::unused;
     }
 
+    virtual const dnnl::impl::memory_desc_t *arg_md(int arg) const {
+        switch (arg) {
+            case DNNL_ARG_WORKSPACE: return workspace_md(0);
+            case DNNL_ARG_SCRATCHPAD: return scratchpad_md(0);
+            default: return &dnnl::impl::glob_zero_md;
+        }
+    }
+
 #define DECLARE_MD_STUB(stub) \
     virtual const dnnl::impl::memory_desc_t *stub(int idx = 0) const { \
         return &dnnl::impl::glob_zero_md; \

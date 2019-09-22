@@ -154,6 +154,17 @@ protected:
         check_zero_tail<data_t>(1, ip_src);
         check_zero_tail<data_t>(1, ip_weights);
 
+        ASSERT_TRUE(ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == ip_primitive_desc.src_desc());
+        ASSERT_TRUE(ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == ip_primitive_desc.dst_desc());
+        ASSERT_TRUE(
+                ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == ip_primitive_desc.weights_desc());
+        ASSERT_TRUE(
+                ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
+                == ip_primitive_desc.bias_desc());
+
         inner_product_forward(ip_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, ip_src}, {DNNL_ARG_WEIGHTS, ip_weights},

@@ -48,6 +48,7 @@ status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
                     = static_cast<const_c_op_desc_t>(op_desc());
             break;
 
+        case query::exec_arg_md: return safe_ret_md(arg_md(idx));
         case query::src_md: return safe_ret_md(src_md(idx));
         case query::diff_src_md: return safe_ret_md(diff_src_md(idx));
         case query::dst_md: return safe_ret_md(dst_md(idx));

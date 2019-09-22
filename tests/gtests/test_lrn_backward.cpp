@@ -300,6 +300,18 @@ protected:
         check_zero_tail<data_t>(1, diff_dst->get());
         check_zero_tail<data_t>(1, diff_src->get());
 
+        ASSERT_TRUE(lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == lrn_prim_desc.src_desc());
+        ASSERT_TRUE(
+                lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == lrn_prim_desc.diff_src_desc());
+        ASSERT_TRUE(
+                lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == lrn_prim_desc.diff_dst_desc());
+        ASSERT_TRUE(
+                lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == lrn_prim_desc.workspace_desc());
+
         // Execute
         lrn_backward(lrn_prim_desc)
                 .execute(strm,

@@ -69,6 +69,15 @@ struct binary_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC_0: return src_md(0);
+            case DNNL_ARG_SRC_1: return src_md(1);
+            case DNNL_ARG_DST: return dst_md(0);
+            default: return primitive_desc_t::arg_md(arg);
+        }
+    }
+
     virtual const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0)
             return &src0_md_;

@@ -209,6 +209,19 @@ protected:
                         conv_bwd_weights_primitive_desc
                                 .get()); // test construction from a C pd
 
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_SRC)
+                == conv_bwd_weights_primitive_desc.src_desc());
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == conv_bwd_weights_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS)
+                == conv_bwd_weights_primitive_desc.diff_weights_desc());
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
+                == conv_bwd_weights_primitive_desc.diff_bias_desc());
+
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_DST, c_diff_dst.get()},

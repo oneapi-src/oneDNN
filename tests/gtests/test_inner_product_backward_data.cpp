@@ -162,6 +162,16 @@ protected:
         check_zero_tail<data_t>(1, ip_diff_dst);
         check_zero_tail<data_t>(1, ip_weights);
 
+        ASSERT_TRUE(ip_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == ip_primitive_desc.diff_src_desc());
+        ASSERT_TRUE(ip_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == ip_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(
+                ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == ip_primitive_desc.weights_desc());
+
         inner_product_backward_data(ip_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_DST, ip_diff_dst},

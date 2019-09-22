@@ -155,6 +155,14 @@ protected:
         // test construction from a C pd
         lrn_prim_desc = lrn_forward::primitive_desc(lrn_prim_desc.get());
 
+        ASSERT_TRUE(lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == lrn_prim_desc.src_desc());
+        ASSERT_TRUE(lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == lrn_prim_desc.dst_desc());
+        ASSERT_TRUE(
+                lrn_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == lrn_prim_desc.workspace_desc());
+
         auto l_src = test_memory(l_src_desc, eng);
         auto l_dst = test_memory(l_dst_desc, eng);
 

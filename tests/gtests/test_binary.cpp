@@ -120,6 +120,13 @@ protected:
             binary::desc binary_desc(p.aalgorithm, desc_A, desc_B, desc_C);
             ASSIGN_PD(binary_desc, binary_pd);
 
+            ASSERT_TRUE(binary_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_0)
+                    == binary_pd.src0_desc());
+            ASSERT_TRUE(binary_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_1)
+                    == binary_pd.src1_desc());
+            ASSERT_TRUE(binary_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                    == binary_pd.dst_desc());
+
             desc_C = binary_pd.dst_desc();
             auto mem_C = memory(desc_C, eng);
 

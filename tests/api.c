@@ -185,6 +185,19 @@ void test2() {
     CHECK_TRUE(dnnl_memory_desc_equal(&c3_dst_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_dst_md, 0)));
 
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_src_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_SRC)));
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_weights_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_WEIGHTS)));
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_bias_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_BIAS)));
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_dst_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_DST)));
+
     /* create a convolution and execute it */
     CHECK(dnnl_primitive_create(&c3, c3_pd));
     CHECK(dnnl_primitive_desc_destroy(c3_pd));

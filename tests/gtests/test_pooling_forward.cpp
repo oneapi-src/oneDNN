@@ -219,6 +219,14 @@ protected:
         // test construction from a C pd
         pool_prim_desc = pooling_forward::primitive_desc(pool_prim_desc.get());
 
+        ASSERT_TRUE(pool_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == pool_prim_desc.src_desc());
+        ASSERT_TRUE(pool_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == pool_prim_desc.dst_desc());
+        ASSERT_TRUE(
+                pool_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == pool_prim_desc.workspace_desc());
+
         auto workspace_desc = pool_prim_desc.workspace_desc();
         memory workspace(workspace_desc, eng);
 

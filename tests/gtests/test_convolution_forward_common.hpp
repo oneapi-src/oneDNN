@@ -181,6 +181,19 @@ protected:
         conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_primitive_desc.get()); // test construction from a C pd
 
+        ASSERT_TRUE(
+                conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == conv_primitive_desc.src_desc());
+        ASSERT_TRUE(
+                conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == conv_primitive_desc.dst_desc());
+        ASSERT_TRUE(conv_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == conv_primitive_desc.weights_desc());
+        ASSERT_TRUE(
+                conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
+                == conv_primitive_desc.bias_desc());
+
         convolution_forward(conv_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, c_src.get()},

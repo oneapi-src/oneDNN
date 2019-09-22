@@ -626,6 +626,8 @@ enum class query {
     workspace_md = dnnl_query_workspace_md,
     /// scratchpad memory desc
     scratchpad_md = dnnl_query_scratchpad_md,
+    /// memory desc of an execute argument
+    exec_arg_md = dnnl_query_exec_arg_md,
 };
 
 /// Converts a C++ query enum value @p aquery to its C counterpart.
@@ -1709,7 +1711,8 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
     memory::desc query_md(query what, int idx = 0) const {
         std::vector<query> valid_q {query::src_md, query::diff_src_md,
                 query::weights_md, query::diff_weights_md, query::dst_md,
-                query::diff_dst_md, query::workspace_md, query::scratchpad_md};
+                query::diff_dst_md, query::workspace_md, query::scratchpad_md,
+                query::exec_arg_md};
         if (!std::any_of(valid_q.cbegin(), valid_q.cend(),
                     [=](query q) { return what == q; }))
             DNNL_THROW_ERROR(dnnl_invalid_arguments, "invalid memory query");

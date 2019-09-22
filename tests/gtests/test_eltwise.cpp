@@ -372,6 +372,12 @@ protected:
         eltwise_prim_desc = eltwise_forward::primitive_desc(eltwise_desc, eng);
         eltwise_prim_desc = eltwise_forward::primitive_desc(
                 eltwise_prim_desc.get()); // test construction from a C pd
+
+        ASSERT_TRUE(eltwise_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == eltwise_prim_desc.src_desc());
+        ASSERT_TRUE(eltwise_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == eltwise_prim_desc.dst_desc());
+
         eltwise_forward(eltwise_prim_desc)
                 .execute(strm, {{DNNL_ARG_SRC, src}, {DNNL_ARG_DST, dst}});
         strm.wait();
@@ -402,6 +408,13 @@ protected:
                 eltwise_bwd_desc, eng, eltwise_prim_desc);
         eltwise_bwd_prim_desc
                 = eltwise_backward::primitive_desc(eltwise_bwd_prim_desc.get());
+
+        ASSERT_TRUE(
+                eltwise_bwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == eltwise_bwd_prim_desc.src_desc());
+        ASSERT_TRUE(
+                eltwise_bwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == eltwise_bwd_prim_desc.dst_desc());
 
         eltwise_backward(eltwise_bwd_prim_desc)
                 .execute(strm,

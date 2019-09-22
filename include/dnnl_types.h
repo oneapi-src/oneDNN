@@ -1621,6 +1621,7 @@ typedef enum {
     dnnl_query_diff_dst_md, ///< destination grad. memory desc
     dnnl_query_workspace_md, ///< workspace memory desc
     dnnl_query_scratchpad_md, ///< scratchpad memory desc
+    dnnl_query_exec_arg_md = 255, ///< memory desc of an execute argument
 } dnnl_query_t;
 
 /// @}
