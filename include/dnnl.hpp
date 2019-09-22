@@ -546,6 +546,9 @@ enum class query {
     /// implementation name
     impl_info_str = dnnl_query_impl_info_str,
 
+    /// propagation kind
+    prop_kind = dnnl_query_prop_kind,
+
     /// op descriptor
     op_d = dnnl_query_op_d,
     /// convolution descriptor
