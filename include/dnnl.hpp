@@ -60,13 +60,13 @@
 #endif
 
 #if DNNL_ENABLE_EXCEPTIONS
-#define DNNL_THROW_ERROR(status, msg) throw error(status, msg);
+#define DNNL_THROW_ERROR(status, msg) throw error(status, msg)
 #else
 #define DNNL_THROW_ERROR(status, msg) \
     do { \
         fprintf(stderr, msg); \
         dnnl_trap(); \
-    } while (0);
+    } while (0)
 #endif
 
 namespace dnnl {
