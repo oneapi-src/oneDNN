@@ -1189,9 +1189,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.simd_w = full_simd_w;
     bool ok_to_try_xmm = true && mayiuse(avx512_core)
             && src_d.data_type() == data_type::f32 && !jcp.is_1stconv
-            && !ok_to_pad_channels
-            && (jcp.ic % jcp.simd_w != 0 || jcp.oc % jcp.simd_w != 0)
-            && (jcp.ic % 8 != 0 || jcp.oc % 8 != 0);
+            && !ok_to_pad_channels && (jcp.ic % 8 != 0 || jcp.oc % 8 != 0);
     if (ok_to_try_xmm) jcp.simd_w = 4;
 
     jcp.oc_block = jcp.simd_w;
@@ -1229,9 +1227,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                             ? pick(ndims - 3, gOIw4i4o, gOIhw4i4o, gOIdhw4i4o)
                             : pick(ndims - 3, gOIw16i16o, gOIhw16i16o,
                                     gOIdhw16i16o))
-            : ((jcp.simd_w == 4) ? pick(ndims - 3, OIw4i4o, OIhw4i4o, OIdhw4i4o)
-                                 : pick(ndims - 3, OIw16i16o, OIhw16i16o,
-                                         OIdhw16i16o));
+            : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
 
     if (init_tag(jcp.src_tag, src_md, src_d, src_tag) != status::success)
         return status::unimplemented;
@@ -1274,20 +1270,14 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                                    ndims - 3, gOiw4o, gOihw4o, gOidhw4o)
                                              : pick(ndims - 3, gOiw16o,
                                                      gOihw16o, gOidhw16o))
-                        : ((jcp.simd_w == 4) ? pick(
-                                   ndims - 3, Oiw4o, Oihw4o, Oidhw4o)
-                                             : pick(ndims - 3, Oiw16o, Oihw16o,
-                                                     Oidhw16o));
+                        : pick(ndims - 3, Oiw16o, Oihw16o, Oidhw16o);
             } else {
                 wei_tag = with_groups
                         ? ((jcp.simd_w == 4) ? pick(
                                    ndims - 3, gOwi4o, gOhwi4o, gOdhwi4o)
                                              : pick(ndims - 3, gOwi16o,
                                                      gOhwi16o, gOdhwi16o))
-                        : ((jcp.simd_w == 4) ? pick(
-                                   ndims - 3, Owi4o, Ohwi4o, Odhwi4o)
-                                             : pick(ndims - 3, Owi16o, Ohwi16o,
-                                                     Odhwi16o));
+                        : pick(ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
             }
         }
     } else {
