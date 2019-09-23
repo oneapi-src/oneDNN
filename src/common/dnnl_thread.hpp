@@ -88,13 +88,25 @@ inline tbb::static_partitioner dnnl_tbb_partitioner() {
 
 #endif
 
-/* MSVC still supports omp 2.0 only */
+// MSVC still supports omp 2.0 only
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
 #define PRAGMA_OMP_SIMD(...)
 #else
 #define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
-#endif // defined(_MSC_VER) && !defined(__INTEL_COMPILER)
+#endif // defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+
+// process simdlen; it is supported for Clang >= 3.9; ICC >= 17.0; GCC >= 6.1
+// No support on Windows.
+#if (defined(__clang_major__) \
+        && (__clang_major__ < 3 \
+                || (__clang_major__ == 3 && __clang_minor__ < 9))) \
+        || (defined(__INTEL_COMPILER) && __INTEL_COMPILER < 1700) \
+        || (!defined(__INTEL_COMPILER) && !defined(__clang__) \
+                && (defined(_MSC_VER) || __GNUC__ < 6 \
+                        || (__GNUC__ == 6 && __GNUC_MINOR__ < 1)))
+#define simdlen(x)
+#endif // long simdlen if
 
 namespace dnnl {
 namespace impl {
