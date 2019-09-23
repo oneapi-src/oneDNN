@@ -20,6 +20,6 @@
 --dir=FWD_B
 --attr=post_ops='sum' --batch=conv_resnet_50
 --attr=post_ops='relu' --batch=conv_googlenet_v3
---attr=post_ops='sum;tanh' --batch=conv_tails
+--attr=post_ops='sum;tanh:1:1:2.5' --batch=conv_tails
 
 --batch=test_conv_dw_bfloat16

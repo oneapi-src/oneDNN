@@ -768,6 +768,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
             case eltwise_gelu: gelu_compute_vector(Vmm(idx)); break;
             default: assert(!"unsupported eltwise algorithm");
         }
+        if (scale_ != 1.f) {
+            h->uni_vmulps(Vmm(idx), Vmm(idx), h->ptr[p_table]);
+        }
     }
 }
 
@@ -791,6 +794,9 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
     h->L(l_table);
 
     if (gen_table) {
+        for (size_t d = 0; d < vlen / sizeof(float); ++d)
+            h->dd(float2int(scale_));
+
         switch (alg_) {
             case eltwise_relu: relu_prepare_table(); break;
             case eltwise_elu:
@@ -1439,8 +1445,9 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
                     k_mask_cvt, k_tail_mask, k_full_mask, bf16_emu_);
         }
 
-        eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
-                desc.alg_kind, desc.alpha, desc.beta, false, r9, Opmask(1));
+        eltwise_injector_
+                = new jit_uni_eltwise_injector_f32<isa>(this, desc.alg_kind,
+                        desc.alpha, desc.beta, 1.f, false, r9, Opmask(1));
 
         using namespace alg_kind;
 

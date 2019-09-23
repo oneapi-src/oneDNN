@@ -36,12 +36,13 @@ struct jit_uni_eltwise_injector_f32 {
             isa == avx2, Xbyak::Ymm, Xbyak::Zmm>::type;
 
     jit_uni_eltwise_injector_f32(jit_generator *host, alg_kind_t alg,
-            float alpha, float beta, bool save_state = true,
+            float alpha, float beta, float scale, bool save_state = true,
             Xbyak::Reg64 p_table = Xbyak::util::rax,
             Xbyak::Opmask k_mask = Xbyak::Opmask(1))
         : alg_(alg)
         , alpha_(alpha)
         , beta_(beta)
+        , scale_(scale)
         , h(host)
         , save_state_(save_state)
         , p_table(p_table)
@@ -54,13 +55,12 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise_exp, eltwise_gelu, eltwise_swish));
     }
 
-    // note that eltwise.scale is ignored
     jit_uni_eltwise_injector_f32(jit_generator *host,
             const post_ops_t::entry_t::eltwise_t &eltwise,
             bool save_state = true, Xbyak::Reg64 p_table = Xbyak::util::rax,
             Xbyak::Opmask k_mask = Xbyak::Opmask(1))
         : jit_uni_eltwise_injector_f32(host, eltwise.alg, eltwise.alpha,
-                eltwise.beta, save_state, p_table, k_mask) {}
+                eltwise.beta, eltwise.scale, save_state, p_table, k_mask) {}
 
     void compute_vector_range(size_t start_idx, size_t end_idx);
     void compute_vector(size_t idx) { compute_vector_range(idx, idx + 1); }
@@ -70,6 +70,7 @@ struct jit_uni_eltwise_injector_f32 {
     const alg_kind_t alg_;
     const float alpha_;
     const float beta_;
+    const float scale_;
 
     jit_generator *const h;
 
@@ -101,7 +102,8 @@ private:
     Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
 
     Xbyak::Address table_val(int index) {
-        return h->ptr[p_table + index * vlen];
+        size_t scale_offt_ = vlen;
+        return h->ptr[p_table + scale_offt_ + index * vlen];
     }
 
     int aux_vecs_count(alg_kind_t alg);

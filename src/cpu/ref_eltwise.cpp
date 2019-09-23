@@ -31,8 +31,8 @@ using namespace alg_kind;
 using namespace math;
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
-        alg_kind_t alg, float alpha, float beta)
-    : alg_(alg), alpha_(alpha), beta_(beta) {
+        alg_kind_t alg, float alpha, float beta, float scale)
+    : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
@@ -41,27 +41,28 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
         const post_ops_t::entry_t::eltwise_t &eltwise)
-    : ref_eltwise_scalar_fwd_t(eltwise.alg, eltwise.alpha, eltwise.beta) {}
+    : ref_eltwise_scalar_fwd_t(
+            eltwise.alg, eltwise.alpha, eltwise.beta, eltwise.scale) {}
 
 float ref_eltwise_scalar_fwd_t::compute_scalar(float s) {
+    float d = 0.f;
     switch (alg_) {
-        case eltwise_relu: return relu_fwd(s, alpha_);
-        case eltwise_tanh: return tanh_fwd(s);
-        case eltwise_elu: return elu_fwd(s, alpha_);
-        case eltwise_square: return square_fwd(s);
-        case eltwise_abs: return abs_fwd(s);
-        case eltwise_sqrt: return sqrt_fwd(s);
-        case eltwise_linear: return linear_fwd(s, alpha_, beta_);
-        case eltwise_bounded_relu: return bounded_relu_fwd(s, alpha_);
-        case eltwise_soft_relu: return soft_relu_fwd(s);
-        case eltwise_logistic: return logistic_fwd(s);
-        case eltwise_exp: return exp_fwd(s);
-        case eltwise_gelu: return gelu_fwd(s);
-        case eltwise_swish: return swish_fwd(s, alpha_);
+        case eltwise_relu: d = relu_fwd(s, alpha_); break;
+        case eltwise_tanh: d = tanh_fwd(s); break;
+        case eltwise_elu: d = elu_fwd(s, alpha_); break;
+        case eltwise_square: d = square_fwd(s); break;
+        case eltwise_abs: d = abs_fwd(s); break;
+        case eltwise_sqrt: d = sqrt_fwd(s); break;
+        case eltwise_linear: d = linear_fwd(s, alpha_, beta_); break;
+        case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha_); break;
+        case eltwise_soft_relu: d = soft_relu_fwd(s); break;
+        case eltwise_logistic: d = logistic_fwd(s); break;
+        case eltwise_exp: d = exp_fwd(s); break;
+        case eltwise_gelu: d = gelu_fwd(s); break;
+        case eltwise_swish: d = swish_fwd(s, alpha_); break;
         default: assert(!"unknown eltwise alg_kind");
     }
-
-    return 0.f;
+    return d * scale_;
 }
 
 template <impl::data_type_t data_type>

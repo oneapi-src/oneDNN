@@ -128,6 +128,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             for (int oS = 0; oS < m; ++oS) {
                                 d_[oS] += b;
                                 if (d_[oS] < 0) d_[oS] *= eltwise_->alpha_;
+                                d_[oS] *= eltwise_->scale_;
                             }
                         });
                     } else {

@@ -87,8 +87,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         // x8s8s32 GEMM anyways. The configuration variables above are used by
         // the fallback code.
         if (do_eltwise_)
-            ref_eltwise_ = new ref_eltwise_scalar_fwd_t(
-                    eltwise_.alg, eltwise_.alpha, eltwise_.beta);
+            ref_eltwise_ = new ref_eltwise_scalar_fwd_t(eltwise_.alg,
+                    eltwise_.alpha, eltwise_.beta, eltwise_.scale);
         return;
     } else {
         isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16

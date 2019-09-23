@@ -198,8 +198,8 @@ struct jit_softmax_base_t : public jit_generator {
     // initialization.
     void get_code() {
         eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
-                alg_kind::eltwise_exp, 0.0f, 0.0f, true, reg_injector_table,
-                injector_mask);
+                alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
+                reg_injector_table, injector_mask);
         compute_predefined_variables();
         preamble();
         eltwise_injector_->load_table_addr();
