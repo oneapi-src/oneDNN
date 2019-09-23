@@ -39,12 +39,12 @@
 
 // __cpp_exceptions is referred from
 // https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_exceptions.html
-// gcc < 5 does not define __cpp_exceptions but __EXCEPTIONS, 
+// gcc < 5 does not define __cpp_exceptions but __EXCEPTIONS,
 // _CPPUNWIND is used by MSVC, see
 // https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros?view=vs-2019
 #ifndef DNNL_ENABLE_EXCEPTIONS
- #if __cpp_exceptions || __EXCEPTIONS || \
-     (defined(_MSC_VER) && defined(_CPPUNWIND))
+#if __cpp_exceptions || __EXCEPTIONS \
+        || (defined(_MSC_VER) && defined(_CPPUNWIND))
 #define DNNL_ENABLE_EXCEPTIONS 1
 #else
 #define DNNL_ENABLE_EXCEPTIONS 0
@@ -56,7 +56,7 @@
 #elif defined(__INTEL_COMPILER) || defined(_MSC_VER)
 #define dnnl_trap() __debugbreak()
 #else
-  #error "unknown compiler"
+#error "unknown compiler"
 #endif
 
 #if DNNL_ENABLE_EXCEPTIONS
@@ -101,7 +101,7 @@ struct error : public std::exception {
     /// @param status The error status returned by the C API.
     /// @param message The error message.
     static void wrap_c_api(dnnl_status_t status, const char *message) {
-        if (status != dnnl_success) DNNL_THROW_ERROR(status, message); 
+        if (status != dnnl_success) DNNL_THROW_ERROR(status, message);
     }
 };
 
@@ -4220,7 +4220,7 @@ protected:
                         || rnn_d->prop_kind == c_prop_kind2)
                 && rnn_d->cell_kind == c_cell_kind;
 
-        if (!ok) 
+        if (!ok)
             DNNL_THROW_ERROR(dnnl_invalid_arguments, "rnn descriptor mismatch");
 
         reset_with_clone(pd);
