@@ -179,7 +179,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             eltwise_t eltwise;
         };
 
-        bool is_eltwise(bool require_scale_one = true) const {
+        bool is_eltwise(bool require_scale_one = false) const {
             using namespace dnnl::impl;
             return kind == primitive_kind::eltwise
                     && IMPLICATION(require_scale_one, eltwise.scale == 1.f);

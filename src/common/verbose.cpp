@@ -213,7 +213,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
                 DPRINT(str, len, written, "sum;");
             } else if (e.is_sum(false)) {
                 DPRINT(str, len, written, "sum:%g;", e.sum.scale);
-            } else if (e.is_eltwise()) {
+            } else if (e.is_eltwise(true)) {
                 const post_ops_t::entry_t::eltwise_t &ew = e.eltwise;
                 if (ew.beta == 0) {
                     if (ew.alpha == 0) {
