@@ -64,7 +64,7 @@
 #else
 #define DNNL_THROW_ERROR(status, msg) \
     do { \
-        fprintf(stderr, msg); \
+        fprintf(stderr, "%s", msg); \
         dnnl_trap(); \
     } while (0)
 #endif
