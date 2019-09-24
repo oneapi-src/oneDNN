@@ -549,6 +549,7 @@ using namespace data_type;
 
 template struct jit_gen9_gemm_t<f16>;
 template struct jit_gen9_gemm_t<f32>;
+template struct jit_gen9_gemm_t<f16, f16, f32>;
 template struct jit_gen9_gemm_t<bf16, bf16, f32>;
 template struct jit_gen9_gemm_t<bf16, bf16, bf16, f32>;
 
