@@ -59,6 +59,12 @@ dnnl_status_t dnnl_ocl_hgemm(cl_command_queue queue, char transa, char transb,
         dnnl_dim_t ldb, cl_float beta, cl_mem c, dnnl_dim_t offset_c,
         dnnl_dim_t ldc);
 
+dnnl_status_t dnnl_ocl_gemm_f16f16f32(cl_command_queue queue, char transa,
+        char transb, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k, cl_float alpha,
+        cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda, cl_mem b,
+        dnnl_dim_t offset_b, dnnl_dim_t ldb, cl_float beta, cl_mem c,
+        dnnl_dim_t offset_c, dnnl_dim_t ldc);
+
 dnnl_status_t dnnl_ocl_gemm_bf16bf16f32(cl_command_queue queue, char transa,
         char transb, dnnl_dim_t m, dnnl_dim_t n, dnnl_dim_t k, cl_float alpha,
         cl_mem a, dnnl_dim_t offset_a, dnnl_dim_t lda, cl_mem b,
@@ -890,6 +896,29 @@ struct dnnl_gemm<uint8_t, int8_t, int32_t> {
 };
 
 template <>
+struct dnnl_gemm<float16_t, float16_t, float> {
+    static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
+            const test_memory &b_mem, const test_memory &c_mem,
+            const test_memory &) {
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            engine eng = a_mem.get().get_engine();
+            stream s(eng);
+            cl_command_queue q = s.get_ocl_command_queue();
+            auto status = dnnl_ocl_gemm_f16f16f32(q, p.transA, p.transB, p.M,
+                    p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
+                    p.off.a, p.lda, b_mem.get().get_ocl_mem_object(), p.off.b,
+                    p.ldb, p.beta, c_mem.get().get_ocl_mem_object(), p.off.c,
+                    p.ldc);
+            s.wait();
+            return status;
+        }
+#endif
+        return dnnl_unimplemented;
+    }
+};
+
+template <>
 struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
     static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
@@ -996,7 +1025,7 @@ protected:
         SKIP_IF(!zero_off && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support non-zero offsets.");
 
-        bool is_f16 = (data_traits<c_dt>::data_type == memory::data_type::f16);
+        bool is_f16 = (data_traits<a_dt>::data_type == memory::data_type::f16);
         SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
 
