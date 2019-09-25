@@ -1678,10 +1678,71 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
         return memory::desc(*cdesc);
     }
 
-    /// Queries scratchpad memory descriptor.
-    ///
-    /// @sa @ref dev_guide_attributes_scratchpad
-    /// Returns a zero_md if no scratchpad is required.
+    /// Queries source memory descriptor with index @p idx.
+    /// Returns a zero_md if such source memory descriptor is not defined.
+    memory::desc src_desc(int idx) const {
+        return query_md(query::src_md, idx);
+    }
+
+    /// Queries destination memory descriptor with index @p idx.
+    /// Returns a zero_md if such destination memory descriptor is not defined.
+    memory::desc dst_desc(int idx) const {
+        return query_md(query::dst_md, idx);
+    }
+
+    /// Queries weights memory descriptor with index @p idx.
+    /// Returns a zero_md if such weights memory descriptor is not defined.
+    memory::desc weights_desc(int idx) const {
+        return query_md(query::weights_md, idx);
+    }
+
+    /// Queries diff source memory descriptor with index @p idx.
+    /// Returns a zero_md if such diff source memory descriptor is not defined.
+    memory::desc diff_src_desc(int idx) const {
+        return query_md(query::diff_src_md, idx);
+    }
+
+    /// Queries diff destination memory descriptor with index @p idx.
+    /// Returns a zero_md if such diff destination memory descriptor is not defined.
+    memory::desc diff_dst_desc(int idx) const {
+        return query_md(query::diff_dst_md, idx);
+    }
+
+    /// Queries diff weights memory descriptor with index @p idx.
+    /// Returns a zero_md if such diff weights memory descriptor is not defined.
+    memory::desc diff_weights_desc(int idx) const {
+        return query_md(query::diff_weights_md, idx);
+    }
+
+    // Separate versions without the index argument for documentation
+    // purposes.
+
+    /// Queries source memory descriptor. Returns a zero_md if it is not defined.
+    memory::desc src_desc() const { return src_desc(0); }
+
+    /// Queries destination memory descriptor. Returns a zero_md if it is not defined.
+    memory::desc dst_desc() const { return dst_desc(0); }
+
+    /// Queries weights memory descriptor. Returns a zero_md if it is not defined.
+    memory::desc weights_desc() const { return weights_desc(0); }
+
+    /// Queries diff source memory descriptor. Returns a zero_md if it is not defined.
+    memory::desc diff_src_desc() const { return diff_src_desc(0); }
+
+    /// Queries diff destination memory descriptor. Returns a zero_md if it is not defined.
+    memory::desc diff_dst_desc() const { return diff_dst_desc(0); }
+
+    /// Queries diff weights memory descriptor. Returns a zero_md if it is not defined.
+    memory::desc diff_weights_desc() const { return diff_weights_desc(0); }
+
+    /// Queries works workspace descriptor. Returns a zero_md if workspace is
+    /// not required.
+    memory::desc workspace_desc() const {
+        return query_md(query::workspace_md, 0);
+    }
+
+    /// Queries scratchpad memory descriptor. Returns a zero_md if scratchpad
+    /// is not required. @sa @ref dev_guide_attributes_scratchpad
     memory::desc scratchpad_desc() const {
         return query_md(query::scratchpad_md, 0);
     }
@@ -1777,6 +1838,9 @@ protected:
         DNNL_THROW_ERROR(dnnl_invalid_arguments,
                 "primitive descriptor propagation kind mismatch");
     }
+
+protected:
+    using base = primitive_desc_base;
 };
 
 /// @}
@@ -1835,6 +1899,12 @@ struct reorder : public primitive {
         engine get_dst_engine() const {
             return engine::query(*this, dnnl::query::reorder_dst_engine);
         }
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     reorder() = default;
@@ -1915,8 +1985,11 @@ struct concat : public primitive {
         primitive_desc(dnnl_primitive_desc_t pd)
             : primitive_desc_base(pd, dnnl::primitive::kind::concat) {}
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc(int) const
+        memory::desc src_desc(int idx = 0) const { return base::src_desc(idx); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     concat() = default;
@@ -1987,8 +2060,11 @@ struct sum : public primitive {
         primitive_desc(dnnl_primitive_desc_t pd)
             : primitive_desc_base(pd, dnnl::primitive::kind::sum) {}
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc(int) const
+        memory::desc src_desc(int idx = 0) const { return base::src_desc(idx); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     sum() = default;
@@ -2210,24 +2286,18 @@ struct convolution_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries weights memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 1);
-        }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// Returns the bias memory descriptor. Returns a zero_md if no bias
+        /// was specified at op_desc creation time.
+        memory::desc bias_desc() const { return base::weights_desc(1); }
     };
 
     convolution_forward() = default;
@@ -2320,20 +2390,14 @@ struct convolution_backward_data : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::convolution,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries diff source gradient memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries weights memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
     };
 
     convolution_backward_data() = default;
@@ -2477,22 +2541,21 @@ struct convolution_backward_weights : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::convolution,
                     dnnl::prop_kind::backward_weights) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries diff weights memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::diff_weights_desc() const
         memory::desc diff_weights_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return base::diff_weights_desc(0);
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// Returns diff bias memory descriptor. Returns a zero_md if no bias
+        /// was specified at op_desc creation time.
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 1);
-        }
-
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return base::diff_weights_desc(1);
         }
     };
 
@@ -2650,24 +2713,17 @@ struct deconvolution_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries weights memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 1);
-        }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::convolution_forward::primitive_desc::bias_desc() const
+        memory::desc bias_desc() const { return base::weights_desc(1); }
     };
 
     deconvolution_forward() = default;
@@ -2762,20 +2818,14 @@ struct deconvolution_backward_data : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::deconvolution,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries diff source gradient memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries weights memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
     };
 
     deconvolution_backward_data() = default;
@@ -2919,22 +2969,20 @@ struct deconvolution_backward_weights : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::deconvolution,
                     dnnl::prop_kind::backward_weights) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries diff weights memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::diff_weights_desc() const
         memory::desc diff_weights_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return base::diff_weights_desc(0);
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::convolution_backward_weights::primitive_desc::diff_bias_desc() const
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 1);
-        }
-
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return base::diff_weights_desc(1);
         }
     };
 
@@ -3002,18 +3050,14 @@ struct lrn_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
     };
 
     lrn_forward() = default;
@@ -3068,22 +3112,14 @@ struct lrn_backward : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::lrn,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries diff source memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
     };
 
     lrn_backward() = default;
@@ -3151,18 +3187,14 @@ struct pooling_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
     };
 
     pooling_forward() = default;
@@ -3219,22 +3251,14 @@ struct pooling_backward : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::pooling,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries diff source memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
     };
 
     pooling_backward() = default;
@@ -3303,11 +3327,11 @@ struct eltwise_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     eltwise_forward() = default;
@@ -3359,18 +3383,14 @@ struct eltwise_backward : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::eltwise,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries diff source memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
     };
 
     eltwise_backward() = default;
@@ -3428,11 +3448,11 @@ struct softmax_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     softmax_forward() = default;
@@ -3482,18 +3502,14 @@ struct softmax_backward : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries diff source memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
     };
 
     softmax_backward() = default;
@@ -3570,23 +3586,17 @@ struct batch_normalization_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries weights (scale and shift) memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
 
         /// Queries mean memory descriptor.
         memory::desc mean_desc() const { return stat_desc(mean); }
@@ -3670,46 +3680,36 @@ struct batch_normalization_backward : public primitive {
                     dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
         }
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries mean memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_weights_desc() const
+        memory::desc diff_weights_desc() const {
+            return base::diff_weights_desc(0);
+        }
+
+        /// @copydoc dnnl::batch_normalization_forward::primitive_desc::mean_desc() const
         memory::desc mean_desc() const { return query_md(query::src_md, 1); }
 
-        /// Queries variance memory descriptor.
+        /// @copydoc dnnl::batch_normalization_forward::primitive_desc::variance_desc() const
         memory::desc variance_desc() const {
             return query_md(query::src_md, 2);
         }
 
-        /// Queries weights (scale and shift) memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
-
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
-
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
-
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
-
-        /// Queries diff source memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
-
-        /// Queries diff weights (scale and shift) memory descriptor.
-        memory::desc diff_weights_desc() const {
-            return query_md(query::diff_weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
     };
 
     batch_normalization_backward() = default;
@@ -3798,29 +3798,23 @@ struct layer_normalization_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries weights (scale and shift) memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries mean memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
+
+        /// @copydoc dnnl::batch_normalization_forward::primitive_desc::mean_desc() const
         memory::desc mean_desc() const { return stat_desc(mean); }
 
-        /// Queries variance memory descriptor.
+        /// @copydoc dnnl::batch_normalization_forward::primitive_desc::variance_desc() const
         memory::desc variance_desc() const { return stat_desc(var); }
-
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
 
     private:
         enum {
@@ -3910,46 +3904,36 @@ struct layer_normalization_backward : public primitive {
                     dnnl::prop_kind::backward, dnnl::prop_kind::backward_data) {
         }
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries mean memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_weights_desc() const
+        memory::desc diff_weights_desc() const {
+            return base::diff_weights_desc(0);
+        }
+
+        /// @copydoc dnnl::batch_normalization_forward::primitive_desc::mean_desc() const
         memory::desc mean_desc() const { return query_md(query::src_md, 1); }
 
-        /// Queries variance memory descriptor.
+        /// @copydoc dnnl::batch_normalization_forward::primitive_desc::variance_desc() const
         memory::desc variance_desc() const {
             return query_md(query::src_md, 2);
         }
 
-        /// Queries weights (scale and shift) memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
-
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
-
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
-
-        /// Queries diff source memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
-
-        /// Queries diff weights (scale and shift) memory descriptor.
-        memory::desc diff_weights_desc() const {
-            return query_md(query::diff_weights_md, 0);
-        }
-
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
-        memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::workspace_desc() const
+        memory::desc workspace_desc() const { return base::workspace_desc(); }
     };
 
     layer_normalization_backward() = default;
@@ -4023,24 +4007,17 @@ struct inner_product_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries weights memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 1);
-        }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::convolution_forward::primitive_desc::bias_desc() const
+        memory::desc bias_desc() const { return base::weights_desc(1); }
     };
 
     inner_product_forward() = default;
@@ -4094,20 +4071,14 @@ struct inner_product_backward_data : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::inner_product,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries diff source gradient memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries weights memory descriptor.
-        memory::desc weights_desc() const {
-            return query_md(query::weights_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::weights_desc() const
+        memory::desc weights_desc() const { return base::weights_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
     };
 
     inner_product_backward_data() = default;
@@ -4173,22 +4144,20 @@ struct inner_product_backward_weights : public primitive {
             : dnnl::primitive_desc(cpd, dnnl::primitive::kind::inner_product,
                     dnnl::prop_kind::backward_weights) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries diff weights memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::diff_weights_desc() const
         memory::desc diff_weights_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return base::diff_weights_desc(0);
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+
+        /// @copydoc dnnl::convolution_backward_weights::primitive_desc::diff_bias_desc() const
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 1);
-        }
-
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return base::diff_weights_desc(1);
         }
     };
 
@@ -4206,12 +4175,84 @@ struct inner_product_backward_weights : public primitive {
 /// @sa @ref c_api_rnn in @ref c_api
 /// @{
 
+/// Base class for RNN primitive descriptors.
 struct rnn_primitive_desc_base : public primitive_desc {
     using primitive_desc::primitive_desc;
 
     rnn_primitive_desc_base() = default;
 
+    /// Constructs an RNN primitive descriptor base from a C counterpart while
+    /// checking that it actually describes the expected primitive.
+    rnn_primitive_desc_base(dnnl_primitive_desc_t pd, dnnl::prop_kind prop_kind,
+            dnnl::algorithm cell_kind)
+        : rnn_primitive_desc_base(pd, prop_kind, prop_kind, cell_kind) {}
+
+    /// Queries source layer memory descriptor.
+    memory::desc src_layer_desc() const { return base::src_desc(0); }
+
+    /// Queries source iteration memory descriptor. Returns a zero_md if no
+    /// src_iter was specified at op_desc creation time.
+    memory::desc src_iter_desc() const { return base::src_desc(1); }
+
+    /// Queries source recurrent cell state memory descriptor.
+    memory::desc src_iter_c_desc() const { return base::src_desc(2); }
+
+    /// Queries weights layer memory descriptor.
+    memory::desc weights_layer_desc() const { return base::weights_desc(0); }
+
+    /// Queries weights iteration memory descriptor.
+    memory::desc weights_iter_desc() const { return base::weights_desc(1); }
+
+    /// Queries bias memory descriptor. Returns a zero_md if no bias was
+    /// specified at op_desc creation time.
+    memory::desc bias_desc() const { return base::weights_desc(2); }
+
+    /// Queries destination layer memory descriptor.
+    memory::desc dst_layer_desc() const { return base::dst_desc(0); }
+
+    /// Queries destination iteration memory descriptor. Returns a zero_md if
+    /// no dst_iter was specified at op_desc creation time.
+    memory::desc dst_iter_desc() const { return base::dst_desc(1); }
+
+    /// Queries destination recurrent cell state memory descriptor.
+    memory::desc dst_iter_c_desc() const { return base::dst_desc(2); }
+
+    /// Queries diff source layer memory descriptor.
+    memory::desc diff_src_layer_desc() const { return base::diff_src_desc(0); }
+
+    /// Queries diff source iteration memory descriptor. Returns a zero_md if
+    /// no diff_src_iter was specified at op_desc creation time.
+    memory::desc diff_src_iter_desc() const { return base::diff_src_desc(1); }
+
+    /// Queries diff source recurrent cell state memory descriptor.
+    memory::desc diff_src_iter_c_desc() const { return base::diff_src_desc(2); }
+
+    /// Queries diff weights layer memory descriptor.
+    memory::desc diff_weights_layer_desc() const {
+        return base::diff_weights_desc(0);
+    }
+
+    /// Queries diff weights iteration memory descriptor.
+    memory::desc diff_weights_iter_desc() const {
+        return base::diff_weights_desc(1);
+    }
+
+    /// Queries diff bias memory descriptor.
+    memory::desc diff_bias_desc() const { return base::diff_weights_desc(2); }
+
+    /// Queries diff destination layer memory descriptor.
+    memory::desc diff_dst_layer_desc() const { return base::diff_dst_desc(0); }
+
+    /// Queries diff destination iteration memory descriptor. Returns a
+    /// zero_md if no diff_dst_iter was specified at op_desc creation time.
+    memory::desc diff_dst_iter_desc() const { return base::diff_dst_desc(1); }
+
+    /// Queries diff destination recurrent cell state memory descriptor.
+    memory::desc diff_dst_iter_c_desc() const { return base::diff_dst_desc(2); }
+
 protected:
+    using rnn_base = rnn_primitive_desc_base;
+
     // Constructs an RNN primitive descriptor from a C counterpart while
     // checking that it actually describes the expected primitive.
     rnn_primitive_desc_base(dnnl_primitive_desc_t pd,
@@ -4237,12 +4278,6 @@ protected:
 
         reset_with_clone(pd);
     }
-
-    // Constructs an RNN primitive descriptor from a C counterpart while
-    // checking that it actually describes the expected primitive.
-    rnn_primitive_desc_base(dnnl_primitive_desc_t pd, dnnl::prop_kind prop_kind,
-            dnnl::algorithm cell_kind)
-        : rnn_primitive_desc_base(pd, prop_kind, prop_kind, cell_kind) {}
 };
 
 /// Vanilla RNN for forward propagation.
@@ -4316,55 +4351,38 @@ struct vanilla_rnn_forward : public primitive {
                     dnnl::prop_kind::forward_inference,
                     dnnl::algorithm::vanilla_rnn) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
     };
 
@@ -4456,96 +4474,73 @@ struct vanilla_rnn_backward : public primitive {
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
                     dnnl::algorithm::vanilla_rnn) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
 
-        /// Queries diff source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_desc() const
         memory::desc diff_src_layer_desc() const {
-            return query_md(query::diff_src_md, 0);
+            return rnn_base::diff_src_layer_desc();
         }
 
-        /// Queries diff source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_src_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc() const
         memory::desc diff_src_iter_desc() const {
-            return query_md(query::diff_src_md, 1);
+            return rnn_base::diff_src_iter_desc();
         }
 
-        /// Queries diff weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc() const
         memory::desc diff_weights_layer_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return rnn_base::diff_weights_layer_desc();
         }
 
-        /// Queries diff weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc() const
         memory::desc diff_weights_iter_desc() const {
-            return query_md(query::diff_weights_md, 1);
+            return rnn_base::diff_weights_iter_desc();
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc() const
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 2);
+            return rnn_base::diff_bias_desc();
         }
 
-        /// Queries diff destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_layer_desc() const
         memory::desc diff_dst_layer_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return rnn_base::diff_dst_layer_desc();
         }
 
-        /// Queries diff destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_desc() const
         memory::desc diff_dst_iter_desc() const {
-            return query_md(query::diff_dst_md, 1);
+            return rnn_base::diff_dst_iter_desc();
         }
     };
 
@@ -4625,65 +4620,48 @@ struct lstm_forward : public primitive {
                     dnnl::prop_kind::forward_inference,
                     dnnl::algorithm::vanilla_lstm) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source recurrent hidden state memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries source recurrent cell state memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
         memory::desc src_iter_c_desc() const {
-            return query_md(query::src_md, 2);
+            return rnn_base::src_iter_c_desc();
         }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination recurrent hidden state memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries destination recurrent cell state memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
         memory::desc dst_iter_c_desc() const {
-            return query_md(query::dst_md, 2);
+            return rnn_base::dst_iter_c_desc();
         }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
     };
 
@@ -4781,122 +4759,98 @@ struct lstm_backward : public primitive {
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
                     dnnl::algorithm::vanilla_lstm) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source recurrent hidden state memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries source recurrent cell state memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
         memory::desc src_iter_c_desc() const {
-            return query_md(query::src_md, 2);
+            return rnn_base::src_iter_c_desc();
         }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination recurrent hidden state memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries destination recurrent cell state memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
         memory::desc dst_iter_c_desc() const {
-            return query_md(query::dst_md, 2);
+            return rnn_base::dst_iter_c_desc();
         }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
 
-        /// Queries diff source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_desc() const
         memory::desc diff_src_layer_desc() const {
-            return query_md(query::diff_src_md, 0);
+            return rnn_base::diff_src_layer_desc();
         }
 
-        /// Queries diff source recurrent hidden state memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_src_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc() const
         memory::desc diff_src_iter_desc() const {
-            return query_md(query::diff_src_md, 1);
+            return rnn_base::diff_src_iter_desc();
         }
 
-        /// Queries diff source recurrent cell state memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_c_desc() const
         memory::desc diff_src_iter_c_desc() const {
-            return query_md(query::diff_src_md, 2);
+            return rnn_base::diff_src_iter_c_desc();
         }
 
-        /// Queries diff weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc() const
         memory::desc diff_weights_layer_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return rnn_base::diff_weights_layer_desc();
         }
 
-        /// Queries diff weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc() const
         memory::desc diff_weights_iter_desc() const {
-            return query_md(query::diff_weights_md, 1);
+            return rnn_base::diff_weights_iter_desc();
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc() const
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 2);
+            return rnn_base::diff_bias_desc();
         }
 
-        /// Queries diff destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_layer_desc() const
         memory::desc diff_dst_layer_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return rnn_base::diff_dst_layer_desc();
         }
 
-        /// Queries diff destination recurrent hidden state memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_desc() const
         memory::desc diff_dst_iter_desc() const {
-            return query_md(query::diff_dst_md, 1);
+            return rnn_base::diff_dst_iter_desc();
         }
 
-        /// Queries diff destination recurrent cell state memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_c_desc() const
         memory::desc diff_dst_iter_c_desc() const {
-            return query_md(query::diff_dst_md, 2);
+            return rnn_base::diff_dst_iter_c_desc();
         }
     };
 
     lstm_backward() = default;
 
-    // With last iteration (with and without input src_iter)
     lstm_backward(const primitive_desc &pd) : primitive(pd) {}
 };
 
@@ -4968,55 +4922,38 @@ struct gru_forward : public primitive {
                     dnnl::prop_kind::forward_inference,
                     dnnl::algorithm::vanilla_gru) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
     };
 
@@ -5103,96 +5040,73 @@ struct gru_backward : public primitive {
             : rnn_primitive_desc_base(pd, dnnl::prop_kind::backward,
                     dnnl::algorithm::vanilla_gru) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source iter memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
 
-        /// Queries diff source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_desc() const
         memory::desc diff_src_layer_desc() const {
-            return query_md(query::diff_src_md, 0);
+            return rnn_base::diff_src_layer_desc();
         }
 
-        /// Queries diff source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_src_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc() const
         memory::desc diff_src_iter_desc() const {
-            return query_md(query::diff_src_md, 1);
+            return rnn_base::diff_src_iter_desc();
         }
 
-        /// Queries diff weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc() const
         memory::desc diff_weights_layer_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return rnn_base::diff_weights_layer_desc();
         }
 
-        /// Queries diff weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc() const
         memory::desc diff_weights_iter_desc() const {
-            return query_md(query::diff_weights_md, 1);
+            return rnn_base::diff_weights_iter_desc();
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc() const
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 2);
+            return rnn_base::diff_bias_desc();
         }
 
-        /// Queries diff destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_layer_desc() const
         memory::desc diff_dst_layer_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return rnn_base::diff_dst_layer_desc();
         }
 
-        /// Queries diff destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_desc() const
         memory::desc diff_dst_iter_desc() const {
-            return query_md(query::diff_dst_md, 1);
+            return rnn_base::diff_dst_iter_desc();
         }
     };
 
@@ -5271,55 +5185,38 @@ struct lbr_gru_forward : public primitive {
                     dnnl::prop_kind::forward_inference,
                     dnnl::algorithm::lbr_gru) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
     };
 
@@ -5407,96 +5304,73 @@ struct lbr_gru_backward : public primitive {
             : rnn_primitive_desc_base(
                     pd, dnnl::prop_kind::backward, dnnl::algorithm::lbr_gru) {}
 
-        /// Queries source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_layer_desc() const
         memory::desc src_layer_desc() const {
-            return query_md(query::src_md, 0);
+            return rnn_base::src_layer_desc();
         }
 
-        /// Queries source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no src_iter was specified at op_desc
-        /// creation time.
-        memory::desc src_iter_desc() const {
-            return query_md(query::src_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::src_iter_desc() const
+        memory::desc src_iter_desc() const { return rnn_base::src_iter_desc(); }
 
-        /// Queries weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_layer_desc() const
         memory::desc weights_layer_desc() const {
-            return query_md(query::weights_md, 0);
+            return rnn_base::weights_layer_desc();
         }
 
-        /// Queries weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_iter_desc() const
         memory::desc weights_iter_desc() const {
-            return query_md(query::weights_md, 1);
+            return rnn_base::weights_iter_desc();
         }
 
-        /// Queries bias memory descriptor.
-        ///
-        /// Returns a zero_md if no bias was specified at op_desc
-        /// creation time.
-        memory::desc bias_desc() const {
-            return query_md(query::weights_md, 2);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc() const
+        memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
-        /// Queries destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_layer_desc() const
         memory::desc dst_layer_desc() const {
-            return query_md(query::dst_md, 0);
+            return rnn_base::dst_layer_desc();
         }
 
-        /// Queries destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no dst_iter was specified at op_desc
-        /// creation time.
-        memory::desc dst_iter_desc() const {
-            return query_md(query::dst_md, 1);
-        }
+        /// @copydoc dnnl::rnn_primitive_desc_base::dst_iter_desc() const
+        memory::desc dst_iter_desc() const { return rnn_base::dst_iter_desc(); }
 
-        /// Queries workspace memory descriptor.
-        ///
-        /// Returns a zero_md if no worspace is required.
+        /// @copydoc dnnl::rnn_primitive_desc_base::workspace_desc() const
         memory::desc workspace_desc() const {
-            return query_md(query::workspace_md, 0);
+            return rnn_base::workspace_desc();
         }
 
-        /// Queries diff source layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_layer_desc() const
         memory::desc diff_src_layer_desc() const {
-            return query_md(query::diff_src_md, 0);
+            return rnn_base::diff_src_layer_desc();
         }
 
-        /// Queries diff source iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_src_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_src_iter_desc() const
         memory::desc diff_src_iter_desc() const {
-            return query_md(query::diff_src_md, 1);
+            return rnn_base::diff_src_iter_desc();
         }
 
-        /// Queries diff weights layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_layer_desc() const
         memory::desc diff_weights_layer_desc() const {
-            return query_md(query::diff_weights_md, 0);
+            return rnn_base::diff_weights_layer_desc();
         }
 
-        /// Queries diff weights iteration memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc() const
         memory::desc diff_weights_iter_desc() const {
-            return query_md(query::diff_weights_md, 1);
+            return rnn_base::diff_weights_iter_desc();
         }
 
-        /// Queries diff bias memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc() const
         memory::desc diff_bias_desc() const {
-            return query_md(query::diff_weights_md, 2);
+            return rnn_base::diff_bias_desc();
         }
 
-        /// Queries diff destination layer memory descriptor.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_layer_desc() const
         memory::desc diff_dst_layer_desc() const {
-            return query_md(query::diff_dst_md, 0);
+            return rnn_base::diff_dst_layer_desc();
         }
 
-        /// Queries diff destination iteration memory descriptor.
-        ///
-        /// Returns a zero_md if no diff_dst_iter was specified at op_desc
-        /// creation time.
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_dst_iter_desc() const
         memory::desc diff_dst_iter_desc() const {
-            return query_md(query::diff_dst_md, 1);
+            return rnn_base::diff_dst_iter_desc();
         }
     };
 
@@ -5551,11 +5425,11 @@ struct shuffle_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
-        /// Queries source memory descriptor.
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     shuffle_forward() = default;
@@ -5597,15 +5471,11 @@ struct shuffle_backward : public primitive {
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::shuffle,
                     dnnl::prop_kind::backward_data) {}
 
-        /// Queries diff source gradient memory descriptor.
-        memory::desc diff_src_desc() const {
-            return query_md(query::diff_src_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
 
-        /// Queries diff destination memory descriptor.
-        memory::desc diff_dst_desc() const {
-            return query_md(query::diff_dst_md, 0);
-        }
+        /// @copydoc dnnl::primitive_desc_base::diff_dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
     };
 
     shuffle_backward() = default;
@@ -5661,14 +5531,17 @@ struct binary : public primitive {
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::binary) {}
 
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc(int idx = 0) const { return base::src_desc(idx); }
+
         /// Queries source 0 memory descriptor.
-        memory::desc src0_desc() const { return query_md(query::src_md, 0); }
+        memory::desc src0_desc() const { return base::src_desc(0); }
 
         /// Queries source 1 memory descriptor.
-        memory::desc src1_desc() const { return query_md(query::src_md, 1); }
+        memory::desc src1_desc() const { return base::src_desc(1); }
 
-        /// Queries destination memory descriptor.
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
     };
 
     binary() = default;
