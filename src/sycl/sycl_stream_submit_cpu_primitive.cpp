@@ -156,27 +156,6 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
             });
     sycl_mem_storages.erase(last, sycl_mem_storages.end());
 
-    // Validate that all the storages use the same memory API: either SYCL
-    // buffers or DPC++ USM
-    if (!sycl_mem_storages.empty()) {
-        auto *mem0 = sycl_mem_storages[0];
-        auto mem_api_kind0
-                = utils::downcast<const sycl_memory_storage_base_t *>(
-                        mem0->impl())
-                          ->memory_api_kind();
-        for (auto *mem : sycl_mem_storages) {
-            auto mem_api_kind
-                    = utils::downcast<const sycl_memory_storage_base_t *>(
-                            mem->impl())
-                              ->memory_api_kind();
-            if (mem_api_kind != mem_api_kind0) {
-                throw std::runtime_error(
-                        "Memory objects must use the same memory API: either "
-                        "buffers or USM");
-            }
-        }
-    }
-
     auto *submit_ctx = new submit_ctx_t();
     submit_ctx->stream = stream;
     submit_ctx->prim = prim;
