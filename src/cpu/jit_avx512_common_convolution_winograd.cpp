@@ -46,7 +46,7 @@ unsigned int LLC_cache_size = get_cache_size(3, false);
 void inline load_ps(float *dest, const float *src_mem) {
 #ifdef __INTEL_COMPILER
     __m512 *Iv512 = (__m512 *)dest;
-    Iv512[0] = _mm512_load_ps(src_mem);
+    Iv512[0] = _mm512_loadu_ps(src_mem);
 #else
     PRAGMA_OMP_SIMD()
     for (int v = 0; v < simd_w; v++)
@@ -59,7 +59,7 @@ void inline store_output(float *dest, const float *data, bool streamout) {
     if (streamout)
         _mm512_stream_ps(dest, *((__m512 *)data));
     else
-        _mm512_store_ps(dest, *((__m512 *)data));
+        _mm512_storeu_ps(dest, *((__m512 *)data));
 #else
     PRAGMA_OMP_SIMD()
     for (int v = 0; v < simd_w; v++)
@@ -77,7 +77,7 @@ void inline accum_output(
     if (streamout)
         _mm512_stream_ps(dest, _data);
     else
-        _mm512_store_ps(dest, _data);
+        _mm512_storeu_ps(dest, _data);
 #else
     PRAGMA_OMP_SIMD()
     for (int v = 0; v < simd_w; v++)
