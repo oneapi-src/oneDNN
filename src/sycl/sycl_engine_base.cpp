@@ -27,20 +27,9 @@ namespace sycl {
 
 status_t sycl_engine_base_t::create_memory_storage(memory_storage_t **storage,
         unsigned flags, size_t size, size_t alignment, void *handle) {
-
-    // Do not allow constructing buffer-backed memory with a pointer
-    if (utils::one_of(handle, (void *)DNNL_MEMORY_NONE, DNNL_MEMORY_ALLOCATE)) {
-        return safe_ptr_assign<memory_storage_t>(*storage,
-                new memory_storage_t(new sycl_buffer_memory_storage_t(
-                        this, flags, size, alignment, handle)));
-    }
-#ifdef DNNL_SYCL_DPCPP
     return safe_ptr_assign<memory_storage_t>(*storage,
-            new memory_storage_t(new sycl_usm_memory_storage_t(
+            new memory_storage_t(new sycl_buffer_memory_storage_t(
                     this, flags, size, alignment, handle)));
-#else
-    return status::invalid_arguments;
-#endif
 }
 
 status_t sycl_engine_base_t::create_stream(stream_t **stream, unsigned flags) {

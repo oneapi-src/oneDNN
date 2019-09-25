@@ -20,11 +20,14 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/memory.hpp"
+#include "sycl/sycl_memory_storage.hpp"
 
 namespace dnnl {
 
-memory::memory(with_sycl_tag, const desc &md, const engine &eng, bool is_usm) {
+memory::memory(with_sycl_tag, const desc &md, const engine &eng, void *handle,
+        bool is_usm) {
     using namespace dnnl::impl;
+    using namespace dnnl::impl::sycl;
 
     engine_t *eng_c = eng.get();
     const memory_desc_t *md_c = &md.data;
@@ -38,12 +41,20 @@ memory::memory(with_sycl_tag, const desc &md, const engine &eng, bool is_usm) {
                 status::invalid_arguments, "could not create a memory");
 
     size_t size = memory_desc_wrapper(md_c).size();
+    unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
+            ? memory_flags_t::alloc
+            : memory_flags_t::use_runtime_ptr;
 
     memory_storage_t *mem_storage_ptr;
-    status_t status = eng_c->create_memory_storage(
-            &mem_storage_ptr, memory_flags_t::alloc, size, 0, nullptr);
-    if (status != status::success)
-        error::wrap_c_api(status, "could not create a memory");
+    if (is_usm) {
+        mem_storage_ptr = new memory_storage_t(
+                new sycl_usm_memory_storage_t(eng_c, flags, size, 0, handle));
+    } else {
+        mem_storage_ptr = new memory_storage_t(new sycl_buffer_memory_storage_t(
+                eng_c, flags, size, 0, handle));
+    }
+    if (!mem_storage_ptr || !mem_storage_ptr->impl())
+        error::wrap_c_api(status::out_of_memory, "could not create a memory");
 
     auto *mem = new memory_t(eng_c, md_c, mem_storage_ptr, true);
     reset(mem);

@@ -1489,6 +1489,21 @@ struct memory : public handle<dnnl_memory_t> {
 
     memory() = default;
 
+#if DNNL_WITH_SYCL
+    /// Constructs a memory.
+    ///
+    /// @param md Memory descriptor.
+    /// @param aengine Engine.
+    /// @param ahandle handle.
+    memory(const desc &md, const engine &aengine, void *ahandle)
+#ifdef DNNL_USE_DPCPP_USM
+        : memory(with_sycl_tag {}, md, aengine, ahandle, true) {
+    }
+#else
+        : memory(with_sycl_tag {}, md, aengine, ahandle, false) {
+    }
+#endif
+#else
     /// Constructs a memory.
     ///
     /// @param md Memory descriptor.
@@ -1501,6 +1516,7 @@ struct memory : public handle<dnnl_memory_t> {
                 "could not create a memory");
         reset(result);
     }
+#endif
 
 #if DNNL_WITH_SYCL && defined(DNNL_USE_SYCL_BUFFERS)
     /// Constructs a memory from a SYCL buffer.
@@ -1516,27 +1532,12 @@ struct memory : public handle<dnnl_memory_t> {
     }
 #endif
 
-#if DNNL_WITH_SYCL
-    /// Constructs a memory.
-    ///
-    /// @param md Memory descriptor.
-    /// @param aengine Engine.
-    memory(const desc &md, const engine &aengine)
-#ifdef DNNL_USE_DPCPP_USM
-        : memory(with_sycl_tag {}, md, aengine, true) {
-    }
-#else
-        : memory(with_sycl_tag {}, md, aengine, false) {
-    }
-#endif
-#else
     /// Constructs a memory.
     ///
     /// @param md Memory descriptor.
     /// @param aengine Engine.
     memory(const desc &md, const engine &aengine)
         : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
-#endif
 
     /// Returns the descriptor of the memory.
     desc get_desc() const {
@@ -1672,8 +1673,8 @@ private:
 #if DNNL_WITH_SYCL
     struct with_sycl_tag {};
 
-    DNNL_API memory(
-            with_sycl_tag, const desc &md, const engine &aengine, bool is_usm);
+    DNNL_API memory(with_sycl_tag, const desc &md, const engine &aengine,
+            void *ahandle, bool is_usm);
 #endif
 };
 
