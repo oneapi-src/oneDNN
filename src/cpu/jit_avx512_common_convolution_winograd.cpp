@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <assert.h>
+
 #ifdef __INTEL_COMPILER
 #include <immintrin.h>
 #endif
@@ -26,6 +28,9 @@
 #include "utils.hpp"
 
 #include "jit_avx512_common_convolution_winograd.hpp"
+
+#define _64_BYTE_ALIGN_ ((1 << 6) - 1)
+#define IS_ALIGNED(byte_blk, byte_align) ((byte_blk & byte_align) == 0)
 
 #ifndef _MSC_VER
 #define pragma_unroll _Pragma("unroll")
@@ -45,6 +50,7 @@ unsigned int LLC_cache_size = get_cache_size(3, false);
 
 void inline load_ps(float *dest, const float *src_mem) {
 #ifdef __INTEL_COMPILER
+    assert(IS_ALIGNED(reinterpret_cast<ptrdiff_t>(dest), _64_BYTE_ALIGN_));
     __m512 *Iv512 = (__m512 *)dest;
     Iv512[0] = _mm512_loadu_ps(src_mem);
 #else
@@ -55,9 +61,10 @@ void inline load_ps(float *dest, const float *src_mem) {
 
 void inline store_output(float *dest, const float *data, bool streamout) {
 #ifdef __INTEL_COMPILER
-    if (streamout)
+    if (streamout) {
+        assert(IS_ALIGNED(reinterpret_cast<ptrdiff_t>(dest), _64_BYTE_ALIGN_));
         _mm512_stream_ps(dest, *((__m512 *)data));
-    else
+    } else
         _mm512_storeu_ps(dest, *((__m512 *)data));
 #else
     PRAGMA_OMP_SIMD()
@@ -74,9 +81,10 @@ void inline accum_output(
     _data = _mm512_add_ps(_data, _dest);
     if (with_relu_postsum)
         _data = _mm512_max_ps(_data, _mm512_setzero_ps());
-    if (streamout)
+    if (streamout) {
+        assert(IS_ALIGNED(reinterpret_cast<ptrdiff_t>(dest), _64_BYTE_ALIGN_));
         _mm512_stream_ps(dest, _data);
-    else
+    } else
         _mm512_storeu_ps(dest, _data);
 #else
     PRAGMA_OMP_SIMD()
@@ -456,10 +464,16 @@ void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
 
     int tile_base_index = image * jcp.itiles * jcp.jtiles;
     int tile_block_ur = tile_base_index % jcp.tile_block_ur;
-    int nb_tile_block_ur =
-        (tile_base_index / jcp.tile_block_ur) % jcp.nb_tile_block_ur;
-    int tile_block =
-        (tile_base_index / jcp.tile_block_ur) / jcp.nb_tile_block_ur;
+    int nb_tile_block_ur
+            = (tile_base_index / jcp.tile_block_ur) % jcp.nb_tile_block_ur;
+    int tile_block
+            = (tile_base_index / jcp.tile_block_ur) / jcp.nb_tile_block_ur;
+
+    bool is_access_aligned
+            = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(tinp), _64_BYTE_ALIGN_)
+            // check if the inner-most dimension size matches the alignment
+            // stride.
+            && IS_ALIGNED(jcp.dimK_reg_block * sizeof(float), _64_BYTE_ALIGN_);
 
     for (int tj = 0; tj < jcp.jtiles; tj++) {
         for (int ti = 0; ti < jcp.itiles; ti++) {
@@ -493,10 +507,9 @@ void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
 
             for (int j = 0; j < alpha; j++) {
                 for (int i = 0; i < alpha; i++) {
-                    store_output(&(output(tile_block, j, i,
-                                    nb_tile_block_ur, 0, 0,
-                                    tile_block_ur, 0)),
-                                 Iw[j][i], streamout);
+                    store_output(&(output(tile_block, j, i, nb_tile_block_ur, 0,
+                                         0, tile_block_ur, 0)),
+                            Iw[j][i], is_access_aligned && streamout);
                 }
             }
             tile_block_ur++;
@@ -607,27 +620,34 @@ void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
             for (int j = 0; j < tile_size; j++) {
                 int ydim = tj * tile_size + j;
                 if (ydim < outh) {
-                    float *pout_j = pout_b + ydim * outw * simd_w;
+                    dim_t stride_j = ydim * outw * simd_w;
+                    float *pout_j = pout_b + stride_j;
                     for (int i = 0; i < tile_size; i++) {
                         int xdim = ti * tile_size + i;
                         if (xdim < outw) {
-                            float *pout_i = pout_j + xdim * simd_w;
+                            dim_t stride_i = xdim * simd_w;
+                            float *pout_i = pout_j + stride_i;
+                            bool is_stride_aligned = IS_ALIGNED(
+                                    (stride_j + stride_i) * sizeof(float),
+                                    _64_BYTE_ALIGN_);
                             if (is_fwd) {
                                 PRAGMA_OMP_SIMD()
                                 for (int v = 0; v < simd_w; v++) {
                                     O[j][i][v] += with_bias ? bias[v] : 0.f;
-                                    O[j][i][v] = true
-                                        && with_relu_presum && O[j][i][v] < 0.f
-                                                ? O[j][i][v]
-                                                * jcp.eltwise.alpha
-                                                : O[j][i][v];
+                                    O[j][i][v] = true && with_relu_presum
+                                                    && O[j][i][v] < 0.f
+                                            ? O[j][i][v] * jcp.eltwise.alpha
+                                            : O[j][i][v];
                                 }
                             }
+                            const bool is_access_aligned
+                                    = streamout && is_stride_aligned;
                             if (with_sum)
-                                accum_output(pout_i, O[j][i], streamout,
+                                accum_output(pout_i, O[j][i], is_access_aligned,
                                         with_relu_postsum);
                             else
-                                store_output(pout_i, O[j][i], streamout);
+                                store_output(
+                                        pout_i, O[j][i], is_access_aligned);
                         }
                     }
                 }
@@ -675,6 +695,13 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
         % conv.nb_tile_block_ur;
     int tile_block = (tile_base_index / conv.tile_4fma / conv.tile_block_ur)
             / conv.nb_tile_block_ur;
+
+    bool is_access_aligned
+            = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(tinp), _64_BYTE_ALIGN_)
+            // check if the inner-most dimension size matches the alignment
+            // stride.
+            && IS_ALIGNED(conv.ic_simd_block * conv.tile_4fma * sizeof(float),
+                    _64_BYTE_ALIGN_);
 
     for (int tj = 0; tj < conv.jtiles; tj++) {
         for (int ti = 0; ti < conv.itiles; ti++) {
@@ -731,10 +758,10 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
             } else {
                 for (int j = 0; j < alpha; j++) {
                     for (int i = 0; i < alpha; i++) {
-                        store_output(&(output(0, j, i,
-                                        tile_block, 0,
+                        store_output(
+                                &(output(0, j, i, tile_block, 0,
                                         nb_tile_block_ur, tile_block_ur, 0)),
-                                     Iw[j][i], true);
+                                Iw[j][i], is_access_aligned);
                     }
                 }
                 tile_block_ur++;
@@ -796,6 +823,12 @@ void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
     int tile_block = (tile_base_index / conv.tile_block_ur / conv.tile_4fma)
             / conv.nb_tile_block_ur;
 
+    bool is_access_aligned
+            = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(tinp), _64_BYTE_ALIGN_)
+            // check if the inner-most dimension size matches the alignment
+            // stride.
+            && IS_ALIGNED(conv.oc_simd_block * sizeof(float), _64_BYTE_ALIGN_);
+
     for (int tj = 0; tj < conv.jtiles; tj++) {
         for (int ti = 0; ti < conv.itiles; ti++) {
             for (int j = 0; j < alpha; j++) {
@@ -837,11 +870,9 @@ void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
 
             for (int j = 0; j < alpha; j++) {
                 for (int i = 0; i < alpha; i++) {
-                    store_output(&(output(0, j, i,
-                                    tile_block, 0,
-                                    nb_tile_block_ur,
-                                    tile_block_ur, 0)),
-                                 Iw[j][i], true);
+                    store_output(&(output(0, j, i, tile_block, 0,
+                                         nb_tile_block_ur, tile_block_ur, 0)),
+                            Iw[j][i], is_access_aligned);
                 }
             }
             tile_block_ur++;
@@ -865,15 +896,18 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
     alignas(64) float Fw[alpha][alpha][simd_w][simd_w];
     alignas(64) float F[kh][kw][simd_w][simd_w];
 
-    array_offset_calculator<float, 8> input(twp,
-            conv.nb_ic, conv.nb_oc,
-            alpha, alpha,
-            conv.oc_block, conv.ic_block,
-            conv.ic_simd_block, conv.oc_simd_block);
-    array_offset_calculator<float, 6> output(wp,
-            conv.oc/simd_w, conv.ic/simd_w,
-            conv.kh, conv.kw,
-            conv.ic_simd_block, conv.oc_simd_block);
+    array_offset_calculator<float, 8> input(twp, conv.nb_ic, conv.nb_oc, alpha,
+            alpha, conv.oc_block, conv.ic_block, conv.ic_simd_block,
+            conv.oc_simd_block);
+    array_offset_calculator<float, 6> output(wp, conv.oc / simd_w,
+            conv.ic / simd_w, conv.kh, conv.kw, conv.ic_simd_block,
+            conv.oc_simd_block);
+
+    bool is_access_aligned
+            = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(wp), _64_BYTE_ALIGN_)
+            // check if the inner-most dimension size matches the alignment
+            // stride.
+            && IS_ALIGNED(conv.oc_simd_block * sizeof(float), _64_BYTE_ALIGN_);
 
     for (int j = 0; j < alpha; j++) {
         for (int i = 0; i < alpha; i++) {
@@ -891,8 +925,8 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
     for (int j = 0; j < kh; j++) {
         for (int i = 0; i < kw; i++) {
             for (int v = 0; v < conv.ic_simd_block; v++) {
-                store_output(&(output(0, 0, j, i, v, 0)),
-                             F[j][i][v], true);
+                store_output(&(output(0, 0, j, i, v, 0)), F[j][i][v],
+                        is_access_aligned);
             }
         }
     }
@@ -970,10 +1004,11 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
     bool V_streamout = jcp.dimN * jcp.dimK * alpha * alpha * sizeof(float)
         > 2 * LLC_cache_size ? true : false;
 
-    const bool output_is_aligned = ((size_t)out_ptr & (64 - 1)) == 0;
+    const bool output_is_aligned
+            = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(out_ptr), _64_BYTE_ALIGN_);
 
-    const bool wants_padded_bias = jcp.with_bias
-        && jcp.oc_without_padding != jcp.oc;
+    const bool wants_padded_bias
+            = jcp.with_bias && jcp.oc_without_padding != jcp.oc;
     float last_slice_bias[simd_w] = {0};
     if (wants_padded_bias) {
         for (int oc = 0; oc < jcp.oc_without_padding % jcp.oc_simd_block; ++oc)
