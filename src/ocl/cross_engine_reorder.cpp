@@ -19,14 +19,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-static dnnl_engine_kind_t cross_engine_reorder_engine_kind = dnnl_gpu;
-
-extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_reorder_set_engine_kind(
-        dnnl_engine_kind_t engine_kind) {
-    cross_engine_reorder_engine_kind = engine_kind;
-    return dnnl_success;
-}
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -38,24 +30,10 @@ status_t cross_engine_reorder_t::pd_t::init() {
 
     if (!args_ok) return status::unimplemented;
 
-    reorder_engine_kind_ = cross_engine_reorder_engine_kind;
-
     memory_desc_wrapper src_mdw(src_md());
     memory_desc_wrapper dst_mdw(dst_md());
 
-    // Do not use CPU reorders in the following cases:
-    // 1. For 4o8i8o4i-like formats as they assume GPU-specific permutation
-    // 2. For GPU <-> GPU reorders with different engines
-    if (src_mdw.matches_one_of_tag(
-                format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)
-            || dst_mdw.matches_one_of_tag(
-                    format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)
-            || utils::everyone_is(engine_kind::gpu, src_engine()->kind(),
-                    dst_engine()->kind())) {
-        reorder_engine_kind_ = engine_kind::gpu;
-    }
-
-    engine_t *reorder_engine = src_engine()->kind() == reorder_engine_kind_
+    engine_t *reorder_engine = src_engine()->kind() == engine_kind::gpu
             ? src_engine()
             : dst_engine();
 
@@ -95,7 +73,8 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
     };
 
     status_t status = status::success;
-    if (pd()->src_engine()->kind() == pd()->reorder_engine_kind_) {
+    if (pd()->src_engine()->kind() == engine_kind::gpu) {
+        // GPU -> CPU or GPU -> GPU
         if (do_reorder_) {
             status = exec_reorder(ctx.input(DNNL_ARG_FROM), temp_buf.get());
         }
@@ -106,6 +85,7 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
                     dst_mdw.size());
         }
     } else {
+        // CPU -> GPU
         memory_desc_wrapper src_mdw(pd()->src_md());
         status = compute_stream->copy(src,
                 do_reorder_ ? *temp_buf->memory_storage() : dst,

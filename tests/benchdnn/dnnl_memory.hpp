@@ -26,6 +26,11 @@ struct dnn_mem_t {
         active_ = (initialize(md, engine) == OK);
     }
 
+    dnn_mem_t(
+            const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *handle) {
+        active_ = (initialize(md, engine, handle) == OK);
+    }
+
     dnn_mem_t(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
             dnnl_format_tag_t tag, dnnl_engine_t engine) {
         active_ = (initialize(ndims, dims, dt, tag, engine) == OK);
@@ -85,31 +90,7 @@ struct dnn_mem_t {
     ~dnn_mem_t() { cleanup(); }
 
     int reorder(const dnn_mem_t &rhs) { return reorder(rhs, NULL); }
-    int reorder(const dnn_mem_t &rhs, const dnnl_primitive_attr_t &attr) {
-        if (this == &rhs) return OK;
-
-        dnnl_primitive_desc_t rpd;
-        DNN_SAFE(dnnl_reorder_primitive_desc_create(
-                         &rpd, &rhs.md_, rhs.engine_, &md_, engine_, attr),
-                WARN);
-
-        dnnl_primitive_t r;
-        DNN_SAFE(dnnl_primitive_create(&r, rpd), WARN);
-        dnnl_engine_t reorder_engine;
-        DNN_SAFE(dnnl_primitive_desc_query(
-                         rpd, dnnl_query_engine, 0, &reorder_engine),
-                CRIT);
-        DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
-
-        args_t args;
-        args.set(DNNL_ARG_FROM, rhs);
-        args.set(DNNL_ARG_TO, *this);
-
-        DNN_SAFE(execute_and_wait(r, stream_tgt, args), WARN);
-        DNN_SAFE(dnnl_primitive_destroy(r), CRIT);
-
-        return OK;
-    }
+    int reorder(const dnn_mem_t &rhs, const dnnl_primitive_attr_t &attr);
 
     size_t size() const { return dnnl_memory_desc_get_size(&md_); }
 
@@ -179,6 +160,9 @@ struct dnn_mem_t {
         return offset;
     }
 
+    dnnl_engine_t engine() const { return engine_; }
+    dnnl_engine_kind_t engine_kind() const { return engine_kind_; }
+
     bool is_mapped() const { return is_mapped_; }
 
     void map() const {
@@ -215,7 +199,8 @@ private:
     mutable void *mapped_ptr_ = NULL;
 
     int initialize(const dnnl_memory_desc_t &md, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, dnnl_engine_t engine) {
+            dnnl_format_tag_t tag, dnnl_engine_t engine,
+            void *handle = DNNL_MEMORY_ALLOCATE) {
         is_mapped_ = false;
 
         if (tag == dnnl_format_tag_undef) {
@@ -230,7 +215,7 @@ private:
         DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
 
         size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (engine_kind_ == dnnl_cpu) {
+        if (engine_kind_ == dnnl_cpu && handle == DNNL_MEMORY_ALLOCATE) {
             // Allocate memory for native runtime directly
             is_data_owner_ = true;
             const size_t alignment = 2 * 1024 * 1024;
@@ -240,21 +225,21 @@ private:
         } else {
             is_data_owner_ = false;
             data_ = NULL;
-            DNN_SAFE(
-                    dnnl_memory_create(&m_, &md_, engine, DNNL_MEMORY_ALLOCATE),
-                    CRIT);
+            DNN_SAFE(dnnl_memory_create(&m_, &md_, engine, handle), CRIT);
         }
 
-        // Fill memory with a magic number (NAN for fp data types) to catch
-        // possible uninitialized access.
-        map();
-        memset(mapped_ptr_, 0xFF, sz);
-        unmap();
+        if (handle == DNNL_MEMORY_ALLOCATE) {
+            // Fill memory with a magic number (NAN for fp data types) to catch
+            // possible uninitialized access.
+            map();
+            memset(mapped_ptr_, 0xFF, sz);
+            unmap();
 
-        // Set own data handle to trigger zero padding
-        void *handle;
-        DNN_SAFE(dnnl_memory_get_data_handle(m_, &handle), CRIT);
-        DNN_SAFE(dnnl_memory_set_data_handle(m_, handle), CRIT);
+            // Set own data handle to trigger zero padding
+            void *ret_handle;
+            DNN_SAFE(dnnl_memory_get_data_handle(m_, &ret_handle), CRIT);
+            DNN_SAFE(dnnl_memory_set_data_handle(m_, ret_handle), CRIT);
+        }
 
         // Keep memory mapped and unmap only before execution
         map();
@@ -262,8 +247,10 @@ private:
         return OK;
     }
 
-    int initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine) {
-        return initialize(md, md.data_type, dnnl_format_tag_undef, engine);
+    int initialize(const dnnl_memory_desc_t &md, dnnl_engine_t engine,
+            void *handle = DNNL_MEMORY_ALLOCATE) {
+        return initialize(
+                md, md.data_type, dnnl_format_tag_undef, engine, handle);
     }
 
     int initialize(int ndims, const dnnl_dims_t dims, dnnl_data_type_t dt,
