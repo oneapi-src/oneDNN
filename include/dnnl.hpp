@@ -40,11 +40,10 @@
 // __cpp_exceptions is referred from
 // https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_exceptions.html
 // gcc < 5 does not define __cpp_exceptions but __EXCEPTIONS,
-// _CPPUNWIND is used by MSVC, see
-// https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros?view=vs-2019
+// Microsoft C++ Compiler does not provide an option to disable exceptions
 #ifndef DNNL_ENABLE_EXCEPTIONS
 #if __cpp_exceptions || __EXCEPTIONS \
-        || (defined(_MSC_VER) && defined(_CPPUNWIND))
+        || (defined(_MSC_VER) && !defined(__clang__))
 #define DNNL_ENABLE_EXCEPTIONS 1
 #else
 #define DNNL_ENABLE_EXCEPTIONS 0
