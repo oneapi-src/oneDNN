@@ -31,10 +31,13 @@ class init_kernel;
 
 namespace dnnl {
 
-TEST(sycl_memory_test, BasicInteropCtor) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
+class sycl_memory_test : public ::testing::TestWithParam<engine::kind> {};
 
-    engine eng(engine::kind::gpu, 0);
+TEST_P(sycl_memory_test, BasicInteropCtor) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
     memory::dims tz = {4, 4, 4, 4};
 
     size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
@@ -59,10 +62,50 @@ TEST(sycl_memory_test, BasicInteropCtor) {
     }
 }
 
-TEST(sycl_memory_test, BasicInteropGetSet) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
+TEST_P(sycl_memory_test, ConstructorNone) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
-    engine eng(engine::kind::gpu, 0);
+    engine eng(eng_kind, 0);
+    memory::desc mem_d({0}, memory::data_type::f32, memory::format_tag::x);
+
+    memory mem(mem_d, eng, DNNL_MEMORY_NONE);
+
+    auto buf = mem.get_sycl_buffer<float>();
+    (void)buf;
+}
+
+TEST_P(sycl_memory_test, ConstructorAllocate) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
+    memory::dim n = 100;
+    memory::desc mem_d({n}, memory::data_type::f32, memory::format_tag::x);
+
+    memory mem(mem_d, eng, DNNL_MEMORY_ALLOCATE);
+
+    auto buf = mem.get_sycl_buffer<float>();
+
+    {
+        auto acc = buf.get_access<access::mode::write>();
+        for (int i = 0; i < n; i++) {
+            acc[i] = float(i);
+        }
+    }
+
+    float *mapped_ptr = mem.map_data<float>();
+    for (int i = 0; i < n; i++) {
+        ASSERT_EQ(mapped_ptr[i], float(i));
+    }
+    mem.unmap_data(mapped_ptr);
+}
+
+TEST_P(sycl_memory_test, BasicInteropGetSet) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+    engine eng(eng_kind, 0);
     memory::dims tz = {4, 4, 4, 4};
 
     size_t sz = size_t(tz[0]) * tz[1] * tz[2] * tz[3];
@@ -88,8 +131,9 @@ TEST(sycl_memory_test, BasicInteropGetSet) {
     }
 }
 
-TEST(sycl_memory_test, InteropReorder) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
+TEST_P(sycl_memory_test, InteropReorder) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
     const size_t N = 2;
     const size_t C = 3;
@@ -106,7 +150,7 @@ TEST(sycl_memory_test, InteropReorder) {
         buffer<float, 1> src_buf(&src_host[0], range<1>(nelems));
         buffer<float, 1> dst_buf(&dst_host[0], range<1>(nelems));
 
-        engine eng(engine::kind::gpu, 0);
+        engine eng(eng_kind, 0);
 
         memory::dims tz = {int(N), int(C), int(H), int(W)};
 
@@ -147,8 +191,9 @@ TEST(sycl_memory_test, InteropReorder) {
 // DPC++ does not support mixing fat binaries and host binaries.
 // So the test is enabled for ComputeCpp SYCL only
 #ifdef DNNL_SYCL_COMPUTECPP
-TEST(sycl_memory_test, InteropReorderAndUserKernel) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
+TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
     const size_t N = 2;
     const size_t C = 3;
@@ -167,7 +212,7 @@ TEST(sycl_memory_test, InteropReorderAndUserKernel) {
         buffer<float, 1> buf(&buf_host[0], range<1>(nelems));
         buffer<float, 1> tmp_buf(&tmp_host[0], range<1>(nelems));
 
-        engine eng(engine::kind::gpu, 0);
+        engine eng(eng_kind, 0);
 
         memory::dims tz = {int(N), int(C), int(H), int(W)};
 
@@ -212,15 +257,16 @@ TEST(sycl_memory_test, InteropReorderAndUserKernel) {
 
 #endif
 
-TEST(sycl_memory_test, EltwiseWithUserKernel) {
-    SKIP_IF(!find_ocl_device(CL_DEVICE_TYPE_GPU), "GPU device not found.");
+TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
+    engine::kind eng_kind = GetParam();
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
 
     memory::dims tz = {2, 3, 4, 5};
     const size_t N = tz.size();
 
     memory::desc mem_d(tz, memory::data_type::f32, memory::format_tag::nchw);
 
-    engine eng(engine::kind::gpu, 0);
+    engine eng(eng_kind, 0);
     memory mem({mem_d, eng});
 
     auto sycl_buf = mem.get_sycl_buffer<float>();
@@ -248,5 +294,19 @@ TEST(sycl_memory_test, EltwiseWithUserKernel) {
         EXPECT_EQ(host_acc[i], float(exp_value));
     }
 }
+
+namespace {
+struct PrintToStringParamName {
+    template <class ParamType>
+    std::string operator()(
+            const ::testing::TestParamInfo<ParamType> &info) const {
+        return to_string(static_cast<dnnl_engine_kind_t>(info.param));
+    }
+};
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(Simple, sycl_memory_test,
+        ::testing::Values(engine::kind::cpu, engine::kind::gpu),
+        PrintToStringParamName());
 
 } // namespace dnnl
