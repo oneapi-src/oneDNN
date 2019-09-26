@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2018 Intel Corporation
+# Copyright 2016-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,22 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #===============================================================================
-
-if (NOT DNNL_BUILD_EXAMPLES)
-    return()
-endif()
-
-# propagate EXAMPLE specific flags
-append(CMAKE_C_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_EXAMPLE_CCXX_FLAGS}")
-
-# propagate sanitizer flags
-append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
-
-# propagate nowarn flags
-append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 # add no-exception flag
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOEXCEPT_FLAGS}")

@@ -51,9 +51,9 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-#define dnnl_trap() __builtin_trap()
+#define DNNL_TRAP() __builtin_trap()
 #elif defined(__INTEL_COMPILER) || defined(_MSC_VER)
-#define dnnl_trap() __debugbreak()
+#define DNNL_TRAP() __debugbreak()
 #else
 #error "unknown compiler"
 #endif
@@ -64,7 +64,7 @@
 #define DNNL_THROW_ERROR(status, msg) \
     do { \
         fprintf(stderr, "%s", msg); \
-        dnnl_trap(); \
+        DNNL_TRAP(); \
     } while (0)
 #endif
 
