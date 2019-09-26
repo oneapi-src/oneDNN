@@ -170,13 +170,22 @@ public:
         return result;
     }
 
+    /// Converts a handle to the underlying C handle type. Throws when the
+    /// object is empty.
     explicit operator T() const { return get(true); }
 
+    /// Converts a handle to bool: returns whether the object is empty.
     explicit operator bool() const { return get(true) != nullptr; }
 
+    /// Checks if this handle is equal to the @p other handle. Two handles are
+    /// considered to be equal if they manage the same underlying C handle.
     bool operator==(const handle &other) const {
         return other._data.get() == _data.get();
     }
+
+    /// Checks if this handle is not equal to the @p other handle. Two handles
+    /// are considered to be not equal if they manage different underlying C
+    /// handles.
     bool operator!=(const handle &other) const { return !(*this == other); }
 };
 
@@ -251,17 +260,24 @@ public:
         binary = dnnl_binary,
     };
 
+    /// Constructs a primitive from a C primitive descriptor @p c_pd.
     primitive(const_dnnl_primitive_desc_t c_pd);
+
+    /// Constructs a primitive from a primitive descriptor @p pd.
     primitive(const primitive_desc &pd);
 
     /// Returns the descriptor of the underlying C API primitive.
     inline const_dnnl_primitive_desc_t get_primitive_desc() const;
-    // TODO: use the C++ API wrapper structure.
+    // TODO (Roma): add a version that returns a C++ API wrapper structure.
 
+    /// Executes the primitive in a @p astream. Arguments are passed in an
+    /// argument map @p args.
     void execute(
             stream &astream, const std::unordered_map<int, memory> &args) const;
+    // TODO (Roma): provide more information about how argument map works.
 };
 
+/// Converts a C++ primitive kind enum value @p akind to its C counterpart.
 inline dnnl_primitive_kind_t convert_to_c(primitive::kind akind) {
     return static_cast<dnnl_primitive_kind_t>(akind);
 }
@@ -287,6 +303,7 @@ enum class scratchpad_mode {
     user = dnnl_scratchpad_mode_user,
 };
 
+/// Converts a C++ scratchpad @p mode enum value to its C counterpart.
 inline dnnl_scratchpad_mode_t convert_to_c(scratchpad_mode mode) {
     return static_cast<dnnl_scratchpad_mode_t>(mode);
 }
@@ -318,6 +335,7 @@ enum class prop_kind {
     backward_bias = dnnl_backward_bias
 };
 
+/// Converts a C++ propagation @p kind enum value to its C counterpart.
 inline dnnl_prop_kind_t convert_to_c(prop_kind kind) {
     return static_cast<dnnl_prop_kind_t>(kind);
 }
@@ -394,6 +412,7 @@ enum class algorithm {
     binary_mul = dnnl_binary_mul,
 };
 
+/// Converts a C++ algorithm enum value @p aalgorithm to its C counterpart.
 inline dnnl_alg_kind_t convert_to_c(algorithm aalgorithm) {
     return static_cast<dnnl_alg_kind_t>(aalgorithm);
 }
@@ -438,12 +457,18 @@ enum class normalization_flags : unsigned {
     fuse_norm_relu = dnnl_fuse_norm_relu
 };
 
+/// Converts a C++ normalization flags enum value @p aflag to its C counterpart.
 inline dnnl_normalization_flags_t convert_to_c(normalization_flags aflag) {
     return static_cast<dnnl_normalization_flags_t>(aflag);
 }
 
-enum class rnn_flags : unsigned { undef = dnnl_rnn_flags_undef };
+/// Flags for RNN cell
+enum class rnn_flags : unsigned {
+    /// Undefined RNN flags
+    undef = dnnl_rnn_flags_undef
+};
 
+/// Converts a C++ RNN cell flags enum value @p aflag to its C counterpart.
 inline dnnl_rnn_flags_t convert_to_c(rnn_flags aflag) {
     return static_cast<dnnl_rnn_flags_t>(aflag);
 }
@@ -491,14 +516,23 @@ DNNL_DEFINE_BITMASK_OPS(rnn_flags)
 
 #undef DNNL_DEFINE_BITMASK_OPS
 
+/// A direction of RNN primitive execution
 enum class rnn_direction {
+    /// Unidirectional execution of RNN primitive from left to right.
     unidirectional_left2right = dnnl_unidirectional_left2right,
+    /// Unidirectional execution of RNN primitive from right to left.
     unidirectional_right2left = dnnl_unidirectional_right2left,
+    /// Alias for #rnn_direction::unidirectional_left2right.
     unidirectional = dnnl_unidirectional,
+    /// Bidirectional execution of RNN primitive with concatenation of the
+    /// results.
     bidirectional_concat = dnnl_bidirectional_concat,
+    /// Bidirectional execution of RNN primitive with summation of the
+    /// results.
     bidirectional_sum = dnnl_bidirectional_sum,
 };
 
+/// Converts a C++ RNN direction enum value @p adir to its C counterpart.
 inline dnnl_rnn_direction_t convert_to_c(rnn_direction adir) {
     return static_cast<dnnl_rnn_direction_t>(adir);
 }
@@ -594,6 +628,7 @@ enum class query {
     scratchpad_md = dnnl_query_scratchpad_md,
 };
 
+/// Converts a C++ query enum value @p aquery to its C counterpart.
 inline dnnl_query_t convert_to_c(query aquery) {
     return static_cast<dnnl_query_t>(aquery);
 }
@@ -900,7 +935,8 @@ struct engine : public handle<dnnl_engine_t> {
     }
 #endif
 
-    /// Constructs an engine from other engine @p aengine.
+    /// Constructs an engine from other engine @p aengine. The result is a
+    /// weak handle.
     explicit engine(const dnnl_engine_t &aengine) : handle(aengine, true) {}
 
     /// Constructs an engine from the primitive descriptor @p pd
@@ -940,12 +976,15 @@ struct engine : public handle<dnnl_engine_t> {
     }
 #endif
 
+    /// Constructs a weak engine handle based on the engine specified when
+    /// creating the primitive descriptor @p pd.
     template <class primitive_desc>
     static engine query(const primitive_desc &pd) {
         return query(pd, dnnl::query::engine);
     }
 
 private:
+    /// TODO (Roma): make this a standalone public function?
     static dnnl_engine_kind_t convert_to_c(kind akind) {
         return static_cast<dnnl_engine_kind_t>(akind);
     }
@@ -956,7 +995,6 @@ private:
         error::wrap_c_api(dnnl_primitive_desc_query(pd.get(),
                                   dnnl::convert_to_c(what), 0, &engine_q),
                 "could not get engine from primitive_desc");
-
         return engine(engine_q);
     }
 };
@@ -980,7 +1018,7 @@ struct handle_traits<dnnl_stream_t> {
 struct stream : public handle<dnnl_stream_t> {
     using handle::handle;
 
-    /// @brief Stream flags.
+    /// Stream flags.
     enum class flags : unsigned {
         /// Default order execution. Either in-order or out-of-order depending
         /// on the engine runtime
@@ -995,7 +1033,8 @@ struct stream : public handle<dnnl_stream_t> {
 
     stream() = default;
 
-    /// Constructs a stream.
+    /// Constructs a stream based on the @p aengine engine with behavior
+    /// defined by @p aflags.
     stream(const engine &aengine, flags aflags = flags::default_flags) {
         dnnl_stream_t astream;
         error::wrap_c_api(dnnl_stream_create(&astream, aengine.get(),
@@ -1023,7 +1062,7 @@ struct stream : public handle<dnnl_stream_t> {
     }
 #endif
 
-    /// Waits for all primitives in the stream to finish.
+    /// Waits for all primitives executing in the stream to finish.
     stream &wait() {
         error::wrap_c_api(dnnl_stream_wait(get()), "could not wait a stream");
         return *this;
@@ -1065,6 +1104,8 @@ struct memory : public handle<dnnl_memory_t> {
     typedef dnnl_dim_t dim;
     typedef std::vector<dim> dims;
 
+    /// Helper function that validates if a dimensions vector @p v can be
+    /// safely converted to C array #dnnl_dims_t.
     template <typename T>
     static void validate_dims(const std::vector<T> &v) {
         if (v.size() > DNNL_MAX_NDIMS)
@@ -1853,15 +1894,17 @@ protected:
 /// @sa @ref c_api_reorder in @ref c_api
 /// @{
 
-/// Initializes a reorder primitive using the description of the source
-/// (@p src_engine and @p src_md) and destination (@p dst_engine and @p dst_md)
-/// memory, and an @p attr attribute.
+/// A primitive to copy data between memory formats.
 struct reorder : public primitive {
+    /// A reorder primitive descriptor
     struct primitive_desc : public primitive_desc_base {
         using primitive_desc_base::primitive_desc_base;
 
         primitive_desc() = default;
 
+        /// Constructs a reorder primitive descriptor using the description
+        /// of the source (@p src_engine and @p src_md) and destination (@p
+        /// dst_engine and @p dst_md) memory, and an @p attr attribute.
         primitive_desc(const engine &src_engine, const memory::desc &src_md,
                 const engine &dst_engine, const memory::desc &dst_md,
                 const primitive_attr &aattr = primitive_attr()) {
@@ -1874,6 +1917,9 @@ struct reorder : public primitive {
             reset(result);
         }
 
+        /// Constructs a reorder primitive descriptor using source memory
+        /// object @p src and destination memory object @p dst, and an @p attr
+        /// attribute. Engine information is taken from the memory objects.
         primitive_desc(const memory &src, const memory &dst,
                 const primitive_attr &aattr = primitive_attr()) {
             dnnl_primitive_desc_t result;
@@ -1887,15 +1933,17 @@ struct reorder : public primitive {
             reset(result);
         }
 
-        /// Initializes a primitive descriptor for reorder from a C primitive
-        /// descriptor @p pd.
+        /// Constructs a reorder primitive descriptor for reorder from a C
+        /// primitive descriptor @p pd which must have a matching kind.
         primitive_desc(dnnl_primitive_desc_t pd)
             : primitive_desc_base(pd, dnnl::primitive::kind::reorder) {}
 
+        /// Returns the engine on which the source memory is allocated.
         engine get_src_engine() const {
             return engine::query(*this, dnnl::query::reorder_src_engine);
         }
 
+        /// Returns the engine on which the destination memory is allocated.
         engine get_dst_engine() const {
             return engine::query(*this, dnnl::query::reorder_dst_engine);
         }
@@ -1909,13 +1957,21 @@ struct reorder : public primitive {
 
     reorder() = default;
 
+    /// Constructs a reorder primitive from a reorder primitive descriptor @p
+    /// pd.
     reorder(const primitive_desc &pd) : primitive(pd.get()) {}
 
-    reorder(const memory &src, const memory &dst)
-        : primitive(primitive_desc(src, dst).get()) {}
+    /// Constructs a reorder primitive using source memory object @p src and
+    /// destination memory object @p dst, and an @p attr attribute. Engine
+    /// information is taken from the memory objects.
+    reorder(const memory &src, const memory &dst,
+            const primitive_attr &aattr = primitive_attr())
+        : primitive(primitive_desc(src, dst, aattr).get()) {}
 
     using primitive::execute;
 
+    /// Executes a reorder from @p src to @p dst memory objects in the @p
+    /// astream.
     void execute(stream astream, memory &src, memory &dst) {
         primitive::execute(astream, {{DNNL_ARG_FROM, src}, {DNNL_ARG_TO, dst}});
     }
@@ -1941,17 +1997,19 @@ inline std::vector<dnnl_memory_desc_t> convert_to_c(
 }
 /// @endcond
 
-/// Implements primitive descriptor and primitive for concat.
-///
-/// Creates an out-of-place primitive descriptor for concatenation of @p n
-/// inputs by @p concat_dimension with resulting @p output_desc memory
-/// descriptor. @p output_desc can be NULL or specified with the
-/// #dnnl::memory::format_tag::any format kind--in this case, the appropriate memory
-/// format would be chosen automatically.
+/// A concat primitive.
 struct concat : public primitive {
+    /// A concat primitive descriptor.
     struct primitive_desc : public primitive_desc_base {
         using primitive_desc_base::primitive_desc_base;
 
+        /// Constructs an out-of-place @p concat_primitive_desc on @p engine
+        /// for concatenation of sources, described by memory descriptors in
+        /// the @p srcs vector, in the @p concat_dimension. The destination
+        /// memory is described by the @p dst memory descriptor. The @p dst
+        /// can have #dnnl::memory::format_tag::any format tag; in this case,
+        /// the appropriate memory format would be chosen automatically.
+        /// Attributes, if any, can be passed in @p aattr.
         primitive_desc(const memory::desc &dst, int concat_dimension,
                 const std::vector<memory::desc> &srcs, const engine &aengine,
                 const primitive_attr &aattr = primitive_attr()) {
@@ -1966,6 +2024,11 @@ struct concat : public primitive {
             reset(result);
         }
 
+        /// Constructs an out-of-place @p concat_primitive_desc on @p engine
+        /// for concatenation of sources, described by memory descriptors in
+        /// the @p srcs vector, in the @p concat_dimension. With this
+        /// constructur, the destination shape and format are chosen
+        /// automatically. Attributes, if any, can be passed in @p aattr.
         primitive_desc(int concat_dimension,
                 const std::vector<memory::desc> &srcs, const engine &aengine,
                 const primitive_attr &aattr = primitive_attr()) {
@@ -1994,6 +2057,8 @@ struct concat : public primitive {
 
     concat() = default;
 
+    /// Constructs a concat primitive from a respective primitive descriptor
+    /// @p pd.
     concat(const primitive_desc &pd) : primitive(pd.get()) {}
 };
 
@@ -2006,17 +2071,22 @@ struct concat : public primitive {
 /// @sa @ref c_api_sum in @ref c_api
 /// @{
 
-/// Creates an out-of-place sum primitive descriptor for sum of @p n inputs
-/// multiplied by the scale with resulting @p output_desc memory descriptor.
-/// @p output_desc can be NULL or specified with the
-/// #dnnl::memory::format_tag::any format kind--in this case, the
-/// appropriate memory format would be chosen automatically.
+// A sum primitive
 struct sum : public primitive {
+    /// A sum primitive descriptor.
     struct primitive_desc : public primitive_desc_base {
         using primitive_desc_base::primitive_desc_base;
 
         primitive_desc() = default;
 
+        /// Constructs an out-of-place sum primitive descriptor on @p engine
+        /// for sum of sources described by memory descriptors in the @p srcs
+        /// vector multiplied by the respective elements of the @p scales
+        /// vector. The destination memory is described by the @p dst memory
+        /// descriptor. The @p dst can have #dnnl::memory::format_tag::any
+        /// format kind; in this case, the appropriate memory format would be
+        /// chosen automatically.  Attributes, if any, can be passed in @p
+        /// aattr.
         primitive_desc(const memory::desc &dst,
                 const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs, const engine &aengine,
@@ -2037,6 +2107,11 @@ struct sum : public primitive {
             reset(result);
         }
 
+        /// Constructs an out-of-place sum primitive descriptor for sum of
+        /// sources described by memory descriptors in the @p srcs vector
+        /// multiplied by the respective elements of the @p scales vector.
+        /// With this constructor, the destination format is chosen
+        /// automatically. Attributes, if any, can be passed in @p aattr.
         primitive_desc(const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs, const engine &aengine,
                 const primitive_attr &aattr = primitive_attr()) {
@@ -2055,7 +2130,7 @@ struct sum : public primitive {
             reset(result);
         }
 
-        /// Initializes a primitive descriptor for sum from a C primitive
+        /// Constructs a sum primitive descriptor from a C primitive
         /// descriptor @p pd.
         primitive_desc(dnnl_primitive_desc_t pd)
             : primitive_desc_base(pd, dnnl::primitive::kind::sum) {}
@@ -2069,6 +2144,8 @@ struct sum : public primitive {
 
     sum() = default;
 
+    /// Constructs a sum primitive from a respective primitive descriptor @p
+    /// pd.
     sum(const primitive_desc &pd) : primitive(pd.get()) {}
 };
 
@@ -3738,10 +3815,8 @@ struct batch_normalization_backward : public primitive {
 /// @sa @ref c_api_layer_normalization in @ref c_api
 /// @{
 
-/// layer normalization for forward propagation.  Implements descriptor,
-/// primitive descriptor, and primitive.
+/// Layer normalization forward propagation primitive.
 struct layer_normalization_forward : public primitive {
-
     /// Descriptor for layer normalization forward propagation.
     struct desc {
         dnnl_layer_normalization_desc_t data;
@@ -3839,10 +3914,8 @@ struct layer_normalization_forward : public primitive {
     layer_normalization_forward(const primitive_desc &pd) : primitive(pd) {}
 };
 
-/// layer normalization backward propagation.  Implements descriptor, primitive
-/// descriptor, and primitive.
+/// Layer normalization backward propagation primitive.
 struct layer_normalization_backward : public primitive {
-
     /// Descriptor for layer normalization backward propagation.
     struct desc {
         dnnl_layer_normalization_desc_t data;
@@ -5441,7 +5514,7 @@ struct shuffle_forward : public primitive {
 /// descriptor, and primitive.
 struct shuffle_backward : public primitive {
 
-    // Descriptor for shuffle backward propagation.
+    /// Descriptor for shuffle backward propagation.
     struct desc {
         dnnl_shuffle_desc_t data;
 
@@ -5454,7 +5527,7 @@ struct shuffle_backward : public primitive {
         }
     };
 
-    // Primitive descriptor for shuffle backward propagation.
+    /// Primitive descriptor for shuffle backward propagation.
     struct primitive_desc : public dnnl::primitive_desc {
         primitive_desc() = default;
 
@@ -5492,12 +5565,12 @@ struct shuffle_backward : public primitive {
 /// @sa @ref c_api_binary in @ref c_api
 /// @{
 
-/// Implements descriptor, primitive descriptor, and primitive
-/// for the binary.
+/// Primitive for binary operation.
 struct binary : public primitive {
 
     /// Descriptor for binary.
     struct desc {
+        /// Underlying C operation descriptor.
         dnnl_binary_desc_t data;
 
         /// Initializes a binary descriptor using @p algorithm, memory
@@ -5511,6 +5584,7 @@ struct binary : public primitive {
         }
     };
 
+    /// Primitive descriptor for binary.
     struct primitive_desc : public dnnl::primitive_desc {
         primitive_desc() = default;
 

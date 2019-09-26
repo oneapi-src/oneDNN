@@ -1224,7 +1224,10 @@ typedef struct {
 } dnnl_inner_product_desc_t;
 
 /// Flags for RNN cell.
-typedef enum { dnnl_rnn_flags_undef = 0x0 } dnnl_rnn_flags_t;
+typedef enum {
+    /// Undefined RNN flags
+    dnnl_rnn_flags_undef = 0x0
+} dnnl_rnn_flags_t;
 
 /// A direction of RNN primitive execution.
 typedef enum {
@@ -1238,6 +1241,7 @@ typedef enum {
     /// Bidirectional execution of RNN primitive with summation of the
     /// results.
     dnnl_bidirectional_sum,
+    /// Alias for #dnnl_unidirectional_left2right.
     dnnl_unidirectional = dnnl_unidirectional_left2right,
 } dnnl_rnn_direction_t;
 
