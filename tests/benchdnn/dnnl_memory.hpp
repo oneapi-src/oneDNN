@@ -230,7 +230,8 @@ private:
         DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind_));
 
         size_t sz = dnnl_memory_desc_get_size(&md_);
-        if (engine_kind_ == dnnl_cpu) {
+        if (engine_kind_ == dnnl_cpu
+                && DNNL_CPU_RUNTIME != DNNL_RUNTIME_DPCPP) {
             // Allocate memory for native runtime directly
             is_data_owner_ = true;
             const size_t alignment = 2 * 1024 * 1024;
