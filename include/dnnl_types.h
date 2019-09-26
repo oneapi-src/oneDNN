@@ -1009,7 +1009,7 @@ typedef dnnl_convolution_desc_t dnnl_deconvolution_desc_t;
 /// A descriptor of a shuffle operation.
 typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_convolution.
+    /// descriptor. Must be #dnnl_shuffle.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of propagation. Possible values: #dnnl_forward_training,
     /// #dnnl_forward_inference, and #dnnl_backward_data.
@@ -1017,9 +1017,9 @@ typedef struct {
     /// Source and destination memory descriptor,
     /// and source and destination gradient memory descriptor.
     dnnl_memory_desc_t data_desc;
-    /// axis for shuffling.
+    /// Axis for shuffling.
     int axis;
-    /// number of groups in group convolution
+    /// Number of groups.
     dnnl_dim_t group_size;
 } dnnl_shuffle_desc_t;
 
