@@ -42,6 +42,11 @@ if(POLICY CMP0066)
     cmake_policy(SET CMP0066 NEW)
 endif()
 
+# Use <PackageName>_ROOT env. variable as a prefix
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+
 set(PROJECT_NAME "DNNL")
 set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
 set(PROJECT_VERSION "1.90.0")

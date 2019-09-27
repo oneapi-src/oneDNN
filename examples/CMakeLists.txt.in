@@ -24,6 +24,11 @@ if(POLICY CMP0015)
     cmake_policy(SET CMP0015 NEW)
 endif()
 
+# Use <PackageName>_ROOT env. variable as a prefix
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+
 set(DNNLROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
 
 enable_testing()
