@@ -46,7 +46,7 @@ struct jit_memory_desc_info_t {
     int strides[MAX_NDIMS][nlevels + 1];
 
     static jit_memory_desc_info_t create(const memory_desc_wrapper &mdw) {
-        jit_memory_desc_info_t jit_md_info {};
+        auto jit_md_info = jit_memory_desc_info_t();
 
         jit_md_info.ndims = mdw.ndims();
         jit_md_info.data_type = mdw.data_type();
