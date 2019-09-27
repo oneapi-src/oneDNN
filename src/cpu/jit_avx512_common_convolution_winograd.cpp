@@ -548,15 +548,14 @@ void weight_transform_data(
 
 template <bool is_fwd, bool with_bias, bool with_relu_presum, bool with_sum>
 void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
-        const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias,
-        bool streamout = true) {
+        float *toutp, float *pout_b, float *bias, bool streamout = true) {
     alignas(64) float Ow[alpha][alpha][simd_w];
     alignas(64) float O[tile_size][tile_size][simd_w];
     int outw = is_fwd ? jcp.ow : jcp.iw;
     int outh = is_fwd ? jcp.oh : jcp.ih;
 
     /* Prepare for PostOps */
-    bool with_relu_postsum = p_ops.find(primitive_kind::eltwise, 1) != -1;
+    bool with_relu_postsum = jcp.with_eltwise;
 
     array_offset_calculator<float, 8> input(toutp, jcp.dimN_nb_block,
             jcp.dimM_nb_block, alpha, alpha, jcp.dimN_block, jcp.dimM_block,
@@ -893,7 +892,6 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
         float *inp_ptr, float *out_ptr, float *wei_ptr, float *bias_ptr,
         const memory_tracking::grantor_t &scratchpad) const {
     const auto &jcp = kernel_->jcp;
-    const auto &p_ops = attr_->post_ops_;
 
     const int inph = is_fwd ? jcp.ih : jcp.oh;
     const int inpw = is_fwd ? jcp.iw : jcp.ow;
@@ -1020,7 +1018,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
                             ? last_slice_bias
                             : &bias(M_blk, 0);
 
-                    output_transform(img, jcp, p_ops,
+                    output_transform(img, jcp,
                             &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
                             &(output(img, M_blk, 0, 0, 0)), bias_ptr,
                             output_is_aligned);
