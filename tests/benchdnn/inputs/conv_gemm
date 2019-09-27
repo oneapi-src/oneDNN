@@ -8,3 +8,6 @@ g3ic12oc6_ih5oh3kh3sh1dh0ph0
 
 # large dilation, padding
 g1ic16oc16_ih5oh3kh3sh1dh4ph4
+
+# grouped, unit kernel dimension
+g2ic22oc22_ih4oh4kh1
