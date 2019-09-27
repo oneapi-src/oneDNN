@@ -618,7 +618,7 @@ int doit(const prb_t *p, res_t *r) {
     auto src_tag = get_default_tag(src_ndims);
     auto wei_tag = get_default_tag(wei_ndims);
 
-    if (engine_tgt_kind == dnnl_gpu) {
+    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu) {
         SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), WARN);
         SAFE(init_pd(engine_ref, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,
                      fp, src_tag, wei_tag, dnnl_x, src_tag),
@@ -632,7 +632,10 @@ int doit(const prb_t *p, res_t *r) {
     p = &p_new;
 
     DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
-    if (cpd_ref) DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
+    if (cpd_ref) {
+        DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
+        print(5, "%s\n", "benchdnn: use CPU primitive as the reference");
+    }
 
     DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
     DNN_SAFE(dnnl_primitive_desc_destroy(cpd_ref), CRIT);
