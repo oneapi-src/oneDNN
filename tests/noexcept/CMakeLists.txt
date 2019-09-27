@@ -19,4 +19,4 @@ append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOEXCEPT_FLAGS}")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-register_exe(no-exceptions-cpp main.cpp "test")
+register_exe(noexcept-cpp main.cpp "test")
