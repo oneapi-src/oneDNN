@@ -37,19 +37,30 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_fwd_t);
 
         status_t init() {
+            using namespace data_type;
+
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
+
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops;
+
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(desc()->prop_kind,
                             prop_kind::forward_training,
                             prop_kind::forward_inference)
                     && desc()->alg_kind == alg_kind::convolution_direct
                     && IMPLICATION(
-                            utils::one_of(data_type::f16, src_md_.data_type,
+                            utils::one_of(f16, src_md_.data_type,
                                     weights_md_.data_type, dst_md_.data_type),
                             compute_engine->mayiuse(
                                     compute::device_ext_t::khr_fp16))
-                    && this->set_default_formats();
+                    && this->set_default_formats()
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_ok(attr())
+                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
+                            utils::one_of(src_md_.data_type, s8, u8)
+                                    && attr()->output_scales_.mask_ == 0);
             if (!ok) return status::unimplemented;
 
             return kernel_.init(*this->desc(), *this->src_md(),
@@ -146,7 +157,8 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_data
                     && desc()->alg_kind == alg_kind::convolution_direct
-                    && this->set_default_formats();
+                    && this->set_default_formats()
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             return kernel_.init(*this->desc(), *this->diff_src_md(),
@@ -207,7 +219,8 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && desc()->prop_kind == prop_kind::backward_weights
                     && desc()->alg_kind == alg_kind::convolution_direct
-                    && this->set_default_formats();
+                    && this->set_default_formats()
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             return kernel_.init(*this->desc(), *this->src_md(),

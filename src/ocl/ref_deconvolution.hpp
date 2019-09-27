@@ -148,7 +148,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
 
             bool ok = true && is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
-                    && attr()->post_ops_.has_default_values()
+                    && attr()->has_default_values()
                     && (utils::everyone_is(data_type::f32,
                                 desc()->src_desc.data_type,
                                 desc()->weights_desc.data_type,
@@ -254,7 +254,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
                             desc()->diff_src_desc.data_type,
                             desc()->weights_desc.data_type,
                             desc()->diff_dst_desc.data_type)
-                    && desc()->alg_kind == alg_kind::deconvolution_direct;
+                    && desc()->alg_kind == alg_kind::deconvolution_direct
+                    && attr()->has_default_values();
 
             if (ok) {
                 CHECK(init_convolution());

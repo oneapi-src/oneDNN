@@ -53,10 +53,13 @@ struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
         status_t init() {
             using namespace prop_kind;
             using namespace data_type;
+            using namespace primitive_kind;
 
             assert(this->engine()->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
+
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = true && desc()->a_type == a_type
                     && desc()->b_type == b_type && desc()->c_type == c_type
@@ -67,7 +70,11 @@ struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
                             true
                                     && compute_engine->mayiuse(
                                             compute::device_ext_t::
-                                                    intel_subgroups_short));
+                                                    intel_subgroups_short))
+                    && attr()->has_default_values(attr_skip_mask)
+                    && attr()->post_ops_.len_ <= 1
+                    && IMPLICATION(attr()->post_ops_.len_ == 1,
+                            attr()->post_ops_.find(eltwise) != -1);
             if (!ok) return status::unimplemented;
 
             return status::success;

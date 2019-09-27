@@ -84,9 +84,10 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
 
             assert(this->engine()->kind() == engine_kind::gpu);
 
-            bool with_eltwise = true
-                    && attr()->output_scales_.has_default_values()
-                    && attr()->post_ops_.find(primitive_kind::eltwise) != -1;
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+
+            bool with_eltwise
+                    = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
             bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
 
             bool ok = true && set_default_params() == status::success
@@ -94,9 +95,9 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
                     && utils::one_of(true,
                             expect_data_types(f16, f16, f16, f16, f16),
                             expect_data_types(f32, f32, f32, f32, f32))
-                    && (attr()->has_default_values()
-                            || IMPLICATION(with_eltwise, !with_bias()))
-                    && !with_sum
+                    && attr()->has_default_values(attr_skip_mask)
+                    && attr()->post_ops_.len_ <= 1
+                    && IMPLICATION(with_eltwise, !with_bias()) && !with_sum
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());

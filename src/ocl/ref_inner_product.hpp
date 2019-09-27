@@ -50,6 +50,9 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops;
+
             bool ok = true
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference)
@@ -76,7 +79,11 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(desc()->bias_desc.data_type, u8, s8,
                                     bf16, f16, f32))
-                    && attr()->output_scales_.count_ == 1
+                    && attr()->has_default_values(attr_skip_mask)
+                    && post_ops_ok(attr())
+                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
+                            utils::one_of(src_md_.data_type, s8, u8)
+                                    && attr()->output_scales_.mask_ == 0)
                     && dense_consitency_check(src_md(), weights_md(), dst_md())
                     && IMPLICATION(desc()->src_desc.data_type == f16,
                             compute_engine->mayiuse(
