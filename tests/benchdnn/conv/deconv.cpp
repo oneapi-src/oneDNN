@@ -274,7 +274,8 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd_d(&p_tr, dst_fp, wei_tr_fp, bia_fp, src_fp);
+            compute_ref_bwd_d(
+                    &p_tr, nullptr, dst_fp, wei_tr_fp, bia_fp, src_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, engine_tgt);
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
@@ -286,7 +287,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(&p_tr, dst_fp, wei_tr_fp, zero_fp, src_fp);
+            compute_ref_fwd(&p_tr, nullptr, dst_fp, wei_tr_fp, zero_fp, src_fp);
             dnn_mem_t src(src_dt, fp, src_tag, engine_tgt);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }
