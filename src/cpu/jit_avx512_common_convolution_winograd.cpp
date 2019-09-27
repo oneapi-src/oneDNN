@@ -1002,7 +1002,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             jcp.dimK_block, jcp.dimN_reg_block, jcp.dimK_reg_block);
 
     bool V_streamout = jcp.dimN * jcp.dimK * alpha * alpha * sizeof(float)
-        > 2 * LLC_cache_size ? true : false;
+            > 2 * LLC_cache_size;
 
     const bool output_is_aligned
             = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(out_ptr), _64_BYTE_ALIGN_);
