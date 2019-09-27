@@ -612,7 +612,7 @@ execute_forward_thr(const int ithr, const int nthr, const src_data_t *src_base,
         const int K = jcp.ks * jcp.ic;
         const int N = h_step * w_step;
         const int LDA = M * jcp.ngroups;
-        const int LDB = jcp.im2col_sz ? N : K;
+        const int LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
         const char *BT = jcp.im2col_sz ? "T" : "N";
         const int8_t off_a = 0, off_b = 0;
         const int32_t off_c = 0;
