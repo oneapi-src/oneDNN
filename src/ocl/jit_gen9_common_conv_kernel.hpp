@@ -106,66 +106,35 @@ struct jit_gen9_common_conv_fwd_kernel {
         switch (jcp.ver) {
             case ver_16mb16c:
                 jcp.mb_block = 16;
-                if (src_mdw.data_type() == dnnl_f32
-                        || src_mdw.data_type() == dnnl_f16) {
-                    if (src_mdw.data_type() == dnnl_f16 && jcp.mb % 32 != 0) {
-                        jcp.mb_block
-                                = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
-                                ? 16
-                                : 1;
-                        jcp.oc_block = 16;
-                        jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
-                        jcp.ow_block = 8;
-                        jcp.oh_block = 1;
-                        jcp.sub_group_size = 16;
-                        jcp.lws_d[0] = 16;
-                        jcp.lws_d[1] = 1;
-                        jcp.lws_d[2] = 1;
-                        jcp.gws_d[0] = jcp.ngroups * jcp.oc;
-                        jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
-                                * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
-                        jcp.gws_d[2] = jcp.mb;
-                    } else {
-                        jcp.oc_block = 16;
-                        jcp.ic_block = 16;
-                        jcp.sub_group_size = 16;
-                        jcp.lws_d[0] = 16;
-                        jcp.lws_d[1] = 1;
-                        jcp.lws_d[2] = 1;
-                        jcp.gws_d[0] = jcp.oc * jcp.ngroups;
-                        jcp.gws_d[1] = jcp.oh * jcp.ow * jcp.od;
-                        jcp.gws_d[2] = (src_mdw.data_type() == dnnl_f16
-                                               && !jcp.is_depthwise)
-                                ? jcp.mb / (jcp.mb_block * 2)
-                                : jcp.mb / (jcp.mb_block * 1);
-                    }
+                if (src_mdw.data_type() == dnnl_f16 && jcp.mb % 32 != 0) {
+                    jcp.mb_block = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
+                            ? 16
+                            : 1;
+                    jcp.oc_block = 16;
+                    jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
+                    jcp.ow_block = 8;
+                    jcp.oh_block = 1;
+                    jcp.sub_group_size = 16;
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ngroups * jcp.oc;
+                    jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                            * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                    jcp.gws_d[2] = jcp.mb;
                 } else {
                     jcp.oc_block = 16;
                     jcp.ic_block = 16;
-                    jcp.mb_block = 32;
-                    jcp.sub_group_size = 8;
-
-                    if (jcp.kw == 1) {
-                        jcp.slm_ic = 2;
-                    } else {
-                        jcp.slm_ic = 1;
-                    }
-
-                    if (jcp.oc == 64) {
-                        jcp.lws_d[0] = 2 * 8;
-                        jcp.lws_d[1] = 8;
-                    } else if (jcp.oc % 128 == 0) {
-                        jcp.lws_d[0] = 4 * 8;
-                        jcp.lws_d[1] = 4;
-                    } else {
-                        jcp.lws_d[0] = utils::max_div(jcp.oc, 4) * 8;
-                        jcp.lws_d[1] = utils::max_div(jcp.ow, 4);
-                    }
-
+                    jcp.sub_group_size = 16;
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
                     jcp.lws_d[2] = 1;
-                    jcp.gws_d[0] = (jcp.oc / jcp.oc_block) * 8;
-                    jcp.gws_d[1] = jcp.oh * utils::rnd_up(jcp.ow, jcp.lws_d[1]);
-                    jcp.gws_d[2] = jcp.mb / (jcp.mb_block * 1);
+                    jcp.gws_d[0] = jcp.oc * jcp.ngroups;
+                    jcp.gws_d[1] = jcp.oh * jcp.ow * jcp.od;
+                    jcp.gws_d[2] = (src_mdw.data_type() == dnnl_f16
+                                           && !jcp.is_depthwise)
+                            ? jcp.mb / (jcp.mb_block * 2)
+                            : jcp.mb / (jcp.mb_block * 1);
                 }
 
                 jcp.wht_slm_size = jcp.slm_ic * jcp.ic_block
