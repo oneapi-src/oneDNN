@@ -577,7 +577,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int K = jcp.ks * jcp.ic;
         const int N = h_step * w_step;
         const int LDA = M * jcp.ngroups;
-        const int LDB = jcp.im2col_sz ? N : K;
+        const int LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
         const char *BT = jcp.im2col_sz ? "T" : "N";
         const int8_t off_a = 0;
         const uint8_t off_b = 0;
