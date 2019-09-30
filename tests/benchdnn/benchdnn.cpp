@@ -36,6 +36,7 @@
 #include "ip/ip.hpp"
 #include "lnorm/lnorm.hpp"
 #include "lrn/lrn.hpp"
+#include "matmul/matmul.hpp"
 #include "pool/pool.hpp"
 #include "reorder/reorder.hpp"
 #include "rnn/rnn.hpp"
@@ -97,6 +98,8 @@ int main(int argc, char **argv) {
             prim = LRN;
         else if (!strcmp("--binary", argv[0]))
             prim = BINARY;
+        else if (!strcmp("--matmul", argv[0]))
+            prim = MATMUL;
         else
             break;
     }
@@ -121,6 +124,7 @@ int main(int argc, char **argv) {
         case CONCAT: concat::bench(argc, argv); break;
         case LRN: lrn::bench(argc, argv); break;
         case BINARY: binary::bench(argc, argv); break;
+        case MATMUL: matmul::bench(argc, argv); break;
         default: fprintf(stderr, "err: unknown driver\n");
     }
 

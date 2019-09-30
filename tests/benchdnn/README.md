@@ -15,6 +15,7 @@ So far it supports and uses the following drivers:
 * [inner product](doc/driver_ip.md)
 * [layer normalization](doc/driver_lnorm.md)
 * [local response normalization (LRN)](doc/driver_lrn.md)
+* [matrix multiplication (MatMul)](doc/driver_matmul.md)
 * [pooling](doc/driver_pool.md)
 * [reorder](doc/driver_reorder.md)
 * [recurrent neural network (RNN)](doc/driver_rnn.md)

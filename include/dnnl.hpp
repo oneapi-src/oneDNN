@@ -261,6 +261,8 @@ public:
         binary = dnnl_binary,
         /// A logsoftmax primitive.
         logsoftmax = dnnl_logsoftmax,
+        /// A matmul (matrix multiplication) primitive.
+        matmul = dnnl_matmul,
     };
 
     using handle::handle;
@@ -651,6 +653,8 @@ enum class query {
     binary_d = dnnl_query_binary_d,
     /// logsoftmax descriptor
     logsoftmax_d = dnnl_query_logsoftmax_d,
+    /// matmul descriptor
+    matmul_d = dnnl_query_matmul_d,
 
     /// source memory desc
     src_md = dnnl_query_src_md,
@@ -5926,6 +5930,87 @@ struct binary : public primitive {
     binary() = default;
 
     binary(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// @}
+
+/// @addtogroup cpp_api_matmul Matrix Multiplication
+/// A primitive to perform matrix multiplication of two tensors and possibly
+/// bias addition to the result. Batched mode supported with 3D tensors.
+///
+/// @sa @ref dev_guide_matmul in developer guide
+/// @sa @ref c_api_matmul in @ref c_api
+/// @{
+
+/// Implements descriptor, primitive descriptor, and primitive
+/// for matrix multiplication (MatMul).
+struct matmul : public primitive {
+    /// Descriptor for MatMul.
+    struct desc {
+        dnnl_matmul_desc_t data;
+
+        /// Initializes a matmul descriptor using memory descriptors
+        /// @p src_desc, @p weights_desc, and @p dst_desc.
+        desc(const memory::desc &src_desc, const memory::desc &weights_desc,
+                const memory::desc &dst_desc) {
+            error::wrap_c_api(
+                    dnnl_matmul_desc_init(&data, &src_desc.data,
+                            &weights_desc.data, nullptr, &dst_desc.data),
+                    "could not create a matmul descriptor");
+        }
+
+        /// Initializes a matmul descriptor using memory descriptors
+        /// @p src_desc, @p weights_desc, @p bias_desc, and @p dst_desc.
+        desc(const memory::desc &src_desc, const memory::desc &weights_desc,
+                const memory::desc &bias_desc, const memory::desc &dst_desc) {
+            error::wrap_c_api(dnnl_matmul_desc_init(&data, &src_desc.data,
+                                      &weights_desc.data, &bias_desc.data,
+                                      &dst_desc.data),
+                    "could not create a matmul descriptor");
+        }
+    };
+
+    /// Primitive descriptor for MatMul
+    struct primitive_desc : public dnnl::primitive_desc {
+        primitive_desc() = default;
+
+        /// Initializes a primitive descriptor for matmul.
+        primitive_desc(
+                const desc &desc, const engine &e, bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &desc.data, nullptr, e, nullptr, allow_empty) {}
+
+        /// Initializes a primitive descriptor for matmul with attributes
+        /// defined by @p attr.
+        primitive_desc(
+                const desc &desc, const primitive_attr &attr, const engine &e)
+            : dnnl::primitive_desc(&desc.data, &attr, e, nullptr) {}
+
+        /// Initializes a primitive descriptor for matmul from a C primitive
+        /// descriptor @p pd.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::matmul) {}
+
+        /// Queries source memory descriptor.
+        memory::desc src_desc() const { return query_md(query::src_md, 0); }
+
+        /// Queries weights memory descriptor.
+        memory::desc weights_desc() const {
+            return query_md(query::weights_md, 0);
+        }
+
+        /// Queries bias memory descriptor.
+        memory::desc bias_desc() const {
+            return query_md(query::weights_md, 1);
+        }
+
+        /// Queries destination memory descriptor.
+        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
+    };
+
+    matmul() = default;
+
+    matmul(const primitive_desc &pd) : primitive(pd) {}
 };
 
 /// @}

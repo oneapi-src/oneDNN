@@ -1969,6 +1969,36 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_backward_desc_init(
 
 /// @}
 
+/// @addtogroup c_api_matmul Matrix Multiplication
+/// A primitive to perform matrix multiplication of two tensors and possibly
+/// bias addition to the result. Batched mode supported with 3D tensors.
+///
+/// @sa @ref dev_guide_matmul in developer guide
+/// @sa @ref cpp_api_matmul in @ref cpp_api
+/// @{
+
+/// Initializes a matrix multiplication descriptor @p matmul_desc with given
+/// source memory descriptors, optionally bias, and destination memory
+/// descriptor.
+///
+/// @note To omit applying bias @p bias_desc can be NULL or point to zero
+///       memory descriptor.
+///
+/// Inputs:
+///  - src (#dnnl_query_src_md, 0)
+///  - weights (#dnnl_query_weights_md, 0)
+///  - bias (#dnnl_query_weights_md, 1)
+///
+/// Outputs:
+///  - dst (#dnnl_query_dst_md, 0)
+dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
+        const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *weights_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_desc);
+
+/// @}
+
 /// @}
 
 /// @addtogroup c_api_engine Engine operations

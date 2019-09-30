@@ -23,6 +23,8 @@
 #include "cpu_stream.hpp"
 #include "memory.hpp"
 
+#include "cpu/matmul/ref_matmul.hpp"
+
 #include "cpu/rnn/ref_rnn.hpp"
 
 #include "cpu/gemm_bf16_convolution.hpp"
@@ -375,6 +377,16 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_uni_binary_t<avx2>),
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
+        /* matmul op */
+        INSTANCE(ref_matmul_t<f32>),
+        INSTANCE(ref_matmul_t<s8, s8, f32, s32>),
+        INSTANCE(ref_matmul_t<s8, s8, s32, s32>),
+        INSTANCE(ref_matmul_t<s8, s8, s8, s32>),
+        INSTANCE(ref_matmul_t<s8, s8, u8, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, f32, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, s32, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, s8, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, u8, s32>),
         /* eol */
         nullptr,
 };

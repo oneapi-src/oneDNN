@@ -36,6 +36,7 @@
 #include "inner_product_pd.hpp"
 #include "layer_normalization_pd.hpp"
 #include "lrn_pd.hpp"
+#include "matmul_pd.hpp"
 #include "pooling_pd.hpp"
 #include "reorder_pd.hpp"
 #include "rnn_pd.hpp"
@@ -803,6 +804,45 @@ static void init_info_binary(pd_t *s, char *buffer) {
             dat_str, attr_str, aux_str, prb_str);
 }
 
+template <typename pd_t>
+static void init_info_matmul(pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    { // src
+        auto md = s->src_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+    { // src1
+        auto md = s->weights_md(0);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " wei_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+    { // bia
+        auto md = s->weights_md(1);
+        if (md->ndims != 0) {
+            DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " bia_");
+            MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        }
+    }
+    { // dst
+        auto md = s->dst_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+    }
+
+    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+
+    if (s->batched())
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, "b" DFMT,
+                s->batch());
+    DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
+            "m" DFMT "n" DFMT "k" DFMT, s->M(), s->N(), s->K());
+
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(), prop_kind::undef,
+            dat_str, attr_str, aux_str, prb_str);
+}
+
 #undef DPRINT
 
 #else // !defined(DISABLE_VERBOSE)
@@ -823,6 +863,7 @@ DEFINE_STUB(gemm);
 DEFINE_STUB(iprod);
 DEFINE_STUB(lnorm);
 DEFINE_STUB(lrn);
+DEFINE_STUB(matmul);
 DEFINE_STUB(mem);
 DEFINE_STUB(pool);
 DEFINE_STUB(rnn);
@@ -862,6 +903,9 @@ void init_info(layer_normalization_pd_t *s, char *b) {
 }
 void init_info(lrn_pd_t *s, char *b) {
     init_info_lrn(s, b);
+}
+void init_info(matmul_pd_t *s, char *b) {
+    init_info_matmul(s, b);
 }
 void init_info(pooling_pd_t *s, char *b) {
     init_info_pool(s, b);

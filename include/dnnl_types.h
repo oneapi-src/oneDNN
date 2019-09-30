@@ -645,12 +645,14 @@ typedef enum {
     dnnl_inner_product,
     /// A rnn primitive.
     dnnl_rnn,
-    /// A matrix multiplication primitive.
+    /// A matrix multiplication primitive (internal).
     dnnl_gemm,
     /// A binary primitive.
     dnnl_binary,
     /// A logsoftmax primitive.
     dnnl_logsoftmax,
+    /// A matrix multiplication primitive.
+    dnnl_matmul,
 } dnnl_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -1357,6 +1359,29 @@ typedef struct {
     dnnl_memory_desc_t dst_desc;
 } dnnl_binary_desc_t;
 
+/// A descriptor of a matrix multiplication operation.
+///
+/// 2D case:
+///     dst[m, n] = src[m, k] * weights[k, n] + bias[m, n]
+///
+/// 3D case:
+///     dst[mb, m, n] = src[mb, m, k] * weights[mb, k, n] + bias[mb, m, n]
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_matmul.
+    dnnl_primitive_kind_t primitive_kind;
+    /// Source memory descriptor.
+    dnnl_memory_desc_t src_desc;
+    /// Weights memory descriptor.
+    dnnl_memory_desc_t weights_desc;
+    /// Bias memory descriptor.
+    dnnl_memory_desc_t bias_desc;
+    /// Destination memory descriptor.
+    dnnl_memory_desc_t dst_desc;
+    /// The accumulator data type. Initialized automatically.
+    dnnl_data_type_t accum_data_type;
+} dnnl_matmul_desc_t;
+
 /// @}
 
 /// @addtogroup c_api_engine_types Engine
@@ -1661,9 +1686,10 @@ typedef enum {
     dnnl_query_layer_normalization_d, ///< layer normalization descriptor
     dnnl_query_inner_product_d, ///< inner product descriptor
     dnnl_query_rnn_d, ///< rnn descriptor
-    dnnl_query_gemm_d, ///< GEMM descriptor
+    dnnl_query_gemm_d, ///< GEMM descriptor (internal)
     dnnl_query_binary_d, ///< binary descriptor
     dnnl_query_logsoftmax_d, ///< logsoftmax descriptor
+    dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub

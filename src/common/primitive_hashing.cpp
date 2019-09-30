@@ -82,6 +82,9 @@ void key_t::init_mds(const primitive_desc_t *pd) {
         case primitive_kind::lrn: {
             break;
         }
+        case primitive_kind::matmul: {
+            break;
+        }
         case primitive_kind::pooling: {
             auto typed_pd = utils::downcast<const pooling_pd_t *>(pd);
             if (!typed_pd->is_fwd()) {
@@ -161,6 +164,9 @@ bool key_t::operator==(const key_t &rhs) const {
             break;
         case primitive_kind::lrn:
             ret = cast_and_compare<lrn_desc_t>(op_desc_, rhs.op_desc_);
+            break;
+        case primitive_kind::matmul:
+            ret = cast_and_compare<matmul_desc_t>(op_desc_, rhs.op_desc_);
             break;
         case primitive_kind::pooling:
             ret = cast_and_compare<pooling_desc_t>(op_desc_, rhs.op_desc_);

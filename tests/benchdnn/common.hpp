@@ -126,6 +126,7 @@ enum prim_t {
     CONCAT,
     LRN,
     BINARY,
+    MATMUL,
     DEF = CONV,
 };
 
