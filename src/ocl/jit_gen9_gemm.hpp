@@ -251,6 +251,13 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
+protected:
+#ifdef _WIN32
+    bool disable_nocopy = true;
+#else
+    bool disable_nocopy = false;
+#endif
+
 private:
     status_t launch_beta(compute::compute_stream_t *s, int64_t m, int64_t n,
             acc_t alpha, const memory_storage_t &a, int64_t offseta,
@@ -301,6 +308,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_nocopy() const {
+        if (disable_nocopy) return false;
+
         bool transa = (pd()->desc()->transa == dnnl_trans);
         bool transb = (pd()->desc()->transb == dnnl_trans);
 
