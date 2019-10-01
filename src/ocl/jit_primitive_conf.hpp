@@ -355,6 +355,7 @@ struct jit_reorder_conf_t {
     size_t nelems;
     size_t gws_d[3], lws_d[3];
     int block[3];
+    int dim_block[6];
     int sub_group_size;
     int scale_mask;
 

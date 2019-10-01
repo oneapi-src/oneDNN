@@ -32,6 +32,8 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
     const auto &jrp = pd()->jrp_;
+    if (jrp.nelems == 0) return status::success;
+
     float alpha = pd()->alpha();
     float beta = pd()->beta();
 

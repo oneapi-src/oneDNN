@@ -18,9 +18,11 @@
 #define JIT_SIMPLE_REORDER_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
 #include "common/reorder_pd.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
+#include "ocl/ocl_gpu_device_info.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,6 +38,12 @@ struct jit_simple_reorder_kernel {
             const memory_desc_wrapper &src_md,
             const memory_desc_wrapper &dst_md) {
         using namespace format_tag;
+
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
+                compute_engine->device_info());
+        const size_t eu_count = static_cast<size_t>(dev_info->eu_count());
 
         jrp.src_md_info = jit_memory_desc_info_t::create(src_md);
         jrp.dst_md_info = jit_memory_desc_info_t::create(dst_md);
@@ -54,9 +62,14 @@ struct jit_simple_reorder_kernel {
         jrp.has_padding = !src_md.is_dense() || !dst_md.is_dense();
         jrp.ndims = src_md.ndims();
         jrp.nelems = utils::array_product(padded_dims, jrp.ndims);
+
         jrp.lws_d[0] = 1;
         jrp.lws_d[1] = 1;
         jrp.lws_d[2] = 1;
+
+        jrp.gws_d[0] = 1;
+        jrp.gws_d[1] = 1;
+        jrp.gws_d[2] = 1;
 
         jrp.use_ref_impl = 1;
         jrp.with_group = 0;
@@ -66,18 +79,25 @@ struct jit_simple_reorder_kernel {
         jrp.block[1] = 1;
         jrp.block[2] = 1;
 
-        if (jrp.ndims <= 3) {
-            jrp.gws_d[0] = padded_dims[0];
-            jrp.gws_d[1] = jrp.ndims > 1 ? padded_dims[1] : 1;
-            jrp.gws_d[2] = jrp.ndims > 2 ? padded_dims[2] : 1;
-        } else if (jrp.ndims <= 5) {
-            jrp.gws_d[0] = padded_dims[0];
-            jrp.gws_d[1] = padded_dims[1];
-            jrp.gws_d[2] = 1;
-        } else {
-            jrp.gws_d[0] = padded_dims[0];
-            jrp.gws_d[1] = padded_dims[1];
-            jrp.gws_d[2] = padded_dims[2];
+        jrp.dim_block[0] = 1;
+        jrp.dim_block[1] = 1;
+        jrp.dim_block[2] = 1;
+        jrp.dim_block[3] = 1;
+        jrp.dim_block[4] = 1;
+        jrp.dim_block[5] = 1;
+
+        if (jrp.nelems == 0) return status::success;
+
+        jrp.gws_d[0] = padded_dims[0];
+        jrp.gws_d[1] = jrp.ndims > 1 ? padded_dims[1] : 1;
+        jrp.gws_d[2] = 1;
+        // Reduce amount of work done by a single work item to increase amount
+        // of work items.
+        const auto dst_ndims = dst_md.ndims();
+        for (int d = 2; d < dst_ndims; ++d) {
+            size_t global_work = utils::array_product(jrp.gws_d, 3);
+            jrp.dim_block[d] = global_work < eu_count ? 1 : padded_dims[d];
+            jrp.gws_d[2] *= padded_dims[d] / jrp.dim_block[d];
         }
 
         if (src_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
@@ -170,6 +190,16 @@ struct jit_simple_reorder_kernel {
             kernel_ctx.define_int(tempstr, jrp.block[i]);
         }
 
+        for (int i = 0; i < 6; i++) {
+            char tempstr[32];
+            snprintf(tempstr, 32, "D%d_BLOCK", i);
+            kernel_ctx.define_int(tempstr, jrp.dim_block[i]);
+            snprintf(tempstr, 32, "D%d_NBLOCKS", i);
+            kernel_ctx.define_int(tempstr,
+                    nstl::max(1,
+                            jrp.dst_md_info.padded_dims[i] / jrp.dim_block[i]));
+        }
+
         kernel_ctx.define_int("REF_REORDER", jrp.use_ref_impl);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
 
@@ -244,6 +274,7 @@ struct jit_simple_reorder_kernel {
             kernel_ctx.define_int("DST_OIHW2O8I8O2I", 1);
         }
 
+        kernel_ctx.print_options();
         return status::success;
     }
 
