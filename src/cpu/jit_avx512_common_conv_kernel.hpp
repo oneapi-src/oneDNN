@@ -244,6 +244,7 @@ private:
     reg64_t reg_dst_prf = r11;
     reg64_t reg_ker_prf = r12;
     reg64_t reg_src_prf = r13;
+    reg64_t reg_iwb = r14;
 
     reg64_t aux_reg_dst = r14;
     reg64_t aux_reg_ker = r15;
@@ -341,7 +342,7 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &diff_src_d,
-            memory_desc_t &weights_d, memory_desc_t &diff_dst_d);
+            memory_desc_t &weights_d, memory_desc_t &diff_dst_d, int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 

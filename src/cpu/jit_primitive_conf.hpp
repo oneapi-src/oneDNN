@@ -110,6 +110,7 @@ struct jit_conv_conf_t {
     int idp, ihp, iwp, ohp, owp;
     int nb_ic, ic_block;
     int nb_oc, oc_block;
+    int nb_iw, iw_block;
     int nb_ow, ow_block;
     int nb_oc_blocking; /* used in jit kernels for nb_oc work bloking taking
                            into account vector registers distribution */
@@ -346,6 +347,8 @@ struct jit_conv_call_s {
     size_t kd_padding_prf;
     size_t kh_padding;
     size_t kh_padding_prf;
+    size_t iwb;
+    size_t iwb_prf;
     size_t owb;
     size_t owb_prf;
     size_t kw_padding;

@@ -131,7 +131,7 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_impl_t {
             status_t status
                     = jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                             jcp_, *desc(), diff_src_md_, weights_md_,
-                            diff_dst_md_);
+                            diff_dst_md_, dnnl_get_max_threads());
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
