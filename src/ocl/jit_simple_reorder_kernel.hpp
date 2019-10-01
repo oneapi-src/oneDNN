@@ -42,7 +42,7 @@ struct jit_simple_reorder_kernel {
 
         status_t status = status::success;
 
-        const auto &dims = dst_md.padded_dims();
+        const auto &padded_dims = dst_md.padded_dims();
         jrp.scale_quant = pd->attr()->output_scales_.mask_ != 0;
         jrp.scale_mask = jrp.scale_quant ? pd->attr()->output_scales_.mask_ : 0;
         jrp.with_sum_ab = jrp.scale_quant
@@ -53,7 +53,7 @@ struct jit_simple_reorder_kernel {
                 = jrp.scale_quant || jrp.with_sum_ab ? true : src_md != dst_md;
         jrp.has_padding = !src_md.is_dense() || !dst_md.is_dense();
         jrp.ndims = src_md.ndims();
-        jrp.nelems = utils::array_product(dims, jrp.ndims);
+        jrp.nelems = utils::array_product(padded_dims, jrp.ndims);
         jrp.lws_d[0] = 1;
         jrp.lws_d[1] = 1;
         jrp.lws_d[2] = 1;
@@ -67,17 +67,17 @@ struct jit_simple_reorder_kernel {
         jrp.block[2] = 1;
 
         if (jrp.ndims <= 3) {
-            jrp.gws_d[0] = dims[0];
-            jrp.gws_d[1] = jrp.ndims > 1 ? dims[1] : 1;
-            jrp.gws_d[2] = jrp.ndims > 2 ? dims[2] : 1;
+            jrp.gws_d[0] = padded_dims[0];
+            jrp.gws_d[1] = jrp.ndims > 1 ? padded_dims[1] : 1;
+            jrp.gws_d[2] = jrp.ndims > 2 ? padded_dims[2] : 1;
         } else if (jrp.ndims <= 5) {
-            jrp.gws_d[0] = dims[0];
-            jrp.gws_d[1] = dims[1];
+            jrp.gws_d[0] = padded_dims[0];
+            jrp.gws_d[1] = padded_dims[1];
             jrp.gws_d[2] = 1;
         } else {
-            jrp.gws_d[0] = dims[0];
-            jrp.gws_d[1] = dims[1];
-            jrp.gws_d[2] = dims[2];
+            jrp.gws_d[0] = padded_dims[0];
+            jrp.gws_d[1] = padded_dims[1];
+            jrp.gws_d[2] = padded_dims[2];
         }
 
         if (src_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
@@ -120,26 +120,26 @@ struct jit_simple_reorder_kernel {
         if (use_unroll_16a16b) {
             jrp.use_ref_impl = 0;
             jrp.sub_group_size = 16;
-            jrp.gws_d[0] = dims[0] / 16;
-            jrp.gws_d[1] = dims[1];
+            jrp.gws_d[0] = padded_dims[0] / 16;
+            jrp.gws_d[1] = padded_dims[1];
             jrp.lws_d[1] = 16;
-            jrp.gws_d[2] = utils::array_product(&dims[2], jrp.ndims - 2);
+            jrp.gws_d[2] = utils::array_product(&padded_dims[2], jrp.ndims - 2);
         } else if (use_unroll_16b) {
             jrp.use_ref_impl = 0;
             jrp.sub_group_size = 16;
-            jrp.gws_d[0] = dims[0];
-            jrp.gws_d[1] = dims[1];
+            jrp.gws_d[0] = padded_dims[0];
+            jrp.gws_d[1] = padded_dims[1];
             jrp.lws_d[1] = 16;
-            jrp.gws_d[2] = utils::array_product(&dims[2], jrp.ndims - 2);
+            jrp.gws_d[2] = utils::array_product(&padded_dims[2], jrp.ndims - 2);
         } else if (use_unroll_16b16c) {
             jrp.use_ref_impl = 0;
             jrp.with_group = 1;
             jrp.sub_group_size = 16;
             jrp.lws_d[0] = 16;
-            jrp.gws_d[0] = dims[0] * dims[1];
-            jrp.block[0] = dims[1];
-            jrp.gws_d[1] = dims[2] / 16;
-            jrp.gws_d[2] = utils::array_product(&dims[3], jrp.ndims - 3);
+            jrp.gws_d[0] = padded_dims[0] * padded_dims[1];
+            jrp.block[0] = padded_dims[1];
+            jrp.gws_d[1] = padded_dims[2] / 16;
+            jrp.gws_d[2] = utils::array_product(&padded_dims[3], jrp.ndims - 3);
         }
 
         return status;
