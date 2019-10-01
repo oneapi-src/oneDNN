@@ -134,23 +134,9 @@ struct jit_gen9_common_conv_fwd_kernel {
                             : jcp.mb / (jcp.mb_block * 1);
                 }
 
-                jcp.wht_slm_size = jcp.slm_ic * jcp.ic_block
-                        * (jcp.lws_d[0] / 8) * jcp.oc_block * jcp.kw;
-                if (jcp.kw == 1)
-                    jcp.src_slm_size = jcp.slm_ic * jcp.ic_block
-                            * (jcp.lws_d[1] + jcp.kw - 1) * jcp.mb_block;
-                else
-                    jcp.src_slm_size = jcp.slm_ic * jcp.ic_block
-                            * (jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw)
-                            * jcp.mb_block;
-
 #ifdef DEBUG_PRINT
                 printf("LWS = %ld\n",
                         jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
-                fflush(0);
-                printf("USE SLM %ld KB\n",
-                        utils::div_up(
-                                jcp.wht_slm_size + jcp.src_slm_size, 1024));
                 fflush(0);
                 printf("LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n", jcp.lws_d[0],
                         jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0], jcp.gws_d[1],
@@ -453,13 +439,11 @@ struct jit_gen9_common_conv_fwd_kernel {
         else
             kernel_ctx.define_int(
                     "SRC_SP_GROUP", jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
-        kernel_ctx.define_int("SLM_IC", jcp.slm_ic);
 
         const int use_fast_path = 1 && jcp.scale_idx_mult == 0
                 && jcp.ngroups == 1 && !jcp.with_bias;
         kernel_ctx.define_int("USE_FAST_PATH", use_fast_path);
         kernel_ctx.define_int("SCALE_IDX_MULT", jcp.scale_idx_mult);
-        kernel_ctx.define_int("RMODE", jcp.rmode);
 
         kernel_ctx.set_data_type(jcp.src_data_type);
 
