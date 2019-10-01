@@ -692,8 +692,8 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         float alpha, float data_shift, float data_scale,
         __global float *tm_scales, float tm_cscale) {
 
-    const int i = get_global_id(0); // batch
-    const int j = get_global_id(1); // dic
+    const int i = get_global_id(1); // batch
+    const int j = get_global_id(0); // dic
 
     const __global float *c_states_tm1_l
             = (__global float *)(ws + WS_C_STATE_OFFSET)
@@ -740,8 +740,8 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
         __global float *tm_scales, float tm_cscale) {
 
-    const int i = get_global_id(0); // batch
-    const int j = get_global_id(1); // dic
+    const int i = get_global_id(1); // batch
+    const int j = get_global_id(0); // dic
 
     const __global PRECISE_DATA_T *c_states_tm1_l
             = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET)
@@ -807,8 +807,8 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
         __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
         __global float *tm_scales, float tm_cscale) {
 
-    const int i = get_global_id(0); // batch
-    const int j = get_global_id(1); // dic
+    const int i = get_global_id(1); // batch
+    const int j = get_global_id(0); // dic
 
 #if CELL_KIND == VANILLA_LSTM
     __global PRECISE_DATA_T *ws_gates
