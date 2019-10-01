@@ -156,13 +156,14 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int fill_data_bwd(
+        const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int seed) {
     const auto nelems = mem_fp.nelems();
 
     // keep all values negative to have sum and sub of same sign, avoiding
     // cancellation error.
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const float gen = ((11 * i) + 37) % global_fill_range;
+        const float gen = ((11 * i) + 37 + 19 * seed) % global_fill_range;
         const float value = -gen / global_fill_range;
         mem_fp.set_elem(i, value);
     });
@@ -231,8 +232,8 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(d_src_dt.reorder(d_src_fp), WARN);
         }
 
-        SAFE(fill_data_bwd(p, src_dt, src_fp), WARN);
-        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
+        SAFE(fill_data_bwd(p, src_dt, src_fp, 0), WARN);
+        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp, 1), WARN);
 
         args.set(DNNL_ARG_DST, src_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
