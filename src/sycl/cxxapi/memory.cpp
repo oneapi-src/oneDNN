@@ -46,10 +46,13 @@ memory::memory(with_sycl_tag, const desc &md, const engine &eng, void *handle,
             : memory_flags_t::use_runtime_ptr;
 
     memory_storage_t *mem_storage_ptr;
+#ifdef DNNL_SYCL_DPCPP
     if (is_usm) {
         mem_storage_ptr = new memory_storage_t(
                 new sycl_usm_memory_storage_t(eng_c, flags, size, 0, handle));
-    } else {
+    }
+#endif
+    if (!is_usm) {
         mem_storage_ptr = new memory_storage_t(new sycl_buffer_memory_storage_t(
                 eng_c, flags, size, 0, handle));
     }
