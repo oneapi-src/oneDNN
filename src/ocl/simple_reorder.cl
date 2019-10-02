@@ -37,7 +37,7 @@
 #define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, x0, x1, x2, x3, x4, 0)
 #endif
 
-#if SRC_DT_S8 || SRC_DT_U8
+#if SRC_DT_S8
 #define SRC_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define SRC_BLOCK_READ8(src) \
