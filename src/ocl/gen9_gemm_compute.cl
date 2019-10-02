@@ -242,7 +242,7 @@
 __attribute__((intel_reqd_sub_group_size(GRX))) __kernel void
 gen9_gemm_compute_kernel(long m, long n, long k, __global DATA_T *base,
         int offsetA, int offsetB, __global DATA_T *c, long offsetC, long ldc,
-        int last_k_block, float eltwise_alpha, float eltwise_beta) {
+        int last_k_block, DATA_T eltwise_alpha, DATA_T eltwise_beta) {
     int idx, idy, lid;
 
     idx = get_group_id(0);
