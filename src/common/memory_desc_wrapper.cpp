@@ -59,21 +59,22 @@ status_t fill_blocked(memory_desc_t &md, std::initializer_list<int> perm,
     for (int d = 0; d < md.ndims; ++d)
         md.padded_dims[d] = utils::rnd_up(md.dims[d], blocks[d]);
 
-    dim_t stride = block_size;
-    // if only we use C++14, the initializer_list would have rbegin()/rend()...
-    for (int d = 0; d < md.ndims; ++d)
-        stride *= md.padded_dims[d] == 0 ? 1 : md.padded_dims[d] / blocks[d];
+    // setting the strides
+    {
+        dim_t stride = block_size;
+        auto iter_d = perm.end(); // reverse iterator over perm
+        do {
+            const int d = *(--iter_d);
+            blk.strides[d] = stride;
 
-    for (const auto &d : perm) {
-        if (md.padded_dims[d] == 0) {
-            blk.strides[d] = 1;
-            continue;
-        }
-        stride /= md.padded_dims[d] / blocks[d];
-        blk.strides[d] = stride;
+            const dim_t pdim = md.padded_dims[d];
+            if (utils::one_of(DNNL_RUNTIME_DIM_VAL, stride, pdim))
+                stride = DNNL_RUNTIME_DIM_VAL;
+            else if (pdim != 0)
+                stride *= pdim / blocks[d];
+
+        } while (iter_d != perm.begin());
     }
-
-    assert(stride == block_size);
 
     return status::success;
 }

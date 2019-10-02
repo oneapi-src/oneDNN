@@ -48,6 +48,14 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
+    if (!is_fwd)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_data_desc)
+                           .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     ld.data_desc = *data_desc;
     if (!is_fwd) ld.diff_data_desc = *diff_data_desc;
 

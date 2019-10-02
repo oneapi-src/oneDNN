@@ -780,6 +780,15 @@ typedef enum {
 /// primitives may support only tensors of certain dimensions.
 #define DNNL_MAX_NDIMS 12
 
+/// A wildcard value for dimensions that are unknown at a primitive creation
+/// time.
+#define DNNL_RUNTIME_DIM_VAL INT64_MIN
+
+/// A `size_t` counterpart of the DNNL_RUNTIME_DIM_VAL.
+/// For instance, this value is returned by dnnl_memory_desc_get_size() if
+/// either of the dimensions or strides equal to #DNNL_RUNTIME_DIM_VAL.
+#define DNNL_RUNTIME_SIZE_VAL ((size_t)DNNL_RUNTIME_DIM_VAL)
+
 /// A type to describe tensor dimension.
 typedef int64_t dnnl_dim_t;
 

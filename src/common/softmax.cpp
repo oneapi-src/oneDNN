@@ -38,6 +38,13 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc,
             && 0 <= softmax_axis && softmax_axis < data_desc->ndims;
     if (!args_ok) return invalid_arguments;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
+    if (prop_kind == backward_data)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_desc).has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     auto sd = softmax_desc_t();
     sd.primitive_kind = prim_kind;
     sd.prop_kind = prop_kind;

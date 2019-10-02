@@ -50,6 +50,11 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
 
     const bool is_fwd = one_of(prop_kind, forward_training, forward_inference);
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     pd.diff_src_desc = pd.src_desc = zero_md();
     pd.diff_dst_desc = pd.dst_desc = zero_md();
 

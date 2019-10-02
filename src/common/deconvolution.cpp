@@ -58,6 +58,15 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
             = bias_desc && bias_desc->format_kind != format_kind::undef;
     const bool with_groups = weights_desc->ndims == src_desc->ndims + 1;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    if (with_bias)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     (prop_kind == backward_data ? dd.diff_src_desc : dd.src_desc) = *src_desc;
     (is_fwd ? dd.dst_desc : dd.diff_dst_desc) = *dst_desc;
     (prop_kind == backward_weights ? dd.diff_weights_desc : dd.weights_desc)

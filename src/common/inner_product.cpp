@@ -47,6 +47,15 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     const bool with_bias
             = bias_desc && bias_desc->format_kind != format_kind::undef;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    if (with_bias)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     (prop_kind == backward_data ? id.diff_src_desc : id.src_desc) = *src_desc;
     (is_fwd ? id.dst_desc : id.diff_dst_desc) = *dst_desc;
     (prop_kind == backward_weights ? id.diff_weights_desc : id.weights_desc)

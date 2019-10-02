@@ -78,6 +78,7 @@ struct memory_desc_wrapper : public c_compatible {
      * is true, and the number of data elements otherwise */
     dim_t nelems(bool with_padding = false) const {
         if (is_zero()) return 0;
+        if (has_runtime_dims()) return DNNL_RUNTIME_DIM_VAL;
         return utils::array_product(
                 with_padding ? padded_dims() : dims(), ndims());
     }
@@ -86,7 +87,11 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_zero() const { return ndims() == 0; }
 
     /** returns true if memory descriptor contains zero as one of its dim */
-    bool has_zero_dim() const { return nelems() == 0; }
+    bool has_zero_dim() const {
+        for (int d = 0; d < ndims(); ++d)
+            if (dims()[d] == 0) return true;
+        return false;
+    }
 
     /** return the size of data type (a shortcut) */
     size_t data_type_size() const { return types::data_type_size(data_type()); }
@@ -126,8 +131,11 @@ struct memory_desc_wrapper : public c_compatible {
     /** returns the size required to store described memory
      * note: if offset0 != 0 returns 0 (need to specify the behavior) */
     size_t size() const {
-        if (is_zero() || has_zero_dim() || format_kind() == format_kind::any)
+        if (utils::one_of(format_kind(), format_kind::undef, format_kind::any)
+                || is_zero() || has_zero_dim())
             return 0;
+
+        if (has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
 
         if (format_kind() == format_kind::wino) {
             return wino_desc().size;
@@ -158,14 +166,36 @@ struct memory_desc_wrapper : public c_compatible {
     bool is_dense(bool with_padding = false) const {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any))
             return false;
+        if (has_runtime_dims_or_strides()) return false;
         return nelems(with_padding) * data_type_size() == size();
     }
 
-    /** returns true if memory desc is fully defined */
-    bool is_defined() const { return format_kind() != format_kind::any; }
+    /** returns true if format is set to `any` */
+    bool format_any() const { return format_kind() == format_kind::any; }
+
+    /** returns true if at least one dim is not known */
+    bool has_runtime_dims() const {
+        for (int d = 0; d < ndims(); ++d)
+            if (dims()[d] == DNNL_RUNTIME_DIM_VAL) return true;
+        return false;
+    }
+
+    /** returns true if at least one dim is not known */
+    bool has_runtime_strides() const {
+        if (!is_blocking_desc()) return false;
+        for (int d = 0; d < ndims(); ++d)
+            if (blocking_desc().strides[d] == DNNL_RUNTIME_DIM_VAL) return true;
+        return false;
+    }
+
+    /** returns true if memory format is runtime_dims_or_strides-dependent */
+    bool has_runtime_dims_or_strides() const {
+        return has_runtime_dims() || has_runtime_strides();
+    }
 
     /** returns true if the only (potentially) padded dim is \param dim */
     bool only_padded_dim(int dim) const {
+        if (has_runtime_dims()) return false;
         for (int d = 0; d < ndims(); ++d)
             if (d != dim && dims()[d] != padded_dims()[d]) return false;
         return true;

@@ -42,6 +42,14 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     bd.primitive_kind = primitive_kind::batch_normalization;
     bd.prop_kind = prop_kind;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
+    if (one_of(prop_kind, backward_data, backward))
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_data_desc)
+                           .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     bd.data_desc = *data_desc;
     bd.diff_data_desc = zero_md();
     if (one_of(bd.prop_kind, backward_data, backward))

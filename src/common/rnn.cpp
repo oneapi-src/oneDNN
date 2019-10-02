@@ -325,6 +325,22 @@ status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
                             && xnor_md(dst_iter_desc, dst_iter_c_desc));
     if (!args_ok) return invalid_arguments;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_layer_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(src_iter_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(src_iter_c_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_layer_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_iter_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_layer_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_iter_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_iter_c_desc)
+                       .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     //check dimensions consistency
     dim_t L = weights_layer_desc->dims[0];
     dim_t T = src_layer_desc->dims[0];
@@ -432,6 +448,39 @@ status_t rnn_common_bwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
             && xnor_md(dst_iter_desc, diff_dst_iter_desc)
             && xnor_md(dst_iter_c_desc, diff_dst_iter_c_desc);
     if (!args_ok) return invalid_arguments;
+
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_layer_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(src_iter_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(src_iter_c_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_layer_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_iter_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_layer_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_iter_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_iter_c_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_src_layer_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_src_iter_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_src_iter_c_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_weights_layer_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_weights_iter_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_bias_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_dst_layer_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_dst_iter_desc)
+                       .has_runtime_dims_or_strides()
+            || memory_desc_wrapper(diff_dst_iter_c_desc)
+                       .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
 
     //check dimensions consistency
     int L = weights_layer_desc->dims[0];

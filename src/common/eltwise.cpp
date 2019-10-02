@@ -46,6 +46,14 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                     alg_kind == eltwise_relu && alpha == 0);
     if (!args_ok) return invalid_arguments;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
+    if (prop_kind == backward_data)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_data_desc)
+                           .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     auto ed = eltwise_desc_t();
     ed.primitive_kind = primitive_kind::eltwise;
     ed.prop_kind = prop_kind;

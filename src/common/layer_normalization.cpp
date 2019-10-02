@@ -44,6 +44,15 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     ld.primitive_kind = primitive_kind::layer_normalization;
     ld.prop_kind = prop_kind;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(stat_desc).has_runtime_dims_or_strides();
+    if (one_of(prop_kind, backward_data, backward))
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_data_desc)
+                           .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     ld.data_desc = *data_desc;
     ld.stat_desc = zero_md();
     ld.diff_data_desc = zero_md();
