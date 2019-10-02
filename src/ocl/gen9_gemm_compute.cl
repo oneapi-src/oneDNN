@@ -15,6 +15,9 @@
 *******************************************************************************/
 
 #include "ocl/ocl_types.h"
+#if WITH_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
 
 #define GRX 8
 
@@ -159,40 +162,59 @@
     FLOATY cc##n##4 = DATA_ZERO, cc##n##5 = DATA_ZERO; \
     FLOATY cc##n##6 = DATA_ZERO, cc##n##7 = DATA_ZERO;
 
-#ifdef BETA_ZERO
-#define UPOP =
+#if WITH_ELTWISE == 1
+#define POST_OP(val) \
+    do { \
+        if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+    } while (0)
 #else
-#define UPOP +=
+#define POST_OP(val)
+#endif
+
+#ifdef BETA_ZERO
+#define UPDATE(c, acc) \
+    do { \
+        DATA_T val = acc; \
+        POST_OP(val); \
+        c = val; \
+    } while (0)
+#else
+#define UPDATE(c, acc) \
+    do { \
+        DATA_T val = c + acc; \
+        POST_OP(val); \
+        c = val; \
+    } while (0)
 #endif
 
 #if SIZEX == 1
 #define UPDATE_YY(X, Y, R0, R1, R2, R3) \
     if (n > (Y)) { \
-        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
+        if ((m > 0)) { UPDATE(c[offsetC + 0], R0); } \
         offsetC += ldc; \
     }
 #elif SIZEX == 2
 #define UPDATE_YY(X, Y, R0, R1, R2, R3) \
     if (n > (Y)) { \
-        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
-        if ((m > 1)) { c[offsetC + 1] UPOP R1; } \
+        if ((m > 0)) { UPDATE(c[offsetC + 0], R0); } \
+        if ((m > 1)) { UPDATE(c[offsetC + 1], R1); } \
         offsetC += ldc; \
     }
 #elif SIZEX == 3
 #define UPDATE_YY(X, Y, R0, R1, R2, R3) \
     if (n > (Y)) { \
-        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
-        if ((m > 1)) { c[offsetC + 1] UPOP R1; } \
-        if ((m > 2)) { c[offsetC + 2] UPOP R2; } \
+        if ((m > 0)) { UPDATE(c[offsetC + 0], R0); } \
+        if ((m > 1)) { UPDATE(c[offsetC + 1], R1); } \
+        if ((m > 2)) { UPDATE(c[offsetC + 2], R2); } \
         offsetC += ldc; \
     }
 #else
 #define UPDATE_YY(X, Y, R0, R1, R2, R3) \
     if (n > (Y)) { \
-        if ((m > 0)) { c[offsetC + 0] UPOP R0; } \
-        if ((m > 1)) { c[offsetC + 1] UPOP R1; } \
-        if ((m > 2)) { c[offsetC + 2] UPOP R2; } \
-        if ((m > 3)) { c[offsetC + 3] UPOP R3; } \
+        if ((m > 0)) { UPDATE(c[offsetC + 0], R0); } \
+        if ((m > 1)) { UPDATE(c[offsetC + 1], R1); } \
+        if ((m > 2)) { UPDATE(c[offsetC + 2], R2); } \
+        if ((m > 3)) { UPDATE(c[offsetC + 3], R3); } \
         offsetC += ldc; \
     }
 #endif
@@ -217,9 +239,10 @@
     UPDATE_YY(X, X *SIZEY + 3, R0##X.s3, R1##X.s3, R2##X.s3, R3##X.s3);
 #endif
 
-__kernel void gen9_gemm_compute_kernel(long m, long n, long k,
-        __global DATA_T *base, int offsetA, int offsetB, __global DATA_T *c,
-        long offsetC, long ldc) {
+__attribute__((intel_reqd_sub_group_size(GRX))) __kernel void
+gen9_gemm_compute_kernel(long m, long n, long k, __global DATA_T *base,
+        int offsetA, int offsetB, __global DATA_T *c, long offsetC, long ldc,
+        int last_k_block, float eltwise_alpha, float eltwise_beta) {
     int idx, idy, lid;
 
     idx = get_group_id(0);
