@@ -28,14 +28,16 @@ template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         acc_type>::cell_execution)) {
+    auto src_layer_ld = rnn.states_ws_ld;
+    auto src_iter_ld = rnn.states_ws_ld;
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
-                rnn.states_ws_ld, 0.0, scratch_gates_, rnn.gates_ws_ld);
+                src_layer_ld, 0.0, scratch_gates_, rnn.gates_ws_ld);
     }
     (this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb, rnn.sic,
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
-            rnn.states_ws_ld, 1.0, scratch_gates_, rnn.gates_ws_ld);
+            src_iter_ld, 1.0, scratch_gates_, rnn.gates_ws_ld);
 
     rnn_postgemm_->execute(rnn, ws_gates_, scratch_gates_, states_t_l_,
             c_states_t_l_, states_tm1_l_, c_states_tm1_l_, diff_states_t_l_,

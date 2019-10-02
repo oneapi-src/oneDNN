@@ -115,7 +115,8 @@ struct rnn_conf_t {
     int diff_weights_layer_ld, diff_weights_layer_nld;
     int weights_iter_ld, weights_iter_nld;
     int diff_weights_iter_ld, diff_weights_iter_nld;
-    int states_nld, states_ws_ld;
+    int states_nld, states_ws_ld, src_layer_ld, src_iter_ld, src_iter_c_ld,
+            dst_layer_ld, dst_iter_ld, dst_iter_c_ld;
     int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr;
     bool use_workspace;
@@ -142,9 +143,12 @@ int get_good_ld(int dim, int sizeof_dt);
 void init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
+        const memory_desc_wrapper &src_iter_c_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d);
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
+        const memory_desc_wrapper &dst_iter_c_d);
 
 void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
@@ -191,6 +195,8 @@ private:
 
 template <typename T>
 struct ws_states_aoc {
+    ws_states_aoc(const rnn_conf_t &rnn, T *data, dim_t leading_dim)
+        : state_(data, rnn.states_nld, leading_dim) {}
     ws_states_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.states_nld, rnn.states_ws_ld) {}
     T &operator()(int batch, int dic) { return state_(batch, dic); }

@@ -118,7 +118,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             init_conf(rnn_, *this->desc(), this->src_md(0), this->src_md(1),
-                    this->weights_md(0), this->weights_md(1), this->dst_md(0));
+                    this->src_md(2), this->weights_md(0), this->weights_md(1),
+                    this->dst_md(0), this->dst_md(1), this->dst_md(2));
 
             // check that bf16 gemm is available
             ok = ok

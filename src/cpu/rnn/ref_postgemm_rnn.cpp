@@ -80,7 +80,8 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
+    auto dst_iter_ld = rnn.states_ws_ld;
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_iter_ld);
     if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](int i) {

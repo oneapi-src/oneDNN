@@ -39,20 +39,20 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_[0]);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
-
+    auto src_layer_ld = rnn.states_ws_ld;
+    auto src_iter_ld = rnn.states_ws_ld;
+    auto dst_iter_ld = rnn.states_ws_ld;
     // 1. gemm Wx[0-2],x
     if (!rnn.merge_gemm_layer) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
-                rnn.states_ws_ld, 0.0f, scratch_gates_, rnn.gates_ws_ld);
+                src_layer_ld, 0.0f, scratch_gates_, rnn.gates_ws_ld);
     }
 
     // 2. gemm Wh[0-1],h
     (this->*gemm_iter_func)('N', 'N', (rnn.n_gates - 1) * rnn.dic, rnn.mb,
             rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
-            rnn.states_ws_ld, 1.0f, scratch_gates_, rnn.gates_ws_ld);
+            src_iter_ld, 1.0f, scratch_gates_, rnn.gates_ws_ld);
 
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
     rnn_postgemm_->execute(rnn, ws_gates_, scratch_gates_, states_t_l_,
@@ -61,7 +61,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // 4. gemm Wh[2],h~t
     (this->*gemm_iter_func)('N', 'N', rnn.dic, rnn.mb, rnn.sic, 1.0, w_iter_[1],
-            rnn.weights_iter_ld, states_t_l_, rnn.states_ws_ld, 1.0,
+            rnn.weights_iter_ld, states_t_l_, dst_iter_ld, 1.0,
             &(scratch_gates(0, 2, 0)), rnn.gates_ws_ld);
 
     // 5. activation h~t + calculate ht

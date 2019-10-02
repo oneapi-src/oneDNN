@@ -42,8 +42,10 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
+    auto dst_iter_ld = rnn.states_ws_ld;
+    auto src_iter_ld = rnn.states_ws_ld;
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_iter_ld);
+    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_, src_iter_ld);
     ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
     AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dic);
 

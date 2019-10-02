@@ -59,9 +59,12 @@ bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
 void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
+        const memory_desc_wrapper &src_iter_c_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d) {
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
+        const memory_desc_wrapper &dst_iter_c_d) {
     rnn.is_fwd = utils::one_of(rd.prop_kind, prop_kind::forward_training,
             prop_kind::forward_inference);
     rnn.is_training = utils::one_of(
@@ -158,6 +161,17 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     int sizeof_states_dt = types::data_type_size(weights_layer_d.data_type());
     rnn.states_ws_ld = get_good_ld(
             nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)), sizeof_states_dt);
+    // Assumption: {src,dst}_layer has tnc layout, {src,dst}_iter has ldnc,
+    rnn.src_layer_ld = src_layer_d.blocking_desc().strides[2];
+    rnn.dst_layer_ld = dst_layer_d.blocking_desc().strides[2];
+    rnn.src_iter_ld = src_iter_d.blocking_desc().strides[3];
+    rnn.dst_iter_ld = dst_iter_d.blocking_desc().strides[3];
+    rnn.src_iter_c_ld = types::is_zero_md(src_iter_c_d.md_)
+            ? 0
+            : src_iter_c_d.blocking_desc().strides[3];
+    rnn.dst_iter_c_ld = types::is_zero_md(dst_iter_c_d.md_)
+            ? 0
+            : dst_iter_c_d.blocking_desc().strides[3];
 
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
