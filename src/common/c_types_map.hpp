@@ -581,7 +581,7 @@ struct op_desc_t {
         binary_desc_t binary;
     };
 
-#define DECL_CTOR_AND_CONVERTERS(c_type, name) \
+#define DECL_CTOR_AND_CONVERTERS(c_type) \
     op_desc_t(const c_type &) = delete; \
     static op_desc_t *convert_from_c(c_type *_) { \
         return reinterpret_cast<op_desc_t *>(_); \
@@ -590,21 +590,21 @@ struct op_desc_t {
         return reinterpret_cast<const op_desc_t *>(_); \
     }
 
-    DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
-    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t, shuffle);
-    DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
-    DECL_CTOR_AND_CONVERTERS(eltwise_desc_t, eltwise);
-    DECL_CTOR_AND_CONVERTERS(softmax_desc_t, softmax);
-    DECL_CTOR_AND_CONVERTERS(lrn_desc_t, lrn);
-    DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t, batch_normalization);
-    DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t, layer_normalization);
-    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
-    DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
-    DECL_CTOR_AND_CONVERTERS(gemm_desc_t, gemm);
-    DECL_CTOR_AND_CONVERTERS(concat_desc_t, concat);
-    DECL_CTOR_AND_CONVERTERS(reorder_desc_t, reorder);
-    DECL_CTOR_AND_CONVERTERS(sum_desc_t, sum);
-    DECL_CTOR_AND_CONVERTERS(binary_desc_t, binary);
+    DECL_CTOR_AND_CONVERTERS(convolution_desc_t);
+    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t);
+    DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
+    DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
+    DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
+    DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
+    DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
+    DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t);
+    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t);
+    DECL_CTOR_AND_CONVERTERS(rnn_desc_t);
+    DECL_CTOR_AND_CONVERTERS(gemm_desc_t);
+    DECL_CTOR_AND_CONVERTERS(concat_desc_t);
+    DECL_CTOR_AND_CONVERTERS(reorder_desc_t);
+    DECL_CTOR_AND_CONVERTERS(sum_desc_t);
+    DECL_CTOR_AND_CONVERTERS(binary_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly

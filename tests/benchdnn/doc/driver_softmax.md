@@ -48,7 +48,7 @@ Run the softmax set from an input file with the default settings:
 Run a specific softmax problem with forward prop_kind, plain physical memory
 layout, f32 data type, out-place memory mode, and axis size of 1000:
 ``` sh
-    ./benchdnn --softmax --dir=FWD_D --dt=f32 --tag=nchw \
+    ./benchdnn --softmax --dir=FWD_D --dt=f32 --tag=nc \
                --inplace=false --axis=1 256x1000
 ```
 

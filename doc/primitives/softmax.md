@@ -24,9 +24,9 @@ In general form, the operation is defined by the following formulas:
 
 where
 
-- \f$c\f$ dimension is called a softmax axis,
-- \f$\overline{ou}\f$ is the outermost indices (to the left from softmax axis),
-- \f$\overline{in}\f$ is the innermost indices (to the right from softmax axis), and
+- \f$c\f$ axis over which the softmax computation is computed on,
+- \f$\overline{ou}\f$ is the outermost index (to the left of softmax axis),
+- \f$\overline{in}\f$ is the innermost index (to the right of softmax axis), and
 - \f$\nu\f$ is used to produce more accurate results and defined as:
 
 \f[
@@ -96,12 +96,15 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
    - Optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
                 softmax axis 1 (B), format tag #dnnl_abcd, and
                 \f$C = D = 1\f$
+   - Optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
+                softmax axis 1 (B), format tag #dnnl_acdb or #dnnl_aBcd16b, and
+                \f$C \cdot D \ne 1\f$
    - Non-optimized: 2D case, tensor \f$A \times B\f$,
                     softmax axis 0 (A), format tag #dnnl_ab,
                     and \f$B \ne 1\f$
    - Non-optimized: 2D case, tensor \f$A \times B\f$,
                     softmax axis 1 (B), format tag #dnnl_ba,
                     and \f$A \ne 1\f$
-   - Non-optimized: 4D case, tensor \f$A \times B\f$,
+   - Non-optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
                     softmax axis 2 (C), format tag #dnnl_acdb, and
                     and \f$D \cdot B \ne 1\f$

@@ -93,12 +93,6 @@ private:
     void execute_forward_dense(const exec_ctx_t &ctx) const;
     void execute_forward_generic(const exec_ctx_t &ctx) const;
 
-    void _max(int n, const data_t *x, data_t *max_data) const;
-    void _sub(int n, data_t alpha, const data_t *x, data_t *y) const;
-    void _exp(int n, const data_t *a, data_t *r) const;
-    void _sum(int n, const data_t *x, data_t *sum_data) const;
-    void _scal(int n, data_t alpha, data_t *x) const;
-
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_dense_;

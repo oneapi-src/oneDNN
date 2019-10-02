@@ -171,11 +171,11 @@ struct jit_softmax_base_t : public jit_generator {
         }
     }
 
-    virtual void prepare_tail_mask() {}
-    virtual void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) {};
-    virtual void accumulate_vmax() {};
-    virtual void accumulate_vsum() {};
-    virtual void compute_dst() {};
+    virtual void prepare_tail_mask() = 0;
+    virtual void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) = 0;
+    virtual void accumulate_vmax() = 0;
+    virtual void accumulate_vsum() = 0;
+    virtual void compute_dst() = 0;
 
     void forward() {
         // flush to -FLT_MAX before accumulation

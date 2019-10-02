@@ -40,16 +40,16 @@ Compute intensive operations:
  * [RNN](@ref dev_guide_rnn): LSTM, Vanilla RNN, GRU
 
 Memory bandwidth limited operations:
- * [Pooling](@ref dev_guide_pooling)
  * [Batch Normalization](@ref dev_guide_batch_normalization)
+ * [Binary](@ref dev_guide_binary)
+ * [Concat](@ref dev_guide_concat)
+ * [Elementwise](@ref dev_guide_eltwise): ReLU, Tanh, ELU, Abs, and other
  * [Layer Normalization](@ref dev_guide_layer_normalization)
  * [Local Response Normalization](@ref dev_guide_lrn)
- * [Softmax](@ref dev_guide_softmax)
- * [Elementwise](@ref dev_guide_eltwise): ReLU, Tanh, ELU, Abs, and other
- * [Sum](@ref dev_guide_sum)
- * [Concat](@ref dev_guide_concat)
+ * [Pooling](@ref dev_guide_pooling)
  * [Shuffle](@ref dev_guide_shuffle)
- * [Binary](@ref dev_guide_binary)
+ * [Softmax](@ref dev_guide_softmax)
+ * [Sum](@ref dev_guide_sum)
 
 Data manipulation:
  * [Reorder](@ref dev_guide_reorder)
