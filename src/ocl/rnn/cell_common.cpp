@@ -50,20 +50,16 @@ cell_execution_sig(
                           batch * rnn.gates_ws_ld)
                         * rnn.acc_data_type_elsz);
 
-        gemm_primitive(ctx, n_gates * dic, batch, slc, n_gates * dic, slc,
-                batch, wic, n_gates * dic, batch, w_input,
+        gemm_primitive(ctx, w_input,
                 OFF3(lay, n_layer, dir, n_dir, 0,
                         rnn.weights_layer_nld * rnn.weights_layer_ld)
                         * sizeof(wei_t),
-                workspace, offset_input, workspace, offset_gates, false, 0.0f,
-                gemm_layer);
-        gemm_primitive(ctx, n_gates * dic, batch, sic, n_gates * dic, sic,
-                batch, wic, n_gates * dic, batch, w_state,
+                workspace, offset_input, workspace, offset_gates, gemm_layer);
+        gemm_primitive(ctx, w_state,
                 OFF3(lay, n_layer, dir, n_dir, 0,
                         rnn.weights_iter_nld * rnn.weights_iter_ld)
                         * sizeof(wei_t),
-                workspace, offset_states, workspace, offset_gates, false, 1.0f,
-                gemm_iter);
+                workspace, offset_states, workspace, offset_gates, gemm_iter);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
                 scales, bias, tm_scales);
@@ -83,9 +79,7 @@ cell_execution_sig(
         cl_ulong offset_w_input
                 = (cl_ulong)(off_weights_i(lay, dir, 0)) * sizeof(wei_t);
 
-        gemm_primitive(ctx, sic, batch, n_gates * dic, sic, n_gates * dic,
-                batch, n_gates * dic, wic, batch, w_state, offset_w_state,
-                workspace,
+        gemm_primitive(ctx, w_state, offset_w_state, workspace,
                 ws_gates_offset_
                         + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
                                   batch * rnn.gates_ws_ld)
@@ -95,10 +89,8 @@ cell_execution_sig(
                         + OFF4(lay, n_layer + 1, dir, n_dir, iter, n_iter + 1,
                                   0, (n_states + 1) * batch * rnn.states_ws_ld)
                                 * sizeof(src_t),
-                false, 0.0f, gemm_iter);
-        gemm_primitive(ctx, sic, batch, n_gates * dic, slc, n_gates * dic,
-                batch, n_gates * dic, wic, batch, w_input, offset_w_input,
-                workspace,
+                gemm_iter);
+        gemm_primitive(ctx, w_input, offset_w_input, workspace,
                 ws_gates_offset_
                         + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
                                   batch * rnn.gates_ws_ld)
@@ -109,9 +101,8 @@ cell_execution_sig(
                                    0, (n_states + 1) * batch * rnn.states_ws_ld)
                                   + n_states * batch * rnn.states_ws_ld)
                                 * sizeof(src_t),
-                false, 0.0f, gemm_layer);
-        gemm_primitive(ctx, n_gates * dic, slc, batch, n_gates * dic, batch,
-                wic, batch, n_gates * dic, slc, workspace,
+                gemm_layer);
+        gemm_primitive(ctx, workspace,
                 ws_gates_offset_
                         + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
                                   batch * rnn.gates_ws_ld)
@@ -125,9 +116,8 @@ cell_execution_sig(
                 OFF3(lay, n_layer, dir, n_dir, 0,
                         rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld)
                         * sizeof(wei_t),
-                true, 1.0f, gemm_diff_wei_layer);
-        gemm_primitive(ctx, n_gates * dic, sic, batch, n_gates * dic, batch,
-                wic, batch, n_gates * dic, sic, workspace,
+                gemm_diff_wei_layer);
+        gemm_primitive(ctx, workspace,
                 ws_gates_offset_
                         + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
                                   batch * rnn.gates_ws_ld)
@@ -141,7 +131,7 @@ cell_execution_sig(
                 OFF3(lay, n_layer, dir, n_dir, 0,
                         rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld)
                         * sizeof(wei_t),
-                true, 1.0f, gemm_diff_wei_iter);
+                gemm_diff_wei_iter);
 
         gates_reduction(
                 ctx, dir, lay, iter, n_gates, dic, batch, workspace, diff_bias);

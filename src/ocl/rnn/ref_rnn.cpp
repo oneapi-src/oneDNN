@@ -52,14 +52,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 #if USE_MKL_PACKED_GEMM
 // TBD
 #else
-    UNUSED(m);
-    UNUSED(n);
-    UNUSED(k);
     UNUSED(a);
     UNUSED(b);
     UNUSED(c);
-    UNUSED(is_B_trans);
-    UNUSED(beta);
     UNUSED(gemm_kind);
     assert(!"packed gemm is disabled");
 #endif
