@@ -443,8 +443,8 @@ void input_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
     const int t_pad = is_fwd ? jcp.t_pad : jcp.ih + jcp.t_pad - jcp.oh;
     const int wp_max = inpw + l_pad;
     const int hp_max = inph + t_pad;
-    float Iw[alpha][alpha][simd_w];
-    float I[alpha][alpha][simd_w];
+    alignas(64) float Iw[alpha][alpha][simd_w];
+    alignas(64) float I[alpha][alpha][simd_w];
 
     array_offset_calculator<float, 5> input(inp,
             jcp.mb, jcp.dimK/simd_w, inph, inpw,
@@ -567,8 +567,8 @@ template <bool is_fwd, bool with_bias, bool with_relu_presum, bool with_sum>
 void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
         const post_ops_t &p_ops, float *toutp, float *pout_b, float *bias,
         bool streamout = true) {
-    float Ow[alpha][alpha][simd_w];
-    float O[tile_size][tile_size][simd_w];
+    alignas(64) float Ow[alpha][alpha][simd_w];
+    alignas(64) float O[tile_size][tile_size][simd_w];
     int outw = is_fwd ? jcp.ow : jcp.iw;
     int outh = is_fwd ? jcp.oh : jcp.ih;
 
@@ -777,8 +777,8 @@ void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
 {
 
     const int total_tiles = conv.itiles * conv.jtiles + conv.tile_4fma_padding;
-    float I[alpha][alpha][simd_w];
-    float Iw[alpha][alpha][simd_w];
+    alignas(64) float I[alpha][alpha][simd_w];
+    alignas(64) float Iw[alpha][alpha][simd_w];
 
     array_offset_calculator<float, 5> input(inp,
             conv.mb, conv.oc/simd_w, conv.oh, conv.ow, conv.oc_simd_block);
@@ -862,8 +862,8 @@ void diff_weights_transform_bwd_weights(jit_conv_winograd_conf_t conv,
 {
     const int kh = 3;
     const int kw = 3;
-    float Fw[alpha][alpha][simd_w][simd_w];
-    float F[kh][kw][simd_w][simd_w];
+    alignas(64) float Fw[alpha][alpha][simd_w][simd_w];
+    alignas(64) float F[kh][kw][simd_w][simd_w];
 
     array_offset_calculator<float, 8> input(twp,
             conv.nb_ic, conv.nb_oc,
