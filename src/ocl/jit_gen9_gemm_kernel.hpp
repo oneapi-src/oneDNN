@@ -90,8 +90,8 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
 
 template <impl::data_type_t type, impl::data_type_t dst_type = type>
 struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
-    static status_t init_const_def(
-            compute::kernel_ctx_t &kernel_ctx, bool beta0) {
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            bool beta0, bool with_eltwise, alg_kind_t alg) {
         auto status = init_cl_options<type, type, dst_type>(kernel_ctx);
         if (status) return status;
 
@@ -99,6 +99,9 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
 
         kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
         kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
+
+        kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
+        if (with_eltwise) def_postops(kernel_ctx, alg);
 
         kernel_ctx.print_options();
         return status::success;

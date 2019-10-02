@@ -15,6 +15,9 @@
 *******************************************************************************/
 
 #include "ocl/ocl_types.h"
+#if WITH_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
 
 #define GRX 8
 
@@ -159,10 +162,29 @@
     FLOATY cc##n##4 = DATA_ZERO, cc##n##5 = DATA_ZERO; \
     FLOATY cc##n##6 = DATA_ZERO, cc##n##7 = DATA_ZERO;
 
-#ifdef BETA_ZERO
-#define UPDATE(c, acc) c = REF_TO_DST(acc)
+#if WITH_ELTWISE == 1
+#define POST_OP(val) \
+    do { \
+        if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+    } while (0)
 #else
-#define UPDATE(c, acc) c = REF_TO_DST(DST_TO_REF(c) + acc)
+#define POST_OP(val)
+#endif
+
+#ifdef BETA_ZERO
+#define UPDATE(c, acc) \
+    do { \
+        DATA_T val = acc; \
+        POST_OP(val); \
+        c = REF_TO_DST(val); \
+    } while (0)
+#else
+#define UPDATE(c, acc) \
+    do { \
+        DATA_T val = DST_TO_REF(c) + acc; \
+        POST_OP(val); \
+        c = REF_TO_DST(val); \
+    } while (0)
 #endif
 
 #if SIZEX == 1
@@ -220,7 +242,7 @@
 __attribute__((intel_reqd_sub_group_size(GRX))) __kernel void
 gen9_gemm_compute_kernel(long m, long n, long k, __global DATA_T *base,
         int offsetA, int offsetB, __global DST_DATA_T *c, long offsetC,
-        long ldc) {
+        long ldc, int last_k_block, DATA_T eltwise_alpha, DATA_T eltwise_beta) {
     int idx, idy, lid;
 
     idx = get_group_id(0);

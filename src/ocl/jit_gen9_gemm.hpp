@@ -153,7 +153,8 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
             compute::kernel_ctx_t kernel_ctx;
 
             auto status = jit_gen9_gemm_compute_kernel<acc_type,
-                    c_type>::init_const_def(kernel_ctx, beta0);
+                    c_type>::init_const_def(kernel_ctx, beta0,
+                    pd()->with_eltwise(), pd()->eltwise_alg_kind());
             if (status != status::success) return status;
 
             compute_engine->create_kernel(&compute_kernel_[beta0],
@@ -271,7 +272,8 @@ private:
     status_t launch_compute(compute::compute_stream_t *s, int64_t m, int64_t n,
             int64_t k, const memory_storage_t &base, int32_t offset_a,
             int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
-            int64_t ldc, bool beta0) const;
+            int64_t ldc, int last_k_block, c_t eltwise_alpha, c_t eltwise_beta,
+            bool beta0) const;
 
     status_t launch_nocopy(compute::compute_stream_t *s,
             const memory_storage_t &a, const memory_storage_t &b,

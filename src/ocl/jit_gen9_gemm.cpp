@@ -126,7 +126,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_compute(
         compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
         int64_t k, const memory_storage_t &base, int32_t offset_a,
         int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
-        int64_t ldc, bool beta0) const {
+        int64_t ldc, int last_k_block, c_t eltwise_alpha, c_t eltwise_beta,
+        bool beta0) const {
     auto &kernel = compute_kernel_[beta0];
 
     assert(kernel);
@@ -140,6 +141,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_compute(
     arg_list.set(6, c);
     arg_list.set(7, offset_c);
     arg_list.set(8, ldc);
+    arg_list.set(9, last_k_block);
+    arg_list.set(10, eltwise_alpha);
+    arg_list.set(11, eltwise_beta);
 
     int unroll_m, unroll_n;
     jit_gen9_gemm_compute_kernel<acc_type>::get_unrolls(unroll_m, unroll_n);
@@ -403,7 +407,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
                     bool beta0 = (beta == 0) && (Bk == 0);
                     status = launch_compute(compute_stream, size_m, size_n,
                             size_k, *temp_buf_, off_a_packed, off_b_packed, c,
-                            off_c, ldc, beta0);
+                            off_c, ldc, (int)last_k_block, eltwise_alpha,
+                            eltwise_beta, beta0);
                 }
                 if (status) return status;
             }
