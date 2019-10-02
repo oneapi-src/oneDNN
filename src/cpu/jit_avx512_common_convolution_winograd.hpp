@@ -65,8 +65,8 @@ template <bool is_fwd>
 struct _jit_avx512_common_convolution_winograd_t {
 
     _jit_avx512_common_convolution_winograd_t(
-            const jit_conv_winograd_conf_t &jcp, const primitive_attr_t *attr)
-        : kernel_(nullptr), attr_(attr) {
+            const jit_conv_winograd_conf_t &jcp)
+        : kernel_(nullptr) {
         kernel_ = new _jit_avx512_common_conv_winograd_data_kernel_f32(jcp);
         }
 
@@ -77,7 +77,6 @@ struct _jit_avx512_common_convolution_winograd_t {
                 float *wei_ptr, float *bias_ptr,
                 const memory_tracking::grantor_t &scratchpad) const;
         _jit_avx512_common_conv_winograd_data_kernel_f32 *kernel_;
-        const primitive_attr_t *attr_;
 };
 
 struct jit_avx512_common_convolution_winograd_fwd_t
@@ -155,7 +154,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     jit_avx512_common_convolution_winograd_fwd_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_common_convolution_winograd_t<true>(apd->jcp_, apd->attr())
+        : _jit_avx512_common_convolution_winograd_t<true>(apd->jcp_)
         , cpu_primitive_t(apd, inputs, outputs, true) {}
 
     ~jit_avx512_common_convolution_winograd_fwd_t(){};
@@ -246,7 +245,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *apd,
             const input_vector &inputs, const output_vector &outputs)
-        : _jit_avx512_common_convolution_winograd_t<false>(apd->jcp_, apd->attr())
+        : _jit_avx512_common_convolution_winograd_t<false>(apd->jcp_)
         , cpu_primitive_t(apd, inputs, outputs, true) {}
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t(){};
