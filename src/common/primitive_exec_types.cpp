@@ -82,6 +82,11 @@ memory_t *exec_ctx_t::memory(int arg) const {
     return ma.mem;
 }
 
+memory_desc_wrapper exec_ctx_t::memory_mdw(int arg) const {
+    if (args_.count(arg) != 1) return memory_desc_wrapper(&glob_zero_md);
+    return memory_desc_wrapper(args_.at(arg).mem->md());
+}
+
 void exec_ctx_t::set_scratchpad_grantor(
         const memory_tracking::grantor_t &scratchpad_grantor) {
     scratchpad_grantor_ = utils::make_unique<memory_tracking::grantor_t>(

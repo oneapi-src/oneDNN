@@ -64,6 +64,8 @@ struct exec_ctx_t {
     memory_t *output(int arg) const;
     memory_t *memory(int arg) const;
 
+    memory_desc_wrapper memory_mdw(int arg) const;
+
     void set_scratchpad_grantor(
             const memory_tracking::grantor_t &scratchpad_grantor);
     const memory_tracking::grantor_t &get_scratchpad_grantor() const;
