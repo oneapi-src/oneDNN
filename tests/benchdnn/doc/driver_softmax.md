@@ -32,10 +32,16 @@ the end to specify fewer dimensions.
 
 
 ## Essence of Testing
-Forward: Fill input data in two ways: only negative integers, or mixed signed
-            integers (to check the max value finding).
-Backward: Fill input data with negative integers, and expect positive output.
-            This avoids potential cancellation errors.
+### Forward
+Fill data the way it tests two modes: max_val < 0 and max_val >= 0;
+Test max_val < 0 by using only negative numbers to check correct max_val
+subtraction, mostly if library used signed value, not abs.
+Test max_val >= 0 by exceeding `exp_overflow_arg` value to check answer does not
+contain +infinity (nan) in the answer.
+
+### Backward
+Fill input data with negative integers, and expect positive output. This avoids
+potential cancellation errors.
 
 
 ## Examples

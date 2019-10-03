@@ -20,16 +20,6 @@
 
 namespace softmax {
 
-void get_sizes(const prb_t *p, int64_t &outer_size, int64_t &inner_size,
-        int64_t &axis_size) {
-    outer_size = inner_size = axis_size = 1;
-    for (int i = 0; i < p->axis; i++)
-        outer_size *= p->dims[i];
-    for (int i = p->axis + 1; i < (int)p->dims.size(); i++)
-        inner_size *= p->dims[i];
-    axis_size = p->dims[p->axis];
-}
-
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
     int64_t outer_size {0}, inner_size {0}, axis_size {0};
     get_sizes(p, outer_size, inner_size, axis_size);
@@ -41,24 +31,24 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
                 float space_denom = 0.;
                 float space_max = -FLT_MAX;
+                int64_t ou_in_offset = ou * axis_size * inner_size + in;
 
                 for (int64_t as = 0; as < axis_size; ++as) {
-                    int64_t idx = ou * axis_size * inner_size + as * inner_size
-                            + in;
+                    int64_t idx = ou_in_offset + as * inner_size;
                     space_max = MAX2(space_max, src_ptr[idx]);
                 }
 
                 for (int64_t as = 0; as < axis_size; ++as) {
-                    int64_t idx = ou * axis_size * inner_size + as * inner_size
-                            + in;
+                    int64_t idx = ou_in_offset + as * inner_size;
                     float D = dst_ptr[idx] = expf(src_ptr[idx] - space_max);
                     space_denom += D;
                 }
 
+                space_denom = 1. / space_denom;
+
                 for (int64_t as = 0; as < axis_size; ++as) {
-                    int64_t idx = ou * axis_size * inner_size + as * inner_size
-                            + in;
-                    dst_ptr[idx] /= space_denom;
+                    int64_t idx = ou_in_offset + as * inner_size;
+                    dst_ptr[idx] *= space_denom;
                 }
             });
 }

@@ -81,6 +81,16 @@ inline void map_off_to_mb_ic(
     assert(off == 0);
 }
 
+inline void get_sizes(const prb_t *p, int64_t &outer_size, int64_t &inner_size,
+        int64_t &axis_size) {
+    outer_size = inner_size = axis_size = 1;
+    for (int i = 0; i < p->axis; i++)
+        outer_size *= p->dims[i];
+    for (int i = p->axis + 1; i < (int)p->dims.size(); i++)
+        inner_size *= p->dims[i];
+    axis_size = p->dims[p->axis];
+}
+
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);
