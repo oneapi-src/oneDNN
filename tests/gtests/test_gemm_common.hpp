@@ -117,6 +117,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+// Get pack-size functions.
 extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
@@ -127,6 +128,12 @@ extern dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
         const int *K, const int *lda, const int *ldb, size_t *size,
         bool *pack = nullptr);
 
+extern dnnl_status_t gemm_s8s8s32_pack_get_size(const char *identifier,
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, size_t *size,
+        bool *pack = nullptr);
+
+// Pack functions.
 extern dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
         const int *lda, const int *ldb, const float *src, float *dst);
@@ -136,6 +143,12 @@ extern dnnl_status_t gemm_s8u8s32_pack(const char *identifier,
         const int *K, const int *lda, const int *ldb, const void *src,
         void *dst);
 
+extern dnnl_status_t gemm_s8s8s32_pack(const char *identifier,
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, const void *src,
+        void *dst);
+
+// Compute functions.
 extern dnnl_status_t sgemm_compute(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *A,
         const int *lda, const float *B, const int *ldb, const float *beta,
@@ -146,6 +159,13 @@ extern dnnl_status_t gemm_s8u8s32_compute(const char *transa,
         const int *K, const int8_t *A, const int *lda, const uint8_t *B,
         const int *ldb, const float *beta, int32_t *C, const int *ldc,
         const int32_t *co);
+
+extern dnnl_status_t gemm_s8s8s32_compute(const char *transa,
+        const char *transb, const char *offsetc, const int *M, const int *N,
+        const int *K, const int8_t *A, const int *lda, const int8_t *B,
+        const int *ldb, const float *beta, int32_t *C, const int *ldc,
+        const int32_t *co);
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
@@ -688,6 +708,89 @@ struct dnnl_gemm<float, float, float> {
 
 template <>
 struct dnnl_gemm<int8_t, int8_t, int32_t> {
+    static dnnl_status_t call_packed(const test_params &p,
+            const test_memory &a_mem, const test_memory &b_mem,
+            const test_memory &c_mem, const test_memory &oc_mem) {
+        /* Alas, the internal API still uses Fortran notation.
+         * So in addition to the changes for pack API, we also need to take
+         * care of conversions and layouts */
+
+        using namespace dnnl::impl::cpu;
+
+        assert(p.alpha == 1.f);
+        assert(p.igemm_params.oa() == 0);
+        assert(p.igemm_params.ob() == 0);
+
+        /* Prepare for Fortran style, hence A <-> B */
+        char trans_a = p.transB, trans_b = p.transA;
+
+        int m = p.N, n = p.M, k = p.K;
+        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+
+        int8_t *A = map_memory<int8_t>(b_mem), *a_eff = A;
+        int8_t *B = map_memory<int8_t>(a_mem), *b_eff = B;
+
+        auto C = map_memory<int32_t>(c_mem);
+        auto oc = map_memory<int32_t>(oc_mem);
+
+        char offset_c = '\0';
+        switch (p.igemm_params.offsetc) {
+            case 'R': offset_c = 'C'; break;
+            case 'r': offset_c = 'c'; break;
+            case 'C': offset_c = 'R'; break;
+            case 'c': offset_c = 'r'; break;
+            default: offset_c = p.igemm_params.offsetc;
+        }
+
+        std::vector<int8_t> a_pack_buf;
+        std::vector<int8_t> b_pack_buf;
+        bool pack_a = p.pack_params.pack_b;
+        bool pack_b = p.pack_params.pack_a;
+
+        dnnl_status_t status = dnnl_success;
+
+        if (pack_a) {
+            size_t a_sz;
+            status = gemm_s8s8s32_pack_get_size(
+                    "A", &trans_a, &trans_b, &m, &n, &k, &lda, &ldb, &a_sz);
+            if (status != dnnl_success) return status;
+
+            if (pack_a) {
+                a_pack_buf.resize(a_sz);
+                a_eff = a_pack_buf.data();
+
+                status = gemm_s8s8s32_pack("A", &trans_a, &trans_b, &m, &n, &k,
+                        &lda, &ldb, A, a_eff);
+                if (status != dnnl_success) return status;
+            }
+        }
+
+        if (pack_b) {
+            size_t b_sz;
+
+            status = gemm_s8s8s32_pack_get_size(
+                    "B", &trans_a, &trans_b, &m, &n, &k, &lda, &ldb, &b_sz);
+            if (status != dnnl_success) return status;
+
+            if (pack_b) {
+                b_pack_buf.resize(b_sz);
+                b_eff = b_pack_buf.data();
+
+                status = gemm_s8s8s32_pack("B", &trans_a, &trans_b, &m, &n, &k,
+                        &lda, &ldb, B, b_eff);
+                if (status != dnnl_success) return status;
+            }
+        }
+
+        if (pack_a) trans_a = 'P';
+        if (pack_b) trans_b = 'P';
+
+        status = gemm_s8s8s32_compute(&trans_a, &trans_b, &offset_c, &m, &n, &k,
+                a_eff, &lda, b_eff, &ldb, &p.beta, C, &ldc, oc);
+
+        return status;
+    }
+
     static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &oc_mem) {
@@ -708,6 +811,8 @@ struct dnnl_gemm<int8_t, int8_t, int32_t> {
             return status;
         }
 #endif
+        if (p.pack_params.pack_a || p.pack_params.pack_b)
+            return call_packed(p, a_mem, b_mem, c_mem, oc_mem);
 
         auto A = map_memory<int8_t>(a_mem);
         auto B = map_memory<int8_t>(b_mem);
@@ -837,6 +942,7 @@ struct dnnl_gemm<uint8_t, int8_t, int32_t> {
 
             status = gemm_s8u8s32_pack_get_size(
                     "B", &trans_a, &trans_b, &m, &n, &k, &lda, &ldb, &b_sz);
+            if (status != dnnl_success) return status;
 
             if (pack_b) {
                 b_pack_buf.resize(b_sz);
@@ -1041,8 +1147,6 @@ protected:
         bool pack = (p.pack_params.pack_a || p.pack_params.pack_b);
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu && pack,
                 "GPU does not support packed GEMM.");
-        SKIP_IF(data_traits<a_dt>::data_type == memory::data_type::s8 && pack,
-                "Packed s8s8s32 GEMM is not supported.");
         SKIP_IF((p.alpha != 1.f || p.igemm_params.oa() != 0
                         || p.igemm_params.ob() != 0)
                         && pack,

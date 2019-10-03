@@ -1821,6 +1821,8 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
     // Check if copy algorithm kernels were generated on supported ISAs.
     assert(args.hasKernels());
 
+    if (!args.hasKernels()) return dnnl_unimplemented;
+
     return gemm_threading_driver(&args);
 }
 
