@@ -440,7 +440,9 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
     bool col_req = false;
     bool row_req = false;
 
-    if (data_traits<a_type>::data_type == data_type::s8) {
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    if (is_int8) {
         a_type ao = arg->ao;
         uint8_t bo = arg->bo;
         c_type co_0 = offsetc == offset_type::none ? 0 : co[0];
@@ -547,19 +549,20 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     float alpha = arg->alpha;
 
-    bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
 
     const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
     const std::shared_ptr<const gemm_pack_storage_t> &b_packed = arg->b_packed;
 
     // Scaling C matrix.
-    if (!isInteger && beta != 1.0f && beta != 0.0f) {
+    if (!is_int8 && beta != 1.0f && beta != 0.0f) {
         scale_matrix(m, n, beta, c, ldc);
         beta = 1.0f;
     }
 
     // Quick exit for C = beta * C
-    if (!isInteger && alpha == 0.0f) {
+    if (!is_int8 && alpha == 0.0f) {
         if (beta == 0.0f) scale_matrix(m, n, beta, c, ldc);
 
         return dnnl_success;
@@ -589,13 +592,12 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
     size_t mem_size = a_buf_nelems * sizeof(*a) + PAGE_4K
             + b_buf_nelems * sizeof(*b) + PAGE_4K;
 
-    if (isInteger) {
+    if (is_int8) {
         mem_size += a_row_sum_nelems * sizeof(*c) + PAGE_4K
                 + b_col_sum_nelems * sizeof(*c) + PAGE_4K;
     }
 
-    bool need_c_buffer
-            = isInteger && (alpha != 1.0f || (beta != 1 && beta != 0));
+    bool need_c_buffer = is_int8 && (alpha != 1.0f || (beta != 1 && beta != 0));
 
     if (need_c_buffer) {
         size_t c_buf_nelems = ldc_buf * n_padd;
@@ -614,7 +616,7 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
     c_type *a_row_sum = NULL;
     c_type *b_col_sum = NULL;
-    if (isInteger) {
+    if (is_int8) {
         a_row_sum = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
         b_col_sum = (c_type *)align(a_row_sum + a_row_sum_nelems, PAGE_4K);
     }
@@ -650,7 +652,7 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
 
                 if (b_packed) {
                     bufferB = b_packed->matrix<b_type>(ithr, Bk, Bn);
-                    if (isInteger)
+                    if (is_int8)
                         b_col_sum = b_packed->col_sums<c_type>(ithr, blk_k, Bn);
                 } else {
                     const b_type *b_block = b + Bk * strideBm + Bn * strideBn;
@@ -683,7 +685,7 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                         Um_forA = Um;
                         bufferA_eff = a_packed->matrix<a_type>(ithr, Bm, Bk)
                                 + Um_forA * sizeK;
-                        if (isInteger)
+                        if (is_int8)
                             a_row_sum_eff = a_packed->row_sums<c_type>(
                                                     ithr, Bm, blk_k)
                                     + Um_forA;
@@ -772,12 +774,12 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
     size_t mem_size = b_buf_nelems * sizeof(*b) + PAGE_4K;
 
-    bool isInteger = data_traits<a_type>::data_type == data_type::s8;
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
 
-    if (isInteger) { mem_size += b_col_sum_nelems * sizeof(*c) + PAGE_4K; }
+    if (is_int8) { mem_size += b_col_sum_nelems * sizeof(*c) + PAGE_4K; }
 
-    bool need_c_buffer
-            = isInteger && (alpha != 1.0f || (beta != 1 && beta != 0));
+    bool need_c_buffer = is_int8 && (alpha != 1.0f || (beta != 1 && beta != 0));
 
     if (need_c_buffer) {
         size_t c_buf_nelems = ldc_buf * n_padd;
@@ -794,7 +796,7 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
     b_type *bufferB = (b_type *)align(mem, PAGE_4K);
 
     c_type *b_col_sum = NULL;
-    if (isInteger) {
+    if (is_int8) {
         b_col_sum = (c_type *)align(bufferB + b_buf_nelems, PAGE_4K);
     }
 
@@ -810,7 +812,7 @@ static dnnl_status_t kernel_driver_parallel_acopiedbcopy(int ithr, dim_t m,
 
         if (b_packed) {
             bufferB = b_packed->matrix<b_type>(ithr, Bk, Bn);
-            if (isInteger)
+            if (is_int8)
                 b_col_sum = b_packed->col_sums<c_type>(ithr, blk_k, Bn);
         } else {
             const b_type *b_block = b + Bn * strideBn;
@@ -962,7 +964,8 @@ static inline void set_thread_opts_nopack(int nthrs,
     static constexpr dim_t N2D_MAX = 384;
     static constexpr dim_t M2D_MIN = 384;
 
-    bool isInteger = data_traits<a_type>::data_type == data_type::s8;
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     bool isSgemm = data_traits<a_type>::data_type == data_type::f32;
 
     dim_t m = arg->m;
@@ -1011,7 +1014,7 @@ static inline void set_thread_opts_nopack(int nthrs,
     // TODO: the reasons seems to be in copy_sum_bx routines. At least,
     //       after simple optimization of copy_sum_ax, similar restriction
     //       on offset B became unnecessary. Revisit.
-    if (isInteger && arg->ao != 0) {
+    if (is_int8 && arg->ao != 0) {
         condition_2D_bsrc = false;
         condition_1D_copya = true;
     }
@@ -1063,7 +1066,7 @@ static inline void set_thread_opts_nopack(int nthrs,
         auto veclen = get_vector_length<c_type>();
 
         if (m > n && (m >= nthrs * veclen || n < nthrs)) {
-            if (n <= 20 && isInteger) {
+            if (n <= 20 && is_int8) {
                 // Use 3D decomposition forcing m-blocking only.
                 set_thread_opts_pack(
                         nthrs, thread_info, arg, false, true, false);
@@ -1087,7 +1090,8 @@ static inline void set_thread_opts_pack(int nthrs,
         bool do_k_blocking = true, bool do_m_blocking = true,
         bool do_n_blocking = true) {
 
-    constexpr bool is_int8 = (data_traits<a_type>::data_type == data_type::s8);
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
     bool do_m_blocking_only = do_m_blocking && !do_n_blocking;
 
     auto m = arg->m, n = arg->n, k = arg->k;
@@ -1190,6 +1194,9 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
     thread_info.block_m = thread_info.block_n = thread_info.block_k = -1;
     thread_info.thread_m = thread_info.thread_n = thread_info.thread_k = -1;
 
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+
     if (nocopy_checker(nthrs, arg)) {
         thread_info.copy = copy_type::no_copy;
         thread_info.partition = partition_type::mnk_3d;
@@ -1215,8 +1222,7 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
         thread_info.nthrs_n = nthrs_n;
         thread_info.nthrs_k = nthrs_k;
     } else {
-        if (arg->packing != pack_type::none
-                && data_traits<a_type>::data_type == data_type::s8)
+        if (arg->packing != pack_type::none && is_int8)
             set_thread_opts_pack(nthrs, thread_info, arg);
         else
             set_thread_opts_nopack(nthrs, thread_info, arg);
@@ -1269,12 +1275,13 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
 
     float alpha = arg->alpha;
 
-    bool isInteger = (data_traits<a_type>::data_type == data_type::s8);
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
 
     const std::shared_ptr<const gemm_pack_storage_t> &a_packed = arg->a_packed;
 
     // Scaling C matrix.
-    if (!isInteger && beta != 1.0f && beta != 0.0f) {
+    if (!is_int8 && beta != 1.0f && beta != 0.0f) {
         scale_matrix(m, n, beta, c, ldc);
         beta = 1.0f;
     }
@@ -1294,7 +1301,7 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
         if (ithr == 0) { // If thread master
             size_t mem_size = (a_buf_nelems * sizeof(*a) + PAGE_4K);
 
-            if (isInteger) {
+            if (is_int8) {
                 size_t a_row_sum_nelems = m_padd;
                 mem_size += a_row_sum_nelems * sizeof(*c) + PAGE_4K;
             }
@@ -1307,7 +1314,7 @@ static dnnl_status_t parallel_a_copy(const int ithr, const int nthrs,
         mem = *p_shared_mem;
         bufferA = (a_type *)align(mem, PAGE_4K);
 
-        if (isInteger)
+        if (is_int8)
             a_row_sum = (c_type *)align(bufferA + a_buf_nelems, PAGE_4K);
 
         if (!mem) return dnnl_out_of_memory;
@@ -1495,7 +1502,8 @@ static dnnl_status_t gemm_threading_driver(
     auto packing = (arg->packing != pack_type::none);
     auto is_a_packed = (arg->transa == packed);
     auto is_b_packed = (arg->transb == packed);
-    auto is_integer = (data_traits<a_type>::data_type == data_type::s8);
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
 
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
@@ -1536,7 +1544,7 @@ static dnnl_status_t gemm_threading_driver(
             force_threading = &arg->b_packed->threading();
         else
                 // Use k-partitioning if necessary.
-                if (arg->n <= 128 && arg->k >= 3072 && is_integer) {
+                if (arg->n <= 128 && arg->k >= 3072 && is_int8) {
             // Use 3D decomposition from pack api without n-partitioning.
             set_thread_opts_pack(
                     nthr_goal, force_k_decomp, arg, true, true, false);
@@ -1556,7 +1564,7 @@ static dnnl_status_t gemm_threading_driver(
         bool do_a = (arg->packing == pack_type::pack_a);
 
         pack_dst->which() = do_a ? matrix_id::a : matrix_id::b;
-        pack_dst->setup(nthr_goal, do_a && is_integer, !do_a && is_integer);
+        pack_dst->setup(nthr_goal, do_a && is_int8, !do_a && is_int8);
 
         auto &thread_info = pack_dst->threading();
         force_threading = &thread_info;
@@ -1783,14 +1791,17 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
         c_type *c, const int *ldc, const c_type *oc, const bool force_nocopy,
         pack_type packing, gemm_pack_storage_t *pack_dst, bool measure_only) {
 
+    constexpr bool is_int8 = utils::one_of(
+            data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    MAYBE_UNUSED(is_int8);
+
     // gemm_driver supports bfloat16 gemm for Intel AVX512 and
     // Intel AVX512 BF16.
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::bf16,
             mayiuse(avx512_core) && !force_nocopy));
 
     // gemm_driver supports 8-bit integer Intel AVX512 and Intel DL Boost.
-    assert(IMPLICATION(data_traits<a_type>::data_type == data_type::s8,
-            mayiuse(avx512_core)));
+    assert(IMPLICATION(is_int8, mayiuse(avx512_core)));
 
     // gemm_driver supports sgemm for Intel AVX512, Intel AVX2, Intel AVX,
     // and Intel SSE4.1
@@ -1798,8 +1809,7 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
             data_traits<a_type>::data_type == data_type::f32, mayiuse(sse41)));
 
     // 8-bit integer gemm doesn't support nocopy kernels.
-    assert(IMPLICATION(
-            data_traits<a_type>::data_type == data_type::s8, !force_nocopy));
+    assert(IMPLICATION(is_int8, !force_nocopy));
 
     // gemm_driver can only dispatch nocopy for avx and above.
     assert(IMPLICATION(force_nocopy, mayiuse(avx)));
