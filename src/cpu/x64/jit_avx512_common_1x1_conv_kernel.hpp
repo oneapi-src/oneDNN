@@ -92,6 +92,37 @@ private:
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
+    inline bool is_bcast_layout_nxc() {
+        switch (jcp.prop_kind) {
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
+            case prop_kind::backward_weights:
+                return utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_data:
+                return utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            default: assert(!"invalid prop_kind"); return false;
+        }
+    }
+    inline bool is_load_layout_nxc() {
+        return jcp.prop_kind == prop_kind::backward_weights
+                && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+    }
+    inline bool is_out_layout_nxc() {
+        switch (jcp.prop_kind) {
+            case prop_kind::forward_training:
+            case prop_kind::forward_inference:
+                return utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_data:
+                return utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+            case prop_kind::backward_weights: return false;
+            default: assert(!"invalid prop_kind"); return false;
+        }
+    }
 
     void generate();
     static void balance(jit_1x1_conv_conf_t &jcp);
