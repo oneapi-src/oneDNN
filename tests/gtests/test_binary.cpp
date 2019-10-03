@@ -46,18 +46,16 @@ protected:
         binary_test_params p
                 = ::testing::TestWithParam<binary_test_params>::GetParam();
         // TODO: remove me
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu,
-                "GPU does not support binary yet.");
-        // TODO: remove me
         SKIP_IF(src_data_type != memory::data_type::f32
-                        && src_data_type != memory::data_type::bf16,
-                "Non-f32 data types are not supported yet.");
-
-        SKIP_IF(get_test_engine_kind() == engine::kind::gpu
-                        && src_data_type == memory::data_type::bf16,
-                "GPU does not support bfloat16 data type.");
+                        && src_data_type != memory::data_type::bf16
+                        && src_data_type != memory::data_type::f16,
+                "Non-f32 data types are not supported");
+        SKIP_IF(src_data_type == memory::data_type::f16
+                        && get_test_engine_kind() == engine::kind::cpu,
+                "F16 not supported with CPU engine");
         SKIP_IF(src_data_type == memory::data_type::bf16
-                        && !impl::cpu::mayiuse(impl::cpu::avx512_core),
+                        && !impl::cpu::mayiuse(impl::cpu::avx512_core)
+                        && get_test_engine_kind() == engine::kind::cpu,
                 "current ISA doesn't support bfloat16 data type");
 
         catch_expected_failures(
@@ -180,19 +178,18 @@ static auto simple_cases = []() {
                     algorithm::binary_mul, {5, 16, 7, 6}});
 };
 
-#define CPU_INST_TEST_CASE(test) \
-    CPU_TEST_P(test, Testsbinary) {} \
-    CPU_INSTANTIATE_TEST_SUITE_P(TestbinaryEF, test, expected_failures()); \
-    CPU_INSTANTIATE_TEST_SUITE_P(TestbinaryZero, test, zero_dim()); \
-    CPU_INSTANTIATE_TEST_SUITE_P(TestbinarySimple, test, simple_cases());
-
-#define INST_TEST_CASE(test) CPU_INST_TEST_CASE(test)
+#define INST_TEST_CASE(test) \
+    TEST_P(test, Testsbinary) {} \
+    INSTANTIATE_TEST_SUITE_P(TestbinaryEF, test, expected_failures()); \
+    INSTANTIATE_TEST_SUITE_P(TestbinaryZero, test, zero_dim()); \
+    INSTANTIATE_TEST_SUITE_P(TestbinarySimple, test, simple_cases());
 
 using binary_test_float = binary_test<float>;
-using binary_test_bfloat16 = binary_test<bfloat16_t>;
+using binary_test_bf16 = binary_test<bfloat16_t>;
+using binary_test_f16 = binary_test<float16_t>;
 
 INST_TEST_CASE(binary_test_float)
-INST_TEST_CASE(binary_test_bfloat16)
+INST_TEST_CASE(binary_test_bf16)
+INST_TEST_CASE(binary_test_f16)
 
-#undef CPU_INST_TEST_CASE
 } // namespace dnnl

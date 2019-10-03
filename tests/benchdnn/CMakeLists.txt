@@ -194,4 +194,6 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
         gpu "-v1 --concat --batch=inputs/concat/test_concat_gpu")
     register_benchdnn_test(test_benchdnn_lrn
         gpu "-v1 --lrn --batch=inputs/lrn/test_lrn_gpu")
+    register_benchdnn_test(test_benchdnn_binary
+        gpu "-v1 --binary --batch=inputs/binary/test_binary_gpu")
 endif()
