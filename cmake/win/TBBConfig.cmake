@@ -1,4 +1,5 @@
-# Copyright (c) 2017-2018 Intel Corporation
+#===============================================================================
+# Copyright 2017-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,10 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-#
-#
-#
+#===============================================================================
 
 # TBB_FOUND should not be set explicitly. It is defined automatically by CMake.
 # Handling of TBB_VERSION is in TBBConfigVersion.cmake.
