@@ -74,7 +74,7 @@ CPU_INST_TEST_CASE(TestGEMV,
         test_params {'t', 't', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1000, 1},
         test_params {'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 3000});
 
-#if defined(FP32)
+#if defined(FP32) || defined(BF16BF16F32)
 INST_TEST_CASE(TestGEMM_packed,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},
                 true, dnnl_invalid_arguments},

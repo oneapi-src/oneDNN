@@ -123,6 +123,11 @@ extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
         const int *K, const int *lda, const int *ldb, size_t *size,
         bool *pack = nullptr);
 
+extern dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
+        const char *transa, const char *transb, const dnnl_dim_t *M,
+        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
+        const dnnl_dim_t *ldb, size_t *size, bool *pack = nullptr);
+
 extern dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
@@ -137,6 +142,11 @@ extern dnnl_status_t gemm_s8s8s32_pack_get_size(const char *identifier,
 extern dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
         const int *lda, const int *ldb, const float *src, float *dst);
+
+extern dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier,
+        const char *transa, const char *transb, const dnnl_dim_t *M,
+        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
+        const dnnl_dim_t *ldb, const bfloat16_t *src, bfloat16_t *dst);
 
 extern dnnl_status_t gemm_s8u8s32_pack(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
@@ -153,6 +163,12 @@ extern dnnl_status_t sgemm_compute(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *A,
         const int *lda, const float *B, const int *ldb, const float *beta,
         float *C, const int *ldc);
+
+extern dnnl_status_t gemm_bf16bf16f32_compute(const char *transa,
+        const char *transb, const dnnl_dim_t *M, const dnnl_dim_t *N,
+        const dnnl_dim_t *K, const bfloat16_t *A, const dnnl_dim_t *lda,
+        const bfloat16_t *B, const dnnl_dim_t *ldb, const float *beta, float *C,
+        const dnnl_dim_t *ldc);
 
 extern dnnl_status_t gemm_s8u8s32_compute(const char *transa,
         const char *transb, const char *offsetc, const int *M, const int *N,
@@ -1026,6 +1042,74 @@ struct dnnl_gemm<float16_t, float16_t, float> {
 
 template <>
 struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
+    static dnnl_status_t call_packed(const test_params &p,
+            const test_memory &a_mem, const test_memory &b_mem,
+            const test_memory &c_mem) {
+        /* Alas, the internal API still uses Fortran notation.
+         * So in addition to the changes for pack API, we also need to take
+         * care of conversions and layouts */
+
+        using namespace dnnl::impl::cpu;
+
+        assert(p.alpha == 1.f);
+
+        /* Prepare for Fortran style, hence A <-> B */
+        char trans_a = p.transB, trans_b = p.transA;
+
+        dnnl_dim_t m = p.N, n = p.M, k = p.K;
+        dnnl_dim_t lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+
+        std::vector<bfloat16_t> a_pack_buf, b_pack_buf;
+        bfloat16_t *A = map_memory<bfloat16_t>(b_mem), *a_eff = A;
+        bfloat16_t *B = map_memory<bfloat16_t>(a_mem), *b_eff = B;
+        float *C = map_memory<float>(c_mem);
+
+        bool pack_a = p.pack_params.pack_b;
+        bool pack_b = p.pack_params.pack_a;
+
+        dnnl_status_t status = dnnl_success;
+
+        if (pack_a) {
+            size_t a_sz;
+            status = gemm_bf16bf16f32_pack_get_size("A", &trans_a, &trans_b, &m,
+                    &n, &k, &lda, &ldb, &a_sz, &pack_a);
+            if (status != dnnl_success) return status;
+
+            if (pack_a) {
+                a_pack_buf.resize(a_sz / sizeof(*a_eff));
+                a_eff = a_pack_buf.data();
+
+                status = gemm_bf16bf16f32_pack("A", &trans_a, &trans_b, &m, &n,
+                        &k, &lda, &ldb, A, a_eff);
+                if (status != dnnl_success) return status;
+            }
+        }
+
+        if (pack_b) {
+            size_t b_sz;
+            status = gemm_bf16bf16f32_pack_get_size("B", &trans_a, &trans_b, &m,
+                    &n, &k, &lda, &ldb, &b_sz, &pack_b);
+            if (status != dnnl_success) return status;
+
+            if (pack_b) {
+                b_pack_buf.resize(b_sz / sizeof(*b_eff));
+                b_eff = b_pack_buf.data();
+
+                status = gemm_bf16bf16f32_pack("B", &trans_a, &trans_b, &m, &n,
+                        &k, &lda, &ldb, B, b_eff);
+                if (status != dnnl_success) return status;
+            }
+        }
+
+        if (pack_a) trans_a = 'P';
+        if (pack_b) trans_b = 'P';
+
+        status = gemm_bf16bf16f32_compute(&trans_a, &trans_b, &m, &n, &k, a_eff,
+                &lda, b_eff, &ldb, &p.beta, C, &ldc);
+
+        return status;
+    }
+
     static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
@@ -1043,6 +1127,9 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
             return status;
         }
 #endif
+        if (p.pack_params.pack_a || p.pack_params.pack_b)
+            return call_packed(p, a_mem, b_mem, c_mem);
+
         auto A = map_memory<bfloat16_t>(a_mem);
         auto B = map_memory<bfloat16_t>(b_mem);
         auto C = map_memory<float>(c_mem);

@@ -167,6 +167,40 @@ dnnl_status_t sgemm_pack_get_size(const char *identifier, const char *transa,
     return dnnl_success;
 }
 
+dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
+        const char *transa, const char *transb, const dnnl_dim_t *M,
+        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
+        const dnnl_dim_t *ldb, size_t *size, bool *pack) {
+
+    if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
+
+    dnnl_status_t result;
+    *size = 0;
+    if (pack) *pack = true;
+
+    int M_s32 = (int)*M;
+    int N_s32 = (int)*N;
+    int K_s32 = (int)*K;
+    int lda_s32 = (int)*lda;
+    int ldb_s32 = (int)*ldb;
+
+    result = check_pack_get_size_input(identifier, transa, transb, &M_s32,
+            &N_s32, &K_s32, &lda_s32, &ldb_s32);
+    if (result != dnnl_success) return result;
+
+    float alpha = 1.0f;
+    gemm_pack_storage_shell_t shell {dnnl_get_max_threads()};
+
+    result = gemm_pack_driver<bfloat16_t, bfloat16_t, float>(identifier, transa,
+            transb, &M_s32, &N_s32, &K_s32, &alpha, &lda_s32, &ldb_s32, nullptr,
+            &shell, true);
+    if (result != dnnl_success) return result;
+
+    *size = shell.size();
+
+    return dnnl_success;
+}
+
 template <typename a_dt, typename b_dt>
 dnnl_status_t gemm_x8x8s32_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
@@ -261,6 +295,31 @@ dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
 #endif
 }
 
+dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier, const char *transa,
+        const char *transb, const dnnl_dim_t *M, const dnnl_dim_t *N,
+        const dnnl_dim_t *K, const dnnl_dim_t *lda, const dnnl_dim_t *ldb,
+        const bfloat16_t *src, bfloat16_t *dst) {
+    float one = 1.f, *alpha = &one;
+
+    if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
+
+    int M_s32 = (int)*M;
+    int N_s32 = (int)*N;
+    int K_s32 = (int)*K;
+    int lda_s32 = (int)*lda;
+    int ldb_s32 = (int)*ldb;
+
+    auto result = check_pack_input(identifier, transa, transb, &M_s32, &N_s32,
+            &K_s32, alpha, &lda_s32, &ldb_s32, src, dst);
+    if (result != dnnl_success) return result;
+
+    gemm_pack_storage_t pack_dst {dst};
+
+    return gemm_pack_driver<bfloat16_t, bfloat16_t, float>(identifier, transa,
+            transb, &M_s32, &N_s32, &K_s32, alpha, &lda_s32, &ldb_s32, src,
+            &pack_dst, false);
+}
+
 template <typename a_dt, typename b_dt>
 dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
@@ -338,6 +397,20 @@ dnnl_status_t sgemm_compute(const char *transa, const char *transb,
     return extended_sgemm(
             transa, transb, M, N, K, &one, A, lda, B, ldb, beta, C, ldc);
 #endif
+}
+
+dnnl_status_t gemm_bf16bf16f32_compute(const char *transa, const char *transb,
+        const dnnl_dim_t *M, const dnnl_dim_t *N, const dnnl_dim_t *K,
+        const bfloat16_t *A, const dnnl_dim_t *lda, const bfloat16_t *B,
+        const dnnl_dim_t *ldb, const float *beta, float *C,
+        const dnnl_dim_t *ldc) {
+
+    if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
+
+    float one = 1.0f;
+
+    return gemm_bf16bf16f32(
+            transa, transb, M, N, K, &one, A, lda, B, ldb, beta, C, ldc);
 }
 
 template <typename a_dt, typename b_dt>

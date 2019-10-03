@@ -36,10 +36,19 @@ static inline bool pack_sgemm_supported() {
 }
 #endif
 
+static inline bool pack_gemm_bf16bf16f32_supported() {
+    return mayiuse(avx512_core);
+}
+
 dnnl_status_t DNNL_API sgemm_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
         bool *pack = nullptr);
+
+dnnl_status_t DNNL_API gemm_bf16bf16f32_pack_get_size(const char *identifier,
+        const char *transa, const char *transb, const dnnl_dim_t *M,
+        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
+        const dnnl_dim_t *ldb, size_t *size, bool *pack = nullptr);
 
 dnnl_status_t DNNL_API gemm_s8u8s32_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
@@ -55,6 +64,11 @@ dnnl_status_t DNNL_API sgemm_pack(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
         const int *lda, const int *ldb, const float *src, float *dst);
 
+dnnl_status_t DNNL_API gemm_bf16bf16f32_pack(const char *identifier,
+        const char *transa, const char *transb, const dnnl_dim_t *M,
+        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
+        const dnnl_dim_t *ldb, const bfloat16_t *src, bfloat16_t *dst);
+
 dnnl_status_t DNNL_API gemm_s8u8s32_pack(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, const void *src,
@@ -69,6 +83,12 @@ dnnl_status_t DNNL_API sgemm_compute(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const float *A,
         const int *lda, const float *B, const int *ldb, const float *beta,
         float *C, const int *ldc);
+
+dnnl_status_t DNNL_API gemm_bf16bf16f32_compute(const char *transa,
+        const char *transb, const dnnl_dim_t *M, const dnnl_dim_t *N,
+        const dnnl_dim_t *K, const bfloat16_t *A, const dnnl_dim_t *lda,
+        const bfloat16_t *B, const dnnl_dim_t *ldb, const float *beta, float *C,
+        const dnnl_dim_t *ldc);
 
 dnnl_status_t DNNL_API gemm_s8u8s32_compute(const char *transa,
         const char *transb, const char *offsetc, const int *M, const int *N,
