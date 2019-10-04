@@ -51,6 +51,10 @@ typedef enum {
     PAGE_2M = 2097152,
 } cpu_page_size_t;
 
+typedef enum {
+    MAX_CODE_SIZE = 256 * 1024,
+} max_code_size_t;
+
 // TODO: move this somewhere else? Although this is only used by jit kernels
 // (Roma)
 static inline int float2int(float x) {
@@ -799,14 +803,18 @@ public:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator);
 
 public:
-    jit_generator(void *code_ptr = nullptr, size_t code_size = 256 * 1024)
-        : Xbyak::CodeGenerator(code_size, code_ptr) {}
+    jit_generator(void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE,
+            bool use_autogrow = true)
+        : Xbyak::CodeGenerator(code_size,
+                (code_ptr == nullptr && use_autogrow) ? Xbyak::AutoGrow
+                                                      : code_ptr) {}
     virtual ~jit_generator() {}
 
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
     const Xbyak::uint8 *getCode() {
+        this->ready();
         const Xbyak::uint8 *code = CodeGenerator::getCode();
         size_t code_size = getSize();
         jit_utils::register_jit_code(code, code_size, name(), source_file());
