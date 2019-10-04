@@ -69,29 +69,13 @@ status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
 
     exec_ctx_t ctx(stream, std::move(args));
 
-    const int gpu_exec_time_level = 4;
     if (dnnl_verbose()->level) {
         double ms = get_msec();
         status = primitive->execute(ctx);
-        // Do not output execution time for GPU engines unless the verbose
-        // level is at least gpu_exec_time_level
-        if (stream->engine()->kind() == engine_kind::gpu
-                && dnnl_verbose()->level < gpu_exec_time_level) {
-            printf("dnnl_verbose,exec,%s\n", primitive->pd()->info());
-        } else {
-            // GPU engines require synchronization to measure actual time
-            // For CPU engines wait() is no-op
-            stream->wait();
-            ms = get_msec() - ms;
-        }
-
-        engine_kind_t engine_kind = stream->engine()->kind();
-        if (engine_kind == engine_kind::cpu
-                || (engine_kind == engine_kind::gpu
-                        && dnnl_verbose()->level >= gpu_exec_time_level)) {
-            printf("dnnl_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
-            fflush(0);
-        }
+        stream->wait();
+        ms = get_msec() - ms;
+        printf("dnnl_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
+        fflush(0);
     } else {
         status = primitive->execute(ctx);
     }
