@@ -23,7 +23,7 @@
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 
 //#define BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 #if !DNNL_THR_SYNC

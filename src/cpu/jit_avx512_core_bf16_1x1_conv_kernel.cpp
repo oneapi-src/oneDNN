@@ -16,6 +16,7 @@
 #include <float.h>
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
+#include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
