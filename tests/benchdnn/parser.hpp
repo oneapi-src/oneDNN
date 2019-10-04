@@ -137,6 +137,9 @@ bool parse_skip_impl(const char *&skip_impl, const char *str,
 bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
         const std::string &option_name = "allow-unimpl");
 
+bool parse_fast_ref_gpu(
+        const char *str, const std::string &option_name = "fast-ref-gpu");
+
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name = "perf-template");

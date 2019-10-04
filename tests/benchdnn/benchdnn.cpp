@@ -53,6 +53,8 @@ double max_ms_per_prb {3e3};
 int min_times_per_prb {5};
 int fix_times_per_prb {0};
 
+bool fast_ref_gpu {true};
+
 int main(int argc, char **argv) {
     using namespace parser;
 

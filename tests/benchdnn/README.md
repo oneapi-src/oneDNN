@@ -30,9 +30,10 @@ So far it supports and uses the following drivers:
 ``` sh
     ./benchdnn --DRIVER [--engine=ENGINE_KIND] [--mode=MODE] [--reset] \
                [--max-ms-per-prb=INT] [--fix-times-per-prb=INT] \
-               [-vINT|--verbose=INT] [--skip-impl=SKIP_IMPL] \
-               [--allow-unimpl=BOOL] [--perf-template=PERF_TEMPLATE] \
-               [DRIVER-OPTS] PROBLEM-DESCRIPTION [--batch=FILE]
+               [-vINT|--verbose=INT] [--fast-ref-gpu=BOOL] \
+               [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
+               [--perf-template=PERF_TEMPLATE] [DRIVER-OPTS] \
+               PROBLEM-DESCRIPTION [--batch=FILE]
 ```
 
 where:
@@ -52,6 +53,8 @@ where:
             non-negative. Default is `0` (not applied, time criterion is used).
  - `-vINT, --verbose=INT` -- verbose level; use for printing additional
             information. Default is `0`.
+ - `--fast-ref-gpu=true|false` -- allow using CPU primitives as the reference
+            for GPU testing to reduce testing time. Default is `true`.
  - `--skip-impl="str1[:str2]..."` -- skip a specific implementation
             (see dnnl_query_impl_info_str), default `""`.
  - `--allow-unimpl=true|false` -- do not treat unimplemented configuration
