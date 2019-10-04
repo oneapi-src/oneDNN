@@ -86,8 +86,9 @@ cell_execution_sig(
                                 * rnn.acc_data_type_elsz,
                 workspace,
                 ws_diff_states_offset_
-                        + OFF4(lay, n_layer + 1, dir, n_dir, iter, n_iter + 1,
-                                  0, (n_states + 1) * batch * rnn.states_ws_ld)
+                        + OFF5(lay, n_layer + 1, dir, n_dir, 0, n_states + 1,
+                                  iter, n_iter + 1, 0,
+                                  rnn.states_nld * rnn.states_ws_ld)
                                 * sizeof(src_t),
                 gemm_iter);
         gemm_primitive(ctx, w_input, offset_w_input, workspace,
@@ -97,9 +98,9 @@ cell_execution_sig(
                                 * rnn.acc_data_type_elsz,
                 workspace,
                 ws_diff_states_offset_
-                        + (OFF4(lay, n_layer + 1, dir, n_dir, iter, n_iter + 1,
-                                   0, (n_states + 1) * batch * rnn.states_ws_ld)
-                                  + n_states * batch * rnn.states_ws_ld)
+                        + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
+                                  n_states + 1, iter, n_iter + 1, 0,
+                                  rnn.states_nld * rnn.states_ws_ld)
                                 * sizeof(src_t),
                 gemm_layer);
         gemm_primitive(ctx, workspace,

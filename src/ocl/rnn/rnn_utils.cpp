@@ -224,7 +224,7 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             : 0;
     rnn.ws_diff_states_elsz = precise_elsz;
     rnn.ws_diff_states_size = rnn.is_training ? (size_t)(rnn.n_layer + 1)
-                    * rnn.n_dir * (rnn.n_iter + 1) * (rnn.n_states + 1) * rnn.mb
+                    * rnn.n_dir * (rnn.n_states + 1) * (rnn.n_iter + 1) * rnn.mb
                     * rnn.states_ws_ld * rnn.ws_diff_states_elsz
                                               : (size_t)0;
     rnn.ws_gates_elsz = precise_elsz;
