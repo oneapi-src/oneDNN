@@ -79,10 +79,16 @@ static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
 }
 
 // check that on a given input specific alg may return NaN or inf
-static bool check_extreme_values(const prb_t *p, const float &src) {
+static bool check_extreme_values(
+        const prb_t *p, const float &src, const float &library_output) {
     switch (p->alg) {
         case alg_t::SQRT:
             if (p->dir == FWD_D && src < 0) return true;
+            if (p->dir == BWD_D && src <= 0) return true;
+        case alg_t::LOG:
+            if (p->dir == FWD_D && src < 0) return true;
+            if (p->dir == FWD_D && src == 0 && library_output == logf(src))
+                return true;
             if (p->dir == BWD_D && src <= 0) return true;
         default: return false;
     }
@@ -137,7 +143,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
     if (p->dt == dnnl_f32
             && (p->alg == alg_t::GELU || p->alg == alg_t::ELU
                     || p->alg == alg_t::SWISH || p->alg == alg_t::TANH
-                    || p->alg == alg_t::SRELU))
+                    || p->alg == alg_t::SRELU || p->alg == alg_t::LOG))
         trh = 3e-5;
 
     const auto nelems = mem_dt.nelems();
@@ -155,7 +161,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
 
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
 
-        if (!ok) ok = check_extreme_values(p, src);
+        if (!ok) ok = check_extreme_values(p, src, dt);
 
         if (!ok && check_abs_err(p, src, trh)) ok = diff <= trh;
 

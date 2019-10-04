@@ -560,6 +560,161 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector(
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
 }
 
+// Source: J.-M. Muller and others, Handbook of Floating-Point Arithmetic, 2010.
+// Here is a brief mathematics to approximate log(x):
+// log(x) = E * log(2) + log(y), where -log(2)/2 <= log(y) <= log(2)/2;
+// log(y) = log(1 + z) - log(r_i), where z = y * r_i - 1, r_i approximates 1/y,
+//   i is index of one of precomputed values;
+// log(1 + z) ~~ polynom(z), =>
+// if (x is normal)
+//     log(x) ~~ E * log(2) + polynom(z) - log(r_i),
+// where log(r_i) is table value.
+//
+// If (x == 0) result = -inf;
+// If (x < 0) result = qnan;
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::log_compute_vector(const Vmm &vmm_src) {
+    // save source on stack to check neg and zero values at the end
+    h->sub(h->rsp, vlen);
+    h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+
+    // compute i
+    const int index_5bits_off = 1, approx_order = 5;
+    h->uni_vpsrld(vmm_aux1, vmm_src, n_mantissa_bits - approx_order);
+    h->uni_vandps(vmm_aux1, vmm_aux1, table_val(index_5bits_off));
+    h->uni_vpslld(vmm_aux1, vmm_aux1, 1); // multiply i by 2
+
+    // compute anticancellation i
+    h->uni_vpsrld(vmm_aux2, vmm_aux1, approx_order);
+
+    // get E, don't care about sign as only positive numbers are considered
+    h->uni_vpsrld(vmm_aux3, vmm_src, n_mantissa_bits);
+    h->uni_vpaddd(vmm_aux3, vmm_aux3, vmm_aux2);
+    h->uni_vcvtdq2ps(vmm_aux3, vmm_aux3);
+
+    // get m (mantissa)
+    const int mant_mask_off = 2, one_off = 3, exp_bias_off = 4;
+    h->uni_vxorps(vmm_aux2, vmm_aux2, table_val(exp_bias_off));
+    h->uni_vpslld(vmm_aux2, vmm_aux2, n_mantissa_bits);
+    h->uni_vandps(vmm_src, vmm_src, table_val(mant_mask_off));
+    h->uni_vorps(vmm_src, vmm_src, vmm_aux2);
+
+    // At first, adjust indices for table structure which broadcasts elements
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
+        h->uni_vpslld(vmm_aux1, vmm_aux1, 4); // multiply by simd_w = 16
+    } else if (isa == avx2) {
+        h->uni_vpslld(vmm_aux1, vmm_aux1, 3); // multiply by simd_w = 8
+    } else if (isa == sse41) {
+        h->uni_vpslld(vmm_aux1, vmm_aux1, 2); // multiply by simd_w = 4
+    }
+
+    auto gather_table_values = [&](const Vmm &vmm_dst, const Vmm &vmm_idxs,
+                                       size_t offt = 0) {
+        const int table_start_idx = 14;
+        // IMPORTANT: this is a slippery place as gatherps relies on the fact
+        //         that there is integer scale offset: p_table + **vlen**
+        Xbyak::Address table_idx = h->ptr[p_table + vlen
+                + table_start_idx * vlen + offt + vmm_idxs * sizeof(float)];
+        if (utils::one_of(isa, avx512_common, avx512_core)) {
+            h->kmovw(k_mask, table_val(5));
+            h->vgatherdps(vmm_dst | k_mask, table_idx);
+        } else if (isa == avx2) {
+            h->uni_vmovups(vmm_mask, table_val(6));
+            h->vgatherdps(vmm_dst, table_idx, vmm_mask);
+        } else if (isa == sse41) {
+            Xbyak::Reg64 reg_tmp = p_table.getIdx() != Xbyak::util::r9.getIdx()
+                    ? Xbyak::util::r9
+                    : Xbyak::util::r10;
+
+            int gpr_size = 8;
+            // save reg_tmp state as we are not allowed to spoil it.
+            h->sub(h->rsp, gpr_size);
+            h->mov(h->ptr[h->rsp], reg_tmp);
+
+            // rest of code puts indices on stack, fetching a table number based
+            // on an index, replaces index with the value, and, finally, moves
+            // fetched values into vector register.
+            h->sub(h->rsp, vlen);
+            h->uni_vmovups(h->ptr[h->rsp], vmm_idxs);
+
+            for (size_t i = 0; i < vlen / sizeof(float); ++i) {
+                h->mov(reg_tmp.cvt32(), h->ptr[h->rsp + i * sizeof(float)]);
+                h->shl(reg_tmp.cvt32(), 2); // multiply by simd_w
+                // IMPORTANT: same notice as above
+                table_idx = h->ptr[p_table + vlen + table_start_idx * vlen
+                        + offt + reg_tmp];
+                h->mov(reg_tmp.cvt32(), table_idx);
+                h->mov(h->ptr[h->rsp + i * sizeof(float)], reg_tmp.cvt32());
+            }
+
+            h->uni_vmovups(vmm_dst, h->ptr[h->rsp]);
+            h->add(h->rsp, vlen);
+            // restore GPR state
+            h->mov(reg_tmp, h->ptr[h->rsp]);
+            h->add(h->rsp, gpr_size);
+        }
+    };
+
+    // get r_i, same as table(i)
+    gather_table_values(vmm_aux2, vmm_aux1, 0);
+
+    // compute relative error (rel_err = m * r_i - 1)
+    h->uni_vfmsub213ps(vmm_aux2, vmm_src, table_val(one_off));
+
+    // compute polynom(rel_err)
+    const int p0_off = 7, p1_off = 8, p2_off = 9, p3_off = 10, p4_off = one_off;
+    h->uni_vmovups(vmm_src, table_val(p0_off));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(p1_off));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(p2_off));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(p3_off));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux2, table_val(p4_off));
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
+
+    // get log(r_i) = table(i+1)
+    gather_table_values(vmm_aux2, vmm_aux1, vlen);
+
+    // compute partial result (pres = E * log(2) - log(r_i))
+    const int log2_const_off = 11;
+    h->uni_vfmadd231ps(vmm_aux2, vmm_aux3, table_val(log2_const_off));
+
+    // compute (result = polynom + pres) w/ TwoSum algorithm
+    // TODO: restore this instead of version below when asserts are gone
+    // h->uni_vaddps(vmm_aux1, vmm_src, vmm_aux2); // res_hi = pol + pres
+    // h->uni_vsubps(vmm_aux3, vmm_aux1, vmm_aux2); // res_lo = res_hi - pres
+    // h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src); // res_lo = res_lo - pol
+    // h->uni_vaddps(vmm_src, vmm_aux1, vmm_aux3); // res_hi = pol + pres
+
+    h->uni_vmovups(vmm_aux1, vmm_src);
+    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_aux2); // res_hi = pol + pres
+    h->uni_vmovups(vmm_aux3, vmm_aux1);
+    h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_aux2); // res_lo = res_hi - pres
+    h->uni_vsubps(vmm_aux3, vmm_aux3, vmm_src); // res_lo = res_lo - pol
+    h->uni_vmovups(vmm_src, vmm_aux1);
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux3); // res_hi = pol + pres
+
+    // Check original source for zero and neg values. skip blend w/ extreme
+    // values if all src values were positive.
+    h->uni_vmovups(vmm_aux1, h->ptr[h->rsp]);
+    h->add(h->rsp, vlen);
+
+    Xbyak::Label end_log_label;
+    const int zero_off = 0;
+    compute_cmp_mask(vmm_aux1, table_val(zero_off), _cmp_le_os);
+    test_mask();
+    h->jz(end_log_label);
+
+    // Blend extreme values into src if reach here, first zero then negative
+    const int minus_inf_off = 12;
+    compute_cmp_mask(vmm_aux1, table_val(zero_off), _cmp_eq_oq);
+    blend_with_mask(vmm_src, table_val(minus_inf_off));
+
+    const int qnan_off = 13;
+    compute_cmp_mask(vmm_aux1, table_val(zero_off), _cmp_lt_os);
+    blend_with_mask(vmm_src, table_val(qnan_off));
+
+    h->L(end_log_label);
+}
+
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::relu_prepare_table() {
     for (size_t d = 0; d < vlen / sizeof(float); ++d)
@@ -655,6 +810,98 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_prepare_table() {
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::log_prepare_table() {
+    for (size_t d = 0; d < vlen / sizeof(float); ++d)
+        h->dd(0); //  [0] zero
+
+    const unsigned int cvals[] = {
+            0x0000001f, //  [1] 31 = 2^approx_order - 1
+            0x007fffff, //  [2] mask for mantissa bits
+            0x3f800000, //  [3] 1.0f, also a mask for exponent bits
+            0x0000007f, //  [4] 127: exponent bias
+            0x0000ffff, //  [5] k_mask set of one
+            0xffffffff, //  [6] set vmm_mask full of ones
+            0x3e4cc8a3, //  [7] p0 =  0.199984118f
+            0xbe8004ab, //  [8] p1 = -0.250035613f
+            0x3eaaaaab, //  [9] p2 =  0.333333343f
+            0xbf000000, // [10] p3 = -0.5f
+            0x3f317218, // [11] log(2)
+            0xff800000, // [12] -inf for zero src values
+            0x7fc00000, // [13] qnan for negative src values
+            // table values for log. notation: "i: value(i)"
+            0x3f800000, // [14]  0: 1
+            0xc2b00f34, // [15]  1: -88.029693603515625
+            0x3f780000, // [16]  2: 0.96875
+            0xc2affef2, // [17]  3: -87.9979400634765625
+            0x3f700000, // [18]  4: 0.9375
+            0xc2afee29, // [19]  5: -87.96515655517578125
+            0x3f680000, // [20]  6: 0.90625
+            0xc2afdccd, // [21]  7: -87.93125152587890625
+            0x3f600000, // [22]  8: 0.875
+            0xc2afcad6, // [23]  9: -87.8961639404296875
+            0x3f580000, // [24] 10: 0.84375
+            0xc2afb837, // [25] 11: -87.85979461669921875
+            0x3f580000, // [26] 12: 0.84375
+            0xc2afb837, // [27] 13: -87.85979461669921875
+            0x3f500000, // [28] 14: 0.8125
+            0xc2afa4e4, // [29] 15: -87.822052001953125
+            0x3f480000, // [30] 16: 0.78125
+            0xc2af90cf, // [31] 17: -87.78282928466796875
+            0x3f480000, // [32] 18: 0.78125
+            0xc2af90cf, // [33] 19: -87.78282928466796875
+            0x3f400000, // [34] 20: 0.75
+            0xc2af7be9, // [35] 21: -87.74201202392578125
+            0x3f400000, // [36] 22: 0.75
+            0xc2af7be9, // [37] 23: -87.74201202392578125
+            0x3f380000, // [38] 24: 0.71875
+            0xc2af661e, // [39] 25: -87.6994476318359375
+            0x3f380000, // [40] 26: 0.71875
+            0xc2af661e, // [41] 27: -87.6994476318359375
+            0x3f300000, // [42] 28: 0.6875
+            0xc2af4f5c, // [43] 29: -87.654998779296875
+            0x3f300000, // [44] 30: 0.6875
+            0xc2af4f5c, // [45] 31: -87.654998779296875
+            0x3fa80000, // [46] 32: 1.3125
+            0xc2b09a6f, // [47] 33: -88.30162811279296875
+            0x3fa80000, // [48] 34: 1.3125
+            0xc2b09a6f, // [49] 35: -88.30162811279296875
+            0x3fa00000, // [50] 36: 1.25
+            0xc2b08174, // [51] 37: -88.252838134765625
+            0x3fa00000, // [52] 38: 1.25
+            0xc2b08174, // [53] 39: -88.252838134765625
+            0x3fa00000, // [54] 40: 1.25
+            0xc2b08174, // [55] 41: -88.252838134765625
+            0x3f980000, // [56] 42: 1.1875
+            0xc2b06731, // [57] 43: -88.20154571533203125
+            0x3f980000, // [58] 44: 1.1875
+            0xc2b06731, // [59] 45: -88.20154571533203125
+            0x3f900000, // [60] 46: 1.125
+            0xc2b04b82, // [61] 47: -88.1474761962890625
+            0x3f900000, // [62] 48: 1.125
+            0xc2b04b82, // [63] 49: -88.1474761962890625
+            0x3f900000, // [64] 50: 1.125
+            0xc2b04b82, // [65] 51: -88.1474761962890625
+            0x3f900000, // [66] 52: 1.125
+            0xc2b04b82, // [67] 53: -88.1474761962890625
+            0x3f880000, // [68] 54: 1.0625
+            0xc2b02e3e, // [69] 55: -88.0903167724609375
+            0x3f880000, // [70] 56: 1.0625
+            0xc2b02e3e, // [71] 57: -88.0903167724609375
+            0x3f880000, // [72] 58: 1.0625
+            0xc2b02e3e, // [73] 59: -88.0903167724609375
+            0x3f800000, // [74] 60: 1
+            0xc2b00f34, // [75] 61: -88.029693603515625
+            0x3f800000, // [76] 62: 1
+            0xc2b00f34, // [77] 63: -88.029693603515625
+    };
+
+    for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
+        for (size_t d = 0; d < vlen / sizeof(float); ++d)
+            h->dd(cvals[i]);
+    }
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::abs_prepare_table() {
     for (size_t d = 0; d < vlen / sizeof(float); ++d)
         h->dd(0x7fffffff);
@@ -690,6 +937,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
         case alg_kind::eltwise_logistic: return 4;
         case alg_kind::eltwise_exp: return 3;
         case alg_kind::eltwise_gelu: return 5;
+        case alg_kind::eltwise_log: return 5;
         default: assert(!"unsupported eltwise algorithm");
     }
 
@@ -722,6 +970,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
             case eltwise_logistic: logistic_compute_vector(Vmm(idx)); break;
             case eltwise_exp: exp_compute_vector(Vmm(idx)); break;
             case eltwise_gelu: gelu_compute_vector(Vmm(idx)); break;
+            case eltwise_log: log_compute_vector(Vmm(idx)); break;
             default: assert(!"unsupported eltwise algorithm");
         }
         if (scale_ != 1.f) {
@@ -766,6 +1015,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
             case eltwise_abs: abs_prepare_table(); break;
             case eltwise_sqrt: sqrt_prepare_table(); break;
             case eltwise_linear: linear_prepare_table(); break;
+            case eltwise_log: log_prepare_table(); break;
             case eltwise_square: break;
             default: assert(!"unsupported eltwise algorithm");
         }

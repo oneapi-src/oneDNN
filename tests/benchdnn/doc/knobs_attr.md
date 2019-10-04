@@ -47,6 +47,7 @@ Eltwise operations that support no alpha or beta:
   - `abs`
   - `exp`
   - `gelu`
+  - `log`
   - `logistic`
   - `sqrt`
   - `square`

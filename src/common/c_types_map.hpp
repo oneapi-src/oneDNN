@@ -76,6 +76,7 @@ const alg_kind_t eltwise_soft_relu = dnnl_eltwise_soft_relu;
 const alg_kind_t eltwise_logistic = dnnl_eltwise_logistic;
 const alg_kind_t eltwise_exp = dnnl_eltwise_exp;
 const alg_kind_t eltwise_gelu = dnnl_eltwise_gelu;
+const alg_kind_t eltwise_log = dnnl_eltwise_log;
 const alg_kind_t pooling_max = dnnl_pooling_max;
 const alg_kind_t pooling_avg = dnnl_pooling_avg;
 const alg_kind_t pooling_avg_include_padding = dnnl_pooling_avg_include_padding;

@@ -316,12 +316,22 @@ inline U gelu_bwd(T dd, T s) {
     return (U)(dd * 0.5 * (1. + v) * (1. + s * (1 - v) * dg));
 }
 
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U log_fwd(T s) {
+    return (U)(::logf((float)s));
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U log_bwd(T dd, T s) {
+    return (U)(dd * (1.f / (float)s));
+}
+
 inline bool eltwise_fwd_preserves_zero(alg_kind_t alg, bool jit_impl = false) {
     using namespace alg_kind;
     using namespace utils;
     const bool preserves_zero = true
             && !one_of(alg, eltwise_linear, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp)
+                    eltwise_exp, eltwise_log)
             && IMPLICATION(jit_impl, !one_of(alg, eltwise_elu, eltwise_tanh));
     return preserves_zero;
 }

@@ -23,6 +23,7 @@ The following operations are supported:
 | exp          | #dnnl_eltwise_exp          | \f$ f(x) = e^x \f$
 | gelu         | #dnnl_eltwise_gelu         | \f$ f(x) = 0.5 x (1 + tanh[\sqrt{\frac{2}{\pi}} (x + 0.044715 x^3)])\f$
 | linear       | #dnnl_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
+| log          | #dnnl_eltwise_log          | \f$ f(x) = \log_{e}{x} \f$
 | logistic     | #dnnl_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
 | relu         | #dnnl_eltwise_relu         | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
 | soft_relu    | #dnnl_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$

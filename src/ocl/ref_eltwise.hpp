@@ -51,7 +51,8 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                             alg_kind::eltwise_elu, alg_kind::eltwise_square,
                             alg_kind::eltwise_sqrt, alg_kind::eltwise_soft_relu,
                             alg_kind::eltwise_logistic, alg_kind::eltwise_exp,
-                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish)
+                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish,
+                            alg_kind::eltwise_log)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::bf16,
                             data_type::s32, data_type::s8)
@@ -124,7 +125,8 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                             alg_kind::eltwise_elu, alg_kind::eltwise_square,
                             alg_kind::eltwise_sqrt, alg_kind::eltwise_soft_relu,
                             alg_kind::eltwise_logistic, alg_kind::eltwise_exp,
-                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish)
+                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish,
+                            alg_kind::eltwise_log)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
                     && set_default_formats_common()

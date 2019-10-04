@@ -7,13 +7,13 @@
 --dt=bf16
 --tag=nchw,nhwc,nChw16c
 # TODO: enable `swish` when testing accuracy issue fixed
---alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu,srelu
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu,srelu,log
 4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
 
 --dir=FWD_D,BWD_D
 --dt=bf16
 --tag=ncdhw,ndhwc,nCdhw16c
 # TODO: enable `swish` when testing accuracy issue fixed
---alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu,srelu
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,logistic,exp,gelu,srelu,log
 2x16x6x2x8 3x15x5x2x3
 

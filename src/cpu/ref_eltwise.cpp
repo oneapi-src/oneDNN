@@ -47,6 +47,7 @@ static float compute_eltwise_scalar_fwd(
         case eltwise_exp: d = exp_fwd(s); break;
         case eltwise_gelu: d = gelu_fwd(s); break;
         case eltwise_swish: d = swish_fwd(s, alpha); break;
+        case eltwise_log: d = log_fwd(s); break;
         default: assert(!"unknown eltwise alg_kind");
     }
     return d;
@@ -69,6 +70,7 @@ static float compute_eltwise_scalar_bwd(
         case eltwise_exp: ds = exp_bwd(dd, s); break;
         case eltwise_gelu: ds = gelu_bwd(dd, s); break;
         case eltwise_swish: ds = swish_bwd(dd, s, alpha); break;
+        case eltwise_log: ds = log_bwd(dd, s); break;
         default: assert(!"unknown eltwise alg_kind");
     }
     return ds;
@@ -80,7 +82,7 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_exp, eltwise_gelu, eltwise_swish));
+            eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log));
 }
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(

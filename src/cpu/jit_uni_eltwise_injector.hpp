@@ -51,7 +51,7 @@ struct jit_uni_eltwise_injector_f32 {
         assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                eltwise_exp, eltwise_gelu, eltwise_swish));
+                eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log));
     }
 
     jit_uni_eltwise_injector_f32(jit_generator *host,
@@ -81,6 +81,7 @@ private:
 
     // if only the injector was inherited from jit_generator...
     enum {
+        _cmp_eq_oq = jit_generator::_cmp_eq_oq,
         _cmp_lt_os = jit_generator::_cmp_lt_os,
         _cmp_le_os = jit_generator::_cmp_le_os,
         _cmp_ge_os = jit_generator::_cmp_nlt_us,
@@ -131,6 +132,7 @@ private:
     void logistic_compute_vector(const Vmm &vmm_src);
     void gelu_compute_vector(const Vmm &vmm_src);
     void swish_compute_vector(const Vmm &vmm_src);
+    void log_compute_vector(const Vmm &vmm_src);
 
     void relu_prepare_table();
     void elu_prepare_table();
@@ -138,6 +140,7 @@ private:
     void abs_prepare_table();
     void sqrt_prepare_table();
     void linear_prepare_table();
+    void log_prepare_table();
 };
 
 } // namespace cpu

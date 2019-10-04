@@ -695,6 +695,8 @@ typedef enum {
     dnnl_eltwise_gelu = 0xcf,
     /// Eltwise: swish
     dnnl_eltwise_swish = 0xdf,
+    /// Eltwise: natural logarithm
+    dnnl_eltwise_log = 0xef,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding
@@ -1030,7 +1032,7 @@ typedef struct {
     /// #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
     /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
     /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu,
-    /// #dnnl_eltwise_swish.
+    /// #dnnl_eltwise_swish, #dnnl_eltwise_log.
     dnnl_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     dnnl_memory_desc_t data_desc;
@@ -1051,6 +1053,7 @@ typedef struct {
     ///  - #dnnl_eltwise_exp: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_gelu: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
+    ///  - #dnnl_eltwise_log: @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 

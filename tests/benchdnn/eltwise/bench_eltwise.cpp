@@ -76,6 +76,7 @@ void check_correctness() {
             case pk::ABS:
             case pk::EXP:
             case pk::GELU:
+            case pk::LOG:
             case pk::LOGISTIC:
             case pk::SQRT:
             case pk::SQUARE:
