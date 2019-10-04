@@ -268,6 +268,13 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             int sic = rnn_conf_.sic;
             int dic = rnn_conf_.dic;
 
+            int layer_merged_size = rnn_conf_.merge_gemm_layer
+                    ? batch * rnn_conf_.n_iter
+                    : batch;
+            int iter_merged_size = rnn_conf_.merge_gemm_iter
+                    ? batch * rnn_conf_.n_iter
+                    : batch;
+
             bool gemm_ok = true;
 
             switch (aprop) {
@@ -275,8 +282,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     gemm_ok = true
                             && utils::everyone_is(status::success,
                                     create_gemm_pd(&gemm_layer_pd_,
-                                            n_gates * dic, batch, slc,
-                                            rnn_conf_.weights_layer_ld,
+                                            n_gates * dic, layer_merged_size,
+                                            slc, rnn_conf_.weights_layer_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.gates_ws_ld, weights_type,
                                             src_type, rnn_conf_.acc_data_type,
@@ -299,22 +306,24 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                                             rnn_conf_.states_ws_ld,
                                             weights_type, src_type, src_type,
                                             false, 0.0f),
-                                    create_gemm_pd(&gemm_layer_pd_, slc, batch,
-                                            n_gates * dic,
+                                    create_gemm_pd(&gemm_layer_pd_, slc,
+                                            layer_merged_size, n_gates * dic,
                                             rnn_conf_.weights_layer_ld,
                                             rnn_conf_.gates_ws_ld,
                                             rnn_conf_.states_ws_ld,
                                             weights_type, src_type, src_type,
                                             false, 0.0f),
                                     create_gemm_pd(&gemm_diff_wei_layer_pd_,
-                                            n_gates * dic, slc, batch,
+                                            n_gates * dic, slc,
+                                            layer_merged_size,
                                             rnn_conf_.gates_ws_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.diff_weights_layer_ld,
                                             src_type, src_type, weights_type,
                                             true, 1.0f),
                                     create_gemm_pd(&gemm_diff_wei_iter_pd_,
-                                            n_gates * dic, sic, batch,
+                                            n_gates * dic, sic,
+                                            iter_merged_size,
                                             rnn_conf_.gates_ws_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.diff_weights_iter_ld,

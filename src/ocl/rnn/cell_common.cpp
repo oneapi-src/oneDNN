@@ -50,11 +50,13 @@ cell_execution_sig(
                           batch * rnn.gates_ws_ld)
                         * rnn.acc_data_type_elsz);
 
-        gemm_primitive(ctx, w_input,
-                OFF3(lay, n_layer, dir, n_dir, 0,
-                        rnn.weights_layer_nld * rnn.weights_layer_ld)
-                        * sizeof(wei_t),
-                workspace, offset_input, workspace, offset_gates, gemm_layer);
+        if (!rnn.merge_gemm_layer)
+            gemm_primitive(ctx, w_input,
+                    OFF3(lay, n_layer, dir, n_dir, 0,
+                            rnn.weights_layer_nld * rnn.weights_layer_ld)
+                            * sizeof(wei_t),
+                    workspace, offset_input, workspace, offset_gates,
+                    gemm_layer);
         gemm_primitive(ctx, w_state,
                 OFF3(lay, n_layer, dir, n_dir, 0,
                         rnn.weights_iter_nld * rnn.weights_iter_ld)
@@ -91,48 +93,53 @@ cell_execution_sig(
                                   rnn.states_nld * rnn.states_ws_ld)
                                 * sizeof(src_t),
                 gemm_iter);
-        gemm_primitive(ctx, w_input, offset_w_input, workspace,
-                ws_gates_offset_
-                        + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                  batch * rnn.gates_ws_ld)
-                                * rnn.acc_data_type_elsz,
-                workspace,
-                ws_diff_states_offset_
-                        + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
-                                  n_states + 1, iter, n_iter + 1, 0,
-                                  rnn.states_nld * rnn.states_ws_ld)
-                                * sizeof(src_t),
-                gemm_layer);
-        gemm_primitive(ctx, workspace,
-                ws_gates_offset_
-                        + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                  batch * rnn.gates_ws_ld)
-                                * rnn.acc_data_type_elsz,
-                workspace,
-                ws_states_offset_
-                        + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1,
-                                  n_iter + 1, 0, batch * rnn.states_ws_ld)
-                                * sizeof(src_t),
-                diff_weights_layer,
-                OFF3(lay, n_layer, dir, n_dir, 0,
-                        rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld)
-                        * sizeof(wei_t),
-                gemm_diff_wei_layer);
-        gemm_primitive(ctx, workspace,
-                ws_gates_offset_
-                        + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                  batch * rnn.gates_ws_ld)
-                                * rnn.acc_data_type_elsz,
-                workspace,
-                ws_states_offset_
-                        + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter,
-                                  n_iter + 1, 0, batch * rnn.states_ws_ld)
-                                * sizeof(src_t),
-                diff_weights_iter,
-                OFF3(lay, n_layer, dir, n_dir, 0,
-                        rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld)
-                        * sizeof(wei_t),
-                gemm_diff_wei_iter);
+        if (!rnn.merge_gemm_layer) {
+            gemm_primitive(ctx, w_input, offset_w_input, workspace,
+                    ws_gates_offset_
+                            + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
+                                      batch * rnn.gates_ws_ld)
+                                    * rnn.acc_data_type_elsz,
+                    workspace,
+                    ws_diff_states_offset_
+                            + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
+                                      n_states + 1, iter, n_iter + 1, 0,
+                                      rnn.states_nld * rnn.states_ws_ld)
+                                    * sizeof(src_t),
+                    gemm_layer);
+            gemm_primitive(ctx, workspace,
+                    ws_gates_offset_
+                            + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
+                                      batch * rnn.gates_ws_ld)
+                                    * rnn.acc_data_type_elsz,
+                    workspace,
+                    ws_states_offset_
+                            + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1,
+                                      n_iter + 1, 0, batch * rnn.states_ws_ld)
+                                    * sizeof(src_t),
+                    diff_weights_layer,
+                    OFF3(lay, n_layer, dir, n_dir, 0,
+                            rnn.diff_weights_layer_nld
+                                    * rnn.diff_weights_layer_ld)
+                            * sizeof(wei_t),
+                    gemm_diff_wei_layer);
+        }
+        if (!rnn.merge_gemm_iter)
+            gemm_primitive(ctx, workspace,
+                    ws_gates_offset_
+                            + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
+                                      batch * rnn.gates_ws_ld)
+                                    * rnn.acc_data_type_elsz,
+                    workspace,
+                    ws_states_offset_
+                            + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter,
+                                      n_iter + 1, 0, batch * rnn.states_ws_ld)
+                                    * sizeof(src_t),
+                    diff_weights_iter,
+                    OFF3(lay, n_layer, dir, n_dir, 0,
+                            rnn.diff_weights_iter_nld
+                                    * rnn.diff_weights_iter_ld)
+                            * sizeof(wei_t),
+                    gemm_diff_wei_iter);
 
         gates_reduction(
                 ctx, dir, lay, iter, n_gates, dic, batch, workspace, diff_bias);
