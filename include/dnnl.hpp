@@ -220,7 +220,6 @@ struct primitive_desc;
 class primitive : public handle<dnnl_primitive_t> {
     friend struct error;
     friend struct stream;
-    using handle::handle;
 
 public:
     /// Kinds of primitives. Used to implement a way to extend the library with
@@ -259,6 +258,10 @@ public:
         /// A binary primitive.
         binary = dnnl_binary,
     };
+
+    using handle::handle;
+
+    primitive() = default;
 
     /// Constructs a primitive from a C primitive descriptor @p c_pd.
     primitive(const_dnnl_primitive_desc_t c_pd);
