@@ -33,7 +33,7 @@ struct _jit_avx512_core_fp32_wino_conv_4x3_data_kernel
     : public jit_generator {
     _jit_avx512_core_fp32_wino_conv_4x3_data_kernel(
             jit_conv_winograd_conf_t ajcp)
-        : jcp(ajcp) {
+        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {
         {
             this->weights_transform_data_ker_generate();
             weights_transform_data_ker
@@ -182,8 +182,7 @@ struct jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel
 
     jit_avx512_core_fp32_wino_conv_4x3_bwd_weights_kernel(
             jit_conv_winograd_conf_t ajcp)
-        : jcp(ajcp)
-    {
+        : jit_generator(nullptr, MAX_CODE_SIZE, false), jcp(ajcp) {
         //******************* First iter kernel ********************//
         this->gemm_loop_generate(true);
         gemm_loop_ker_first_iter = (decltype(gemm_loop_ker_first_iter))this->getCode();
