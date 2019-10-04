@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -191,17 +191,11 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
     parallel_nd(outer_size_, [&](int ou) {
         data_t sbr = 0;
         size_t off = ou * ou_stride;
-        for (int c = 0; c < channels_; ++c) {
-            size_t loff = off + c;
-            data_t ldata = dst[loff];
-            sbr += diff_dst[loff] * ldata;
-            diff_src[loff] = ldata;
-        }
+        for (size_t loff = off; loff < off + channels_; ++loff)
+            sbr += diff_dst[loff] * dst[loff];
 
-        for (int c = 0; c < channels_; ++c) {
-            size_t loff = off + c;
-            diff_src[loff] *= (diff_dst[loff] - sbr);
-        }
+        for (size_t loff = off; loff < off + channels_; ++loff)
+            diff_src[loff] = dst[loff] * (diff_dst[loff] - sbr);
     });
 }
 

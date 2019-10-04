@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -123,6 +123,13 @@ protected:
         shuffle_fwd_prim_desc = shuffle_forward::primitive_desc(
                 shuffle_fwd_prim_desc.get()); // test construction from a C pd
 
+        ASSERT_TRUE(
+                shuffle_fwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == shuffle_fwd_prim_desc.src_desc());
+        ASSERT_TRUE(
+                shuffle_fwd_prim_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == shuffle_fwd_prim_desc.dst_desc());
+
         test_memory src(src_desc, eng);
         test_memory dst(dst_desc, eng);
 
@@ -152,6 +159,13 @@ protected:
                 shuffle_desc, eng, shuffle_fwd_prim_desc);
         shuffle_prim_desc = shuffle_backward::primitive_desc(
                 shuffle_prim_desc.get()); // test construction from a C pd
+
+        ASSERT_TRUE(shuffle_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == shuffle_prim_desc.diff_src_desc());
+        ASSERT_TRUE(shuffle_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == shuffle_prim_desc.diff_dst_desc());
 
         fill_data<data_t>(diff_dst.get_size() / sizeof(data_t), diff_dst.get());
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -188,6 +188,19 @@ void test2() {
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_weights_md, 1)));
     CHECK_TRUE(dnnl_memory_desc_equal(&c3_dst_md,
             dnnl_primitive_desc_query_md(c3_pd, dnnl_query_dst_md, 0)));
+
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_src_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_SRC)));
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_weights_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_WEIGHTS)));
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_bias_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_BIAS)));
+    CHECK_TRUE(dnnl_memory_desc_equal(&c3_dst_md,
+            dnnl_primitive_desc_query_md(
+                    c3_pd, dnnl_query_exec_arg_md, DNNL_ARG_DST)));
 
     /* create a convolution and execute it */
     CHECK(dnnl_primitive_create(&c3, c3_pd));

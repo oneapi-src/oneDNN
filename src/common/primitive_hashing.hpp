@@ -322,10 +322,11 @@ size_t get_desc_hash<gemm_desc_t>(const op_desc_t *op_desc) {
     // Alpha, beta
     seed = hash_combine(seed, desc->alpha);
     seed = hash_combine(seed, desc->beta);
-    // a_type, b_type, c_type
+    // a_type, b_type, c_type, acc_type
     seed = hash_combine(seed, static_cast<size_t>(desc->a_type));
     seed = hash_combine(seed, static_cast<size_t>(desc->b_type));
     seed = hash_combine(seed, static_cast<size_t>(desc->c_type));
+    seed = hash_combine(seed, static_cast<size_t>(desc->acc_type));
     // Combined hash for gemm desc
     return seed;
 }

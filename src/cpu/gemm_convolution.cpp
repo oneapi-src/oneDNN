@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -128,6 +128,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
                             for (int oS = 0; oS < m; ++oS) {
                                 d_[oS] += b;
                                 if (d_[oS] < 0) d_[oS] *= eltwise_->alpha_;
+                                d_[oS] *= eltwise_->scale_;
                             }
                         });
                     } else {

@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2018 Intel Corporation
+# Copyright 2016-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ endif()
 
 # TODO: enable me!
 file(GLOB PRIM_TEST_CASES_SRC
+                              test_iface_pd.cpp
                               test_iface_pd_iter.cpp
                               test_iface_attr.cpp
                               test_iface_handle.cpp
@@ -72,11 +73,13 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_deconvolution.cpp
                               test_gemm_f16.cpp
                               test_gemm_f32.cpp
+                              test_gemm_f16f16f32.cpp
+                              test_gemm_bf16bf16f32.cpp
+                              test_gemm_bf16bf16bf16.cpp
                               test_gemm_u8s8s32.cpp
                               test_gemm_s8s8s32.cpp
                               test_gemm_s8u8s32.cpp
                               test_gemm_u8u8s32.cpp
-                              test_gemm_bf16bf16f32.cpp
                               test_rnn_forward.cpp
                               test_layer_normalization.cpp
                               test_binary.cpp

@@ -66,6 +66,13 @@ struct concat_pd_t : public primitive_desc_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        int src_index = arg - DNNL_ARG_MULTIPLE_SRC;
+        if (src_index >= 0 && src_index < n_inputs()) return src_md(src_index);
+        if (arg == DNNL_ARG_DST) return dst_md(0);
+        return primitive_desc_t::arg_md(arg);
+    }
+
     virtual const memory_desc_t *src_md(int index = 0) const override {
         return index < n_inputs() ? &src_mds_[index] : &glob_zero_md;
     }

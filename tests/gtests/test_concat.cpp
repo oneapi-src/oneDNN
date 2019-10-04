@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -145,6 +145,14 @@ protected:
                 dst_desc, static_cast<int>(p.concat_dimension), srcs_md, eng);
         // test construction from a C pd
         concat_pd = concat::primitive_desc(concat_pd.get());
+
+        ASSERT_TRUE(concat_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == concat_pd.dst_desc());
+        for (size_t i = 0; i < srcs.size(); i++)
+            ASSERT_TRUE(concat_pd.query_md(
+                                query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
+                    == concat_pd.src_desc(i));
+
         auto dst = memory(concat_pd.dst_desc(), eng);
         fill_data<data_t>(dst.get_desc().get_size() / sizeof(data_t), dst);
         check_zero_tail<data_t>(1, dst);

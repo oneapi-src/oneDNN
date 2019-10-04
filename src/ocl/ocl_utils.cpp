@@ -51,8 +51,16 @@ status_t get_ocl_devices(
             plat_devices.resize(num_devices);
             OCL_CHECK(clGetDeviceIDs(platforms[i], device_type, num_devices,
                     &plat_devices[0], nullptr));
-            devices->swap(plat_devices);
-            return status::success;
+
+            // Use Intel devices only
+            for (size_t j = 0; j < plat_devices.size(); ++j) {
+                cl_uint vendor_id;
+                clGetDeviceInfo(plat_devices[j], CL_DEVICE_VENDOR_ID,
+                        sizeof(cl_uint), &vendor_id, NULL);
+                if (vendor_id == 0x8086) {
+                    devices->push_back(plat_devices[j]);
+                }
+            }
         }
     }
     // No devices found but still return success

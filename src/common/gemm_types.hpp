@@ -66,7 +66,7 @@ typedef struct {
     /** Offset of B. */
     dnnl_dim_t bo;
 
-    /** Scaling factor for A*B. */
+    /** Scaling factor for A * B. */
     float alpha;
     /** Scaling factor for C. */
     float beta;
@@ -76,6 +76,8 @@ typedef struct {
     dnnl_data_type_t b_type;
     /** Type of matrix C. */
     dnnl_data_type_t c_type;
+    /** Type for accumulating A*B. */
+    dnnl_data_type_t acc_type;
 } dnnl_gemm_desc_t;
 
 } // namespace impl

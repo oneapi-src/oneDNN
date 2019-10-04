@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -132,9 +132,11 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
         REG_SR_BIDIR(f32, any, f32, nCw4c),
         REG_SR_BIDIR(f32, any, f32, nCw8c),
         REG_SR_BIDIR(f32, any, f32, OIw4i4o),
+        REG_SR_BIDIR(f32, any, f32, OIw4o4i),
         REG_SR_BIDIR(f32, any, f32, OIw8i8o),
         REG_SR_BIDIR(f32, any, f32, OIw8o8i),
         REG_SR_BIDIR(f32, any, f32, gOIw4i4o),
+        REG_SR_BIDIR(f32, any, f32, gOIw4o4i),
         REG_SR_BIDIR(f32, any, f32, gOIw8i8o),
         REG_SR_BIDIR(f32, any, f32, gOIw8o8i),
 
@@ -149,6 +151,7 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
         REG_SR_BIDIR(f32, any, f32, nChw4c),
         REG_SR_BIDIR(f32, any, f32, nChw8c),
         REG_SR_BIDIR(f32, any, f32, OIhw4i4o),
+        REG_SR_BIDIR(f32, any, f32, OIhw4o4i),
         REG_SR_BIDIR(f32, any, f32, Ohwi8o),
 
         REG_SR_BIDIR(f32, any, f32, OIhw8i8o),
@@ -178,10 +181,12 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
         REG_SR_BIDIR(f32, any, f32, nCdhw4c),
         REG_SR_BIDIR(f32, any, f32, nCdhw8c),
         REG_SR_BIDIR(f32, any, f32, OIdhw4i4o),
+        REG_SR_BIDIR(f32, any, f32, OIdhw4o4i),
         REG_SR_BIDIR(f32, any, f32, Odhwi8o),
         REG_SR_BIDIR(f32, any, f32, OIdhw8i8o),
         REG_SR_BIDIR(f32, any, f32, OIdhw8o8i),
         REG_SR_BIDIR(f32, any, f32, gOIdhw4i4o),
+        REG_SR_BIDIR(f32, any, f32, gOIdhw4o4i),
         REG_SR_BIDIR(f32, any, f32, gOdhwi8o),
         REG_SR_BIDIR(f32, any, f32, gOIdhw8i8o),
         REG_SR_BIDIR(f32, any, f32, gOIdhw8o8i),

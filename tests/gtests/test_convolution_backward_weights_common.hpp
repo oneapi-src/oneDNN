@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #ifndef TEST_CONVOLUTION_BACKWARD_WEIGHTS_COMMON_H
 #define TEST_CONVOLUTION_BACKWARD_WEIGHTS_COMMON_H
 
@@ -207,6 +208,19 @@ protected:
                 = convolution_backward_weights::primitive_desc(
                         conv_bwd_weights_primitive_desc
                                 .get()); // test construction from a C pd
+
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_SRC)
+                == conv_bwd_weights_primitive_desc.src_desc());
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == conv_bwd_weights_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS)
+                == conv_bwd_weights_primitive_desc.diff_weights_desc());
+        ASSERT_TRUE(conv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
+                == conv_bwd_weights_primitive_desc.diff_bias_desc());
 
         convolution_backward_weights(conv_bwd_weights_primitive_desc)
                 .execute(strm,

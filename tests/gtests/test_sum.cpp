@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -159,6 +159,13 @@ protected:
         ASSERT_NO_THROW(dst = memory(sum_pd.dst_desc(), eng));
         // test construction from a C pd
         sum_pd = sum::primitive_desc(sum_pd.get());
+
+        ASSERT_TRUE(sum_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == sum_pd.dst_desc());
+        for (size_t i = 0; i < srcs.size(); i++)
+            ASSERT_TRUE(sum_pd.query_md(
+                                query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
+                    == sum_pd.src_desc(i));
 
         {
             auto dst_data = map_memory<dst_data_t>(dst);

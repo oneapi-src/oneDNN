@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -199,6 +199,18 @@ protected:
 
         check_zero_tail<data_t>(1, ip_src);
         check_zero_tail<data_t>(1, ip_diff_dst);
+
+        ASSERT_TRUE(ip_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == ip_primitive_desc.src_desc());
+        ASSERT_TRUE(ip_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == ip_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(ip_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS)
+                == ip_primitive_desc.diff_weights_desc());
+        ASSERT_TRUE(ip_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
+                == ip_primitive_desc.diff_bias_desc());
 
         inner_product_backward_weights(ip_primitive_desc)
                 .execute(strm,

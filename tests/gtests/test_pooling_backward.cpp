@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -320,6 +320,16 @@ protected:
                 pool_bwd_desc, eng, pool_prim_desc);
         pool_bwd_prim_desc = pooling_backward::primitive_desc(
                 pool_bwd_prim_desc.get()); // test construction from a C pd
+
+        ASSERT_TRUE(pool_bwd_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == pool_bwd_prim_desc.diff_src_desc());
+        ASSERT_TRUE(pool_bwd_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == pool_bwd_prim_desc.diff_dst_desc());
+        ASSERT_TRUE(pool_bwd_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == pool_bwd_prim_desc.workspace_desc());
 
         memory diff_src(*src_desc, eng);
         memory diff_dst(*dst_desc, eng);

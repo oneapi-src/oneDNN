@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -160,6 +160,16 @@ protected:
                 = convolution_backward_data::primitive_desc(
                         conv_bwd_data_primitive_desc
                                 .get()); // test construction from a C pd
+
+        ASSERT_TRUE(conv_bwd_data_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == conv_bwd_data_primitive_desc.diff_src_desc());
+        ASSERT_TRUE(conv_bwd_data_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == conv_bwd_data_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(conv_bwd_data_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == conv_bwd_data_primitive_desc.weights_desc());
 
         convolution_backward_data(conv_bwd_data_primitive_desc)
                 .execute(strm,

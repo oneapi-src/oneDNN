@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -69,6 +69,16 @@ struct shuffle_pd_t : public primitive_desc_t {
         }
 
         return primitive_desc_t::arg_usage(arg);
+    }
+
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC: return src_md(0);
+            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            default: return primitive_desc_t::arg_md(arg);
+        }
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override {

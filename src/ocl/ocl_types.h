@@ -24,6 +24,11 @@
 #define CONCAt2(a, b) a##b
 #define CONCAT2(a, b) CONCAt2(a, b)
 
+#if (DT_F16 == 1) || (SRC_DT_F16 == 1) || (DST_DT_F16 == 1) \
+        || (WEI_DT_F16 == 1) || (BIA_DT_F16 == 1) || (ACC_DT_F16 == 1)
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
 #if DT_F32 == 1
 #define DATA_T float
 #define DATA8_T float8
@@ -59,7 +64,6 @@
 #define AS_BLOCK_DATA_T as_uint
 #define AS_BLOCK_DATA8_T as_uint8
 #elif DT_F16 == 1
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
 #define DATA_T half
 #define DATA8_T half8

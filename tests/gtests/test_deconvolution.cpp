@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -226,6 +226,19 @@ protected:
         deconv_primitive_desc = deconvolution_forward::primitive_desc(
                 deconv_primitive_desc.get()); // test construction from a C pd
 
+        ASSERT_TRUE(
+                deconv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == deconv_primitive_desc.src_desc());
+        ASSERT_TRUE(
+                deconv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == deconv_primitive_desc.dst_desc());
+        ASSERT_TRUE(deconv_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == deconv_primitive_desc.weights_desc());
+        ASSERT_TRUE(deconv_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_BIAS)
+                == deconv_primitive_desc.bias_desc());
+
         deconvolution_forward(deconv_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_SRC, src->get()},
@@ -295,6 +308,16 @@ protected:
                         deconv_bwd_data_primitive_desc
                                 .get()); // test construction from a C pd
 
+        ASSERT_TRUE(deconv_bwd_data_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == deconv_bwd_data_primitive_desc.diff_src_desc());
+        ASSERT_TRUE(deconv_bwd_data_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == deconv_bwd_data_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(deconv_bwd_data_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == deconv_bwd_data_primitive_desc.weights_desc());
+
         deconvolution_backward_data(deconv_bwd_data_primitive_desc)
                 .execute(strm,
                         {{DNNL_ARG_DIFF_DST, dst->get()},
@@ -346,6 +369,19 @@ protected:
         auto deconv_bwd_weights_primitive_desc
                 = deconvolution_backward_weights::primitive_desc(
                         deconv_bwd_weights_desc, eng, deconv_primitive_desc);
+
+        ASSERT_TRUE(deconv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_SRC)
+                == deconv_bwd_weights_primitive_desc.src_desc());
+        ASSERT_TRUE(deconv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == deconv_bwd_weights_primitive_desc.diff_dst_desc());
+        ASSERT_TRUE(deconv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS)
+                == deconv_bwd_weights_primitive_desc.diff_weights_desc());
+        ASSERT_TRUE(deconv_bwd_weights_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_BIAS)
+                == deconv_bwd_weights_primitive_desc.diff_bias_desc());
 
         deconvolution_backward_weights(deconv_bwd_weights_primitive_desc)
                 .execute(strm,

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -154,6 +154,21 @@ protected:
         bnorm_fwd_pd = batch_normalization_forward::primitive_desc(
                 bnorm_fwd_pd.get()); // test construction from a C pd
 
+        ASSERT_TRUE(bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == bnorm_fwd_pd.src_desc());
+        ASSERT_TRUE(bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == bnorm_fwd_pd.dst_desc());
+        ASSERT_TRUE(bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_MEAN)
+                == bnorm_fwd_pd.mean_desc());
+        ASSERT_TRUE(bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_VARIANCE)
+                == bnorm_fwd_pd.variance_desc());
+        ASSERT_TRUE(
+                bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE_SHIFT)
+                == bnorm_fwd_pd.weights_desc());
+        ASSERT_TRUE(
+                bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == bnorm_fwd_pd.workspace_desc());
+
         weights = memory(bnorm_fwd_pd.weights_desc(), eng);
         if (isTraining || useGlobalStats) {
             mean = memory(bnorm_fwd_pd.mean_desc(), eng);
@@ -194,6 +209,24 @@ protected:
                 bnorm_bwd_d, eng, bnorm_fwd_pd);
         bnorm_bwd_pd = batch_normalization_backward::primitive_desc(
                 bnorm_bwd_pd.get()); // test construction from a C pd
+
+        ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == bnorm_bwd_pd.src_desc());
+        ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == bnorm_bwd_pd.diff_dst_desc());
+        ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_MEAN)
+                == bnorm_bwd_pd.mean_desc()); // a *very* mean desc
+        ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_VARIANCE)
+                == bnorm_bwd_pd.variance_desc());
+        ASSERT_TRUE(
+                bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_SCALE_SHIFT)
+                == bnorm_bwd_pd.weights_desc());
+        ASSERT_TRUE(bnorm_bwd_pd.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SCALE_SHIFT)
+                == bnorm_bwd_pd.diff_weights_desc());
+        ASSERT_TRUE(
+                bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
+                == bnorm_bwd_pd.workspace_desc());
 
         if (useScaleShift) weights = memory(bnorm_bwd_pd.weights_desc(), eng);
         diff_weights = memory(bnorm_bwd_pd.diff_weights_desc(), eng);

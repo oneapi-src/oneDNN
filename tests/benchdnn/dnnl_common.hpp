@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -173,11 +173,6 @@ extern dnnl_engine_kind_t engine_tgt_kind;
 extern dnnl_engine_t engine_tgt;
 extern dnnl_stream_t stream_tgt;
 
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_reorder_set_engine_kind(
-        dnnl_engine_kind_t engine_kind);
-#endif
-
 inline int init() {
     if (!engine_tgt) {
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
@@ -185,23 +180,6 @@ inline int init() {
                          &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
     }
-
-    // Optimization to reduce testing time for GPU.
-    //
-    // For CPU <-> GPU reorders, the library creates GPU-side kernels.
-    // Benchdnn heavily relies on reorders so this greatly increases execution
-    // time because of a big overhead on building OpenCL kernels.
-    //
-    // This moves all such reorders to CPU to reduce testing time. Reorder, sum
-    // and concat primitives are used to test GPU reorders so leave them
-    // without changes.
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    std::string driver = std::string(driver_name);
-    if (driver != std::string("reorder") && driver != std::string("sum")
-            && driver != std::string("concat")) {
-        dnnl_impl_gpu_reorder_set_engine_kind(dnnl_cpu);
-    }
-#endif
 
     return OK;
 }

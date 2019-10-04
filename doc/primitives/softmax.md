@@ -51,7 +51,10 @@ based on
 
 ### General Notes
 
-N/A
+1. Both forward and backward propagation support in-place operations, meaning
+   that `src` can be used as input and output for forward propagation, and
+   `diff_dst` can be used as input and output for backward propagation. In case
+   of in-place operation, the original data will be overwritten.
 
 ### Post-ops and Attributes
 
@@ -82,7 +85,9 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
 
 ## Performance Tips
 
- * Currently the softmax primitive is optimized for the cases where
+1. Use in-place operations whenever possible.
+
+2. Currently the softmax primitive is optimized for the cases where
    the dimension of the softmax axis is physically dense. For instance:
    - Optimized: 2D case, tensor \f$A \times B\f$,
                 softmax axis 1 (B), format tag #dnnl_ab

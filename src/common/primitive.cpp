@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -64,29 +64,13 @@ status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx) {
 
     status_t status = success;
 
-    const int gpu_exec_time_level = 4;
     if (dnnl_verbose()->level) {
         double ms = get_msec();
         status = stream->enqueue_primitive(primitive, ctx);
-        // Do not output execution time for GPU engines unless the verbose
-        // level is at least gpu_exec_time_level
-        if (stream->engine()->kind() == engine_kind::gpu
-                && dnnl_verbose()->level < gpu_exec_time_level) {
-            printf("dnnl_verbose,exec,%s\n", primitive->pd()->info());
-        } else {
-            // GPU engines require synchronization to measure actual time
-            // For CPU engines wait() is no-op
-            stream->wait();
-            ms = get_msec() - ms;
-        }
-
-        engine_kind_t engine_kind = stream->engine()->kind();
-        if (engine_kind == engine_kind::cpu
-                || (engine_kind == engine_kind::gpu
-                        && dnnl_verbose()->level >= gpu_exec_time_level)) {
-            printf("dnnl_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
-            fflush(0);
-        }
+        stream->wait();
+        ms = get_msec() - ms;
+        printf("dnnl_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
+        fflush(0);
     } else {
         status = stream->enqueue_primitive(primitive, ctx);
     }

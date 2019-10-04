@@ -19,6 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "ocl/gemm_inner_product.hpp"
+#include "ocl/gemm_x8s8s32x_inner_product.hpp"
 #include "ocl/jit_gen9_common_convolution.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
 #include "ocl/jit_gen9_gemm_x8x8s32.hpp"
@@ -176,6 +177,7 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_lrn_fwd_t),
         INSTANCE(ref_lrn_bwd_t),
         /*inner_product*/
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t),
         INSTANCE(gemm_inner_product_fwd_t),
         INSTANCE(gemm_inner_product_bwd_data_t),
         INSTANCE(gemm_inner_product_bwd_weights_t),

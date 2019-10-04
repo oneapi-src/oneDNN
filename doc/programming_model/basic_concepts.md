@@ -3,49 +3,47 @@ Basic Concepts {#dev_guide_basic_concepts}
 
 ### Primitives
 
-DNNL is built around the notion of a *primitive* (@ref
-dnnl::primitive), a functor object that encapsulates a particular
-computation such as forward convolution, backward LSTM computations, or a data
-movement operation that changes the way data is laid out in memory. A single
-primitive can sometimes represent more complex, *fused*, computations such as
-a forward convolution followed by a ReLU.
+DNNL is built around the notion of a *primitive* (@ref dnnl::primitive). A
+*primitive* is a functor object that encapsulates a particular computation
+such as forward convolution, backward LSTM computations, or a data
+transformation operation. A single primitive can sometimes represent more
+complex *fused* computations such as a forward convolution followed by a
+ReLU.
 
-The most basic difference between a *primitive* and a *function* is that a
-*primitive* can store **state**. For example, a convolution primitive stores
-operation parameters like tensor shapes and can pre-compute other secondary
-parameters like cache blocking. This also allows pre-generating code
-specifically tailored for the operation to be performed. The time it takes to
-perform the pre-computations can be amortized by reusing the same primitive
-to perform computations multiple times.
+The most important difference between a primitive and a pure function is that
+a primitive can store state.
 
-In addition to encapsulating the state, a primitive can also use a *scratchpad*,
-a temporary memory buffer, that it uses during computations. The scratchpad
-can be either tied to a particular primitive object (which makes that object
-non-thread safe), or provided as one of the parameters during execution.
+One part of the primitive’s state is immutable. For example, convolution
+primitives store parameters like tensor shapes and can pre-compute other
+dependent parameters like cache blocking. This approach allows DNNL primitives
+to pre-generate code specifically tailored for the operation to be performed.
+The DNNL programming model assumes that the time it takes to perform the
+pre-computations is amortized by reusing the same primitive to perform
+computations multiple times.
+
+The mutable part of the primitive’s state is referred to as a scratchpad. It
+is a memory buffer that a primitive may use for temporary storage only during
+computations. The scratchpad can either be owned by a primitive object (which
+makes that object non-thread safe) or be an execution-time parameter.
 
 ### Engines
 
-*Engine* (@ref dnnl::engine) is an abstraction of a particular computational
-device. Currently, the only supported engine is CPU. Most primitives are
-created to perform computations on a particular engine. The only exception is
-reorder primitive, which can be used to transfer data between different engines.
+*Engines* (@ref dnnl::engine) is an abstraction of a computational device: a
+CPU, a specific GPU card in the system, etc. Most primitives are created to
+execute computations on one specific engine. The only exceptions are reorder
+primitives that transfer data between two different engines.
 
 ### Streams
 
 *Streams* (@ref dnnl::stream) encapsulate execution context tied to a
-particular engine.
+particular engine. For example, they can correspond to OpenCL command queues.
 
 ### Memory Objects
 
-*Memory objects* (@ref dnnl::memory) encapsulate engine-specific memory
-handles, tensor dimensions, data type, and memory format -- the way tensor
-data is laid out. (Side note: Formally, primitives should also be referred to
-as *primitive objects*, but because the word 'primitive' is less overloaded than
-'memory', we can omit the 'object' part without causing confusion.)
-
-Memory objects are passed to primitives during execution via a special map
-that defines which tensor (source, destination or weights, or their gradients)
-each memory object represents.
+*Memory objects* (@ref dnnl::memory) encapsulate handles to memory allocated
+on a specific engine, tensor dimensions, data type, and memory format – the
+way tensor indices map to offsets in linear memory space. Memory objects are
+passed to primitives during execution.
 
 ## Levels of Abstraction
 
@@ -54,24 +52,27 @@ in order to expose maximum flexibility to its users.
 
 On the *logical* level, the library provides the following abstractions:
 
-* *Memory descriptor* (@ref dnnl::memory::desc) provides a way to describe a
-  tensor's logical dimensions, data type, and, potentially, the format in which
-  the data is laid out in memory. A memory descriptor can be created with a
-  placeholder format tag (@ref dnnl::memory::format_tag::any), which is used
-  to indicate that the actual format will be defined later (see
-  @ref memory_format_propagation_cpp).
+* *Memory descriptors* (@ref dnnl::memory::desc) define a tensor's logical
+  dimensions, data type, and the format in which the data is laid out in
+  memory. The special format _any_ (@ref dnnl::memory::format_tag::any)
+  indicates that the actual format will be defined later (see @ref
+  memory_format_propagation_cpp).
 
-* *Operation descriptors* (one for each supported primitive) serve a
-  purpose similar to the memory descriptor: they provide a way to describe an
+* *Operation descriptors* (one for each supported primitive) describe an
   operation's most basic properties without specifying, for example, which
-  engine will be used to compute them.
+  engine will be used to compute them. For example, convolution descriptor
+  describes shapes of source, destination, and weights tensors, propagation
+  kind (forward, backward with respect to data or weights), and other
+  implementation-independent parameters.
 
 * *Primitive descriptors* (@ref dnnl_primitive_desc_t; in the C++ API there
   are multiple types for each supported primitive) are at an abstraction level
   in between operation descriptors and primitives and can be used to inspect
-  details of a particular primitive implementation like expected memory
-  formats via *queries* without having to fully instantiate a primitive. The
-  primitive descriptors are crucial to implement memory format propagation.
+  details of a specific primitive implementation like expected memory formats
+  via queries to implement memory format propagation (see @ref
+  memory_format_propagation_cpp) without having to fully instantiate a
+  primitive.
+
 
 | Abstraction level        | Memory object     | Primitive objects    |
 |--------------------------|-------------------|----------------------|

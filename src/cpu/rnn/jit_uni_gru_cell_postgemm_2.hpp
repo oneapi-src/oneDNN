@@ -42,7 +42,7 @@ struct jit_uni_gru_cell_postgemm_part2_fwd : public jit_uni_rnn_postgemm {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for both constant tables as they use the same table
         tanh_injector_ = new injector_t(
-                this, alg_kind::eltwise_tanh, 0.0f, 0.0f, true, rax);
+                this, alg_kind::eltwise_tanh, 0.0f, 0.0f, 1.0f, true, rax);
         generate();
         kernel_ = (kernel_t)this->getCode();
     }

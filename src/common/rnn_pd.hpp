@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -198,6 +198,21 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC_LAYER: return src_md(0);
+            case DNNL_ARG_SRC_ITER: return src_md(1);
+            case DNNL_ARG_SRC_ITER_C: return src_md(2);
+            case DNNL_ARG_WEIGHTS_LAYER: return weights_md(0);
+            case DNNL_ARG_WEIGHTS_ITER: return weights_md(1);
+            case DNNL_ARG_BIAS: return weights_md(2);
+            case DNNL_ARG_DST_LAYER: return dst_md(0);
+            case DNNL_ARG_DST_ITER: return dst_md(1);
+            case DNNL_ARG_DST_ITER_C: return dst_md(2);
+            default: return rnn_pd_t::arg_md(arg);
+        }
+    }
+
     virtual int n_inputs() const override {
         return 3 + with_bias() + with_src_iter() + with_src_iter_c();
     }
@@ -264,6 +279,30 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         if (arg == DNNL_ARG_WORKSPACE) return arg_usage_t::input;
 
         return primitive_desc_t::arg_usage(arg);
+    }
+
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC_LAYER: return src_md(0);
+            case DNNL_ARG_SRC_ITER: return src_md(1);
+            case DNNL_ARG_SRC_ITER_C: return src_md(2);
+            case DNNL_ARG_DIFF_SRC_LAYER: return diff_src_md(0);
+            case DNNL_ARG_DIFF_SRC_ITER: return diff_src_md(1);
+            case DNNL_ARG_DIFF_SRC_ITER_C: return diff_src_md(2);
+            case DNNL_ARG_WEIGHTS_LAYER: return weights_md(0);
+            case DNNL_ARG_WEIGHTS_ITER: return weights_md(1);
+            case DNNL_ARG_BIAS: return weights_md(2);
+            case DNNL_ARG_DIFF_WEIGHTS_LAYER: return diff_weights_md(0);
+            case DNNL_ARG_DIFF_WEIGHTS_ITER: return diff_weights_md(1);
+            case DNNL_ARG_DIFF_BIAS: return diff_weights_md(2);
+            case DNNL_ARG_DST_LAYER: return dst_md(0);
+            case DNNL_ARG_DST_ITER: return dst_md(1);
+            case DNNL_ARG_DST_ITER_C: return dst_md(2);
+            case DNNL_ARG_DIFF_DST_LAYER: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_DST_ITER: return diff_dst_md(1);
+            case DNNL_ARG_DIFF_DST_ITER_C: return diff_dst_md(2);
+            default: return rnn_pd_t::arg_md(arg);
+        }
     }
 
     virtual const memory_desc_t *diff_src_md(int index = 0) const override {

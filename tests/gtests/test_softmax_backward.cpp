@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,6 +124,14 @@ protected:
                 softmax_desc, eng, softmax_fwd_pdesc);
         softmax_prim_desc = softmax_backward::primitive_desc(
                 softmax_prim_desc.get()); // test construction from C pd
+
+        ASSERT_TRUE(softmax_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == softmax_prim_desc.diff_src_desc());
+        ASSERT_TRUE(softmax_prim_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_DIFF_DST)
+                == softmax_prim_desc.diff_dst_desc());
+
         auto softmax_bwd = softmax_backward(softmax_prim_desc);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {

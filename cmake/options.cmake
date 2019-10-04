@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2018 Intel Corporation
+# Copyright 2018-2019 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -111,6 +111,9 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
 
     Using DPC++ for CPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
+if(NOT ${DNNL_CPU_RUNTIME} MATCHES "^(OMP|TBB|SEQ|DPCPP|SYCL)$")
+    message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
+endif()
 
 set(TBBROOT "" CACHE STRING
     "path to Intel(R) Thread Building Blocks (Intel(R) TBB).
@@ -126,6 +129,9 @@ set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
 
     Using DPC++ for GPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
+if(NOT ${DNNL_GPU_RUNTIME} MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
+    message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GPU_RUNTIME}")
+endif()
 
 set(OPENCLROOT "" CACHE STRING
     "path to Intel(R) SDK for OpenCL(TM).

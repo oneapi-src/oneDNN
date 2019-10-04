@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,13 +125,13 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status
                     = jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
-                            jcp_, *desc(), *diff_src_md(), *weights_md(),
-                            *diff_dst_md());
+                            jcp_, *desc(), diff_src_md_, weights_md_,
+                            diff_dst_md_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -142,18 +142,6 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_impl_t {
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    OIw16o16i, gOIw16o16i, OIhw16o16i, gOIhw16o16i, OIdhw16o16i,
-                    gOIdhw16o16i);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     jit_avx512_common_convolution_bwd_data_t(const pd_t *apd)

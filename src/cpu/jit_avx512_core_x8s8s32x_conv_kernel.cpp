@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -217,15 +217,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
                 vmaxps(vmm, vmm_zero, vmm);
             }
 
-            if (jcp.dst_dt != data_type::f32) {
-                /* Note: using Zmm for rounding in Xmm/Ymm kernel
-                   because there is no instruction to do rounding
-                   from Xmm/Ymm -> Xmm/Ymm.
-                   Embedded rounding is not supported for Xmm.
-                   TODO: maybe avoid Zmm if it helps performance.*/
-                Zmm zmm = zmm_out(j, k);
-                vcvtps2dq(zmm, zmm);
-            }
+            if (jcp.dst_dt != data_type::f32) vcvtps2dq(vmm, vmm);
         }
 
         for (int j = 0; j < ur_w; j++) {
@@ -505,7 +497,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         L(no_t_overflow_label);
     }
     mov(reg_kj, ptr[param1 + GET_OFF(kh_padding)]);
-    if ((jcp.signed_input)
+    if ((jcp.signed_input) || (jcp.dilate_h >= jcp.ih)
             || (!jcp.signed_input
                     && (jcp.kh - 1) * (jcp.dilate_h + 1)
                             < nstl::max(jcp.t_pad, jcp.b_pad))) {

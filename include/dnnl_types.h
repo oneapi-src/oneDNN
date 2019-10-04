@@ -209,6 +209,7 @@ typedef enum {
 
     dnnl_Abc16a,
     dnnl_ABc16a16b,
+    dnnl_ABc4a4b,
     /// 3D tensor blocked by 2nd dimension with block size 16
     dnnl_aBc16b,
     dnnl_ABc16b16a,
@@ -237,8 +238,10 @@ typedef enum {
     dnnl_aBcd4b,
     dnnl_ABcd4b16a4b,
     dnnl_ABcd4b4a,
+    dnnl_ABcd4a4b,
     dnnl_aBCd4c16b4c,
     dnnl_aBCd4c4b,
+    dnnl_aBCd4b4c,
     dnnl_ABcd8a16b2a,
     dnnl_ABcd8a8b,
     /// 4D tensor blocked by 2nd dimension with block size 8
@@ -266,6 +269,7 @@ typedef enum {
     /// 5D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcde4b,
     dnnl_ABcde4b4a,
+    dnnl_ABcde4a4b,
     dnnl_aBCde4b4c,
     dnnl_aBCde4c16b4c,
     dnnl_aBCde4c4b,
@@ -292,6 +296,7 @@ typedef enum {
     /// 6D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcdef4b,
     dnnl_aBCdef4c4b,
+    dnnl_aBCdef4b4c,
     dnnl_aBCdef8b8c,
     dnnl_aBCdef8c16b2c,
     dnnl_aBCdef8b16c2b,
@@ -474,6 +479,7 @@ typedef enum {
     dnnl_Oiw16o = dnnl_Abc16a,
     dnnl_OIw4i16o4i = dnnl_ABc4b16a4b,
     dnnl_OIw4i4o = dnnl_ABc4b4a,
+    dnnl_OIw4o4i = dnnl_ABc4a4b,
     dnnl_Oiw4o = dnnl_Abc4a,
     dnnl_OIw8i16o2i = dnnl_ABc8b16a2b,
     dnnl_OIw8i8o = dnnl_ABc8b8a,
@@ -496,6 +502,7 @@ typedef enum {
     dnnl_Oihw16o = dnnl_Abcd16a,
     dnnl_OIhw4i16o4i = dnnl_ABcd4b16a4b,
     dnnl_OIhw4i4o = dnnl_ABcd4b4a,
+    dnnl_OIhw4o4i = dnnl_ABcd4a4b,
     dnnl_Oihw4o = dnnl_Abcd4a,
     dnnl_OIhw8i16o2i = dnnl_ABcd8b16a2b,
     dnnl_OIhw8i8o = dnnl_ABcd8b8a,
@@ -511,6 +518,7 @@ typedef enum {
     dnnl_OIdhw16o16i = dnnl_ABcde16a16b,
     dnnl_Oidhw16o = dnnl_Abcde16a,
     dnnl_OIdhw4i4o = dnnl_ABcde4b4a,
+    dnnl_OIdhw4o4i = dnnl_ABcde4a4b,
     dnnl_Oidhw4o = dnnl_Abcde4a,
     dnnl_OIdhw8i16o2i = dnnl_ABcde8b16a2b,
     dnnl_OIdhw8i8o = dnnl_ABcde8b8a,
@@ -528,6 +536,7 @@ typedef enum {
     dnnl_gOiw16o = dnnl_aBcd16b,
     dnnl_gOIw4i16o4i = dnnl_aBCd4c16b4c,
     dnnl_gOIw4i4o = dnnl_aBCd4c4b,
+    dnnl_gOIw4o4i = dnnl_aBCd4b4c,
     dnnl_gOiw4o = dnnl_aBcd4b,
     dnnl_gOIw8i16o2i = dnnl_aBCd8c16b2c,
     dnnl_gOIw8i8o = dnnl_aBCd8c8b,
@@ -575,6 +584,7 @@ typedef enum {
     dnnl_gOIdhw16o16i = dnnl_aBCdef16b16c,
     dnnl_gOidhw16o = dnnl_aBcdef16b,
     dnnl_gOIdhw4i4o = dnnl_aBCdef4c4b,
+    dnnl_gOIdhw4o4i = dnnl_aBCdef4b4c,
     dnnl_gOidhw4o = dnnl_aBcdef4b,
     dnnl_gOIdhw8i16o2i = dnnl_aBCdef8c16b2c,
     dnnl_gOIdhw8i8o = dnnl_aBCdef8c8b,
@@ -999,7 +1009,7 @@ typedef dnnl_convolution_desc_t dnnl_deconvolution_desc_t;
 /// A descriptor of a shuffle operation.
 typedef struct {
     /// The kind of primitive. Used for self-identifying the primitive
-    /// descriptor. Must be #dnnl_convolution.
+    /// descriptor. Must be #dnnl_shuffle.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of propagation. Possible values: #dnnl_forward_training,
     /// #dnnl_forward_inference, and #dnnl_backward_data.
@@ -1007,9 +1017,9 @@ typedef struct {
     /// Source and destination memory descriptor,
     /// and source and destination gradient memory descriptor.
     dnnl_memory_desc_t data_desc;
-    /// axis for shuffling.
+    /// Axis for shuffling.
     int axis;
-    /// number of groups in group convolution
+    /// Number of groups.
     dnnl_dim_t group_size;
 } dnnl_shuffle_desc_t;
 
@@ -1214,7 +1224,10 @@ typedef struct {
 } dnnl_inner_product_desc_t;
 
 /// Flags for RNN cell.
-typedef enum { dnnl_rnn_flags_undef = 0x0 } dnnl_rnn_flags_t;
+typedef enum {
+    /// Undefined RNN flags
+    dnnl_rnn_flags_undef = 0x0
+} dnnl_rnn_flags_t;
 
 /// A direction of RNN primitive execution.
 typedef enum {
@@ -1228,6 +1241,7 @@ typedef enum {
     /// Bidirectional execution of RNN primitive with summation of the
     /// results.
     dnnl_bidirectional_sum,
+    /// Alias for #dnnl_unidirectional_left2right.
     dnnl_unidirectional = dnnl_unidirectional_left2right,
 } dnnl_rnn_direction_t;
 
@@ -1607,6 +1621,7 @@ typedef enum {
     dnnl_query_diff_dst_md, ///< destination grad. memory desc
     dnnl_query_workspace_md, ///< workspace memory desc
     dnnl_query_scratchpad_md, ///< scratchpad memory desc
+    dnnl_query_exec_arg_md = 255, ///< memory desc of an execute argument
 } dnnl_query_t;
 
 /// @}

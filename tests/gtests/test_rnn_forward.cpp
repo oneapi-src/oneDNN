@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018 Intel Corporation
+* Copyright 2018-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -99,6 +99,27 @@ private:
         return memory::desc();
     }
 
+    void testExecArgQueries(typename T::primitive_desc pd) {
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS_LAYER)
+                == pd.weights_layer_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS_ITER)
+                == pd.weights_iter_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
+                == pd.bias_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_LAYER)
+                == pd.src_layer_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_ITER)
+                == pd.src_iter_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_SRC_ITER_C)
+                == querySrcIterC(pd));
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST_LAYER)
+                == pd.dst_layer_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST_ITER)
+                == pd.dst_iter_desc());
+        ASSERT_TRUE(pd.query_md(query::exec_arg_md, DNNL_ARG_DST_ITER_C)
+                == queryDstIterC(pd));
+    };
+
 protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<test_rnn_params_t>::GetParam();
@@ -178,6 +199,7 @@ protected:
         typename T::primitive_desc ref_pd(ref_d, eng);
         // test construction from a C pd
         ref_pd = typename T::primitive_desc(ref_pd.get());
+        testExecArgQueries(ref_pd);
 
         // Query the descriptor for memory descriptors
         auto weights_layer_md_ref = ref_pd.weights_layer_desc();
@@ -265,6 +287,7 @@ protected:
                 dst_layer_md_tgt, dst_iter_md_tgt, dst_iter_c_md_tgt,
                 p.extra.flags, p.extra.alpha, p.extra.beta);
         typename T::primitive_desc tgt_pd(tgt_d, eng);
+        testExecArgQueries(tgt_pd);
 
         T(tgt_pd).execute(strm,
                 {{DNNL_ARG_SRC_LAYER, src_layer_tgt},

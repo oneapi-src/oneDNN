@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2018 Intel Corporation
+* Copyright 2017-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -179,7 +179,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
             eltwise_t eltwise;
         };
 
-        bool is_eltwise(bool require_scale_one = true) const {
+        bool is_eltwise(bool require_scale_one = false) const {
             using namespace dnnl::impl;
             return kind == primitive_kind::eltwise
                     && IMPLICATION(require_scale_one, eltwise.scale == 1.f);

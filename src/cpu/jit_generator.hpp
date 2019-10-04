@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -365,6 +365,24 @@ public:
     }
     void uni_vmovups(const Xbyak::Ymm &x, const Xbyak::Operand &op) {
         vmovups(x, op);
+    }
+
+    void uni_vmovups_tail(const Xbyak::Address &addr, const Xbyak::Ymm &mask,
+            const Xbyak::Ymm &x) {
+        vmaskmovps(addr, mask, x);
+    }
+    void uni_vmovups_tail(const Xbyak::Ymm &x, const Xbyak::Ymm &mask,
+            const Xbyak::Address &addr) {
+        vmaskmovps(x, mask, addr);
+    }
+
+    void uni_vmovups_tail(const Xbyak::Address &addr, const Xbyak::Opmask &mask,
+            const Xbyak::Zmm &x) {
+        vmovups(addr | mask, x);
+    }
+    void uni_vmovups_tail(const Xbyak::Zmm &x, const Xbyak::Opmask &mask,
+            const Xbyak::Address &addr) {
+        vmovups(x | mask | T_z, addr);
     }
 
     void uni_vmovntps(const Xbyak::Address &addr, const Xbyak::Xmm &x) {

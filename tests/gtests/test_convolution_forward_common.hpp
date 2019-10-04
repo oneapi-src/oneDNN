@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,6 +180,19 @@ protected:
                 conv_desc, attr.mkl_attr, eng);
         conv_primitive_desc = convolution_forward::primitive_desc(
                 conv_primitive_desc.get()); // test construction from a C pd
+
+        ASSERT_TRUE(
+                conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_SRC)
+                == conv_primitive_desc.src_desc());
+        ASSERT_TRUE(
+                conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_DST)
+                == conv_primitive_desc.dst_desc());
+        ASSERT_TRUE(conv_primitive_desc.query_md(
+                            query::exec_arg_md, DNNL_ARG_WEIGHTS)
+                == conv_primitive_desc.weights_desc());
+        ASSERT_TRUE(
+                conv_primitive_desc.query_md(query::exec_arg_md, DNNL_ARG_BIAS)
+                == conv_primitive_desc.bias_desc());
 
         convolution_forward(conv_primitive_desc)
                 .execute(strm,

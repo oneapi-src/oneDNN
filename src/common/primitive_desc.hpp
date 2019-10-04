@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -70,6 +70,14 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
         return arg_usage_t::unused;
+    }
+
+    virtual const dnnl::impl::memory_desc_t *arg_md(int arg) const {
+        switch (arg) {
+            case DNNL_ARG_WORKSPACE: return workspace_md(0);
+            case DNNL_ARG_SCRATCHPAD: return scratchpad_md(0);
+            default: return &dnnl::impl::glob_zero_md;
+        }
     }
 
 #define DECLARE_MD_STUB(stub) \

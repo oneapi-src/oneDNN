@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2018 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,9 +31,9 @@ namespace cpu {
 
 struct ref_eltwise_scalar_fwd_t {
 public:
-    ref_eltwise_scalar_fwd_t(alg_kind_t alg, float alpha, float beta);
+    ref_eltwise_scalar_fwd_t(
+            alg_kind_t alg, float alpha, float beta, float scale);
 
-    // note that eltwise.scale is ignored
     ref_eltwise_scalar_fwd_t(const post_ops_t::entry_t::eltwise_t &eltwise);
 
     float compute_scalar(float s);
@@ -41,6 +41,7 @@ public:
     const alg_kind_t alg_;
     const float alpha_;
     const float beta_;
+    const float scale_;
 };
 
 template <impl::data_type_t data_type>

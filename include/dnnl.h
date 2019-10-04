@@ -593,11 +593,12 @@ dnnl_status_t DNNL_API dnnl_reorder_primitive_desc_create(
 /// @sa @ref cpp_api_concat in @ref cpp_api
 /// @{
 
-/// Creates out-of-place @p concat_primitive_desc for concatenation of @p n
-/// inputs by @p concat_dimension with resulting @p output_desc memory
-/// descriptor. @p output_desc can be NULL or specified with the
-/// #dnnl_format_kind_any format kind -- in this case, the appropriate memory
-/// format would be chosen automatically.
+/// Creates an out-of-place @p concat_primitive_desc on @p engine for
+/// concatenation of @p n sources in the @p concat_dimension. The source
+/// memory objects are described by @p src_mds memory descriptors, and the
+/// destination by @p dst_md memory descriptor. The @p dst_desc can be NULL or
+/// have the #dnnl_format_kind_any format kind; in this case, the appropriate
+/// memory format would be chosen automatically.
 ///
 /// Inputs:
 ///  - input 0 (#dnnl_query_src_md, 0)
@@ -622,11 +623,12 @@ dnnl_status_t DNNL_API dnnl_concat_primitive_desc_create(
 /// @sa @ref cpp_api_sum in @ref cpp_api
 /// @{
 
-/// Creates out-of-place @p sum_primitive_desc for sum of @p n
-/// inputs multiplied by scale with resulting @p output_desc memory
-/// descriptor. @p output_desc can be NULL or specified with the
-/// #dnnl_format_kind_any format kind -- in this case, the appropriate memory
-/// format would be chosen automatically.
+/// Creates an out-of-place @p sum_primitive_desc on @p engine for sum of @p n
+/// sources multiplied by respective elements of the @p scales array. The
+/// source memory objects are described by @p src_mds memory descriptors, and
+/// the destination by @p dst_md memory descriptor. The @p dst_desc can be
+/// NULL or specified with the #dnnl_format_kind_any format kind; in this
+/// case, the appropriate memory format would be chosen automatically.
 ///
 /// Inputs:
 ///  - src 0 (#dnnl_query_src_md, 0)
@@ -1931,10 +1933,6 @@ dnnl_status_t DNNL_API dnnl_engine_get_ocl_context(
 dnnl_status_t DNNL_API dnnl_engine_get_ocl_device(
         dnnl_engine_t engine, cl_device_id *device);
 #endif
-
-/// Returns the kind of an @p engine.
-dnnl_status_t DNNL_API dnnl_engine_get_kind(
-        dnnl_engine_t engine, dnnl_engine_kind_t *kind);
 
 /// Destroys an @p engine.
 dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);

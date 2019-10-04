@@ -129,6 +129,18 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
         return primitive_desc_t::arg_usage(arg);
     }
 
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC: return src_md(0);
+            case DNNL_ARG_DST: return dst_md(0);
+            case DNNL_ARG_MEAN: return stats_are_src() ? src_md(1) : dst_md(1);
+            case DNNL_ARG_VARIANCE:
+                return stats_are_src() ? src_md(2) : dst_md(2);
+            case DNNL_ARG_SCALE_SHIFT: return weights_md(0);
+            default: return layer_normalization_pd_t::arg_md(arg);
+        }
+    }
+
     virtual const memory_desc_t *src_md(int index = 0) const override {
         if (index == 0) return &data_md_;
         if (stats_are_src() && (index == 1 || index == 2)) return &stat_md_;
@@ -180,6 +192,19 @@ struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
             return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
+    }
+
+    virtual const memory_desc_t *arg_md(int arg) const override {
+        switch (arg) {
+            case DNNL_ARG_SRC: return src_md(0);
+            case DNNL_ARG_MEAN: return src_md(1);
+            case DNNL_ARG_VARIANCE: return src_md(2);
+            case DNNL_ARG_SCALE_SHIFT: return weights_md(0);
+            case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
+            case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
+            case DNNL_ARG_DIFF_SCALE_SHIFT: return diff_weights_md(0);
+            default: return layer_normalization_pd_t::arg_md(arg);
+        }
     }
 
     virtual const memory_desc_t *src_md(int index = 0) const override {
