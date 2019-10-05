@@ -1322,11 +1322,6 @@ static mkldnn_status_t gemm_threading_driver(
     }
     get_omp_thread_count<c_type>(arg->m, arg->n, arg->k, &nthr);
 
-    if (nthr == 1) {
-        return gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a, arg->b,
-                arg->c, arg->co, arg);
-    }
-
     if ((data_traits<a_type>::data_type == data_type::f32) &&
             nocopy_checker(nthr, arg->transa, arg->transb, arg->m, arg->n,
                 arg->k, arg->lda, arg->ldb, arg->ldc))
@@ -1335,6 +1330,11 @@ static mkldnn_status_t gemm_threading_driver(
                 (float *) arg->a, arg->lda,
                 (float *) arg->b, arg->ldb,
                 arg->beta, (float *) arg->c, arg->ldc, NULL);
+
+    if (nthr == 1) {
+        return gemm_kernel_driver(
+                arg->m, arg->n, arg->k, arg->a, arg->b, arg->c, arg->co, arg);
+    }
 
     mkldnn_status_t *results = (mkldnn_status_t *) malloc(
             sizeof(*results) * nthr * CACHE_LINE_SIZE, PAGE_4K);
