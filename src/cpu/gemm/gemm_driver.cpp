@@ -1352,11 +1352,6 @@ static mkldnn_status_t gemm_threading_driver(
         arg->bk = force_threading->block_k;
     }
 
-    if (nthr_goal == 1) {
-        return gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a, arg->b,
-                *arg->beta, arg->c, arg->ldc, arg->offsetc, arg->co, arg);
-    }
-
     if ((data_traits<a_type>::data_type == data_type::f32) &&
             nocopy_checker(nthr_goal, arg->transa, arg->transb, arg->m, arg->n,
                 arg->k, arg->lda, arg->ldb, arg->ldc))
@@ -1365,6 +1360,11 @@ static mkldnn_status_t gemm_threading_driver(
                 (float *) arg->a, arg->lda,
                 (float *) arg->b, arg->ldb,
                 arg->beta, (float *) arg->c, arg->ldc, NULL);
+
+    if (nthr_goal == 1) {
+        return gemm_kernel_driver(arg->m, arg->n, arg->k, arg->a, arg->b,
+                *arg->beta, arg->c, arg->ldc, arg->offsetc, arg->co, arg);
+    }
 
     bool k_summing = force_threading && (force_threading->nthrs_k > 1);
 
