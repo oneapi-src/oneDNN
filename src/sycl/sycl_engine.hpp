@@ -32,6 +32,20 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
+inline std::vector<cl::sycl::device> get_intel_sycl_devices(
+        cl::sycl::info::device_type dev_type) {
+    const int intel_vendor_id = 0x8086;
+    auto devices = cl::sycl::device::get_devices(dev_type);
+    devices.erase(
+            std::remove_if(devices.begin(), devices.end(),
+                    [](const cl::sycl::device &dev) {
+                        return dev.get_info<cl::sycl::info::device::vendor_id>()
+                                != intel_vendor_id;
+                    }),
+            devices.end());
+    return devices;
+}
+
 class sycl_engine_factory_t : public engine_factory_t {
 public:
     sycl_engine_factory_t(engine_kind_t engine_kind)
@@ -41,7 +55,7 @@ public:
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? cl::sycl::info::device_type::cpu
                 : cl::sycl::info::device_type::gpu;
-        return cl::sycl::device::get_devices(dev_type).size();
+        return get_intel_sycl_devices(dev_type).size();
     }
 
     virtual status_t engine_create(
@@ -50,7 +64,7 @@ public:
         auto dev_type = (engine_kind_ == engine_kind::cpu)
                 ? cl::sycl::info::device_type::cpu
                 : cl::sycl::info::device_type::gpu;
-        auto devices = cl::sycl::device::get_devices(dev_type);
+        auto devices = get_intel_sycl_devices(dev_type);
         auto &dev = devices[index];
 
         auto exception_handler = [](cl::sycl::exception_list eptr_list) {
