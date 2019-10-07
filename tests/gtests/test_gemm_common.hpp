@@ -226,10 +226,6 @@ struct test_params {
 
     gemm_offset off;
 
-#if DNNL_WITH_SYCL
-    bool test_usm_api;
-#endif
-
     bool tr_a() const { return transA == 'T' || transA == 't'; }
     bool tr_b() const { return transB == 'T' || transB == 't'; }
     int64_t sizeC() const { return M * ldc; }
@@ -555,18 +551,16 @@ inline test_memory get_matrix_memory(
         const test_params &p, memory::dim n, memory::dim off, engine &eng) {
     auto d = create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
-#ifdef DNNL_SYCL_DPCPP
-    if (p.test_usm_api) {
-        auto dev = eng.get_sycl_device();
-        auto ctx = eng.get_sycl_context();
-        auto f_malloc = [=](size_t sz) {
-            return cl::sycl::malloc_shared(sz, dev, ctx);
-        };
-        auto f_free = [=](void *ptr) { return cl::sycl::free(ptr, ctx); };
-        return test_memory(d, eng, f_malloc, f_free);
-    }
-#endif
+#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_USE_DPCPP_USM)
+    auto dev = eng.get_sycl_device();
+    auto ctx = eng.get_sycl_context();
+    auto f_malloc
+            = [=](size_t sz) { return cl::sycl::malloc_shared(sz, dev, ctx); };
+    auto f_free = [=](void *ptr) { return cl::sycl::free(ptr, ctx); };
+    return test_memory(d, eng, f_malloc, f_free);
+#else
     return test_memory(d, eng);
+#endif
 }
 
 template <typename a_dt, typename b_dt, typename c_dt>
@@ -634,25 +628,25 @@ struct dnnl_gemm<float16_t, float16_t, float16_t> {
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl::sycl::queue sycl_queue = s.get_sycl_queue();
-            if (p.test_usm_api) {
-                // Test USM API
-                auto a = static_cast<cl::sycl::half *>(
-                        a_mem.get().get_data_handle());
-                auto b = static_cast<cl::sycl::half *>(
-                        b_mem.get().get_data_handle());
-                auto c = static_cast<cl::sycl::half *>(
-                        c_mem.get().get_data_handle());
-                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
-                        p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
-            } else {
-                // Test buffer API
-                auto a = a_mem.get().get_sycl_buffer<cl::sycl::half>();
-                auto b = b_mem.get().get_sycl_buffer<cl::sycl::half>();
-                auto c = c_mem.get().get_sycl_buffer<cl::sycl::half>();
-                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
-                        p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
-                        c, p.off.c, p.ldc);
-            }
+#ifdef DNNL_USE_DPCPP_USM
+            // Test USM API
+            auto a = static_cast<cl::sycl::half *>(
+                    a_mem.get().get_data_handle());
+            auto b = static_cast<cl::sycl::half *>(
+                    b_mem.get().get_data_handle());
+            auto c = static_cast<cl::sycl::half *>(
+                    c_mem.get().get_data_handle());
+            dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K, p.alpha,
+                    a, p.lda, b, p.ldb, p.beta, c, p.ldc);
+#else
+            // Test buffer API
+            auto a = a_mem.get().get_sycl_buffer<cl::sycl::half>();
+            auto b = b_mem.get().get_sycl_buffer<cl::sycl::half>();
+            auto c = c_mem.get().get_sycl_buffer<cl::sycl::half>();
+            dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K, p.alpha,
+                    a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta, c, p.off.c,
+                    p.ldc);
+#endif
             s.wait();
             return dnnl_success;
         }
@@ -754,22 +748,22 @@ struct dnnl_gemm<float, float, float> {
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
         if (get_test_engine_kind() == engine::kind::gpu) {
             cl::sycl::queue sycl_queue = s.get_sycl_queue();
-            if (p.test_usm_api) {
-                // Test USM API
-                auto a = static_cast<float *>(a_mem.get().get_data_handle());
-                auto b = static_cast<float *>(b_mem.get().get_data_handle());
-                auto c = static_cast<float *>(c_mem.get().get_data_handle());
-                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
-                        p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
-            } else {
-                // Test buffer API
-                auto a = a_mem.get().get_sycl_buffer<float>();
-                auto b = b_mem.get().get_sycl_buffer<float>();
-                auto c = c_mem.get().get_sycl_buffer<float>();
-                dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K,
-                        p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
-                        c, p.off.c, p.ldc);
-            }
+#if DNNL_USE_DPCPP_USM
+            // Test USM API
+            auto a = static_cast<float *>(a_mem.get().get_data_handle());
+            auto b = static_cast<float *>(b_mem.get().get_data_handle());
+            auto c = static_cast<float *>(c_mem.get().get_data_handle());
+            dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K, p.alpha,
+                    a, p.lda, b, p.ldb, p.beta, c, p.ldc);
+#else
+            // Test buffer API
+            auto a = a_mem.get().get_sycl_buffer<float>();
+            auto b = b_mem.get().get_sycl_buffer<float>();
+            auto c = c_mem.get().get_sycl_buffer<float>();
+            dnnl::gemm(sycl_queue, p.transA, p.transB, p.M, p.N, p.K, p.alpha,
+                    a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta, c, p.off.c,
+                    p.ldc);
+#endif
             s.wait();
             return dnnl_success;
         }
@@ -1176,22 +1170,15 @@ protected:
         if (get_test_engine_kind() == engine::kind::gpu) {
             const auto &p = ::testing::TestWithParam<test_params>::GetParam();
 
-            // Test SYCL buffer interfaces
-            auto p_buffer = p;
-            p_buffer.test_usm_api = false;
-            run_test_gemm<a_dt, b_dt, c_dt>::call(p_buffer);
-
+#ifdef DNNL_USE_DPCPP_USM
+            // Test SYCL USM interfaces
             bool zero_off = (p.off.a == 0 && p.off.b == 0 && p.off.c == 0);
             SKIP_IF(!zero_off, "USM interfaces do not support offsets.");
 
-            // TODO: enable USM tests after OpenCL driver update
-#if 0
-#ifdef DNNL_SYCL_DPCPP
-            // Test SYCL USM interfaces
-            auto p_usm = p;
-            p_usm.test_usm_api = true;
-            run_test_gemm<a_dt, b_dt, c_dt>::call(p_usm);
-#endif
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p);
+#else
+            // Test SYCL buffer interfaces
+            run_test_gemm<a_dt, b_dt, c_dt>::call(p);
 #endif
 
             return;

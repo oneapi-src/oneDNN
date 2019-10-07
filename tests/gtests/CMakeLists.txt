@@ -97,14 +97,12 @@ endif()
 set_source_files_properties(test_cross_engine_reorder.cpp
         PROPERTIES NO_ENGINE_PARAM true)
 
-foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
-    get_filename_component(exe ${TEST_FILE} NAME_WE)
-
-    add_executable(${exe} ${MAIN_SRC_GTEST} ${TEST_FILE})
+function(register_gtest exe src)
+    add_executable(${exe} ${MAIN_SRC_GTEST} ${src})
     add_definitions(-DNOMINMAX) # to allow std::max on Windows with parentheses
     target_link_libraries(${exe} ${LIB_NAME} dnnl_gtest ${EXTRA_SHARED_LIBS})
 
-    get_source_file_property(no_engine_param ${TEST_FILE} NO_ENGINE_PARAM)
+    get_source_file_property(no_engine_param ${src} NO_ENGINE_PARAM)
 
     if (NOT no_engine_param)
         target_compile_definitions(${exe} PUBLIC
@@ -120,6 +118,16 @@ foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
     else()
         add_test(${exe} ${exe})
         maybe_configure_windows_test(${exe} TEST)
+    endif()
+endfunction()
+
+foreach(TEST_FILE ${PRIM_TEST_CASES_SRC})
+    get_filename_component(exe ${TEST_FILE} NAME_WE)
+    register_gtest(${exe} ${TEST_FILE})
+    # Create additional USM targets for GEMM tests.
+    if(DNNL_SYCL_DPCPP AND ${exe} MATCHES "test_gemm_.*")
+        register_gtest(${exe}_usm ${TEST_FILE})
+        target_compile_definitions(${exe}_usm PUBLIC -DDNNL_USE_DPCPP_USM)
     endif()
 endforeach()
 
