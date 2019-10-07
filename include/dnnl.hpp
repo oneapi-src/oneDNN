@@ -61,9 +61,10 @@
 #if DNNL_ENABLE_EXCEPTIONS
 #define DNNL_THROW_ERROR(status, msg) throw error(status, msg)
 #else
+#include <cstdio>
 #define DNNL_THROW_ERROR(status, msg) \
     do { \
-        fprintf(stderr, "%s", msg); \
+        fputs(msg, stderr); \
         DNNL_TRAP(); \
     } while (0)
 #endif
