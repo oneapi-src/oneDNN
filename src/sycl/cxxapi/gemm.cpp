@@ -62,6 +62,7 @@ struct create_memory_t<memory_api_kind_t::usm> {
     template <typename T>
     static std::unique_ptr<memory_t> call(engine_t *eng,
             dnnl_memory_desc_t *mem_desc, dim_t offset, const void *handle) {
+#ifdef DNNL_SYCL_DPCPP
         memory_storage_t *mem_storage
                 = new memory_storage_t(new sycl_usm_memory_storage_t(eng,
                         memory_flags_t::use_runtime_ptr,
@@ -70,10 +71,15 @@ struct create_memory_t<memory_api_kind_t::usm> {
         std::unique_ptr<memory_t> mem(new memory_t(eng, mem_desc, mem_storage));
         mem->memory_storage()->set_offset(offset * sizeof(T));
         return mem;
+#else
+        return nullptr;
+#endif
     }
 };
 
-template <memory_api_kind_t memory_api_kind, data_type_t data_type, typename T>
+template <memory_api_kind_t memory_api_kind, data_type_t a_type,
+        data_type_t b_type, data_type_t c_type, data_type_t acc_type,
+        typename a_buffer_t, typename b_buffer_t, typename c_buffer_t>
 void gemm_generic(cl::sycl::queue &queue, const char *transa,
         const char *transb, dim_t m, dim_t n, dim_t k, float alpha,
         const void *a, dim_t offset_a, dim_t lda, const void *b, dim_t offset_b,
@@ -85,8 +91,13 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
                 status::runtime_error, "USM interface is not supported.");
 #endif
 
-    using data_t = typename prec_traits<data_type>::type;
-    static_assert(sizeof(data_t) == sizeof(T), "not expected");
+    using a_t = typename prec_traits<a_type>::type;
+    using b_t = typename prec_traits<b_type>::type;
+    using c_t = typename prec_traits<c_type>::type;
+
+    static_assert(sizeof(a_t) == sizeof(a_buffer_t), "not expected");
+    static_assert(sizeof(b_t) == sizeof(b_buffer_t), "not expected");
+    static_assert(sizeof(c_t) == sizeof(c_buffer_t), "not expected");
 
     status_t status;
 
@@ -123,7 +134,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     s.reset(s_ptr);
 
     // Create primitive descriptor
-    using pd_type = typename ocl::jit_gen9_gemm_t<data_type>::pd_t;
+    using pd_type = typename ocl::jit_gen9_gemm_t<a_type, b_type, c_type,
+            acc_type>::pd_t;
 
     gemm_desc_t op_desc;
     op_desc.primitive_kind = dnnl_gemm;
@@ -139,18 +151,18 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     op_desc.ldc = ldc;
     op_desc.alpha = alpha;
     op_desc.beta = beta;
-    op_desc.a_type = data_type;
-    op_desc.b_type = data_type;
-    op_desc.c_type = data_type;
-    op_desc.acc_type = data_type;
+    op_desc.a_type = a_type;
+    op_desc.b_type = b_type;
+    op_desc.c_type = c_type;
+    op_desc.acc_type = acc_type;
 
     dnnl_memory_desc_t a_desc, b_desc, c_desc;
 
-    status = create_gemm_memory_desc(&a_desc, &op_desc, 0, data_type);
+    status = create_gemm_memory_desc(&a_desc, &op_desc, 0, a_type);
     assert(status == status::success);
-    status = create_gemm_memory_desc(&b_desc, &op_desc, 1, data_type);
+    status = create_gemm_memory_desc(&b_desc, &op_desc, 1, b_type);
     assert(status == status::success);
-    status = create_gemm_memory_desc(&c_desc, &op_desc, 2, data_type);
+    status = create_gemm_memory_desc(&c_desc, &op_desc, 2, c_type);
     assert(status == status::success);
 
     std::unique_ptr<primitive_desc_t> pd;
@@ -163,11 +175,11 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     pd.reset(pd_ptr);
 
     // Create memory objects
-    auto a_mem = create_memory_t<memory_api_kind>::template call<T>(
+    auto a_mem = create_memory_t<memory_api_kind>::template call<a_buffer_t>(
             engine.get(), &a_desc, offset_a, a);
-    auto b_mem = create_memory_t<memory_api_kind>::template call<T>(
+    auto b_mem = create_memory_t<memory_api_kind>::template call<b_buffer_t>(
             engine.get(), &b_desc, offset_b, b);
-    auto c_mem = create_memory_t<memory_api_kind>::template call<T>(
+    auto c_mem = create_memory_t<memory_api_kind>::template call<c_buffer_t>(
             engine.get(), &c_desc, offset_c, c);
 
     // Create primitive
@@ -199,9 +211,10 @@ void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
         dim_t offset_a, dim_t lda, cl::sycl::buffer<float, 1> &b,
         dim_t offset_b, dim_t ldb, float beta, cl::sycl::buffer<float, 1> &c,
         dim_t offset_c, dim_t ldc) {
-    return gemm_generic<memory_api_kind_t::buffer, data_type::f32, float>(queue,
-            &transb, &transa, n, m, k, alpha, &b, offset_b, ldb, &a, offset_a,
-            lda, beta, &c, offset_c, ldc);
+    return gemm_generic<memory_api_kind_t::buffer, data_type::f32,
+            data_type::f32, data_type::f32, data_type::f32, float, float,
+            float>(queue, &transb, &transa, n, m, k, alpha, &b, offset_b, ldb,
+            &a, offset_a, lda, beta, &c, offset_c, ldc);
 }
 
 void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
@@ -210,26 +223,70 @@ void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
         dim_t offset_b, dim_t ldb, float beta,
         cl::sycl::buffer<cl::sycl::half, 1> &c, dim_t offset_c, dim_t ldc) {
     return gemm_generic<memory_api_kind_t::buffer, data_type::f16,
-            cl::sycl::half>(queue, &transb, &transa, n, m, k, alpha, &b,
+            data_type::f16, data_type::f16, data_type::f16, cl::sycl::half,
+            cl::sycl::half, cl::sycl::half>(queue, &transb, &transa, n, m, k,
+            alpha, &b, offset_b, ldb, &a, offset_a, lda, beta, &c, offset_c,
+            ldc);
+}
+
+void DNNL_API gemm_bf16bf16bf16(cl::sycl::queue &queue, char transa,
+        char transb, dim_t m, dim_t n, dim_t k, float alpha,
+        cl::sycl::buffer<uint16_t, 1> &a, dim_t offset_a, dim_t lda,
+        cl::sycl::buffer<uint16_t, 1> &b, dim_t offset_b, dim_t ldb, float beta,
+        cl::sycl::buffer<uint16_t, 1> &c, dim_t offset_c, dim_t ldc) {
+    return gemm_generic<memory_api_kind_t::buffer, data_type::bf16,
+            data_type::bf16, data_type::bf16, data_type::f32, uint16_t,
+            uint16_t, uint16_t>(queue, &transb, &transa, n, m, k, alpha, &b,
             offset_b, ldb, &a, offset_a, lda, beta, &c, offset_c, ldc);
+}
+
+void DNNL_API gemm_bf16bf16f32(cl::sycl::queue &queue, char transa, char transb,
+        dim_t m, dim_t n, dim_t k, float alpha,
+        cl::sycl::buffer<uint16_t, 1> &a, dim_t offset_a, dim_t lda,
+        cl::sycl::buffer<uint16_t, 1> &b, dim_t offset_b, dim_t ldb, float beta,
+        cl::sycl::buffer<float, 1> &c, dim_t offset_c, dim_t ldc) {
+    return gemm_generic<memory_api_kind_t::buffer, data_type::bf16,
+            data_type::bf16, data_type::f32, data_type::f32, uint16_t, uint16_t,
+            float>(queue, &transb, &transa, n, m, k, alpha, &b, offset_b, ldb,
+            &a, offset_a, lda, beta, &c, offset_c, ldc);
 }
 
 // USM interfaces
 void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
         dim_t n, dim_t k, float alpha, const float *a, dim_t lda,
         const float *b, dim_t ldb, float beta, float *c, dim_t ldc) {
-    return gemm_generic<memory_api_kind_t::usm, data_type::f32, float>(queue,
-            &transb, &transa, n, m, k, alpha, b, 0, ldb, a, 0, lda, beta, c, 0,
-            ldc);
+    return gemm_generic<memory_api_kind_t::usm, data_type::f32, data_type::f32,
+            data_type::f32, data_type::f32, float, float, float>(queue, &transb,
+            &transa, n, m, k, alpha, b, 0, ldb, a, 0, lda, beta, c, 0, ldc);
 }
 
 void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
         dim_t n, dim_t k, float alpha, const cl::sycl::half *a, dim_t lda,
         const cl::sycl::half *b, dim_t ldb, float beta, cl::sycl::half *c,
         dim_t ldc) {
-    return gemm_generic<memory_api_kind_t::usm, data_type::f16, cl::sycl::half>(
-            queue, &transb, &transa, n, m, k, alpha, b, 0, ldb, a, 0, lda, beta,
-            c, 0, ldc);
+    return gemm_generic<memory_api_kind_t::usm, data_type::f16, data_type::f16,
+            data_type::f16, data_type::f16, cl::sycl::half, cl::sycl::half,
+            cl::sycl::half>(queue, &transb, &transa, n, m, k, alpha, b, 0, ldb,
+            a, 0, lda, beta, c, 0, ldc);
+}
+
+void DNNL_API gemm_bf16bf16bf16(cl::sycl::queue &queue, char transa,
+        char transb, dim_t m, dim_t n, dim_t k, float alpha, const uint16_t *a,
+        dim_t lda, const uint16_t *b, dim_t ldb, float beta, uint16_t *c,
+        dim_t ldc) {
+    return gemm_generic<memory_api_kind_t::usm, data_type::bf16,
+            data_type::bf16, data_type::bf16, data_type::f32, uint16_t,
+            uint16_t, uint16_t>(queue, &transb, &transa, n, m, k, alpha, b, 0,
+            ldb, a, 0, lda, beta, c, 0, ldc);
+}
+
+void DNNL_API gemm_bf16bf16f32(cl::sycl::queue &queue, char transa, char transb,
+        dim_t m, dim_t n, dim_t k, float alpha, const uint16_t *a, dim_t lda,
+        const uint16_t *b, dim_t ldb, float beta, float *c, dim_t ldc) {
+    return gemm_generic<memory_api_kind_t::usm, data_type::bf16,
+            data_type::bf16, data_type::f32, data_type::f32, uint16_t, uint16_t,
+            float>(queue, &transb, &transa, n, m, k, alpha, b, 0, ldb, a, 0,
+            lda, beta, c, 0, ldc);
 }
 
 } // namespace dnnl

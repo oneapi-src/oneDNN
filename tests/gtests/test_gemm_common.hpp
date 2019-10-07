@@ -123,6 +123,20 @@ void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         cl::sycl::buffer<cl::sycl::half, 1> &c, memory::dim offset_c,
         memory::dim ldc);
 
+void DNNL_API gemm_bf16bf16bf16(cl::sycl::queue &queue, char transa,
+        char transb, memory::dim m, memory::dim n, memory::dim k, float alpha,
+        cl::sycl::buffer<uint16_t, 1> &a, memory::dim offset_a, memory::dim lda,
+        cl::sycl::buffer<uint16_t, 1> &b, memory::dim offset_b, memory::dim ldb,
+        float beta, cl::sycl::buffer<uint16_t, 1> &c, memory::dim offset_c,
+        memory::dim ldc);
+
+void DNNL_API gemm_bf16bf16f32(cl::sycl::queue &queue, char transa, char transb,
+        memory::dim m, memory::dim n, memory::dim k, float alpha,
+        cl::sycl::buffer<uint16_t, 1> &a, memory::dim offset_a, memory::dim lda,
+        cl::sycl::buffer<uint16_t, 1> &b, memory::dim offset_b, memory::dim ldb,
+        float beta, cl::sycl::buffer<float, 1> &c, memory::dim offset_c,
+        memory::dim ldc);
+
 void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         memory::dim m, memory::dim n, memory::dim k, float alpha,
         const float *a, memory::dim lda, const float *b, memory::dim ldb,
@@ -132,6 +146,16 @@ void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb,
         memory::dim m, memory::dim n, memory::dim k, float alpha,
         const cl::sycl::half *a, memory::dim lda, const cl::sycl::half *b,
         memory::dim ldb, float beta, cl::sycl::half *c, memory::dim ldc);
+
+void DNNL_API gemm_bf16bf16bf16(cl::sycl::queue &queue, char transa,
+        char transb, memory::dim m, memory::dim n, memory::dim k, float alpha,
+        const uint16_t *a, memory::dim lda, const uint16_t *b, memory::dim ldb,
+        float beta, uint16_t *c, memory::dim ldc);
+
+void DNNL_API gemm_bf16bf16f32(cl::sycl::queue &queue, char transa, char transb,
+        memory::dim m, memory::dim n, memory::dim k, float alpha,
+        const uint16_t *a, memory::dim lda, const uint16_t *b, memory::dim ldb,
+        float beta, float *c, memory::dim ldc);
 
 } // namespace dnnl
 
@@ -1018,10 +1042,10 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
     static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
+        engine eng = a_mem.get().get_engine();
+        stream s(eng);
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            engine eng = a_mem.get().get_engine();
-            stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
             auto status = dnnl_ocl_gemm_bf16bf16f32(q, p.transA, p.transB, p.M,
                     p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
@@ -1030,6 +1054,28 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
                     p.ldc);
             s.wait();
             return status;
+        }
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            cl::sycl::queue sycl_queue = s.get_sycl_queue();
+#if DNNL_USE_DPCPP_USM
+            // Test USM API
+            auto a = static_cast<uint16_t *>(a_mem.get().get_data_handle());
+            auto b = static_cast<uint16_t *>(b_mem.get().get_data_handle());
+            auto c = static_cast<float *>(c_mem.get().get_data_handle());
+            dnnl::gemm_bf16bf16f32(sycl_queue, p.transA, p.transB, p.M, p.N,
+                    p.K, p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
+#else
+            // Test buffer API
+            auto a = a_mem.get().get_sycl_buffer<uint16_t>();
+            auto b = b_mem.get().get_sycl_buffer<uint16_t>();
+            auto c = c_mem.get().get_sycl_buffer<float>();
+            dnnl::gemm_bf16bf16f32(sycl_queue, p.transA, p.transB, p.M, p.N,
+                    p.K, p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
+                    c, p.off.c, p.ldc);
+#endif
+            s.wait();
+            return dnnl_success;
         }
 #endif
         auto A = map_memory<bfloat16_t>(a_mem);
@@ -1045,10 +1091,10 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, bfloat16_t> {
     static dnnl_status_t call(const test_params &p, const test_memory &a_mem,
             const test_memory &b_mem, const test_memory &c_mem,
             const test_memory &) {
+        engine eng = a_mem.get().get_engine();
+        stream s(eng);
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         if (get_test_engine_kind() == engine::kind::gpu) {
-            engine eng = a_mem.get().get_engine();
-            stream s(eng);
             cl_command_queue q = s.get_ocl_command_queue();
             auto status = dnnl_ocl_gemm_bf16bf16bf16(q, p.transA, p.transB, p.M,
                     p.N, p.K, p.alpha, a_mem.get().get_ocl_mem_object(),
@@ -1057,6 +1103,28 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, bfloat16_t> {
                     p.ldc);
             s.wait();
             return status;
+        }
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+        if (get_test_engine_kind() == engine::kind::gpu) {
+            cl::sycl::queue sycl_queue = s.get_sycl_queue();
+#ifdef DNNL_USE_DPCPP_USM
+            // Test USM API
+            auto a = static_cast<uint16_t *>(a_mem.get().get_data_handle());
+            auto b = static_cast<uint16_t *>(b_mem.get().get_data_handle());
+            auto c = static_cast<uint16_t *>(c_mem.get().get_data_handle());
+            dnnl::gemm_bf16bf16bf16(sycl_queue, p.transA, p.transB, p.M, p.N,
+                    p.K, p.alpha, a, p.lda, b, p.ldb, p.beta, c, p.ldc);
+#else
+            // Test buffer API
+            auto a = a_mem.get().get_sycl_buffer<uint16_t>();
+            auto b = b_mem.get().get_sycl_buffer<uint16_t>();
+            auto c = c_mem.get().get_sycl_buffer<uint16_t>();
+            dnnl::gemm_bf16bf16bf16(sycl_queue, p.transA, p.transB, p.M, p.N,
+                    p.K, p.alpha, a, p.off.a, p.lda, b, p.off.b, p.ldb, p.beta,
+                    c, p.off.c, p.ldc);
+#endif
+            s.wait();
+            return dnnl_success;
         }
 #endif
         return dnnl_unimplemented;
