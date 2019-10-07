@@ -475,6 +475,7 @@ const primitive_kind_t inner_product = dnnl_inner_product;
 const primitive_kind_t rnn = dnnl_rnn;
 const primitive_kind_t gemm = dnnl_gemm;
 const primitive_kind_t binary = dnnl_binary;
+const primitive_kind_t logsoftmax = dnnl_logsoftmax;
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;
@@ -514,6 +515,7 @@ const query_t inner_product_d = dnnl_query_inner_product_d;
 const query_t rnn_d = dnnl_query_rnn_d;
 const query_t gemm_d = dnnl_query_gemm_d;
 const query_t binary_d = dnnl_query_binary_d;
+const query_t logsoftmax_d = dnnl_query_logsoftmax_d;
 
 const query_t some_md = dnnl_query_some_md;
 const query_t src_md = dnnl_query_src_md;
@@ -544,6 +546,7 @@ using batch_normalization_desc_t = dnnl_batch_normalization_desc_t;
 using layer_normalization_desc_t = dnnl_layer_normalization_desc_t;
 using inner_product_desc_t = dnnl_inner_product_desc_t;
 using binary_desc_t = dnnl_binary_desc_t;
+using logsoftmax_desc_t = dnnl_logsoftmax_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;

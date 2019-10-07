@@ -77,6 +77,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_rnn_forward.cpp
                               test_layer_normalization.cpp
                               test_binary.cpp
+                              test_logsoftmax.cpp
                               )
 
 # Workaround for an Intel compiler bug: stack unwinding does not restore

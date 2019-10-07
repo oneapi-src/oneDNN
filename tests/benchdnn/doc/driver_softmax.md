@@ -13,6 +13,11 @@ where *softmax-knobs* are:
             Refer to the common glossary in README.md for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to the common glossary in README.md for details.
+ - `--alg={SOFTMAX [default], LOGSOFTMAX}` -- algorithm type.
+            `SOFTMAX` enables softmax primitive;
+            `LOGSOFTMAX` enables logsoftmax primitive;
+            Refer to ``doc/primitives/softmax.md`` and
+            ``doc/primitives/logsoftmax.md`` for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`, corresponds to channels in logical memory layout.
  - `--mb=INT` -- override minibatch size specified in the problem description.
@@ -56,6 +61,13 @@ layout, f32 data type, out-place memory mode, and axis size of 1000:
 ``` sh
     ./benchdnn --softmax --dir=FWD_D --dt=f32 --tag=nc \
                --inplace=false --axis=1 256x1000
+```
+
+Run a specific logsoftmax problem with backward prop_kind, default physical
+memory layout, default data type, in-place memory mode, and axis size of 64:
+``` sh
+    ./benchdnn --softmax --dir=BWD_D --inplace=true \
+               --alg=LOGSOFTMAX --axis=3 1x2x112x64
 ```
 
 More examples with different driver options can be found at

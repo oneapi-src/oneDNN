@@ -595,6 +595,10 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
                         get_desc_hash<layer_normalization_desc_t>(
                                 key.op_desc_));
                 break;
+            case primitive_kind::logsoftmax:
+                seed = hash_combine(
+                        seed, get_desc_hash<logsoftmax_desc_t>(key.op_desc_));
+                break;
             case primitive_kind::lrn:
                 seed = hash_combine(
                         seed, get_desc_hash<lrn_desc_t>(key.op_desc_));

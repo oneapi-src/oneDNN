@@ -46,6 +46,7 @@ Memory bandwidth limited operations:
  * [Elementwise](@ref dev_guide_eltwise): ReLU, Tanh, ELU, Abs, and other
  * [Layer Normalization](@ref dev_guide_layer_normalization)
  * [Local Response Normalization](@ref dev_guide_lrn)
+ * [LogSoftmax](@ref dev_guide_logsoftmax)
  * [Pooling](@ref dev_guide_pooling)
  * [Shuffle](@ref dev_guide_shuffle)
  * [Softmax](@ref dev_guide_softmax)

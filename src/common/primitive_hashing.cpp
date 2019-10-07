@@ -76,6 +76,9 @@ void key_t::init_mds(const primitive_desc_t *pd) {
         case primitive_kind::layer_normalization: {
             break;
         }
+        case primitive_kind::logsoftmax: {
+            break;
+        }
         case primitive_kind::lrn: {
             break;
         }
@@ -152,6 +155,9 @@ bool key_t::operator==(const key_t &rhs) const {
         case primitive_kind::layer_normalization:
             ret = cast_and_compare<layer_normalization_desc_t>(
                     op_desc_, rhs.op_desc_);
+            break;
+        case primitive_kind::logsoftmax:
+            ret = cast_and_compare<logsoftmax_desc_t>(op_desc_, rhs.op_desc_);
             break;
         case primitive_kind::lrn:
             ret = cast_and_compare<lrn_desc_t>(op_desc_, rhs.op_desc_);

@@ -1103,6 +1103,42 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_desc_init(
 
 /// @}
 
+/// @addtogroup c_api_logsoftmax LogSoftmax
+/// A primitive to perform logsoftmax.
+///
+/// @sa @ref dev_guide_logsoftmax in developer guide
+/// @sa @ref cpp_api_logsoftmax in @ref cpp_api
+/// @{
+
+/// Initializes a @p logsoftmax_desc for forward propagation using @p prop_kind
+/// (possible values are #dnnl_forward_training and #dnnl_forward_inference)
+/// and memory descriptor @p data_desc.
+///
+/// Inputs:
+///  - src (#dnnl_query_src_md, 0)
+///
+/// Outputs:
+///  - dst (#dnnl_query_dst_md, 0)
+dnnl_status_t DNNL_API dnnl_logsoftmax_forward_desc_init(
+        dnnl_logsoftmax_desc_t *logsoftmax_desc, dnnl_prop_kind_t prop_kind,
+        const dnnl_memory_desc_t *data_desc, int logsoftmax_axis);
+
+/// Initializes a @p logsoftmax_desc for backward propagation using memory
+/// descriptors @p diff_desc and @p data_desc.
+///
+/// Inputs:
+///  - dst (#dnnl_query_dst_md, 0)
+///  - diff_dst (#dnnl_query_diff_dst_md, 0)
+///
+/// Outputs:
+///  - diff_src (#dnnl_query_diff_src_md, 0)
+dnnl_status_t DNNL_API dnnl_logsoftmax_backward_desc_init(
+        dnnl_logsoftmax_desc_t *logsoftmax_desc,
+        const dnnl_memory_desc_t *diff_desc,
+        const dnnl_memory_desc_t *data_desc, int logsoftmax_axis);
+
+/// @}
+
 /// @addtogroup c_api_pooling Pooling
 /// A primitive to perform max or average pooling.
 ///

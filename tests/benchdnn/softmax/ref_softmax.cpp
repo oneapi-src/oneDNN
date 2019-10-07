@@ -40,15 +40,28 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
 
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou_in_offset + as * inner_size;
-                    float D = dst_ptr[idx] = expf(src_ptr[idx] - space_max);
-                    space_denom += D;
+                    if (p->alg == SOFTMAX) {
+                        float D = dst_ptr[idx] = expf(src_ptr[idx] - space_max);
+                        space_denom += D;
+                    } else if (p->alg == LOGSOFTMAX) {
+                        float D = dst_ptr[idx] = src_ptr[idx] - space_max;
+                        space_denom += expf(D);
+                    }
                 }
 
-                space_denom = 1. / space_denom;
+                if (p->alg == SOFTMAX) {
+                    space_denom = space_denom ? (1.f / space_denom) : 1.f;
+                } else if (p->alg == LOGSOFTMAX) {
+                    space_denom = logf(space_denom);
+                }
 
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou_in_offset + as * inner_size;
-                    dst_ptr[idx] *= space_denom;
+                    if (p->alg == SOFTMAX) {
+                        dst_ptr[idx] *= space_denom;
+                    } else if (p->alg == LOGSOFTMAX) {
+                        dst_ptr[idx] -= space_denom;
+                    }
                 }
             });
 }
@@ -75,8 +88,12 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou * axis_size * inner_size + as * inner_size
                             + in;
-                    d_src_ptr[idx]
-                            = dst_ptr[idx] * (d_dst_ptr[idx] - part_deriv_sum);
+                    if (p->alg == SOFTMAX) {
+                        d_src_ptr[idx] = dst_ptr[idx]
+                                * (d_dst_ptr[idx] - part_deriv_sum);
+                    } else if (p->alg == LOGSOFTMAX) {
+                        d_src_ptr[idx] = d_dst_ptr[idx] - part_deriv_sum;
+                    }
                 }
             });
 }

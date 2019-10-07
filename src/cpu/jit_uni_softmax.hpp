@@ -68,7 +68,7 @@ struct jit_uni_softmax_fwd_t : public primitive_impl_t {
             };
 
             bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-                    && src_md()->data_type == data_type::f32
+                    && src_md()->data_type == data_type::f32 && is_softmax()
                     && is_dense() // not dense impl can be easily done
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;

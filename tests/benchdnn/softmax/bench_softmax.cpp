@@ -32,6 +32,7 @@ namespace softmax {
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
 std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
+std::vector<alg_t> alg {SOFTMAX};
 std::vector<int> axis {1};
 std::vector<int64_t> mb {0};
 std::vector<bool> inplace {true};
@@ -40,7 +41,7 @@ dims_t dims;
 const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
-        = "perf,%engine%,%dir%,%dt%,%tag%,%axis%,%DESC%,%-time%,%0time%";
+        = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%axis%,%DESC%,%-time%,%0time%";
 const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
 
@@ -48,6 +49,7 @@ void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
     tag = {dnnl_nchw};
+    alg = {SOFTMAX};
     axis = {1};
     mb = {0};
     inplace = {true};
@@ -59,10 +61,11 @@ void check_correctness() {
     for_(const auto &i_dir : dir)
     for_(const auto &i_dt : dt)
     for_(const auto &i_tag : tag)
+    for_(const auto &i_alg : alg)
     for_(const auto &i_axis : axis)
     for_(const auto &i_inplace : inplace)
     for (const auto &i_mb : mb) {
-        const prb_t p(dims, i_dir, i_dt, i_tag, i_axis, i_inplace, i_mb);
+        const prb_t p(dims, i_dir, i_dt, i_tag, i_alg, i_axis, i_inplace, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -91,6 +94,7 @@ int bench(int argc, char **argv) {
         const bool parsed_options = false || parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
                 || parse_dt(dt, argv[0]) || parse_tag(tag, argv[0])
+                || parse_vector_option(alg, str2alg, argv[0], "alg")
                 || parse_axis(axis, argv[0]) || parse_inplace(inplace, argv[0])
                 || parse_mb(mb, argv[0]) || parse_skip_impl(skip_impl, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])

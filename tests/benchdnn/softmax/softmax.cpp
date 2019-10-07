@@ -43,16 +43,31 @@ static int init_pd(const prb_t *p, dnnl_softmax_desc_t &sd,
         auto prop = p->dir & FLAG_INF ? dnnl_forward_inference
                                       : dnnl_forward_training;
 
-        DNN_SAFE(dnnl_softmax_forward_desc_init(&sd, prop, &data_d, p->axis),
-                WARN);
+        if (p->alg == SOFTMAX)
+            DNN_SAFE(
+                    dnnl_softmax_forward_desc_init(&sd, prop, &data_d, p->axis),
+                    WARN);
+        else if (p->alg == LOGSOFTMAX)
+            DNN_SAFE(dnnl_logsoftmax_forward_desc_init(
+                             &sd, prop, &data_d, p->axis),
+                    WARN);
+        else
+            SAFE_V(FAIL);
     } else {
         dnnl_memory_desc_t diff_data_d;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims,
                          p->dims.data(), p->dt, dnnl_format_tag_any),
                 WARN);
-        DNN_SAFE(dnnl_softmax_backward_desc_init(
-                         &sd, &diff_data_d, &data_d, p->axis),
-                WARN);
+        if (p->alg == SOFTMAX)
+            DNN_SAFE(dnnl_softmax_backward_desc_init(
+                             &sd, &diff_data_d, &data_d, p->axis),
+                    WARN);
+        else if (p->alg == LOGSOFTMAX)
+            DNN_SAFE(dnnl_logsoftmax_backward_desc_init(
+                             &sd, &diff_data_d, &data_d, p->axis),
+                    WARN);
+        else
+            SAFE_V(FAIL);
     }
 
     dnnl_status_t init_status

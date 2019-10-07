@@ -259,6 +259,8 @@ public:
         rnn = dnnl_rnn,
         /// A binary primitive.
         binary = dnnl_binary,
+        /// A logsoftmax primitive.
+        logsoftmax = dnnl_logsoftmax,
     };
 
     using handle::handle;
@@ -614,6 +616,8 @@ enum class query {
     rnn_d = dnnl_query_rnn_d,
     /// binary descriptor
     binary_d = dnnl_query_binary_d,
+    /// logsoftmax descriptor
+    logsoftmax_d = dnnl_query_logsoftmax_d,
 
     /// source memory desc
     src_md = dnnl_query_src_md,
@@ -3619,6 +3623,12 @@ struct softmax_backward : public primitive {
             : dnnl::primitive_desc(
                     &desc.data, &attr, e, hint_fwd_pd.get(), allow_empty) {}
 
+        /// Initializes a primitive descriptor for softmax backward
+        /// propagation from a C primitive descriptor @p pd.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
+                    dnnl::prop_kind::backward_data) {}
+
         /// @copydoc dnnl::softmax_forward::op_desc() const
         desc op_desc() const {
             dnnl_softmax_desc_t *data;
@@ -3628,12 +3638,6 @@ struct softmax_backward : public primitive {
                     "could not retreave a softmax op desc");
             return desc(*data);
         }
-
-        /// Initializes a primitive descriptor for softmax backward
-        /// propagation from a C primitive descriptor @p pd.
-        primitive_desc(dnnl_primitive_desc_t pd)
-            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
-                    dnnl::prop_kind::backward_data) {}
 
         /// @copydoc dnnl::primitive_desc_base::dst_desc() const
         memory::desc dst_desc() const { return base::dst_desc(0); }
@@ -3648,6 +3652,167 @@ struct softmax_backward : public primitive {
     softmax_backward() = default;
 
     softmax_backward(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// @}
+
+/// @addtogroup cpp_api_logsoftmax LogSoftmax
+/// A primitive to perform logsoftmax.
+///
+/// @sa @ref dev_guide_logsoftmax in developer guide
+/// @sa @ref c_api_logsoftmax in @ref c_api
+/// @{
+
+/// Logsoftmax for forward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
+struct logsoftmax_forward : public primitive {
+
+    /// Descriptor for logsoftmax forward propagation.
+    struct desc {
+        dnnl_logsoftmax_desc_t data;
+
+        desc() = default;
+
+        /// Initializes a logsoftmax descriptor for forward propagation using @p
+        /// prop_kind (possible values are #dnnl::forward_training and
+        /// #dnnl::forward_inference) and memory descriptor @p data_desc.
+        desc(prop_kind aprop_kind, const memory::desc &data_desc,
+                int logsoftmax_axis) {
+            error::wrap_c_api(dnnl_logsoftmax_forward_desc_init(&data,
+                                      dnnl::convert_to_c(aprop_kind),
+                                      &data_desc.data, logsoftmax_axis),
+                    "could not create a logsoftmax forward descriptor");
+        }
+
+        /// Initializes a logsoftmax descriptor for forward propagation using
+        /// logsoftmax descriptor @p adata.
+        desc(dnnl_logsoftmax_desc_t adata) {
+            error::wrap_c_api(
+                    dnnl_logsoftmax_forward_desc_init(&data, adata.prop_kind,
+                            &adata.data_desc, adata.softmax_axis),
+                    "could not create a logsoftmax forward descriptor");
+        }
+    };
+
+    /// Primitive descriptor for logsoftmax forward propagation.
+    struct primitive_desc : public dnnl::primitive_desc {
+        primitive_desc() = default;
+
+        primitive_desc(
+                const desc &desc, const engine &e, bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &desc.data, nullptr, e, nullptr, allow_empty) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr,
+                const engine &e, bool allow_empty = false)
+            : dnnl::primitive_desc(&desc.data, &attr, e, nullptr, allow_empty) {
+        }
+
+        /// Initializes a primitive descriptor for logsoftmax forward
+        /// propagation from a C primitive descriptor @p pd.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
+                    dnnl::prop_kind::forward_training,
+                    dnnl::prop_kind::forward_inference) {}
+
+        /// Queries operation descriptor.
+        desc op_desc() const {
+            dnnl_logsoftmax_desc_t *data;
+            error::wrap_c_api(
+                    dnnl_primitive_desc_query(
+                            get(), dnnl::convert_to_c(query::op_d), 0, &data),
+                    "could not retreave a logsoftmax op desc");
+            return desc(*data);
+        }
+
+        /// @copydoc dnnl::primitive_desc_base::src_desc() const
+        memory::desc src_desc() const { return base::src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+    };
+
+    logsoftmax_forward() = default;
+
+    logsoftmax_forward(const primitive_desc &pd) : primitive(pd) {}
+};
+
+/// Logsoftmax for backward propagation.  Implements descriptor, primitive
+/// descriptor, and primitive.
+struct logsoftmax_backward : public primitive {
+
+    /// Descriptor for logsoftmax backward propagation.
+    struct desc {
+        dnnl_logsoftmax_desc_t data;
+
+        desc() = default;
+
+        /// Initializes a logsoftmax descriptor for backward propagation using
+        /// memory descriptors @p diff_desc and @p data_desc.
+        desc(const memory::desc &diff_desc, const memory::desc &data_desc,
+                int logsoftmax_axis) {
+            error::wrap_c_api(
+                    dnnl_logsoftmax_backward_desc_init(&data, &diff_desc.data,
+                            &data_desc.data, logsoftmax_axis),
+                    "could not init a backward logsoftmax descriptor");
+        }
+
+        /// Initializes a logsoftmax descriptor for backward propagation using
+        /// logsoftmax descriptor @p adata.
+        desc(dnnl_logsoftmax_desc_t adata) {
+            error::wrap_c_api(
+                    dnnl_logsoftmax_backward_desc_init(&data, &adata.diff_desc,
+                            &adata.data_desc, adata.softmax_axis),
+                    "could not create a logsoftmax forward descriptor");
+        }
+    };
+
+    /// Primitive descriptor for logsoftmax backward propagation.
+    struct primitive_desc : public dnnl::primitive_desc {
+        primitive_desc() = default;
+
+        primitive_desc(const desc &desc, const engine &e,
+                const logsoftmax_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &desc.data, nullptr, e, hint_fwd_pd.get(), allow_empty) {}
+
+        primitive_desc(const desc &desc, const primitive_attr &attr,
+                const engine &e,
+                const logsoftmax_forward::primitive_desc &hint_fwd_pd,
+                bool allow_empty = false)
+            : dnnl::primitive_desc(
+                    &desc.data, &attr, e, hint_fwd_pd.get(), allow_empty) {}
+
+        /// Initializes a primitive descriptor for logsoftmax backward
+        /// propagation from a C primitive descriptor @p pd.
+        primitive_desc(dnnl_primitive_desc_t pd)
+            : dnnl::primitive_desc(pd, dnnl::primitive::kind::softmax,
+                    dnnl::prop_kind::backward_data) {}
+
+        /// @copydoc dnnl::logsoftmax_forward::op_desc() const
+        desc op_desc() const {
+            dnnl_logsoftmax_desc_t *data;
+            error::wrap_c_api(
+                    dnnl_primitive_desc_query(
+                            get(), dnnl::convert_to_c(query::op_d), 0, &data),
+                    "could not retreave a logsoftmax op desc");
+            return desc(*data);
+        }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc dst_desc() const { return base::dst_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::diff_src_desc() const
+        memory::desc diff_src_desc() const { return base::diff_src_desc(0); }
+
+        /// @copydoc dnnl::primitive_desc_base::dst_desc() const
+        memory::desc diff_dst_desc() const { return base::diff_dst_desc(0); }
+    };
+
+    logsoftmax_backward() = default;
+
+    logsoftmax_backward(const primitive_desc &pd) : primitive(pd) {}
 };
 
 /// @}

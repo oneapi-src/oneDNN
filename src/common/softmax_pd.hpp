@@ -51,6 +51,9 @@ struct softmax_pd_t : public primitive_desc_t {
             case query::softmax_d:
                 *(const softmax_desc_t **)result = desc();
                 break;
+            case query::logsoftmax_d:
+                *(const logsoftmax_desc_t **)result = desc();
+                break;
             default: return primitive_desc_t::query(what, idx, result);
         }
         return status::success;
@@ -88,6 +91,13 @@ struct softmax_pd_t : public primitive_desc_t {
 
     bool has_zero_dim_memory() const {
         return memory_desc_wrapper(data_desc()).has_zero_dim();
+    }
+
+    bool is_softmax() const {
+        return desc()->primitive_kind == primitive_kind::softmax;
+    }
+    bool is_logsoftmax() const {
+        return desc()->primitive_kind == primitive_kind::logsoftmax;
     }
 
 protected:

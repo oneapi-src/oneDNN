@@ -86,18 +86,36 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
         for (int i = 0; i < channels_ - tail; i += unroll_factor) {
             PRAGMA_OMP_SIMD()
             for (int j = 0; j < unroll_factor; j++) {
-                space_denom += dst_data[i + j]
-                        = expf(src_data[i + j] - space_max);
+                if (pd()->is_softmax()) {
+                    space_denom += dst_data[i + j]
+                            = expf(src_data[i + j] - space_max);
+                } else if (pd()->is_logsoftmax()) {
+                    float D = dst_data[i + j] = src_data[i + j] - space_max;
+                    space_denom += expf(D);
+                }
             }
         }
         for (int i = channels_ - tail; i < channels_; i++) {
-            space_denom += dst_data[i] = expf(src_data[i] - space_max);
+            if (pd()->is_softmax()) {
+                space_denom += dst_data[i] = expf(src_data[i] - space_max);
+            } else if (pd()->is_logsoftmax()) {
+                float D = dst_data[i] = src_data[i] - space_max;
+                space_denom += expf(D);
+            }
         }
 
         // scal
-        space_denom = data_t(1) / space_denom;
+        if (pd()->is_softmax()) {
+            space_denom = space_denom ? (data_t(1) / space_denom) : data_t(1);
+        } else if (pd()->is_logsoftmax()) {
+            space_denom = logf(space_denom);
+        }
         for (int c = 0; c < channels_; ++c) {
-            dst_data[c] *= space_denom;
+            if (pd()->is_softmax()) {
+                dst_data[c] *= space_denom;
+            } else if (pd()->is_logsoftmax()) {
+                dst_data[c] -= space_denom;
+            }
         }
     });
 }
@@ -134,12 +152,26 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
 
             for (int c = 0; c < channels_; c++) {
                 size_t off = data_d.off_l(ou_in_offset + c * inner_size_);
-                space_denom[in] += dst[off] = expf(src[off] - space_max[in]);
+                if (pd()->is_softmax()) {
+                    space_denom[in] += dst[off]
+                            = expf(src[off] - space_max[in]);
+                } else if (pd()->is_logsoftmax()) {
+                    float D = dst[off] = src[off] - space_max[in];
+                    space_denom[in] += expf(D);
+                }
+            }
+
+            if (pd()->is_logsoftmax()) {
+                space_denom[in] = logf(space_denom[in]);
             }
 
             for (int c = 0; c < channels_; c++) {
                 size_t off = data_d.off_l(ou_in_offset + c * inner_size_);
-                dst[off] /= space_denom[in];
+                if (pd()->is_softmax()) {
+                    dst[off] /= space_denom[in];
+                } else if (pd()->is_logsoftmax()) {
+                    dst[off] -= space_denom[in];
+                }
             }
         }
     });
@@ -164,7 +196,11 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
             sbr += diff_dst[loff] * dst[loff];
 
         for (size_t loff = off; loff < off + channels_; ++loff)
-            diff_src[loff] = dst[loff] * (diff_dst[loff] - sbr);
+            if (pd()->is_softmax()) {
+                diff_src[loff] = dst[loff] * (diff_dst[loff] - sbr);
+            } else if (pd()->is_logsoftmax()) {
+                diff_src[loff] = diff_dst[loff] - sbr;
+            }
     });
 }
 
@@ -190,7 +226,11 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
         for (int c = 0; c < channels_; ++c) {
             auto off_diff = diff_d.off_l(ou_in_offset + c * inner_size_);
             auto off_data = data_d.off_l(ou_in_offset + c * inner_size_);
-            diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
+            if (pd()->is_softmax()) {
+                diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
+            } else if (pd()->is_logsoftmax()) {
+                diff_src[off_diff] = diff_dst[off_diff] - sbr;
+            }
         }
     });
 }

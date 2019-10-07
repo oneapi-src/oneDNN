@@ -391,6 +391,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_rnn) return "rnn";
     if (v == dnnl_gemm) return "gemm";
     if (v == dnnl_binary) return "binary";
+    if (v == dnnl_logsoftmax) return "logsoftmax";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }

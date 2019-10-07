@@ -693,6 +693,8 @@ static void init_info_softmax(pd_t *s, char *buffer) {
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
+    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s ",
+            s->is_softmax() ? "softmax" : "logsoftmax");
     DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "axis:%d", s->axis());
 
     dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());

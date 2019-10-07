@@ -649,6 +649,8 @@ typedef enum {
     dnnl_gemm,
     /// A binary primitive.
     dnnl_binary,
+    /// A logsoftmax primitive.
+    dnnl_logsoftmax,
 } dnnl_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -1066,6 +1068,10 @@ typedef struct {
     /// The axis along which to perform the softmax.
     int softmax_axis;
 } dnnl_softmax_desc_t;
+
+/// A descriptor of a LogSoftmax operation. An alias of Softmax structure, but
+/// primitive_kind must be #dnnl_logsoftmax.
+typedef dnnl_softmax_desc_t dnnl_logsoftmax_desc_t;
 
 /// A descriptor of a pooling operation.
 typedef struct {
@@ -1602,6 +1608,7 @@ typedef enum {
     dnnl_query_rnn_d, ///< rnn descriptor
     dnnl_query_gemm_d, ///< GEMM descriptor
     dnnl_query_binary_d, ///< binary descriptor
+    dnnl_query_logsoftmax_d, ///< logsoftmax descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub

@@ -122,6 +122,7 @@ PKIND_TRAITS_INST(inner_product);
 PKIND_TRAITS_INST(rnn);
 PKIND_TRAITS_INST(gemm);
 PKIND_TRAITS_INST(binary);
+PKIND_TRAITS_INST(logsoftmax);
 #undef PKIND_TRAITS_INST
 
 } // namespace impl

@@ -29,10 +29,22 @@
 
 namespace softmax {
 
+enum alg_t { UNDEF, SOFTMAX, LOGSOFTMAX };
+alg_t str2alg(const char *str);
+const char *alg2str(alg_t alg);
+dnnl_alg_kind_t alg2alg_kind(alg_t alg);
+
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, int axis, bool inplace, int64_t mb = 0)
-        : dims(dims), dir(dir), dt(dt), tag(tag), axis(axis), inplace(inplace) {
+            dnnl_format_tag_t tag, alg_t alg, int axis, bool inplace,
+            int64_t mb = 0)
+        : dims(dims)
+        , dir(dir)
+        , dt(dt)
+        , tag(tag)
+        , alg(alg)
+        , axis(axis)
+        , inplace(inplace) {
         if (mb) this->dims[0] = mb;
     }
     ~prb_t() {}
@@ -41,6 +53,7 @@ struct prb_t {
     dir_t dir;
     dnnl_data_type_t dt;
     dnnl_format_tag_t tag;
+    alg_t alg;
     int axis;
     bool inplace;
 };
@@ -52,6 +65,10 @@ struct perf_report_t : public base_perf_report_t {
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
+    }
+
+    virtual void dump_alg(std::ostream &s) const override {
+        s << alg2str(p_->alg);
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
