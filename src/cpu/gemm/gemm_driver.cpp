@@ -991,10 +991,11 @@ static inline void set_thread_opts_nopack(int nthrs,
                     = ((n > nthrs * N2D_MAX) || (n <= nthrs * N2D_MAX / 2))
                     && (m >= 2 * M2D_MIN);
     } else {
-        condition_2D_bsrc = (256 * m > nthrs * n) && (nthrs * m < 256 * n);
+        int scale = mayiuse(avx512_core) ? nthrs : 20;
+        condition_2D_bsrc = (256 * m > scale * n) && (scale * m < 256 * n);
     }
 
-    // TODO Check if we shoud use k-partitioning.
+    // TODO Check if we should use k-partitioning.
 
     int condition_1D_copya = false;
     if (mayiuse(avx512_core)) {
@@ -1010,11 +1011,12 @@ static inline void set_thread_opts_nopack(int nthrs,
         }
     }
 
-    // If A offset is non-zero, we use to keep 1D_copya.
+    // If A or B offset is non-zero, we need to keep 1D_copya to reduce update
+    // overhead.
     // TODO: the reasons seems to be in copy_sum_bx routines. At least,
-    //       after simple optimization of copy_sum_ax, similar restriction
-    //       on offset B became unnecessary. Revisit.
-    if (is_int8 && arg->ao != 0) {
+    //       after simple optimization of copy_sum_ax for avx512, similar
+    //       restriction on offset B became unnecessary. Revisit.
+    if (is_int8 && arg->ao != 0 && (arg->bo != 0 || mayiuse(avx512_core))) {
         condition_2D_bsrc = false;
         condition_1D_copya = true;
     }
@@ -1037,7 +1039,8 @@ static inline void set_thread_opts_nopack(int nthrs,
         } else {
             if (n <= 64 || n >= 256) {
                 while (((nthrs_n > 1) && (n / nthrs_n < arg->un)
-                               && (m / nthrs_m >= 2 * arg->um))
+                               && (m / nthrs_m >= 2 * arg->um)
+                               && mayiuse(avx512_core))
                         || ((nthrs_n % 2 == 0)
                                 && (n / nthrs > N2D_MAX
                                         || n / nthrs_n <= N2D_MAX / 2)
@@ -1216,7 +1219,7 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
                     &nthrs_k, &BM, &BN, &BK);
         }
 
-        // Block information is being ignored. We will create patitioning
+        // Block information is being ignored. We will create partitioning
         // later.
         thread_info.nthrs_m = nthrs_m;
         thread_info.nthrs_n = nthrs_n;
@@ -1800,8 +1803,9 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::bf16,
             mayiuse(avx512_core) && !force_nocopy));
 
-    // gemm_driver supports 8-bit integer Intel AVX512 and Intel DL Boost.
-    assert(IMPLICATION(is_int8, mayiuse(avx512_core)));
+    // gemm_driver supports 8-bit integer Intel AVX512, Intel AVX2 and
+    // Intel DL Boost.
+    assert(IMPLICATION(is_int8, mayiuse(avx2) && !mayiuse(avx512_mic)));
 
     // gemm_driver supports sgemm for Intel AVX512, Intel AVX2, Intel AVX,
     // and Intel SSE4.1

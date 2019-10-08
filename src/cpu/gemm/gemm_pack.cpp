@@ -61,8 +61,15 @@ static inline CBLAS_OFFSET cblas_offset(const char *offset) {
 #endif
 
 #if !USE_MKL_PACKED_GEMM
-static inline bool use_reference_igemm() {
-    return !mayiuse(avx512_core);
+template <typename a_dt, typename b_dt>
+static inline bool use_reference_igemm(void) {
+    constexpr bool is_s8u8 = true
+            && data_traits<a_dt>::data_type == data_type::s8
+            && data_traits<b_dt>::data_type == data_type::u8;
+    if (is_s8u8)
+        return !mayiuse(avx2) || mayiuse(avx512_mic);
+    else
+        return !mayiuse(avx512_core);
 }
 
 template <typename T>
@@ -231,7 +238,7 @@ dnnl_status_t gemm_x8x8s32_pack_get_size(const char *identifier,
     float alpha = 1.0f;
     gemm_pack_storage_shell_t shell {dnnl_get_max_threads(), do_a, !do_a};
 
-    if (!use_reference_igemm()) {
+    if (!use_reference_igemm<a_dt, b_dt>()) {
         result = gemm_pack_driver<a_dt, b_dt, int32_t>(identifier, transa,
                 transb, M, N, K, &alpha, lda, ldb, nullptr, &shell, true);
         if (result != dnnl_success) return result;
@@ -346,7 +353,7 @@ dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
 #endif
     gemm_pack_storage_t pack_dst {dst};
 
-    if (!use_reference_igemm()) {
+    if (!use_reference_igemm<a_dt, b_dt>()) {
         return gemm_pack_driver<a_dt, b_dt, int32_t>(identifier, transa, transb,
                 M, N, K, &alpha, lda, ldb, src, &pack_dst, false);
     } else {
@@ -440,7 +447,7 @@ dnnl_status_t gemm_x8x8s32_compute(const char *transa, const char *transb,
     auto lda_eff = *lda, ldb_eff = *ldb;
     auto transa_eff = *transa, transb_eff = *transb;
 
-    if (!use_reference_igemm()) {
+    if (!use_reference_igemm<a_dt, b_dt>()) {
         return gemm_s8x8s32(&transa_eff, &transb_eff, offsetc, M, N, K, alpha,
                 A, &lda_eff, ao, B, &ldb_eff, bo, beta, C, ldc, co);
     } else {
