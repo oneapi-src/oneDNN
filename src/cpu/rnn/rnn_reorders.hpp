@@ -88,12 +88,12 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
-template <data_type_t type_i, data_type_t type_o>
-struct rnn_weights_reorder_t : public primitive_impl_t {
+template <data_type_t type_i>
+struct rnn_weights_reorder_s8_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
-        DECLARE_COMMON_PD_T("rnn_weights_reorder", rnn_weights_reorder_t);
+        DECLARE_COMMON_PD_T("rnn_weights_reorder_s8", rnn_weights_reorder_s8_t);
 
         static status_t create(reorder_pd_t **reorder_pd, engine_t *engine,
                 const primitive_attr_t *attr, engine_t *src_engine,
@@ -102,7 +102,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
             using namespace status;
             const memory_desc_wrapper id(src_md), od(dst_md);
             bool args_ok = true && id.data_type() == type_i
-                    && od.data_type() == type_o
+                    && od.data_type() == data_type::s8
                     && od.format_kind() == format_kind::rnn_packed
                     && od.rnn_packed_desc().format == dnnl_ldigo_p
                     && od.rnn_packed_desc().n_parts == 1 && attr != nullptr;
@@ -158,11 +158,10 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
         }
     };
 
-    rnn_weights_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    rnn_weights_reorder_s8_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
-    typedef typename prec_traits<type_o>::type out_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using math::saturate;
@@ -218,7 +217,7 @@ private:
                         PRAGMA_OMP_SIMD()
                         for (int go = 0; go < G * O; go++) {
                             const float s = scales[(mask == 0) ? 0 : go];
-                            int8_t q = qz_b0<in_data_t, out_data_t>()(
+                            int8_t q = qz_b0<in_data_t, int8_t>()(
                                     input[ld * I * G * O + i * G * O + go], s);
                             quantized[ld * I * G * O + i * G * O + go]
                                     = (int32_t)q;
@@ -241,7 +240,7 @@ private:
                 const float s = scales[(mask == 0) ? 0 : go];
                 PRAGMA_OMP_SIMD()
                 for (int i = 0; i < I; i++) {
-                    int8_t q = qz_b0<in_data_t, out_data_t>()(
+                    int8_t q = qz_b0<in_data_t, int8_t>()(
                             input[ld * G * O * I + go * I + i], s);
                     compensation += (int32_t)q;
                     quantized[ld * I * G * O + i * G * O + go] = q;
@@ -281,9 +280,8 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 };
 
-template <>
-struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
-    : public primitive_impl_t {
+template <data_type_t type_i, data_type_t type_o>
+struct rnn_weights_reorder_t : public primitive_impl_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -296,8 +294,8 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
             using namespace status;
 
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true && id.data_type() == data_type::f32
-                    && od.data_type() == data_type::f32
+            bool args_ok = true && id.data_type() == type_i
+                    && od.data_type() == type_o
                     && od.format_kind() == format_kind::rnn_packed
                     && utils::one_of(od.rnn_packed_desc().format, dnnl_ldigo_p,
                             dnnl_ldgoi_p)
@@ -359,9 +357,12 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
     rnn_weights_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
 private:
+    typedef typename prec_traits<type_i>::type in_data_t;
+    typedef typename prec_traits<type_o>::type out_data_t;
+
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const float *, DNNL_ARG_FROM);
-        auto output = CTX_OUT_MEM(float *, DNNL_ARG_TO);
+        auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
         const auto &dims = input_d.dims();
@@ -382,11 +383,12 @@ private:
 
         /* Transpose weights prior to packing to ensure that packed GEMM
          * algorithm will be dispatched*/
-        float *input_tr = (float *)input;
+        in_data_t *input_tr = (in_data_t *)input;
         if (from_igo != to_igo) {
-            input_tr = (float *)ctx.get_scratchpad_grantor().template get<void>(
-                    memory_tracking::names::
-                            key_reorder_rnn_weights_transposition);
+            input_tr
+                    = (in_data_t *)ctx.get_scratchpad_grantor().template get<void>(
+                            memory_tracking::names::
+                                    key_reorder_rnn_weights_transposition);
             const int M = to_igo ? G * O : I;
             const int N = to_igo ? I : G * O;
             parallel_nd(L * D, N, [&](int ld, int i) {
@@ -418,7 +420,7 @@ private:
                             output);
                     assert(st == dnnl_success);
                     MAYBE_UNUSED(st);
-                    output += size_packed_cell[p] / sizeof(float);
+                    output += size_packed_cell[p] / sizeof(out_data_t);
                 }
             }
         }
