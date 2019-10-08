@@ -38,7 +38,7 @@ inline std::vector<cl::sycl::device> get_intel_sycl_devices(
     auto devices = cl::sycl::device::get_devices(dev_type);
     devices.erase(
             std::remove_if(devices.begin(), devices.end(),
-                    [](const cl::sycl::device &dev) {
+                    [=](const cl::sycl::device &dev) {
                         return dev.get_info<cl::sycl::info::device::vendor_id>()
                                 != intel_vendor_id;
                     }),
