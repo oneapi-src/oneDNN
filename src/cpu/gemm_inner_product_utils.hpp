@@ -37,6 +37,8 @@ template <impl::data_type_t acc_type, impl::data_type_t dst_type>
 class pp_kernel_t : jit_generator {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
+    pp_kernel_t(size_t OC, const primitive_attr_t *attr, data_type_t bias_dt,
+            bool skip_sum);
     pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool skip_sum);
     ~pp_kernel_t() {
         if (do_eltwise_) {
@@ -83,7 +85,7 @@ private:
     Xbyak::Reg64 reg_rem_mask = r10;
     Xbyak::Opmask kreg_rem_mask = k1;
 
-    // Will be asigned in constructor
+    // Will be assigned in constructor
     Xbyak::Zmm vreg_zero, vreg_scale, vreg_sum_scale;
 
     Xbyak::Reg64 eltwise_reserved_1_ = r11;
@@ -96,7 +98,6 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
     size_t OC_;
-    bool do_bias_;
     data_type_t bias_data_type_;
     size_t bias_data_type_size_;
     bool do_scale_;
@@ -111,6 +112,8 @@ private:
     int idx_compute_vreg_max_;
     int compute_vregs_per_iter_;
     int compute_vreg_bias_shift_, compute_vreg_prev_dst_shift_;
+
+    bool do_bias() const { return bias_data_type_ != data_type::undef; }
 
     Xbyak::Zmm vreg_dst(int iter) {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_;

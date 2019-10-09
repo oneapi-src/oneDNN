@@ -30,15 +30,14 @@ using namespace alg_kind;
 using namespace math;
 
 template <data_type_t acc_type, data_type_t dst_type>
-pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
-        const cpu_inner_product_fwd_pd_t *pd, bool skip_sum)
+pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
+        const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
     : ker_(nullptr)
     , eltwise_injector_(nullptr)
     , ref_eltwise_(nullptr)
     , bf16_emu_(nullptr)
-    , OC_(pd->OC())
-    , do_bias_(pd->with_bias())
-    , bias_data_type_(data_type::undef)
+    , OC_(OC)
+    , bias_data_type_(bias_dt)
     , bias_data_type_size_(0)
     , do_scale_(false)
     , scale_idx_mult_(0)
@@ -55,14 +54,14 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
     using namespace types;
     using namespace Xbyak;
 
-    do_scale_ = !pd->attr()->output_scales_.has_default_values();
+    do_scale_ = !attr->output_scales_.has_default_values();
     if (do_scale_) {
-        scale_idx_mult_ = (pd->attr()->output_scales_.mask_ == (1 << 1));
+        scale_idx_mult_ = (attr->output_scales_.mask_ == (1 << 1));
         vreg_scale = Zmm(idx_compute_vreg_start_++);
     }
     if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
 
-    auto &p = pd->attr()->post_ops_;
+    auto &p = attr->post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
     do_eltwise_ = eltwise_ind != -1;
     if (do_eltwise_) eltwise_ = p.entry_[eltwise_ind].eltwise;
@@ -75,9 +74,7 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         compute_vreg_prev_dst_shift_ = compute_vregs_per_iter_++;
     }
 
-    if (do_bias_) {
-        bias_data_type_ = pd->desc()->bias_desc.data_type;
-        assert(bias_data_type_ != data_type::undef);
+    if (do_bias()) {
         bias_data_type_size_ = data_type_size(bias_data_type_);
         compute_vreg_bias_shift_ = compute_vregs_per_iter_++;
     }
@@ -111,6 +108,12 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         generate();
     }
 }
+
+template <data_type_t acc_type, data_type_t dst_type>
+pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
+        const cpu_inner_product_fwd_pd_t *pd, bool skip_sum)
+    : pp_kernel_t(
+            pd->OC(), pd->attr(), pd->desc()->bias_desc.data_type, skip_sum) {}
 
 template <data_type_t acc_type, data_type_t dst_type>
 void pp_kernel_t<acc_type, dst_type>::generate() {
@@ -163,7 +166,7 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
             case data_type::f32: vmovups(vreg_dst_msk_, acc_addr); break;
         }
 
-        if (do_bias_) {
+        if (do_bias()) {
             auto bias_addr = ptr[reg_bias + offset * bias_data_type_size_];
             auto vreg_bias_ = vreg_bias(idx);
             auto vreg_bias_msk_
@@ -253,7 +256,7 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
         add(reg_acc, offset * sizeof(acc_data_t));
         if (do_scale_ && scale_idx_mult_ == 1)
             add(reg_scales, offset * sizeof(float));
-        if (do_bias_) add(reg_bias, offset * bias_data_type_size_);
+        if (do_bias()) add(reg_bias, offset * bias_data_type_size_);
     };
 
     // Advance all pointers by a value stored in a register
@@ -262,14 +265,14 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
         lea(reg_acc, ptr[reg_acc + offset * sizeof(acc_data_t)]);
         if (do_scale_ && scale_idx_mult_ == 1)
             lea(reg_scales, ptr[reg_scales + offset * sizeof(float)]);
-        if (do_bias_)
+        if (do_bias())
             lea(reg_bias, ptr[reg_bias + offset * bias_data_type_size_]);
     };
 
-    // Rewind pointers that point to data that is indixed by output channel
+    // Rewind pointers that point to data that is indexed by output channel
     // (bias or per-oc scaling factors)
     auto rewind_ptrs = [&]() {
-        if (do_bias_) sub(reg_bias, OC_ * bias_data_type_size_);
+        if (do_bias()) sub(reg_bias, OC_ * bias_data_type_size_);
         if (do_scale_ && scale_idx_mult_ == 1)
             sub(reg_scales, OC_ * sizeof(float));
     };
@@ -443,7 +446,7 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         size_t oc = start % OC_;
         for (size_t i = start; i < end; i++) {
             float d = (float)acc[i];
-            if (do_bias_) d += get_bias(bias, oc, bias_data_type_);
+            if (do_bias()) d += get_bias(bias, oc, bias_data_type_);
             if (do_scale_) d *= scales[oc * scale_idx_mult_];
             if (do_sum_) d += sum_scale_ * dst[i];
             if (do_eltwise_) d = ref_eltwise_->compute_scalar(d);
