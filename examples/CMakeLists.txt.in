@@ -24,7 +24,13 @@ if(POLICY CMP0015)
     cmake_policy(SET CMP0015 NEW)
 endif()
 
-set(DNNLROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
+if(NOT DEFINED DNNLROOT AND DEFINED ENV{DNNLROOT})
+    set(DNNLROOT "$ENV{DNNLROOT}" CACHE STRING "")
+else()
+    set(DNNLROOT "${PROJECT_SOURCE_DIR}/.." CACHE STRING "")
+endif()
+
+message(STATUS "DNNLROOT: ${DNNLROOT}")
 
 enable_testing()
 
