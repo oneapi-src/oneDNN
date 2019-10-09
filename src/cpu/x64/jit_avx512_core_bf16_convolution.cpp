@@ -101,9 +101,13 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
             int iw_s = ow_s * jcp.stride_w;
 
             auto bias_w = bias ? bias + g_oc * bia_dt_size : nullptr;
-
-            auto dst_w = dst + jcp.typesize_out * dst_d.blk_off(n, g_ocb, ow_s);
-            auto src_w = src + src_d.blk_off(n, g_icb, iw_s);
+            const bool is_dst_layout_nxc = jcp.dst_tag == format_tag::nwc;
+            const int oc_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            auto dst_w
+                    = dst + jcp.typesize_out * dst_d.blk_off(n, oc_idx, ow_s);
+            const bool is_src_layout_nxc = jcp.src_tag == format_tag::nwc;
+            const int ic_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            auto src_w = src + src_d.blk_off(n, ic_idx, iw_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb);
 
             par_conv.src = src_w;
@@ -184,9 +188,13 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
 
             auto bias_w = bias ? bias + bia_dt_size * g_oc : nullptr;
 
+            const bool is_dst_layout_nxc = jcp.dst_tag == format_tag::nhwc;
+            const int oc_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
             auto dst_w = dst
-                    + jcp.typesize_out * dst_d.blk_off(n, g_ocb, oh_s, ow_s);
-            auto src_w = src + src_d.blk_off(n, g_icb, ih_s, iw_s);
+                    + jcp.typesize_out * dst_d.blk_off(n, oc_idx, oh_s, ow_s);
+            const bool is_src_layout_nxc = jcp.src_tag == format_tag::nhwc;
+            const int ic_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            auto src_w = src + src_d.blk_off(n, ic_idx, ih_s, iw_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0);
 
             for (int oj = oh_s, ij = ih_s; oj < oh_e;
@@ -292,10 +300,14 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
 
             auto bias_w = bias ? bias + g_oc * bia_dt_size : nullptr;
 
+            const bool is_dst_layout_nxc = jcp.dst_tag == format_tag::ndhwc;
+            const int oc_idx = (is_dst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
             auto dst_w = dst
                     + jcp.typesize_out
-                            * dst_d.blk_off(n, g_ocb, od_s, oh_s, ow_s);
-            auto src_w = src + src_d.blk_off(n, g_icb, id_s, ih_s, iw_s)
+                            * dst_d.blk_off(n, oc_idx, od_s, oh_s, ow_s);
+            const bool is_src_layout_nxc = jcp.src_tag == format_tag::ndhwc;
+            const int ic_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * g_icb;
+            auto src_w = src + src_d.blk_off(n, ic_idx, id_s, ih_s, iw_s)
                     + d_t_overflow * dilate_d * src_d_stride;
             auto wht_w = weights + wht_blk_off(weights_d, g, ocb, 0)
                     + d_t_overflow * wht_d_stride;

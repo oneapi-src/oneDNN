@@ -138,19 +138,21 @@ private:
     void generate();
 
     size_t get_output_offset(int oi, int n_oc_block) {
-        return (size_t)jcp.typesize_out
-                * ((size_t)n_oc_block * jcp.oh * jcp.ow * jcp.od + oi)
-                * jcp.oc_block;
+        const bool is_layout_nxc = is_dst_layout_nxc();
+        size_t w_str = is_layout_nxc ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        size_t ocb_str = jcp.oc_block
+                * (is_layout_nxc ? 1 : (size_t)jcp.od * jcp.oh * jcp.ow);
+        return jcp.typesize_out * (ocb_str * n_oc_block + w_str * oi);
     }
 
     size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
         size_t scale = 2; //bf16 vnni is used
-        size_t iw_str = jcp.is_1stconv ? 1 : jcp.ic_block;
+        size_t iw_str = is_src_layout_nxc()
+                ? jcp.ngroups * jcp.ic
+                : (jcp.is_1stconv ? 1 : jcp.ic_block);
         size_t ic_str = jcp.is_1stconv ? (size_t)jcp.iw * jcp.ih * jcp.id : 1;
-        return (size_t)jcp.typesize_in
-                * ((size_t)(ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
-                                * iw_str
-                        + scale * ic * ic_str);
+        int iw = ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l;
+        return jcp.typesize_in * (iw_str * iw + ic_str * scale * ic);
     }
 
     size_t get_kernel_offset(int ki, int ic, int n_oc_block, int ker_number) {
@@ -175,6 +177,14 @@ private:
                         utils::div_up(
                                 pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
                                 jcp.stride_w));
+    }
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_dst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
     }
 };
 
