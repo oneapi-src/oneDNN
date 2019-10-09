@@ -323,7 +323,6 @@ void jit_avx512_core_bf16_fwd_kernel::generate()
     int l_pad = jcp.l_pad;
     int ur_w = jcp.ur_w;
     int ur_w_tail = jcp.ur_w_tail;
-    int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
 
     int inp_mult = jcp.ic_block;
@@ -340,11 +339,10 @@ void jit_avx512_core_bf16_fwd_kernel::generate()
     mov(reg_ker, ptr[param1 + GET_OFF(filt)]);
     mov(reg_kh, ptr[param1 + GET_OFF(kh_padding)]);
 
-    int r_pad = nstl::max(
-            0, (ow - 1) * stride_w + (kw - 1) * dilate_w - (iw + l_pad - 1));
+    int r_pad = nstl::max(0, jcp.r_pad);
     int n_oi = ow / ur_w;
-    int r_pad1 = (ur_w * n_oi - 1) * stride_w + (kw - 1) * dilate_w
-            - (iw + l_pad - 1);
+    int r_pad1 = calculate_end_padding(l_pad, ur_w * n_oi, iw, stride_w,
+            calculate_extended_filter_size(kw, jcp.dilate_w));
 
     if (!is_ow_threading_on(jcp)) {
         // ow is being processed as a whole - with left and right paddings
@@ -576,10 +574,20 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
 
-    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
-            - (jcp.ih + jcp.t_pad - 1);
-    jcp.back_pad = (jcp.od - 1) * jcp.stride_d
-            + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
+    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
+    jcp.back_pad = calculate_end_padding(
+            jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd);
+    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
+            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
+            || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
+    if (kernel_outside_src)
+        return status::unimplemented;
 
     const int regs = isa_has_bf16(jcp.isa) ? 31 /* expl_bcast case */ : 26;
 
@@ -690,9 +698,9 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(
     if (!args_ok)
         return status::unimplemented;
 
-    int r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
-                    + (jcp.kw - 1) * (jcp.dilate_w + 1)
-                    - (jcp.iw + jcp.l_pad - 1));
+    int r_pad_no_tail = nstl::max(0,
+            calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
+                    jcp.stride_w, ext_kw));
     if (r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
@@ -1051,12 +1059,20 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(
             || (jcp.dilate_h != 0 && jcp.stride_h != 1))
         return status::unimplemented;
 
-    jcp.r_pad = (jcp.ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
-            - (jcp.iw + jcp.l_pad - 1);
-    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
-            - (jcp.ih + jcp.t_pad - 1);
-    jcp.back_pad = (jcp.od - 1) * jcp.stride_d
-            + (jcp.kd - 1) * (jcp.dilate_d + 1) - (jcp.id + jcp.f_pad - 1);
+    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
+    jcp.back_pad = calculate_end_padding(
+            jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd);
+    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
+            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad || ext_kh <= jcp.b_pad
+            || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
+    if (kernel_outside_src)
+        return status::unimplemented;
 
     jcp.aligned_threads = 0;
 
@@ -1394,8 +1410,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32
 #else
     int ow = jcp.tr_ow;
     // XXX: is it possible to use jcp.r_pad here?
-    int r_pad = nstl::max(0, (ow - 1) * jcp.stride_w
-            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
+    int r_pad = nstl::max(0,
+            calculate_end_padding(jcp.l_pad, ow, jcp.iw, jcp.stride_w,
+                    calculate_extended_filter_size(jcp.kw, jcp.dilate_w)));
     int l_pad = jcp.l_pad;
 #endif
     if (jcp.ndims == 5) {
@@ -1455,8 +1472,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32
 #else
     // XXX: is it possible to use jcp.r_pad here?
     int r_pad = nstl::max(0,
-        (ow - 1) * jcp.stride_w + (jcp.kw - 1) * (jcp.dilate_w + 1)
-        - (jcp.tr_iw + jcp.l_pad - 1));
+            calculate_end_padding(jcp.l_pad, ow, jcp.tr_iw, jcp.stride_w,
+                    calculate_extended_filter_size(jcp.kw, jcp.dilate_w)));
     int l_pad = jcp.l_pad;
 #endif
     if (jcp.ndims == 5) {
@@ -1533,8 +1550,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32
 #else
     int l_pad = jcp.l_pad;
     // XXX: is it possible to use jcp.r_pad here?
-    int r_pad = nstl::max(0, (ow - 1) * jcp.stride_w
-            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.tr_iw + jcp.l_pad - 1));
+    int r_pad = nstl::max(0,
+            calculate_end_padding(jcp.l_pad, ow, jcp.tr_iw, jcp.stride_w,
+                    calculate_extended_filter_size(jcp.kw, jcp.dilate_w)));
     int stride_w = jcp.stride_w;
 #endif
     int ur_w = nstl::min(ow, max_ur_w);
@@ -2101,21 +2119,29 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims-4];
     jcp.dilate_w = cd.dilates[ndims-3];
 
-    const int kh_range = 1 + (jcp.kh - 1) * (jcp.dilate_h + 1);
+    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    int ext_kd = calculate_extended_filter_size(jcp.kd, jcp.dilate_d);
+
     bool ok = true
-        // general condition to simplify dilations
-        && IMPLICATION(jcp.dilate_d != 0, jcp.stride_d == 1)
-        && IMPLICATION(jcp.dilate_h != 0, jcp.stride_h == 1)
-        && IMPLICATION(jcp.dilate_w != 0, jcp.stride_w == 1)
-        // special condition to simplify dilations in compute_oh_loop_common
-        && IMPLICATION(jcp.dilate_h != 0, kh_range <= jcp.ih);
+            // general condition to simplify dilations
+            && IMPLICATION(jcp.dilate_d != 0, jcp.stride_d == 1)
+            && IMPLICATION(jcp.dilate_h != 0, jcp.stride_h == 1)
+            && IMPLICATION(jcp.dilate_w != 0, jcp.stride_w == 1)
+            // special condition to simplify dilations in compute_oh_loop_common
+            && IMPLICATION(jcp.dilate_h != 0, ext_kh <= jcp.ih);
     if (!ok)
         return status::unimplemented;
 
-    jcp.r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w
-            + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1));
-    jcp.b_pad = nstl::max(0, (jcp.oh - 1) * jcp.stride_h
-            + (jcp.kh - 1) * (jcp.dilate_h + 1) - (jcp.ih + jcp.t_pad - 1));
+    jcp.r_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw));
+    jcp.b_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh));
+    jcp.back_pad = nstl::max(0,
+            calculate_end_padding(
+                    jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd));
 
     /* XXX: currently, does not support stride_d > 1 or dilation > 0 */
     if (ndims == 5)
@@ -2175,10 +2201,10 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     /* kernel applicability check wrt boundaries
      * the conditions are quite general across the kernels we have,
      * but ideally the check should belong to a specific kernel... */
-    const int max_pad = ((jcp.kh - 1) * (jcp.dilate_h + 1) + 1) / 2;
-    const bool boundaries_ok = true
-        && jcp.t_pad <= max_pad
-        && jcp.b_pad <= max_pad;
+    const int max_pad_h = ext_kh / 2;
+    const bool boundaries_ok = true && jcp.l_pad < ext_kw && jcp.r_pad < ext_kw
+            && jcp.t_pad <= max_pad_h && jcp.b_pad <= max_pad_h
+            && jcp.f_pad < ext_kd && jcp.back_pad < ext_kd;
     if (!boundaries_ok)
         return status::unimplemented;
 

@@ -140,6 +140,17 @@ struct jit_conv_conf_t {
     cpu_isa_t isa;
 };
 
+// calculates filter size taking into account dilation
+inline int calculate_extended_filter_size(int filter_size, int dilation) {
+    return (filter_size - 1) * (dilation + 1) + 1;
+}
+
+inline int calculate_end_padding(int start_padding, int dst_size, int src_size,
+        int spatial_stride, int dilated_filter_size) {
+    return (dst_size - 1) * spatial_stride + dilated_filter_size
+            - (src_size + start_padding);
+}
+
 struct jit_conv_conf_2x3_wino_t {
     conv_version_t ver;
 
