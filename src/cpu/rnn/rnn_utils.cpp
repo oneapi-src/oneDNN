@@ -126,7 +126,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Decide wich gemm implementation to use: packed/nonpacked jit/cblas
      * and if to mergre gemm across iterations */
-    bool is_f32 = rnn.dt_conf == all_f32;
+    bool is_f32 = rnn.dt_conf == all_f32, is_bf16 = rnn.dt_conf == all_bf16;
     bool is_gru = utils::one_of(
             rd.cell_kind, alg_kind::vanilla_gru, alg_kind::lbr_gru);
     bool is_inference = !rnn.is_training;
@@ -142,17 +142,17 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.copy_bias = rnn.is_int8();
 
     rnn.use_layer_packed_gemm
-            = (is_f32 && pack_sgemm_supported()
-                      && (utils::one_of(weights_layer_d.format_kind(),
-                                  format_kind::any, format_kind::rnn_packed)
-                              && is_inference && rnn.n_iter == 1))
-            || rnn.is_int8();
+            = utils::one_of(weights_layer_d.format_kind(), format_kind::any,
+                      format_kind::rnn_packed)
+            && is_inference
+            && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
+                    || rnn.is_int8() || is_bf16);
     rnn.use_iter_packed_gemm
-            = (is_f32 && pack_sgemm_supported()
-                      && (utils::one_of(weights_iter_d.format_kind(),
-                                  format_kind::any, format_kind::rnn_packed)
-                              && is_inference && rnn.mb >= 16))
-            || rnn.is_int8();
+            = utils::one_of(weights_iter_d.format_kind(), format_kind::any,
+                      format_kind::rnn_packed)
+            && is_inference
+            && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
+                    || rnn.is_int8() || is_bf16);
 
     // Assumption: weights datatype size is the same as state datatype size
     int sizeof_states_dt = types::data_type_size(weights_layer_d.data_type());
@@ -173,21 +173,31 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             int n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
+            dnnl_status_t st = dnnl_success;
             switch (rnn.dt_conf) {
                 case all_f32:
-                    sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p, &m_p,
-                            &rnn.states_ws_ld, &parts_pack_size[p], &pack_part);
+                    st = sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
+                            &m_p, &rnn.states_ws_ld, &parts_pack_size[p],
+                            &pack_part);
                     break;
                 case u8u8u8f32:
                 case f32u8f32f32:
                 case u8u8u8u8:
                 case f32u8f32u8:
-                    gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
-                            &m_p, &rnn.states_ws_ld, &parts_pack_size[p],
+                    st = gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p,
+                            &k_p, &m_p, &rnn.states_ws_ld, &parts_pack_size[p],
                             &pack_part);
+                    break;
+                case all_bf16:
+                    st = gemm_bf16bf16f32_pack_get_size("A", "N", "N", &m_p,
+                            &n_p, &k_p, &m_p, &rnn.states_ws_ld,
+                            &parts_pack_size[p], &pack_part);
                     break;
                 default: assert(!"Unsupported configuration");
             }
+            assert(st == dnnl_success);
+            MAYBE_UNUSED(st);
+
             pack = pack && pack_part;
             weights_pack_size += rnn.n_layer * rnn.n_dir * parts_pack_size[p];
         }
