@@ -129,6 +129,10 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
+    if (runtime_oc())
+        mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
+    else
+        mov(reg_oc, OC_);
     mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
     mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
     if (do_scale_ && scale_idx_mult_ == 0)
@@ -272,9 +276,40 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
     // Rewind pointers that point to data that is indexed by output channel
     // (bias or per-oc scaling factors)
     auto rewind_ptrs = [&]() {
-        if (do_bias()) sub(reg_bias, OC_ * bias_data_type_size_);
+        neg(reg_oc);
+        if (do_bias())
+            lea(reg_bias, ptr[reg_bias + reg_oc * bias_data_type_size_]);
         if (do_scale_ && scale_idx_mult_ == 1)
-            sub(reg_scales, OC_ * sizeof(float));
+            lea(reg_scales, ptr[reg_scales + reg_oc * sizeof(float)]);
+        neg(reg_oc);
+    };
+
+    // Process one row of reg_tmp elements
+    auto process_runtime_oc = [&]() {
+        Label l_loop, l_loop_tail, l_loop_end;
+        cmp(reg_tmp, vlen);
+        jle(l_loop_tail, T_NEAR); // Skips for reg_tmp == 16 too (?)
+
+        L(l_loop);
+        {
+            compute(0, 0, false);
+            advance_ptrs_imm(vlen);
+            sub(reg_tmp, vlen);
+            cmp(reg_tmp, vlen);
+            jge(l_loop, T_NEAR);
+        }
+
+        L(l_loop_tail);
+        mov(reg_rem_mask, 1);
+        shl(reg_rem_mask, cl); // cl == reg_tmp because reg_tmp <= vlen here
+        sub(reg_rem_mask, 1);
+        jz(l_loop_end, T_NEAR);
+
+        kmovq(kreg_rem_mask, reg_rem_mask);
+        compute(0, 0, true);
+        advance_ptrs_reg(reg_tmp);
+
+        L(l_loop_end);
     };
 
     //      <-------------------- OC ------------------------------->
@@ -289,53 +324,42 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
     // |    |       Epilogue loop            |      not accessed    :
     // v    +--------------------------------+......................+
 
-    Label prologue_end;
-    cmp(reg_oc_offset, 0);
-    je(prologue_end, T_NEAR);
-
     // Prologue loop
+    Label l_prologue_end;
+    cmp(reg_oc_offset, 0);
+    je(l_prologue_end, T_NEAR);
     {
-        mov(reg_tmp, OC_);
+        mov(reg_tmp, reg_oc);
         sub(reg_tmp, reg_oc_offset);
         cmp(reg_tmp, reg_len);
         cmovg(reg_tmp, reg_len);
         sub(reg_len, reg_tmp);
 
-        Label prologue_loop, prologue_loop_tail, prologue_loop_end;
-        cmp(reg_tmp, vlen);
-        jle(prologue_loop_tail, T_NEAR); // Skips for reg_tmp == 16 too (?)
-        L(prologue_loop);
-        {
-            compute(0, 0, false);
-            advance_ptrs_imm(vlen);
-            sub(reg_tmp, vlen);
-            cmp(reg_tmp, vlen);
-            jge(prologue_loop, T_NEAR);
-        }
-
-        L(prologue_loop_tail);
-        mov(reg_rem_mask, 1);
-        shl(reg_rem_mask, cl); // cl == reg_tmp because reg_tmp <= vlen here
-        sub(reg_rem_mask, 1);
-        jz(prologue_loop_end, T_NEAR);
-
-        kmovq(kreg_rem_mask, reg_rem_mask);
-        compute(0, 0, true);
-        advance_ptrs_reg(reg_tmp);
-
-        L(prologue_loop_end);
+        process_runtime_oc();
         rewind_ptrs();
     }
-    L(prologue_end);
+    L(l_prologue_end);
 
     // Main loop
-    Label main_loop_end;
-    {
-        cmp(reg_len, OC_);
-        jle(main_loop_end, T_NEAR);
+    Label l_main_loop_end;
+    cmp(reg_len, reg_oc);
+    jle(l_main_loop_end, T_NEAR);
+    if (runtime_oc()) {
+        Label l_main_loop;
+        L(l_main_loop);
+        {
+            mov(reg_tmp, reg_oc);
 
-        Label main_loop;
-        L(main_loop);
+            process_runtime_oc();
+            rewind_ptrs();
+
+            sub(reg_len, reg_oc);
+            cmp(reg_len, reg_oc);
+            jge(l_main_loop, T_NEAR);
+        }
+    } else {
+        Label l_main_loop;
+        L(l_main_loop);
         {
             size_t OC_loop, OC_tail;
             if (OC_ < max_OC_loop_unroll_ * vlen) {
@@ -358,14 +382,14 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
 
             if (OC_loop) {
                 mov(reg_tmp, rnd_dn(OC_, OC_loop));
-                Label oc_loop;
-                L(oc_loop);
+                Label l_oc_loop;
+                L(l_oc_loop);
                 {
                     for (size_t offset = 0; offset < OC_loop; offset += vlen)
                         compute(offset, offset / vlen, false);
                     advance_ptrs_imm(OC_loop);
                     sub(reg_tmp, OC_loop);
-                    jnz(oc_loop);
+                    jnz(l_oc_loop);
                 }
             }
 
@@ -378,42 +402,22 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
             }
 
             rewind_ptrs();
-            sub(reg_len, OC_);
-            cmp(reg_len, OC_);
-            jge(main_loop, T_NEAR);
+            sub(reg_len, reg_oc);
+            cmp(reg_len, reg_oc);
+            jge(l_main_loop, T_NEAR);
         }
     }
-    L(main_loop_end);
+    L(l_main_loop_end);
 
     // Epilogue loop
-    Label epilogue_end;
+    Label l_epilogue_end;
+    cmp(reg_len, 0);
+    je(l_epilogue_end, T_NEAR);
     {
-        cmp(reg_len, 0);
-        je(epilogue_end, T_NEAR);
-
-        Label epilogue_loop, epilogue_loop_tail;
-        cmp(reg_len, vlen);
-        jle(epilogue_loop_tail, T_NEAR); // Skips for reg_len == 16 (?)
-        L(epilogue_loop);
-        {
-            compute(0, 0, false);
-            sub(reg_len, vlen);
-            advance_ptrs_imm(vlen);
-            cmp(reg_len, vlen);
-            jge(epilogue_loop, T_NEAR);
-        }
-
-        L(epilogue_loop_tail);
-        mov(reg_tmp, reg_len); // reg_tmp is rcx, and we need cl for the shift
-        mov(reg_rem_mask, 1);
-        shl(reg_rem_mask, cl); // reg_tmp == rcx and reg_tail < vlen == 16
-        sub(reg_rem_mask, 1);
-        jz(epilogue_end, T_NEAR);
-        kmovq(kreg_rem_mask, reg_rem_mask);
-        compute(0, 0, true);
+        mov(reg_tmp, reg_len);
+        process_runtime_oc();
     }
-
-    L(epilogue_end);
+    L(l_epilogue_end);
 
     postamble();
 
@@ -425,25 +429,28 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
 template <data_type_t acc_type, data_type_t dst_type>
 void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t end) {
+        size_t start, size_t end, size_t runtime_oc) {
     using math::get_bias;
 
     if (end <= start) return;
 
+    const size_t OC = this->runtime_oc() ? runtime_oc : OC_;
+
     if (ker_) {
         // JIT
         ker_args args;
-        size_t oc_offset = start % OC_;
+        size_t oc_offset = start % OC;
         args.dst = dst + start;
         args.acc = acc + start;
         args.bias = bias + oc_offset * bias_data_type_size_;
         args.scales = scales + scale_idx_mult_ * oc_offset;
+        args.oc = OC;
         args.len = end - start;
         args.oc_offset = oc_offset;
         ker_(&args);
     } else {
         // Fallback
-        size_t oc = start % OC_;
+        size_t oc = start % OC;
         for (size_t i = start; i < end; i++) {
             float d = (float)acc[i];
             if (do_bias()) d += get_bias(bias, oc, bias_data_type_);
@@ -451,7 +458,7 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
             if (do_sum_) d += sum_scale_ * dst[i];
             if (do_eltwise_) d = ref_eltwise_->compute_scalar(d);
             dst[i] = qz_a1b0<float, dst_data_t>()(d);
-            oc = (oc == OC_ - 1) ? 0 : oc + 1;
+            oc = (oc == OC - 1) ? 0 : oc + 1;
         }
     }
 };
