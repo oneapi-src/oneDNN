@@ -673,12 +673,10 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::generate()
         vmovdqu32(zmm_permute, ptr[reg_scratch]);
     }
 
-    int r_pad = nstl::max(0, (jcp.ow - 1) * jcp.stride_w
-                    + (jcp.kw - 1) * (jcp.dilate_w + 1)
-                    - (jcp.iw + jcp.l_pad - 1));
+    int r_pad = nstl::max(0, jcp.r_pad);
     int n_oi = jcp.ow / jcp.ur_w;
-    int r_pad1 = (jcp.ur_w * n_oi - 1) * jcp.stride_w
-        + (jcp.kw - 1) * (jcp.dilate_w + 1) - (jcp.iw + jcp.l_pad - 1);
+    int r_pad1 = calculate_end_padding(jcp.l_pad, jcp.ur_w * n_oi, jcp.iw,
+            jcp.stride_w, calculate_extended_filter_size(jcp.kw, jcp.dilate_w));
 
     if (jcp.nb_ow == 1) {
         if (r_pad1 > 0 || jcp.ur_w_tail == 0)
@@ -926,6 +924,18 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.dilate_h = is_1d ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
 
+    int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+    int ext_kh = calculate_extended_filter_size(jcp.kh, jcp.dilate_h);
+    jcp.r_pad = calculate_end_padding(
+            jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw);
+    jcp.b_pad = calculate_end_padding(
+            jcp.t_pad, jcp.oh, jcp.ih, jcp.stride_h, ext_kh);
+    bool kernel_outside_src = false || ext_kw <= jcp.l_pad
+            || ext_kw <= jcp.r_pad || ext_kh <= jcp.t_pad
+            || ext_kh <= jcp.b_pad;
+    if (kernel_outside_src)
+        return status::unimplemented;
+
     jcp.signed_input = (src_d.data_type() == data_type::s8) ? true : false;
     jcp.is_depthwise = true && with_groups && everyone_is(1, jcp.ic, jcp.oc);
 
@@ -952,9 +962,6 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (jcp.ic % jcp.ic_block !=0 || jcp.oc % jcp.oc_block != 0)
             return status::unimplemented;
     }
-
-    jcp.b_pad = (jcp.oh - 1) * jcp.stride_h + (jcp.kh - 1) * (jcp.dilate_h + 1)
-            - (jcp.ih + jcp.t_pad - 1);
 
     if (!post_ops_ok(jcp, attr))
         return status::unimplemented;
@@ -1126,9 +1133,9 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (!args_ok)
         return status::unimplemented;
 
-    int r_pad_no_tail = nstl::max(0, (jcp.ow - jcp.ur_w_tail - 1) * jcp.stride_w
-                    + (jcp.kw - 1) * (jcp.dilate_w + 1)
-                    - (jcp.iw + jcp.l_pad - 1));
+    int r_pad_no_tail = nstl::max(0,
+            calculate_end_padding(jcp.l_pad, jcp.ow - jcp.ur_w_tail, jcp.iw,
+                    jcp.stride_w, ext_kw));
     if (r_pad_no_tail > jcp.ur_w)
         return status::unimplemented;
 
