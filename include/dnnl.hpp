@@ -3506,6 +3506,8 @@ struct softmax_forward : public primitive {
     struct desc {
         dnnl_softmax_desc_t data;
 
+        desc() = default;
+
         /// Initializes a softmax descriptor for forward propagation using @p
         /// prop_kind (possible values are #dnnl::forward_training and
         /// #dnnl::forward_inference) and memory descriptor @p data_desc.
@@ -3514,6 +3516,15 @@ struct softmax_forward : public primitive {
             error::wrap_c_api(dnnl_softmax_forward_desc_init(&data,
                                       dnnl::convert_to_c(aprop_kind),
                                       &data_desc.data, softmax_axis),
+                    "could not create a softmax forward descriptor");
+        }
+
+        /// Initializes a softmax descriptor for forward propagation using
+        /// softmax descriptor @p adata.
+        desc(dnnl_softmax_desc_t adata) {
+            error::wrap_c_api(
+                    dnnl_softmax_forward_desc_init(&data, adata.prop_kind,
+                            &adata.data_desc, adata.softmax_axis),
                     "could not create a softmax forward descriptor");
         }
     };
@@ -3539,6 +3550,16 @@ struct softmax_forward : public primitive {
                     dnnl::prop_kind::forward_training,
                     dnnl::prop_kind::forward_inference) {}
 
+        /// Queries operation descriptor.
+        desc op_desc() const {
+            dnnl_softmax_desc_t *data;
+            error::wrap_c_api(
+                    dnnl_primitive_desc_query(
+                            get(), dnnl::convert_to_c(query::op_d), 0, &data),
+                    "could not retreave a softmax op desc");
+            return desc(*data);
+        }
+
         /// @copydoc dnnl::primitive_desc_base::src_desc() const
         memory::desc src_desc() const { return base::src_desc(0); }
 
@@ -3559,6 +3580,8 @@ struct softmax_backward : public primitive {
     struct desc {
         dnnl_softmax_desc_t data;
 
+        desc() = default;
+
         /// Initializes a softmax descriptor for backward propagation using
         /// memory descriptors @p diff_desc and @p data_desc.
         desc(const memory::desc &diff_desc, const memory::desc &data_desc,
@@ -3567,6 +3590,15 @@ struct softmax_backward : public primitive {
                     dnnl_softmax_backward_desc_init(&data, &diff_desc.data,
                             &data_desc.data, softmax_axis),
                     "could not init a backward softmax descriptor");
+        }
+
+        /// Initializes a softmax descriptor for backward propagation using
+        /// softmax descriptor @p adata.
+        desc(dnnl_softmax_desc_t adata) {
+            error::wrap_c_api(
+                    dnnl_softmax_backward_desc_init(&data, &adata.diff_desc,
+                            &adata.data_desc, adata.softmax_axis),
+                    "could not create a softmax forward descriptor");
         }
     };
 
@@ -3586,6 +3618,16 @@ struct softmax_backward : public primitive {
                 bool allow_empty = false)
             : dnnl::primitive_desc(
                     &desc.data, &attr, e, hint_fwd_pd.get(), allow_empty) {}
+
+        /// @copydoc dnnl::softmax_forward::op_desc() const
+        desc op_desc() const {
+            dnnl_softmax_desc_t *data;
+            error::wrap_c_api(
+                    dnnl_primitive_desc_query(
+                            get(), dnnl::convert_to_c(query::op_d), 0, &data),
+                    "could not retreave a softmax op desc");
+            return desc(*data);
+        }
 
         /// Initializes a primitive descriptor for softmax backward
         /// propagation from a C primitive descriptor @p pd.
