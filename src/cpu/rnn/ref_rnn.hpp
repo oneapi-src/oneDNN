@@ -286,18 +286,18 @@ private:
             const float *firstit_c_states_, const acc_data_t *diff_dst_iter_,
             const float *diff_dst_iter_c_) const;
 
-    template <typename dst_data_t>
+    template <typename dst_layer_dt, typename dst_iter_dt>
     void copy_res_layer(const rnn_utils::rnn_conf_t &rnn,
-            dst_data_t *dst_layer_, acc_data_t *diff_src_layer_,
-            const src_data_t *ws_states_,
+            dst_layer_dt *dst_layer_, acc_data_t *diff_src_layer_,
+            const dst_iter_dt *dst_iter_, const src_data_t *ws_states_,
             const acc_data_t *ws_diff_states_) const;
 
-    template <typename output_data_t>
+    template <typename output_data_t, typename dst_data_t>
     void copy_res_iter(const rnn_utils::rnn_conf_t &rnn,
             output_data_t *dst_iter_, float *dst_iter_c_,
             acc_data_t *diff_src_iter_, float *diff_src_iter_c_,
-            const src_data_t *ws_states_, float *ws_c_states,
-            const acc_data_t *ws_diff_states_) const;
+            const dst_data_t *dst_layer_, const src_data_t *ws_states_,
+            const float *ws_c_states, const acc_data_t *ws_diff_states_) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
