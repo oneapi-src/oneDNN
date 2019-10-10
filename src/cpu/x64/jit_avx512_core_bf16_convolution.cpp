@@ -432,9 +432,13 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
             }
             assert(kd_len >= 0);
 
+            const bool is_dsrc_layout_nxc = jcp.src_tag == format_tag::ndhwc;
+            const int ic_idx = (is_dsrc_layout_nxc ? jcp.ic_block : 1) * g_icb;
             auto diff_src_w = diff_src
-                    + jcp.typesize_out * diff_src_d.blk_off(n, g_icb, id_s);
-            auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, g_ocb, od_s);
+                    + jcp.typesize_out * diff_src_d.blk_off(n, ic_idx, id_s);
+            const bool is_ddst_layout_nxc = jcp.dst_tag == format_tag::ndhwc;
+            const int oc_idx = (is_ddst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, oc_idx, od_s);
             auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb, kd_lo);
 
             for (int ij = ih_s; ij < ih_e; ++ij) {
@@ -544,14 +548,20 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
             auto diff_src_w = diff_src;
             auto diff_dst_w = diff_dst;
+            const bool is_ddst_layout_nxc = utils::one_of(
+                    jcp.dst_tag, format_tag::nwc, format_tag::nhwc);
+            const int oc_idx = (is_ddst_layout_nxc ? jcp.oc_block : 1) * g_ocb;
+            const bool is_dsrc_layout_nxc = utils::one_of(
+                    jcp.src_tag, format_tag::nwc, format_tag::nhwc);
+            const int ic_idx = (is_dsrc_layout_nxc ? jcp.ic_block : 1) * g_icb;
             if (jcp.ndims == 3) {
                 diff_src_w += jcp.typesize_out
-                        * diff_src_d.blk_off(n, g_icb, iw_s);
-                diff_dst_w += diff_dst_d.blk_off(n, g_ocb, ow_s);
+                        * diff_src_d.blk_off(n, ic_idx, iw_s);
+                diff_dst_w += diff_dst_d.blk_off(n, oc_idx, ow_s);
             } else {
                 diff_src_w += jcp.typesize_out
-                        * diff_src_d.blk_off(n, g_icb, 0, iw_s);
-                diff_dst_w += diff_dst_d.blk_off(n, g_ocb, 0, ow_s);
+                        * diff_src_d.blk_off(n, ic_idx, 0, iw_s);
+                diff_dst_w += diff_dst_d.blk_off(n, oc_idx, 0, ow_s);
             }
             auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb);
 

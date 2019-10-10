@@ -341,6 +341,23 @@ private:
 
         return ur_w - res;
     }
+
+    inline size_t get_diff_src_offset(int iw_idx, int n_ic_block) {
+        const bool is_nxc_layout = is_dsrc_layout_nxc();
+        size_t iw_str = is_nxc_layout ? jcp.ngroups * jcp.ic : jcp.ic_block;
+        size_t icb_str = jcp.ic_block
+                * (is_nxc_layout ? 1 : (size_t)jcp.id * jcp.ih * jcp.iw);
+        return jcp.typesize_out * (iw_str * iw_idx + icb_str * n_ic_block);
+    }
+
+    inline bool is_dsrc_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
 };
 
 struct jit_avx512_core_bf16_bwd_data_kernel {

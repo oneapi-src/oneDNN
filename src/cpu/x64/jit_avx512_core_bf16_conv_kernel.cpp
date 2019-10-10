@@ -885,15 +885,38 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
         for (int k = 0; k < jcp.nb_ic_blocking; k++)
             for (int j = 0; j < ur_w; j++) {
                 Vmm vmm = vmm_out(j, k);
-                size_t aux_diff_src_offset = jcp.typesize_out
-                        * ((size_t)k * jcp.id * jcp.ih * jcp.iw + j)
-                        * jcp.ic_block;
+                size_t aux_diff_src_offset = get_diff_src_offset(j, k);
                 auto addr = EVEX_compress_addr(reg_src, aux_diff_src_offset);
 
                 vmovups(addr, vmm);
             }
     } else if (jcp.dst_dt == data_type::bf16) {
-        if (isa_has_bf16(jcp.isa)) {
+        if (isa_has_bf16(jcp.isa) && is_ddst_layout_nxc()) {
+            // Optimization: use single store instruction for pair of the
+            // nearest vectors along IC dimension
+            assert(jcp.simd_w == 16);
+            for (int j = 0; j < ur_w; j++) {
+                int k = 0;
+                for (; k < rnd_dn(jcp.nb_ic_blocking, 2); k += 2) {
+                    Vmm vmm = vmm_out(j, k);
+                    Vmm vmm_next = vmm_out(j, k + 1);
+                    size_t aux_dsrc_offset = get_diff_src_offset(j, k);
+                    auto addr = EVEX_compress_addr(reg_src, aux_dsrc_offset);
+                    vcvtne2ps2bf16(vmm, vmm_next, vmm);
+                    vmovups(addr, vmm);
+                }
+                if (jcp.nb_ic_blocking % 2 != 0) {
+                    Vmm vmm = vmm_out(j, k);
+                    auto vmm_down = Vmm_down_t(vmm.getIdx());
+                    size_t aux_dsrc_offset = get_diff_src_offset(j, k);
+                    auto addr = EVEX_compress_addr(reg_src, aux_dsrc_offset);
+                    vcvtneps2bf16(vmm_down, vmm);
+                    vmovups(addr, vmm_down);
+                }
+            }
+        } else if (isa_has_bf16(jcp.isa) /* && is_ddst_layout_nxc() */) {
+            // Optimization: use single store instruction for pair of the
+            // nearest vectors along WIDTH dimension
             int store_idx = 0;
             const int max_regs = 32;
             const int free_regs_start_idx = jcp.ur_w * jcp.nb_ic_blocking;
@@ -905,9 +928,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                     reg_idx = free_regs_start_idx
                             + store_idx % num_regs_available;
                     assert(reg_idx < max_regs);
-                    size_t aux_diff_src_offset = jcp.typesize_out
-                            * ((size_t)k * jcp.id * jcp.ih * jcp.iw + j)
-                            * jcp.ic_block;
+                    size_t aux_diff_src_offset = get_diff_src_offset(j, k);
                     auto addr
                             = EVEX_compress_addr(reg_src, aux_diff_src_offset);
 
@@ -921,9 +942,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
                             + store_idx % num_regs_available;
                     assert(reg_idx < max_regs);
 
-                    size_t aux_diff_src_offset = jcp.typesize_out
-                            * ((size_t)k * jcp.id * jcp.ih * jcp.iw + j)
-                            * jcp.ic_block;
+                    size_t aux_diff_src_offset = get_diff_src_offset(j, k);
                     auto addr
                             = EVEX_compress_addr(reg_src, aux_diff_src_offset);
                     auto vmm_down_str = Vmm_down_t(reg_idx);
@@ -939,9 +958,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::store_output(int ur_w) {
             for (int k = 0; k < jcp.nb_ic_blocking; k++)
                 for (int j = 0; j < ur_w; j++) {
                     Vmm vmm = vmm_out(j, k);
-                    size_t aux_diff_src_offset = jcp.typesize_out
-                            * ((size_t)k * jcp.id * jcp.ih * jcp.iw + j)
-                            * jcp.ic_block;
+                    size_t aux_diff_src_offset = get_diff_src_offset(j, k);
                     auto addr
                             = EVEX_compress_addr(reg_src, aux_diff_src_offset);
                     auto vmm_down = vmm_inp_down(0);
@@ -967,6 +984,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
     int stride_h = jcp.stride_h;
+    int ddst_mult = is_ddst_layout_nxc() ? jcp.ngroups * jcp.oc : oc_block;
     Label kh_label, skip_compute_label;
 
     auto kernel_offset = [=](int icb, int oc, int ki) {
@@ -1013,22 +1031,22 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
         for (int ki = 0; ki < kw; ki++) {
             int jj_start = get_iw_start(ki, l_overflow);
             int jj_end = get_iw_end(ur_w, ki, r_overflow);
-            assert(stride_w != 1
-                    || jj_start
-                            == nstl::max(
-                                    0, l_overflow - (kw - 1 - ki) * dilate_w));
-            assert(stride_w != 1
-                    || jj_end
-                            == ur_w - nstl::max(0, r_overflow - ki * dilate_w));
+            const int ref_jj_start
+                    = nstl::max(0, l_overflow - (kw - 1 - ki) * dilate_w);
+            const int ref_jj_end
+                    = ur_w - nstl::max(0, r_overflow - ki * dilate_w);
+            assert(IMPLICATION(stride_w == 1,
+                    jj_start == ref_jj_start && jj_end == ref_jj_end));
+            UNUSED(ref_jj_start);
+            UNUSED(ref_jj_end);
 
             for (int oc = 0; oc < div_up(nstl::min(oc_block, jcp.oc), 2);
                     oc++) {
                 for (int jj = jj_start; jj < jj_end; jj += stride_w) {
                     assert((jj + jcp.l_pad - ki * dilate_w) % stride_w == 0);
-                    size_t aux_dst_offset = jcp.typesize_in
-                            * ((jj + jcp.l_pad - ki * dilate_w) / stride_w
-                                            * oc_block
-                                    + 2 * oc);
+                    int ow_idx = (jj + jcp.l_pad - ki * dilate_w) / stride_w;
+                    size_t aux_dst_offset
+                            = jcp.typesize_in * (ow_idx * ddst_mult + 2 * oc);
                     auto inp = vmm_inp(jj / stride_w);
                     vpbroadcastd(inp, ptr[aux_reg_dst + aux_dst_offset]);
                 }
@@ -1052,7 +1070,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
         }
 
         add(aux_reg_ker, jcp.typesize_in * stride_h * kw * oc_block * ic_block);
-        sub(aux_reg_dst, jcp.typesize_in * (jcp.dilate_h + 1) * ow * oc_block);
+        sub(aux_reg_dst, jcp.typesize_in * (jcp.dilate_h + 1) * ow * ddst_mult);
 
         dec(reg_kj);
         cmp(reg_kj, 0);
@@ -1062,7 +1080,7 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
     if (jcp.ndims == 5) {
         sub(aux_reg_dst_d,
                 jcp.typesize_in * (jcp.dilate_d + 1) * jcp.oh * jcp.ow
-                        * ic_block);
+                        * ddst_mult);
         add(aux_reg_ker_d,
                 jcp.typesize_in * jcp.stride_d * jcp.kw * jcp.kh * oc_block
                         * ic_block);
@@ -1073,7 +1091,8 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::compute_loop(
     }
 
     // End of OC Loop
-    size_t diff_dst_step = (size_t)jcp.od * jcp.oh * jcp.ow * jcp.oc_block;
+    size_t diff_dst_step = jcp.oc_block
+            * (is_ddst_layout_nxc() ? 1 : (size_t)jcp.od * jcp.oh * jcp.ow);
     size_t ker_step = (size_t)jcp.ic * jcp.kd * jcp.kh * jcp.kw * jcp.oc_block;
     add(reg_dst, jcp.typesize_in * diff_dst_step);
     add(reg_ker, jcp.typesize_in * ker_step);
@@ -1102,8 +1121,10 @@ void _jit_avx512_core_bf16_bwd_data_kernel<Vmm>::generate() {
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
 
-    size_t dst_shift = jcp.typesize_in * (ur_w / stride_w) * ic_block;
-    size_t src_shift = jcp.typesize_out * ur_w * oc_block;
+    size_t dst_shift = jcp.typesize_in * (ur_w / stride_w)
+            * (is_ddst_layout_nxc() ? jcp.ngroups * jcp.oc : oc_block);
+    size_t src_shift = jcp.typesize_out * ur_w
+            * (is_dsrc_layout_nxc() ? jcp.ngroups * jcp.ic : ic_block);
 
     preamble();
 
@@ -1321,11 +1342,18 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.aligned_threads = 0;
 
+    auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    // TODO: rework to don't call matches_one_of_tag twice for each tensor
+    bool is_data_layout_nxc
+            = diff_src_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef
+            && diff_dst_d.matches_one_of_tag(dat_tag_nxc) != format_tag::undef;
+
     bool ok_to_pad_channels = jcp.ngroups == 1;
 
     jcp.simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
-    const bool ok_to_try_lower_zmm = true && !ok_to_pad_channels
+    const bool ok_to_try_lower_zmm = true && !is_data_layout_nxc
+            && !ok_to_pad_channels
             && (jcp.ic % jcp.simd_w != 0 || jcp.oc % jcp.simd_w != 0);
 
     if (ok_to_try_lower_zmm) {
@@ -1357,7 +1385,9 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
         dat_tag = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
         wei_tag = utils::pick(ndims - 3, gOIw2o4i2o, gOIhw2o4i2o, gOIdhw2o4i2o);
     } else {
-        dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+        dat_tag = is_data_layout_nxc
+                ? dat_tag_nxc
+                : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
         wei_tag = pick(2 * ndims - 6 + with_groups, OIw8o16i2o, gOIw8o16i2o,
                 OIhw8o16i2o, gOIhw8o16i2o, OIdhw8o16i2o, gOIdhw8o16i2o);
     }
