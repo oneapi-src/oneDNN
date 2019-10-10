@@ -180,6 +180,7 @@ enum {
     key_lnorm_tmp_var,
     key_lnorm_tmp_diff_ss,
     key_lnorm_reduction,
+    key_matmul_dst_in_acc_dt,
     key_pool_dst_bf16cvt,
     key_pool_src_bf16cvt,
     key_reducer_space,

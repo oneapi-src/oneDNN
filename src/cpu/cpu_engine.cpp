@@ -24,6 +24,7 @@
 #include "memory.hpp"
 
 #include "cpu/matmul/gemm_f32_matmul.hpp"
+#include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
@@ -380,6 +381,14 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_binary_t<bf16>),
         /* matmul op */
         INSTANCE(gemm_f32_matmul_t),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, f32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s8>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, u8>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, f32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>),
         INSTANCE(ref_matmul_t<f32>),
         INSTANCE(ref_matmul_t<s8, s8, f32, s32>),
         INSTANCE(ref_matmul_t<s8, s8, s32, s32>),
