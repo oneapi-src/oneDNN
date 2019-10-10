@@ -67,6 +67,9 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(int arg) const {
         using dnnl::impl::types::is_zero_md;
+        if (arg == DNNL_ARG_ATTR_OUTPUT_SCALES
+                && !attr()->output_scales_.defined())
+            return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
         return arg_usage_t::unused;

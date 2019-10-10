@@ -52,11 +52,14 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         }
     }
 
-    bool scratchpad_required = !types::is_zero_md(pd->scratchpad_md());
+    // TODO: better put that in primitive_desc
+    using au = primitive_desc_t::arg_usage_t;
+    int extra_inputs = 0, extra_outputs = 0;
+    extra_inputs += pd->arg_usage(DNNL_ARG_ATTR_OUTPUT_SCALES) == au::input;
+    extra_outputs += pd->arg_usage(DNNL_ARG_SCRATCHPAD) == au::output;
 
-    if (n_inputs != pd->n_inputs()) return invalid_arguments;
-    if (n_outputs != pd->n_outputs() + (scratchpad_required ? 1 : 0))
-        return invalid_arguments;
+    if (n_inputs != pd->n_inputs() + extra_inputs) return invalid_arguments;
+    if (n_outputs != pd->n_outputs() + extra_outputs) return invalid_arguments;
 
     return success;
 }

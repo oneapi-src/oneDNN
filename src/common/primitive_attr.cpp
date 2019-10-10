@@ -34,7 +34,10 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     count_ = count;
     mask_ = mask;
 
-    if (count_ == 1) {
+    if (is_runtime_value(*scales)) {
+        scales_ = scales_buf_;
+        scales_[0] = *scales;
+    } else if (count_ == 1) {
         scales_ = scales_buf_;
         utils::array_set(scales_, scales[0], scales_buf_size);
     } else {
@@ -56,6 +59,8 @@ bool primitive_attr_t::has_default_values(
     return true
             && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
                     output_scales_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::oscale_runtime),
+                    output_scales_.defined())
             && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
                     post_ops_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),

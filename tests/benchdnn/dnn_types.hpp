@@ -82,12 +82,12 @@ struct attr_t {
         static const char *policy2str(policy_t policy);
 
         int str2scale(const char *str, const char **end_s);
-        void scale2str(char *buffer, char **end_b) const;
 
         bool is_def() const { return this->policy == NONE; }
 
         policy_t policy = NONE;
         float scale = 1.;
+        bool runtime = false;
     };
 
     struct post_ops_t {

@@ -51,10 +51,12 @@ static int check_attr2str() {
 
     attr.oscale.policy = attr_t::scale_t::policy_t::PER_OC;
     attr.oscale.scale = 3.2;
-    CHECK_PRINT_EQ(attr, "oscale=per_oc:3.2;");
+    attr.oscale.runtime = true;
+    CHECK_PRINT_EQ(attr, "oscale=per_oc:3.2*;");
 
     attr.oscale.policy = attr_t::scale_t::policy_t::PER_DIM_01;
     attr.oscale.scale = 3.2;
+    attr.oscale.runtime = false;
     CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;");
 
     return OK;
@@ -63,23 +65,25 @@ static int check_attr2str() {
 static int check_str2attr() {
     attr_t attr;
 
-#define CHECK_ATTR(str, os_policy, os_scale) \
+#define CHECK_ATTR(str, os_policy, os_scale, os_runtime) \
     do { \
         CHECK_EQ(str2attr(&attr, str), OK); \
         CHECK_EQ(attr.oscale.policy, attr_t::scale_t::policy_t::os_policy); \
         CHECK_EQ(attr.oscale.scale, os_scale); \
+        CHECK_EQ(attr.oscale.runtime, os_runtime); \
     } while (0)
 
-    CHECK_ATTR("", NONE, 1.);
+    CHECK_ATTR("", NONE, 1., false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR("oscale=none:1.0", NONE, 1.);
+    CHECK_ATTR("oscale=none:1.0", NONE, 1., false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR("oscale=none:2.0", NONE, 2.);
-    CHECK_ATTR("oscale=common:2.0", COMMON, 2.);
-    CHECK_ATTR("oscale=per_oc:.5;", PER_OC, .5);
-    CHECK_ATTR("oscale=none:.5;oscale=common:1.5", COMMON, 1.5);
+    CHECK_ATTR("oscale=none:2.0", NONE, 2., false);
+    CHECK_ATTR("oscale=none:2.0*", NONE, 2., false);
+    CHECK_ATTR("oscale=common:2.0*", COMMON, 2., true);
+    CHECK_ATTR("oscale=per_oc:.5*;", PER_OC, .5, true);
+    CHECK_ATTR("oscale=none:.5*;oscale=common:1.5", COMMON, 1.5, false);
 
 #undef CHECK_ATTR
 

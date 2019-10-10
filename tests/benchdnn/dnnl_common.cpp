@@ -148,3 +148,15 @@ int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args) {
     }
     return ret;
 }
+
+void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
+        int64_t scale_cnt, const float *scales, dnnl_engine_t engine) {
+    if (!attr.oscale.runtime) return;
+
+    using P = attr_t::scale_t::policy_t;
+    const int64_t count = attr.oscale.policy == P::COMMON ? 1 : scale_cnt;
+
+    scales_m = dnn_mem_t(1, &count, dnnl_f32, dnnl_a, engine);
+    for (int64_t c = 0; c < count; ++c)
+        ((float *)scales_m)[c] = scales[c];
+}

@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
+#include "type_helpers.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -130,7 +131,9 @@ struct scales_t : public c_compatible {
     bool operator==(const scales_t &rhs) const {
         bool ret = count_ == rhs.count_ && mask_ == rhs.mask_
                 && !utils::any_null(scales_, rhs.scales_)
-                && utils::array_cmp(scales_, rhs.scales_, count_);
+                && defined() == rhs.defined()
+                && IMPLICATION(defined(),
+                        utils::array_cmp(scales_, rhs.scales_, count_));
         return ret;
     }
 
@@ -140,6 +143,8 @@ struct scales_t : public c_compatible {
         }
         return true;
     }
+
+    bool defined() const { return !is_runtime_value(scales_[0]); }
 
     status_t set(dim_t count, int mask, const float *scales);
     status_t set(float single_scale) { return this->set(1, 0, &single_scale); }
@@ -265,12 +270,13 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     }
 
     enum class skip_mask_t : unsigned {
-        none = 0x0,
-        oscale = 0x1,
-        post_ops = 0x2,
-        rnn_data_qparams = 0x4,
-        rnn_weights_qparams = 0x8,
-        rnn_tparams = 0x10
+        none = 0,
+        oscale = 1u << 0,
+        oscale_runtime = (unsigned)oscale | (1u << 1),
+        post_ops = 1u << 4,
+        rnn_data_qparams = 1u << 5,
+        rnn_weights_qparams = 1u << 6,
+        rnn_tparams = 1u << 7,
     };
 
     /** Returns true if the attributes have default values.

@@ -1569,6 +1569,8 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 
 #define DNNL_ARG_DIFF_BIAS 169
 
+#define DNNL_ARG_ATTR_OUTPUT_SCALES 513
+
 #define DNNL_ARG_MULTIPLE_SRC 1024
 #define DNNL_ARG_MULTIPLE_DST 2048
 

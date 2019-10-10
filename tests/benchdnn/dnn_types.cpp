@@ -185,8 +185,13 @@ int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
     char *end;
     this->scale = strtof(s, &end);
     if (this->scale < 0 || end == s) return FAIL;
-
     s = end;
+
+    if (*s == '*') {
+        ++s;
+        if (this->policy != NONE) this->runtime = true;
+    }
+
     assert(*s == '\0' || *s == ';');
 
     return OK;
@@ -366,7 +371,9 @@ int str2attr(attr_t *attr, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
-    return s << attr_t::scale_t::policy2str(scale.policy) << ":" << scale.scale;
+    s << attr_t::scale_t::policy2str(scale.policy) << ":" << scale.scale;
+    if (scale.runtime) s << '*';
+    return s;
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
@@ -462,6 +469,9 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         if (scale_mask == -1)
             scale_mask = attr.oscale.policy == P::PER_OC ? 1 << 1 : 0;
 
+        const bool runtime = attr.oscale.runtime;
+        SAFE_V(scales == NULL && runtime ? FAIL : OK);
+
         float *gen_scs = NULL;
         if (scales == NULL) {
             gen_scs = (float *)zmalloc(count * sizeof(float), 64);
@@ -471,8 +481,8 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
             scales = gen_scs;
         }
 
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
-                dnnl_attr, count, scale_mask, scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr, count,
+                scale_mask, runtime ? &DNNL_RUNTIME_F32_VAL : scales));
 
         if (gen_scs) zfree(gen_scs);
     }
