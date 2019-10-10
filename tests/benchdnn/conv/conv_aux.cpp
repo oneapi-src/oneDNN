@@ -330,9 +330,12 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
     if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.stag != dnnl_format_tag_any) s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (p.wtag != dnnl_format_tag_any) s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (p.dtag != dnnl_format_tag_any) s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
+    if (p.stag != dnnl_format_tag_any)
+        s << "--stag=" << fmt_tag2str(p.stag) << " ";
+    if (p.wtag != dnnl_format_tag_any)
+        s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
+    if (p.dtag != dnnl_format_tag_any)
+        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
     if (p.alg != DIRECT) s << "--alg=" << alg2str(p.alg) << " ";
     if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
