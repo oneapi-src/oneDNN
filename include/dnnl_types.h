@@ -38,14 +38,6 @@ extern "C" {
 /// @addtogroup c_api_types_generic Generic
 /// @{
 
-/// Version type
-typedef struct {
-    int major;
-    int minor;
-    int patch;
-    const char *hash;
-} dnnl_version_t;
-
 /// Status values returned by the library functions.
 typedef enum {
     /// The operation was successful
@@ -1651,6 +1643,20 @@ typedef struct dnnl_stream *dnnl_stream_t;
 typedef const struct dnnl_stream *const_dnnl_stream_t;
 
 /// @}
+
+/// @addtogroup c_api_types_service Service
+/// @{
+
+/// Version type
+typedef struct {
+    int major;
+    int minor;
+    int patch;
+    const char *hash;
+} dnnl_version_t;
+
+/// @}
+
 /// @}
 /// @}
 
