@@ -82,15 +82,21 @@ to improve the library:
 
 For additional details, see [contribution guidelines](CONTRIBUTING.md).
 
+This project is intended to be a safe, welcoming space for collaboration, and
+contributors are expected to adhere to the
+[Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
+
 # Support
+Please submit your questions, feature requests, and bug reports on the
+[GitHub issues](https://github.com/intel/mkl-dnn/issues) page.
+
+You may reach out to project maintainers privately at dnnl.maintainers@intel.com.
 
 > **WARNING**
 >
-> The following functionality has preview status and might be changed without prior notification in future releases:
+> The following functionality has preview status and might be changed without
+> prior notification in future releases:
 > * [Primitive cache](https://intel.github.io/mkl-dnn/dev_guide_primitive_cache.html)
-
-Please submit your questions, feature requests, and bug reports on the
-[GitHub issues](https://github.com/intel/mkl-dnn/issues) page.
 
 # License
 DNNL is licensed under
