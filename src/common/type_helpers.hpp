@@ -567,6 +567,15 @@ format_tag_t memory_desc_matches_one_of_tag(
     return format_tag::undef;
 }
 
+/** returns true if fp32 value denotes DNNL_RUNTIME_F32_VAL */
+inline bool is_runtime_value(float val) {
+    union {
+        float f;
+        unsigned u;
+    } tmp {val};
+    return tmp.u == DNNL_RUNTIME_F32_VAL_REP.u;
+}
+
 } // namespace impl
 } // namespace dnnl
 

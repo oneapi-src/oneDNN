@@ -789,6 +789,18 @@ typedef enum {
 /// either of the dimensions or strides equal to #DNNL_RUNTIME_DIM_VAL.
 #define DNNL_RUNTIME_SIZE_VAL ((size_t)DNNL_RUNTIME_DIM_VAL)
 
+/// @cond DO_NOT_DOCUMENT_THIS
+/// Hex representation for a **special** quiet NAN (!= NAN from math.h)
+static const union {
+    unsigned u;
+    float f;
+} DNNL_RUNTIME_F32_VAL_REP = {0x7fc000d0};
+/// @endcond
+
+/// A wildcard value for floating point values that are unknown at a primitive
+/// creation time.
+#define DNNL_RUNTIME_F32_VAL (DNNL_RUNTIME_F32_VAL_REP.f)
+
 /// A type to describe tensor dimension.
 typedef int64_t dnnl_dim_t;
 
