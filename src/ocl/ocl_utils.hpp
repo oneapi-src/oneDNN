@@ -41,12 +41,12 @@ namespace ocl_utils {
 inline status_t convert_to_dnnl(cl_int cl_status) {
     switch (cl_status) {
         case CL_SUCCESS: return status::success;
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE:
+        case CL_OUT_OF_RESOURCES:
+        case CL_OUT_OF_HOST_MEMORY: return status::out_of_memory;
         case CL_DEVICE_NOT_FOUND:
         case CL_DEVICE_NOT_AVAILABLE:
         case CL_COMPILER_NOT_AVAILABLE:
-        case CL_MEM_OBJECT_ALLOCATION_FAILURE:
-        case CL_OUT_OF_RESOURCES:
-        case CL_OUT_OF_HOST_MEMORY:
         case CL_PROFILING_INFO_NOT_AVAILABLE:
         case CL_MEM_COPY_OVERLAP:
         case CL_IMAGE_FORMAT_MISMATCH:
@@ -99,8 +99,9 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
     do { \
         cl_int s = x; \
         if (s != CL_SUCCESS) { \
-            printf("Error from OpenCL: %d\n", s); \
-            exit(1); \
+            if (dnnl_verbose()->level >= 5) { \
+                printf("Error from OpenCL: %d\n", s); \
+            } \
             return; \
         } \
     } while (0)
