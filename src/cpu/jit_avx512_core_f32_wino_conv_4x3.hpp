@@ -125,7 +125,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
                 jit_avx512_core_f32_wino_conv_4x3_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init() {
-            bool ok = true && dnnl_thr_syncable() && is_fwd()
+            bool ok = true && is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)

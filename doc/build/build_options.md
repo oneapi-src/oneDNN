@@ -82,7 +82,8 @@ DNNL has limited optimizations for Intel TBB and has some functional
 limitations if built with Intel TBB.
 
 Functional limitations:
-* Winograd convolution algorithm is not supported.
+* Winograd convolution algorithm is not supported for fp32 backward
+by data and backward by weights propogation.
 
 ## GPU Options
 Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine
