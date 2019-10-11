@@ -137,3 +137,7 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 # Dilated BWD_W corner case with dilated kernel size less than padding
 --reset --allow-unimpl=true --cfg=f32,bf16bf16bf16 --dir=BWD_W
 mb1_ic1oc16_iw1_ow29_kw14_pw28_dw1_n"dilated_kernel_size_lt_padding"
+
+# Depthwise s8s8 test to detect potential reassignment of zmm_src register
+--reset --allow-unimpl=true --cfg=s8s8s32
+mb1_g960ic960oc960_ih7oh7kh5ph2_iw7ow7kw5pw2n"detect_zmm_src_reassignment"
