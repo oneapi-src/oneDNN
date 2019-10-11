@@ -265,6 +265,38 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales(
         dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
         const float *scales);
 
+/// Returns @p count, correspondence zero point @p mask, and a pointer to a
+/// constant int32_t array of @p zero_points for given @p attr and memory
+/// argument (index), previously set by dnnl_primitive_attr_set_zero_points.
+///
+/// @warning
+///      The @p zero_points array points to the internal @p attr field, so the
+///      user should not modify or destroy @p zero_points.
+///
+/// @warning
+///      The lifetime of @p zero_points is the same as that of the @p attr to
+///      which it belongs, so it is illegal to use @p zero_points after @p attr
+///      is destroyed.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
+        const_dnnl_primitive_attr_t attr, int arg, dnnl_dim_t *count, int *mask,
+        const int32_t **zero_points);
+
+/// Sets @p zero_points for primitive operations for given memory argument
+/// @p arg. The number of elements @p count and correspondence scale @p mask
+/// are stored for future use.
+///
+/// @note
+///      There is no way to check that @p count corresponds to @p mask until an
+///      actual primitive descriptor is created, so it is the user's
+///      responsibility to set proper values. The following formula must hold:
+///
+///      \f[count = \prod\limits_{d \in mask} memory[arg].dims[d]\f]
+///
+/// @sa dnnl_primitive_attr_set_output_scales
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
+        dnnl_primitive_attr_t attr, int arg, dnnl_dim_t count, int mask,
+        const int32_t *zero_points);
+
 /// Returns @p post_ops for given @p attr.
 ///
 /// @warning

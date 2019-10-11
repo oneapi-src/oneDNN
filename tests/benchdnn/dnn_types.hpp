@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <iostream>
+#include <map>
 #include <vector>
 
 #include "common.hpp"
@@ -90,6 +91,38 @@ struct attr_t {
         bool runtime = false;
     };
 
+    struct zero_points_t {
+        struct entry_t {
+            int value;
+            bool runtime;
+        };
+
+        int from_str(const char *str, const char **end_s);
+
+        int operator[](int arg) const { return get(arg).value; }
+        bool runtime(int arg) const { return get(arg).runtime; }
+
+        bool is_def() const { return points.empty(); }
+
+        void set(int arg, const entry_t &entry) {
+            if (entry.value != 0 || entry.runtime) points[arg] = entry;
+        }
+        entry_t get(int arg) const {
+            const auto it = points.find(arg);
+            return it == points.end() ? entry_t() : it->second;
+        }
+
+        std::map<int, entry_t>::const_iterator begin() const {
+            return points.begin();
+        }
+        std::map<int, entry_t>::const_iterator end() const {
+            return points.end();
+        }
+
+        std::map<int, entry_t> points;
+        static const std::map<int, const char *> NAME_MAP;
+    };
+
     struct post_ops_t {
         enum kind_t {
             SUM,
@@ -139,6 +172,7 @@ struct attr_t {
     };
 
     scale_t oscale;
+    zero_points_t zero_points;
     post_ops_t post_ops;
 
     bool is_def() const;
@@ -147,6 +181,8 @@ using policy_t = attr_t::scale_t::policy_t;
 
 int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
+std::ostream &operator<<(
+        std::ostream &s, const attr_t::zero_points_t &zero_points);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 

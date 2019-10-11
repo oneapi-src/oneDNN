@@ -9,6 +9,7 @@ The attribute string *attr_str* is defined as follows (line breaks are for
 readability):
 ```
     [oscale={none,common,per_oc}[:scale[*]];]
+    [zero_points=[arg:zero_point[*]][_]...;]
     [post_ops='eltwise[:alpha[:beta[:int8_eltwise_scale]]];sum[:sum_scale];';]
 ```
 
@@ -33,6 +34,16 @@ Known policies are:
   - `per_dim_01` corresponds to `mask=(1<<0) + (1<<1)`. Elements corresponding
                  to a single {dim0, dim1} point have same factor. Different
                  {dim0, dim1} points have different scaling factors.
+
+`zero_points` sets zero points for given memory arguments `arg`.
+Possible arguments:
+  - `src` corresponds to `DNNL_ARG_SRC`
+  - `wei` corresponds to `DNNL_ARG_WEIGHTS`
+  - `dst` corresponds to `DNNL_ARG_DST`
+Optional asterisk (`*`) after zero point value indicates the zero point should
+be passed to a primitive at run-time.
+Optional underscore (`_`) is used as a delimiter for different arguments to
+improve readability.
 
 `post_ops` stands for post operation sequence. All post operations support
 output scale (relevant for int8 operations only) which is used as a multiplier

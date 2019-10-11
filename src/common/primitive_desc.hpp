@@ -70,6 +70,9 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
         if (arg == DNNL_ARG_ATTR_OUTPUT_SCALES
                 && !attr()->output_scales_.defined())
             return arg_usage_t::input;
+        if ((arg & DNNL_ARG_ATTR_ZERO_POINTS)
+                && !attr()->zero_points_.defined(arg))
+            return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
         return arg_usage_t::unused;

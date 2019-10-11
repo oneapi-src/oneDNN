@@ -51,6 +51,33 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     return status::success;
 }
 
+status_t zero_points_t::get(
+        int arg, dim_t *count, int *mask, const int **zero_points) const {
+    if (count) *count = 1;
+    if (mask) *mask = 0;
+    if (zero_points) *zero_points = get(arg);
+    return status::success;
+}
+
+status_t zero_points_t::set(
+        int arg, dim_t count, int mask, const int *zero_points) {
+    if (zero_points == nullptr) return status::invalid_arguments;
+
+    const bool supported_arg
+            = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
+    const bool ok = count == 1 && mask == 0
+            && IMPLICATION(!supported_arg, *zero_points == 0);
+    if (!ok) return status::unimplemented;
+
+    switch (arg) {
+        case DNNL_ARG_SRC: zero_point_src = *zero_points; break;
+        case DNNL_ARG_WEIGHTS: zero_point_wei = *zero_points; break;
+        case DNNL_ARG_DST: zero_point_dst = *zero_points; break;
+    }
+
+    return status::success;
+}
+
 } // namespace impl
 } // namespace dnnl
 
@@ -61,6 +88,10 @@ bool primitive_attr_t::has_default_values(
                     output_scales_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::oscale_runtime),
                     output_scales_.defined())
+            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
+                    zero_points_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points_runtime),
+                    zero_points_.defined())
             && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
                     post_ops_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
@@ -174,6 +205,19 @@ status_t dnnl_primitive_attr_set_output_scales(
     if (!ok) return invalid_arguments;
 
     return attr->output_scales_.set(count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_get_zero_points(const primitive_attr_t *attr,
+        int arg, dim_t *count, int *mask, const int **scales) {
+    if (attr == nullptr) return invalid_arguments;
+    return attr->zero_points_.get(arg, count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_set_zero_points(primitive_attr_t *attr, int arg,
+        dim_t count, int mask, const int *scales) {
+    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
+    if (!ok) return invalid_arguments;
+    return attr->zero_points_.set(arg, count, mask, scales);
 }
 
 status_t dnnl_primitive_attr_get_post_ops(

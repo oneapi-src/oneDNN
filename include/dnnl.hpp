@@ -854,6 +854,36 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set int output scales");
     }
 
+    /// Gets correspondence zero points @p mask and a constant int32_t vector of
+    /// @p zero_points previously set by set_zero_points.
+    void get_zero_points(
+            int arg, int &mask, std::vector<int32_t> &zero_points) const {
+        dnnl_dim_t count;
+        int c_mask;
+        const int32_t *c_zero_points;
+        error::wrap_c_api(dnnl_primitive_attr_get_zero_points(
+                                  get(), arg, &count, &c_mask, &c_zero_points),
+                "could not get zero points");
+        zero_points.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            zero_points[c] = c_zero_points[c];
+    }
+
+    /// Sets zero points for primitive operations for given memory argument
+    /// @p arg. The correspondence zero point @p mask is stored for future use.
+    ///
+    /// @sa dnnl_primitive_attr_set_zero_points
+    /// @sa set_output_scales
+    void set_zero_points(
+            int arg, int mask, const std::vector<int32_t> &zero_points) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_zero_points(get(), arg,
+                        (dnnl_dim_t)zero_points.size(), mask, &zero_points[0]),
+                "could not set zero points");
+    }
+
     /// Returns @p post_ops previously set by set_post_ops.
     const post_ops get_post_ops() const {
         post_ops result;

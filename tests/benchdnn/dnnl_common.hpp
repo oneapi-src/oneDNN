@@ -218,5 +218,7 @@ int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
         int64_t scale_cnt, const float *scales, dnnl_engine_t engine);
+void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
+        const attr_t &attr, int arg, dnnl_engine_t engine);
 
 #endif

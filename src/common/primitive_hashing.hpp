@@ -90,6 +90,9 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
             seed = hash_combine(seed, attr->output_scales_.scales_[i]);
         }
     }
+    // zero_points
+    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
+        seed = hash_combine(seed, *attr->zero_points_.get(arg));
     // post_ops: entry[:]
     for (int i = 0; i < attr->post_ops_.len_; i++) {
         const auto &entry = attr->post_ops_.entry_[i];

@@ -1574,6 +1574,8 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 #define DNNL_ARG_MULTIPLE_SRC 1024
 #define DNNL_ARG_MULTIPLE_DST 2048
 
+#define DNNL_ARG_ATTR_ZERO_POINTS 4096
+
 /// @}
 
 /// An auxiliary structure to specify primitive's inputs/outputs at execution

@@ -17,6 +17,8 @@
 #ifndef PRIMITIVE_ATTR_HPP
 #define PRIMITIVE_ATTR_HPP
 
+#include <initializer_list>
+
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
@@ -166,6 +168,58 @@ private:
     }
 };
 
+struct zero_points_t : public c_compatible {
+    bool operator==(const zero_points_t &rhs) const {
+        auto eq = [](int a, int b) {
+            return a == b || (is_runtime_value(a) && is_runtime_value(b));
+        };
+        return eq(zero_point_src, rhs.zero_point_src)
+                && eq(zero_point_wei, rhs.zero_point_wei)
+                && eq(zero_point_dst, rhs.zero_point_dst);
+    }
+
+    // arg-specific checks
+    bool common(int arg) const { return true; }
+    bool defined(int arg) const { return !is_runtime_value(*get(arg)); }
+    bool has_default_values(int arg) const { return *get(arg) == 0; }
+
+    // same checks but for all supported arguments at once
+    bool common() const { return check_all(&zero_points_t::common); }
+    bool defined() const { return check_all(&zero_points_t::defined); }
+    bool has_default_values() const {
+        return check_all(&zero_points_t::has_default_values);
+    }
+
+    const int *get(int arg) const {
+        arg &= ~DNNL_ARG_ATTR_ZERO_POINTS;
+        switch (arg) {
+            case DNNL_ARG_SRC: return &zero_point_src;
+            case DNNL_ARG_WEIGHTS: return &zero_point_wei;
+            case DNNL_ARG_DST: return &zero_point_dst;
+        }
+        static int zero = 0;
+        return &zero;
+    }
+
+    status_t get(
+            int arg, dim_t *count, int *mask, const int **zero_points) const;
+
+    status_t set(int arg, dim_t count, int mask, const int *zero_points);
+    status_t set(int arg, int single_zero_points) {
+        return set(arg, 1, 0, &single_zero_points);
+    }
+
+private:
+    // TODO: support count and mask
+    int zero_point_src = 0, zero_point_wei = 0, zero_point_dst = 0;
+
+    bool check_all(bool (zero_points_t::*f)(int) const) const {
+        for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
+            if (!(this->*f)(arg)) return false;
+        return true;
+    }
+};
+
 } // namespace impl
 } // namespace dnnl
 
@@ -273,6 +327,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         none = 0,
         oscale = 1u << 0,
         oscale_runtime = (unsigned)oscale | (1u << 1),
+        zero_points = 1u << 2,
+        zero_points_runtime = (unsigned)zero_points | (1u << 3),
         post_ops = 1u << 4,
         rnn_data_qparams = 1u << 5,
         rnn_weights_qparams = 1u << 6,
@@ -287,6 +343,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     bool operator==(const dnnl_primitive_attr &rhs) const {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
                 && output_scales_ == rhs.output_scales_
+                && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
                 && rnn_data_qparams_ == rhs.rnn_data_qparams_
                 && rnn_weights_qparams_ == rhs.rnn_weights_qparams_
@@ -301,6 +358,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     // NOTE: make sure that the types below have overloaded comparison operator
     dnnl::impl::scratchpad_mode_t scratchpad_mode_;
     dnnl::impl::scales_t output_scales_;
+    dnnl::impl::zero_points_t zero_points_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;

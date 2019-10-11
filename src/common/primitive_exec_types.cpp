@@ -27,8 +27,9 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
 
     if (!IMPLICATION(nargs > 0, c_args != nullptr)) return invalid_arguments;
 
-    int n_inputs = 0;
-    int n_outputs = 0;
+    // TODO: better put extra_* in primitive_desc
+    int n_inputs = 0, extra_inputs = 0;
+    int n_outputs = 0, extra_outputs = 0;
 
     for (int i = 0; i < nargs; ++i) {
         int arg = c_args[i].arg;
@@ -42,21 +43,18 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
                 if (args.count(arg) != 0) return invalid_arguments;
                 args[arg] = {mem, true};
                 n_inputs++;
+                extra_inputs += (arg == DNNL_ARG_ATTR_OUTPUT_SCALES)
+                        || (arg & DNNL_ARG_ATTR_ZERO_POINTS);
                 break;
             case primitive_desc_t::arg_usage_t::output:
                 if (args.count(arg) != 0) return invalid_arguments;
                 args[arg] = {mem, false};
                 n_outputs++;
+                extra_outputs += (arg == DNNL_ARG_SCRATCHPAD);
                 break;
             case primitive_desc_t::arg_usage_t::unused: break;
         }
     }
-
-    // TODO: better put that in primitive_desc
-    using au = primitive_desc_t::arg_usage_t;
-    int extra_inputs = 0, extra_outputs = 0;
-    extra_inputs += pd->arg_usage(DNNL_ARG_ATTR_OUTPUT_SCALES) == au::input;
-    extra_outputs += pd->arg_usage(DNNL_ARG_SCRATCHPAD) == au::output;
 
     if (n_inputs != pd->n_inputs() + extra_inputs) return invalid_arguments;
     if (n_outputs != pd->n_outputs() + extra_outputs) return invalid_arguments;
