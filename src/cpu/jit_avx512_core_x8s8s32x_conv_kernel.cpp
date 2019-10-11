@@ -385,10 +385,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::compute_ker_dw(
                             if (jcp.signed_input)
                                 vpaddb(zmm_src, zmm_src, vmm_shift);
                         }
-                    } else if (jcp.signed_input) {
-                        vmovups(zmm_src, zmm_shifted_zero);
+                        compute(zmm_out(oi, ci), zmm_wei, zmm_src);
+                    } else {
+                        assert(jcp.signed_input);
+                        compute(zmm_out(oi, ci), zmm_wei, zmm_shifted_zero);
                     }
-                    compute(zmm_out(oi, ci), zmm_wei, zmm_src);
                 }
             }
         }
