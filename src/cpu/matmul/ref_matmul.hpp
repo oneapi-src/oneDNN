@@ -49,7 +49,7 @@ struct ref_matmul_t : public primitive_impl_t {
                     && desc()->accum_data_type == acc_type
                     && dst_md()->data_type == dst_type
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::oscale
+                            primitive_attr_t::skip_mask_t::oscale_runtime
                             | primitive_attr_t::skip_mask_t::post_ops)
                     && attr_oscale_ok() && attr_post_ops_ok()
                     && set_default_formats();
@@ -96,13 +96,12 @@ struct ref_matmul_t : public primitive_impl_t {
     typedef typename prec_traits<acc_type>::type acc_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_ref(ctx);
-        return status::success;
+        return execute_ref(ctx);
     }
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    void execute_ref(const exec_ctx_t &ctx) const;
+    status_t execute_ref(const exec_ctx_t &ctx) const;
 
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
 };

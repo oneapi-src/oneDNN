@@ -22,6 +22,8 @@
 #include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "ref_matmul.hpp"
 
 namespace dnnl {
@@ -30,12 +32,14 @@ namespace cpu {
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type,
         data_type_t acc_type>
-void ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
+status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
         const exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+
+    DEFINE_SCALES_BUFFER(scales);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
@@ -83,7 +87,6 @@ void ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
 
     // output scale section
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
-    const float *scales = pd()->attr()->output_scales_.scales_;
 
     // computations
     parallel_nd(MB, M, N, [&](dim_t mb, dim_t m, dim_t n) {
@@ -107,6 +110,8 @@ void ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             dst_value = saturate<dst_data_t>(acc);
         }
     });
+
+    return status::success;
 }
 
 using namespace data_type;

@@ -23,6 +23,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu/cpu_primitive.hpp"
+
 #include "gemm_f32_matmul.hpp"
 
 #include "gemm/gemm.hpp"
@@ -79,7 +81,8 @@ status_t gemm_f32_matmul_t::pd_t::init() {
             && desc()->accum_data_type == acc_type
             && dst_md()->data_type == dst_type && can_use_gemm() && batch() == 1
             && check_bias()
-            && attr()->has_default_values(primitive_attr_t::skip_mask_t::oscale
+            && attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_attr_oscale() && check_attr_post_ops()
             && set_default_formats();
@@ -91,6 +94,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);
     const auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+
+    DEFINE_SCALES_BUFFER(scales);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
@@ -144,8 +149,6 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             || !pd()->attr()->output_scales_.has_default_values();
 
     if (postops_in_matmul) {
-        const float *scales = pd()->attr()->output_scales_.scales_;
-
         parallel(0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);

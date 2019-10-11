@@ -272,13 +272,18 @@ int doit(const prb_t *p, res_t *r) {
     if (p->bia_dt != dnnl_data_type_undef)
         SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
 
+    dnn_mem_t scales;
+    maybe_prepare_runtime_scales(scales, p->attr, p->n, p->scales, engine_tgt);
+
     args_t args;
 
     args.set(DNNL_ARG_SRC, src_dt);
     args.set(DNNL_ARG_WEIGHTS, wei_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     if (p->bia_dt != dnnl_data_type_undef) args.set(DNNL_ARG_BIAS, bia_dt);
+    args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
     DNN_SAFE(execute_and_wait(matmul, stream_tgt, args), WARN);
+
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, wei_fp, bia_fp, dst_fp);
         dnn_mem_t c(dst_dt, fp, def_tag, engine_tgt);
