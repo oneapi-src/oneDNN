@@ -76,6 +76,7 @@ gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init() {
             && dst_md()->data_type == dst_type && batch() == 1 && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
+                    | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
             && check_attr_oscale() && check_attr_post_ops()
             && set_default_formats();
@@ -105,6 +106,18 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
+    DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+
+    src_data_t gemm_off_a = (src_data_t)src_zero_point;
+    weights_data_t gemm_off_b = (weights_data_t)weights_zero_point;
+    bool post_process_src_and_weights_zero_points = false;
+    if (gemm_off_a != src_zero_point || gemm_off_b != weights_zero_point) {
+        post_process_src_and_weights_zero_points = true;
+        gemm_off_a = gemm_off_b = 0;
+    }
+    const float dst_zero_point_f32 = (float)dst_zero_point;
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
@@ -154,8 +167,6 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         const int ldc = (int)dst_bd.strides[batched + 0];
 
         const float onef = 1.0, zerof = 0.0;
-        const src_data_t gemm_off_a = 0;
-        const int8_t gemm_off_b = 0;
         const int32_t gemm_off_c = 0;
 
         status_t status = gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32,
@@ -166,17 +177,44 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
             if (need_free_acc) free(acc);
             return status;
         }
+
+        // if igemm cannot handle src and weights zero points
+        if (post_process_src_and_weights_zero_points) {
+            std::vector<acc_data_t> src_compensation(M, 0);
+            std::vector<acc_data_t> weights_compensation(N, 0);
+
+            if (weights_zero_point) {
+                for_(dim_t m = 0; m < M; ++m)
+                for (dim_t k = 0; k < K; ++k)
+                    src_compensation[m]
+                            += src[src_strides[0] * m + src_strides[1] * k];
+            }
+
+            if (src_zero_point) {
+                for_(dim_t k = 0; k < K; ++k)
+                for (dim_t n = 0; n < N; ++n)
+                    weights_compensation[n] += weights[weights_strides[0] * k
+                            + weights_strides[1] * n];
+            }
+
+            for_(dim_t m = 0; m < M; ++m)
+            for (dim_t n = 0; n < N; ++n)
+                acc[m * ldc + n] += 0 - src_zero_point * weights_compensation[n]
+                        - weights_zero_point * src_compensation[m]
+                        + src_zero_point * weights_zero_point * (int)K;
+        }
     }
 
     const bool postops_in_matmul = pd()->with_bias()
             || !pd()->attr()->has_default_values() || !pd()->dst_is_acc_
-            || dst_type != s32;
+            || dst_type != s32 || dst_zero_point_f32 != 0.f;
 
     if (postops_in_matmul) {
         parallel(0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N);
+            (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
+                    &dst_zero_point_f32);
         });
     }
 

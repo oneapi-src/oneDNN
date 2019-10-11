@@ -48,8 +48,13 @@ struct ref_matmul_t : public primitive_impl_t {
                     && weights_md()->data_type == weights_type
                     && desc()->accum_data_type == acc_type
                     && dst_md()->data_type == dst_type
+                    && IMPLICATION(
+                            acc_type == s32, attr()->zero_points_.common())
+                    && IMPLICATION(acc_type != s32,
+                            attr()->zero_points_.has_default_values())
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale_runtime
+                            | primitive_attr_t::skip_mask_t::zero_points_runtime
                             | primitive_attr_t::skip_mask_t::post_ops)
                     && attr_oscale_ok() && attr_post_ops_ok()
                     && set_default_formats();

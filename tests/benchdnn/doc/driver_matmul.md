@@ -55,8 +55,21 @@ Run single precision matrix multiplication with all sizes provided at run-time:
                m10n20k30
 ```
 
-Run single precision batched matrix multiplication with bias, which only the
-full dimension is along `n`-axis:
+Run reduced precision (int8) matrix multiplication with asymmetric quantization
+for the source and destination memory (both use `uint8_t` data type) and
+symmetric quantization for weights memory (with `int8_t` data type and allowing
+the library to choose the proper memory format), with zero points provided at
+runtime, but sizes specified at creation time:
+``` sh
+    ./benchdnn --matmul \
+               --cfg=u8s8u8 \
+               --wtag=any \
+               --attr="zero_points=src:1*_dst:-2*;" \
+               m10n20k30
+```
+
+Run single precision batched matrix multiplication with bias, of which only the
+full dimension is along the `n`-axis:
 ``` sh
     ./benchdnn --matmul \
                --bia_dt=f32 --bia_mask=4 \

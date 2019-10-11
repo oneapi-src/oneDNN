@@ -27,6 +27,10 @@ void compute_ref(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     const int64_t N = p->n;
     const int64_t K = p->k;
 
+    const int src_zero_point = p->attr.zero_points[DNNL_ARG_SRC];
+    const int wei_zero_point = p->attr.zero_points[DNNL_ARG_WEIGHTS];
+    const int dst_zero_point = p->attr.zero_points[DNNL_ARG_DST];
+
     dnn_mem_t dst_tmp(dst_m.md_, dnnl_f32, dnnl_format_tag_undef, engine_tgt);
 
     dnnl::impl::parallel_nd(MB, M, N, [&](int64_t mb, int64_t m, int64_t n) {
@@ -35,7 +39,8 @@ void compute_ref(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
         float dst = 0;
         for (int64_t k = 0; k < K; ++k)
-            dst += src[src_off_f(p, mb, m, k)] * wei[wei_off_f(p, mb, k, n)];
+            dst += (src[src_off_f(p, mb, m, k)] - src_zero_point)
+                    * (wei[wei_off_f(p, mb, k, n)] - wei_zero_point);
 
         ((float *)dst_tmp)[dst_off_f(p, mb, m, n)] = dst;
     });
@@ -52,6 +57,7 @@ void compute_ref(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         }
         maybe_scale(tmp, p->scales, n, p->attr);
         maybe_post_ops(tmp, dst, p->attr);
+        tmp += dst_zero_point;
         dst = tmp;
     });
 }

@@ -273,7 +273,14 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
 
     dnn_mem_t scales;
+    dnn_mem_t src_zero_points_m, wei_zero_points_m, dst_zero_points_m;
     maybe_prepare_runtime_scales(scales, p->attr, p->n, p->scales, engine_tgt);
+    maybe_prepare_runtime_zero_points(
+            src_zero_points_m, p->attr, DNNL_ARG_SRC, engine_tgt);
+    maybe_prepare_runtime_zero_points(
+            wei_zero_points_m, p->attr, DNNL_ARG_WEIGHTS, engine_tgt);
+    maybe_prepare_runtime_zero_points(
+            dst_zero_points_m, p->attr, DNNL_ARG_DST, engine_tgt);
 
     args_t args;
 
@@ -282,6 +289,9 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_DST, dst_dt);
     if (p->bia_dt != dnnl_data_type_undef) args.set(DNNL_ARG_BIAS, bia_dt);
     args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS, wei_zero_points_m);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
     DNN_SAFE(execute_and_wait(matmul, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {

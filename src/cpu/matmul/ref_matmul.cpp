@@ -40,6 +40,9 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     DEFINE_SCALES_BUFFER(scales);
+    DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+    DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
+    DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
@@ -60,12 +63,13 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
         acc_data_t acc = 0;
         if (batched)
             for (dim_t k = 0; k < K; ++k)
-                acc += (acc_data_t)src[src_d.off(mb, m, k)]
-                        * weights[weights_d.off(mb, k, n)];
+                acc += (src[src_d.off(mb, m, k)] - src_zero_point)
+                        * (weights[weights_d.off(mb, k, n)]
+                                - weights_zero_point);
         else
             for (dim_t k = 0; k < K; ++k)
-                acc += (acc_data_t)src[src_d.off(m, k)]
-                        * weights[weights_d.off(k, n)];
+                acc += (src[src_d.off(m, k)] - src_zero_point)
+                        * (weights[weights_d.off(k, n)] - weights_zero_point);
         return acc;
     };
 
@@ -102,6 +106,7 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             res *= scales[scale_stride * n];
             if (do_sum) res += dst_value;
             if (eltwise_ker_) res = eltwise_ker_->compute_scalar(res);
+            res += (float)dst_zero_point;
             if (dst_type == data_type::f32)
                 dst_value = res;
             else
