@@ -211,12 +211,13 @@ if(DNNL_GPU_RUNTIME STREQUAL "OCL")
             DESTINATION ${LIB_CONFIG_INSTALL_DIR_COMPAT})
 endif()
 
-if(DNNL_WITH_SYCL)
+if(DNNL_SYCL_RUNTIME STREQUAL "COMPUTECPP")
     install(FILES
-        "../cmake/FindOpenCL.cmake"
-        "../cmake/FindSYCL.cmake"
-        "../cmake/FindDPCPP.cmake"
         "../cmake/FindComputeCpp.cmake"
+        "../cmake/FindOpenCL.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+elseif(DNNL_SYCL_RUNTIME STREQUAL "DPCPP")
+    install(FILES
         "../cmake/FindLevelZero.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()

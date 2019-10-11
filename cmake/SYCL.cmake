@@ -23,60 +23,44 @@ if(NOT DNNL_WITH_SYCL)
     return()
 endif()
 
-set(_computecpp_flags "-Wno-sycl-undef-func -no-serial-memop")
-set(COMPUTECPP_USER_FLAGS "${_computecpp_flags} ${COMPUTECPP_USER_FLAGS}"
-    CACHE STRING "")
+include(FindPackageHandleStandardArgs)
+include(CheckCXXCompilerFlag)
 
-find_package(SYCL REQUIRED)
+# Check if CXX is the DPCPP compiler
+CHECK_CXX_COMPILER_FLAG(-fsycl DPCPP_SUPPORTED)
+find_package(LevelZero)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
-
-if(DNNL_SYCL_DPCPP)
+if(DPCPP_SUPPORTED)
     if(LevelZero_FOUND)
         message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
     else()
         message(STATUS "DPC++ support is enabled (OpenCL)")
     endif()
-    # XXX: OpenCL in SYCL bundle cannot be found by FindOpenCL due to the specific
-    # directory layout. This workaround ensures that local OpenCL SDK doesn't
-    # create any conflicts with SYCL headers.
-    if(WIN32)
-        include_directories(${SYCL_INCLUDE_DIRS})
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter \"${OpenCL_INCLUDE_DIRS}\"")
-    else()
-        include_directories(${SYCL_INCLUDE_DIRS})
-        include_directories(${OpenCL_INCLUDE_DIRS})
-        if(LevelZero_FOUND)
-            include_directories(${LevelZero_INCLUDE_DIRS})
-        endif()
+
+    # Explicitly link against sycl as the DPC++ compiler doesn't always do it implicitly
+    list(APPEND EXTRA_SHARED_LIBS sycl)
+    # Explicitly link against OpenCL as the DPC++ compiler doesn't do it implicitly
+    list(APPEND EXTRA_SHARED_LIBS OpenCL)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
+
+    if(UNIX AND LevelZero_FOUND)
+        include_directories(${LevelZero_INCLUDE_DIRS})
     endif()
+
+    set(DNNL_SYCL_DPCPP true CACHE INTERNAL "" FORCE)
+    set(DNNL_SYCL_RUNTIME "DPCPP")
 else()
     message(STATUS "SYCL support is enabled (OpenCL)")
-    include_directories(${SYCL_INCLUDE_DIRS})
-    include_directories(${OpenCL_INCLUDE_DIRS})
-endif()
+    set(_computecpp_flags "-Wno-sycl-undef-func -no-serial-memop")
+    set(COMPUTECPP_USER_FLAGS "${_computecpp_flags} ${COMPUTECPP_USER_FLAGS}"
+            CACHE STRING "")
 
-list(APPEND EXTRA_SHARED_LIBS SYCL::SYCL)
-
-if(DNNL_SYCL_DPCPP)
-    get_target_property(sycl_lib_path SYCL::SYCL IMPORTED_LOCATION)
-    get_filename_component(sycl_lib_dir "${sycl_lib_path}" PATH)
-
-    append_to_windows_path_list(CTESTCONFIG_PATH "${sycl_lib_dir}/../bin")
-
-    # Specify OpenCL version to avoid warnings
-    add_definitions(-DCL_TARGET_OPENCL_VERSION=220)
-
-    # Use TBB library from SYCL bundle if it is there
-    if(NOT TBBROOT)
-        find_path(_tbbroot
-            NAMES "include/tbb/tbb.h"
-            PATHS "${sycl_lib_dir}/../../tbb"
-                  "${sycl_lib_dir}/../../../tbb"
-            PATH_SUFFIXES "latest"
-        NO_DEFAULT_PATH)
-        if(_tbbroot)
-            set(TBBROOT "${_tbbroot}" CACHE STRING "" FORCE)
-        endif()
-    endif()
+    find_package(ComputeCpp REQUIRED)
+    if(ComputeCpp_FOUND)
+         list(APPEND EXTRA_SHARED_LIBS ComputeCpp::ComputeCpp)
+         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ComputeCpp_FLAGS}")
+         include_directories(${ComputeCpp_INCLUDE_DIRS} ${OpenCL_INCLUDE_DIRS})
+         set(DNNL_SYCL_COMPUTECPP true CACHE INTERNAL "" FORCE)
+         set(DNNL_SYCL_RUNTIME "COMPUTECPP")
+     endif()
 endif()

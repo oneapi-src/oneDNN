@@ -61,8 +61,9 @@ if(DEFINED ComputeCpp_DIR)
   set(computecpp_find_hint ${ComputeCpp_DIR})
 elseif(DEFINED ENV{COMPUTECPP_DIR})
   set(computecpp_find_hint $ENV{COMPUTECPP_DIR})
-elseif(DEFINED SYCLROOT)
-  set(computecpp_find_hint ${SYCLROOT})
+elseif(DEFINED ENV{COMPUTECPPROOT})
+  # oneDNN change: extend computecpp_find_hint
+  set(computecpp_find_hint $ENV{COMPUTECPPROOT})
 endif()
 
 # Used for running executables on the host

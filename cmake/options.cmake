@@ -156,10 +156,6 @@ set(OPENCLROOT "" CACHE STRING
     "path to Intel SDK for OpenCL applications.
     Use this option to specify custom location for OpenCL.")
 
-set(DPCPPROOT "" CACHE STRING
-    "path to DPC++ installation.
-    Use this option to specify custom location for DPC++")
-
 # Shortcuts for SYCL/DPC++
 if(DNNL_CPU_RUNTIME STREQUAL "DPCPP" OR DNNL_CPU_RUNTIME STREQUAL "SYCL")
     set(DNNL_CPU_SYCL true)
