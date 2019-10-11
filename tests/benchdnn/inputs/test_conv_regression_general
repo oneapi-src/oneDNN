@@ -129,3 +129,7 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 # 3d problem dispatching
 --dir=FWD_D,BWD_D,BWD_W
 --cfg=f32,bf16bf16bf16 g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
+
+# Depthwise s8s8 test to detect potential reassignment of zmm_src register
+--reset --allow-unimpl=true --cfg=s8s8s32
+mb1_g960ic960oc960_ih7oh7kh5ph2_iw7ow7kw5pw2n"detect_zmm_src_reassignment"
