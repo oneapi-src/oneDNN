@@ -22,9 +22,11 @@ if(platform_cmake_included)
 endif()
 set(platform_cmake_included true)
 
-include("cmake/utils.cmake")
+include(utils)
 
-add_definitions(-DDNNL_DLL -DDNNL_DLL_EXPORTS)
+if(DNNL_LIBRARY_TYPE STREQUAL "SHARED")
+    add_definitions(-DDNNL_DLL -DDNNL_DLL_EXPORTS)
+endif()
 
 # UNIT8_MAX-like macros are a part of the C99 standard and not a part of the
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
@@ -46,7 +48,16 @@ endif()
 if(MSVC)
     set(USERCONFIG_PLATFORM "x64")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "/WX")
-    if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
+    # enable intrinsic functions
+    append(CMAKE_CXX_FLAGS "/Oi")
+    # enable full optimizations
+    append(CMAKE_CXX_FLAGS_RELEASE "/Ox")
+    append(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Ox")
+    # package individual functions
+    append(CMAKE_CXX_FLAGS_RELEASE "/Gy")
+    append(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Gy")
+    # compiler specific settings
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         append(CMAKE_CCXX_FLAGS "/MP")
         # int -> bool
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4800")
@@ -58,27 +69,28 @@ if(MSVC)
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4551")
         # int64_t -> int (tent)
         append(CMAKE_CCXX_NOWARN_FLAGS "/wd4244")
-    endif()
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         append(CMAKE_CCXX_FLAGS "/MP")
         set(DEF_ARCH_OPT_FLAGS "-QxSSE4.1")
         # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:13379")
-        # disable: loop was not vectorized with "simd"
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15552")
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15335")
         # disable: unknown pragma
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:3180")
         # disable: foo has been targeted for automatic cpu dispatch
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15009")
         # disable: disabling user-directed function packaging (COMDATs)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:11031")
-    endif()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        set(DEF_ARCH_OPT_FLAGS "-msse4.1")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
         # very upset. Tell it that it's okay and that we love it
         # unconditionally.
         append(CMAKE_CCXX_FLAGS "-Wno-pass-failed")
     endif()
+    # disable secure warnings
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
@@ -143,13 +155,20 @@ elseif(UNIX OR MINGW)
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15335")
         # disable: foo has been targeted for automatic cpu dispatch
         append(CMAKE_CCXX_NOWARN_FLAGS "-diag-disable:15009")
+        # disable optimizations in debug mode
+        append(CMAKE_CXX_FLAGS_DEBUG "-O0")
     endif()
+    # disable assertions
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG")
 endif()
 
 if(UNIX OR MINGW)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         # Link Intel libraries statically (except for iomp5)
-        append(CMAKE_SHARED_LINKER_FLAGS "-liomp5 -static-intel")
+        if(DNNL_CPU_THREADING_RUNTIME MATCHES "OMP")
+            append(CMAKE_SHARED_LINKER_FLAGS "-liomp5")
+        endif()
+        append(CMAKE_SHARED_LINKER_FLAGS "-static-intel")
         # Tell linker to not complain about missing static libraries
         append(CMAKE_SHARED_LINKER_FLAGS "-diag-disable:10237")
     endif()
@@ -158,9 +177,6 @@ endif()
 if(DNNL_ARCH_OPT_FLAGS STREQUAL "HostOpts")
     set(DNNL_ARCH_OPT_FLAGS "${DEF_ARCH_OPT_FLAGS}")
 endif()
-
-append(CMAKE_C_FLAGS "${CMAKE_CCXX_FLAGS} ${DNNL_ARCH_OPT_FLAGS}")
-append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_FLAGS} ${DNNL_ARCH_OPT_FLAGS}")
 
 if(APPLE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
@@ -171,4 +187,6 @@ if(APPLE)
         append(CMAKE_SHARED_LINKER_FLAGS "${_rpath}")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${_rpath}")
     endforeach()
+    append(CMAKE_CXX_FLAGS "-mmacosx-version-min=10.7") # makes sure code runs on older macOS versions
+    append(CMAKE_CXX_FLAGS "-stdlib=libc++")            # link against libc++ which supports C++11 features
 endif()
