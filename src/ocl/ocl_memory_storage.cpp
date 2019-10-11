@@ -25,24 +25,24 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-ocl_memory_storage_t::ocl_memory_storage_t(
-        engine_t *engine, unsigned flags, size_t size, void *handle)
-    : memory_storage_t(engine) {
+status_t ocl_memory_storage_t::init(unsigned flags, size_t size, void *handle) {
     // Do not allocate memory if one of these is true:
     // 1) size is 0
     // 2) handle is nullptr and 'alloc' flag is not set
-    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc))) return;
-    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
+    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc)))
+        return status::success;
+    auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     cl_int err;
     if (flags & memory_flags_t::alloc) {
         cl_mem mem_object_ptr = clCreateBuffer(
                 ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
-        OCL_CHECK_V(err);
+        OCL_CHECK(err);
         mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(mem_object_ptr, false);
     } else if (flags & memory_flags_t::use_runtime_ptr) {
         mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
                 static_cast<cl_mem>(handle), true);
     }
+    return status::success;
 }
 
 status_t ocl_memory_storage_t::map_data(void **mapped_ptr) const {
@@ -106,9 +106,10 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
             CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
     assert(err == CL_SUCCESS);
 
-    std::unique_ptr<memory_storage_t> sub_storage(new ocl_memory_storage_t(
-            this->engine(), memory_flags_t::use_runtime_ptr, size, sub_buffer));
-    return sub_storage;
+    auto sub_storage = new ocl_memory_storage_t(this->engine());
+    if (sub_storage)
+        sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_buffer);
+    return std::unique_ptr<memory_storage_t>(sub_storage);
 }
 
 } // namespace ocl

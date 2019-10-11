@@ -66,9 +66,8 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     memory_storage_t *memory_storage_ptr;
     status_t status = engine->create_memory_storage(
             &memory_storage_ptr, flags, size, handle);
-
     assert(status == status::success);
-    MAYBE_UNUSED(status);
+    if (status != status::success) return;
 
     memory_storage_.reset(memory_storage_ptr);
     zero_pad();
@@ -268,8 +267,14 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
             : memory_flags_t::use_runtime_ptr;
-    return safe_ptr_assign<memory_t>(
-            *memory, new memory_t(engine, md, flags, handle));
+    auto _memory = new memory_t(engine, md, flags, handle);
+    if (_memory == nullptr) return out_of_memory;
+    if (_memory->memory_storage() == nullptr) {
+        delete _memory;
+        return out_of_memory;
+    }
+    *memory = _memory;
+    return success;
 }
 
 status_t dnnl_memory_get_memory_desc(

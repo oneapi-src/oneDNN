@@ -30,8 +30,10 @@ namespace ocl {
 
 class ocl_memory_storage_t : public memory_storage_t {
 public:
-    ocl_memory_storage_t(
-            engine_t *engine, unsigned flags, size_t size, void *handle);
+    ocl_memory_storage_t(engine_t *engine)
+        : memory_storage_t(engine), mem_object_(nullptr) {}
+
+    status_t init(unsigned flags, size_t size, void *handle);
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
