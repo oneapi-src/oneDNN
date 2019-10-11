@@ -101,13 +101,13 @@ static int check_post_ops2str() {
         ops.entry[2 * i + 1].eltwise.alpha = (i == 0 ? 0. : 5.);
         ops.entry[2 * i + 1].eltwise.beta = 0.;
     }
-    CHECK_PRINT_EQ(ops, "'sum:2;relu:0;sum:3;relu:5'");
+    CHECK_PRINT_EQ(ops, "'sum:2;relu;sum:3;relu:5'");
 
     ops.len = 3;
-    CHECK_PRINT_EQ(ops, "'sum:2;relu:0;sum:3'");
+    CHECK_PRINT_EQ(ops, "'sum:2;relu;sum:3'");
 
     ops.len = 2;
-    CHECK_PRINT_EQ(ops, "'sum:2;relu:0'");
+    CHECK_PRINT_EQ(ops, "'sum:2;relu'");
 
     ops.len = 1;
     CHECK_PRINT_EQ(ops, "'sum:2'");
