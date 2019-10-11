@@ -242,7 +242,7 @@ public:
 	{
 		if (err_ < 0 || err_ > ERR_INTERNAL) {
 			fprintf(stderr, "bad err=%d in Xbyak::Error\n", err_);
-			exit(1);
+			//exit(1);
 		}
 	}
 	operator int() const { return err_; }
