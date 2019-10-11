@@ -482,9 +482,9 @@ private:
     primitive_t *conv_p_ = nullptr;
     compute::kernel_t bias_kernel;
     size_t gws[3];
-    data_type_t dst_data_type;
-    data_type_t bias_data_type;
-    data_type_t accum_data_type;
+    data_type_t dst_data_type = data_type::undef;
+    data_type_t bias_data_type = data_type::undef;
+    data_type_t accum_data_type = data_type::undef;
 };
 
 } // namespace ocl
