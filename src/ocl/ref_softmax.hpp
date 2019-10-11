@@ -58,13 +58,35 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             for (int i = 0; i < src_md()->ndims; ++i) {
-                if (i != desc()->softmax_axis) gws.push_back(src_md()->dims[i]);
+                if (i != desc()->softmax_axis) {
+                    gws.push_back(src_md()->dims[i]);
+                    lws.push_back(1);
+                }
             }
+
+            int nelems = desc()->data_desc.dims[desc()->softmax_axis];
+
+            if (nelems <= 100) {
+                group_size = 16;
+            } else if (nelems <= 1000) {
+                group_size = 32;
+            } else if (nelems <= 2000) {
+                group_size = 64;
+            } else if (nelems <= 5000){
+                group_size = 128;
+            } else {
+                group_size = 256;
+            }
+
+            lws[0] = group_size;
+            gws[0] *= group_size;
 
             return status::success;
         }
 
         std::vector<size_t> gws;
+        std::vector<size_t> lws;
+        size_t group_size = 0;
     };
 
     ref_softmax_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -80,8 +102,12 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
         kernel_ctx.define_int(
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
-        kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
+        kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
+        kernel_ctx.define_int("FWD_KERNEL", 1);
+        kernel_ctx.add_option("-cl-std=CL2.0");
 
+        kernel_ctx.set_data_type(desc->data_desc.data_type);
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
 
         compute_engine->create_kernel(
@@ -141,6 +167,7 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
 
         const auto *desc = pd()->desc();
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
+        kernel_ctx.define_int("FWD_KERNEL", 0);
         kernel_ctx.define_int(
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
         kernel_ctx.set_data_type(desc->data_desc.data_type);

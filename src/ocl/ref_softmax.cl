@@ -39,30 +39,69 @@
 #error unsupported softmax dimension
 #endif
 
-__kernel void ref_softmax_fwd_generic(
-        __global DATA_T *src, __global DATA_T *dst) {
-    const int dim[] = {get_global_id(0), get_global_id(1), get_global_id(2)};
+#if FWD_KERNEL
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
-    DEF_ACC_DATA_T temp_data[SOFTMAX_AXIS];
+__kernel void
+ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
 
-    temp_data[0] = TO_DEF_ACC_DATA_T(src[DATA_OFF(dim[0], dim[1], dim[2], 0)]);
-    DEF_ACC_DATA_T max = temp_data[0];
-    for (int i = 1; i < SOFTMAX_AXIS; ++i) {
+    const int dim[] = {
+            get_global_id(0) / GROUP_SIZE, get_global_id(1), get_global_id(2)};
+    int local_id = get_local_id(0);
+
+    // SOFTMAX_AXIS is the size of axis around which softmax operation is
+    // performed
+
+    // begin and end indices calculated according to thread's id
+    int begin = local_id * (SOFTMAX_AXIS / GROUP_SIZE);
+    int end = (local_id == GROUP_SIZE - 1)
+            ? SOFTMAX_AXIS
+            : (local_id + 1) * (SOFTMAX_AXIS / GROUP_SIZE);
+
+    // initializing max_ to first value of subgroup
+    int start_idx = DATA_OFF(dim[0], dim[1], dim[2], begin);
+    DEF_ACC_DATA_T max_ = TO_DEF_ACC_DATA_T(src[start_idx]);
+    DEF_ACC_DATA_T denom_ = DATA_ZERO;
+
+    // finding max value for each sub_group
+    for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
-        temp_data[i] = TO_DEF_ACC_DATA_T(src[data_off]);
-        max = temp_data[i] > max ? temp_data[i] : max;
+        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
+        max_ = temp > max_ ? temp : max_;
     }
 
-    DEF_ACC_DATA_T denom = DATA_ZERO;
-    for (int i = 0; i < SOFTMAX_AXIS; ++i) {
-        denom += temp_data[i] = exp(temp_data[i] - max);
+    // reduce using work_group_reduce if no. of subgroups > 1, for e.g.
+    // if group_size is 32, there will be 2 sub-groups (size of each sub-group
+    // is 16 which is an optimal value)
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    max_ = sub_group_reduce_max(max_);
+#else
+    max_ = work_group_reduce_max(max_);
+#endif
+
+    // updating dst tensor and accumulating denom for last step
+    for (int i = begin; i < end; ++i) {
+        size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
+        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
+        dst[data_off] = TO_DATA_T(exp(temp - max_));
+        denom_ += TO_DEF_ACC_DATA_T(dst[data_off]);
     }
 
-    for (int i = 0; i < SOFTMAX_AXIS; ++i) {
+#if GROUP_SIZE == SUB_GROUP_SIZE
+    denom_ = sub_group_reduce_add(denom_);
+#else
+    denom_ = work_group_reduce_add(denom_);
+#endif
+
+    for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
-        dst[data_off] = TO_DATA_T(temp_data[i] / denom);
+        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(dst[data_off]);
+        dst[data_off] = TO_DATA_T(temp / denom_);
     }
 }
+
+#endif
 
 __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
         __global DATA_T *diff_src, __global DATA_T *diff_dst) {
