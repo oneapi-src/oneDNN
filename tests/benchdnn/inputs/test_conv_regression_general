@@ -130,6 +130,10 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 --dir=FWD_D,BWD_D,BWD_W
 --cfg=f32,bf16bf16bf16 g1ic16id1ih7iw8oc16od1oh7ow8kd3kh3kw3sd2sh1sw1pd1ph1pw1
 
-# Depthwise s8s8 test to detect potential reassignment of zmm_src register
---reset --allow-unimpl=true --cfg=s8s8s32
-mb1_g960ic960oc960_ih7oh7kh5ph2_iw7ow7kw5pw2n"detect_zmm_src_reassignment"
+# Depthwise s8s8 tests to detect padding issues
+--reset --allow-unimpl=true --cfg=s8s8s32s32
+mb1_g960ic960oc960_ih7oh7kh5ph2_iw7ow7kw5pw2n"s8s8_padding:dw1"
+mb1_g16ic16oc16_ih1oh1kh1ph0_iw1ow1kw3pw1n"s8s8_padding:dw2"
+mb1_g16ic16oc16_ih1oh1kh1ph0_iw1ow1kw2pw1n"s8s8_padding:dw3"
+mb1_g16ic16oc16_ih1oh1kh1ph0_iw3ow3kw2pw1n"s8s8_padding:dw4"
+mb1_g16ic16oc16_ih1oh1kh2ph0_iw1ow1kw3pw1n"s8s8_padding:dw5"
