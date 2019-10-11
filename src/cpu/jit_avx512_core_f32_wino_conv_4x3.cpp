@@ -322,9 +322,9 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
 
-    PRAGMA_OMP(parallel) {
+    {
 
-        parallel_nd_in_omp(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
+        parallel_nd(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
                 [&](int img, int K_blk1, int K_blk2) {
                     input_transform_data(img, jcp,
                             &(input(img, K_blk1 * jcp.dimK_block + K_blk2, 0, 0,
@@ -333,7 +333,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
                 });
 
         if (jcp.prop_kind != prop_kind::forward_inference) {
-            parallel_nd_in_omp(jcp.nb_oc, jcp.nb_ic,
+            parallel_nd(jcp.nb_oc, jcp.nb_ic,
                     (jcp.oc_block * jcp.oc_reg_block),
                     (jcp.ic_block * jcp.ic_reg_block),
                     [&](int ofm1, int ifm1, int ofm2, int ifm2) {
@@ -350,9 +350,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
                     });
         }
 
-        PRAGMA_OMP(barrier)
-
-        parallel_nd_in_omp(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
+        parallel_nd(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
                 [&](int N_blk1, int oj, int oi, int M_blk1) {
                     for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
                         for (int N_blk2 = 0; N_blk2 < jcp.dimN_block; N_blk2++)
@@ -366,9 +364,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
                                     K_blk1);
                 });
 
-        PRAGMA_OMP(barrier)
-
-        parallel_nd_in_omp(jcp.mb, jcp.dimM_nb_block,
+        parallel_nd(jcp.mb, jcp.dimM_nb_block,
                 (jcp.dimM_block * jcp.dimM_reg_block),
                 [&](int img, int M_blk1, int M_blk2) {
                     const int M_blk
@@ -456,12 +452,10 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
                 });
     }
 
-    PRAGMA_OMP(parallel) {
+    parallel_nd(jcp.tile_block, [&](int tile_block) {
 
         int ithr = dnnl_get_thread_num();
 
-PRAGMA_OMP(for schedule(static))
-for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
     for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
         for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
 
@@ -501,8 +495,7 @@ for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
                     &(output(0, M_blk, 0, 0, 0)), bias_ptr);
         }
     }
-}
-    }
+    });
 }
 
 template struct _jit_avx512_core_f32_wino_conv_4x3_t<true>;

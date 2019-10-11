@@ -103,8 +103,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                             alg_kind::convolution_winograd)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && set_default_formats()
-                    && dnnl_thr_syncable();
+                    && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status
