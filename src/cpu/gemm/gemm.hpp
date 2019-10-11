@@ -40,10 +40,9 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         int32_t *c, const int *ldc, const int32_t *co);
 
 dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
-        const dnnl_dim_t *M, const dnnl_dim_t *N, const dnnl_dim_t *K,
-        const float *alpha, const bfloat16_t *A, const dnnl_dim_t *lda,
-        const bfloat16_t *B, const dnnl_dim_t *ldb, const float *beta, float *C,
-        const dnnl_dim_t *ldc);
+        const int *M, const int *N, const int *K, const float *alpha,
+        const bfloat16_t *A, const int *lda, const bfloat16_t *B,
+        const int *ldb, const float *beta, float *C, const int *ldc);
 
 #ifdef USE_CBLAS
 #define GEMM_IMPL_STR "gemm:blas"

@@ -76,9 +76,8 @@ rnn_gemm_sig((ref_rnn_bwd_f32_t::gemm)) {
 template <>
 rnn_gemm_sig((ref_rnn_fwd_bf16_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    dim_t M = m, N = n, K = k, LDA = ldA, LDB = ldB, LDC = ldC;
-    auto st = gemm_bf16bf16f32(&transA, &transB, &M, &N, &K, &alpha, a_, &LDA,
-            b_, &LDB, &beta, c_, &LDC);
+    auto st = gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA,
+            b_, &ldB, &beta, c_, &ldC);
     assert(st == dnnl_success);
     MAYBE_UNUSED(st);
 }
@@ -86,9 +85,8 @@ rnn_gemm_sig((ref_rnn_fwd_bf16_t::gemm)) {
 template <>
 rnn_gemm_sig((ref_rnn_bwd_bf16_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    dim_t M = m, N = n, K = k, LDA = ldA, LDB = ldB, LDC = ldC;
-    auto st = gemm_bf16bf16f32(&transA, &transB, &M, &N, &K, &alpha, a_, &LDA,
-            b_, &LDB, &beta, c_, &LDC);
+    auto st = gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA,
+            b_, &ldB, &beta, c_, &ldC);
     assert(st == dnnl_success);
     MAYBE_UNUSED(st);
 }

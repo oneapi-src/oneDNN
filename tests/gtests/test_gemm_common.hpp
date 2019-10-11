@@ -124,9 +124,9 @@ extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
         bool *pack = nullptr);
 
 extern dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const dnnl_dim_t *M,
-        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
-        const dnnl_dim_t *ldb, size_t *size, bool *pack = nullptr);
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, size_t *size,
+        bool *pack = nullptr);
 
 extern dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
@@ -144,9 +144,9 @@ extern dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
         const int *lda, const int *ldb, const float *src, float *dst);
 
 extern dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier,
-        const char *transa, const char *transb, const dnnl_dim_t *M,
-        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
-        const dnnl_dim_t *ldb, const bfloat16_t *src, bfloat16_t *dst);
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, const bfloat16_t *src,
+        bfloat16_t *dst);
 
 extern dnnl_status_t gemm_s8u8s32_pack(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
@@ -165,10 +165,9 @@ extern dnnl_status_t sgemm_compute(const char *transa, const char *transb,
         float *C, const int *ldc);
 
 extern dnnl_status_t gemm_bf16bf16f32_compute(const char *transa,
-        const char *transb, const dnnl_dim_t *M, const dnnl_dim_t *N,
-        const dnnl_dim_t *K, const bfloat16_t *A, const dnnl_dim_t *lda,
-        const bfloat16_t *B, const dnnl_dim_t *ldb, const float *beta, float *C,
-        const dnnl_dim_t *ldc);
+        const char *transb, const int *M, const int *N, const int *K,
+        const bfloat16_t *A, const int *lda, const bfloat16_t *B,
+        const int *ldb, const float *beta, float *C, const int *ldc);
 
 extern dnnl_status_t gemm_s8u8s32_compute(const char *transa,
         const char *transb, const char *offsetc, const int *M, const int *N,
@@ -1056,8 +1055,8 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
         /* Prepare for Fortran style, hence A <-> B */
         char trans_a = p.transB, trans_b = p.transA;
 
-        dnnl_dim_t m = p.N, n = p.M, k = p.K;
-        dnnl_dim_t lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+        int m = p.N, n = p.M, k = p.K;
+        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
 
         std::vector<bfloat16_t> a_pack_buf, b_pack_buf;
         bfloat16_t *A = map_memory<bfloat16_t>(b_mem), *a_eff = A;

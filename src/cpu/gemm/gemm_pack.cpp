@@ -168,9 +168,9 @@ dnnl_status_t sgemm_pack_get_size(const char *identifier, const char *transa,
 }
 
 dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const dnnl_dim_t *M,
-        const dnnl_dim_t *N, const dnnl_dim_t *K, const dnnl_dim_t *lda,
-        const dnnl_dim_t *ldb, size_t *size, bool *pack) {
+        const char *transa, const char *transb, const int *M, const int *N,
+        const int *K, const int *lda, const int *ldb, size_t *size,
+        bool *pack) {
 
     if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
 
@@ -296,9 +296,9 @@ dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
 }
 
 dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier, const char *transa,
-        const char *transb, const dnnl_dim_t *M, const dnnl_dim_t *N,
-        const dnnl_dim_t *K, const dnnl_dim_t *lda, const dnnl_dim_t *ldb,
-        const bfloat16_t *src, bfloat16_t *dst) {
+        const char *transb, const int *M, const int *N, const int *K,
+        const int *lda, const int *ldb, const bfloat16_t *src,
+        bfloat16_t *dst) {
     float one = 1.f, *alpha = &one;
 
     if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
@@ -400,10 +400,9 @@ dnnl_status_t sgemm_compute(const char *transa, const char *transb,
 }
 
 dnnl_status_t gemm_bf16bf16f32_compute(const char *transa, const char *transb,
-        const dnnl_dim_t *M, const dnnl_dim_t *N, const dnnl_dim_t *K,
-        const bfloat16_t *A, const dnnl_dim_t *lda, const bfloat16_t *B,
-        const dnnl_dim_t *ldb, const float *beta, float *C,
-        const dnnl_dim_t *ldc) {
+        const int *M, const int *N, const int *K, const bfloat16_t *A,
+        const int *lda, const bfloat16_t *B, const int *ldb, const float *beta,
+        float *C, const int *ldc) {
 
     if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
 
