@@ -138,6 +138,10 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 --reset --allow-unimpl=true --cfg=f32,bf16bf16bf16 --dir=BWD_W
 mb1_ic16oc16_iw1_ow29_kw14_pw28_dw1_n"dilated_kernel_size_lt_padding"
 
-# Depthwise s8s8 test to detect potential reassignment of zmm_src register
+# Depthwise s8s8 tests to detect padding issues
 --reset --allow-unimpl=true --cfg=s8s8s32
-mb1_g960ic960oc960_ih7oh7kh5ph2_iw7ow7kw5pw2n"detect_zmm_src_reassignment"
+mb1_g960ic960oc960_ih7oh7kh5ph2_iw7ow7kw5pw2n"s8s8_padding:dw1"
+mb1_g16ic16oc16_ih1oh1kh1ph0_iw1ow1kw3pw1n"s8s8_padding:dw2"
+mb1_g16ic16oc16_ih1oh1kh1ph0_iw1ow1kw2pw1n"s8s8_padding:dw3"
+mb1_g16ic16oc16_ih1oh1kh1ph0_iw3ow3kw2pw1n"s8s8_padding:dw4"
+mb1_g16ic16oc16_ih1oh1kh2ph0_iw1ow1kw3pw1n"s8s8_padding:dw5"
