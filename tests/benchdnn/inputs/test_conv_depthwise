@@ -25,6 +25,7 @@
 --allow-unimpl=true
 --dir=FWD_D
 --cfg=u8s8u8s32 --batch=conv_mobilenet_dw
+--cfg=u8s8u8s32 --batch=conv_regression_dw
 
 #i8 attrs
 --reset
