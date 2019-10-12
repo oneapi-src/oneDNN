@@ -181,6 +181,14 @@ inline int calculate_end_padding(int start_padding, int dst_size, int src_size,
             - (src_size + start_padding);
 }
 
+inline status_t init_tag(format_tag_t &tag, const memory_desc_wrapper &mdw,
+        const format_tag_t &tag_value) {
+    if (mdw.format_kind() == format_kind::any) return status::unimplemented;
+
+    tag = mdw.matches_one_of_tag(tag_value);
+    return tag == tag_value ? status::success : status::unimplemented;
+}
+
 struct jit_conv_conf_2x3_wino_t {
     conv_version_t ver;
 
