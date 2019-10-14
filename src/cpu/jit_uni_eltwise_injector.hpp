@@ -66,6 +66,7 @@ struct jit_uni_eltwise_injector_f32 {
     void prepare_table(bool gen_table = true);
     void load_table_addr() { h->mov(p_table, l_table); }
 
+private:
     const alg_kind_t alg_;
     const float alpha_;
     const float beta_;
@@ -78,22 +79,21 @@ struct jit_uni_eltwise_injector_f32 {
     const Xbyak::Opmask k_mask;
     Xbyak::Label l_table;
 
-private:
     // if only the injector was inherited from jit_generator...
     enum {
         _cmp_lt_os = jit_generator::_cmp_lt_os,
         _cmp_le_os = jit_generator::_cmp_le_os,
-        _cmp_nle_us = jit_generator::_cmp_nle_us,
+        _cmp_ge_os = jit_generator::_cmp_nlt_us,
+        _cmp_gt_os = jit_generator::_cmp_nle_us,
         _op_floor = jit_generator::_op_floor
     };
 
-    size_t vlen = cpu_isa_traits<isa>::vlen;
-
-    const static size_t preserved_vecs_max = 5;
+    static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
+    static constexpr size_t preserved_vecs_max = 5;
+    static constexpr size_t vecs_count
+            = utils::one_of(isa, avx512_common, avx512_core) ? 32 : 16;
 
     size_t vecs_to_preserve = 0;
-    size_t vecs_count
-            = utils::one_of(isa, avx512_common, avx512_core) ? 32 : 16;
     size_t preserved_vecs_count = 0;
     size_t preserved_vec_idxs[preserved_vecs_max] = {0};
     size_t start_idx_tail = 0;
@@ -105,13 +105,17 @@ private:
         return h->ptr[p_table + scale_offt_ + index * vlen];
     }
 
-    int aux_vecs_count(alg_kind_t alg);
+    size_t aux_vecs_count(alg_kind_t alg);
 
     void compute_body(size_t start_idx, size_t end_idx);
     void injector_preamble(size_t start_idx, size_t end_idx);
     void injector_preamble_tail(size_t start_idx);
     void injector_postamble();
     void assign_regs();
+    void compute_cmp_mask(const Vmm &vmm_src,
+            const Xbyak::Operand &compare_operand, int cmp_predicate);
+    void blend_with_mask(const Vmm &vmm_dst, const Xbyak::Operand &src);
+    void test_mask();
 
     void exp_compute_vector(const Vmm &vmm_src);
     void relu_compute_vector(const Vmm &vmm_src);

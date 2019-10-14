@@ -21,19 +21,19 @@
 
 #include "jit_uni_eltwise_injector.hpp"
 
-#define GET_OFF(field) offsetof(jit_args, field)
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 using namespace Xbyak;
+static constexpr int n_mantissa_bits = 23;
+static constexpr int k_mask_size = 4;
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
         size_t start_idx, size_t end_idx) {
     preserved_vecs_count = 0;
-    vecs_to_preserve = (size_t)aux_vecs_count(alg_);
+    vecs_to_preserve = aux_vecs_count(alg_);
     start_idx_tail = start_idx;
 
     // For sse41 mask register has to be Xmm(0)
@@ -124,17 +124,46 @@ void jit_uni_eltwise_injector_f32<isa>::assign_regs() {
     vmm_aux4 = Vmm(preserved_vec_idxs[4]);
 }
 
+// Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
+// Stores a mask by applying cmpps on two inputs w/ a given predicate.
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::compute_cmp_mask(const Vmm &vmm_src,
+        const Xbyak::Operand &compare_operand, int cmp_predicate) {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
+        h->vcmpps(k_mask, vmm_src, compare_operand, cmp_predicate);
+    } else {
+        h->uni_vcmpps(vmm_mask, vmm_src, compare_operand, cmp_predicate);
+    }
+}
+
+// Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
+// Blends a result of second input into a first input w/ a stored mask.
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::blend_with_mask(
+        const Vmm &vmm_dst, const Xbyak::Operand &src) {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
+        h->vblendmps(vmm_dst | k_mask, vmm_dst, src);
+    } else {
+        h->uni_vblendvps(vmm_dst, vmm_dst, src, vmm_mask);
+    }
+}
+
+// Uses injector masks objects: k_mask (>= avx512_common) or vmm_mask (<= avx2).
+// Tests a mask for all zeros. If all zeroes occur, set ZF = 1.
+// Nicely combines with jump_if_zero (jz).
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::test_mask() {
+    if (utils::one_of(isa, avx512_common, avx512_core)) {
+        h->kortestw(k_mask, k_mask);
+    } else {
+        h->uni_vtestps(vmm_mask, vmm_mask);
+    }
+}
+
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
     // get mask of values lower than log(FLT_MIN) to zero them in the output
-    if (utils::one_of(isa, avx512_common, avx512_core))
-        h->vcmpps(k_mask, vmm_src, table_val(11), _cmp_lt_os);
-    else if (isa == avx2)
-        h->vcmpltps(vmm_mask, vmm_src, table_val(11));
-    else if (isa == sse41) {
-        h->uni_vmovups(vmm_mask, vmm_src);
-        h->cmpltps(vmm_mask, table_val(11));
-    }
+    compute_cmp_mask(vmm_src, table_val(11), _cmp_lt_os);
 
     h->uni_vminps(vmm_src, vmm_src, table_val(10));
     h->uni_vmaxps(vmm_src, vmm_src, table_val(11));
@@ -156,15 +185,12 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
     // compute 2^n
     h->uni_vcvtps2dq(vmm_aux2, vmm_src);
     h->uni_vpaddd(vmm_aux2, vmm_aux2, table_val(4));
-    h->uni_vpslld(vmm_aux2, vmm_aux2, 23); //Vmm(6) = 2^-fx
+    h->uni_vpslld(vmm_aux2, vmm_aux2, n_mantissa_bits); //Vmm(6) = 2^-fx
 
     // use vmm_src as tmp vmm_zero when applying mask
     h->uni_vpxor(vmm_src, vmm_src, vmm_src);
-    // set zeroes according to the mask
-    if (utils::one_of(isa, avx512_common, avx512_core))
-        h->vblendmps(vmm_aux2 | k_mask, vmm_aux2, vmm_src);
-    else
-        h->uni_vblendvps(vmm_aux2, vmm_aux2, vmm_src, vmm_mask);
+    // set zeroes at those points which were < log(FLT_MIN)
+    blend_with_mask(vmm_aux2, vmm_src);
 
     // y = p5
     h->uni_vmovups(vmm_src, table_val(9));
@@ -188,20 +214,9 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector(
     const int alpha_off = 0, zero_off = 1;
 
     h->uni_vmovups(vmm_aux1, vmm_src);
-    if (isa == sse41) {
-        h->movups(vmm_mask, vmm_src);
-        h->mulps(vmm_src, table_val(alpha_off));
-        h->cmpps(vmm_mask, table_val(zero_off), _cmp_nle_us);
-        h->blendvps(vmm_src, vmm_aux1);
-    } else if (isa == avx2) {
-        h->vmulps(vmm_src, vmm_src, table_val(alpha_off));
-        h->vcmpgtps(vmm_mask, vmm_aux1, table_val(zero_off));
-        h->vblendvps(vmm_src, vmm_src, vmm_aux1, vmm_mask);
-    } else if (utils::one_of(isa, avx512_common, avx512_core)) {
-        h->vmulps(vmm_src, vmm_src, table_val(alpha_off));
-        h->vcmpps(k_mask, vmm_aux1, table_val(zero_off), _cmp_nle_us);
-        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux1);
-    }
+    compute_cmp_mask(vmm_src, table_val(zero_off), _cmp_gt_os);
+    h->uni_vmulps(vmm_src, vmm_src, table_val(alpha_off));
+    blend_with_mask(vmm_src, vmm_aux1);
 }
 
 template <cpu_isa_t isa>
@@ -215,6 +230,7 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
     const int alpha_off = 25, zero_off = 26;
 
+    // IMPORTANT: we use vmm_aux3 for the mask as exp_compute does not use it.
     // compute exponent
     h->uni_vmovups(vmm_aux3, vmm_src);
     exp_compute_vector(vmm_src);
@@ -224,17 +240,8 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha_off));
 
     // combine with mask
-    if (isa == sse41) {
-        h->pxor(vmm_mask, vmm_mask);
-        h->cmpps(vmm_mask, vmm_aux3, _cmp_le_os);
-        h->blendvps(vmm_src, vmm_aux3);
-    } else if (isa == avx2) {
-        h->uni_vcmpgtps(vmm_mask, vmm_aux3, table_val(zero_off));
-        h->uni_vblendvps(vmm_src, vmm_src, vmm_aux3, vmm_mask);
-    } else if (utils::one_of(isa, avx512_common, avx512_core)) {
-        h->vcmpps(k_mask, vmm_aux3, table_val(zero_off), _cmp_nle_us);
-        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux3);
-    }
+    compute_cmp_mask(vmm_aux3, table_val(zero_off), _cmp_gt_os);
+    blend_with_mask(vmm_src, vmm_aux3);
 }
 
 template <cpu_isa_t isa>
@@ -258,7 +265,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
 
     // register mapping
     // vmm_src contains input
-    // vmm_aux0 contains mask of currently valid results.
+    // vmm_mask contains mask of currently valid results.
     //     1 is need computation, 0 is already computed
     // vmm_aux1 contains current output
     // vmm_aux2, vmm_aux3 contains auxiliary values
@@ -266,24 +273,10 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
 
     Label end_tanh_label;
 
-    auto test_exit = [&](Xbyak::Address threshold) {
-        // is not necessary for >AVX, but should not matter on perf
-        h->uni_vmovups(vmm_aux0, vmm_src);
-        if (utils::one_of(isa, avx512_common, avx512_core)) {
-            h->vcmpps(k_mask, vmm_aux0, threshold, 0x5);
-            h->kortestw(k_mask, k_mask);
-        } else {
-            h->uni_vcmpgeps(vmm_aux0, vmm_aux0, threshold);
-            h->uni_vtestps(vmm_aux0, vmm_aux0);
-        }
+    auto test_exit = [&](const Xbyak::Address &threshold) {
+        compute_cmp_mask(vmm_src, threshold, _cmp_ge_os);
+        test_mask();
         h->jz(end_tanh_label, Xbyak::CodeGenerator::T_NEAR);
-    };
-
-    auto blend_results = [&](Vmm vmm_partial_res) {
-        if (utils::one_of(isa, avx512_common, avx512_core))
-            h->vblendmps(vmm_aux1 | k_mask, vmm_aux1, vmm_partial_res);
-        else
-            h->uni_vblendvps(vmm_aux1, vmm_aux1, vmm_partial_res, vmm_aux0);
     };
 
     // because tanh(x) = -tanh(-x), we extract sign to make x postive
@@ -308,7 +301,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
     h->uni_vmulps(vmm_aux3, vmm_aux3, vmm_src);
 
     // we blend only the result that need update
-    blend_results(vmm_aux3);
+    blend_with_mask(vmm_aux1, vmm_aux3);
 
     // if x < exp_bound_point, we go to return point
     test_exit(table_val(14));
@@ -319,13 +312,13 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
     h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux3);
 
     // Compute exp(2x)
-    // We need to save kmask, vmm_aux0, vmm_aux1, vmm_aux2 and vmm_src as exp
+    // We need to save kmask, vmm_mask, vmm_aux1, vmm_aux2 and vmm_src as exp
     // uses them.
     // vmm_src is not more read afterwards, so we do not have to save it
-    auto stack_size
-            = 4 * vlen + utils::one_of(isa, avx512_common, avx512_core) * 4;
+    auto stack_size = 4 * vlen
+            + utils::one_of(isa, avx512_common, avx512_core) * k_mask_size;
     h->sub(h->rsp, stack_size);
-    h->uni_vmovups(h->ptr[h->rsp + 0 * vlen], vmm_aux0);
+    h->uni_vmovups(h->ptr[h->rsp + 0 * vlen], vmm_mask);
     h->uni_vmovups(h->ptr[h->rsp + 1 * vlen], vmm_aux1);
     h->uni_vmovups(h->ptr[h->rsp + 2 * vlen], vmm_aux2);
     h->uni_vmovups(h->ptr[h->rsp + 3 * vlen], vmm_src);
@@ -334,7 +327,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
 
     exp_compute_vector(vmm_aux3);
 
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp + 0 * vlen]);
+    h->uni_vmovups(vmm_mask, h->ptr[h->rsp + 0 * vlen]);
     h->uni_vmovups(vmm_aux1, h->ptr[h->rsp + 1 * vlen]);
     h->uni_vmovups(vmm_aux2, h->ptr[h->rsp + 2 * vlen]);
     h->uni_vmovups(vmm_src, h->ptr[h->rsp + 3 * vlen]);
@@ -351,18 +344,13 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
     h->uni_vaddps(vmm_aux2, vmm_aux2, table_val(0));
 
     // we blend only the result that need update
-    blend_results(vmm_aux2);
+    blend_with_mask(vmm_aux1, vmm_aux2);
 
     // finally, we saturate to 1 if needed
     // TODO: maybe move that up if most inputs saturate in practice
-    if (utils::one_of(isa, avx512_common, avx512_core))
-        h->vcmpps(k_mask, vmm_aux0, table_val(15), 0x5);
-    else {
-        h->uni_vmovups(vmm_aux0, vmm_src);
-        h->uni_vcmpgeps(vmm_aux0, vmm_aux0, table_val(15));
-    }
+    compute_cmp_mask(vmm_src, table_val(15), _cmp_ge_os);
     h->uni_vmovups(vmm_aux2, table_val(0));
-    blend_results(vmm_aux2);
+    blend_with_mask(vmm_aux1, vmm_aux2);
 
     h->L(end_tanh_label);
     {
@@ -415,18 +403,10 @@ void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector(const Vmm &vmm_src) {
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector(
         const Vmm &vmm_src) {
-    if (utils::one_of(isa, avx512_common, avx512_core)) {
-        h->vcmpps(k_mask, vmm_src, table_val(0), _cmp_nle_us);
-        h->uni_vsqrtps(vmm_aux1, vmm_src);
-        h->uni_vmovups(vmm_src, table_val(0));
-        h->vblendmps(vmm_src | k_mask, vmm_src, vmm_aux1);
-    } else {
-        h->uni_vmovups(vmm_mask, vmm_src);
-        h->uni_vcmpgtps(vmm_mask, vmm_mask, table_val(0));
-        h->uni_vsqrtps(vmm_aux1, vmm_src);
-        h->uni_vmovups(vmm_src, table_val(0));
-        h->uni_vblendvps(vmm_src, vmm_src, vmm_aux1, vmm_mask);
-    }
+    compute_cmp_mask(vmm_src, table_val(0), _cmp_gt_os);
+    h->uni_vsqrtps(vmm_aux1, vmm_src);
+    h->uni_vmovups(vmm_src, table_val(0));
+    blend_with_mask(vmm_src, vmm_aux1);
 }
 
 template <cpu_isa_t isa>
@@ -491,13 +471,11 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
     }
 
     h->uni_vpaddd(vmm_aux1, vmm_aux1, table_val(4));
-    h->uni_vpslld(vmm_aux1, vmm_aux1, 23); //vmm_aux1 = 2^-fx
+    h->uni_vpslld(vmm_aux1, vmm_aux1, n_mantissa_bits); //vmm_aux1 = 2^-fx
     // calculate ln(1 + y)
     h->uni_vaddps(vmm_aux3, vmm_aux3, vmm_aux1);
-    // x = y; y is free; keep x for further computations
-    h->uni_vmovups(vmm_src, vmm_aux3);
     // frexp()
-    h->uni_vpsrld(vmm_src, vmm_src, 23);
+    h->uni_vpsrld(vmm_src, vmm_aux3, n_mantissa_bits);
     h->uni_vcvtdq2ps(vmm_src, vmm_src);
     // got n. where n is x = 2^n * y. y = 0.5 .. 1
     h->uni_vsubps(vmm_src, vmm_src, table_val(5));
@@ -527,29 +505,19 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
     h->uni_vfmadd213ps(vmm_aux1, vmm_aux3, table_val(8));
     //calculate ln(2) * n
     h->uni_vmulps(vmm_src, vmm_src, table_val(3));
-    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_src);
-    h->uni_vaddps(vmm_aux1, vmm_aux1, vmm_aux0);
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux1);
+    h->uni_vaddps(vmm_src, vmm_src, vmm_aux0);
 
     // get vmm_mask = src > max logf
-    h->uni_vmovups(vmm_mask, vmm_aux2);
-    if (utils::one_of(isa, avx512_common, avx512_core)) {
-        // y = (x < max log f) ? soft_relu(x) : x
-        h->vcmpps(k_mask, vmm_mask, table_val(24), _cmp_nle_us);
-        h->vblendmps(vmm_aux1 | k_mask, vmm_aux1, vmm_aux2);
-    } else {
-        // y = (x < max log f) ? soft_relu(x) : x
-        h->uni_vcmpgtps(vmm_mask, vmm_mask, table_val(24));
-        h->uni_vblendvps(vmm_aux1, vmm_aux1, vmm_aux2, vmm_mask);
-    }
-
-    h->uni_vmovups(vmm_src, vmm_aux1);
+    // y = (x < max log f) ? soft_relu(x) : x
+    compute_cmp_mask(vmm_aux2, table_val(24), _cmp_gt_os);
+    blend_with_mask(vmm_src, vmm_aux2);
 }
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
         const Vmm &vmm_src) {
     // we store the original sign and make x negative
-    // IMPORTANT: we assume vmm_aux0 to be xmm0, as for sse4.1 path it is required
     // IMPORTANT: we use vmm_aux3 for the mask as exp_compute does not use it.
     h->uni_vmovups(vmm_aux3, vmm_src);
     h->uni_vandps(vmm_aux3, vmm_aux3, table_val(12));
@@ -568,12 +536,10 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
     h->uni_vsubps(vmm_aux2, vmm_aux2, vmm_src);
     if (utils::one_of(isa, avx512_common, avx512_core)) {
         h->vptestmd(k_mask, vmm_aux3, vmm_aux3);
-        h->vblendmps(vmm_aux2 | k_mask, vmm_aux2, vmm_src);
     } else {
-        h->uni_vmovups(
-                vmm_aux0, vmm_aux3); // The mask should be xmm0 for sse4.1
-        h->uni_vblendvps(vmm_aux2, vmm_aux2, vmm_src, vmm_aux0);
+        h->uni_vmovups(vmm_mask, vmm_aux3);
     }
+    blend_with_mask(vmm_aux2, vmm_src);
     h->uni_vmovups(vmm_src, vmm_aux2);
 }
 
@@ -709,7 +675,7 @@ void jit_uni_eltwise_injector_f32<isa>::linear_prepare_table() {
 }
 
 template <cpu_isa_t isa>
-int jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
+size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
     switch (alg_) {
         case alg_kind::eltwise_relu: return (alpha_ == 0.f) ? 0 : 2;
         case alg_kind::eltwise_elu: return 4;
