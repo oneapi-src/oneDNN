@@ -117,7 +117,9 @@ protected:
         if (src_mds_[0].format_kind != format_kind::blocked)
             return status::unimplemented;
 
+        data_type_t dst_dt = dst_md_.data_type;
         dst_md_ = src_mds_[0];
+        dst_md_.data_type = dst_dt;
 
         return status::success;
     }
