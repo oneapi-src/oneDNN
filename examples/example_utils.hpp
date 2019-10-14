@@ -79,7 +79,8 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
 #else
 #error "Not expected"
 #endif
-        std::copy(src_ptr, src_ptr + size, (uint8_t *)handle);
+        for (size_t i = 0; i < size; ++i)
+            ((uint8_t *)handle)[i] = src_ptr[i];
         return;
     }
 #endif
@@ -100,7 +101,8 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
 
     if (eng.get_kind() == dnnl::engine::kind::cpu) {
         uint8_t *src = static_cast<uint8_t *>(mem.get_data_handle());
-        std::copy(src, src + size, (uint8_t *)handle);
+        for (size_t i = 0; i < size; ++i)
+            ((uint8_t *)handle)[i] = src[i];
         return;
     }
 
@@ -127,7 +129,8 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
 #else
 #error "Not expected"
 #endif
-        std::copy((uint8_t *)handle, (uint8_t *)handle + size, dst_ptr);
+        for (size_t i = 0; i < size; ++i)
+            dst_ptr[i] = ((uint8_t *)handle)[i];
         return;
     }
 #endif
@@ -149,7 +152,8 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
 
     if (eng.get_kind() == dnnl::engine::kind::cpu) {
         uint8_t *dst = static_cast<uint8_t *>(mem.get_data_handle());
-        std::copy((uint8_t *)handle, (uint8_t *)handle + size, dst);
+        for (size_t i = 0; i < size; ++i)
+            dst[i] = ((uint8_t *)handle)[i];
         return;
     }
 
