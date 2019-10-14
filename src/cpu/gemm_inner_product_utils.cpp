@@ -150,9 +150,9 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
 
         if (do_scale_ && scale_idx_mult_ == 1) {
             auto scale_addr = ptr[reg_scales + offset * sizeof(float)];
-            auto vreg_scale_ = vreg_scale;
-            if (apply_mask) vreg_scale_ = vreg_scale_ | kreg_rem_mask;
-            vmovups(vreg_scale, scale_addr);
+            auto vreg_scale_msk_ = vreg_scale;
+            if (apply_mask) vreg_scale_msk_ = vreg_scale_msk_ | kreg_rem_mask;
+            vmovups(vreg_scale_msk_, scale_addr);
         }
 
         auto vreg_dst_ = vreg_dst(idx);
