@@ -887,84 +887,79 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
             + id * IH * IW * IC_BLOCK + g * IC * IDHW_SIZE;
     wei += goc * KDHW_SIZE * IC * OC_BLOCK + g * IC * OC * KDHW_SIZE;
 
+    const bool do_if = iw < 0 || iw + SW * OW_BLOCK + KW * (1 + DW) >= IW;
+
 #if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1))
     if (!(id < 0 || id >= ID || ih < 0 || ih >= IH)) {
 #endif
         int icb = 0;
         do {
 #if KH != 1 || KW != 1 || KD != 1
+            __attribute__((opencl_unroll_hint(1))) // attr:no-format
             for (int kd = 0; kd < KD; ++kd)
-                for (int kh = 0; kh < KH; ++kh) {
+                    __attribute__((opencl_unroll_hint(1))) // attr:no-format
+                    for (int kh = 0; kh < KH; ++kh) {
 
+                if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH
 #if CASE_3D
-                    if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID)
-                        continue;
+                        || id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID) {
+#else
+                ) {
 #endif
-                    if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH)
-                        continue;
+                    continue;
+                }
 
-                    const __global half *src1 = src
-                            + kd * (1 + DD) * IH * IW * IC_BLOCK
-                            + kh * (1 + DH) * IW * IC_BLOCK;
+                const __global half *src1 = src
+                        + kd * (1 + DD) * IH * IW * IC_BLOCK
+                        + kh * (1 + DH) * IW * IC_BLOCK;
 
-                    half tempA[SW * OW_BLOCK + KW * (1 + DW)];
-                    int k = iw;
-#if OW % OW_BLOCK != 0 || HAS_PAD_W
-                    if (k < 0 || k + SW * OW_BLOCK + KW * (1 + DW) >= IW) {
-                        __attribute__((opencl_unroll_hint(SW * OW_BLOCK
-                                + KW * (1 + DW)))) // attr:no-format
-                        for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW);
-                                i++) {
-                            if (k >= 0 && k < IW)
-                                tempA[i] = as_half(
-                                        intel_sub_group_block_read_us((
-                                                const __global ushort *)(&src1[i
-                                                * IC_BLOCK])));
-                            else
-                                tempA[i] = 0.0h;
-                            k++;
-                        }
-                    } else {
-#endif
-                        __attribute__((opencl_unroll_hint(SW * OW_BLOCK
-                                + KW * (1 + DW)))) // attr:no-format
-                        for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW);
-                                i++) {
+                half tempA[SW * OW_BLOCK + KW * (1 + DW)];
+                int k = iw;
+                if (do_if) {
+                    __attribute__((opencl_unroll_hint(
+                            SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                    for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
+                        if (k >= 0 && k < IW)
                             tempA[i] = as_half(intel_sub_group_block_read_us(
                                     (const __global ushort
                                                     *)(&src1[i * IC_BLOCK])));
-                        }
-#if OW % OW_BLOCK != 0 || HAS_PAD_W
+                        else
+                            tempA[i] = 0.0h;
+                        k++;
                     }
-#endif
+                } else {
+                    __attribute__((opencl_unroll_hint(
+                            SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                    for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
+                        tempA[i] = as_half(intel_sub_group_block_read_us((
+                                const __global ushort *)(&src1[i * IC_BLOCK])));
+                    }
+                }
 
-                    __attribute__((opencl_unroll_hint(KW))) // attr:no-format
-                    for (int kw = 0; kw < KW; ++kw) {
+                __attribute__((opencl_unroll_hint(KW))) // attr:no-format
+                for (int kw = 0; kw < KW; ++kw) {
 
-                        const __global half *wei1 = wei
-                                + kd * KH * KW * IC_BLOCK * OC_BLOCK
-                                + kh * KW * IC_BLOCK * OC_BLOCK
-                                + kw * IC_BLOCK * OC_BLOCK;
+                    const __global half *wei1 = wei
+                            + kd * KH * KW * IC_BLOCK * OC_BLOCK
+                            + kh * KW * IC_BLOCK * OC_BLOCK
+                            + kw * IC_BLOCK * OC_BLOCK;
 
 #else
         const __global half *src1 = src;
         const __global half *wei1 = wei;
 #endif
-                        half8 blockB00
-                                = as_half8(intel_sub_group_block_read_us8(
-                                        (const __global ushort *)wei1));
-                        half8 blockB01
-                                = as_half8(intel_sub_group_block_read_us8(
-                                        (const __global ushort *)(wei1
-                                                + 8 * OC_BLOCK)));
+                    half8 blockB00 = as_half8(intel_sub_group_block_read_us8(
+                            (const __global ushort *)wei1));
+                    half8 blockB01 = as_half8(intel_sub_group_block_read_us8(
+                            (const __global ushort *)(wei1 + 8 * OC_BLOCK)));
 
 #if KH != 1 || KW != 1 || KD != 1
-                        half blockA[OW_BLOCK];
-                        __attribute__((
-                                opencl_unroll_hint(OW_BLOCK))) // attr:no-format
-                        for (int i = 0; i < OW_BLOCK; i++) {
-                            blockA[i] = tempA[kw * (1 + DW) + SW * i];
-                        }
+                    half blockA[OW_BLOCK];
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
+                        blockA[i] = tempA[kw * (1 + DW) + SW * i];
+                    }
 #else
 #if OW_BLOCK != 8 || HAS_PAD_W
         half blockA[OW_BLOCK];
@@ -1014,12 +1009,12 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #endif
 #endif
 #if OW_BLOCK != 16
-                        __attribute__((
-                                opencl_unroll_hint(OW_BLOCK))) // attr:no-format
-                        for (int i = 0; i < OW_BLOCK; i++) {
-                            MULTIPLY_BLOCKS_1x16x16(
-                                    blockC00[i], blockA[i], blockB00, blockB01);
-                        }
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
+                        MULTIPLY_BLOCKS_1x16x16(
+                                blockC00[i], blockA[i], blockB00, blockB01);
+                    }
 #else
         __attribute__((opencl_unroll_hint(8))) // attr:no-format
         for (int i = 0; i < 8; i++) {
@@ -1032,8 +1027,8 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #undef TRANSPOSE_BLOCK_1
 #undef MULTIPLY_BLOCKS_1x16x16
 #if KH != 1 || KW != 1 || KD != 1
-                    }
                 }
+            }
 #endif
             src += IDHW_SIZE * IC_BLOCK;
             wei += OC_BLOCK * KDHW_SIZE * IC_BLOCK;
