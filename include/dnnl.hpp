@@ -2078,7 +2078,7 @@ struct concat : public primitive {
 /// @sa @ref c_api_sum in @ref c_api
 /// @{
 
-// A sum primitive
+/// A sum primitive
 struct sum : public primitive {
     /// A sum primitive descriptor.
     struct primitive_desc : public primitive_desc_base {
