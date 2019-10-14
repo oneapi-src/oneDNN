@@ -43,6 +43,7 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
     , scale_idx_mult_(0)
     , do_eltwise_(false)
     , do_sum_(false)
+    , do_dst_zero_points_(false)
     , sum_scale_(0)
     , isa_(isa_any)
     , max_OC_loop_unroll_(13)
@@ -77,6 +78,11 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
     if (do_bias()) {
         bias_data_type_size_ = data_type_size(bias_data_type_);
         compute_vreg_bias_shift_ = compute_vregs_per_iter_++;
+    }
+
+    if (!attr->zero_points_.has_default_values(DNNL_ARG_DST)) {
+        do_dst_zero_points_ = true;
+        vreg_dst_zero_points = Zmm(idx_compute_vreg_start_++);
     }
 
     if (!mayiuse(avx512_core)) {
@@ -129,6 +135,11 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
     mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
     mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
     if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
+    if (do_dst_zero_points_) {
+        // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
+        mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
+        vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
+    }
     if (runtime_oc())
         mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
     else
@@ -227,6 +238,9 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
         }
 
         if (do_eltwise_) eltwise_injector_->compute_vector(vreg_dst_.getIdx());
+
+        if (do_dst_zero_points_)
+            vaddps(vreg_dst_, vreg_dst_, vreg_dst_zero_points);
 
         if (dst_type == data_type::u8) vmaxps(vreg_dst_, vreg_dst_, vreg_zero);
 
@@ -429,7 +443,8 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
 template <data_type_t acc_type, data_type_t dst_type>
 void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
-        size_t start, size_t end, size_t runtime_oc) {
+        size_t start, size_t end, size_t runtime_oc,
+        const float *dst_zero_points) {
     using math::get_bias;
 
     if (end <= start) return;
@@ -444,6 +459,7 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         args.acc = acc + start;
         args.bias = bias + oc_offset * bias_data_type_size_;
         args.scales = scales + scale_idx_mult_ * oc_offset;
+        args.dst_zero_points = dst_zero_points;
         args.oc = OC;
         args.len = end - start;
         args.oc_offset = oc_offset;
@@ -457,6 +473,7 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
             if (do_scale_) d *= scales[oc * scale_idx_mult_];
             if (do_sum_) d += sum_scale_ * dst[i];
             if (do_eltwise_) d = ref_eltwise_->compute_scalar(d);
+            if (do_dst_zero_points_) d += dst_zero_points[0];
             dst[i] = qz_a1b0<float, dst_data_t>()(d);
             oc = (oc == OC - 1) ? 0 : oc + 1;
         }
