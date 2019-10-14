@@ -1,14 +1,14 @@
 # f32
 --reset --cfg=f32_full
 --dir=FWD_B,BWD_D,BWD_WB
---batch=conv_regression_small_spatial
---batch=conv_regression_padding
---batch=conv_regression_gemm
+--batch=shapes_regression_small_spatial
+--batch=shapes_regression_padding
+--batch=shapes_regression_gemm
 
 --dir=FWD_B
 --attr=post_ops='relu'
---batch=conv_regression_small_spatial
---batch=conv_regression_padding
+--batch=shapes_regression_small_spatial
+--batch=shapes_regression_padding
 
 #
---batch=test_conv_regression_general
+--batch=harness_conv_regression_general

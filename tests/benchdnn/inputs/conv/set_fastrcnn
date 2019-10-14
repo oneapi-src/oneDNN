@@ -1,0 +1,5 @@
+# FastRCNN
+
+--batch=shapes_fastrcnn_p1
+--batch=shapes_fastrcnn_p2
+--batch=shapes_fastrcnn_p3

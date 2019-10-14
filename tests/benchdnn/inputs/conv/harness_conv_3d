@@ -1,0 +1,3 @@
+# f32
+--reset --cfg=f32
+--dir=FWD_B,BWD_D,BWD_WB  --batch=shapes_3d

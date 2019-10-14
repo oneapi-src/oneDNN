@@ -1,17 +1,17 @@
 # f32
 --reset
 --mb=2,16
---dir=FWD_B,BWD_D,BWD_WB --batch=conv_gpu
+--dir=FWD_B,BWD_D,BWD_WB --batch=set_gpu
 
 # f16
 --cfg=f16
 --mb=2,16
---dir=FWD_B --batch=conv_gpu
+--dir=FWD_B --batch=set_gpu
 
 # bf16
 --cfg=bf16bf16bf16
 --mb=2
---dir=FWD_B,BWD_D,BWD_WB --batch=conv_resnet_50
+--dir=FWD_B,BWD_D,BWD_WB --batch=shapes_resnet_50
 
 # i8
 # i8 - 1x1 tests
@@ -24,7 +24,7 @@ mb2ic512ih14oc32oh14kh1ph0n
 
 --reset --cfg=u8s8u8
 --mb=2
---dir=FWD_B --batch=conv_gpu
+--dir=FWD_B --batch=set_gpu
 
 # test scale and post-ops
---batch=test_conv_attrs_gpu
+--batch=harness_conv_attrs_gpu

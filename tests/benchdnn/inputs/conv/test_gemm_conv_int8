@@ -1,0 +1,11 @@
+# Test Int8-GeMM specific functionality
+--reset --dir=FWD_B --mb=2
+--skip-impl="ref:gemm"      # ! test jit version only
+--allow-unimpl=true
+--cfg=u8s8u8,u8s8s8,u8s8s32 --batch=shapes_gemm
+
+--attr=post_ops='relu'
+--cfg=u8s8f32,s8s8s8,s8s8u8,s8s8f32 --batch=shapes_gemm
+
+--attr=post_ops='relu'
+--cfg=s8s8s32 --batch=shapes_gemm

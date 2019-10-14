@@ -1,0 +1,4 @@
+# Test GeMM specific functionality
+--reset --cfg=f32
+--mb=2                      # for fwd and bwd_d reduce mb
+--dir=FWD_B,BWD_D,BWD_WB --batch=shapes_gemm
