@@ -15,9 +15,7 @@
 *******************************************************************************/
 
 /// @example getting_started.cpp
-/// This C++ API example demonstrates basics of DNNL programming
-/// model.
-///
+/// @copybrief getting_started_cpp
 /// > Annotated version: @ref getting_started_cpp
 
 #include <cmath>
@@ -32,6 +30,10 @@ using namespace dnnl;
 // [Prologue]
 
 /// @page getting_started_cpp Getting started
+///
+/// This C++ API example demonstrates basics of DNNL programming
+/// model.
+///
 /// > Example code: @ref getting_started.cpp
 ///
 /// This C++ API example demonstrates basics of DNNL programming
@@ -67,7 +69,7 @@ using namespace dnnl;
 
 /// @page getting_started_cpp
 /// @section getting_started_cpp_tutorial getting_started_tutorial() function
-/// @page getting_started_cpp
+///
 void getting_started_tutorial(engine::kind engine_kind) {
     /// @page getting_started_cpp
     /// @subsection getting_started_cpp_sub1 Engine and stream
@@ -487,6 +489,8 @@ int main(int argc, char **argv) {
 }
 // [Main]
 
+/// @page getting_started_cpp
+///
 /// <b></b>
 ///
 /// Upon compiling and run the example the output should be just:
@@ -522,5 +526,3 @@ int main(int argc, char **argv) {
 /// DNNL error: could not execute a primitive
 /// Error status: invalid_arguments
 /// ~~~
-///
-/// @page getting_started_cpp

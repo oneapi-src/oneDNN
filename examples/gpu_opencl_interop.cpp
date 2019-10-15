@@ -15,13 +15,15 @@
 *******************************************************************************/
 
 /// @example  gpu_opencl_interop.cpp
-/// Annotated version: @ref gpu_opencl_interop_cpp
-///
+/// @copybrief gpu_opencl_interop_cpp
+/// > Annotated version: @ref gpu_opencl_interop_cpp
+
 /// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
-/// Full example text: @ref gpu_opencl_interop.cpp
-///
 /// This C++ API example demonstrates programming for Intel(R) Processor
 /// Graphics with OpenCL* extensions API in DNNL.
+///
+/// > Example code: @ref gpu_opencl_interop.cpp
+///
 /// The workflow includes following steps:
 ///   - Create a GPU engine. It uses OpenCL as the runtime in this sample.
 ///   - Create a GPU memory descriptor/object.
@@ -34,8 +36,8 @@
 ///   - Validate the result by mapping the OpenCL memory via OpenCL interoperability
 ///     interface
 ///
-/// @page gpu_opencl_interop_cpp
 
+/// @page gpu_opencl_interop_cpp
 /// @section gpu_opencl_interop_cpp_headers Public headers
 ///
 /// To start using DNNL, we must first include the @ref dnnl.hpp
@@ -90,7 +92,7 @@ cl_kernel create_init_opencl_kernel(
 
 /// @page gpu_opencl_interop_cpp
 /// @section gpu_opencl_interop_cpp_tutorial gpu_opencl_interop_tutorial() function
-/// @page gpu_opencl_interop_cpp
+///
 void gpu_opencl_interop_tutorial() {
     /// @page gpu_opencl_interop_cpp
     /// @subsection gpu_opencl_interop_cpp_sub1 Engine and stream
@@ -282,6 +284,9 @@ int main(int argc, char **argv) {
     return 0;
 }
 // [Main]
+
+/// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
+///
 /// <b></b>
 ///
 /// Upon compiling and running the example, the output should be just:
@@ -290,4 +295,3 @@ int main(int argc, char **argv) {
 /// Example passes
 /// ~~~
 ///
-/// @page gpu_opencl_interop_cpp

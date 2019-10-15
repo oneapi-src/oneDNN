@@ -90,7 +90,7 @@ int find_negative(const memory &mem, const memory::dims adims) {
 
 /// @page cross_engine_reorder_cpp
 /// @section cross_engine_reorder_cpp_tutorial cross_engine_reorder_tutorial() function
-/// @page cross_engine_reorder_cpp
+///
 void cross_engine_reorder_tutorial() {
     /// @page cross_engine_reorder_cpp
     /// @subsection cross_engine_reorder_cpp_sub1 Engine and stream
@@ -277,6 +277,8 @@ int main(int argc, char **argv) {
 }
 // [Main]
 
+/// @page cross_engine_reorder_cpp
+///
 /// <b></b>
 ///
 /// Upon compiling and running the example, the output should be just:
@@ -285,4 +287,3 @@ int main(int argc, char **argv) {
 /// Example passes
 /// ~~~
 ///
-/// @page cross_engine_reorder_cpp

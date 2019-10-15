@@ -15,19 +15,13 @@
 *******************************************************************************/
 
 /// @example performance_profiling.cpp
+/// @copybrief performance_profiling_cpp
+/// > Annotated version: @ref performance_profiling_cpp
+
+/// @page performance_profiling_cpp Performance Profiling Example
 /// This example demonstrates the best practices for application performance
 /// optimizations with DNNL.
 ///
-/// > Annotated version: @ref performance_profiling_cpp
-/// @page performance_profiling_cpp Performance Profiling Example
-
-#include <chrono>
-#include <iostream>
-#include <stdio.h>
-#include <vector>
-
-#include "example_utils.hpp"
-
 /// > Example code: @ref performance_profiling.cpp
 ///
 /// This example uses [DNNL_VERBOSE](@ref dev_guide_verbose) trace output
@@ -88,6 +82,13 @@
 /// The following descriptions of each implementation will reference each other,
 /// and are meant to be read in order.
 ///
+
+#include <chrono>
+#include <iostream>
+#include <stdio.h>
+#include <vector>
+
+#include "example_utils.hpp"
 
 using namespace dnnl;
 

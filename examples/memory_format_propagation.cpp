@@ -15,9 +15,7 @@
 *******************************************************************************/
 
 /// @example memory_format_propagation.cpp
-/// This example demonstrates memory format propagation, which is critical for
-/// deep learning applications performance.
-///
+/// @copybrief memory_format_propagation_cpp
 /// > Annotated version: @ref memory_format_propagation_cpp
 
 #include <iostream>
@@ -25,6 +23,9 @@
 #include <string>
 
 /// @page memory_format_propagation_cpp Memory format propagation
+/// This example demonstrates memory format propagation, which is critical for
+/// deep learning applications performance.
+///
 /// > Example code: @ref memory_format_propagation.cpp
 ///
 /// Format propagation is one of the central notions that needs to be
@@ -99,7 +100,7 @@ using namespace dnnl;
 
 /// @page memory_format_propagation_cpp
 /// @section memory_format_propagation_tutorial memory_format_propagation() function
-/// @page memory_format_propagation_cpp
+///
 void memory_format_propagation_tutorial(engine::kind engine_kind) {
     /// @page memory_format_propagation_cpp
     /// @subsection memory_format_propagation_sub1 Initialization
@@ -323,6 +324,8 @@ int main(int argc, char **argv) {
     return 0;
 }
 
+/// @page memory_format_propagation_cpp
+///
 /// Upon compiling and run the example the output should be just:
 ///
 /// ~~~sh
@@ -364,5 +367,3 @@ int main(int argc, char **argv) {
 ///   dnnl::memory::format_tag::ABcd8b8a optimized memory format (output (A)
 ///   and input (B) channel dimensions blocked by 8) which we also had to
 ///   reorder the initial weights to since they are in the OIHW memory format.
-///
-/// @page memory_format_propagation_cpp

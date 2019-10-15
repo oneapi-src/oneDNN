@@ -32,7 +32,6 @@
 /// - How to execute the primitives.
 ///
 /// @include cross_engine_reorder.c
-/// @page cross_engine_reorder_c
 
 #include <stdio.h>
 #include <stdlib.h>
