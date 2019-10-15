@@ -121,6 +121,20 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 |  any          | dnnl_format_tag_any. Let the library decide, which layout should be used.
 |  undef        | dnnl_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
 
+## Running Testing
+
+DNNL comes with its own testing infrastructure enabled through CMake. Tests
+can be executed via the command:
+``` sh
+    make test_<test-name>
+```
+This will order cmake to build a deployable project and run the specific test.
+
+These tests target specific DNNL features and are based out of benchdnn
+configurable executions.
+
+The different tests available can be found in the DNNL directory:
+inputs/<primitive_name>/test_<target>.
 
 ## Issues and Contributions
 
