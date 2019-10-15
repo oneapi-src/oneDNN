@@ -135,6 +135,7 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     op_desc.a_type = data_type;
     op_desc.b_type = data_type;
     op_desc.c_type = data_type;
+    op_desc.acc_type = data_type;
 
     dnnl_memory_desc_t a_desc, b_desc, c_desc;
 
