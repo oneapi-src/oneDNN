@@ -78,6 +78,16 @@ static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
     return OK;
 }
 
+// check that on a given input specific alg may return NaN or inf
+static bool check_extreme_values(const prb_t *p, const float &src) {
+    switch (p->alg) {
+        case alg_t::SQRT:
+            if (p->dir == FWD_D && src < 0) return true;
+            if (p->dir == BWD_D && src <= 0) return true;
+        default: return false;
+    }
+}
+
 static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
     float approx_machine_eps = 2e-7;
 
@@ -136,6 +146,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = mem_dt.get_elem(i);
+        const float src = mem_src_fp.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
         const float fp = maybe_saturate(p->dt, fp0);
 
@@ -144,8 +155,9 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
 
         bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
 
-        if (!ok && check_abs_err(p, mem_src_fp.get_elem(i), trh))
-            ok = diff <= trh;
+        if (!ok) ok = check_extreme_values(p, src);
+
+        if (!ok && check_abs_err(p, src, trh)) ok = diff <= trh;
 
         r->errors += !ok;
 
@@ -157,8 +169,10 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
             ss << dims_idx;
             std::string ind_str = ss.str();
 
-            print(0, "[%4ld][%s] fp0:%8g fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                    (long)i, ind_str.c_str(), fp0, fp, dt, diff, rel_diff);
+            print(0,
+                    "[%4ld][%s] src:% 9.6g fp0:% 9.6g fp:% 9.6g dt:% 9.6g "
+                    "diff:%8.3g rdiff:%8.3g\n",
+                    (long)i, ind_str.c_str(), src, fp0, fp, dt, diff, rel_diff);
         }
     }
 

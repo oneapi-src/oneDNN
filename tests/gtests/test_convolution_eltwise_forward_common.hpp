@@ -88,7 +88,6 @@ void compute_ref_conv_eltwise_fwd(const test_convolution_sizes_t &c,
                         break;
                     case algorithm::eltwise_square: d = square_fwd(d); break;
                     case algorithm::eltwise_abs: d = abs_fwd(d); break;
-                    case algorithm::eltwise_sqrt: d = sqrt_fwd(d); break;
                     case algorithm::eltwise_linear:
                         d = linear_fwd(d, elt_alpha, elt_beta);
                         break;
@@ -159,7 +158,7 @@ protected:
         bool with_bias = p.formats.bias_format != memory::format_tag::undef;
         auto c_bias_desc = with_bias
                 ? create_md({cd.oc}, data_type_dst, p.formats.bias_format)
-                : create_md({}, data_type_dst, p.formats.bias_format);
+                : create_md({0}, data_type_dst, p.formats.bias_format);
         auto c_bias = memory(c_bias_desc, eng);
         if (with_bias) {
             fill_data<data_t_dst>(

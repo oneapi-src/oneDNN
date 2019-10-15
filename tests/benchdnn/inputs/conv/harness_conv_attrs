@@ -10,7 +10,6 @@
 --attr=post_ops='sum;tanh:0:0:2.5' --batch=shapes_tails
 --attr=post_ops='sum;elu:0.5' --batch=shapes_tails
 --attr=post_ops='sum;abs' --batch=shapes_tails
---attr=post_ops='sum;sqrt:0:0:2.5' --batch=shapes_tails
 --attr=post_ops='sum;linear:0.5:1.5' --batch=shapes_tails
 --attr=post_ops='sum;brelu:0.5' --batch=shapes_tails
 --attr=post_ops='sum;logistic:0:0:2.5' --batch=shapes_tails

@@ -89,10 +89,10 @@ POST_OP_DATA_T square_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 }
 
 POST_OP_DATA_T sqrt_fwd(POST_OP_DATA_T s) {
-    return s > 0 ? (sqrt(s)) : 0;
+    return sqrt(s);
 }
 POST_OP_DATA_T sqrt_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    return s > 0 ? dd / (2 * sqrt(s)) : 0;
+    return dd / (2 * sqrt(s));
 }
 
 POST_OP_DATA_T abs_fwd(POST_OP_DATA_T s) {

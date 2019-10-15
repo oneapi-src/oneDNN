@@ -230,12 +230,12 @@ inline U abs_bwd(T dd, T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_fwd(T s) {
-    return s > 0 ? (U)(::sqrtf((float)(s))) : (U)0;
+    return (U)(::sqrtf((float)(s)));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_bwd(T dd, T s) {
-    return s > 0 ? (U)(dd / (2 * ::sqrtf((float)(s)))) : (U)0;
+    return (U)(dd / (2 * ::sqrtf((float)(s))));
 }
 
 template <typename T, typename A,
