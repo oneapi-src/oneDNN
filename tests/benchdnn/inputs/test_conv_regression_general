@@ -163,3 +163,7 @@ mb1_g16ic16oc16_ih1oh1kh1ph0_iw1ow1kw3pw1n"s8s8_padding:dw2"
 mb1_g16ic16oc16_ih1oh1kh1ph0_iw1ow1kw2pw1n"s8s8_padding:dw3"
 mb1_g16ic16oc16_ih1oh1kh1ph0_iw3ow3kw2pw1n"s8s8_padding:dw4"
 mb1_g16ic16oc16_ih1oh1kh2ph0_iw1ow1kw3pw1n"s8s8_padding:dw5"
+
+# Depthwise s8s8 tail processing
+--reset --allow-unimpl=true --cfg=s8s8s32s32
+mb1_g184ic184oc184_ih3oh3kh3sh1dh0ph1_iw3ow3kw3sw1dw0pw1
