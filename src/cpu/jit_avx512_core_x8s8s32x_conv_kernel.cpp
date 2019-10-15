@@ -565,7 +565,10 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::icb_loop(
     if (jcp.ngroups % jcp.ch_block != 0 || jcp.ic_without_padding != jcp.ic) {
         Label common_ker, end_ker;
 
-        cmp(reg_icb, 1); // The last IC block
+        if (jcp.is_depthwise)
+            cmp(reg_oc_blocks, jcp.nb_ch - jcp.nb_ch_blocking);
+        else
+            cmp(reg_icb, 1); // The last IC block
         jne(common_ker, T_NEAR);
 
         kh_loop(ur_w, pad_l, pad_r,
