@@ -29,7 +29,7 @@ The following operations are supported:
 | sqrt         | #dnnl_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
 | square       | #dnnl_eltwise_square       | \f$ f(x) = x^2 \f$
 | swish        | #dnnl_eltwise_swish        | \f$ f(x) = \frac{x}{1+e^{-\alpha x}} \f$
-| tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
+| tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \tanh{x} \f$
 
 #### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
