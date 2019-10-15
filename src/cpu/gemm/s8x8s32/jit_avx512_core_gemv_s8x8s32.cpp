@@ -230,7 +230,7 @@ jump_to_gemv_s8x8s32_impl(gemm_info_t<int8_t, b_type, int32_t> *arg) {
 
     bool bo_ok
             = IMPLICATION((std::is_same<b_type, int8_t>::value), arg->bo == 128)
-            || IMPLICATION(
+            && IMPLICATION(
                     (std::is_same<b_type, uint8_t>::value), arg->bo == 0);
 
     bool applicable = (arg->offsetc == offset_type::fixed) && // Fix offset
