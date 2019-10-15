@@ -24,6 +24,46 @@ namespace dnnl {
 
 using tag = memory::format_tag;
 
+/* iface tests */
+
+class iface_sum_test : public ::testing::Test {
+protected:
+    engine eng;
+    stream strm;
+
+    virtual void SetUp() {
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
+    }
+};
+
+TEST_F(iface_sum_test, SumTestDstDataTypeCompliance) {
+    using dt = memory::data_type;
+
+    const dt src_dt = dt::s8;
+
+    memory::dims shape = {10, 10, 10, 10};
+    auto src_md = memory::desc(shape, src_dt, tag::abcd);
+
+    for_(tag dst_tag : {tag::any, tag::abcd, tag::acdb})
+    for (dt dst_dt : {dt::undef, dt::s8, dt::s32, dt::f32}) {
+        sum::primitive_desc sum_pd;
+
+        if (dst_dt != dt::undef) {
+            memory::desc dst_md(shape, dst_dt, dst_tag);
+            sum_pd = sum::primitive_desc(
+                    dst_md, {2., 2.}, {src_md, src_md}, eng);
+        } else {
+            sum_pd = sum::primitive_desc({2., 2.}, {src_md, src_md}, eng);
+        }
+
+        dt expect_dst_dt = dst_dt == dt::undef ? src_dt : dst_dt;
+        ASSERT_EQ(sum_pd.dst_desc().data.data_type, expect_dst_dt);
+    }
+}
+
+/* correctness tests */
+
 struct sum_test_params {
     std::vector<tag> srcs_format;
     tag dst_format;
