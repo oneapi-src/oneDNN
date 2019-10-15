@@ -1169,7 +1169,7 @@ protected:
                 "CPU does not support bf16bf16bf16 GEMM.");
 
         catch_expected_failures(
-                [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+                [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
     void Test() {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
