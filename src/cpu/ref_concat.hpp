@@ -138,25 +138,35 @@ struct ref_concat_t : public primitive_impl_t {
                       reorder->execute(r_ctx);
                   };
 
+        const unsigned submemory_flags = memory_flags_t::use_runtime_ptr
+                | memory_flags_t::omit_zero_pad;
+
         if (pd()->use_tent_dst()) {
             auto scratchpad = ctx.get_scratchpad_grantor();
             auto tent_dst_ptr = scratchpad.template get<void>(
                     memory_tracking::names::key_concat_tent_dst);
-            memory_t tent_dst(pd()->engine(), &pd()->tent_dst_md_,
-                    memory_flags_t::use_runtime_ptr, tent_dst_ptr);
 
-            for (int i = 0; i < n; ++i)
+            for (int i = 0; i < n; ++i) {
+                memory_t tent_dst_i(engine(), pd()->src_image_md(i),
+                        submemory_flags, tent_dst_ptr);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false});
+                        {&tent_dst_i, false});
+            }
 
+            memory_t tent_dst(engine(), &pd()->tent_dst_md_,
+                    memory_flags_t::use_runtime_ptr, tent_dst_ptr);
             execute_reorder(reorders_[n], {&tent_dst, true},
                     ctx.args().at(DNNL_ARG_DST));
         } else {
-            for (int i = 0; i < n; ++i)
+            auto dst_ptr = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+            for (int i = 0; i < n; ++i) {
+                memory_t tent_dst_i(engine(), pd()->src_image_md(i),
+                        submemory_flags, dst_ptr);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        ctx.args().at(DNNL_ARG_DST));
+                        {&tent_dst_i, false});
+            }
         }
 
         return status::success;

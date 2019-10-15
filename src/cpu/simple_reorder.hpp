@@ -68,8 +68,12 @@ struct conv_s8s8 {};
 #define SIMPLE_REORDER_TEMPL_CALL type_i, tag_i, type_o, tag_o, order_keep
 
 #define DECLARE_COMMON_PARAMS() \
-    const memory_desc_wrapper &input_d = pd->src_md(); \
-    const memory_desc_wrapper &output_d = pd->dst_md(); \
+    auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM); \
+    auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO); \
+    const auto &scratchpad = ctx.get_scratchpad_grantor(); \
+    MAYBE_UNUSED(scratchpad); \
+    const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM); \
+    const auto output_d = ctx.memory_mdw(DNNL_ARG_TO); \
     const float alpha = pd->alpha(); \
     MAYBE_UNUSED(alpha); \
     const float beta = pd->beta(); \
@@ -123,9 +127,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         static constexpr bool w_groups = tag_o == format_tag::hwigo;
@@ -206,9 +208,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
@@ -323,9 +323,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         constexpr bool is_1d = tag_i == format_tag::goiw;
@@ -424,9 +422,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return sizeof(float) * blksize * blksize * dnnl_get_max_threads();
     }
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
@@ -530,9 +526,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         return sizeof(float) * blksize * W * dnnl_get_max_threads();
     }
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         constexpr int blksize = 16;
@@ -603,9 +597,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
@@ -705,9 +697,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         const auto &flat_d = order_keep ? input_d : output_d;
@@ -827,9 +817,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         const auto &flat_d = order_keep ? input_d : output_d;
@@ -972,9 +960,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         assert(input_d.is_dense());
@@ -1071,9 +1057,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
         using namespace utils;
 
@@ -1179,9 +1163,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd,
-            const data_t<type_i> *input, data_t<type_o> *output,
-            const memory_tracking::grantor_t &scratchpad) {
+    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
         const size_t nelems = input_d.nelems();
@@ -1262,11 +1244,8 @@ struct simple_reorder_t : public primitive_impl_t {
     simple_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM);
-        auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO);
-        simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
-                pd(), input, output, ctx.get_scratchpad_grantor());
-        return status::success;
+        return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
+                pd(), ctx);
     }
 
 private:
