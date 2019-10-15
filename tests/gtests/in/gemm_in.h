@@ -605,7 +605,24 @@ CPU_INST_TEST_CASE(TestGEMV,
         test_params {'t', 't', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1000, 1,
                 fix_no_offsets},
         test_params {'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 3000,
-                fix_no_offsets});
+                fix_no_offsets},
+
+        test_params {'n', 'n', 2000, 1, 1000, 1.0f, 1.0f, 1000, 1, 1,
+                {'F', true, false, false}},
+        test_params {'n', 'n', 1, 3000, 2000, 1.0f, 1.0f, 2000, 3000, 3000,
+                {'F', true, true, false}},
+        test_params {'t', 'n', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1, 1,
+                {'F', false, true, false}},
+        test_params {'t', 'n', 1, 3000, 2000, 1.0f, 1.0f, 1, 3000, 3000,
+                {'F', true, false, true}},
+        test_params {'n', 't', 2000, 1, 1000, 1.0f, 1.0f, 1000, 1000, 1,
+                {'F', false, true, true}},
+        test_params {'n', 't', 1, 3000, 2000, 1.0f, 1.0f, 2000, 2000, 3000,
+                {'F', true, true, false}},
+        test_params {'t', 't', 2000, 1, 1000, 1.0f, 1.0f, 2000, 1000, 1,
+                {'F', true, false, false}},
+        test_params {'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 3000,
+                {'F', false, true, false}});
 
 CPU_INST_TEST_CASE(TestGEMV_kblocking,
         test_params {
