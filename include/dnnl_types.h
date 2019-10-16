@@ -1655,6 +1655,26 @@ typedef struct {
     const char *hash;
 } dnnl_version_t;
 
+/// Disable profiling completely
+#define DNNL_JIT_PROFILE_NONE 0u
+
+/// Enable VTune integration
+#define DNNL_JIT_PROFILE_VTUNE 1u
+
+/// Enable Linux perf integration via perfmap files
+#define DNNL_JIT_PROFILE_LINUX_PERFMAP 2u
+
+/// Enable Linux perf integration via jitdump files
+#define DNNL_JIT_PROFILE_LINUX_JITDUMP 4u
+
+/// Instruct Linux perf integration via jitdump files to use TSC. @ref
+/// DNNL_JIT_PROFILE_LINUX_JITDUMP must be set too for this to take effect.
+#define DNNL_JIT_PROFILE_LINUX_JITDUMP_USE_TSC 8u
+
+/// Enable Linux perf integration (both jitdump and perfmap)
+#define DNNL_JIT_PROFILE_LINUX_PERF \
+    (DNNL_JIT_PROFILE_LINUX_JITDUMP | DNNL_JIT_PROFILE_LINUX_PERFMAP)
+
 /// @}
 
 /// @}

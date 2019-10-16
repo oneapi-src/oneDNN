@@ -58,7 +58,7 @@ Data manipulation:
 
  * @ref dev_guide_verbose
  * @ref dev_guide_benchdnn
- * @ref dev_guide_vtune
+ * @ref dev_guide_profilers
  * @ref dev_guide_inspecting_jit
  * @ref performance_profiling_cpp
 

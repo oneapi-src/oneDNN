@@ -63,7 +63,7 @@ namespace dnnl {
 namespace impl {
 
 static setting_t<int> verbose {0};
-const int get_verbose() {
+int get_verbose() {
 #if !defined(DISABLE_VERBOSE)
     if (!verbose.initialized()) {
         const int len = 2;
