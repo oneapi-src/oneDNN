@@ -42,15 +42,13 @@ int get_scale_mask(const attr_t &attr) {
     return scale_mask;
 }
 
-int scales_count(int64_t *count, int *mask, const dnn_mem_t &memory,
-        const attr_t &attr) {
-    const dnnl_memory_desc_t &md = memory.md_;
-    const int scale_mask = get_scale_mask(attr);
+int scales_count(const prb_t *p, int64_t *count, int *mask) {
+    const int scale_mask = get_scale_mask(p->attr);
     if (mask) *mask = scale_mask;
 
     int64_t uniq_scales = 1;
-    for (int d = 0; d < md.ndims; ++d) {
-        if (scale_mask & (1 << d)) uniq_scales *= md.dims[d];
+    for (size_t d = 0; d < p->reorder.dims.size(); ++d) {
+        if (scale_mask & (1 << d)) uniq_scales *= p->reorder.dims[d];
     }
     *count = uniq_scales;
     return OK;
@@ -282,7 +280,7 @@ int check_reorder(const prb_t *p, res_t *res) {
     /* Step 2: fill scales */
     int64_t count = 0;
     int mask = 0;
-    SAFE(scales_count(&count, &mask, mem_dt_out_fmt_out, p->attr), WARN);
+    SAFE(scales_count(p, &count, &mask), WARN);
     float *scales = (float *)zmalloc(sizeof(float) * count, 64);
     SAFE(scales != NULL ? OK : FAIL, CRIT);
     SAFE(fill_scales(p, scales, count), WARN);
