@@ -24,7 +24,7 @@
 
 namespace reorder {
 
-int get_scale_mask(const dnnl_memory_desc_t &md, const attr_t &attr) {
+int get_scale_mask(const attr_t &attr) {
     using P = attr_t::scale_t::policy_t;
     const auto policy = attr.oscale.policy;
 
@@ -45,7 +45,7 @@ int get_scale_mask(const dnnl_memory_desc_t &md, const attr_t &attr) {
 int scales_count(int64_t *count, int *mask, const dnn_mem_t &memory,
         const attr_t &attr) {
     const dnnl_memory_desc_t &md = memory.md_;
-    const int scale_mask = get_scale_mask(md, attr);
+    const int scale_mask = get_scale_mask(attr);
     if (mask) *mask = scale_mask;
 
     int64_t uniq_scales = 1;
@@ -73,7 +73,7 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
     const auto dt = c_src->dt;
     const int range = c_src->range;
     const int max = c_src->min + range - 1;
-    int scale_mask = get_scale_mask(mem.md_, attr);
+    int scale_mask = get_scale_mask(attr);
 
     const auto nelems = mem.nelems();
 
@@ -111,7 +111,7 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
     //    const float dst_max = MIN2(dst_conf_max, dst_dt_max);
     //    const float dst_min = MAX2(dst_conf_min, dst_dt_min);
 
-    const int scale_mask = get_scale_mask(src.md_, p->attr);
+    const int scale_mask = get_scale_mask(p->attr);
 
     for (int64_t idx = 0; idx < nelems; ++idx) {
         float src_ = src.get_elem(idx);
