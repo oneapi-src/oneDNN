@@ -22,8 +22,8 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
-int execute_reorder(
-        const dnn_mem_t &src, dnn_mem_t &dst, dnnl_primitive_attr_t attr) {
+int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
+        const_dnnl_primitive_attr_t attr) {
 
     std::shared_ptr<const dnn_mem_t> r_src(&src, [](const dnn_mem_t *) {});
     std::shared_ptr<dnn_mem_t> r_dst(&dst, [](dnn_mem_t *) {});
