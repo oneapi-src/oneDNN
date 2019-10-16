@@ -201,31 +201,30 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
 }
 
 int check_reorder(const prb_t *p, res_t *res) {
-    /*                                       ___________________
- *                                      |                   |
- *                                      | performance timer |
- *                                      |___________________|
- *                                                |
- *   _______________           ______________     V     ________________
- *  |               | DNNL |              | DNNL |                |
- *  | dt_in fmt_ref |-------->| dt_in fmt_in |-------->| dt_out fmt_out |
- *  |_______________|         |______________|    ^    |________________|
- *           |                                    |            |
- *  benchdnn |<-------------------------------- scales         | DNNL
- *   ________V_______                                   _______V________
- *  |                |                                 |                |
- *  | dt_out fmt_ref |         <= compare =>           | dt_out fmt_ref |
- *  |________________|                                 |________________|
- *
- * Steps:
- * 1. create memory
- * 2. fill scales
- * 3. fill input memory
- * 4. execute DNNL: reorder->q10n->reorder
- * 5. execute benchdnn: q10n
- * 6. compare results
- * 7. performance measurement
- */
+    //                                       ___________________
+    //                                      |                   |
+    //                                      | performance timer |
+    //                                      |___________________|
+    //                                                |
+    //   _______________           ______________     V     ________________
+    //  |               |  DNNL   |              |  DNNL   |                |
+    //  | dt_in fmt_ref |-------->| dt_in fmt_in |-------->| dt_out fmt_out |
+    //  |_______________|         |______________|    ^    |________________|
+    //           |                                    |            |
+    //  benchdnn |<-------------------------------- scales         | DNNL
+    //   ________V_______                                   _______V________
+    //  |                |                                 |                |
+    //  | dt_out fmt_ref |         <= compare =>           | dt_out fmt_ref |
+    //  |________________|                                 |________________|
+    //
+    // Steps:
+    // 1. create memory
+    // 2. fill scales
+    // 3. create target reorder primitive
+    // 4. fill input memory
+    // 5. execute DNNL and benchdnn reorders / q10n
+    // 6. compare results
+    // 7. performance measurement
 
     const reorder_conf_t &r = p->reorder;
     const int ndims = (int)r.dims.size();
@@ -281,8 +280,8 @@ int check_reorder(const prb_t *p, res_t *res) {
         set_oflags(mem_test_dt_out_fmt_out);
     }
 
-    /* Step 3: check creation of reorder primitive */
-    dnnl_primitive_desc_t rpd;
+    /* Step 3: create target reorder primitive */
+    dnnl_primitive_desc_t rpd = NULL;
     dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(&rpd,
             &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
             engine_tgt, attr_bundle.dnnl_attr());
@@ -293,16 +292,33 @@ int check_reorder(const prb_t *p, res_t *res) {
         print(5, "dnnl implementation: %s\n", impl_str);
     }
 
-    dnnl_primitive_desc_destroy(rpd);
     SAFE(init_status, WARN);
+
+    dnnl_primitive_t rp = NULL;
+    DNN_SAFE(dnnl_primitive_create(&rp, rpd), WARN);
+    dnnl_primitive_desc_destroy(rpd);
 
     /* Step 4: fill input memory */
     SAFE(fill_memory(p, mem_dt_in_fmt_ref, attr_bundle), WARN);
 
-    /* Step 5: execute DNNL */
+    /* Step 5: execute necessary reorders */
     SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
-    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, attr_bundle), WARN);
+    dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
+    maybe_prepare_runtime_scales(scales, attr_bundle, engine_tgt);
+    maybe_prepare_runtime_zero_points(
+            src_zero_points_m, attr_bundle.attr, DNNL_ARG_SRC, engine_tgt);
+    maybe_prepare_runtime_zero_points(
+            dst_zero_points_m, attr_bundle.attr, DNNL_ARG_DST, engine_tgt);
+
+    args_t args;
+    args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in);
+    args.set(DNNL_ARG_TO, mem_dt_out_fmt_out);
+    args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
+    args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
+
+    DNN_SAFE(execute_and_wait(rp, stream_tgt, args), WARN);
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
@@ -339,36 +355,9 @@ int check_reorder(const prb_t *p, res_t *res) {
     }
 
     /* Step 7: performance measurement */
-    if (bench_mode & PERF) {
-        dnnl_primitive_desc_t perf_r_pd;
-        DNN_SAFE(dnnl_reorder_primitive_desc_create(&perf_r_pd,
-                         &mem_dt_in_fmt_in.md_, engine_tgt,
-                         &mem_dt_out_fmt_out.md_, engine_tgt,
-                         attr_bundle.dnnl_attr()),
-                WARN);
+    measure_perf(res->timer, rp, args);
 
-        dnnl_primitive_t perf_r;
-        DNN_SAFE(dnnl_primitive_create(&perf_r, perf_r_pd), WARN);
-        DNN_SAFE_V(dnnl_primitive_desc_destroy(perf_r_pd));
-
-        dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
-        maybe_prepare_runtime_scales(scales, attr_bundle, engine_tgt);
-        maybe_prepare_runtime_zero_points(
-                src_zero_points_m, attr_bundle.attr, DNNL_ARG_SRC, engine_tgt);
-        maybe_prepare_runtime_zero_points(
-                dst_zero_points_m, attr_bundle.attr, DNNL_ARG_DST, engine_tgt);
-
-        args_t args;
-        args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in);
-        args.set(DNNL_ARG_TO, mem_dt_out_fmt_out);
-        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
-        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
-
-        measure_perf(res->timer, perf_r, args);
-
-        DNN_SAFE_V(dnnl_primitive_destroy(perf_r));
-    }
+    DNN_SAFE_V(dnnl_primitive_destroy(rp));
 
     return OK;
 }
