@@ -68,13 +68,14 @@ struct q10n_conf_t {
 struct prb_t {
     prb_t(const reorder_conf_t &r, const dt_conf_t &conf_in,
             const dt_conf_t &conf_out, const attr_t &attr, alg_t alg,
-            flag_t oflag, float scale = 0.f)
+            flag_t oflag, unsigned runtime_dim_mask, float scale = 0.f)
         : reorder(r)
         , conf_in(conf_in)
         , conf_out(conf_out)
         , attr(attr)
         , alg(alg)
         , oflag(oflag)
+        , runtime_dim_mask(runtime_dim_mask)
         , ops(0) {
         if (scale != 0.f) this->attr.oscale.scale = scale;
         count_ops();
@@ -86,6 +87,7 @@ struct prb_t {
     attr_t attr;
     alg_t alg;
     flag_t oflag;
+    unsigned runtime_dim_mask;
     double ops;
 
     void count_ops() {

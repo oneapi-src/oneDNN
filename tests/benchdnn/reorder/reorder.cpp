@@ -16,6 +16,8 @@
 
 #include <stdlib.h>
 
+#include "dnnl.h"
+
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -23,6 +25,27 @@
 #include "reorder.hpp"
 
 namespace reorder {
+
+dnnl_status_t maybe_runtime_md(const prb_t *p, data_kind_t kind,
+        const dnnl_memory_desc_t &ref_md, dnnl_memory_desc_t &runtime_md) {
+    const reorder_conf_t &r = p->reorder;
+
+    dims_t dims = r.dims;
+    const int ndims = (int)dims.size();
+    for (int d = 0; d < ndims; ++d)
+        if (p->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
+
+    dnnl_data_type_t dt = kind == SRC ? p->conf_in->dt : p->conf_out->dt;
+    dnnl_format_tag_t tag = kind == SRC ? r.tag_in : r.tag_out;
+
+    dnnl_status_t status = dnnl_memory_desc_init_by_tag(
+            &runtime_md, ndims, dims.data(), dt, tag);
+    if (status != dnnl_success) return status;
+
+    runtime_md.extra = ref_md.extra;
+
+    return dnnl_success;
+}
 
 // prepare the output scales and mask
 int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
@@ -282,9 +305,11 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 3: create target reorder primitive */
     dnnl_primitive_desc_t rpd = NULL;
+    dnnl_memory_desc_t src_md, dst_md;
+    DNN_SAFE(maybe_runtime_md(p, SRC, mem_dt_in_fmt_in.md_, src_md), WARN);
+    DNN_SAFE(maybe_runtime_md(p, DST, mem_dt_out_fmt_out.md_, dst_md), WARN);
     dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(&rpd,
-            &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
-            engine_tgt, attr_bundle.dnnl_attr());
+            &src_md, engine_tgt, &dst_md, engine_tgt, attr_bundle.dnnl_attr());
     if (init_status == dnnl_unimplemented) {
         res->state = UNIMPLEMENTED;
     } else {
