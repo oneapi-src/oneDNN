@@ -17,11 +17,11 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 
 #include <memory>
 
@@ -450,7 +450,7 @@ inline void yield_thread() {}
 int getenv(const char *name, char *buffer, int buffer_size);
 // Reads an integer from the environment
 int getenv_int(const char *name, int default_value = 0);
-bool jit_dump_enabled();
+bool get_jit_dump();
 FILE *fopen(const char *filename, const char *mode);
 
 constexpr int msan_enabled = MSAN_ENABLED;
@@ -459,6 +459,25 @@ inline void msan_unpoison(void *ptr, size_t size) {
     __msan_unpoison(ptr, size);
 #endif
 }
+
+// std::optional? std::maybe? std::whatever
+template <typename T>
+struct setting_t {
+private:
+    T value_;
+    bool initialized_;
+
+public:
+    setting_t() : initialized_ {false} {}
+    setting_t(const T init) : value_ {init}, initialized_ {false} {}
+    bool initialized() { return initialized_; }
+    T get() { return value_; }
+    void set(T new_value) {
+        value_ = new_value;
+        initialized_ = true;
+    }
+    DNNL_DISALLOW_COPY_AND_ASSIGN(setting_t);
+};
 
 } // namespace impl
 } // namespace dnnl

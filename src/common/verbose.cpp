@@ -62,30 +62,25 @@
 namespace dnnl {
 namespace impl {
 
-static verbose_t verbose;
-static bool initialized;
-static bool version_printed = false;
-
-const verbose_t *dnnl_verbose() {
+static setting_t<int> verbose {0};
+const int get_verbose() {
 #if !defined(DISABLE_VERBOSE)
-    if (!initialized) {
+    if (!verbose.initialized()) {
         const int len = 2;
         char val[len] = {0};
-        if (getenv("MKLDNN_VERBOSE", val, len) == 1) verbose.level = atoi(val);
-        if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.level = atoi(val);
-        initialized = true;
+        if (getenv("MKLDNN_VERBOSE", val, len) == 1) verbose.set(atoi(val));
+        if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
     }
-    if (!version_printed && verbose.level > 0) {
+    static bool version_printed = false;
+    if (!version_printed && verbose.get() > 0) {
         printf("dnnl_verbose,info,DNNL v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
         printf("dnnl_verbose,info,Detected ISA is %s\n", get_isa_info());
         version_printed = true;
     }
-#else
-    verbose.level = 0;
 #endif
-    return &verbose;
+    return verbose.get();
 }
 
 double get_msec() {
@@ -885,8 +880,7 @@ void init_info(sum_pd_t *s, char *b) {
 dnnl_status_t dnnl_set_verbose(int level) {
     using namespace dnnl::impl::status;
     if (level < 0 || level > 2) return invalid_arguments;
-    dnnl::impl::verbose.level = level;
-    dnnl::impl::initialized = true;
+    dnnl::impl::verbose.set(level);
     return success;
 }
 

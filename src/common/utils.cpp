@@ -14,14 +14,21 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <string.h>
 #ifdef _WIN32
 #include <malloc.h>
 #include <windows.h>
 #endif
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
+
+#ifdef __linux__
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
 
 #include "dnnl.h"
 #include "utils.hpp"
@@ -111,23 +118,20 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #endif
 }
 
-static int jit_dump_flag = 0;
-static bool jit_dump_flag_initialized = false;
-bool jit_dump_enabled() {
-    if (!jit_dump_flag_initialized) {
-        jit_dump_flag = getenv_int("MKLDNN_JIT_DUMP");
-        jit_dump_flag = getenv_int("DNNL_JIT_DUMP", jit_dump_flag);
-        jit_dump_flag_initialized = true;
+static setting_t<bool> jit_dump {0};
+bool get_jit_dump() {
+    if (!jit_dump.initialized()) {
+        jit_dump.set(!!getenv_int("MKLDNN_JIT_DUMP", 0));
+        jit_dump.set(!!getenv_int("DNNL_JIT_DUMP", jit_dump.get()));
     }
-    return jit_dump_flag != 0;
+    return jit_dump.get();
 }
 
 } // namespace impl
 } // namespace dnnl
 
 dnnl_status_t dnnl_set_jit_dump(int enabled) {
-    using namespace dnnl::impl::status;
-    dnnl::impl::jit_dump_flag = enabled;
-    dnnl::impl::jit_dump_flag_initialized = true;
-    return success;
+    using namespace dnnl::impl;
+    jit_dump.set(enabled);
+    return status::success;
 }

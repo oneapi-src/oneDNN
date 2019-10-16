@@ -88,9 +88,7 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
     do { \
         cl_int s = x; \
         if (s != CL_SUCCESS) { \
-            if (dnnl_verbose()->level >= 5) { \
-                printf("Error from OpenCL: %d\n", s); \
-            } \
+            if (get_verbose() >= 5) { printf("Error from OpenCL: %d\n", s); } \
             return dnnl::impl::ocl::ocl_utils::convert_to_dnnl(s); \
         } \
     } while (0)

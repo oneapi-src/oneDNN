@@ -32,7 +32,7 @@ struct verbose_t {
     int level;
 };
 
-const verbose_t *dnnl_verbose();
+const int get_verbose();
 double get_msec();
 const char *get_isa_info();
 

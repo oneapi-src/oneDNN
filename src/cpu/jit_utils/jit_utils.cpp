@@ -40,7 +40,7 @@ namespace jit_utils {
 
 void dump_jit_code(const void *code, size_t code_size, const char *code_name) {
 #if DNNL_ENABLE_JIT_DUMP
-    if (code && jit_dump_enabled()) {
+    if (code && get_jit_dump()) {
         static int counter = 0;
 #define MAX_FNAME_LEN 256
         char fname[MAX_FNAME_LEN + 1];

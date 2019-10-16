@@ -69,7 +69,7 @@ status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
 
     exec_ctx_t ctx(stream, std::move(args));
 
-    if (dnnl_verbose()->level) {
+    if (get_verbose()) {
         double ms = get_msec();
         status = primitive->execute(ctx);
         stream->wait();
