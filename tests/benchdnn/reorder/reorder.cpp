@@ -96,12 +96,15 @@ int ref_reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
 
     const int scale_mask = attr_bundle.scale_mask();
 
+    const int src_zero_point = attr_bundle.attr.zero_points[DNNL_ARG_SRC];
+    const int dst_zero_point = attr_bundle.attr.zero_points[DNNL_ARG_DST];
+
     for (int64_t idx = 0; idx < nelems; ++idx) {
-        float src_ = src.get_elem(idx);
+        float s = src.get_elem(idx) - src_zero_point;
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
         const float scale = attr_bundle.oscale[scale_idx];
 
-        dst.set_elem(idx, maybe_saturate(dst_dt, src_ * scale));
+        dst.set_elem(idx, maybe_saturate(dst_dt, scale * s + dst_zero_point));
     }
 
     return OK;
@@ -186,7 +189,9 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
             && (c_src_max * max_scale > c_dst_max);
     bool check_inf_n = (check_int_overflow && dt != dnnl_s32)
             && (c_src->min * max_scale < c_dst->min);
-    bool check_zeros = (check_int_overflow) && (dt_min != 0 && dt_max != 0);
+    bool check_zeros = (check_int_overflow) && (dt_min != 0 && dt_max != 0)
+            && attr_bundle.attr.zero_points[DNNL_ARG_SRC] == 0
+            && attr_bundle.attr.zero_points[DNNL_ARG_DST] == 0;
 
     bool mistrusted = reg == 0 || (check_inf_p && inf_p == 0)
             || (check_inf_n && inf_n == 0) || (check_zeros && zeros == 0);
@@ -346,13 +351,19 @@ int check_reorder(const prb_t *p, res_t *res) {
         DNN_SAFE(dnnl_primitive_create(&perf_r, perf_r_pd), WARN);
         DNN_SAFE_V(dnnl_primitive_desc_destroy(perf_r_pd));
 
-        dnn_mem_t scales;
+        dnn_mem_t scales, src_zero_points_m, dst_zero_points_m;
         maybe_prepare_runtime_scales(scales, attr_bundle, engine_tgt);
+        maybe_prepare_runtime_zero_points(
+                src_zero_points_m, attr_bundle.attr, DNNL_ARG_SRC, engine_tgt);
+        maybe_prepare_runtime_zero_points(
+                dst_zero_points_m, attr_bundle.attr, DNNL_ARG_DST, engine_tgt);
 
         args_t args;
         args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in);
         args.set(DNNL_ARG_TO, mem_dt_out_fmt_out);
         args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
+        args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
         measure_perf(res->timer, perf_r, args);
 
