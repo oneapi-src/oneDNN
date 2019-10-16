@@ -22,8 +22,12 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+#include "dnn_types.hpp"
+
 int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
-        const_dnnl_primitive_attr_t attr) {
+        const attr_bundle_t *attr_bundle) {
+    const_dnnl_primitive_attr_t attr
+            = attr_bundle ? attr_bundle->dnnl_attr() : nullptr;
 
     std::shared_ptr<const dnn_mem_t> r_src(&src, [](const dnn_mem_t *) {});
     std::shared_ptr<dnn_mem_t> r_dst(&dst, [](dnn_mem_t *) {});
@@ -88,9 +92,14 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
             CRIT);
     DNN_SAFE(dnnl_primitive_desc_destroy(r_pd), CRIT);
 
+    dnn_mem_t scales;
+    if (attr_bundle)
+        maybe_prepare_runtime_scales(scales, *attr_bundle, engine_tgt);
+
     args_t args;
     args.set(DNNL_ARG_FROM, *r_src);
     args.set(DNNL_ARG_TO, *r_dst);
+    args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
     DNN_SAFE(execute_and_wait(r, r_stream, args), CRIT);
     DNN_SAFE(dnnl_primitive_destroy(r), CRIT);

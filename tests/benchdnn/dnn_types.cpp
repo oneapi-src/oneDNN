@@ -525,6 +525,23 @@ const char *engine_kind2str(dnnl_engine_kind_t engine) {
     return "incorrect engine kind";
 }
 
+void attr_bundle_t::init_zero_points() {
+    for (const auto &arg_entry : attr.zero_points)
+        zero_points[arg_entry.first] = {arg_entry.second.value};
+}
+
+int attr_bundle_t::generate(int scale_mask) {
+    dnnl_primitive_attr_t dnnl_attr = create_dnnl_attr(
+            attr, (int64_t)oscale.size(), scale_mask, oscale.data());
+    if (dnnl_attr == NULL) return FAIL;
+
+    scale_mask_ = scale_mask;
+    dnnl_attr_.reset(dnnl_attr, &dnnl_primitive_attr_destroy);
+    initialized_ = true;
+
+    return OK;
+}
+
 dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         int scale_mask, const float *scales) {
     dnnl_primitive_attr_t dnnl_attr = NULL;

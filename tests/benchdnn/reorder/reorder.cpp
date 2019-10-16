@@ -24,60 +24,45 @@
 
 namespace reorder {
 
-int get_scale_mask(const attr_t &attr) {
-    using P = attr_t::scale_t::policy_t;
-    const auto policy = attr.oscale.policy;
+// prepare the output scales and mask
+int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
+    auto get_scale_mask = [](const attr_t &attr) {
+        using P = attr_t::scale_t::policy_t;
+        switch (attr.oscale.policy) {
+            case P::PER_DIM_0: return (1 << 0);
+            case P::PER_DIM_1: return (1 << 1);
+            case P::PER_DIM_01: return (1 << 0) + (1 << 1);
+            case P::COMMON:
+            case P::NONE: return 0;
+            default: SAFE_V(FAIL); return 0;
+        }
+    };
 
-    int scale_mask = 0;
-
-    switch (policy) {
-        case P::PER_DIM_0: scale_mask = (1 << 0); break;
-        case P::PER_DIM_1: scale_mask = (1 << 1); break;
-        case P::PER_DIM_01: scale_mask = (1 << 0) + (1 << 1); break;
-        case P::COMMON:
-        case P::NONE: scale_mask = 0; break;
-        default: SAFE_V(FAIL);
-    }
-
-    return scale_mask;
-}
-
-int scales_count(const prb_t *p, int64_t *count, int *mask) {
-    const int scale_mask = get_scale_mask(p->attr);
-    if (mask) *mask = scale_mask;
+    const int mask = get_scale_mask(p->attr);
 
     int64_t uniq_scales = 1;
-    for (size_t d = 0; d < p->reorder.dims.size(); ++d) {
-        if (scale_mask & (1 << d)) uniq_scales *= p->reorder.dims[d];
-    }
-    *count = uniq_scales;
-    return OK;
+    for (size_t d = 0; d < p->reorder.dims.size(); ++d)
+        if (mask & (1 << d)) uniq_scales *= p->reorder.dims[d];
+
+    attr_bundle.oscale.resize(uniq_scales, p->attr.oscale.scale);
+    if (uniq_scales > 1) attr_bundle.oscale[uniq_scales - 1] += 1.1f;
+
+    return attr_bundle.generate(mask);
 }
 
-int fill_scales(const prb_t *p, float *scales, int64_t count) {
-    const float scale_value = p->attr.oscale.scale;
-
-    for (int64_t i = 0; i < count; ++i)
-        scales[i] = scale_value;
-
-    if (count != 1) scales[count - 1] = scale_value + 1.1;
-
-    return OK;
-}
-
-int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
-        const attr_t &attr) {
+int fill_memory(
+        const prb_t *p, dnn_mem_t &mem, const attr_bundle_t &attr_bundle) {
     const dt_conf_t c_src = p->conf_in;
     const auto dt = c_src->dt;
     const int range = c_src->range;
     const int max = c_src->min + range - 1;
-    int scale_mask = get_scale_mask(attr);
+    const int scale_mask = attr_bundle.scale_mask();
 
     const auto nelems = mem.nelems();
 
     for (int64_t idx = 0; idx < nelems; ++idx) {
         const int64_t mask_idx = mem.get_scale_idx(idx, scale_mask);
-        const float scale = scales[mask_idx];
+        const float scale = attr_bundle.oscale[mask_idx];
 
         const float gen[7] = {
                 (float)max, /* saturate to max of output data type */
@@ -96,8 +81,8 @@ int fill_memory(const prb_t *p, dnn_mem_t &mem, const float *scales,
 }
 
 /* TODO: Complete */
-int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
-        const float *scales) {
+int ref_reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
+        const attr_bundle_t &attr_bundle) {
     auto dst_dt = dst.dt();
 
     const auto nelems = src.nelems();
@@ -109,12 +94,12 @@ int reorder(const prb_t *p, dnn_mem_t &dst, const dnn_mem_t &src,
     //    const float dst_max = MIN2(dst_conf_max, dst_dt_max);
     //    const float dst_min = MAX2(dst_conf_min, dst_dt_min);
 
-    const int scale_mask = get_scale_mask(p->attr);
+    const int scale_mask = attr_bundle.scale_mask();
 
     for (int64_t idx = 0; idx < nelems; ++idx) {
         float src_ = src.get_elem(idx);
         const int64_t scale_idx = dst.get_scale_idx(idx, scale_mask);
-        const float scale = scales[scale_idx];
+        const float scale = attr_bundle.oscale[scale_idx];
 
         dst.set_elem(idx, maybe_saturate(dst_dt, src_ * scale));
     }
@@ -141,7 +126,7 @@ int compare_bootstrap(
 }
 
 int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
-        const float *scales, int64_t count, res_t *r) {
+        const attr_bundle_t &attr_bundle, res_t *r) {
     const auto nelems = mem_expected.nelems();
     assert(nelems == mem_computed.nelems());
 
@@ -186,10 +171,9 @@ int compare(const prb_t *p, dnn_mem_t &mem_expected, dnn_mem_t &mem_computed,
 
     if (r->state == UNTESTED) r->state = PASSED; /* optimism */
 
-    float max_scale = scales[0];
-    for (int64_t i = 1; i < count; ++i) {
-        if (scales[i] > max_scale) max_scale = scales[i];
-    }
+    float max_scale = attr_bundle.oscale[0];
+    for (size_t i = 1; i < attr_bundle.oscale.size(); ++i)
+        max_scale = MAX2(max_scale, attr_bundle.oscale[i]);
 
     dt_conf_t c_src = p->conf_in;
     dt_conf_t c_dst = p->conf_out;
@@ -235,8 +219,7 @@ int check_reorder(const prb_t *p, res_t *res) {
  * 4. execute DNNL: reorder->q10n->reorder
  * 5. execute benchdnn: q10n
  * 6. compare results
- * 7. performance measurment
- * 8. clean up
+ * 7. performance measurement
  */
 
     const reorder_conf_t &r = p->reorder;
@@ -278,14 +261,8 @@ int check_reorder(const prb_t *p, res_t *res) {
             mem_extra_test_dt_out_fmt_out, engine_tgt);
 
     /* Step 2: fill scales */
-    int64_t count = 0;
-    int mask = 0;
-    SAFE(scales_count(p, &count, &mask), WARN);
-    float *scales = (float *)zmalloc(sizeof(float) * count, 64);
-    SAFE(scales != NULL ? OK : FAIL, CRIT);
-    SAFE(fill_scales(p, scales, count), WARN);
-
-    auto dnnl_attr = create_dnnl_attr(p->attr, count, mask, scales);
+    attr_bundle_t attr_bundle(p->attr);
+    SAFE(prepare_attr_bundle(p, attr_bundle), WARN);
 
     /* check for extra flags on output format, and set them */
     if (p->alg == ALG_BOOT
@@ -301,12 +278,11 @@ int check_reorder(const prb_t *p, res_t *res) {
 
     /* Step 3: check creation of reorder primitive */
     dnnl_primitive_desc_t rpd;
-    dnnl_status_t init_status
-            = dnnl_reorder_primitive_desc_create(&rpd, &mem_dt_in_fmt_in.md_,
-                    engine_tgt, &mem_dt_out_fmt_out.md_, engine_tgt, dnnl_attr);
+    dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(&rpd,
+            &mem_dt_in_fmt_in.md_, engine_tgt, &mem_dt_out_fmt_out.md_,
+            engine_tgt, attr_bundle.dnnl_attr());
     if (init_status == dnnl_unimplemented) {
         res->state = UNIMPLEMENTED;
-        goto cleanup;
     } else {
         const char *impl_str = query_impl_info(rpd);
         print(5, "dnnl implementation: %s\n", impl_str);
@@ -316,12 +292,12 @@ int check_reorder(const prb_t *p, res_t *res) {
     SAFE(init_status, WARN);
 
     /* Step 4: fill input memory */
-    SAFE(fill_memory(p, mem_dt_in_fmt_ref, scales, p->attr), WARN);
+    SAFE(fill_memory(p, mem_dt_in_fmt_ref, attr_bundle), WARN);
 
     /* Step 5: execute DNNL */
     SAFE(mem_dt_in_fmt_in.reorder(mem_dt_in_fmt_ref), WARN);
 
-    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, dnnl_attr), WARN);
+    SAFE(mem_dt_out_fmt_out.reorder(mem_dt_in_fmt_in, attr_bundle), WARN);
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
@@ -331,7 +307,8 @@ int check_reorder(const prb_t *p, res_t *res) {
              * layout, as is the case for compensated weights formats. */
 
             /* Step 5a: dnnl reorder from ref format to output format */
-            SAFE(mem_test_dt_out_fmt_out.reorder(mem_dt_in_fmt_ref, dnnl_attr),
+            SAFE(mem_test_dt_out_fmt_out.reorder(
+                         mem_dt_in_fmt_ref, attr_bundle),
                     WARN);
 
             /* Step 5b: compare results (expect bit-wise exactness) */
@@ -345,12 +322,13 @@ int check_reorder(const prb_t *p, res_t *res) {
             SAFE(mem_dt_out_fmt_ref.reorder(mem_dt_out_fmt_out), WARN);
 
             /* Step 5b: execute benchdnn reorder */
-            SAFE(reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref, scales),
+            SAFE(ref_reorder(p, mem_test_dt_out_fmt_ref, mem_dt_in_fmt_ref,
+                         attr_bundle),
                     WARN);
 
             /* Step 5c: compare benchdnn and dnnl output */
-            SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref, scales,
-                         count, res),
+            SAFE(compare(p, mem_test_dt_out_fmt_ref, mem_dt_out_fmt_ref,
+                         attr_bundle, res),
                     WARN);
         }
     }
@@ -360,26 +338,26 @@ int check_reorder(const prb_t *p, res_t *res) {
         dnnl_primitive_desc_t perf_r_pd;
         DNN_SAFE(dnnl_reorder_primitive_desc_create(&perf_r_pd,
                          &mem_dt_in_fmt_in.md_, engine_tgt,
-                         &mem_dt_out_fmt_out.md_, engine_tgt, dnnl_attr),
+                         &mem_dt_out_fmt_out.md_, engine_tgt,
+                         attr_bundle.dnnl_attr()),
                 WARN);
 
         dnnl_primitive_t perf_r;
         DNN_SAFE(dnnl_primitive_create(&perf_r, perf_r_pd), WARN);
         DNN_SAFE_V(dnnl_primitive_desc_destroy(perf_r_pd));
 
+        dnn_mem_t scales;
+        maybe_prepare_runtime_scales(scales, attr_bundle, engine_tgt);
+
         args_t args;
         args.set(DNNL_ARG_FROM, mem_dt_in_fmt_in);
         args.set(DNNL_ARG_TO, mem_dt_out_fmt_out);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
         measure_perf(res->timer, perf_r, args);
 
         DNN_SAFE_V(dnnl_primitive_destroy(perf_r));
     }
-
-    /* Step 8: clean up */
-cleanup:
-    dnnl_primitive_attr_destroy(dnnl_attr);
-    zfree(scales);
 
     return OK;
 }

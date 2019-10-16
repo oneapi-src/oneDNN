@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "common.hpp"
@@ -185,6 +186,35 @@ std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
+
+/* Container for becnhdnn description of attributes and dnnl primitive
+ * attributes. Also contains the generated scales and zero-points.
+ *
+ * Usage model:
+ * 1. Create attr_bundle_t with benchdnn attr
+ * 2. Borrow and fill oscale
+ *    - zero_point is automatically initialized at construct time
+ *      (will be changed later)
+ * 3. Call generate(scale_mask) to prepare dnnl_attr
+ */
+struct attr_bundle_t {
+    attr_t attr;
+    std::vector<float> oscale;
+    std::map<int, std::vector<int>> zero_points; // arg -> arg_zero_points
+
+    attr_bundle_t(const attr_t &attr) : attr(attr) { init_zero_points(); }
+    int generate(int scale_mask);
+
+    const_dnnl_primitive_attr_t dnnl_attr() const { return dnnl_attr_.get(); }
+    int scale_mask() const { return scale_mask_; }
+
+private:
+    bool initialized_ = false;
+    int scale_mask_ = 0;
+    std::shared_ptr<dnnl_primitive_attr> dnnl_attr_ {0};
+
+    void init_zero_points();
+};
 
 std::ostream &dump_global_params(std::ostream &s);
 

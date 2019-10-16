@@ -89,8 +89,11 @@ struct dnn_mem_t {
 
     ~dnn_mem_t() { cleanup(); }
 
-    int reorder(const dnn_mem_t &rhs) { return reorder(rhs, NULL); }
-    int reorder(const dnn_mem_t &rhs, const_dnnl_primitive_attr_t attr);
+    int reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle);
+    int reorder(const dnn_mem_t &rhs) { return reorder(rhs, nullptr); }
+    int reorder(const dnn_mem_t &rhs, const attr_bundle_t &attr_bundle) {
+        return reorder(rhs, &attr_bundle);
+    }
 
     size_t size() const { return dnnl_memory_desc_get_size(&md_); }
 
