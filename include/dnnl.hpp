@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <memory>
+#include <string>
 #include <vector>
 #include <unordered_map>
 
@@ -5633,6 +5634,92 @@ struct binary : public primitive {
 /// @}
 
 /// @} Primitives
+
+/// @addtogroup cpp_api_service C++ versions of the service functions
+/// Wrappers around @ref c_api_service in @ref c_api.
+///
+/// @{
+
+/// @copydoc dnnl_version_t
+using version_t = dnnl_version_t;
+
+/// Status values returned by the library functions.
+enum class status {
+    /// @copydoc dnnl_success
+    success = dnnl_success,
+    /// @copydoc dnnl_out_of_memory
+    out_of_memory = dnnl_out_of_memory,
+    /// @copydoc dnnl_invalid_arguments
+    invalid_arguments = dnnl_invalid_arguments,
+    /// @copydoc dnnl_unimplemented
+    unimplemented = dnnl_unimplemented,
+    /// @copydoc dnnl_iterator_ends
+    iterator_ends = dnnl_iterator_ends,
+    /// @copydoc dnnl_runtime_error
+    runtime_error = dnnl_runtime_error,
+    /// @copydoc dnnl_not_required
+    not_required = dnnl_not_required,
+};
+
+/// @copydoc dnnl_set_verbose()
+inline status set_verbose(int level) {
+    return static_cast<status>(dnnl_set_verbose(level));
+}
+
+/// @copydoc dnnl_version()
+inline const version_t *version() {
+    return dnnl_version();
+}
+
+/// @copydoc dnnl_set_jit_dump()
+inline status set_jit_dump(int enable) {
+    return static_cast<status>(dnnl_set_jit_dump(enable));
+}
+
+/// @copydoc dnnl_set_jit_profiling_flags()
+inline status set_jit_profiling_flags(unsigned flags) {
+    return static_cast<status>(dnnl_set_jit_profiling_flags(flags));
+}
+
+/// @copydoc dnnl_set_jit_profiling_flags()
+inline status set_jit_profiling_jitdumpdir(const std::string &dir) {
+    return static_cast<status>(dnnl_set_jit_profiling_jitdumpdir(dir.c_str()));
+}
+
+/// @} Service functions
+
+/// @addtogroup cpp_api_blas C++ versions of the BLAS functions
+/// Wrappers around @ref c_api_blas in @ref c_api.
+///
+/// @{
+
+/// @copydoc dnnl_sgemm()
+inline status sgemm(char transa, char transb, dnnl_dim_t M, dnnl_dim_t N,
+        dnnl_dim_t K, float alpha, const float *A, dnnl_dim_t lda,
+        const float *B, dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc) {
+    return static_cast<status>(dnnl_sgemm(
+            transa, transb, M, N, K, alpha, A, lda, B, ldb, beta, C, ldc));
+}
+
+/// @copydoc dnnl_gemm_u8s8s32()
+inline status gemm_u8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
+        dnnl_dim_t N, dnnl_dim_t K, float alpha, const uint8_t *A,
+        dnnl_dim_t lda, uint8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
+        float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co) {
+    return static_cast<status>(dnnl_gemm_u8s8s32(transa, transb, offsetc, M, N,
+            K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co));
+}
+
+/// @copydoc dnnl_gemm_s8s8s32()
+inline status gemm_s8s8s32(char transa, char transb, char offsetc, dnnl_dim_t M,
+        dnnl_dim_t N, dnnl_dim_t K, float alpha, const int8_t *A,
+        dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
+        float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co) {
+    return static_cast<status>(dnnl_gemm_s8s8s32(transa, transb, offsetc, M, N,
+            K, alpha, A, lda, ao, B, ldb, bo, beta, C, ldc, co));
+}
+
+/// @} C++ versions of the BLAS functions
 
 /// @} C++ API
 

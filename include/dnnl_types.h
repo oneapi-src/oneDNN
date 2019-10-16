@@ -1647,12 +1647,13 @@ typedef const struct dnnl_stream *const_dnnl_stream_t;
 /// @addtogroup c_api_types_service Service
 /// @{
 
-/// Version type
+/// Structure containing version information as per [Semantic
+/// Versioning](https://semver.org)
 typedef struct {
-    int major;
-    int minor;
-    int patch;
-    const char *hash;
+    int major; ///< Major version
+    int minor; ///< Minor version
+    int patch; ///< Patch version
+    const char *hash; ///< Git hash of the sources (may be absent)
 } dnnl_version_t;
 
 /// Disable profiling completely
