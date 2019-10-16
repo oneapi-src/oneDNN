@@ -20,7 +20,7 @@
 #endif
 
 #if DT_F32 != 1
-#error "Only f32 implemented."
+#error "Incorrect datatype."
 #endif
 
 #define DO_FMA_NN(hh, i_mod_16, i_div_16, i_mod_4, i_div_4) \
@@ -231,12 +231,16 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta) {
+
+    // clang-format off
     float2 a[4]; // 32 x 4  block of A, 4x 32x1 block accesses   [col major]
-    float4 b; // 4  x 16 block of B, 1x 4x16 scattered access [row major]
+    float4 b;    // 4  x 16 block of B, 1x 4x16 scattered access [row major]
     float4 c[8]; // 32 x 16 block of C, 8x 4x16 scattered access [row major]
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 32;
     int j0 = idN;
@@ -258,39 +262,66 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
     for (int z = 0; z < 8; z++)
         c[z] = 0.f;
 
-    for (int h = 0; h < (k >> 2); h++) {
-        // Load A
-        for (int j = 0; j < 4; j++) {
-            a[j] = as_float2(
-                    intel_sub_group_block_read2((global uint *)A_cols[j]));
-            A_cols[j] += ldax4;
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 16) {
+#endif
+        // Non-remainder kernel.
+        for (int h = 0; h < (k >> 2); h++) {
+            // Load A
+            for (int hh = 0; hh < 4; hh++) {
+                a[hh] = as_float2(
+                        intel_sub_group_block_read2((global uint *)A_cols[hh]));
+                A_cols[hh] += ldax4;
+            }
+
+            // Load B
+            b = vload4(0, B);
+            B += 4;
+
+            // FMAs
+            FMA_I_LOOP_32_ROW(0);
+            FMA_I_LOOP_32_ROW(1);
+            FMA_I_LOOP_32_ROW(2);
+            FMA_I_LOOP_32_ROW(3);
         }
 
-        // Load B
-        b = vload4(0, B);
-        B += 4;
+        int krem = k & 3;
+        for (int h = 0; h < krem; h++) {
+            a[0] = as_float2(
+                    intel_sub_group_block_read2((global uint *)A_cols[0]));
+            A_cols[0] += lda;
 
-        // FMAs
-        FMA_I_LOOP_32_ROW(0);
-        FMA_I_LOOP_32_ROW(1);
-        FMA_I_LOOP_32_ROW(2);
-        FMA_I_LOOP_32_ROW(3);
+            b = *B++;
+
+            FMA_I_LOOP_32_ROW(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        // Remainder kernel: use masked loads.
+        for (int h = 0; h < (k >> 1); h++) {
+            for (int hh = 0; hh < 2; hh++) {
+                if (irem > lid) a[hh].s0 = A_cols[hh][lid];
+                if (irem > (lid + 16)) a[hh].s1 = A_cols[hh][lid + 16];
+                A_cols[hh] += (lda << 1);
+            }
+
+            if (jrem > 0) b.s01 = vload2(0, B);
+            B += 2;
+
+            FMA_I_LOOP_32_ROW(0);
+            FMA_I_LOOP_32_ROW(1);
+        }
+
+        if (k & 1) {
+            if (irem > lid) a[0].s0 = A_cols[0][lid];
+            if (irem > (lid + 16)) a[0].s1 = A_cols[0][lid + 16];
+
+            if (jrem > 0) b = *B;
+
+            FMA_I_LOOP_32_ROW(0);
+        }
     }
-
-    int krem = k & 3;
-    if (krem > 0) {
-        // Load A
-        for (int j = 0; j < 4; j++)
-            a[j] = as_float2(
-                    intel_sub_group_block_read2((global uint *)A_cols[j]));
-
-        // Load B
-        b = vload4(0, B);
-
-        FMA_I_LOOP_32_ROW(0);
-        if (krem > 1) FMA_I_LOOP_32_ROW(1);
-        if (krem > 2) FMA_I_LOOP_32_ROW(2);
-    }
+#endif /* ALLOW_READ_OVERRUNS */
 
     // Update C.
     if (beta == 0)
@@ -307,12 +338,16 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta) {
+
+    // clang-format off
     float2 a[2]; // 32 x 2  block of A, 2x 32x1 block accesses   [col major]
-    float b[2]; // 2  x 16 block of B, 2x 1x16 block accesses   [row major]
+    float b[2];  // 2  x 16 block of B, 2x 1x16 block accesses   [row major]
     float4 c[8]; // 32 x 16 block of C, 8x 4x16 scattered access [row major]
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 32;
     int j0 = idN;
@@ -323,7 +358,7 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
     if (jrem < 0) jrem = 0;
 
     A += offset_a + i0;
-    B += offset_b + j0;
+    B += offset_b + sub_group_broadcast(j0, 0);
     C += offset_c + i0 + j0 * ldc;
 
     global float *A_cols[2] = {A, A + lda};
@@ -335,36 +370,71 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
     for (int z = 0; z < 8; z++)
         c[z] = 0.f;
 
-    for (int h = 0; h < (k >> 1); h++) {
-        // Load A
-        for (int j = 0; j < 2; j++) {
-            a[j] = as_float2(
-                    intel_sub_group_block_read2((global uint *)A_cols[j]));
-            A_cols[j] += ldax2;
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 16) {
+#endif
+        for (int h = 0; h < (k >> 1); h++) {
+            // Load A
+            for (int hh = 0; hh < 2; hh++) {
+                a[hh] = as_float2(
+                        intel_sub_group_block_read2((global uint *)A_cols[hh]));
+                A_cols[hh] += ldax2;
+            }
+
+            // Load B
+            for (int hh = 0; hh < 2; hh++) {
+                b[hh] = as_float(
+                        intel_sub_group_block_read((global uint *)B_rows[hh]));
+                B_rows[hh] += ldbx2;
+            }
+
+            // FMAs
+            FMA_I_LOOP_32_ROW(0);
+            FMA_I_LOOP_32_ROW(1);
         }
 
-        // Load B
-        for (int i = 0; i < 2; i++) {
-            b[i] = as_float(
-                    intel_sub_group_block_read((global uint *)B_rows[i]));
-            B_rows[i] += ldbx2;
+        int krem = k & 1;
+        if (krem > 0) {
+            a[0] = as_float2(
+                    intel_sub_group_block_read2((global uint *)A_cols[0]));
+            b[0] = as_float(
+                    intel_sub_group_block_read((global uint *)B_rows[0]));
+
+            FMA_I_LOOP_32_ROW(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        // Remainder kernel
+        for (int h = 0; h < (k >> 1); h++) {
+            // Load A
+            for (int hh = 0; hh < 2; hh++) {
+                if (irem > lid) a[hh].s0 = A_cols[hh][lid];
+                if (irem > (lid + 16)) a[hh].s1 = A_cols[hh][lid + 16];
+                A_cols[hh] += ldax2;
+            }
+
+            // Load B
+            for (int hh = 0; hh < 2; hh++) {
+                if (jrem > 0) b[hh] = B_rows[hh][lid];
+                B_rows[hh] += ldbx2;
+            }
+
+            // FMAs
+            FMA_I_LOOP_32_ROW(0);
+            FMA_I_LOOP_32_ROW(1);
         }
 
-        // FMAs
-        FMA_I_LOOP_32_ROW(0);
-        FMA_I_LOOP_32_ROW(1);
+        int krem = k & 1;
+        if (krem > 0) {
+            if (irem > lid) a[0].s0 = A_cols[0][lid];
+            if (irem > (lid + 16)) a[0].s1 = A_cols[0][lid + 16];
+
+            if (jrem > 0) b[0] = B_rows[0][lid];
+
+            FMA_I_LOOP_32_ROW(0);
+        }
     }
-
-    int krem = k & 1;
-    if (krem > 0) {
-        // Load A
-        a[0] = as_float2(intel_sub_group_block_read2((global uint *)A_cols[0]));
-
-        // Load B
-        b[0] = as_float(intel_sub_group_block_read((global uint *)B_rows[0]));
-
-        FMA_I_LOOP_32_ROW(0);
-    }
+#endif /* ALLOW_READ_OVERRUNS */
 
     // Update C.
     if (beta == 0)
@@ -381,26 +451,28 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta) {
-    float4 a; // 16 x 4  block of A, 1x     16x4 scattered [col major]
-    float4 b[2]; // 4  x 32 block of B, 2x     4x16 scattered [row major]
+
+    // clang-format off
+    float4 a;       // 16 x 4  block of A, 1x     16x4 scattered [col major]
+    float4 b[2];    // 4  x 32 block of B, 2x     4x16 scattered [row major]
     float4 c[4][2]; // 16 x 32 block of C, (4x2)x 4x16 scattered [row major]
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 16;
-    int j0 = ((idN & -0x10) << 1) + (idN & 0xF);
+    int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
 
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
-    A += offset_a + i0 * lda;
+    A += offset_a + (i0 + lid) * lda;
     B += offset_b + j0 * ldb;
     C += offset_c + i0 + j0 * ldc;
-
-    A += get_sub_group_local_id() * lda;
 
     global float *B_ptrs[2] = {B, B + 16 * ldb};
 
@@ -410,13 +482,13 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
 
     for (int h = 0; h < (k >> 2); h++) {
         // Load A
-        a = vload4(0, A);
+        if (irem > lid) a = vload4(0, A);
         A += 4;
 
         // Load B
-        for (int jj = 0; jj < 2; jj++) {
-            b[jj] = vload4(0, B_ptrs[jj]);
-            B_ptrs[jj] += 4;
+        for (int hh = 0; hh < 2; hh++) {
+            if (jrem > hh * 16) b[hh] = vload4(0, B_ptrs[hh]);
+            B_ptrs[hh] += 4;
         }
 
         // FMAs
@@ -427,17 +499,15 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
     }
 
     int krem = k & 3;
-    if (krem > 0) {
-        // Load A
-        a = vload4(0, A);
+    for (int h = 0; h < krem; h++) {
+        if (irem > lid) a = *A++;
 
-        // Load B
-        for (int jj = 0; jj < 2; jj++)
-            b[jj] = vload4(0, B_ptrs[jj]);
+        for (int hh = 0; hh < 2; hh++) {
+            if (jrem > hh * 16) b[hh] = *B_ptrs[hh];
+            B_ptrs[hh]++;
+        }
 
         FMA_I_LOOP_16_ROW(0);
-        if (krem > 1) FMA_I_LOOP_16_ROW(1);
-        if (krem > 2) FMA_I_LOOP_16_ROW(2);
     }
 
     // Update C.
@@ -457,26 +527,28 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta) {
-    float4 a; // 16 x 4  block of A, 1x     16x4 scattered [col major]
-    float2 b[4]; // 4  x 32 block of B, 4x     1x32 block     [row major]
+
+    // clang-format off
+    float4 a;       // 16 x 4  block of A, 1x     16x4 scattered [col major]
+    float2 b[4];    // 4  x 32 block of B, 4x     1x32 block     [row major]
     float4 c[4][2]; // 16 x 32 block of C, (4x2)x 4x16 scattered [row major]
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 16;
-    int j0 = ((idN & -0x10) * 2) + (idN & 0xF);
+    int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
 
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
-    A += offset_a + i0 * lda;
-    B += offset_b + j0;
+    A += offset_a + (i0 + lid) * lda;
+    B += offset_b + sub_group_broadcast(j0, 0);
     C += offset_c + i0 + j0 * ldc;
-
-    A += get_sub_group_local_id() * lda;
 
     global float *B_rows[4] = {B, B + ldb, B + 2 * ldb, B + 3 * ldb};
 
@@ -486,39 +558,73 @@ gen9_gemm_nocopy_f32_kernel(global float *A, global float *B, global float *C,
         for (int jj = 0; jj < 2; jj++)
             c[ii][jj] = 0.f;
 
-    for (int h = 0; h < (k >> 2); h++) {
-        // Load A
-        a = vload4(0, A);
-        A += 4;
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 16 && sub_group_broadcast(jrem, 0) >= 32) {
+#endif
+        for (int h = 0; h < (k >> 2); h++) {
+            // Load A
+            a = vload4(0, A);
+            A += 4;
 
-        // Load B
-        for (int i = 0; i < 4; i++) {
-            b[i] = as_float2(
-                    intel_sub_group_block_read2((global uint *)B_rows[i]));
-            B_rows[i] += ldbx4;
+            // Load B
+            for (int hh = 0; hh < 4; hh++) {
+                b[hh] = as_float2(
+                        intel_sub_group_block_read2((global uint *)B_rows[hh]));
+                B_rows[hh] += ldbx4;
+            }
+
+            // FMAs
+            FMA_I_LOOP_16_ROW(0);
+            FMA_I_LOOP_16_ROW(1);
+            FMA_I_LOOP_16_ROW(2);
+            FMA_I_LOOP_16_ROW(3);
         }
 
-        // FMAs
-        FMA_I_LOOP_16_ROW(0);
-        FMA_I_LOOP_16_ROW(1);
-        FMA_I_LOOP_16_ROW(2);
-        FMA_I_LOOP_16_ROW(3);
+        int krem = k & 3;
+        for (int h = 0; h < krem; h++) {
+            // Load A
+            a = *A++;
+
+            // Load B
+            b[0] = as_float2(
+                    intel_sub_group_block_read2((global uint *)B_rows[0]));
+            B_rows[0] += ldb;
+
+            FMA_I_LOOP_16_ROW(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        for (int h = 0; h < (k >> 2); h++) {
+            // Load A
+            if (irem > lid) a = vload4(0, A);
+            A += 4;
+
+            // Load B
+            for (int hh = 0; hh < 4; hh++) {
+                if (jrem > 0) b[hh].s0 = B_rows[hh][lid];
+                if (jrem > 16) b[hh].s1 = B_rows[hh][lid + 16];
+                B_rows[hh] += ldbx4;
+            }
+
+            // FMAs
+            FMA_I_LOOP_16_ROW(0);
+            FMA_I_LOOP_16_ROW(1);
+            FMA_I_LOOP_16_ROW(2);
+            FMA_I_LOOP_16_ROW(3);
+        }
+
+        int krem = k & 3;
+        for (int h = 0; h < krem; h++) {
+            if (irem > lid) a = *A++;
+
+            if (jrem > 0) b[0].s0 = B_rows[0][lid];
+            if (jrem > 16) b[0].s1 = B_rows[0][lid + 16];
+            B_rows[0] += ldb;
+
+            FMA_I_LOOP_16_ROW(0);
+        }
     }
-
-    int krem = k & 3;
-    if (krem > 0) {
-        // Load A
-        a = vload4(0, A);
-
-        // Load B
-        for (int i = 0; i < 4; i++)
-            b[i] = as_float2(
-                    intel_sub_group_block_read2((global uint *)B_rows[i]));
-
-        FMA_I_LOOP_16_ROW(0);
-        if (krem > 1) FMA_I_LOOP_16_ROW(1);
-        if (krem > 2) FMA_I_LOOP_16_ROW(2);
-    }
+#endif /* ALLOW_READ_OVERRUNS */
 
     // Update C.
     global float *C_ptrs[2] = {C, C + 16 * ldc};

@@ -261,9 +261,9 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
 
 protected:
 #ifdef _WIN32
-    bool disable_nocopy = true;
+    bool disable_superkernel = true;
 #else
-    bool disable_nocopy = false;
+    bool disable_superkernel = false;
 #endif
 
 private:
@@ -317,8 +317,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_nocopy() const {
-        if (disable_nocopy) return false;
-
         bool transa = (pd()->desc()->transa == dnnl_trans);
         bool transb = (pd()->desc()->transb == dnnl_trans);
 
@@ -349,6 +347,8 @@ private:
     }
 
     bool use_superkernel() const {
+        if (disable_superkernel) return false;
+
         if (c_type != data_type::f32) return false;
         if (a_type != c_type || b_type != c_type) return false;
 

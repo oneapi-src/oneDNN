@@ -180,20 +180,24 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half2 a[4]; // 32 x 4  block of A,      4x 32x1 block accesses
-    half4 b[2]; // 4  x 32 block of B,      2x 4x16 scattered access
+    // clang-format off
+    half2 a[4];    // 32 x 4  block of A,      4x 32x1 block accesses
+    half4 b[2];    // 4  x 32 block of B,      2x 4x16 scattered access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 32;
-    int j0 = (idN & -0x10) * 2 + (idN & 0xF);
+    int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
 
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
+    int irem2 = (irem + 1) >> 1;
 
     A += offset_a + i0;
     B += offset_b + j0 * ldb;
@@ -208,36 +212,67 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int k_align = k & ~3;
 
-    for (int h = 0; h < k_align; h += 4) {
-        // Load A
-        for (int hh = 0; hh < 4; hh++)
-            a[hh] = as_half2(intel_sub_group_block_read(
-                    (global uint *)(A_ptrs[hh] + h * lda)));
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 32) {
+#endif
+        for (int h = 0; h < k_align; h += 4) {
+            // Load A
+            for (int hh = 0; hh < 4; hh++)
+                a[hh] = as_half2(intel_sub_group_block_read(
+                        (global uint *)(A_ptrs[hh] + h * lda)));
 
-        // Load B
-        for (int j = 0; j < 2; j++)
-            b[j] = VLOAD4_ALIGNED(0, (B_ptrs[j] + h));
+            // Load B
+            for (int j = 0; j < 2; j++)
+                b[j] = VLOAD4_ALIGNED(0, (B_ptrs[j] + h));
 
-        // FMAs
-        FMA_I_LOOP(0);
-        FMA_I_LOOP(1);
-        FMA_I_LOOP(2);
-        FMA_I_LOOP(3);
+            // FMAs
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
+        }
+
+        for (int h = k_align; h < k; h++) {
+            a[0] = as_half2(intel_sub_group_block_read(
+                    (global uint *)(A_ptrs[0] + h * lda)));
+
+            for (int j = 0; j < 2; j++)
+                b[j] = B_ptrs[j][h];
+
+            FMA_I_LOOP(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        for (int h = 0; h < k_align; h += 4) {
+            // Load A. There is a read overrun here, but it won't cross a page boundary.
+            for (int hh = 0; hh < 4; hh++) {
+                if (irem2 > lid)
+                    a[hh] = as_half2(
+                            *((global uint *)(A_ptrs[hh] + h * lda) + lid));
+            }
+
+            // Load B
+            for (int j = 0; j < 2; j++)
+                if (jrem > j * 16) b[j] = VLOAD4_ALIGNED(0, (B_ptrs[j] + h));
+
+            // FMAs
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
+        }
+
+        for (int h = k_align; h < k; h++) {
+            if (irem2 > lid)
+                a[0] = as_half2(*((global uint *)(A_ptrs[0] + h * lda) + lid));
+
+            for (int j = 0; j < 2; j++)
+                if (jrem > j * 16) b[j] = B_ptrs[j][h];
+
+            FMA_I_LOOP(0);
+        }
     }
-
-    int krem = k & 3;
-    if (krem > 0) {
-        for (int hh = 0; hh < 3; hh++)
-            a[hh] = as_half2(intel_sub_group_block_read(
-                    (global uint *)(A_ptrs[hh] + k_align * lda)));
-
-        for (int j = 0; j < 2; j++)
-            b[j] = VLOAD4_ALIGNED(0, (B_ptrs[j] + k_align));
-
-        FMA_I_LOOP(0);
-        if (krem > 1) FMA_I_LOOP(1);
-        if (krem > 2) FMA_I_LOOP(2);
-    }
+#endif /* ALLOW_READ_OVERRUNS */
 
     global half *C2 = C + 16 * ldc;
 
@@ -257,21 +292,25 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half2 a[4]; // 32 x 4  block of A,      4x 32x1 block access
-    half2 b[4]; // 4  x 32 block of B,      4x 1x32 block access
+    // clang-format off
+    half2 a[4];    // 32 x 4  block of A,      4x 32x1 block access
+    half2 b[4];    // 4  x 32 block of B,      4x 1x32 block access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 32;
-    int j00 = (idN & -0x10) * 2;
-    int j0 = j00 + (idN & 0xF);
+    int j00 = sub_group_broadcast(idN, 0) * 2;
+    int j0 = j00 + lid;
 
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
+    int irem2 = (irem + 1) >> 1;
 
     A += offset_a + i0;
     B += offset_b + j00;
@@ -286,33 +325,58 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int k_align = k & ~3;
 
-    for (int h = 0; h < k_align; h += 4) {
-        for (int hh = 0; hh < 4; hh++) {
-            a[hh] = as_half2(intel_sub_group_block_read(
-                    (global uint *)(A_ptrs[hh] + h * lda)));
-            b[hh] = as_half2(intel_sub_group_block_read_us2(
-                    (global ushort *)(B_ptrs[hh] + h * ldb)));
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 32) {
+#endif
+        for (int h = 0; h < k_align; h += 4) {
+            for (int hh = 0; hh < 4; hh++) {
+                a[hh] = as_half2(intel_sub_group_block_read(
+                        (global uint *)(A_ptrs[hh] + h * lda)));
+                b[hh] = as_half2(intel_sub_group_block_read_us2(
+                        (global ushort *)(B_ptrs[hh] + h * ldb)));
+            }
+
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
         }
 
-        FMA_I_LOOP(0);
-        FMA_I_LOOP(1);
-        FMA_I_LOOP(2);
-        FMA_I_LOOP(3);
-    }
+        for (int h = k_align; h < k; h++) {
+            a[0] = as_half2(intel_sub_group_block_read(
+                    (global uint *)(A_ptrs[0] + h * lda)));
+            b[0] = as_half2(intel_sub_group_block_read_us2(
+                    (global ushort *)(B_ptrs[0] + h * ldb)));
 
-    int krem = k & 3;
-    if (krem > 0) {
-        for (int hh = 0; hh < 3; hh++) {
-            a[hh] = as_half2(intel_sub_group_block_read(
-                    (global uint *)(A_ptrs[hh] + k_align * lda)));
-            b[hh] = as_half2(intel_sub_group_block_read_us2(
-                    (global ushort *)(B_ptrs[hh] + k_align * ldb)));
+            FMA_I_LOOP(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        for (int h = 0; h < k_align; h += 4) {
+            for (int hh = 0; hh < 4; hh++) {
+                if (irem2 > lid)
+                    a[hh] = as_half2(
+                            *((global uint *)(A_ptrs[hh] + h * lda) + lid));
+                if (jrem > 0) b[hh].s0 = B_ptrs[hh][h * ldb + lid];
+                if (jrem > 16) b[hh].s1 = B_ptrs[hh][h * ldb + lid + 16];
+            }
+
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
         }
 
-        FMA_I_LOOP(0);
-        if (krem > 1) FMA_I_LOOP(1);
-        if (krem > 2) FMA_I_LOOP(2);
+        for (int h = k_align; h < k; h++) {
+            if (irem2 > lid)
+                a[0] = as_half2(*((global uint *)(A_ptrs[0] + h * lda) + lid));
+            if (jrem > 0) b[0].s0 = B_ptrs[0][h * ldb + lid];
+            if (jrem > 16) b[0].s1 = B_ptrs[0][h * ldb + lid + 16];
+
+            FMA_I_LOOP(0);
+        }
     }
+#endif /* ALLOW_READ_OVERRUNS */
 
     global half *C2 = C + 16 * ldc;
 
@@ -332,26 +396,27 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half4 a[2]; // 32 x 4  block of A,      2x 16x4 scattered access
-    half4 b[2]; // 4  x 32 block of B,      2x 4x16 scattered access
+    // clang-format off
+    half4 a[2];    // 32 x 4  block of A,      2x 16x4 scattered access
+    half4 b[2];    // 4  x 32 block of B,      2x 4x16 scattered access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 32;
-    int j0 = (idN & -0x10) * 2 + (idN & 0xF);
+    int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
 
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
-    A += offset_a + i0 * lda;
+    A += offset_a + (i0 + lid) * lda;
     B += offset_b + j0 * ldb;
     C += offset_c + i0 + j0 * ldc;
-
-    A += get_sub_group_local_id() * lda;
 
     global half *A_ptrs[2] = {A, A + 16 * lda};
     global half *B_ptrs[2] = {B, B + 16 * ldb};
@@ -362,29 +427,54 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int k_align = k & ~3;
 
-    for (int h = 0; h < k_align; h += 4) {
-        for (int z = 0; z < 2; z++) {
-            a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + h));
-            b[z] = VLOAD4_ALIGNED(0, (B_ptrs[z] + h));
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 32) {
+#endif
+        for (int h = 0; h < k_align; h += 4) {
+            for (int z = 0; z < 2; z++) {
+                a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + h));
+                b[z] = VLOAD4_ALIGNED(0, (B_ptrs[z] + h));
+            }
+
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
         }
 
-        FMA_I_LOOP(0);
-        FMA_I_LOOP(1);
-        FMA_I_LOOP(2);
-        FMA_I_LOOP(3);
-    }
+        for (int h = k_align; h < k; h++) {
+            for (int z = 0; z < 2; z++) {
+                a[z] = A_ptrs[z][h];
+                b[z] = B_ptrs[z][h];
+            }
 
-    int krem = k & 3;
-    if (krem > 0) {
-        for (int z = 0; z < 2; z++) {
-            a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + k_align));
-            b[z] = VLOAD4_ALIGNED(0, (B_ptrs[z] + k_align));
+            FMA_I_LOOP(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        for (int h = 0; h < k_align; h += 4) {
+            for (int z = 0; z < 2; z++) {
+                if (irem > (lid + z * 16))
+                    a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + h));
+                if (jrem > z * 16) b[z] = VLOAD4_ALIGNED(0, (B_ptrs[z] + h));
+            }
+
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
         }
 
-        FMA_I_LOOP(0);
-        if (krem > 1) FMA_I_LOOP(1);
-        if (krem > 2) FMA_I_LOOP(2);
+        for (int h = k_align; h < k; h++) {
+            for (int z = 0; z < 2; z++) {
+                if (irem > (lid + z * 16)) a[z] = A_ptrs[z][h];
+                if (jrem > z * 16) b[z] = B_ptrs[z][h];
+            }
+
+            FMA_I_LOOP(0);
+        }
     }
+#endif /* ALLOW_READ_OVERRUNS */
 
     global half *C2 = C + 16 * ldc;
 
@@ -404,27 +494,28 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
         int m, int n, int k, half alpha, half beta, int last_k_block,
         half eltwise_alpha, half eltwise_beta) {
 
-    half4 a[2]; // 32 x 4  block of A,      2x 16x4 scattered access
-    half2 b[4]; // 4  x 32 block of B,      4x 1x32 block access
+    // clang-format off
+    half4 a[2];    // 32 x 4  block of A,      2x 16x4 scattered access
+    half2 b[4];    // 4  x 32 block of B,      4x 1x32 block access
     half c[32][2]; // 32 x 32 block of C, (32x2)x 1x16 scattered access
+    // clang-format on
 
     int idM = get_global_id(1);
     int idN = get_global_id(0);
+    int lid = get_sub_group_local_id();
 
     int i0 = idM * 32;
-    int j00 = (idN & -0x10) * 2;
-    int j0 = j00 + (idN & 0xF);
+    int j00 = sub_group_broadcast(idN, 0) * 2;
+    int j0 = j00 + lid;
 
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
-    A += offset_a + i0 * lda;
+    A += offset_a + (i0 + lid) * lda;
     B += offset_b + j00;
     C += offset_c + i0 + j0 * ldc;
-
-    A += get_sub_group_local_id() * lda;
 
     global half *A_ptrs[2] = {A, A + 16 * lda};
     global half *B_ptrs[4] = {B, B + ldb, B + 2 * ldb, B + 3 * ldb};
@@ -435,33 +526,61 @@ gen9_gemm_nocopy_f16_kernel(global half *A, global half *B, global half *C,
 
     int k_align = k & ~3;
 
-    for (int h = 0; h < k_align; h += 4) {
-        for (int z = 0; z < 2; z++)
-            a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + h));
+#ifndef ALLOW_READ_OVERRUNS
+    if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 32) {
+#endif
+        for (int h = 0; h < k_align; h += 4) {
+            for (int z = 0; z < 2; z++)
+                a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + h));
 
-        for (int hh = 0; hh < 4; hh++)
-            b[hh] = as_half2(intel_sub_group_block_read_us2(
-                    (global ushort *)(B_ptrs[hh] + h * ldb)));
+            for (int hh = 0; hh < 4; hh++)
+                b[hh] = as_half2(intel_sub_group_block_read_us2(
+                        (global ushort *)(B_ptrs[hh] + h * ldb)));
 
-        FMA_I_LOOP(0);
-        FMA_I_LOOP(1);
-        FMA_I_LOOP(2);
-        FMA_I_LOOP(3);
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
+        }
+
+        for (int h = k_align; h < k; h++) {
+            for (int z = 0; z < 2; z++)
+                a[z] = A_ptrs[z][h];
+
+            b[0] = as_half2(intel_sub_group_block_read_us2(
+                    (global ushort *)(B_ptrs[0] + h * ldb)));
+
+            FMA_I_LOOP(0);
+        }
+#ifndef ALLOW_READ_OVERRUNS
+    } else {
+        for (int h = 0; h < k_align; h += 4) {
+            for (int z = 0; z < 2; z++)
+                if (irem > (lid + z * 16))
+                    a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + h));
+
+            for (int hh = 0; hh < 4; hh++) {
+                if (jrem > 0) b[hh].s0 = B_ptrs[hh][h * ldb + lid];
+                if (jrem > 16) b[hh].s1 = B_ptrs[hh][h * ldb + lid + 16];
+            }
+
+            FMA_I_LOOP(0);
+            FMA_I_LOOP(1);
+            FMA_I_LOOP(2);
+            FMA_I_LOOP(3);
+        }
+
+        for (int h = k_align; h < k; h++) {
+            for (int z = 0; z < 2; z++)
+                a[z] = A_ptrs[z][h];
+
+            if (jrem > 0) b[0].s0 = B_ptrs[0][h * ldb + lid];
+            if (jrem > 16) b[0].s1 = B_ptrs[0][h * ldb + lid + 16];
+
+            FMA_I_LOOP(0);
+        }
     }
-
-    int krem = k & 3;
-    if (krem > 0) {
-        for (int z = 0; z < 2; z++)
-            a[z] = VLOAD4_ALIGNED(0, (A_ptrs[z] + k_align));
-
-        for (int hh = 0; hh < 3; hh++)
-            b[hh] = as_half2(intel_sub_group_block_read_us2(
-                    (global ushort *)(B_ptrs[hh] + k_align * ldb)));
-
-        FMA_I_LOOP(0);
-        if (krem > 1) FMA_I_LOOP(1);
-        if (krem > 2) FMA_I_LOOP(2);
-    }
+#endif /* ALLOW_READ_OVERRUNS */
 
     global half *C2 = C + 16 * ldc;
 
