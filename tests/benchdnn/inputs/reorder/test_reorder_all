@@ -73,3 +73,6 @@
 3x5x7x11
 
 --batch=test_reorder_bfloat16
+
+# Run-time
+--batch=test_reorder_runtime

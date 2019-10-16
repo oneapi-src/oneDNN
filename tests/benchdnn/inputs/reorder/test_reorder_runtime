@@ -1,0 +1,79 @@
+# test for run-time specified values and dimensions
+
+# 1. testing `jit:uni`
+#    requirements: no runtime-dims, no zero-points
+
+--reset
+--runtime-dim-mask=0
+
+# f32 <-> s32 <-> s8 <-> u8
+--sdt=f32,s32,s8,u8
+--ddt=f32,s32,s8,u8
+
+--attr=oscale=per_dim_1:0.*;
+--stag=nchw,nhwc,nChw4c,nChw8c,nChw16c
+--dtag=nchw,nhwc,nChw8c,nChw16c
+2x64x3x3
+
+--attr=oscale=per_dim_0:0.*;
+--stag=oihw,hwio
+--dtag=oihw,hwio
+2x64x3x3
+
+--attr=oscale=per_dim_01:0.*;
+--stag=goihw,gOIhw16i16o
+--dtag=goihw,gOIhw16i16o
+3x32x32x2x2
+
+--attr=oscale=common:0.*;
+--stag=ncw,nwc
+--dtag=ncw,nwc
+2x8x8 # special 8x8 kernel
+
+# 2. testing `simple:any`
+#    requirements: none
+
+--reset
+--runtime-dim-mask=63 # all dims are run-time defined
+
+#
+# f32 <-> s32 <-> s8 <-> u8
+#
+--sdt=f32,s32,s8,u8
+--ddt=f32,s32,s8,u8
+
+--attr=oscale=per_dim_1:0.*;zero_points=src:1*_dst:2*;
+--stag=nchw,nhwc,nChw4c,nChw8c,nChw16c
+--dtag=nchw,nhwc,nChw8c,nChw16c
+2x64x3x3
+
+--attr=oscale=per_dim_0:0.*;zero_points=src:1_dst:2*;
+--stag=oihw,hwio
+--dtag=oihw,hwio
+2x64x3x3
+
+--attr=oscale=per_dim_01:0.*;zero_points=src:-1*_dst:2*;
+--stag=goihw,gOIhw16i16o
+--dtag=goihw,gOIhw16i16o
+3x32x32x2x2
+
+--attr=oscale=common:0.*;zero_points=src:1*_dst:2*;
+--stag=ncw,nwc
+--dtag=ncw,nwc
+2x8x8 # special 8x8 kernel
+
+# f16
+--reset
+--runtime-dim-mask=63 # all dims are run-time defined
+
+--sdt=f32 --ddt=f16
+--attr=oscale=per_dim_1:0.5*;zero_points=src:1*_dst:-2*;
+--stag=abcd,cdba
+--dtag=abcd,cdba
+3x5x7x11
+
+--sdt=f16 --ddt=f32
+--attr=oscale=per_dim_1:0.5*;zero_points=src:1*_dst:2;
+--stag=abcd,cdba
+--dtag=abcd,cdba
+3x5x7x11
