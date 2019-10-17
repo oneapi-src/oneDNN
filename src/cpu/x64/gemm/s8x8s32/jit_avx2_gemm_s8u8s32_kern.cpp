@@ -69,11 +69,16 @@ void jit_avx2_gemm_s8u8s32_kern::c_store(
 
 // Perform length-4 dot product accumulations of unsigned and signed bytes
 //  in parallel.
+// Use VEX vpdpbusd if avx2-vnni available, otherwise emulate.
 void jit_avx2_gemm_s8u8s32_kern::dot_product(
         const Xmm &dst, const Xmm &src1, const Xmm &src2) {
-    vpmaddubsw(dp_scratch_, src1, src2);
-    vpmaddwd(dp_scratch_, ones_, dp_scratch_);
-    vpaddd(dst, dst, dp_scratch_);
+    if (vnni_) {
+        vpdpbusd(dst, src1, src2, VexEncoding);
+    } else {
+        vpmaddubsw(dp_scratch_, src1, src2);
+        vpmaddwd(dp_scratch_, ones_, dp_scratch_);
+        vpaddd(dst, dst, dp_scratch_);
+    }
 }
 
 // Inner kernel.
@@ -453,9 +458,11 @@ void jit_avx2_gemm_s8u8s32_kern::generate() {
         }
     }
 
-    mov(rax, 1);
-    movq(make_xmm(ones_), rax);
-    vpbroadcastw(ones_, make_xmm(ones_));
+    if (!vnni_) {
+        mov(rax, 1);
+        movq(make_xmm(ones_), rax);
+        vpbroadcastw(ones_, make_xmm(ones_));
+    }
 
     Label outerloop_labels[8];
     Label *cur_outerloop_label = &outerloop_labels[0];
@@ -492,6 +499,7 @@ jit_avx2_gemm_s8u8s32_kern::jit_avx2_gemm_s8u8s32_kern(
     beta_zero_ = beta_zero;
     enable_offset_c_ = enable_offset_c;
     enable_offset_r_ = enable_offset_r;
+    vnni_ = mayiuse(avx2_vnni);
 
     // Assign integer registers
     M_ = is_windows ? rcx : rdi;

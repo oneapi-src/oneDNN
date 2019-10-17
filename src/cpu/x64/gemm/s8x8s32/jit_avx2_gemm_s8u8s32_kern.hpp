@@ -33,6 +33,7 @@ public:
 protected:
     bool beta_zero_;
     bool enable_offset_c_, enable_offset_r_;
+    bool vnni_;
 
     void prefetch_a(const Xbyak::Address &src) { prefetcht0(src); }
     void prefetch_b(const Xbyak::Address &src) { prefetcht0(src); }
