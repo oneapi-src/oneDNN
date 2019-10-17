@@ -29,6 +29,7 @@
 #include <sys/types.h>
 
 #include <elf.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -38,6 +39,8 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+
+#include <string>
 
 #include "linux_perf.hpp"
 #include "utils.hpp"
