@@ -34,12 +34,20 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 set_if(UNIX LIBM m)
 
-file(GLOB sources *.cpp *.c)
+file(GLOB_RECURSE sources *.cpp *.c)
 
 foreach(src ${sources})
-    get_filename_component(src_name ${src} NAME)
-    string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "^(cpu)")
+    file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
+    string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
+
+    # Put hw-specific part of the name in front.
+    # It is important for examples in subdirectories.
+    foreach(pat "cpu-" "gpu-" "cross-engine-")
+        string(REGEX REPLACE "^(.*)${pat}" "${pat}\\1"
+            example_name ${example_name})
+    endforeach()
+
+    if(${example_name} MATCHES "(cpu-)")
         # Example name contains cpu-
         register_exe(${example_name} ${src} "test" ${LIBM})
     elseif(${example_name} MATCHES "^(cross-engine|gpu)")
