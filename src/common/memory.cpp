@@ -70,7 +70,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     if (status != status::success) return;
 
     memory_storage_.reset(memory_storage_ptr);
-    zero_pad();
+    if (!(flags & omit_zero_pad)) zero_pad();
 }
 
 status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
