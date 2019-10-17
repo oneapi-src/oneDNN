@@ -293,6 +293,11 @@ void *zmalloc(size_t size, size_t align) {
     ptr = _aligned_malloc(size, align);
     int rc = ((ptr) ? 0 : errno);
 #else
+    // posix_memalign requires alignment to be
+    // a power of 2 and a multiple of sizeof(void *)
+    if (align < sizeof(void *)) align = sizeof(void *);
+    assert(((align & (align - 1)) == 0) && "align must be a power of 2");
+
     // TODO. Heuristics: Increasing the size to alignment increases
     // the stability of performance results.
     if ((bench_mode & PERF) && (size < align)) size = align;
