@@ -37,8 +37,10 @@ public:
         // Do not allocate memory if one of these is true:
         // 1) size is 0
         // 2) handle is nullptr and 'alloc' flag is not set
-        if (size == 0 || (!handle && !(flags & memory_flags_t::alloc)))
+        if (size == 0 || (!handle && !(flags & memory_flags_t::alloc))) {
+            data_ = decltype(data_)(handle, release);
             return status::success;
+        }
         if (flags & memory_flags_t::alloc) {
             void *data_ptr = malloc(size, 64);
             if (data_ptr == nullptr) return status::out_of_memory;

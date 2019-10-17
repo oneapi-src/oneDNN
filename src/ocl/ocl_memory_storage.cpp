@@ -29,8 +29,12 @@ status_t ocl_memory_storage_t::init(unsigned flags, size_t size, void *handle) {
     // Do not allocate memory if one of these is true:
     // 1) size is 0
     // 2) handle is nullptr and 'alloc' flag is not set
-    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc)))
+    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc))) {
+        if (handle != DNNL_MEMORY_ALLOCATE)
+            mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
+                    static_cast<cl_mem>(handle), true);
         return status::success;
+    }
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     cl_int err;
     if (flags & memory_flags_t::alloc) {
