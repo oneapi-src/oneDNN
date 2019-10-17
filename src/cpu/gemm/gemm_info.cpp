@@ -31,6 +31,7 @@
 #include "f32/jit_sse41_gemv_t_f32_kern.hpp"
 #include "jit_generator.hpp"
 #include "s8x8s32/common_u8.hpp"
+#include "s8x8s32/jit_avx2_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8x8s32_kern.hpp"
 
@@ -391,23 +392,13 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                                 isBeta0, doColSum, doRowSum);
                             }
                 } else if (mayiuse(avx2)) {
-                    kernel[no_beta0][no_alpha1][no_sum][no_sum]
-                            = new jit_avx2_kernel_gemm_s8u8s32_kern();
-                    kernel[no_beta0][no_alpha1][do_sum][no_sum]
-                            = new jit_avx2_kernel_c_gemm_s8u8s32_kern();
-                    kernel[no_beta0][no_alpha1][no_sum][do_sum]
-                            = new jit_avx2_kernel_r_gemm_s8u8s32_kern();
-                    kernel[no_beta0][no_alpha1][do_sum][do_sum]
-                            = new jit_avx2_kernel_b_gemm_s8u8s32_kern();
-
-                    kernel[do_beta0][no_alpha1][no_sum][no_sum]
-                            = new jit_avx2_kernel_b0_gemm_s8u8s32_kern();
-                    kernel[do_beta0][no_alpha1][do_sum][no_sum]
-                            = new jit_avx2_kernel_b0_c_gemm_s8u8s32_kern();
-                    kernel[do_beta0][no_alpha1][no_sum][do_sum]
-                            = new jit_avx2_kernel_b0_r_gemm_s8u8s32_kern();
-                    kernel[do_beta0][no_alpha1][do_sum][do_sum]
-                            = new jit_avx2_kernel_b0_b_gemm_s8u8s32_kern();
+                    for (int isBeta0 : {no_beta0, do_beta0})
+                        for (int doColSum : {no_sum, do_sum})
+                            for (int doRowSum : {no_sum, do_sum}) {
+                                kernel[isBeta0][no_alpha1][doColSum][doRowSum]
+                                        = new jit_avx2_gemm_s8u8s32_kern(
+                                                isBeta0, doColSum, doRowSum);
+                            }
                 }
                 break;
 
