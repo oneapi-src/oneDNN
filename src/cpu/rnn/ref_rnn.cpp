@@ -861,8 +861,12 @@ rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
 
     if (rnn.copy_bias) {
-        parallel_nd(rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic,
-                [&](size_t i) { scratch_bias_[i] = b_[i]; });
+        parallel_nd(rnn.n_layer * rnn.n_dir, [&](size_t i) {
+            int off = i * rnn.n_bias * rnn.dic;
+            PRAGMA_OMP_SIMD()
+            for (int j = 0; j < rnn.n_bias * rnn.dic; j++)
+                scratch_bias_[off + j] = b_[off + j];
+        });
     }
 
     for (int i = 0; i < rnn.n_layer; i++) {
