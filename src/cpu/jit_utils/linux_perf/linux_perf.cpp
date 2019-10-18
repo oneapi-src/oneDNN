@@ -311,8 +311,8 @@ private:
         if (ret >= PATH_MAX) return fail();
 
         fp_ = fopen(fname, "w+");
-        setvbuf(fp_, NULL, _IOLBF, 0); // disable line buffering
         if (!fp_) return fail();
+        setvbuf(fp_, NULL, _IOLBF, 0); // disable line buffering
 
         return true;
     }
