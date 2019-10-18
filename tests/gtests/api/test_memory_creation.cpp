@@ -178,6 +178,11 @@ TEST_F(c_api_memory_test, TestZeroPadBoom) {
     void *p = malloc(dnnl_memory_desc_get_size(&md));
     ASSERT_TRUE(p != NULL);
     ASSERT_TRUE(dnnl_success == dnnl_memory_set_data_handle(m, p)); // Boom
+
+    ASSERT_TRUE(dnnl_success == dnnl_memory_destroy(m));
+    free(p);
+
+    ASSERT_TRUE(dnnl_success == dnnl_engine_destroy(e));
 }
 
 } // namespace dnnl
