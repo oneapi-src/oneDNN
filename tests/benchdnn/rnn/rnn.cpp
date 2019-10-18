@@ -134,7 +134,8 @@ inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
     // training first in order to generate a valid workspace.
     auto fwd_prop = is_bwd ? dnnl_forward_training : dnnl_forward_inference;
     const bool is_gru_lbr = p.alg == LBR_GRU;
-    int the_stride = 1;
+    // Enable testing non trivial strides in correctness mode
+    int the_stride = (bench_mode == CORR) ? 1 : 0;
     /// @todo we need to add stride support for diff_* tensors too
     dnnl_memory_desc_t input_d, states_d, c_states_d, weights_input_d,
             weights_states_d, bias_d, dst_last_layer_d, dst_last_iteration_d,
