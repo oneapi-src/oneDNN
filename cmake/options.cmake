@@ -59,6 +59,13 @@ set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     When BUNDLE option is set DNNL will be installed as a bundle
     which contains examples and benchdnn.")
 
+set(DNNL_CODE_COVERAGE "OFF" CACHE STRING
+    "specifies which supported tool for code coverage will be used
+    Currently only gcov supported")
+if(NOT ${DNNL_CODE_COVERAGE} MATCHES "^(OFF|GCOV)$")
+    message(FATAL_ERROR "Unsupported code coverage tool: ${DNNL_CODE_COVERAGE}")
+endif()
+
 # =============
 # Optimizations
 # =============

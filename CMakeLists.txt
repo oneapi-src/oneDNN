@@ -92,6 +92,7 @@ include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
+include("cmake/coverage.cmake")
 
 # Handle cases when OpenMP runtime is requested but not found: override CPU
 # runtime to be sequential
