@@ -326,14 +326,12 @@ inline U log_bwd(T dd, T s) {
     return (U)(dd * (1.f / (float)s));
 }
 
-inline bool eltwise_fwd_preserves_zero(alg_kind_t alg, bool jit_impl = false) {
+inline bool eltwise_fwd_preserves_zero(alg_kind_t alg) {
     using namespace alg_kind;
     using namespace utils;
-    const bool preserves_zero = true
-            && !one_of(alg, eltwise_linear, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_log)
-            && IMPLICATION(jit_impl, !one_of(alg, eltwise_elu, eltwise_tanh));
-    return preserves_zero;
+    return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
+            eltwise_abs, eltwise_sqrt, eltwise_swish, eltwise_bounded_relu,
+            eltwise_gelu);
 }
 
 inline float get_bias(const char *bias, size_t offset, data_type_t data_type) {

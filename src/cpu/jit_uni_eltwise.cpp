@@ -690,6 +690,16 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
 
         L(vectorized_loop_start);
 
+        // TODO: consider improving.
+        // This piece of code is responsinble why preserve_zero function is a
+        // natural restriction of this implementation. It works with any dense
+        // and blocked layout, but the problem raises when blocking dimension
+        // is not divisible by block size. For such case, the code below should
+        // save the mask, where zero padding should be preserved and apply it
+        // on register before storing into dst memory. Until there's a
+        // restriction on certain blocked layouts, when this behavoir can be
+        // relevantly easy controlled, this will cost much from code perspective
+        // and will complicate the compute logic significantly.
         if (is_bf16()) {
             bf16_injector_->load_bf16_cvt_to_f32(vmm_src.getIdx(), reg_from);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
@@ -809,8 +819,9 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
             && utils::one_of(true, relu_ok, non_relu_ok)
             && !has_zero_dim_memory()
             && memory_desc_wrapper(src_md()).is_dense(true)
+            // refer to a comment in jit_uni_kernel_fwd why this is needed
             && IMPLICATION(!memory_desc_wrapper(src_md()).is_dense(false),
-                    math::eltwise_fwd_preserves_zero(desc()->alg_kind, true))
+                    is_zero_preserved())
             && attr()->has_default_values();
 
     return ok ? status::success : status::unimplemented;

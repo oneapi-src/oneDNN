@@ -42,13 +42,12 @@ struct cpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
         return has_padded_dst();
     }
 
-    bool wants_zero_pad_dst(bool jit_impl = true) const {
+    bool wants_zero_pad_dst() const {
         if (!has_padded_dst()) return false;
         const auto &po = attr()->post_ops_;
         int idx;
         if ((idx = po.find(primitive_kind::eltwise)) == -1) return false;
-        return !math::eltwise_fwd_preserves_zero(
-                po.entry_[idx].eltwise.alg, jit_impl);
+        return !math::eltwise_fwd_preserves_zero(po.entry_[idx].eltwise.alg);
     }
 };
 
