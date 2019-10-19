@@ -46,3 +46,6 @@
 --cfg=bf16bf16bf16,bf16bf16f32
 --attr=post_ops='sum:0.5;relu:0.5' --batch=ip_all
 --attr=post_ops='sum:0.5;tanh'     --batch=ip_all
+
+# diff mem tags
+--batch=ip_resnet50_swfmt
