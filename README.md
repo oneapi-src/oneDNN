@@ -239,12 +239,12 @@ on macOS 10.13 (High Sierra) with
   18.0 and 19.0
 
 GPU engine was validated on Ubuntu\* 18.04 with
-* GNU Compiler Collection 5.4 and 8.1
+* GNU Compiler Collection 6.1 and 8.1
 * Clang 3.8.1
 * [Intel C/C++ Compiler](https://software.intel.com/en-us/intel-parallel-studio-xe)
   19.0
 * [Intel SDK for OpenCL applications](https://software.intel.com/en-us/intel-opencl) 2019 Update 3
-* [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases) 19.15.12831
+* [Intel Graphics Compute Runtime for OpenCL](https://github.com/intel/compute-runtime/releases) 19.37.14191
 
 on Windows Server 2019 with
 * Microsoft Visual C++ 14.0 (Visual Studio 2015 Update 3)
