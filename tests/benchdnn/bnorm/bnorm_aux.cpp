@@ -47,15 +47,11 @@ flags_t str2flags(const char *str) {
 }
 
 const char *flags2str(flags_t flags) {
-    if (flags & GLOB_STATS) {
-        if (flags & USE_SCALESHIFT)
-            return flags & FUSE_NORM_RELU ? "GSR" : "GS";
-        return flags & FUSE_NORM_RELU ? "GR" : "G";
-    }
-
-    if (flags & USE_SCALESHIFT) return flags & FUSE_NORM_RELU ? "SR" : "S";
-
-    return flags & FUSE_NORM_RELU ? "R" : "";
+    std::string str;
+    if (flags & GLOB_STATS) str += "G";
+    if (flags & USE_SCALESHIFT) str += "S";
+    if (flags & FUSE_NORM_RELU) str += "R";
+    return str.c_str();
 }
 
 int str2desc(desc_t *desc, const char *str) {
