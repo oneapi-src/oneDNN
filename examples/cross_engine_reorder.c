@@ -28,15 +28,7 @@
 
 #include "dnnl.h"
 
-#define CHECK(f) \
-    do { \
-        dnnl_status_t s = f; \
-        if (s != dnnl_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s); \
-            exit(2); \
-        } \
-    } while (0)
+#include "example_utils.h"
 
 size_t product(int n_dims, const dnnl_dim_t dims[]) {
     size_t n_elems = 1;
@@ -47,30 +39,28 @@ size_t product(int n_dims, const dnnl_dim_t dims[]) {
 }
 
 void fill(dnnl_memory_t mem, int n_dims, const dnnl_dim_t dims[]) {
-    float *array;
-    CHECK(dnnl_memory_map_data(mem, (void **)&array));
-
     const size_t n_elems = product(n_dims, dims);
+    float *array = (float *)malloc(n_elems * sizeof(float));
+
     for (size_t e = 0; e < n_elems; ++e) {
         array[e] = e % 7 ? 1.0f : -1.0f;
     }
 
-    CHECK(dnnl_memory_unmap_data(mem, array));
+    write_to_dnnl_memory(array, mem);
+    free(array);
 }
 
 int find_negative(dnnl_memory_t mem, int n_dims, const dnnl_dim_t dims[]) {
-    int negs = 0;
-
-    float *array;
-    CHECK(dnnl_memory_map_data(mem, (void **)&array));
-
     const size_t n_elems = product(n_dims, dims);
+    float *array = (float *)malloc(n_elems * sizeof(float));
+    read_from_dnnl_memory(array, mem);
+
+    int negs = 0;
     for (size_t e = 0; e < n_elems; ++e) {
         negs += array[e] < 0.0f;
     }
 
-    CHECK(dnnl_memory_unmap_data(mem, array));
-
+    free(array);
     return negs;
 }
 

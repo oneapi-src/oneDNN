@@ -36,7 +36,9 @@
 /// @page cross_engine_reorder_cpp
 
 #include <iostream>
+#include <numeric>
 #include <sstream>
+#include <vector>
 
 /// @snippet cross_engine_reorder.cpp Prologue
 // [Prologue]
@@ -45,39 +47,34 @@
 // Optional header to access debug functions like `dnnl_status2str()`
 #include "dnnl_debug.h"
 
+#include "example_utils.hpp"
+
 using namespace dnnl;
 
 using namespace std;
 // [Prologue]
 
-size_t product(const memory::dims adims) {
-    size_t n_elems = 1;
-    for (size_t d = 0; d < adims.size(); ++d) {
-        n_elems *= (size_t)adims[d];
-    }
-    return n_elems;
+memory::dim product(const memory::dims &dims) {
+    return std::accumulate(dims.begin(), dims.end(), (memory::dim)1,
+            std::multiplies<memory::dim>());
 }
 
-void fill(const memory &mem, const memory::dims adims) {
-    float *array = mem.map_data<float>();
-
-    for (size_t e = 0; e < adims.size(); ++e) {
+void fill(memory &mem, const memory::dims &adims) {
+    std::vector<float> array(product(adims));
+    for (size_t e = 0; e < array.size(); ++e) {
         array[e] = e % 7 ? 1.0f : -1.0f;
     }
-
-    mem.unmap_data(array);
+    write_to_dnnl_memory(array.data(), mem);
 }
 
-int find_negative(const memory &mem, const memory::dims adims) {
+int find_negative(memory &mem, const memory::dims &adims) {
     int negs = 0;
-
-    float *array = mem.map_data<float>();
+    std::vector<float> array(product(adims));
+    read_from_dnnl_memory(array.data(), mem);
 
     for (size_t e = 0; e < adims.size(); ++e) {
         negs += array[e] < 0.0f;
     }
-
-    mem.unmap_data(array);
     return negs;
 }
 

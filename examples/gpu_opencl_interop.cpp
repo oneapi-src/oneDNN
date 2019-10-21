@@ -59,6 +59,8 @@
 #include <numeric>
 #include <sstream>
 
+#include "example_utils.hpp"
+
 using namespace dnnl;
 using namespace std;
 // [Prologue]
@@ -232,26 +234,22 @@ void gpu_opencl_interop_tutorial() {
     /// @page gpu_opencl_interop_cpp
     /// @subsection gpu_opencl_interop_cpp_sub5 Validate the results
     ///
-    /// Before running validation codes, we need to access the OpenCL memory on
-    /// the host. The simplest way to access the OpenCL memory is to map it to
-    /// the host using the dnnl::memory::map_data() and
-    /// dnnl::memory::unmap_data() APIs. After mapping, this data is directly
-    /// accessible  for reading or writing on the host.
-    /// We can run validation codes on the host accordingly. While
-    /// the data is mapped, no GPU-side operations on this data are allowed.
-    /// The data should be unmapped to release all resources associated with
-    /// mapping.
+    /// Before running validation codes, we need to copy the OpenCL memory to
+    /// the host. This can be done using OpenCL API. For convenience, we use a
+    /// utility function read_from_dnnl_memory() implementing required OpenCL API
+    /// calls. After we read the data to the host, we can run validation codes
+    /// on the host accordingly.
     /// @snippet gpu_opencl_interop.cpp Check the results
     // [Check the results]
-    float *mapped_data = mem.map_data<float>();
+    std::vector<float> mem_data(N);
+    read_from_dnnl_memory(mem_data.data(), mem);
     for (size_t i = 0; i < N; i++) {
         float expected = (i % 2) ? 0.0f : (float)i;
-        if (mapped_data[i] != expected)
+        if (mem_data[i] != expected)
             throw std::string(
                     "Unexpected output, find a negative value after the ReLU "
                     "execution");
     }
-    mem.unmap_data(mapped_data);
     // [Check the results]
 
     OCL_CHECK(clReleaseKernel(ocl_init_kernel));
