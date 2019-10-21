@@ -61,7 +61,7 @@ where:
             as an error. Default is `false`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
-            [performace report](doc/knobs_perf_report.md) for details.
+            [performance report](doc/knobs_perf_report.md) for details.
  - `DRIVER-OPTS` -- each driver has a customized list of options. Refer to
             the corresponding driver_DRIVER.md for detailed information.
  - `PROBLEM-DESCRIPTION` -- each driver requires a specific problem format.

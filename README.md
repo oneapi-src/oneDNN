@@ -103,7 +103,7 @@ DNNL is licensed under
 [Apache License Version 2.0](http://www.apache.org/licenses/LICENSE-2.0). This
 software includes the following third-party components:
 * [Xbyak](https://github.com/herumi/xbyak) distributed under
-[3-clause BSD licence](src/cpu/xbyak/COPYRIGHT)
+[3-clause BSD license](src/cpu/xbyak/COPYRIGHT)
 * [gtest](https://github.com/google/googletest) distributed under
 [3-clause BSD license](tests/gtests/gtest/LICENSE)
 * [ittnotify](https://github.com/intel/IntelSEAPI) distributed under
@@ -146,7 +146,7 @@ The library is optimized for the following GPUs:
 
 ## Requirements for Building from Source
 DNNL supports systems meeting the following requirements:
-* Operating sytem with Intel 64 architecture support
+* Operating system with Intel 64 architecture support
 * C++ compiler with C++11 standard support
 * [CMake](https://cmake.org/download/) 2.8.11 or later
 * [Doxygen](http://www.doxygen.nl/download.html#srcbin) 1.8.5 or later to build

@@ -6,7 +6,7 @@ open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
 for Intel Architecture Processors and Intel Processor Graphics.
 DNNL is intended for deep learning applications and framework
-developers intersted in improving application performance
+developers interested in improving application performance
 on Intel CPUs and GPUs.
 
 # Building and Linking

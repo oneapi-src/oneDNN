@@ -42,7 +42,7 @@ Options supported:
 | %dt%          | Bnorm, Eltwise, Lrn, Shuffle, Softmax              | Data type (precision)
 | %sdt%/%ddt%   | Concat, Reorder, Sum                               | Src/Dst data types (precision)
 | %engine%      | All                                                | Engine kind
-| %flags%       | Bnorm, Lnorn, Reorder                              | Primitive flags
+| %flags%       | Bnorm, Lnorm, Reorder                              | Primitive flags
 | %@flops%      | All with ops                                       | Ops per second (modifier extended)
 | %@freq%       | All                                                | Effective cpu frequency computed as clocks[@] / time[@]
 | %group%       | Shuffle                                            | Shuffle group
