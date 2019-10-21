@@ -1,7 +1,6 @@
 # i8
 --reset
 --mb=2
---allow-unimpl=true
 
 --attr=oscale=common:2.25;post_ops='sum:1.5;relu:0.5'
 --dir=FWD_B
