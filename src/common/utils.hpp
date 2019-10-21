@@ -24,6 +24,7 @@
 #include <cstdlib>
 
 #include <memory>
+#include <string>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #define DNNL_X86_64
