@@ -97,6 +97,7 @@ function(register_benchdnn_test name engine cmd)
         # Create non-suffixed target for compatibility
         if (engine STREQUAL "cpu")
             add_custom_target(${name} DEPENDS ${benchdnn_target})
+            maybe_configure_windows_test(${name} TARGET)
         endif()
     endif()
 endfunction()
