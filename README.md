@@ -108,7 +108,7 @@ software includes the following third-party components:
 [3-clause BSD license](tests/gtests/gtest/LICENSE)
 * [ittnotify](https://github.com/intel/IntelSEAPI) distributed under
 [3-clause BSD license](src/cpu/jit_utils/jitprofiling/LICENSE.BSD)
-* [Cmake](https://github.com/Kitware/CMake) distributed under
+* [CMake](https://github.com/Kitware/CMake) distributed under
 [3-clause BSD license](cmake/Copyright.txt)
 * [MathJax](https://github.com/mathjax/MathJax) distributed under
 [Apache License Version 2.0](doc/assets/mathjax/LICENSE)
@@ -195,7 +195,7 @@ Runtime specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
 | `DNNL_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (libiomp5.so)
 | `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.so)
-| `DNNL_GPU_RUNTIME=OCL` | any                           | Intel Graphics Compute Runtime for OpenCL (libOpenCL.so)
+| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (libOpenCL.so)
 
 #### Windows
 Common dependencies:
@@ -208,7 +208,7 @@ Runtime specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
 | `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (tbb.dll)
-| `DNNL_GPU_RUNTIME=OCL` | any                           | Intel Graphics Driver (OpenCL.dll)
+| `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (OpenCL.dll)
 
 #### macOS
 Common dependencies:
