@@ -30,7 +30,10 @@
 #include "dnnl_memory.hpp"
 #include "norm.hpp"
 
+#include "bnorm/bnorm.hpp"
 #include "lnorm/lnorm.hpp"
+
+using namespace bnorm;
 
 namespace lnorm {
 

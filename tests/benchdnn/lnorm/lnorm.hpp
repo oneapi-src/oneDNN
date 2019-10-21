@@ -31,17 +31,16 @@
 #include "dnnl_memory.hpp"
 #include "perf_report.hpp"
 
+#include "bnorm/bnorm.hpp"
+
 namespace lnorm {
 
-enum check_alg_t { ALG_0, ALG_1, ALG_AUTO };
-check_alg_t str2check_alg(const char *str);
-const char *check_alg2str(check_alg_t alg);
-
-using flags_t = unsigned;
-const flags_t GLOB_STATS = dnnl_use_global_stats;
-const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
+using check_alg_t = bnorm::check_alg_t;
+using flags_t = bnorm::flags_t;
+const flags_t GLOB_STATS = bnorm::GLOB_STATS;
+const flags_t USE_SCALESHIFT = bnorm::USE_SCALESHIFT;
+const auto flags2str = bnorm::flags2str;
 flags_t str2flags(const char *str);
-const char *flags2str(flags_t flags);
 
 struct prb_t {
     prb_t(const dims_t &dims, dnnl_format_tag_t tag, dnnl_format_tag_t stat_tag,

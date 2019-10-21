@@ -29,7 +29,10 @@
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
 
+#include "bnorm/bnorm.hpp"
 #include "lnorm/lnorm.hpp"
+
+using namespace bnorm;
 
 namespace lnorm {
 
