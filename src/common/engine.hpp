@@ -57,11 +57,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** create memory storage */
     virtual dnnl::impl::status_t create_memory_storage(
             dnnl::impl::memory_storage_t **storage, unsigned flags, size_t size,
-            size_t alignment, void *handle)
+            void *handle)
             = 0;
     dnnl::impl::status_t create_memory_storage(
-            dnnl::impl::memory_storage_t **storage, size_t size,
-            size_t alignment = 0);
+            dnnl::impl::memory_storage_t **storage, size_t size) {
+        return create_memory_storage(
+                storage, dnnl::impl::memory_flags_t::alloc, size, nullptr);
+    }
 
     /** create stream */
     virtual dnnl::impl::status_t create_stream(

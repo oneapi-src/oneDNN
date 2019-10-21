@@ -45,9 +45,9 @@ struct dnnl_memory : public dnnl::impl::c_compatible {
             const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle);
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md,
-            dnnl::impl::memory_storage_t *memory_storage,
+            std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
             bool do_zero_pad = true);
-    virtual ~dnnl_memory() {}
+    virtual ~dnnl_memory() = default;
 
     /** returns memory's engine */
     dnnl::impl::engine_t *engine() const { return engine_; }

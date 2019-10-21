@@ -17,7 +17,6 @@
 #ifndef CPU_MEMORY_STORAGE_HPP
 #define CPU_MEMORY_STORAGE_HPP
 
-#include <functional>
 #include <memory>
 
 #include "common/c_types_map.hpp"
@@ -29,21 +28,20 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-class cpu_memory_storage_t : public memory_storage_impl_t {
+class cpu_memory_storage_t : public memory_storage_t {
 public:
-    cpu_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
-            size_t alignment, void *handle)
-        : memory_storage_impl_t(engine, size) {
-        if (alignment == 0) alignment = 64;
-
-        if (size == 0 || (!handle && (flags & memory_flags_t::alloc) == 0)) {
-            return;
-        }
+    cpu_memory_storage_t(
+            engine_t *engine, unsigned flags, size_t size, void *handle)
+        : memory_storage_t(engine), data_(nullptr, release) {
+        // Do not allocate memory if one of these is true:
+        // 1) size is 0
+        // 2) handle is nullptr and 'alloc' flag is not set
+        if (size == 0 || (!handle && !(flags & memory_flags_t::alloc))) return;
         if (flags & memory_flags_t::alloc) {
-            void *data_ptr = malloc(size, (int)alignment);
-            data_ = decltype(data_)(data_ptr, [](void *ptr) { free(ptr); });
+            void *data_ptr = malloc(size, 64);
+            data_ = decltype(data_)(data_ptr, destroy);
         } else if (flags & memory_flags_t::use_runtime_ptr) {
-            data_ = decltype(data_)(handle, [](void *) {});
+            data_ = decltype(data_)(handle, release);
         }
     }
 
@@ -53,20 +51,35 @@ public:
     }
 
     virtual status_t set_data_handle(void *handle) override {
-        data_ = decltype(data_)(handle, [](void *) {});
+        data_ = decltype(data_)(handle, release);
         return status::success;
-    }
-
-    virtual uintptr_t base_offset() const override {
-        return reinterpret_cast<uintptr_t>(data_.get());
     }
 
     virtual bool is_host_accessible() const override { return true; }
 
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override {
+        void *sub_ptr = reinterpret_cast<uint8_t *>(data_.get()) + offset;
+        std::unique_ptr<memory_storage_t> sub_storage(
+                new cpu_memory_storage_t(this->engine(),
+                        memory_flags_t::use_runtime_ptr, size, sub_ptr));
+        return sub_storage;
+    }
+
+    virtual std::unique_ptr<memory_storage_t> clone() const override {
+        auto storage = new cpu_memory_storage_t(
+                engine(), memory_flags_t::use_runtime_ptr, 0, nullptr);
+        storage->data_ = decltype(data_)(data_.get(), release);
+        return std::unique_ptr<memory_storage_t>(storage);
+    }
+
 private:
-    std::unique_ptr<void, std::function<void(void *)>> data_;
+    std::unique_ptr<void, void (*)(void *)> data_;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_memory_storage_t);
+
+    static void release(void *ptr) {}
+    static void destroy(void *ptr) { free(ptr); }
 };
 
 } // namespace cpu

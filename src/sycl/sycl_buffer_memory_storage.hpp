@@ -31,8 +31,8 @@ namespace sycl {
 
 class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t {
 public:
-    sycl_buffer_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
-            size_t alignment, void *handle);
+    sycl_buffer_memory_storage_t(
+            engine_t *engine, unsigned flags, size_t size, void *handle);
 
     buffer_u8_t &buffer() const { return *buffer_; }
 
@@ -51,14 +51,21 @@ public:
         return status::success;
     }
 
+    virtual size_t base_offset() const override { return base_offset_; }
+
     virtual status_t map_data(void **mapped_ptr) const override;
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
-    virtual uintptr_t base_offset() const override { return 0; }
     virtual bool is_host_accessible() const override { return false; }
+
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override;
+
+    virtual std::unique_ptr<memory_storage_t> clone() const override;
 
 private:
     std::shared_ptr<buffer_u8_t> buffer_;
+    size_t base_offset_ = 0;
 };
 
 } // namespace sycl

@@ -33,6 +33,8 @@ struct submit_ctx_t {
     const primitive_t *prim;
     exec_ctx_t exec_ctx;
     std::vector<const memory_storage_t *> sycl_mem_storages;
+
+    submit_ctx_t(const exec_ctx_t &exec_ctx) : exec_ctx(exec_ctx) {}
 };
 
 struct thunk_params_t {

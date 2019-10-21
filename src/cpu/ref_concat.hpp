@@ -139,11 +139,12 @@ struct ref_concat_t : public primitive_impl_t {
                   };
 
         if (pd()->use_tent_dst()) {
+            using namespace memory_tracking::names;
             auto scratchpad = ctx.get_scratchpad_grantor();
-            auto tent_dst_storage = scratchpad.get_memory_storage(
-                    memory_tracking::names::key_concat_tent_dst);
+            auto tent_dst_storage
+                    = scratchpad.get_memory_storage(key_concat_tent_dst);
             memory_t tent_dst(pd()->engine(), &pd()->tent_dst_md_,
-                    tent_dst_storage, false);
+                    std::move(tent_dst_storage), false);
 
             for (int i = 0; i < n; ++i)
                 execute_reorder(reorders_[i],

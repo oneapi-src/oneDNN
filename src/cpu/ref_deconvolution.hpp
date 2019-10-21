@@ -230,7 +230,6 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
             conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
         conv_args[DNNL_ARG_DIFF_SRC] = args.at(DNNL_ARG_DST);
         if (!types::is_zero_md(pd()->scratchpad_md()))
-
             conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx, std::move(conv_args));
 

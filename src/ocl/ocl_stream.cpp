@@ -82,8 +82,7 @@ status_t ocl_stream_t::copy(
         void *src_ptr;
         src.get_data_handle(&src_ptr);
 
-        auto &ocl_dst
-                = *utils::downcast<const ocl_memory_storage_t *>(dst.impl());
+        auto &ocl_dst = *utils::downcast<const ocl_memory_storage_t *>(&dst);
         cl_mem ocl_mem = ocl_dst.mem_object();
         cl_int err = clEnqueueWriteBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
                 src_ptr, 0, nullptr, nullptr);
@@ -95,8 +94,7 @@ status_t ocl_stream_t::copy(
         void *dst_ptr;
         dst.get_data_handle(&dst_ptr);
 
-        auto &ocl_src
-                = *utils::downcast<const ocl_memory_storage_t *>(src.impl());
+        auto &ocl_src = *utils::downcast<const ocl_memory_storage_t *>(&src);
         cl_mem ocl_mem = ocl_src.mem_object();
         cl_int err = clEnqueueReadBuffer(queue(), ocl_mem, CL_TRUE, 0, size,
                 dst_ptr, 0, nullptr, nullptr);

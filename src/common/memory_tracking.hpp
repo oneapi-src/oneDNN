@@ -246,14 +246,29 @@ struct registry_t {
         if (size == 0) return;
         assert(offset_map_.count(key) == 0);
 
-        size = utils::rnd_up(size, minimal_alignment);
         alignment = nstl::max<size_t>(alignment, minimal_alignment);
-        offset_map_[key] = entry_t {size_, size, alignment};
+        assert(alignment > 0 && (alignment & (alignment - 1)) == 0);
+        size_t capacity = size + alignment;
+        offset_map_[key] = entry_t {size_, size, capacity, alignment};
 
-        size_ += size + alignment - minimal_alignment;
+        size_ += capacity;
     }
 
-    memory_storage_t *get_memory_storage(
+    void *get(const key_t &key, void *base_ptr) const {
+        if (!base_ptr) {
+            assert(size() == 0);
+            return nullptr;
+        }
+        if (offset_map_.count(key) != 1) return nullptr;
+
+        const auto &e = offset_map_.at(key);
+        char *ptr = reinterpret_cast<char *>(base_ptr) + e.offset;
+        char *aligned_ptr = utils::align_ptr<char>(ptr, e.alignment);
+        assert(aligned_ptr + e.size <= ptr + e.capacity);
+        return aligned_ptr;
+    }
+
+    std::unique_ptr<memory_storage_t> get_memory_storage(
             const key_t &key, const memory_storage_t *base_mem_storage) const {
         if (!base_mem_storage) {
             assert(size() == 0);
@@ -262,21 +277,11 @@ struct registry_t {
         if (offset_map_.count(key) != 1) return nullptr;
 
         const auto &e = offset_map_.at(key);
-
-        auto *base_ptr = reinterpret_cast<uint8_t *>(
-                base_mem_storage->base_offset() + base_mem_storage->offset());
-        auto *aligned_base_ptr = utils::align_ptr(base_ptr, minimal_alignment);
-
-        auto *ptr = static_cast<uint8_t *>(aligned_base_ptr) + e.offset;
-        auto *aligned_ptr
-                = static_cast<uint8_t *>(utils::align_ptr(ptr, e.alignment));
-
-        return new memory_storage_t(*base_mem_storage, aligned_ptr - base_ptr);
+        assert(e.offset + e.size <= size());
+        return base_mem_storage->get_sub_storage(e.offset, e.size);
     }
 
-    size_t size() const {
-        return size_ > 0 ? size_ + minimal_alignment - 1 : 0;
-    }
+    size_t size() const { return size_; }
 
     registrar_t registrar();
     grantor_t grantor(const memory_storage_t *mem_storage,
@@ -285,7 +290,7 @@ struct registry_t {
 protected:
     enum { minimal_alignment = 64 };
     struct entry_t {
-        size_t offset, size, alignment;
+        size_t offset, size, capacity, alignment;
     };
 
     std::unordered_map<key_t, entry_t> offset_map_;
@@ -326,12 +331,20 @@ struct grantor_t {
 
     template <typename T = void>
     T *get(const key_t &key) const {
-        std::unique_ptr<memory_storage_t> mem_storage(get_memory_storage(key));
-        if (!mem_storage) return nullptr;
-        return static_cast<T *>(get_host_ptr(mem_storage.get()));
+        if (!base_mem_storage_) {
+            assert(registry_.size() == 0);
+            return nullptr;
+        }
+
+        void *base_ptr = get_host_ptr(base_mem_storage_);
+        assert(base_ptr);
+        void *ptr = reinterpret_cast<char *>(base_ptr)
+                + base_mem_storage_->base_offset();
+        return (T *)registry_.get(make_key(prefix_, key), ptr);
     }
 
-    memory_storage_t *get_memory_storage(const key_t &key) const {
+    std::unique_ptr<memory_storage_t> get_memory_storage(
+            const key_t &key) const {
         return registry_.get_memory_storage(
                 make_key(prefix_, key), base_mem_storage_);
     }
@@ -352,6 +365,7 @@ inline grantor_t registry_t::grantor(
         const memory_storage_t *mem_storage, const exec_ctx_t &exec_ctx) const {
     return grantor_t(*this, mem_storage, exec_ctx);
 }
+
 } // namespace memory_tracking
 } // namespace impl
 } // namespace dnnl

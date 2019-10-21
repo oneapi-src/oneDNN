@@ -260,7 +260,7 @@ status_t memory_t::typed_zero_pad(void *ptr) const {
 }
 
 status_t memory_t::zero_pad() const {
-    return zero_pad(exec_ctx_t());
+    return zero_pad(exec_ctx_t(nullptr));
 }
 
 status_t memory_t::zero_pad(const exec_ctx_t &exec_ctx) const {

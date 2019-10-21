@@ -35,8 +35,9 @@ extern "C" void dnnl_impl_sycl_cpu_thunk(const thunk_params_t *params) {
     assert(params->size == submit_ctx->sycl_mem_storages.size());
     for (int i = 0; i < params->size; i++) {
         auto *mem_storage = submit_ctx->sycl_mem_storages[i];
-        void *ptr = reinterpret_cast<void *>(params->native_pointers[i]);
-        submit_ctx->exec_ctx.register_memory_storage_mapping(mem_storage, ptr);
+        void *handle = mem_storage->data_handle();
+        void *host_ptr = reinterpret_cast<void *>(params->native_pointers[i]);
+        submit_ctx->exec_ctx.register_memory_mapping(handle, host_ptr);
     }
 
     prim->execute(submit_ctx->exec_ctx);

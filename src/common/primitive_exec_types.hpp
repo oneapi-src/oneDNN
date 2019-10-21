@@ -24,7 +24,6 @@
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
-#include "memory_tracking.hpp"
 #include "primitive_desc.hpp"
 
 #define CTX_IN_STORAGE(arg) \
@@ -50,13 +49,13 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
 
 /** Primitive execution context (helps passing stream, memories, and events. */
 struct exec_ctx_t {
-    exec_ctx_t(stream_t *stream = nullptr) : stream_(stream) {}
+    exec_ctx_t(stream_t *stream) : stream_(stream) {}
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
         : stream_(stream), args_(std::move(args)) {}
     exec_ctx_t(const exec_ctx_t &other, exec_args_t &&args)
         : stream_(other.stream_)
         , args_(std::move(args))
-        , memory_storage_mapping_(other.memory_storage_mapping_) {}
+        , memory_mapping_(other.memory_mapping_) {}
 
     stream_t *stream() const { return stream_; }
     const exec_args_t &args() const { return args_; }
@@ -65,8 +64,8 @@ struct exec_ctx_t {
     memory_t *output(int arg) const;
     memory_t *memory(int arg) const;
 
-    void register_memory_storage_mapping(
-            const memory_storage_t *mem_storage, void *data);
+    void register_memory_mapping(void *handle, void *host_ptr);
+
     void *host_ptr(int arg) const;
     void *host_ptr(const memory_storage_t *mem_storage) const;
 
@@ -81,8 +80,7 @@ private:
     stream_t *stream_;
     exec_args_t args_;
 
-    std::unordered_map<const memory_storage_impl_t *, void *>
-            memory_storage_mapping_;
+    std::unordered_map<void *, void *> memory_mapping_;
     std::shared_ptr<memory_tracking::grantor_t> scratchpad_grantor_;
 };
 

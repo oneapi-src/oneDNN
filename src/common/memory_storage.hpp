@@ -21,7 +21,6 @@
 #include "common/utils.hpp"
 
 #include <assert.h>
-#include <memory>
 
 namespace dnnl {
 namespace impl {
@@ -32,18 +31,27 @@ namespace impl {
 //
 // Memory storage is engine-specific and has different implementations for
 // different engines.
-
-struct memory_storage_impl_t : public c_compatible {
-    memory_storage_impl_t(engine_t *engine, size_t size)
-        : engine_(engine), size_(size) {}
-    virtual ~memory_storage_impl_t() = default;
+struct memory_storage_t : public c_compatible {
+    memory_storage_t(engine_t *engine) : engine_(engine) {}
+    virtual ~memory_storage_t() = default;
 
     engine_t *engine() const { return engine_; }
 
-    size_t size() const { return size_; }
+    void *data_handle() const {
+        void *handle;
+        status_t status = get_data_handle(&handle);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+        return handle;
+    }
 
     virtual status_t get_data_handle(void **handle) const = 0;
     virtual status_t set_data_handle(void *handle) = 0;
+
+    size_t get_offset() const { return offset_; }
+    void set_offset(size_t offset) { offset_ = offset; }
+
+    virtual size_t base_offset() const { return 0; }
 
     virtual status_t map_data(void **mapped_ptr) const {
         return get_data_handle(mapped_ptr);
@@ -54,118 +62,67 @@ struct memory_storage_impl_t : public c_compatible {
         return status::success;
     }
 
-    // Offset in bytes from the "perfectly" aligned address
-    virtual uintptr_t base_offset() const = 0;
+    virtual bool is_host_accessible() const { return false; }
 
-    // True if data handle can be accessed from the host
-    virtual bool is_host_accessible() const = 0;
+    /** returns slice of memory storage
+     *
+     * @note: sub-storage lifetime shall not exceed one of the base memory storage
+     * @note: (offset + size) shall not be greater than base memory storage size */
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const = 0;
+
+    /** returns shallow copy */
+    virtual std::unique_ptr<memory_storage_t> clone() const = 0;
+
+    /** returns true if the pointer associated with the storage is NULL */
+    bool is_null() const {
+        void *ptr;
+        status_t status = get_data_handle(&ptr);
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+        return !ptr;
+    }
+
+    operator bool() const { return !is_null(); }
+
+    static memory_storage_t &empty_storage();
 
 private:
     engine_t *engine_;
-    size_t size_;
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_impl_t);
-};
-
-struct memory_storage_t : public c_compatible {
-public:
-    static memory_storage_t &empty_storage() {
-        static memory_storage_t instance;
-        return instance;
-    }
-
-    memory_storage_t(memory_storage_impl_t *impl = nullptr, size_t offset = 0)
-        : impl_(impl), offset_(offset) {}
-    memory_storage_t(const memory_storage_t &other, size_t offset)
-        : impl_(other.impl_), offset_(other.offset() + offset) {
-        assert(offset <= other.size());
-    }
-
-    engine_t *engine() const { return impl_ ? impl_->engine() : nullptr; }
-
-    memory_storage_impl_t *impl() const {
-        return impl_ ? impl_.get() : nullptr;
-    }
-
-    size_t offset() const { return offset_; }
-
-    size_t size() const { return impl_ ? (impl_->size() - offset()) : 0; }
-
-    void set_offset(size_t offset) {
-        assert(impl_);
-        offset_ = offset;
-    }
-
-    // Returns the associated data handle, offset is ignored
-    void *data_handle() const {
-        if (!impl_) return nullptr;
-
-        void *handle;
-        status_t status = impl_->get_data_handle(&handle);
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
-        return handle;
-    }
-
-    // Returns the associated data handle, offset is ignored
-    status_t get_data_handle(void **handle) const {
-        if (!impl_) return status::invalid_arguments;
-
-        return impl_->get_data_handle(handle);
-    }
-
-    // Sets the associated data handle, offset is ignored
-    status_t set_data_handle(void *handle) {
-        if (!impl_) {
-            assert(!"not expected");
-            return status::invalid_arguments;
-        }
-
-        return impl_->set_data_handle(handle);
-    }
-
-    status_t map_data(void **mapped_ptr) const {
-        if (!impl_) {
-            *mapped_ptr = nullptr;
-            return status::success;
-        }
-
-        void *ptr;
-        CHECK(impl_->map_data(&ptr));
-
-        auto *ptr_u8 = static_cast<uint8_t *>(ptr);
-        *mapped_ptr = ptr_u8 + offset();
-        return status::success;
-    }
-
-    status_t unmap_data(void *mapped_ptr) const {
-        if (!impl_) return status::success;
-
-        auto *ptr_u8 = static_cast<uint8_t *>(mapped_ptr);
-        return impl_->unmap_data(ptr_u8 - offset());
-    }
-
-    // Returns true if the pointer associated with the storage is NULL
-    bool is_null() const {
-        if (!impl_) return true;
-
-        return !data_handle();
-    }
-
-    explicit operator bool() const { return !is_null(); }
-
-    uintptr_t base_offset() const { return impl_ ? impl_->base_offset() : 0; }
-
-    bool is_host_accessible() const {
-        return impl_ ? impl_->is_host_accessible() : true;
-    }
-
-private:
-    std::shared_ptr<memory_storage_impl_t> impl_;
-    size_t offset_;
+    size_t offset_ = 0;
 
     DNNL_DISALLOW_COPY_AND_ASSIGN(memory_storage_t);
 };
+
+struct empty_memory_storage_t : public memory_storage_t {
+    empty_memory_storage_t() : memory_storage_t(nullptr) {}
+
+    virtual status_t get_data_handle(void **handle) const override {
+        *handle = nullptr;
+        return status::success;
+    }
+
+    virtual status_t set_data_handle(void *handle) override {
+        assert(!"not expected");
+        return status::runtime_error;
+    }
+
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override {
+        assert(!"not expected");
+        return nullptr;
+    }
+
+    virtual std::unique_ptr<memory_storage_t> clone() const override {
+        assert(!"not expected");
+        return nullptr;
+    }
+};
+
+inline memory_storage_t &memory_storage_t::empty_storage() {
+    static empty_memory_storage_t instance;
+    return instance;
+}
 
 } // namespace impl
 } // namespace dnnl

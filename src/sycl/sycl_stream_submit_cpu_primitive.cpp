@@ -99,8 +99,7 @@ void fast_dispatch_by_size(submit_ctx_t *submit_ctx, cl::sycl::handler &cgh,
     constexpr size_t nparams = sizeof...(storage_types);
 
     auto params_tp = std::make_tuple(
-            utils::downcast<const sycl_buffer_memory_storage_t *>(
-                    storages->impl())
+            utils::downcast<const sycl_buffer_memory_storage_t *>(storages)
                     ->buffer()...);
     submit_cpu_primitive_with_params_impl(
             submit_ctx, cgh, params_tp, nstl::make_index_sequence<nparams> {});
@@ -136,7 +135,7 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
                 // handling and can be accessed directly
                 auto mem_api_kind
                         = utils::downcast<const sycl_memory_storage_base_t *>(
-                                mem_storage->impl())
+                                mem_storage)
                                   ->memory_api_kind();
                 if (mem_api_kind == memory_api_kind_t::usm) continue;
 #endif
@@ -146,20 +145,13 @@ void submit_cpu_primitive(stream_t *stream, const primitive_t *prim,
     }
 
     // Keep unique only
-    std::sort(sycl_mem_storages.begin(), sycl_mem_storages.end(),
-            [](const memory_storage_t *lhs, const memory_storage_t *rhs) {
-                return lhs->impl() < rhs->impl();
-            });
-    auto last = std::unique(sycl_mem_storages.begin(), sycl_mem_storages.end(),
-            [](const memory_storage_t *lhs, const memory_storage_t *rhs) {
-                return lhs->impl() == rhs->impl();
-            });
+    std::sort(sycl_mem_storages.begin(), sycl_mem_storages.end());
+    auto last = std::unique(sycl_mem_storages.begin(), sycl_mem_storages.end());
     sycl_mem_storages.erase(last, sycl_mem_storages.end());
 
-    auto *submit_ctx = new submit_ctx_t();
+    auto *submit_ctx = new submit_ctx_t(exec_ctx);
     submit_ctx->stream = stream;
     submit_ctx->prim = prim;
-    submit_ctx->exec_ctx = exec_ctx;
     submit_ctx->sycl_mem_storages = sycl_mem_storages;
 
     switch (sycl_mem_storages.size()) {

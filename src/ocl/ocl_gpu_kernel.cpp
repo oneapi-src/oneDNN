@@ -51,7 +51,7 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             if (!mem_storage->is_null()) {
                 auto *ocl_mem_storage
                         = utils::downcast<const ocl_memory_storage_t *>(
-                                mem_storage->impl());
+                                mem_storage);
                 ocl_mem = ocl_mem_storage->mem_object();
             }
             set_err = clSetKernelArg(ocl_kernel_, i, sizeof(cl_mem), &ocl_mem);

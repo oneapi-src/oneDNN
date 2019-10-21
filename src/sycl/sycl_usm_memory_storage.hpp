@@ -26,7 +26,6 @@
 #include "sycl/sycl_engine_base.hpp"
 #include "sycl/sycl_memory_storage_base.hpp"
 
-#include <functional>
 #include <memory>
 #include <CL/sycl.hpp>
 
@@ -36,17 +35,14 @@ namespace sycl {
 
 class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t {
 public:
-    sycl_usm_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
-            size_t alignment, void *handle)
-        : sycl_memory_storage_base_t(engine, size) {
-        UNUSED(alignment);
-
+    sycl_usm_memory_storage_t(
+            engine_t *engine, unsigned flags, size_t size, void *handle)
+        : sycl_memory_storage_base_t(engine) {
         // Do not allocate memory if one of these is true:
         // 1) size is 0
         // 2) handle is nullptr and flags have use_runtime_ptr
-        if ((size == 0) || (!handle && (flags & memory_flags_t::alloc) == 0))
+        if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc)))
             return;
-
         if (flags & memory_flags_t::alloc) {
             auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine);
             auto &sycl_dev = sycl_engine->device();
@@ -77,11 +73,24 @@ public:
         return status::success;
     }
 
-    virtual uintptr_t base_offset() const override {
-        return reinterpret_cast<uintptr_t>(usm_ptr_.get());
+    virtual bool is_host_accessible() const override { return true; }
+
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override {
+        void *sub_ptr = usm_ptr_.get()
+                ? reinterpret_cast<uint8_t *>(usm_ptr_.get()) + offset
+                : nullptr;
+        auto storage = new sycl_usm_memory_storage_t(
+                this->engine(), memory_flags_t::use_runtime_ptr, size, sub_ptr);
+        return std::unique_ptr<memory_storage_t>(storage);
     }
 
-    virtual bool is_host_accessible() const override { return true; }
+    virtual std::unique_ptr<memory_storage_t> clone() const override {
+        auto storage = new sycl_usm_memory_storage_t(
+                engine(), memory_flags_t::use_runtime_ptr, 0, nullptr);
+        storage->usm_ptr_ = decltype(usm_ptr_)(usm_ptr_.get(), [](void *) {});
+        return std::unique_ptr<memory_storage_t>(storage);
+    }
 
 private:
     std::unique_ptr<void, std::function<void(void *)>> usm_ptr_;

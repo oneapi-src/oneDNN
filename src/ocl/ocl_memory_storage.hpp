@@ -28,10 +28,10 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-class ocl_memory_storage_t : public memory_storage_impl_t {
+class ocl_memory_storage_t : public memory_storage_t {
 public:
-    ocl_memory_storage_t(engine_t *engine, unsigned flags, size_t size,
-            size_t alignment, void *handle);
+    ocl_memory_storage_t(
+            engine_t *engine, unsigned flags, size_t size, void *handle);
 
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
@@ -47,13 +47,18 @@ public:
     virtual status_t map_data(void **mapped_ptr) const override;
     virtual status_t unmap_data(void *mapped_ptr) const override;
 
-    cl_mem mem_object() const { return mem_object_.get(); }
-
-    virtual uintptr_t base_offset() const override { return 0; }
     virtual bool is_host_accessible() const override { return false; }
+
+    virtual std::unique_ptr<memory_storage_t> get_sub_storage(
+            size_t offset, size_t size) const override;
+
+    virtual std::unique_ptr<memory_storage_t> clone() const override;
+
+    cl_mem mem_object() const { return mem_object_.get(); }
 
 private:
     ocl_utils::ocl_wrapper_t<cl_mem> mem_object_;
+
     DNNL_DISALLOW_COPY_AND_ASSIGN(ocl_memory_storage_t);
 };
 

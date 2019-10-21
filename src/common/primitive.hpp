@@ -76,9 +76,6 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     get_primitive_impl() const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
-    const dnnl::impl::memory_storage_t *scratchpad_memory_storage(
-            const dnnl::impl::exec_ctx_t &ctx) const;
-
     void retain() { counter_++; }
 
     void release() {
@@ -91,8 +88,7 @@ protected:
 private:
     std::atomic<int> counter_;
     std::shared_ptr<dnnl::impl::primitive_impl_t> primitive_impl_;
-    std::unique_ptr<dnnl::impl::memory_storage_t> scratchpad_buffer_;
-    std::unique_ptr<dnnl::impl::scratchpad_t> global_scratchpad_;
+    std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
 
     dnnl_primitive() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);

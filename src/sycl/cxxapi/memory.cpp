@@ -45,21 +45,21 @@ memory::memory(with_sycl_tag, const desc &md, const engine &eng, void *handle,
             ? memory_flags_t::alloc
             : memory_flags_t::use_runtime_ptr;
 
-    memory_storage_t *mem_storage_ptr;
+    std::unique_ptr<memory_storage_t> mem_storage;
 #ifdef DNNL_SYCL_DPCPP
     if (is_usm) {
-        mem_storage_ptr = new memory_storage_t(
-                new sycl_usm_memory_storage_t(eng_c, flags, size, 0, handle));
+        mem_storage.reset(
+                new sycl_usm_memory_storage_t(eng_c, flags, size, handle));
     }
 #endif
     if (!is_usm) {
-        mem_storage_ptr = new memory_storage_t(new sycl_buffer_memory_storage_t(
-                eng_c, flags, size, 0, handle));
+        mem_storage.reset(
+                new sycl_buffer_memory_storage_t(eng_c, flags, size, handle));
     }
-    if (!mem_storage_ptr || !mem_storage_ptr->impl())
+    if (!mem_storage)
         error::wrap_c_api(status::out_of_memory, "could not create a memory");
 
-    auto *mem = new memory_t(eng_c, md_c, mem_storage_ptr, true);
+    auto *mem = new memory_t(eng_c, md_c, std::move(mem_storage), true);
     reset(mem);
 }
 

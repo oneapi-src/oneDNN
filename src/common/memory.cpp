@@ -67,7 +67,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
 
     memory_storage_t *memory_storage_ptr;
     status_t status = engine->create_memory_storage(
-            &memory_storage_ptr, flags, size, 0, handle);
+            &memory_storage_ptr, flags, size, handle);
 
     assert(status == status::success);
     MAYBE_UNUSED(status);
@@ -78,12 +78,22 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
 
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md,
-        dnnl::impl::memory_storage_t *memory_storage, bool do_zero_pad)
-    : engine_(engine)
-    , md_(*md)
-    , memory_storage_(
-              memory_storage ? memory_storage : new memory_storage_t()) {
-    if (do_zero_pad) zero_pad();
+        std::unique_ptr<dnnl::impl::memory_storage_t> &&memory_storage,
+        bool do_zero_pad)
+    : engine_(engine), md_(*md) {
+    if (memory_storage) {
+        memory_storage_ = std::move(memory_storage);
+        if (do_zero_pad) zero_pad();
+    } else {
+        memory_storage_t *memory_storage_ptr;
+        status_t status = engine->create_memory_storage(
+                &memory_storage_ptr, use_runtime_ptr, 0, nullptr);
+
+        assert(status == status::success);
+        MAYBE_UNUSED(status);
+
+        memory_storage_.reset(memory_storage_ptr);
+    }
 }
 
 status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,

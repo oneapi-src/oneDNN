@@ -115,37 +115,16 @@ status_t dnnl_primitive_destroy(primitive_t *primitive) {
 dnnl_primitive::dnnl_primitive(
         const std::shared_ptr<primitive_impl_t> &primitive_impl,
         bool use_global_scratchpad = false)
-    : counter_(1)
-    , primitive_impl_(primitive_impl)
-    , scratchpad_buffer_(nullptr)
-    , global_scratchpad_(nullptr) {
+    : counter_(1), primitive_impl_(primitive_impl), scratchpad_(nullptr) {
 
-    // GPU doesn't support scratchpad
-    if (primitive_impl_->pd()->engine()->kind() == engine_kind::cpu) {
-        const size_t scratchpad_size = primitive_impl_->pd()->scratchpad_size(
-                scratchpad_mode::library);
+    const size_t scratchpad_size
+            = primitive_impl_->pd()->scratchpad_size(scratchpad_mode::library);
 
-        if (scratchpad_size) {
-            if (use_global_scratchpad) {
-                auto *scratchpad_ptr
-                        = create_scratchpad(engine(), scratchpad_size);
-                global_scratchpad_.reset(scratchpad_ptr);
-            } else {
-                auto *mem_storage_ptr = create_scratchpad_memory_storage(
-                        engine(), scratchpad_size, 64);
-                scratchpad_buffer_.reset(mem_storage_ptr);
-            }
-        }
+    if (scratchpad_size) {
+        auto *scratchpad_ptr = create_scratchpad(
+                engine(), scratchpad_size, use_global_scratchpad);
+        scratchpad_.reset(scratchpad_ptr);
     }
-}
-
-const memory_storage_t *dnnl_primitive::scratchpad_memory_storage(
-        const exec_ctx_t &ctx) const {
-    if (pd()->attr()->scratchpad_mode_ == scratchpad_mode::user)
-        return ctx.output(DNNL_ARG_SCRATCHPAD)->memory_storage();
-
-    return global_scratchpad_ ? global_scratchpad_->get_memory_storage()
-                              : scratchpad_buffer_.get();
 }
 
 status_t dnnl_primitive::init() {
@@ -166,12 +145,20 @@ dnnl_primitive::get_primitive_impl() const {
 }
 
 status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
-    // GPU doesn't support scratchpad
-    if (primitive_impl_->pd()->engine()->kind() == engine_kind::cpu) {
-        ctx.set_scratchpad_grantor(
-                primitive_impl_->pd()->scratchpad_registry().grantor(
-                        scratchpad_memory_storage(ctx), ctx));
+    const memory_storage_t *mem_storage = nullptr;
+    if (primitive_impl_->pd()->attr()->scratchpad_mode_
+            == scratchpad_mode::user) {
+        memory_t *scratchpad_memory = ctx.output(DNNL_ARG_SCRATCHPAD);
+        mem_storage = scratchpad_memory ? scratchpad_memory->memory_storage()
+                                        : nullptr;
+    } else if (scratchpad_) {
+        mem_storage = scratchpad_->get_memory_storage();
     }
+
+    ctx.set_scratchpad_grantor(
+            primitive_impl_->pd()->scratchpad_registry().grantor(
+                    mem_storage, ctx));
+
     auto status = primitive_impl_->execute(ctx);
     return status;
 }

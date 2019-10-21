@@ -24,16 +24,14 @@
 namespace dnnl {
 namespace impl {
 
-memory_storage_t *create_scratchpad_memory_storage(
-        engine_t *engine, size_t size, size_t alignment);
-
 struct scratchpad_t {
     virtual ~scratchpad_t() {}
     virtual const memory_storage_t *get_memory_storage() const = 0;
-    //virtual char *get() const = 0;
 };
 
-scratchpad_t *create_scratchpad(engine_t *engine, size_t size);
+scratchpad_t *create_scratchpad(
+        engine_t *engine, size_t size, bool use_global_scratchpad);
+
 } // namespace impl
 } // namespace dnnl
 #endif

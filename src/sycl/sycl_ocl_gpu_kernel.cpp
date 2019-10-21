@@ -71,13 +71,12 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                         = static_cast<const memory_storage_t *>(arg.value());
                 if (*mem_storage) {
                     auto *sycl_mem_storage = utils::downcast<
-                            const sycl_memory_storage_base_t *>(
-                            mem_storage->impl());
+                            const sycl_memory_storage_base_t *>(mem_storage);
                     switch (sycl_mem_storage->memory_api_kind()) {
                         case memory_api_kind_t::buffer: {
                             auto *m = utils::downcast<
                                     const sycl_buffer_memory_storage_t *>(
-                                    mem_storage->impl());
+                                    mem_storage);
                             auto &sycl_buf = m->buffer();
                             cgh.set_arg((int)i,
                                     sycl_buf.get_access<
@@ -89,7 +88,7 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                         case memory_api_kind_t::usm: {
                             auto *m = utils::downcast<
                                     const sycl_usm_memory_storage_t *>(
-                                    mem_storage->impl());
+                                    mem_storage);
                             cgh.set_arg((int)i, m->usm_ptr());
                             break;
                         }

@@ -65,12 +65,6 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 
-status_t engine_t::create_memory_storage(
-        memory_storage_t **storage, size_t size, size_t alignment) {
-    return create_memory_storage(
-            storage, memory_flags_t::alloc, size, alignment, nullptr);
-}
-
 // XXX: allows to have threading related functions in a limited scope
 int dnnl_engine::dnnl_get_max_threads() {
     return ::dnnl_get_max_threads();

@@ -80,18 +80,18 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     dnnl_memory_desc_init_by_tag(
             &scratchpad_md, 1, scratchpad_dims, src_type, format_tag::x);
 
-    memory_storage_t *mem_storage_scratchpad = nullptr;
+    memory_storage_t *scratchpad_mem_storage = nullptr;
 
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
 
     if (pd()->rnn_conf_.use_workspace) {
-        mem_storage_scratchpad = workspace->memory_storage();
+        scratchpad_mem_storage = workspace->memory_storage();
     } else {
-        mem_storage_scratchpad = scratchpad_;
+        scratchpad_mem_storage = scratchpad_;
     }
-    memory_storage_t *mem_storage_weights = nullptr;
+    memory_storage_t *weights_mem_storage = nullptr;
     memory_t *weights = nullptr;
     exec_args_t gemm_args;
 
@@ -102,32 +102,39 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     // offsets (off_a, off_b and off_c) come by bytes
     switch (gemm_kind) {
         case gemm_iter:
-        case gemm_layer:
+        case gemm_layer: {
             weights = (gemm_kind == gemm_layer)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            mem_storage_weights = weights->memory_storage();
+            weights_mem_storage = weights->memory_storage();
 
             gemm_mem_A.reset(new memory_t(engine(), weights->md(),
-                    new memory_storage_t(*mem_storage_weights, off_a)));
+                    std::move(weights_mem_storage->clone()), false));
             gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
-                    new memory_storage_t(*mem_storage_scratchpad, off_b)));
+                    std::move(scratchpad_mem_storage->clone()), false));
             gemm_mem_C.reset(new memory_t(engine(), &scratchpad_md,
-                    new memory_storage_t(*mem_storage_scratchpad, off_c)));
-            break;
+                    std::move(scratchpad_mem_storage->clone()), false));
+            gemm_mem_A->memory_storage()->set_offset(off_a);
+            gemm_mem_B->memory_storage()->set_offset(off_b);
+            gemm_mem_C->memory_storage()->set_offset(off_c);
+        } break;
         case gemm_diff_wei_iter:
-        case gemm_diff_wei_layer:
+        case gemm_diff_wei_layer: {
             weights = (gemm_kind == gemm_diff_wei_iter)
                     ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
-            mem_storage_weights = weights->memory_storage();
+            weights_mem_storage = weights->memory_storage();
+
             gemm_mem_A.reset(new memory_t(engine(), &scratchpad_md,
-                    new memory_storage_t(*mem_storage_scratchpad, off_a)));
+                    std::move(scratchpad_mem_storage->clone()), false));
             gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
-                    new memory_storage_t(*mem_storage_scratchpad, off_b)));
+                    std::move(scratchpad_mem_storage->clone()), false));
             gemm_mem_C.reset(new memory_t(engine(), weights->md(),
-                    new memory_storage_t(*mem_storage_weights, off_c)));
-            break;
+                    std::move(weights_mem_storage->clone()), false));
+            gemm_mem_A->memory_storage()->set_offset(off_a);
+            gemm_mem_B->memory_storage()->set_offset(off_b);
+            gemm_mem_C->memory_storage()->set_offset(off_c);
+        } break;
         default: assert(!"unknown gemm_kind");
     }
 

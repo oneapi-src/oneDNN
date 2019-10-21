@@ -40,10 +40,9 @@ public:
     }
 
     virtual status_t create_memory_storage(memory_storage_t **storage,
-            unsigned flags, size_t size, size_t alignment,
-            void *handle) override {
+            unsigned flags, size_t size, void *handle) override {
         return sycl_engine_base_t::create_memory_storage(
-                storage, flags, size, alignment, handle);
+                storage, flags, size, handle);
     }
 
     virtual status_t create_stream(stream_t **stream, unsigned flags) override {

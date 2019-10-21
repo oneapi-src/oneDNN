@@ -81,10 +81,9 @@ memory_t *exec_ctx_t::memory(int arg) const {
     return ma.mem;
 }
 
-void exec_ctx_t::register_memory_storage_mapping(
-        const memory_storage_t *mem_storage, void *data) {
-    assert(memory_storage_mapping_.count(mem_storage->impl()) == 0);
-    memory_storage_mapping_.insert({mem_storage->impl(), data});
+void exec_ctx_t::register_memory_mapping(void *handle, void *host_ptr) {
+    assert(memory_mapping_.count(handle) == 0);
+    memory_mapping_.insert({handle, host_ptr});
 }
 
 void *exec_ctx_t::host_ptr(int arg) const {
@@ -96,23 +95,23 @@ void *exec_ctx_t::host_ptr(int arg) const {
 }
 
 void *exec_ctx_t::host_ptr(const memory_storage_t *mem_storage) const {
-    if (!*mem_storage) return nullptr;
+    if (!mem_storage || mem_storage->is_null()) return nullptr;
 
-    uint8_t *base_ptr = nullptr;
-    if (memory_storage_mapping_.count(mem_storage->impl()) > 0) {
-        base_ptr = static_cast<uint8_t *>(
-                memory_storage_mapping_.at(mem_storage->impl()));
+    void *handle = mem_storage->data_handle();
+    void *base_ptr = nullptr;
+    if (memory_mapping_.count(handle) > 0) {
+        base_ptr = memory_mapping_.at(handle);
     } else {
         assert(mem_storage->is_host_accessible());
-        base_ptr = static_cast<uint8_t *>(mem_storage->data_handle());
+        base_ptr = handle;
     }
-    return base_ptr + mem_storage->offset();
+    return base_ptr;
 }
 
 void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
-    if (!*storage) return nullptr;
+    if (!storage || storage->is_null()) return nullptr;
 
-    if (memory_storage_mapping_.count(storage->impl()) > 0) {
+    if (memory_mapping_.count(storage->data_handle()) > 0) {
         return host_ptr(storage);
     }
 
@@ -125,7 +124,9 @@ void *exec_ctx_t::map_memory_storage(const memory_storage_t *storage) const {
 
 void exec_ctx_t::unmap_memory_storage(
         const memory_storage_t *storage, void *mapped_ptr) const {
-    if (!*storage || memory_storage_mapping_.count(storage->impl()) > 0) return;
+    if (!storage || storage->is_null()
+            || memory_mapping_.count(storage->data_handle()) > 0)
+        return;
 
     status_t status = storage->unmap_data(mapped_ptr);
     assert(status == status::success);
@@ -134,8 +135,8 @@ void exec_ctx_t::unmap_memory_storage(
 
 void exec_ctx_t::set_scratchpad_grantor(
         const memory_tracking::grantor_t &scratchpad_grantor) {
-    scratchpad_grantor_ = utils::make_unique<memory_tracking::grantor_t>(
-            scratchpad_grantor);
+    scratchpad_grantor_
+            = std::make_shared<memory_tracking::grantor_t>(scratchpad_grantor);
 }
 
 const memory_tracking::grantor_t &exec_ctx_t::get_scratchpad_grantor() const {
