@@ -83,8 +83,5 @@ list(APPEND SOURCES ${kernel_list_src})
 
 set(OBJ_LIB ${LIB_NAME}_ocl)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
-set_target_properties(${OBJ_LIB} PROPERTIES COMPILE_FLAGS "${DNNL_ARCH_OPT_FLAGS}")
-target_link_libraries_build(${OBJ_LIB}
-    "${EXTRA_SHARED_LIBS};${EXTRA_STATIC_LIBS}")
 set(${LIB_NAME}_SUB_OBJS ${${LIB_NAME}_SUB_OBJS}
     $<TARGET_OBJECTS:${OBJ_LIB}> PARENT_SCOPE)

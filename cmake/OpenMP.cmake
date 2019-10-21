@@ -21,7 +21,7 @@ if(OpenMP_cmake_included)
     return()
 endif()
 set(OpenMP_cmake_included true)
-include(Threading)
+include("cmake/Threading.cmake")
 
 if (APPLE AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # OSX Clang doesn't have OpenMP by default.

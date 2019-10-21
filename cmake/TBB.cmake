@@ -21,7 +21,7 @@ if(TBB_cmake_included)
     return()
 endif()
 set(TBB_cmake_included true)
-include(Threading)
+include("cmake/Threading.cmake")
 
 if(NOT DNNL_CPU_THREADING_RUNTIME STREQUAL "TBB")
     return()

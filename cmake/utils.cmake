@@ -21,7 +21,7 @@ if(utils_cmake_included)
     return()
 endif()
 set(utils_cmake_included true)
-include(options)
+include("cmake/options.cmake")
 
 # Common configuration for tests / test cases on Windows
 function(maybe_configure_windows_test name kind)
