@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BLAS_STRUCTURE_HPP
-#define BLAS_STRUCTURE_HPP
+#ifndef GEMM_INFO_HPP
+#define GEMM_INFO_HPP
 
 #include <cstdint>
 #include <memory>
@@ -123,4 +123,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // BLAS_STRUCTURE_HPP
+#endif // GEMM_INFO_HPP

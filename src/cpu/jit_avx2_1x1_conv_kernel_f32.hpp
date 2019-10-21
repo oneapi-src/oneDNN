@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX2_1x1_CONV_KERNEL_F32_HPP
-#define JIT_AVX2_1x1_CONV_KERNEL_F32_HPP
+#ifndef JIT_AVX2_1X1_CONV_KERNEL_F32_HPP
+#define JIT_AVX2_1X1_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"

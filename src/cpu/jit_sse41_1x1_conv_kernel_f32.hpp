@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_SSE41_1x1_CONV_KERNEL_F32_HPP
-#define JIT_SSE41_1x1_CONV_KERNEL_F32_HPP
+#ifndef JIT_SSE41_1X1_CONV_KERNEL_F32_HPP
+#define JIT_SSE41_1X1_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"

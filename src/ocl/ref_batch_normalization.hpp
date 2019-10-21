@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_REF_BATCH_NORMALIZATION_FWD_HPP
-#define OCL_REF_BATCH_NORMALIZATION_FWD_HPP
+#ifndef OCL_REF_BATCH_NORMALIZATION_HPP
+#define OCL_REF_BATCH_NORMALIZATION_HPP
 
 #include <assert.h>
 

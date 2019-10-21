@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_DW_CONV_KERNEL_BF16_HPP
-#define JIT_AVX512_DW_CONV_KERNEL_BF16_HPP
+#ifndef JIT_AVX512_CORE_BF16_DW_CONV_KERNEL_HPP
+#define JIT_AVX512_CORE_BF16_DW_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SIMPLE_LAYER_NORMALIZATION_HPP
-#define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
+#ifndef CPU_JIT_UNI_LAYER_NORMALIZATION_HPP
+#define CPU_JIT_UNI_LAYER_NORMALIZATION_HPP
 
 #include "cpu_layer_normalization_pd.hpp"
 #include "dnnl_thread.hpp"

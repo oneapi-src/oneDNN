@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_GENERATOR_HPP
-#define CPU_JIT_AVX2_GENERATOR_HPP
+#ifndef CPU_JIT_GENERATOR_HPP
+#define CPU_JIT_GENERATOR_HPP
 
 #include <limits.h>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef _JIT_UNI_REORDER_HPP
-#define _JIT_UNI_REORDER_HPP
+#ifndef JIT_UNI_REORDER_HPP
+#define JIT_UNI_REORDER_HPP
 
 #include <assert.h>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GRU_CELL_POSTGEMM_PART2
-#define CPU_JIT_GRU_CELL_POSTGEMM_PART2
+#ifndef CPU_JIT_UNI_GRU_CELL_POSTGEMM_2_HPP
+#define CPU_JIT_UNI_GRU_CELL_POSTGEMM_2_HPP
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 

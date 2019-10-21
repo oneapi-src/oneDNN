@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_CONVOLUTION_FWD_PD_HPP
-#define OCL_CONVOLUTION_FWD_PD_HPP
+#ifndef OCL_CONVOLUTION_PD_HPP
+#define OCL_CONVOLUTION_PD_HPP
 
 #include <assert.h>
 

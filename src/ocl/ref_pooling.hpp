@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_ref_POOLING_HPP
-#define OCL_ref_POOLING_HPP
+#ifndef OCL_REF_POOLING_HPP
+#define OCL_REF_POOLING_HPP
 
 #include <assert.h>
 

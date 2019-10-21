@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef OCL_KERNEL_LIST_HPP
+#define OCL_KERNEL_LIST_HPP
+
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -23,3 +26,5 @@ const char *get_ocl_kernel_source(const char *kernel_name);
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl
+
+#endif

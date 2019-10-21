@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_F32_WINO_CONV_4x3_KERNEL_HPP
-#define JIT_AVX512_CORE_F32_WINO_CONV_4x3_KERNEL_HPP
+#ifndef JIT_AVX512_CORE_F32_WINO_CONV_4X3_KERNEL_HPP
+#define JIT_AVX512_CORE_F32_WINO_CONV_4X3_KERNEL_HPP
 
 #include "c_types_map.hpp"
 

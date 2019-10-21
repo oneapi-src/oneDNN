@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TYPE_MAPPING_HPP
-#define TYPE_MAPPING_HPP
+#ifndef C_TYPES_MAP_HPP
+#define C_TYPES_MAP_HPP
 
 #include "dnnl_types.h"
 #include "gemm_types.hpp"

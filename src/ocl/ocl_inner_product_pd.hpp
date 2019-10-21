@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_INNER_PRODUCT_FWD_PD_HPP
-#define OCL_INNER_PRODUCT_FWD_PD_HPP
+#ifndef OCL_INNER_PRODUCT_PD_HPP
+#define OCL_INNER_PRODUCT_PD_HPP
 
 #include <assert.h>
 

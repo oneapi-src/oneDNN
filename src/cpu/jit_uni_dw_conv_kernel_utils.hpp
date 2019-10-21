@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UNI_DW_CONVOLUTION_UTILS_HPP
-#define JIT_UNI_DW_CONVOLUTION_UTILS_HPP
+#ifndef JIT_UNI_DW_CONV_KERNEL_UTILS_HPP
+#define JIT_UNI_DW_CONV_KERNEL_UTILS_HPP
 
 #include "nstl.hpp"
 #include "type_helpers.hpp"
@@ -514,4 +514,4 @@ template struct jit_uni_dw_conv_bwd_weights_kernel<sse41, data_type::f32>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-#endif /* JIT_UNI_DW_CONVOLUTION_UTILS_HPP */
+#endif /* JIT_UNI_DW_CONV_KERNEL_UTILS_HPP */

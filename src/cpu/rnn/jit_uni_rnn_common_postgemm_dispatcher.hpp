@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UNI_RNN_POSTGEMM_DISPATCHER_HPP
-#define JIT_UNI_RNN_POSTGEMM_DISPATCHER_HPP
+#ifndef CPU_JIT_UNI_RNN_COMMON_POSTGEMM_DISPATCHER_HPP
+#define CPU_JIT_UNI_RNN_COMMON_POSTGEMM_DISPATCHER_HPP
 
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"

@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef RNN_HPP
+#define RNN_HPP
+
 #include "dnnl.h"
 
 namespace dnnl {
@@ -24,3 +27,5 @@ int get_gates_count(dnnl_alg_kind_t cell_kind);
 }
 } // namespace impl
 } // namespace dnnl
+
+#endif

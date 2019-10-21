@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_SUM_HPP
-#define OCL_SUM_HPP
+#ifndef OCL_SUM_PD_HPP
+#define OCL_SUM_PD_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/sum_pd.hpp"

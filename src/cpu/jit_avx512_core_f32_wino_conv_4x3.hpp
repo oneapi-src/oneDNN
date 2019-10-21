@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_4x3_HPP
-#define CPU_JIT_AVX512_CORE_F32_WINO_CONV_4x3_HPP
+#ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_4X3_HPP
+#define CPU_JIT_AVX512_CORE_F32_WINO_CONV_4X3_HPP
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"

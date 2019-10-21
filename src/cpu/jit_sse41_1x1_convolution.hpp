@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_SSE41_1x1_CONVOLUTION_HPP
-#define CPU_JIT_SSE41_1x1_CONVOLUTION_HPP
+#ifndef CPU_JIT_SSE41_1X1_CONVOLUTION_HPP
+#define CPU_JIT_SSE41_1X1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"

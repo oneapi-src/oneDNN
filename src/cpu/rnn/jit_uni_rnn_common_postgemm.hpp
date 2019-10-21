@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_RNN_POSTGEMM
-#define CPU_JIT_RNN_POSTGEMM
+#ifndef CPU_JIT_UNI_RNN_COMMON_POSTGEMM_HPP
+#define CPU_JIT_UNI_RNN_COMMON_POSTGEMM_HPP
 
 #include "dnnl_thread.hpp"
 

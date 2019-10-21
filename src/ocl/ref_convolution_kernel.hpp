@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REF_CONV_KERNEL_HPP
-#define REF_CONV_KERNEL_HPP
+#ifndef OCL_REF_CONVOLUTION_KERNEL_HPP
+#define OCL_REF_CONVOLUTION_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "compute/compute.hpp"
