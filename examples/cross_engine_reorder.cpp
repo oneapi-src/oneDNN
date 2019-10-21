@@ -18,22 +18,11 @@
 /// @copybrief cross_engine_reorder_cpp
 /// > Annotated version: @ref cross_engine_reorder_cpp
 
-#include <iostream>
-#include <sstream>
-
-/// @page cross_engine_reorder_cpp Getting started on GPU
-/// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with DNNL.
+/// @page cross_engine_reorder_cpp Reorder between CPU and GPU engines
+/// This C++ API example demonstrates programming flow when reordering memory
+/// between CPU and GPU engines.
 ///
 /// > Example code: @ref cross_engine_reorder.cpp
-///
-///   - How to create DNNL memory objects for both GPU and CPU.
-///   - How to get data from the user's buffer into an DNNL
-///     GPU memory object.
-///   - How to get results from an DNNL GPU memory object
-///     into the user's buffer.
-///   - How to create DNNL primitives on GPU.
-///   - How to execute the primitives on GPU.
 ///
 /// @section cross_engine_reorder_cpp_headers Public headers
 ///
@@ -45,6 +34,10 @@
 /// All C++ API types and functions reside in the `dnnl` namespace.
 /// For simplicity of the example we import this namespace.
 /// @page cross_engine_reorder_cpp
+
+#include <iostream>
+#include <sstream>
+
 /// @snippet cross_engine_reorder.cpp Prologue
 // [Prologue]
 #include "dnnl.hpp"
@@ -182,7 +175,7 @@ void cross_engine_reorder_tutorial() {
     auto relu = eltwise_forward(relu_pd);
     // [Create a ReLU primitive]
 
-    /// @subsection cross_engine_reorder_cpp_sub4 Getting results from an DNNL GPU memory object
+    /// @subsection cross_engine_reorder_cpp_sub4 Getting results from a DNNL GPU memory object
     /// After the ReLU operation, users need to get data from GPU to CPU memory
     /// by reorder.
     /// @snippet cross_engine_reorder.cpp reorder gpu2cpu
@@ -214,8 +207,7 @@ void cross_engine_reorder_tutorial() {
     ///    All primitives are executed in the SAME GPU stream (the first
     ///    parameter of the `execute()` method).
     ///
-    /// Depending on the stream kind, an execution might be blocking or
-    /// non-blocking. This means that we need to call @ref
+    /// Execution is asynchronous on GPU. This means that we need to call @ref
     /// dnnl::stream::wait before accessing the results.
     ///
     /// @snippet cross_engine_reorder.cpp Execute primitives

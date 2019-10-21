@@ -19,7 +19,6 @@ on Intel CPUs and GPUs.
 
  * @ref dev_guide_basic_concepts
  * @ref getting_started_cpp
- * @ref cross_engine_reorder_cpp
  * @ref memory_format_propagation_cpp
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
@@ -31,6 +30,7 @@ on Intel CPUs and GPUs.
    * @ref dev_guide_attributes_post_ops
  * @ref dev_guide_data_types
  * @ref dev_guide_c_and_cpp_apis
+ * @ref cross_engine_reorder_cpp
 
 # Primitives
 

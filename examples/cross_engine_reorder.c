@@ -16,20 +16,10 @@
 
 /// @example cross_engine_reorder.c
 /// @copybrief cross_engine_reorder_c
-/// > Annotated version: @ref cross_engine_reorder_c
 
 /// @page cross_engine_reorder_c Reorder between CPU and GPU engines
 /// This C API example demonstrates programming flow when reordering memory
-/// between CPU and GPU engines
-///
-/// > Example code: @ref cross_engine_reorder.c
-///
-/// - How to create DNNL memory objects.
-///   - How to get data from user's buffer into an DNNL
-///     memory object.
-///   - How tensor's logical dimensions and memory object formats relate.
-/// - How to create DNNL primitives.
-/// - How to execute the primitives.
+/// between CPU and GPU engines.
 ///
 /// @include cross_engine_reorder.c
 
