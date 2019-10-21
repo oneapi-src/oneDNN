@@ -107,9 +107,6 @@ The eltwise primitive doesn't support any post-ops or attributes.
 1. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
 
-2. **GPU**
-    - No support for swish (#dnnl_eltwise_swish) operation
-
 ## Performance Tips
 
 1. For backward propagation, use the same memory format for `src`, `diff_dst`,
