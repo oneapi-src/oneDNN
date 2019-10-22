@@ -32,9 +32,9 @@ option(DNNL_VERBOSE
 
 option(DNNL_ENABLE_CONCURRENT_EXEC
     "disables sharing a common scratchpad between primitives.
-    This option must be turned on if there is a possibility of concurrent
-    execution of primitives that were created in the same thread.
-    CAUTION: enabling this option increases memory consumption"
+    This option must be turned ON if there is a possibility of executing
+    distinct primitives concurrently.
+    CAUTION: enabling this option increases memory consumption."
     OFF) # disabled by default
 
 option(DNNL_ENABLE_PRIMITIVE_CACHE "enables primitive cache.
