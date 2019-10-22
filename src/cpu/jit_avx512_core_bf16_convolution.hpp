@@ -266,10 +266,8 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
     jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd);
     ~jit_avx512_core_bf16_convolution_bwd_weights_t() {
         delete kernel_;
-#ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
         delete trans_kernel_;
         delete trans_dst_kernel_;
-#endif
         delete acc_ker_;
         delete reducer_bias_;
     }
@@ -299,10 +297,8 @@ private:
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
 
-#ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
     jit_trans_src_t *trans_kernel_;
     jit_trans_dst_t *trans_dst_kernel_;
-#endif
 };
 
 } // namespace cpu

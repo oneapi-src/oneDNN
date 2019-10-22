@@ -165,6 +165,9 @@ struct jit_conv_conf_t {
     bool signed_input;
     float wei_adj_scale;
 
+    bool uses_permw_transposition;
+    int ic_block_step;
+
     cpu_isa_t isa;
     // bf16 bwdw conv
     int tr_ow;
