@@ -1680,6 +1680,8 @@ inline bool operator!=(memory::format_tag a, dnnl_format_tag_t b) {
 
 /// @}
 
+/// @}
+
 /// @addtogroup cpp_api_primitives Primitives
 /// @{
 
@@ -1893,7 +1895,11 @@ protected:
 };
 
 /// @}
+
 /// @}
+
+/// @addtogroup cpp_api_memory_related Memory and memory related operations
+/// @{
 
 /// @addtogroup cpp_api_reorder Reorder
 /// A primitive to copy data between memory formats.
@@ -3804,7 +3810,7 @@ struct batch_normalization_backward : public primitive {
 
 /// @}
 
-/// @addtogroup cpp_api_layer_normalization layer normalization
+/// @addtogroup cpp_api_layer_normalization Layer normalization
 /// A primitive to perform layer normalization. Normalization is performed over
 /// the last logical axis of data tensor.
 ///
