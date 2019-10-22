@@ -229,6 +229,17 @@ void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
             ldc);
 }
 
+void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
+        dim_t n, dim_t k, float alpha, cl::sycl::buffer<cl::sycl::half, 1> &a,
+        dim_t offset_a, dim_t lda, cl::sycl::buffer<cl::sycl::half, 1> &b,
+        dim_t offset_b, dim_t ldb, float beta, cl::sycl::buffer<float, 1> &c,
+        dim_t offset_c, dim_t ldc) {
+    return gemm_generic<memory_api_kind_t::buffer, data_type::f16,
+            data_type::f16, data_type::f32, data_type::f32, cl::sycl::half,
+            cl::sycl::half, float>(queue, &transb, &transa, n, m, k, alpha, &b,
+            offset_b, ldb, &a, offset_a, lda, beta, &c, offset_c, ldc);
+}
+
 void DNNL_API gemm_bf16bf16bf16(cl::sycl::queue &queue, char transa,
         char transb, dim_t m, dim_t n, dim_t k, float alpha,
         cl::sycl::buffer<uint16_t, 1> &a, dim_t offset_a, dim_t lda,
@@ -268,6 +279,15 @@ void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
             data_type::f16, data_type::f16, cl::sycl::half, cl::sycl::half,
             cl::sycl::half>(queue, &transb, &transa, n, m, k, alpha, b, 0, ldb,
             a, 0, lda, beta, c, 0, ldc);
+}
+
+void DNNL_API gemm(cl::sycl::queue &queue, char transa, char transb, dim_t m,
+        dim_t n, dim_t k, float alpha, const cl::sycl::half *a, dim_t lda,
+        const cl::sycl::half *b, dim_t ldb, float beta, float *c, dim_t ldc) {
+    return gemm_generic<memory_api_kind_t::usm, data_type::f16, data_type::f16,
+            data_type::f32, data_type::f32, cl::sycl::half, cl::sycl::half,
+            float>(queue, &transb, &transa, n, m, k, alpha, b, 0, ldb, a, 0,
+            lda, beta, c, 0, ldc);
 }
 
 void DNNL_API gemm_bf16bf16bf16(cl::sycl::queue &queue, char transa,
