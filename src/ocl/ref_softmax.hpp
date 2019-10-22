@@ -72,7 +72,7 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
                 group_size = 32;
             } else if (nelems <= 2000) {
                 group_size = 64;
-            } else if (nelems <= 5000){
+            } else if (nelems <= 5000) {
                 group_size = 128;
             } else {
                 group_size = 256;
