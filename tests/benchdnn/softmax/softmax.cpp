@@ -93,8 +93,9 @@ static int init_pd(const prb_t *p, dnnl_softmax_desc_t &sd,
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
     const int f32_mant_digits = 24;
-    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(p->dt)));
-    const float trh = trh_coeff * 1e-6;
+    const float trh_coeff_dt = (1 << (f32_mant_digits - digits_dt(p->dt)));
+    const float trh_coeff_log = p->alg == LOGSOFTMAX ? 4 : 1;
+    const float trh = trh_coeff_dt * trh_coeff_log * 1e-6;
 
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
