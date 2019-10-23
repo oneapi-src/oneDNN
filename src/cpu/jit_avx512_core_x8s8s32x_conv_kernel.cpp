@@ -1092,6 +1092,23 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 / (jcp.is_depthwise ? jcp.nb_ch_blocking
                                     : jcp.nb_oc_blocking + 1);
     if (jcp.ow < jcp.ur_w) jcp.ur_w = jcp.ow;
+    // tune ur_w such that penultimate ur_w block (including ur_w_tail)
+    // does not read past the end of src
+    const int broadcast_size = 4;
+    if (jcp.ic_without_padding % broadcast_size != 0) {
+        while (jcp.ur_w > 0) {
+            int penultimate_iw_index
+                    = (jcp.ow - 1 - jcp.ow % jcp.ur_w) * jcp.stride_w
+                    + (jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad;
+            int penultimate_iw_leeway = (jcp.iw - 1 - penultimate_iw_index)
+                            * jcp.ic_without_padding
+                    + jcp.ic_without_padding % broadcast_size;
+            if (penultimate_iw_leeway >= broadcast_size) break;
+            --jcp.ur_w;
+        }
+        if (jcp.ur_w == 0) // no satisfactory ur_w could be found
+            return status::unimplemented;
+    }
     jcp.ur_w_tail = jcp.ow % jcp.ur_w;
 
     jcp.ow_block = jcp.ow;
