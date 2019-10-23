@@ -201,9 +201,9 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
     // y = y * x + p2
     h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(6));
     // y = y * x + p1
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(0));
-    // y = y * x + p0
-    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(5)); //exp(q)
+    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(5));
+    // y = y * x + 1.f
+    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(0)); //exp(q)
     // y = y * 2^n
     h->uni_vmulps(vmm_src, vmm_src, vmm_aux2);
 }
@@ -732,11 +732,11 @@ void jit_uni_eltwise_injector_f32<isa>::elu_prepare_table() {
             0x3f317218, // [3] ln2f =   0.69314718f
             0x0000007f, // [4] 0x7f
             // exp(x) polynom
-            0x3f800001, // [5] p0 = 1.0000001f
-            0x3efffe85, // [6] p2 = 0.4999887f
-            0x3e2aaa3e, // [7] p3 = 0.16666505f
-            0x3d2bb1b1, // [8] p4 = 0.041917507f
-            0x3c091ec1, // [9] p5 = 0.008369149f
+            0x3f7ffffb, // [5] p1 = 0.999999701f
+            0x3efffee3, // [6] p2 = 0.499991506f
+            0x3e2aad40, // [7] p3 = 0.166676521f
+            0x3d2b9d0d, // [8] p4 = 0.0418978221f
+            0x3c07cfce, // [9] p5 = 0.00828929059f
             0x42b17218, //[10] logf(FLT_MAX)
             0xc2aeac50, //[11] logf(FLT_MIN)
             // tanh(x) constants,
