@@ -801,6 +801,14 @@ static const union {
 /// creation time.
 #define DNNL_RUNTIME_F32_VAL (DNNL_RUNTIME_F32_VAL_REP.f)
 
+/// @cond DO_NOT_DOCUMENT_THIS
+static const int DNNL_RUNTIME_S32_VAL_REP = INT32_MIN;
+/// @endcond
+
+/// A wildcard value for int32_t values that are unknown at a primitive creation
+/// time.
+#define DNNL_RUNTIME_S32_VAL DNNL_RUNTIME_S32_VAL_REP
+
 /// A type to describe tensor dimension.
 typedef int64_t dnnl_dim_t;
 

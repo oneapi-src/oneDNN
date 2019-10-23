@@ -576,6 +576,11 @@ inline bool is_runtime_value(float val) {
     return tmp.u == DNNL_RUNTIME_F32_VAL_REP.u;
 }
 
+/** returns true if s32 value denotes DNNL_RUNTIME_S32_VAL */
+inline bool is_runtime_value(int val) {
+    return val == DNNL_RUNTIME_S32_VAL;
+}
+
 } // namespace impl
 } // namespace dnnl
 
