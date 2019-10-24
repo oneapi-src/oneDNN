@@ -158,8 +158,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                             operator with implicit conversions from bf16 to
                             float */
                             cvt_bfloat16_to_float(tmp_src + S_s,
-                                    (bfloat16_t *)src + soff + S_s,
-                                    S_chunk);
+                                    (bfloat16_t *)src + soff + S_s, S_chunk);
                             scr_fp32 = tmp_src;
                         } else {
                             scr_fp32 = reinterpret_cast<const acc_data_t *>(
@@ -201,8 +200,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                             operator with implicit conversions from bf16 to
                             float */
                             cvt_bfloat16_to_float(tmp_src + S_s,
-                                    (bfloat16_t *)src + soff + S_s,
-                                    S_chunk);
+                                    (bfloat16_t *)src + soff + S_s, S_chunk);
                             _src = tmp_src;
                         } else {
                             _src = reinterpret_cast<const acc_data_t *>(
@@ -255,8 +253,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                         operator with implicit conversions from bf16 to
                         float */
                         cvt_bfloat16_to_float(tmp_src + S_s,
-                                (bfloat16_t *)src + s_off + S_s,
-                                S_chunk);
+                                (bfloat16_t *)src + s_off + S_s, S_chunk);
                         _src = tmp_src;
                     } else {
                         _dst = reinterpret_cast<acc_data_t *>(dst + s_off);
@@ -281,9 +278,8 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                     }
                     if (d_type == bf16) {
                         // convert dst from f32 to bf16
-                        cvt_float_to_bfloat16(
-                                (bfloat16_t *)dst + s_off + S_s, _dst + S_s,
-                                S_chunk);
+                        cvt_float_to_bfloat16((bfloat16_t *)dst + s_off + S_s,
+                                _dst + S_s, S_chunk);
                     }
                 }
             }
@@ -397,15 +393,13 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         acc_data_t *tmp_diff_dst
                                 = tmp_data_ + ithr * SP_cl_align;
                         cvt_bfloat16_to_float(tmp_diff_dst + S_s,
-                                (bfloat16_t *)diff_dst + s_off + S_s,
-                                S_chunk);
+                                (bfloat16_t *)diff_dst + s_off + S_s, S_chunk);
                         _diff_dst = tmp_diff_dst;
                         // convert src from bf16 to f32
                         acc_data_t *tmp_src
                                 = tmp_data_ + (nthr + ithr) * SP_cl_align;
                         cvt_bfloat16_to_float(tmp_src + S_s,
-                                (bfloat16_t *)src + s_off + S_s,
-                                S_chunk);
+                                (bfloat16_t *)src + s_off + S_s, S_chunk);
                         _src = tmp_src;
                     } else {
                         _diff_dst = reinterpret_cast<const acc_data_t *>(
@@ -469,16 +463,14 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                         acc_data_t *tmp_diff_dst
                                 = tmp_data_ + ithr * SP_cl_align;
                         cvt_bfloat16_to_float(tmp_diff_dst + S_s,
-                                (bfloat16_t *)diff_dst + s_off + S_s,
-                                S_chunk);
+                                (bfloat16_t *)diff_dst + s_off + S_s, S_chunk);
                         _diff_dst = tmp_diff_dst;
                         if (calculate_diff_stats) {
                             // convert src from bf16 to f32
                             acc_data_t *tmp_src = tmp_data_
                                     + (2 * nthr + ithr) * SP_cl_align;
                             cvt_bfloat16_to_float(tmp_src + S_s,
-                                    (bfloat16_t *)src + s_off + S_s,
-                                    S_chunk);
+                                    (bfloat16_t *)src + s_off + S_s, S_chunk);
                             _src = tmp_src;
                         } else
                             _src = nullptr; // to avoid compiler warning w/
