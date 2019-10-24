@@ -83,13 +83,13 @@ static bool check_extreme_values(
         const prb_t *p, const float &src, const float &library_output) {
     switch (p->alg) {
         case alg_t::SQRT:
-            if (p->dir == FWD_D && src < 0) return true;
-            if (p->dir == BWD_D && src <= 0) return true;
+            if ((p->dir & FLAG_FWD) && src < 0) return true;
+            if ((p->dir & FLAG_BWD) && src <= 0) return true;
         case alg_t::LOG:
-            if (p->dir == FWD_D && src < 0) return true;
-            if (p->dir == FWD_D && src == 0 && library_output == logf(src))
+            if ((p->dir & FLAG_FWD) && src < 0) return true;
+            if ((p->dir & FLAG_FWD) && src == 0 && library_output == logf(src))
                 return true;
-            if (p->dir == BWD_D && src <= 0) return true;
+            if ((p->dir & FLAG_BWD) && src <= 0) return true;
         default: return false;
     }
 }
