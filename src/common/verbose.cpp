@@ -243,6 +243,14 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
     }
 }
 
+void flags2str(char *str, int len, int written, unsigned flags) {
+    std::string s;
+    if (flags & dnnl_use_global_stats) s += "G";
+    if (flags & dnnl_use_scaleshift) s += "S";
+    if (flags & dnnl_fuse_norm_relu) s += "R";
+    DPRINT(str, len, written, "flags:%s", s.c_str());
+}
+
 void verbose_templ(char *buffer, dnnl_engine_t engine,
         dnnl_primitive_kind_t prim_kind, const char *impl_str,
         dnnl_prop_kind_t prop_kind, const char *data_str, const char *attr_str,
@@ -276,8 +284,7 @@ static void init_info_bnorm(pd_t *s, char *buffer) {
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "flags:%u",
-            s->desc()->flags);
+    flags2str(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, s->desc()->flags);
 
     format_prb_desc_str(
             prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, s->src_md());
@@ -554,8 +561,7 @@ static void init_info_lnorm(pd_t *s, char *buffer) {
 
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
-    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "flags:%u",
-            s->desc()->flags);
+    flags2str(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, s->desc()->flags);
 
     dnnl_md2dim_str(prb_str, DNNL_VERBOSE_PRB_LEN, s->dst_md());
 
