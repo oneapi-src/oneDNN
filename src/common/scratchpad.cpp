@@ -136,7 +136,7 @@ private:
 };
 
 thread_local std::unique_ptr<memory_storage_t>
-        global_scratchpad_t::mem_storage_;
+        global_scratchpad_t::mem_storage_(nullptr);
 thread_local size_t global_scratchpad_t::size_ = 0;
 thread_local unsigned int global_scratchpad_t::reference_count_ = 0;
 
