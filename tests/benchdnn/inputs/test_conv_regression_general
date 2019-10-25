@@ -155,3 +155,9 @@ mb1_g16ic16oc16_ih5oh2kh2sh3ph0
 --dir=BWD_W mb1_ic16oc16_iw1_ow29_kw14_pw28_dw1_n"dilated_kernel_size_lt_padding"
 --cfg=bf16bf16bf16 --allow-unimpl=true
 --dir=BWD_W mb1_ic16oc16_iw1_ow29_kw14_pw28_dw1_n"dilated_kernel_size_lt_padding"
+
+# Test-case to ensure pre-condition for dispatching optimized channel blocking
+--reset
+--dir=BWD_D
+ic16ih7oc16oh5kh3ph0n"small_spatial_optimization"
+ic48ih7oc48oh5kh3ph0n"small_spatial_optimization"
