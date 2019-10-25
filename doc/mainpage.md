@@ -37,6 +37,7 @@ on Intel CPUs and GPUs.
 Compute intensive operations:
  * [(De-)Convolution](@ref dev_guide_convolution): Direct 1D/2D/3D, Winograd 2D
  * [Inner Product](@ref dev_guide_inner_product)
+ * [Matrix Multiplication](@ref dev_guide_matmul)
  * [RNN](@ref dev_guide_rnn): LSTM, Vanilla RNN, GRU
 
 Memory bandwidth limited operations:
