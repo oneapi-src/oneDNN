@@ -176,3 +176,9 @@ mb1_ic1oc16_ih124kh3oh122n"jit_reads_past_end_of_src_buffer:2"
 --cfg=u8s8u8s32
 mb1_ic1oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:3"
 mb1_ic2oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:4"
+
+# Test-case to ensure pre-condition for dispatching optimized channel blocking
+--reset
+--dir=BWD_D
+ic16ih7oc16oh5kh3ph0n"small_spatial_optimization"
+ic48ih7oc48oh5kh3ph0n"small_spatial_optimization"
