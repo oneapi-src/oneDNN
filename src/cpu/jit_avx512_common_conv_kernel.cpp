@@ -2374,7 +2374,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
     if (jcp.ver == ver_4fma) {
-        if (jcp.kw == 3 && jcp.kh == 3 && jcp.iw == 7 && jcp.ih == 7) {
+        if (jcp.kw == 3 && jcp.kh == 3 && jcp.iw == 7 && jcp.ih == 7
+                && jcp.nb_ic % 2 == 0) {
             jcp.nb_ic_blocking = 2;
         } else {
             for (int i = jcp.nb_ic; i > 0; i--)
