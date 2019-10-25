@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "example_macros.h"
 #include "mkldnn.h"
 
 #define BATCH 1
@@ -45,25 +47,6 @@
 #define POOL_OW 27
 #define POOL_STRIDE 2
 #define POOL_PAD 0
-
-#define CHECK(f) \
-    do { \
-        mkldnn_status_t s = f; \
-        if (s != mkldnn_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s); \
-            exit(2); \
-        } \
-    } while (0)
-
-#define CHECK_TRUE(expr) \
-    do { \
-        int e_ = expr; \
-        if (!e_) { \
-            printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #expr); \
-            exit(2); \
-        } \
-    } while (0)
 
 static size_t product(mkldnn_dim_t *arr, size_t size) {
     size_t prod = 1;
@@ -96,6 +79,7 @@ typedef struct {
 
 static void prepare_arg_node(args_t *node, int nargs) {
     node->args = (mkldnn_exec_arg_t *)malloc(sizeof(mkldnn_exec_arg_t) * nargs);
+    CHECK_NULL(node->args);
     node->nargs = nargs;
 }
 static void free_arg_node(args_t *node) {
@@ -177,6 +161,8 @@ mkldnn_status_t simple_net() {
 
     float *net_src = (float *)malloc(product(net_src_sizes, 4) * sizeof(float));
     float *net_dst = (float *)malloc(product(net_dst_sizes, 4) * sizeof(float));
+    CHECK_NULL(net_src);
+    CHECK_NULL(net_dst);
 
     init_net_data(net_src, 4, net_src_sizes);
     memset(net_dst, 0, product(net_dst_sizes, 4) * sizeof(float));
@@ -199,6 +185,9 @@ mkldnn_status_t simple_net() {
             product(conv_user_weights_sizes, 4) * sizeof(float));
     float *conv_bias
             = (float *)malloc(product(conv_bias_sizes, 1) * sizeof(float));
+    CHECK_NULL(conv_src);
+    CHECK_NULL(conv_weights);
+    CHECK_NULL(conv_bias);
 
     init_net_data(conv_weights, 4, conv_user_weights_sizes);
     init_net_data(conv_bias, 1, conv_bias_sizes);
@@ -449,6 +438,7 @@ mkldnn_status_t simple_net() {
     // ... user diff_data ...
     float *net_diff_dst
             = (float *)malloc(product(pool_dst_sizes, 4) * sizeof(float));
+    CHECK_NULL(net_diff_dst);
 
     init_net_data(net_diff_dst, 4, pool_dst_sizes);
 
@@ -576,6 +566,8 @@ mkldnn_status_t simple_net() {
             = (float *)malloc(product(conv_bias_sizes, 1) * sizeof(float));
     float *conv_user_diff_weights_buffer = (float *)malloc(
             product(conv_user_weights_sizes, 4) * sizeof(float));
+    CHECK_NULL(conv_diff_bias_buffer);
+    CHECK_NULL(conv_user_diff_weights_buffer);
 
     // initialize memory for diff weights in user format
     mkldnn_memory_t conv_user_diff_weights_memory;

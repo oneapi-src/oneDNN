@@ -22,26 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "example_macros.h"
 #include "mkldnn.h"
-
-#define CHECK(f) \
-    do { \
-        mkldnn_status_t s_ = f; \
-        if (s_ != mkldnn_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s_); \
-            exit(2); \
-        } \
-    } while (0)
-
-#define CHECK_TRUE(expr) \
-    do { \
-        int e_ = expr; \
-        if (!e_) { \
-            printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #expr); \
-            exit(2); \
-        } \
-    } while (0)
 
 static mkldnn_engine_kind_t parse_engine_kind(int argc, char **argv) {
     // Returns default engine kind, i.e. CPU, if none given

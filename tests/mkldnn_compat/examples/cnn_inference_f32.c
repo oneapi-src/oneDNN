@@ -46,6 +46,7 @@
 
 #include <stdlib.h>
 
+#include "example_macros.h"
 #include "example_utils.h"
 
 #define BATCH 1
@@ -76,6 +77,7 @@ typedef struct {
 
 static void prepare_arg_node(args_t *node, int nargs) {
     node->args = (mkldnn_exec_arg_t *)malloc(sizeof(mkldnn_exec_arg_t) * nargs);
+    CHECK_NULL(node->args);
     node->nargs = nargs;
 }
 static void free_arg_node(args_t *node) {
@@ -160,6 +162,9 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
     float *net_dst
             = (float *)malloc(BATCH * OC * POOL_OH * POOL_OW * sizeof(float));
 
+    CHECK_NULL(net_src);
+    CHECK_NULL(net_dst);
+
     // AlexNet: conv
     // {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, CONV_KH, CONV_KW} ->
     // {BATCH, OC, CONV_OH, CONV_OW}
@@ -176,6 +181,9 @@ mkldnn_status_t simple_net(mkldnn_engine_kind_t engine_kind) {
             product(conv_user_weights_sizes, 4) * sizeof(float));
     float *conv_bias
             = (float *)malloc(product(conv_bias_sizes, 1) * sizeof(float));
+    CHECK_NULL(conv_src);
+    CHECK_NULL(conv_weights);
+    CHECK_NULL(conv_bias);
 
     // create memory for user data
     mkldnn_memory_t conv_user_src_memory, conv_user_weights_memory,
