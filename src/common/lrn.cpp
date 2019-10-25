@@ -56,10 +56,10 @@ status_t lrn_desc_init(lrn_desc_t *lrn_desc, prop_kind_t prop_kind,
     ld.lrn_beta = beta;
     ld.lrn_k = k;
 
-    bool consistency = true && ld.data_desc.ndims == 4;
-    if (ld.prop_kind == backward_data)
-        consistency = consistency && ld.diff_data_desc.ndims == 4
-                && array_cmp(ld.diff_data_desc.dims, ld.data_desc.dims, 4);
+    bool consistency = ld.data_desc.ndims >= 2;
+    if (consistency && ld.prop_kind == backward_data)
+        consistency = array_cmp(
+                ld.diff_data_desc.dims, ld.data_desc.dims, ld.data_desc.ndims);
     if (!consistency) return invalid_arguments;
 
     *lrn_desc = ld;
