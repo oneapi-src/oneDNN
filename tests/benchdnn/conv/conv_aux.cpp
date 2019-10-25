@@ -162,7 +162,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_d) {
         if (!d.id || !d.kd) return FAIL;
         if (!d.od) {
-            d.pd = 0;
+            if (d.pd < 0) d.pd = 0;
             d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
         } else if (d.pd < 0)
             d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
@@ -171,7 +171,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
-            d.ph = 0;
+            if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(is_deconv, d.ih, d.kh, d.sh, d.ph, d.dh);
         } else if (d.ph < 0)
             d.ph = compute_pad(is_deconv, d.oh, d.ih, d.kh, d.sh, d.dh);
@@ -180,7 +180,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_w) {
         if (!d.iw || !d.kw) return FAIL;
         if (!d.ow) {
-            d.pw = 0;
+            if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(is_deconv, d.iw, d.kw, d.sw, d.pw, d.dw);
         } else if (d.pw < 0)
             d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);

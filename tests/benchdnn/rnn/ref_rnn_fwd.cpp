@@ -230,7 +230,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
             process_direction(left2right, bottom2top, 0, action_copy);
             process_direction(right2left, bottom2top, 1, action_concat);
             break;
-        default: assert("unknown direction"); break;
+        default: assert(!"unknown direction"); break;
     }
 
     delete[] ws_local_;

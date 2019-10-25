@@ -491,7 +491,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, n, c, fp, dt, diff, rel_diff);
                             break;
-                        default: assert("unknown data kind"); return FAIL;
+                        default: assert(!"unknown data kind"); return FAIL;
                     }
                 }
             }

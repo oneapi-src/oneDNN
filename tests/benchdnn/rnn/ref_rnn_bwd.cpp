@@ -253,7 +253,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
             process_direction(right2left, top2bottom, 0, action_copy);
             process_direction(left2right, top2bottom, 1, action_sum);
             break;
-        default: assert("unknown direction"); break;
+        default: assert(!"unknown direction"); break;
     }
 
     delete[] wsb_;
