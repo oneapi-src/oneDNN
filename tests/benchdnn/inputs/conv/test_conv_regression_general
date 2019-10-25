@@ -149,3 +149,9 @@ mb1_g16ic16oc16_ih1oh1kh2ph0_iw1ow1kw3pw1n"s8s8_padding:dw5"
 # Depthwise s8s8 tail processing
 --reset --allow-unimpl=true --cfg=s8s8s32
 mb1_g184ic184oc184_ih3oh3kh3sh1dh0ph1_iw3ow3kw3sw1dw0pw1
+
+# Test-case to ensure pre-condition for dispatching optimized channel blocking
+--reset
+--dir=BWD_D
+ic16ih7oc16oh5kh3ph0n"small_spatial_optimization"
+ic48ih7oc48oh5kh3ph0n"small_spatial_optimization"
