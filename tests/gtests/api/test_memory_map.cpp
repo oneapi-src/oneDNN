@@ -20,6 +20,7 @@
 #include "dnnl.h"
 
 #include <algorithm>
+#include <exception>
 #include <memory>
 #include <sstream>
 #include <vector>
@@ -91,6 +92,8 @@ TEST_P(memory_map_test_c, Map) {
     void *mapped_ptr_ref;
     DNNL_CHECK(dnnl_memory_map_data(mem_ref, &mapped_ptr_ref));
     float *mapped_ptr_ref_f32 = static_cast<float *>(mapped_ptr_ref);
+    if (!mapped_ptr_ref_f32)
+        throw std::runtime_error("mem_ref maps to nullptr");
     std::copy(buffer_ref, buffer_ref + N, mapped_ptr_ref_f32);
     DNNL_CHECK(dnnl_memory_unmap_data(mem_ref, mapped_ptr_ref));
 
@@ -115,6 +118,7 @@ TEST_P(memory_map_test_c, Map) {
     void *mapped_ptr;
     DNNL_CHECK(dnnl_memory_map_data(mem, &mapped_ptr));
     float *mapped_ptr_f32 = static_cast<float *>(mapped_ptr);
+    if (!mapped_ptr_f32) throw std::runtime_error("mem maps to nullptr");
     for (size_t i = 0; i < N; i++) {
         ASSERT_EQ(mapped_ptr_f32[i], buffer_ref[i]);
     }
@@ -145,6 +149,7 @@ TEST_P(memory_map_test_cpp, Map) {
     std::iota(buffer_ref, buffer_ref + N, 1);
 
     float *mapped_ptr_ref = mem_ref.map_data<float>();
+    if (!mapped_ptr_ref) throw std::runtime_error("mem_ref maps to nullptr");
     std::copy(buffer_ref, buffer_ref + N, mapped_ptr_ref);
     mem_ref.unmap_data(mapped_ptr_ref);
 

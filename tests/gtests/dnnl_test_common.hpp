@@ -18,6 +18,7 @@
 #define DNNL_TEST_COMMON_HPP
 
 #include <cmath>
+#include <exception>
 #include <limits>
 #include <numeric>
 #include <sstream>
@@ -532,6 +533,7 @@ public:
         size_ = d.get_size();
         if (is_cpu_native) {
             data_.reset(test_malloc(size_), test_free);
+            if (!data_) throw std::bad_alloc();
             mem_ = memory(d, e, data_.get());
         } else {
             mem_ = memory(d, e);
