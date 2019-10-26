@@ -24,25 +24,7 @@
 #include <string.h>
 
 #include "dnnl.h"
-
-#define CHECK(f) \
-    do { \
-        dnnl_status_t s_ = f; \
-        if (s_ != dnnl_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s_); \
-            exit(2); \
-        } \
-    } while (0)
-
-#define CHECK_TRUE(expr) \
-    do { \
-        int e_ = expr; \
-        if (!e_) { \
-            printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #expr); \
-            exit(2); \
-        } \
-    } while (0)
+#include "example_macros.h"
 
 dnnl_engine_kind_t validate_engine_kind(dnnl_engine_kind_t akind) {
     // Checking if a GPU exists on the machine
