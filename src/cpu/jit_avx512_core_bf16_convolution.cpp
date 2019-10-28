@@ -1121,13 +1121,11 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::prepare_scratchpad_data(
     const auto &jcp = pd()->jcp_;
 
     if ((jcp.ndims == 5 || !jcp.uses_permw_transposition)
-        && (jcp.nthr_mb > 1 || jcp.wei_dt == data_type::bf16)) {
+            && (jcp.nthr_mb > 1 || jcp.wei_dt == data_type::bf16)) {
         auto wei_bia_reduction
                 = scratchpad.template get<float>(key_conv_wei_bia_reduction);
         const int num_wei_buffers
-                = jcp.wei_dt == data_type::bf16
-                    ? jcp.nthr_mb
-                    : jcp.nthr_mb - 1;
+                = jcp.wei_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
         const size_t wei_size
                 = jcp.ngroups * jcp.oc * jcp.ic * jcp.kh * jcp.kw * jcp.kd;
         const size_t bia_size = jcp.ngroups * jcp.oc;
