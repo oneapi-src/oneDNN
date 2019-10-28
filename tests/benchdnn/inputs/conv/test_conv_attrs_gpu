@@ -4,18 +4,18 @@
 
 --attr=oscale=common:2.25;post_ops='sum:1.5;relu:0.5'
 --dir=FWD_B
---cfg=u8s8s8  --batch=conv_resnet_50
+--cfg=u8s8s8  --batch=shapes_resnet_50
 
 --attr=oscale=common:2.25;post_ops='sum:1.5'
 --dir=FWD_D
---cfg=u8s8u8  --batch=conv_resnet_50
---cfg=u8s8s8  --batch=conv_resnet_50
+--cfg=u8s8u8  --batch=shapes_resnet_50
+--cfg=u8s8s8  --batch=shapes_resnet_50
 
 --attr=post_ops='relu:0.5'
---cfg=u8s8s8 --batch=conv_resnet_50
+--cfg=u8s8s8 --batch=shapes_resnet_50
 
 --attr=post_ops='relu:0.5;sum'
---cfg=u8s8s8 --batch=conv_resnet_50
+--cfg=u8s8s8 --batch=shapes_resnet_50
 
 
 # f32
@@ -23,9 +23,9 @@
 --mb=2,16
 
 --dir=FWD_B
---attr=post_ops='sum' --batch=conv_resnet_50
---attr=post_ops='relu' --batch=conv_resnet_50
---attr=post_ops='sum;relu' --batch=conv_resnet_50
---attr=post_ops='sum:2.5;relu:0.5' --batch=conv_resnet_50
---attr=post_ops='sum;linear:0.5:1.5' --batch=conv_resnet_50
+--attr=post_ops='sum' --batch=shapes_resnet_50
+--attr=post_ops='relu' --batch=shapes_resnet_50
+--attr=post_ops='sum;relu' --batch=shapes_resnet_50
+--attr=post_ops='sum:2.5;relu:0.5' --batch=shapes_resnet_50
+--attr=post_ops='sum;linear:0.5:1.5' --batch=shapes_resnet_50
 

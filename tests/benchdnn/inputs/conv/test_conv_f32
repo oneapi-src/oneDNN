@@ -1,17 +1,5 @@
 # f32
 --batch=harness_conv_f32
 
-# depthwise
---batch=harness_conv_depthwise
-
-# dilated
---batch=harness_conv_dilated
-
-# attributes
---batch=harness_conv_attrs
-
 # tails
 --batch=harness_conv_tails
-
-# 3D shapes
---batch=harness_conv_3d

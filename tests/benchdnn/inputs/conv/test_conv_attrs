@@ -3,7 +3,6 @@
 --mb=2
 --skip-impl="ref:gemm"      # ! test jit version only
 --allow-unimpl=true
-
 --dir=FWD_B
 --attr=post_ops='sum;relu' --batch=shapes_resnet_50
 --attr=post_ops='sum;relu:0.5' --batch=shapes_tails

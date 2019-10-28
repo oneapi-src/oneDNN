@@ -1,7 +1,0 @@
-# dilated f32 (full)
---reset
---mb=2
---cfg=f32_full
---dir=FWD_B,BWD_D,BWD_WB
---batch=shapes_dilated --batch=shapes_dilated_rfcn
---match=.*fc6.* --batch=shapes_ssd_300_voc0712

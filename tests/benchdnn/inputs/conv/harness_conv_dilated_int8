@@ -1,4 +1,4 @@
-# dilated int8 (full)
+# Dilated Int8
 --reset
 --mb=2
 --dir=FWD_D

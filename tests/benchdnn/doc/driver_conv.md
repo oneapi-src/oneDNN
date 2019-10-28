@@ -173,8 +173,8 @@ one common output scale set to 0.5:
 ```
 
 More examples with different driver options can be found at
-inputs/conv/test_conv_***. Examples with different driver descriptors can be
-found at inputs/conv/conv_***.
+inputs/conv/test_*** or inputs/conv/harness_***. Examples with different
+driver descriptors can be found at inputs/conv/shapes_***.
 
 ## Naming
 
@@ -185,7 +185,7 @@ shape inputs e.g. `ic16ih10oc32oh10kh3sh1ph1n"conv_1"`. These are
 independent of any benchdnn configuration such as data-type and direction,
 etc.
 
-* **set_\<label\>**: a group of **shape_\<label\>** files. These are
+* **set_\<label\>**: a group of **shapes_\<label\>** files. These are
 independent of any benchdnn configuration. The general rule is to group
 single-feature inputs into a single *batch* (e.g. all *topology* based
 inputs, all *regression* based inputs, all 2D convolutions, etc).
@@ -196,6 +196,5 @@ batch files and configurations (e.g `--mb`, `--dir`, `--skip-impl`,
 `--allow-unimpl`, `--batch={topology, shape_conv_2d, shape_conv_3d,
 shape_conv_regression}`).
 
-* **test_conv_\<label\>**: These files are reserved for deployable testing
-via command-line (`make <test>`). The content of these files are typically
-made from a set of harness tests.
+* **test_conv_\<label\>**: These files are used for deploying testing
+via command-line `make <test>`.

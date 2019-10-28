@@ -12,7 +12,7 @@
 --dir=FWD_B --batch=shapes_alexnet
 
 # depthwise
---batch=harness_conv_depthwise
+--batch=test_conv_depthwise
 
 # bf16
 --batch=test_conv_bfloat16
@@ -55,16 +55,16 @@
 --cfg=u8s8s32_wino --batch=shapes_googlenet_v2
 
 # dilated
---batch=harness_conv_dilated
+--batch=test_conv_dilated
 
 # attributes
---batch=harness_conv_attrs
+--batch=test_conv_attrs
 
 # tails
 --batch=harness_conv_tails
 
 # 3D shapes
---batch=harness_conv_3d
+--batch=test_conv_3d
 
 # auto algo
 --reset --cfg=f32 --alg=auto
