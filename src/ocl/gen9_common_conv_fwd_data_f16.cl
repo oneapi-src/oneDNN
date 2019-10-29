@@ -588,14 +588,14 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 
     wei += goc * KDHW_SIZE * OC_BLOCK * IC + g * IC * OC * KDHW_SIZE;
 
-#if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1) || (HAS_PAD_W && KW == 1))
+#if (KH == 1 && KW == 1 && KD == 1) && (HAS_PAD_D || HAS_PAD_H || HAS_PAD_W)
     if (!(id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0 || iw >= IW)) {
 #endif
 #if KH != 1 || KW != 1 || KD != 1
         for (int kd = 0; kd < KD; ++kd)
             for (int kh = 0; kh < KH; ++kh)
                 for (int kw = 0; kw < KW; ++kw) {
-
+#if HAS_PAD_D || HAS_PAD_H || HAS_PAD_W
                     if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH
                             || iw + kw * (1 + DW) < 0
                             || iw + kw * (1 + DW) >= IW
@@ -607,7 +607,7 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #endif
                         continue;
                     }
-
+#endif
                     const __global half *src1 = src
                             + kd * (1 + DD) * IH * IW * IC_BLOCK * MB_BLOCK
                             + kh * (1 + DH) * IW * IC_BLOCK * MB_BLOCK
@@ -691,7 +691,7 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #if KH != 1 || KW != 1 || KD != 1
                 }
 #endif
-#if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1) || (HAS_PAD_W && KW == 1))
+#if (KH == 1 && KW == 1 && KD == 1) && (HAS_PAD_D || HAS_PAD_H || HAS_PAD_W)
     }
 #endif
     __global half *dst_write0 = dst + mb * OC * G * ODHW_SIZE
@@ -889,7 +889,7 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 
     const bool do_if = iw < 0 || iw + SW * OW_BLOCK + KW * (1 + DW) >= IW;
 
-#if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1))
+#if (KH == 1 && KW == 1 && KD == 1) && (HAS_PAD_D || HAS_PAD_H || HAS_PAD_W)
     if (!(id < 0 || id >= ID || ih < 0 || ih >= IH)) {
 #endif
         int icb = 0;
@@ -899,7 +899,7 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
             for (int kd = 0; kd < KD; ++kd)
                     __attribute__((opencl_unroll_hint(1))) // attr:no-format
                     for (int kh = 0; kh < KH; ++kh) {
-
+#if HAS_PAD_D || HAS_PAD_H || HAS_PAD_W
                 if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH
 #if CASE_3D
                         || id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID) {
@@ -908,7 +908,7 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
 #endif
                     continue;
                 }
-
+#endif
                 const __global half *src1 = src
                         + kd * (1 + DD) * IH * IW * IC_BLOCK
                         + kh * (1 + DH) * IW * IC_BLOCK;
@@ -1034,7 +1034,7 @@ gen9_common_conv_fwd_f16_kernel(const __global half *src,
             wei += OC_BLOCK * KDHW_SIZE * IC_BLOCK;
             icb += IC_BLOCK;
         } while (icb < IC);
-#if ((HAS_PAD_D && KD == 1) || (HAS_PAD_H && KH == 1))
+#if (KH == 1 && KW == 1 && KD == 1) && (HAS_PAD_D || HAS_PAD_H || HAS_PAD_W)
     }
 #endif
 
