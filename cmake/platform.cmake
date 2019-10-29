@@ -72,6 +72,8 @@ if(MSVC)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15009")
         # disable: disabling user-directed function packaging (COMDATs)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:11031")
+        # disable: disabling optimization; runtime debug checks enabled
+        append(CMAKE_CXX_FLAGS_DEBUG "-Qdiag-disable:10182")
     endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # Clang cannot vectorize some loops with #pragma omp simd and gets
