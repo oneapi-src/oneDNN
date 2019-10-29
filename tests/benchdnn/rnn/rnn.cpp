@@ -127,6 +127,33 @@ int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
     return OK;
 }
 
+int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
+        dnn_mem_t &mem2) {
+    // To reduce likelihood of cancellation happening in bwd by bias,
+    // (especially for GRU), we want diff_bias to be sparse
+    auto dims = mem2.md_.dims;
+    auto L = dims[0];
+    auto D = dims[1];
+    auto G = dims[2];
+    auto O = dims[3];
+
+    std::minstd_rand msr;
+    std::normal_distribution<float> gen(
+            p.cfg[kind].f_mean, p.cfg[kind].f_stddev);
+    msr.seed(kind);
+
+    for_(int64_t l = 0; l < L; l++)
+    for_(int64_t d = 0; d < D; d++)
+    for_(int64_t g = 0; g < G; g++)
+    for (int64_t o = 0; o < O; o++) {
+        auto idx = l * D * G * O + d * G * O + g * O + o;
+        auto val = gen(msr) * flip_coin(idx, 0.05f);
+        mem2.set_elem(idx, val);
+    }
+    mem1.reorder(mem2);
+    return OK;
+}
+
 inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
         dnnl_primitive_desc_t rpd[2], res_t *r) {
     const bool is_bwd = p.prop == dnnl_backward;
@@ -549,7 +576,7 @@ int doit(const prb_t &p, res_t *r) {
         SAFE(fill_weights(p, dst_diff_weights_states,
                      dst_diff_weights_states_dt, dst_diff_weights_states_fp),
                 WARN);
-        SAFE(fill_memory(p, dst_diff_bias, dst_diff_bias_dt, dst_diff_bias_fp),
+        SAFE(fill_bias(p, dst_diff_bias, dst_diff_bias_dt, dst_diff_bias_fp),
                 WARN);
         SAFE(fill_memory(p, diff_last_layer, diff_last_layer_dt,
                      diff_last_layer_fp),
