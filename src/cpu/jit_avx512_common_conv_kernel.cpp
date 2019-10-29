@@ -2445,7 +2445,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             if (!(jcp.kw > 3
                         || (jcp.kw == 3 && ker_total_size < L1_cache_size
                                 && jcp.ow > 8))
-                    && jcp.stride_h == 1)
+                    && jcp.stride_h == 1 && jcp.stride_d == 1)
                 if (jcp.nb_ic % try_nb_ic_blocking == 0) {
                     jcp.nb_ic_blocking = try_nb_ic_blocking;
                     jcp.ur_w = 31 / (jcp.nb_ic_blocking + 1);
