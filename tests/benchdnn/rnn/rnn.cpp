@@ -68,13 +68,13 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
     }
 }
 
-int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
-        dnn_mem_t &mem2) {
+int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
 #ifdef CALL_DNNL_RNN
-    const auto nelems = mem1.nelems();
-    assert(mem1.nelems() == mem2.nelems());
+    const auto nelems = mem_dt.nelems();
+    assert(mem_dt.nelems() == mem_fp.nelems());
 #else
-    const auto nelems = mem2.nelems();
+    const auto nelems = mem_fp.nelems();
 #endif
 
     dt_conf_t c = p.cfg[kind];
@@ -91,47 +91,47 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
         std::normal_distribution<float> gen(mean, stddev);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             auto val = (c.dt == dnnl_f32) ? gen(msr) : round(gen(msr));
-            mem2.set_elem(idx, MAX2(MIN2(val, max), min));
+            mem_fp.set_elem(idx, MAX2(MIN2(val, max), min));
         }
     });
 
-    mem1.reorder(mem2);
+    mem_dt.reorder(mem_fp);
     return OK;
 }
 
-int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
-        dnn_mem_t &mem2) {
+int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
 
     dt_conf_t c = p.cfg[kind];
-    if (c.dt == dnnl_u8) return fill_memory(p, kind, mem1, mem2);
+    if (c.dt == dnnl_u8) return fill_memory(p, kind, mem_dt, mem_fp);
 
-    auto dims = mem2.md_.dims;
+    auto dims = mem_fp.md_.dims;
     auto L = dims[0];
     auto D = dims[1];
     auto I = dims[2];
     auto G = dims[3];
     auto O = dims[4];
 
-    for (int64_t i = 0; i < mem1.nelems(); i++)
-        mem2.set_elem(i, 0.0f);
+    for (int64_t i = 0; i < mem_dt.nelems(); i++)
+        mem_fp.set_elem(i, 0.0f);
     for (int64_t l = 0; l < L; l++)
         for (int64_t d = 0; d < D; d++)
             for (int64_t g = 0; g < G; g++)
                 for (int64_t o = 0; o < O; o++) {
                     auto i_off = ((o + g * 7 + d * 11 + l * 13) % I);
-                    mem2.set_elem(l * D * I * G * O + d * I * G * O
+                    mem_fp.set_elem(l * D * I * G * O + d * I * G * O
                                     + i_off * G * O + g * O + o,
                             1.0f / p.n_gates());
                 }
-    mem1.reorder(mem2);
+    mem_dt.reorder(mem_fp);
     return OK;
 }
 
-int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
-        dnn_mem_t &mem2) {
+int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
-    auto dims = mem2.md_.dims;
+    auto dims = mem_fp.md_.dims;
     auto L = dims[0];
     auto D = dims[1];
     auto G = dims[2];
@@ -148,9 +148,9 @@ int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem1,
     for (int64_t o = 0; o < O; o++) {
         auto idx = l * D * G * O + d * G * O + g * O + o;
         auto val = gen(msr) * flip_coin(idx, 0.05f);
-        mem2.set_elem(idx, val);
+        mem_fp.set_elem(idx, val);
     }
-    mem1.reorder(mem2);
+    mem_dt.reorder(mem_fp);
     return OK;
 }
 
