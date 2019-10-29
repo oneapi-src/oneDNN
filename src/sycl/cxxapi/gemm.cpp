@@ -46,11 +46,12 @@ struct create_memory_t<memory_api_kind_t::buffer> {
                 const_cast<void *>(handle));
         auto buf_u8 = buf->template reinterpret<uint8_t>(
                 cl::sycl::range<1>(buf->get_size()));
-        memory_storage_t *mem_storage
-                = new memory_storage_t(new sycl_buffer_memory_storage_t(eng,
+        std::unique_ptr<memory_storage_t> mem_storage(
+                new sycl_buffer_memory_storage_t(eng,
                         memory_flags_t::use_runtime_ptr,
-                        memory_desc_wrapper(mem_desc).size(), 0, &buf_u8));
-        std::unique_ptr<memory_t> mem(new memory_t(eng, mem_desc, mem_storage));
+                        memory_desc_wrapper(mem_desc).size(), &buf_u8));
+        std::unique_ptr<memory_t> mem(
+                new memory_t(eng, mem_desc, std::move(mem_storage)));
 
         mem->memory_storage()->set_offset(offset * sizeof(T));
         return mem;
@@ -63,12 +64,13 @@ struct create_memory_t<memory_api_kind_t::usm> {
     static std::unique_ptr<memory_t> call(engine_t *eng,
             dnnl_memory_desc_t *mem_desc, dim_t offset, const void *handle) {
 #ifdef DNNL_SYCL_DPCPP
-        memory_storage_t *mem_storage
-                = new memory_storage_t(new sycl_usm_memory_storage_t(eng,
+        std::unique_ptr<memory_storage_t> mem_storage(
+                new sycl_usm_memory_storage_t(eng,
                         memory_flags_t::use_runtime_ptr,
-                        memory_desc_wrapper(mem_desc).size(), 0,
+                        memory_desc_wrapper(mem_desc).size(),
                         const_cast<void *>(handle)));
-        std::unique_ptr<memory_t> mem(new memory_t(eng, mem_desc, mem_storage));
+        std::unique_ptr<memory_t> mem(
+                new memory_t(eng, mem_desc, std::move(mem_storage)));
         mem->memory_storage()->set_offset(offset * sizeof(T));
         return mem;
 #else
