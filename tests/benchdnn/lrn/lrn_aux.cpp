@@ -60,7 +60,6 @@ int str2desc(desc_t *desc, const char *str) {
     d.alpha = 1.f / 8192; // = 0.000122 ~~ 0.0001, but has exact representation
     d.beta = 0.75f;
     d.k = 1;
-    d.name = "\"wip\"";
     d.ndims = 5;
 
     const char *s = str;
@@ -146,7 +145,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (d.beta != 0.75f) s << "beta" << d.beta;
     if (d.k != 1) s << "k" << d.k;
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

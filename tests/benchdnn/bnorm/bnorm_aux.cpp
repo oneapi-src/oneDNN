@@ -66,7 +66,6 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
     d.mb = 2;
     d.eps = 1.f / 16;
-    d.name = "\"wip\"";
     d.ndims = 5;
 
     const char *s = str;
@@ -146,7 +145,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
     if (d.eps != 1.f / 16) s << "eps" << d.eps;
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

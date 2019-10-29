@@ -66,7 +66,7 @@ int str2desc(desc_t *desc, const char *str) {
      *
      * implicit rules:
      *  - default values:
-     *      mb = 2, d = fd, sh = sw = 1, S="wip"
+     *      mb = 2, d = fd, sh = sw = 1
      *  - if H is undefined => H = W
      *  - if W is undefined => W = H
      *  - if `output` is undefined => compute output
@@ -76,7 +76,6 @@ int str2desc(desc_t *desc, const char *str) {
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.pd = d.ph = d.pw = -1;
-    d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -225,7 +224,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
     print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

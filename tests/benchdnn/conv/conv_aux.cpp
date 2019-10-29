@@ -67,7 +67,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
      *
      * implicit rules:
      *  - default values:
-     *      mb = 2, g = 1, d = fd, sh = sw = 1, dh = dw = 0, S="wip"
+     *      mb = 2, g = 1, d = fd, sh = sw = 1, dh = dw = 0
      *  - if H is undefined => H = W
      *  - if W is undefined => W = H
      *  - if `output` is undefined => compute output
@@ -78,7 +78,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.dd = d.dh = d.dw = 0;
-    d.has_groups = false, d.name = "\"wip\"";
+    d.has_groups = false;
     d.pw = -1;
     d.ph = -1;
     d.pd = -1;
@@ -265,7 +265,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (canonical || d.dh != 0 || d.dw != 0 || d.dd != 0)
         print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

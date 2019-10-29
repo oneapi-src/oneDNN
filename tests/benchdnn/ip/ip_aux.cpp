@@ -59,7 +59,6 @@ int str2desc(desc_t *desc, const char *str) {
 
     desc_t d {0};
     d.mb = 2;
-    d.name = "\"wip\"";
     d.ndims = 5;
 
     const char *s = str;
@@ -135,7 +134,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
     s << "oc" << d.oc;
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

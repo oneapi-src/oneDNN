@@ -32,7 +32,7 @@
 --reset --cfg=f32 --dir=BWD_WB --skip-impl="ref:gemm" mb2ic672ih29iw29oc192kh1kw1sh1sw1ph0pw0n"DENSENET_161:conv3_11/x1"
 
 # DNNL-671
---reset --dir=BWD_D ic2ih1iw9oc3oh1ow4kh1kw3sh1sw2n"wip"
+--reset --dir=BWD_D ic2ih1iw9oc3oh1ow4kh1kw3sh1sw2
 
 # DNNL-796: large asymmetric padding
 --reset --cfg=f32_full mb2_g1ic32oc32_ih7oh11kh3ph2
