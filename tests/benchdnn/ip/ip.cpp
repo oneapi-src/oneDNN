@@ -31,37 +31,36 @@
 
 namespace ip {
 
-inline bool is_3d(const prb_t *p) {
-    return p->id > 1;
-}
-
-inline bool is_1d(const prb_t *p) {
-    return !is_3d(p) && p->ih == 1;
-}
-
 inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
         dnnl_primitive_desc_t &ippd, res_t *r) {
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
-    int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-    dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
-    dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
-    dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
-    dnnl_dims_t wei_1d_dims = {p->oc, p->ic, p->iw};
-    dnnl_dims_t wei_2d_dims = {p->oc, p->ic, p->ih, p->iw};
-    dnnl_dims_t wei_3d_dims = {p->oc, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t src_dims_0d = {p->mb, p->ic};
+    dnnl_dims_t src_dims_1d = {p->mb, p->ic, p->iw};
+    dnnl_dims_t src_dims_2d = {p->mb, p->ic, p->ih, p->iw};
+    dnnl_dims_t src_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
+    dnnl_dims_t wei_dims_0d = {p->oc, p->ic};
+    dnnl_dims_t wei_dims_1d = {p->oc, p->ic, p->iw};
+    dnnl_dims_t wei_dims_2d = {p->oc, p->ic, p->ih, p->iw};
+    dnnl_dims_t wei_dims_3d = {p->oc, p->ic, p->id, p->ih, p->iw};
     dnnl_dims_t bia_dims = {p->oc};
     dnnl_dims_t dst_dims = {p->mb, p->oc};
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, ndims,
-                     is_3d(p) ? src_3d_dims
-                              : is_1d(p) ? src_1d_dims : src_2d_dims,
-                     p->cfg[SRC].dt, p->stag),
+    dnnl_dim_t *src_dims = p->ndims == 5
+            ? src_dims_3d
+            : p->ndims == 4 ? src_dims_2d
+                            : p->ndims == 3 ? src_dims_1d : src_dims_0d;
+
+    dnnl_dim_t *wei_dims = p->ndims == 5
+            ? wei_dims_3d
+            : p->ndims == 4 ? wei_dims_2d
+                            : p->ndims == 3 ? wei_dims_1d : wei_dims_0d;
+
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &src_d, p->ndims, src_dims, p->cfg[SRC].dt, p->stag),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, ndims,
-                     is_3d(p) ? wei_3d_dims
-                              : is_1d(p) ? wei_1d_dims : wei_2d_dims,
-                     p->cfg[WEI].dt, p->wtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &wei_d, p->ndims, wei_dims, p->cfg[WEI].dt, p->wtag),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
