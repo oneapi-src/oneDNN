@@ -47,6 +47,7 @@ struct desc_t {
     int64_t mb, ic, id, ih, iw;
     float eps;
     const char *name;
+    int64_t ndims;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);

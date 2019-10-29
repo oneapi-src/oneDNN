@@ -34,14 +34,6 @@
 
 namespace bnorm {
 
-inline bool is_3d(const prb_t *p) {
-    return p->id > 1;
-}
-
-inline bool is_1d(const prb_t *p) {
-    return !is_3d(p) && p->ih == 1;
-}
-
 static int prepare_fwd_with_stats(const prb_t *p, dnn_mem_t &src,
         dnn_mem_t &mean, dnn_mem_t &var, dnn_mem_t &ss) {
     dnnl::impl::parallel_nd(p->ic, p->mb, p->id, p->ih, p->iw,
@@ -495,17 +487,18 @@ static int init_pd(const prb_t *p, dnnl_batch_normalization_desc_t &bd,
         dnnl_primitive_desc_t &bpd, res_t *r) {
     dnnl_memory_desc_t data_d;
 
-    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-
+    dnnl_dims_t data_dims_0d = {p->mb, p->ic};
     dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
     dnnl_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
-    dnnl_dim_t *data_dims
-            = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
+    dnnl_dim_t *data_dims = p->ndims == 5
+            ? data_dims_3d
+            : p->ndims == 4 ? data_dims_2d
+                            : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, ndims, data_dims, p->dt, p->tag),
+                     &data_d, p->ndims, data_dims, p->dt, p->tag),
             WARN);
 
     auto flags = (dnnl_normalization_flags_t)p->flags;
@@ -518,7 +511,7 @@ static int init_pd(const prb_t *p, dnnl_batch_normalization_desc_t &bd,
 
     } else {
         dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims, data_dims,
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, p->ndims, data_dims,
                          p->dt, dnnl_format_tag_any),
                 WARN);
         auto prop = p->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
@@ -576,16 +569,17 @@ static int init_pd(const prb_t *p, dnnl_batch_normalization_desc_t &bd,
 /** converts benchdnn-understandable mask of {0, 1} to workspace */
 static int cvt_mask_to_ws(
         const prb_t *p, const dnn_mem_t &mask_fp, dnn_mem_t &ws_dt) {
-    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-
+    dnnl_dims_t data_dims_0d = {p->mb, p->ic};
     dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
     dnnl_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
-    dnnl_dim_t *data_dims
-            = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
+    dnnl_dim_t *data_dims = p->ndims == 5
+            ? data_dims_3d
+            : p->ndims == 4 ? data_dims_2d
+                            : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    dnn_mem_t data(ndims, data_dims, dnnl_f32, p->tag, engine_tgt);
+    dnn_mem_t data(p->ndims, data_dims, dnnl_f32, p->tag, engine_tgt);
     SAFE(data.reorder(mask_fp), WARN);
 
     dnn_mem_t mean(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);
