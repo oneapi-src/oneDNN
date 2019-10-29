@@ -33,6 +33,7 @@
 #endif
 
 #include "dnnl.hpp"
+#include "dnnl_debug.h"
 #include "dnnl_test_macros.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -482,6 +483,11 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
                           << "Implementation not found" << std::endl;
                 return true;
             } else {
+                if (expect_to_fail && (e.status != expected_status))
+                    std::cout << "expect failure status mismatch: expect("
+                              << dnnl_status2str(expected_status) << ") get("
+                              << dnnl_status2str(e.status)
+                              << "). Re-throwing...\n";
                 throw e;
             }
         }
@@ -490,7 +496,12 @@ bool catch_expected_failures(const F &f, bool expect_to_fail,
     }
 
     // Throw an exception if the failure is expected but did not happen
-    if (expect_to_fail) throw std::exception();
+    if (expect_to_fail) {
+        std::cout << "expect failure with status("
+                  << dnnl_status2str(expected_status) << "), "
+                  << "but operation succeed. Throwing an exception...\n";
+        throw std::exception();
+    }
 
     return false;
 }
