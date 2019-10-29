@@ -29,28 +29,39 @@ namespace sycl {
 
 using buffer_u8_t = cl::sycl::buffer<uint8_t, 1>;
 
+inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
+    auto *global_range = range.global_range();
+#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20191024)
+    auto sycl_global_range = cl::sycl::range<3>(
+            global_range[2], global_range[1], global_range[0]);
+#else
+    auto sycl_global_range = cl::sycl::range<3>(
+            global_range[0], global_range[1], global_range[2]);
+#endif
+    return sycl_global_range;
+}
+
 inline cl::sycl::nd_range<3> to_sycl_nd_range(
         const compute::nd_range_t &range) {
     auto *global_range = range.global_range();
     auto *local_range = range.local_range();
 
-    auto sycl_global_range = cl::sycl::range<3>(
-            global_range[0], global_range[1], global_range[2]);
+    auto sycl_global_range = to_sycl_range(range);
+
     if (!local_range) {
         assert(!"not expected");
         return cl::sycl::nd_range<3>(
                 sycl_global_range, cl::sycl::range<3>(1, 1, 1));
     }
 
+#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20191024)
+    auto sycl_local_range = cl::sycl::range<3>(
+            local_range[2], local_range[1], local_range[0]);
+#else
     auto sycl_local_range = cl::sycl::range<3>(
             local_range[0], local_range[1], local_range[2]);
+#endif
     return cl::sycl::nd_range<3>(sycl_global_range, sycl_local_range);
-}
-
-inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
-    auto *global_range = range.global_range();
-    return cl::sycl::range<3>(
-            global_range[0], global_range[1], global_range[2]);
 }
 
 } // namespace sycl
