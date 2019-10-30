@@ -17,12 +17,22 @@
 #include "memory_tracking.hpp"
 #include "primitive_exec_types.hpp"
 
+#include "engine.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace memory_tracking {
 
 void *grantor_t::get_host_ptr(const memory_storage_t *mem_storage) const {
     return exec_ctx_->host_ptr(mem_storage);
+}
+
+bool grantor_t::is_cpu_engine(const memory_storage_t *mem_storage) const {
+    if (!mem_storage) return false;
+    auto engine = mem_storage->engine();
+    assert(engine);
+    if (engine->kind() == engine_kind::cpu) return true;
+    return false;
 }
 
 } // namespace memory_tracking

@@ -242,6 +242,11 @@ struct registrar_t;
 struct grantor_t;
 
 struct registry_t {
+    enum { minimal_alignment = 64 };
+    struct entry_t {
+        size_t offset, size, capacity, alignment;
+    };
+
     void book(const key_t &key, size_t size, size_t alignment) {
         if (size == 0) return;
         assert(offset_map_.count(key) == 0);
@@ -254,31 +259,10 @@ struct registry_t {
         size_ += capacity;
     }
 
-    void *get(const key_t &key, void *base_ptr) const {
-        if (!base_ptr) {
-            assert(size() == 0);
-            return nullptr;
-        }
-        if (offset_map_.count(key) != 1) return nullptr;
-
-        const auto &e = offset_map_.at(key);
-        char *ptr = reinterpret_cast<char *>(base_ptr) + e.offset;
-        char *aligned_ptr = utils::align_ptr<char>(ptr, e.alignment);
-        assert(aligned_ptr + e.size <= ptr + e.capacity);
-        return aligned_ptr;
-    }
-
-    std::unique_ptr<memory_storage_t> get_memory_storage(
-            const key_t &key, const memory_storage_t *base_mem_storage) const {
-        if (!base_mem_storage) {
-            assert(size() == 0);
-            return nullptr;
-        }
-        if (offset_map_.count(key) != 1) return nullptr;
-
-        const auto &e = offset_map_.at(key);
-        assert(e.offset + e.size <= size());
-        return base_mem_storage->get_sub_storage(e.offset, e.size);
+    entry_t get(const key_t &key) const {
+        if (size() == 0 || offset_map_.count(key) != 1)
+            return entry_t {0, 0, 0, 0};
+        return offset_map_.at(key);
     }
 
     size_t size() const { return size_; }
@@ -288,11 +272,6 @@ struct registry_t {
             const exec_ctx_t &exec_ctx) const;
 
 protected:
-    enum { minimal_alignment = 64 };
-    struct entry_t {
-        size_t offset, size, capacity, alignment;
-    };
-
     std::unordered_map<key_t, entry_t> offset_map_;
     size_t size_ = 0;
 };
@@ -335,22 +314,46 @@ struct grantor_t {
             assert(registry_.size() == 0);
             return nullptr;
         }
+        auto e = registry_.get(make_key(prefix_, key));
 
-        void *base_ptr = get_host_ptr(base_mem_storage_);
-        assert(base_ptr);
-        void *ptr = reinterpret_cast<char *>(base_ptr)
-                + base_mem_storage_->base_offset();
-        return (T *)registry_.get(make_key(prefix_, key), ptr);
+        char *host_ptr
+                = reinterpret_cast<char *>(get_host_ptr(base_mem_storage_));
+        char *base_ptr = host_ptr + base_mem_storage_->base_offset();
+
+        char *ptr = reinterpret_cast<char *>(base_ptr) + e.offset;
+        char *aligned_ptr = utils::align_ptr<char>(ptr, e.alignment);
+        assert(aligned_ptr + e.size <= ptr + e.capacity);
+        return (T *)aligned_ptr;
     }
 
     std::unique_ptr<memory_storage_t> get_memory_storage(
             const key_t &key) const {
-        return registry_.get_memory_storage(
-                make_key(prefix_, key), base_mem_storage_);
+        if (!base_mem_storage_) {
+            assert(registry_.size() == 0);
+            return nullptr;
+        }
+        auto e = registry_.get(make_key(prefix_, key));
+
+        if (is_cpu_engine(base_mem_storage_)) {
+            char *host_ptr
+                    = reinterpret_cast<char *>(get_host_ptr(base_mem_storage_));
+            char *base_ptr = host_ptr + base_mem_storage_->base_offset();
+
+            char *ptr = reinterpret_cast<char *>(base_ptr) + e.offset;
+            char *aligned_ptr = utils::align_ptr<char>(ptr, e.alignment);
+            assert(aligned_ptr + e.size <= ptr + e.capacity);
+
+            size_t aligned_offset = size_t(aligned_ptr - host_ptr);
+            return base_mem_storage_->get_sub_storage(aligned_offset, e.size);
+        }
+
+        assert(e.offset + e.size <= registry_.size());
+        return base_mem_storage_->get_sub_storage(e.offset, e.size);
     }
 
 protected:
     void *get_host_ptr(const memory_storage_t *mem_storage) const;
+    bool is_cpu_engine(const memory_storage_t *mem_storage) const;
 
     const registry_t &registry_;
     const key_t prefix_;
