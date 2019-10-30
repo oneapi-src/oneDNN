@@ -53,10 +53,11 @@ void msan_unpoison_matrix(void *C, int M, int N, int LDC, size_t typesize) {
 }
 
 dnnl_status_t check_gemm_input(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const int *lda,
-        const int *ldb, const int *ldc, const float *alpha, const float *beta,
-        const bool with_bias) {
-    if (utils::any_null(transa, transb, M, N, K, lda, ldb, ldc, alpha, beta))
+        const int *M, const int *N, const int *K, void *A, const int *lda,
+        void *B, const int *ldb, void *C, const int *ldc, const float *alpha,
+        const float *beta, const bool with_bias) {
+    if (utils::any_null(
+                transa, transb, M, N, K, A, lda, B, ldb, C, ldc, alpha, beta))
         return dnnl_invalid_arguments;
     if (with_bias && *beta != 0) return dnnl_unimplemented;
     bool consistency = true
@@ -81,15 +82,15 @@ dnnl_status_t check_gemm_input(const char *transa, const char *transb,
 }
 
 dnnl_status_t check_gemm_x8x8x32_input(const char *offsetc, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const int *ldc, const float *alpha,
-        const float *beta, const bool with_bias) {
+        const char *transb, const int *M, const int *N, const int *K, void *A,
+        const int *lda, void *B, const int *ldb, void *C, const int *ldc,
+        const float *alpha, const float *beta, const bool with_bias) {
     if (offsetc == nullptr) return dnnl_invalid_arguments;
     if (!utils::one_of(*offsetc, 'F', 'f', 'C', 'c', 'R', 'r'))
         return dnnl_invalid_arguments;
 
-    return check_gemm_input(
-            transa, transb, M, N, K, lda, ldb, ldc, alpha, beta, with_bias);
+    return check_gemm_input(transa, transb, M, N, K, A, lda, B, ldb, C, ldc,
+            alpha, beta, with_bias);
 }
 
 dnnl_status_t extended_sgemm(const char *transa, const char *transb,
@@ -97,8 +98,8 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc, const float *bias,
         const bool force_jit_nocopy_gemm) {
-    dnnl_status_t status = check_gemm_input(transa, transb, M, N, K, lda, ldb,
-            ldc, alpha, beta, bias != nullptr);
+    dnnl_status_t status = check_gemm_input(transa, transb, M, N, K, (void *)A,
+            lda, (void *)B, ldb, (void *)C, ldc, alpha, beta, bias != nullptr);
     if (status != dnnl_success) return status;
 
 #ifdef USE_CBLAS
@@ -183,7 +184,8 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const uint8_t *B, const int *LDB, const uint8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
     dnnl_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb, M,
-            N, K, LDA, LDB, LDC, alpha, beta, false);
+            N, K, (void *)A, LDA, (void *)B, LDB, (void *)C, LDC, alpha, beta,
+            false);
     if (status != dnnl_success) return status;
 
     if (*M == 0 || *N == 0 || *K == 0) return dnnl_success;
@@ -211,7 +213,8 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const int8_t *B, const int *LDB, const int8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
     dnnl_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb, M,
-            N, K, LDA, LDB, LDC, alpha, beta, false);
+            N, K, (void *)A, LDA, (void *)B, LDB, (void *)C, LDC, alpha, beta,
+            false);
     if (status != dnnl_success) return status;
 
     if (*M == 0 || *N == 0 || *K == 0) return dnnl_success;
@@ -248,7 +251,8 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
     int ldb_s32 = (int)*ldb;
     int ldc_s32 = (int)*ldc;
     dnnl_status_t status = check_gemm_input(transa, transb, &M_s32, &N_s32,
-            &K_s32, &lda_s32, &ldb_s32, &ldc_s32, alpha, beta, false);
+            &K_s32, (void *)A, &lda_s32, (void *)B, &ldb_s32, (void *)C,
+            &ldc_s32, alpha, beta, false);
     if (status != dnnl_success) return status;
 
     char *dummyOffsetC = NULL;
