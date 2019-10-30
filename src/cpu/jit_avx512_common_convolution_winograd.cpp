@@ -631,9 +631,9 @@ void output_transform_data(int image, const jit_conv_winograd_conf_t &jcp,
 }
 
 template <bool ver_4fma>
-void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
-        float *inp, float *tinp, float *Iw_temp,
-        void (*transpose_4fma_ker)(float *, float *)) {
+void diff_src_transform_bwd_weights(int image,
+        const jit_conv_winograd_conf_t &conv, float *inp, float *tinp,
+        float *Iw_temp, void (*transpose_4fma_ker)(float *, float *)) {
 
     const int ifwp = conv.iw + conv.l_pad;
     const int ifhp = conv.ih + conv.t_pad;
@@ -758,8 +758,9 @@ void diff_src_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
 }
 
 template <bool with_bias>
-void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
-        float *inp, float *tinp, float *dbias) {
+void diff_dst_transform_bwd_weights(int image,
+        const jit_conv_winograd_conf_t &conv, float *inp, float *tinp,
+        float *dbias) {
 
     const int total_tiles = conv.itiles * conv.jtiles + conv.tile_4fma_padding;
     alignas(64) float I[alpha][alpha][simd_w];
@@ -845,7 +846,7 @@ void diff_dst_transform_bwd_weights(int image, jit_conv_winograd_conf_t conv,
 }
 
 void diff_weights_transform_bwd_weights(
-        jit_conv_winograd_conf_t conv, float *wp, float *twp) {
+        const jit_conv_winograd_conf_t &conv, float *wp, float *twp) {
     const int kh = 3;
     const int kw = 3;
     alignas(64) float Fw[alpha][alpha][simd_w][simd_w];

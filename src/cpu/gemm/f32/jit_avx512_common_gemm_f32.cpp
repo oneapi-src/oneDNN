@@ -1913,6 +1913,8 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
     if (nthr_k > 1) {
         ompstatus_ = (unsigned char *)malloc(
                 nthr * CACHE_LINE_SIZE, CACHE_LINE_SIZE);
+        if (!ompstatus_) return dnnl_out_of_memory;
+
         ompstatus = (unsigned char volatile *)ompstatus_;
         assert(ompstatus);
 

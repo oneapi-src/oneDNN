@@ -35,7 +35,7 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
     enum { STATE_FIRST_DST_LOAD = 0x1U };
 
     _jit_avx512_core_x8s8s32x_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
@@ -176,7 +176,7 @@ private:
 struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     jit_avx512_core_x8s8s32x_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jit_ker(nullptr)
         , zmm_kernel_(nullptr)
         , ymm_kernel_(nullptr)

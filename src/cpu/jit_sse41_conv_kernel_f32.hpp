@@ -29,7 +29,7 @@ namespace cpu {
 
 struct jit_sse41_conv_fwd_kernel_f32 : public jit_generator {
     jit_sse41_conv_fwd_kernel_f32(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(
