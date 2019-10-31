@@ -529,13 +529,12 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    using a_t = typename prec_traits<a_type>::type;
-    using b_t = typename prec_traits<b_type>::type;
-    using c_t = typename prec_traits<c_type>::type;
-
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
     auto k = pd()->desc()->k;
+
+    bool transa = (pd()->desc()->transa == dnnl_trans);
+    bool transb = (pd()->desc()->transb == dnnl_trans);
 
     auto lda = pd()->desc()->lda;
     auto ldb = pd()->desc()->ldb;
@@ -551,15 +550,32 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    size_t off_a = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
+    size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
+    size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
     size_t off_c = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
-    bool last_k_block = true;
+    status_t status;
+    auto block_k = jit_gen9_gemm_driver_params<acc_type, true>::block_k;
 
-    return launch_nocopy_superkernel(compute_stream, *temp_buf_, threads_, a, b,
-            c, off_a, off_b, off_c, lda, ldb, ldc, m, n, k, alpha, beta,
-            (int)last_k_block, eltwise_alpha, eltwise_beta);
+    for (int64_t Bk = 0; Bk < k; Bk += block_k) {
+        int64_t size_k = k - Bk;
+        bool last_k_block = (size_k <= block_k);
+        if (!last_k_block) size_k = block_k;
+
+        auto off_a = off_a0 + (!transa ? Bk * lda : Bk);
+        auto off_b = off_b0 + (!transb ? Bk : Bk * ldb);
+
+        acc_t this_beta = (Bk == 0) ? beta : 1.0f;
+
+        status = launch_nocopy_superkernel(compute_stream, *temp_buf_, threads_,
+                a, b, c, off_a, off_b, off_c, lda, ldb, ldc, m, n, size_k,
+                alpha, this_beta, (int)last_k_block, eltwise_alpha,
+                eltwise_beta);
+
+        if (status) return status;
+    }
+
+    return status::success;
 }
 
 using namespace data_type;
