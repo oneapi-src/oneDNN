@@ -70,6 +70,9 @@ struct ref_softmax_fwd_t : public primitive_t {
     ~ref_softmax_fwd_t() = default;
 
     virtual status_t init() override {
+        if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+            return status::success;
+
         auto jit = ocl_jit_t(ref_softmax_kernel);
 
         const auto *desc = pd()->desc();
@@ -135,6 +138,9 @@ struct ref_softmax_bwd_t : public primitive_t {
     ~ref_softmax_bwd_t() = default;
 
     virtual status_t init() override {
+        if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
+            return status::success;
+
         auto jit = ocl_jit_t(ref_softmax_kernel);
 
         const auto *desc = pd()->desc();

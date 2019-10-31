@@ -23,6 +23,9 @@ namespace ocl {
 template <impl::data_type_t data_type>
 status_t ref_softmax_fwd_t<data_type>::execute_generic(
         const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->desc()->data_desc).has_zero_dim())
+        return status::success;
+
     auto &src = CTX_IN_STORAGE(MKLDNN_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(MKLDNN_ARG_DST);
 
@@ -40,6 +43,9 @@ status_t ref_softmax_fwd_t<data_type>::execute_generic(
 template <impl::data_type_t data_type>
 status_t ref_softmax_bwd_t<data_type>::execute_generic(
         const exec_ctx_t &ctx) const {
+    if (memory_desc_wrapper(pd()->desc()->diff_desc).has_zero_dim())
+        return status::success;
+
     auto &dst = CTX_IN_STORAGE(MKLDNN_ARG_DST);
     auto &diff_dst = CTX_IN_STORAGE(MKLDNN_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(MKLDNN_ARG_DIFF_SRC);
