@@ -34,6 +34,9 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         int arg = c_args[i].arg;
         auto *mem = c_args[i].memory;
 
+        // allows dummy arguments
+        if (mem == nullptr) continue;
+
         switch (pd->arg_usage(arg)) {
             case primitive_desc_t::arg_usage_t::input:
                 if (args.count(arg) != 0) return invalid_arguments;

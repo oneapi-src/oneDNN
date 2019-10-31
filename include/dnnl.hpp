@@ -5972,7 +5972,7 @@ inline void primitive::execute(
     std::vector<dnnl_exec_arg_t> c_args;
     c_args.reserve(args.size());
     for (const auto &a : args)
-        c_args.push_back({a.first, a.second.get()});
+        c_args.push_back({a.first, a.second.get(true)});
 
     error::wrap_c_api(dnnl_primitive_execute(get(), astream.get(),
                               (int)c_args.size(), c_args.data()),
