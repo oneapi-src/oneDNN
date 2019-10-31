@@ -301,7 +301,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnnl::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
             [&](int mb, int ic, int id, int ih, int iw) {
                 const int gen
-                        = 5 * id + 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
+                        = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
@@ -337,7 +337,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnnl::impl::parallel_nd(p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh,
             p->kw, [&](int g, int oc, int ic, int kd, int kh, int kw) {
                 const int gen
-                        = 5 * kd + 17 * kh + 13 * kw + 13 * oc + 19 * ic + 38;
+                        = 127 * kd + 131 * kh + 137 * kw + 139 * oc + 149 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
@@ -366,7 +366,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     const size_t sz = mem_00.nelems();
     for (size_t i = 0; i < sz; ++i) {
-        const int gen = (int)(19 * i);
+        const int gen = (int)(151 * i);
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value
                 = non_base ? c.f_min + gen * c.f_step % range : c.f_base;
@@ -398,7 +398,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnnl::impl::parallel_nd(p->mb, p->oc, p->od, p->oh, p->ow,
             [&](int mb, int oc, int od, int oh, int ow) {
                 const int gen
-                        = 7 * od + 19 * oh + 17 * ow + 13 * mb + 13 * oc + 223;
+                        = 157 * od + 163 * oh + 167 * ow + 173 * mb + 179 * oc;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
