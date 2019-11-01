@@ -211,9 +211,9 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
     const int M = jcp.os * jcp.od;
-    const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
-    const size_t dst_step = jcp.oc * M;
-    const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
+    const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
+    const size_t dst_step = (size_t)jcp.oc * M;
+    const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
     const int m = jcp.os;
     const int K = jcp.oc;

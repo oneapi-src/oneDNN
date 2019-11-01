@@ -32,7 +32,7 @@ template <typename Vmm>
 struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
     _jit_avx512_common_conv_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
@@ -177,7 +177,7 @@ private:
 struct jit_avx512_common_conv_fwd_kernel {
 
     jit_avx512_common_conv_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
         : jit_ker(nullptr), zmm_kernel_(nullptr), xmm_kernel_(nullptr) {
         switch (ajcp.oc_block) {
             case 16:
@@ -219,7 +219,7 @@ struct jit_avx512_common_conv_fwd_kernel {
 template <typename Vmm>
 struct _jit_avx512_common_conv_bwd_data_kernel_f32 : public jit_generator {
 
-    _jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp)
+    _jit_avx512_common_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp) {
         generate();
         jit_ker_ = (void (*)(jit_conv_call_s *))getCode();
@@ -352,7 +352,7 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
 
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
 
-    jit_avx512_common_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp)
+    jit_avx512_common_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp) {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();

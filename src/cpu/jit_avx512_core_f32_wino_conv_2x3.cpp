@@ -48,7 +48,7 @@ struct jit_avx512_core_f32_wino_conv_2x3_src_trans_t : public jit_generator {
     void (*ker_)(const call_params_t *);
 
     jit_avx512_core_f32_wino_conv_2x3_src_trans_t(
-            jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_2x3_wino_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(
@@ -178,7 +178,7 @@ struct jit_avx512_core_f32_wino_conv_2x3_dst_trans_t : public jit_generator {
     void (*ker_)(const call_params_t *);
 
     jit_avx512_core_f32_wino_conv_2x3_dst_trans_t(
-            jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_2x3_wino_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(
@@ -386,7 +386,7 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t : public jit_generator {
             jit_conv_conf_2x3_wino_t &jcp, const primitive_attr_t &attr);
 
     jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t(
-            jit_conv_conf_2x3_wino_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_2x3_wino_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp) {
         generate();
         ker_ = reinterpret_cast<decltype(ker_)>(
@@ -443,8 +443,6 @@ bool jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t::post_ops_ok(
         case 3: return is_relu(0) && p.contain(sum, 1) && is_relu(2);
         default: return false;
     }
-
-    return false;
 }
 
 void jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t::generate() {
