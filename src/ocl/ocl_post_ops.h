@@ -126,14 +126,14 @@ POST_OP_DATA_T exp_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 }
 
 POST_OP_DATA_T gelu_fwd(POST_OP_DATA_T s) {
-    const float a = 0.797884;
-    const float b = 0.044715;
+    const float a = 0.797884f;
+    const float b = 0.044715f;
     const float g = a * s * (1.0f + b * s * s);
     return (0.5f * s * (1.0f + tanh_fwd(g)));
 }
 POST_OP_DATA_T gelu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    const float a = 0.797884;
-    const float b = 0.044715;
+    const float a = 0.797884f;
+    const float b = 0.044715f;
     const float g = a * s * (1.0f + b * s * s);
     const float dg = a * (1.0f + 3.0f * b * s * s);
     return dd

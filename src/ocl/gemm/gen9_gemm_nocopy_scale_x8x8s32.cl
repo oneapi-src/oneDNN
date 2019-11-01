@@ -62,12 +62,11 @@ kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
     for (j = 0; j < n; j++) {
         if (m > 0) {
             if (!alpha_is_zero) {
-                c[offset_c + 0]
-                        = (int)((double)alpha * cc[offset_cc + 0]
-                                  + (double)beta * c[offset_c + 0] + (0.0))
+                c[offset_c + 0] = (int)(alpha * cc[offset_cc + 0]
+                                          + beta * c[offset_c + 0])
                         + co[offset_co + offset_x];
             } else {
-                c[offset_c + 0] = (int)((double)beta * c[offset_c + 0] + (0.0))
+                c[offset_c + 0] = (int)(beta * c[offset_c + 0])
                         + co[offset_co + offset_x];
             }
             if (trc == 'C') { offset_x++; }
@@ -75,12 +74,11 @@ kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
         }
         if (m > 1) {
             if (!alpha_is_zero) {
-                c[offset_c + 1]
-                        = (int)((double)alpha * cc[offset_cc + 1]
-                                  + (double)beta * c[offset_c + 1] + (0.0))
+                c[offset_c + 1] = (int)(alpha * cc[offset_cc + 1]
+                                          + beta * c[offset_c + 1])
                         + co[offset_co + offset_x];
             } else {
-                c[offset_c + 1] = (int)((double)beta * c[offset_c + 1] + (0.0))
+                c[offset_c + 1] = (int)(beta * c[offset_c + 1])
                         + co[offset_co + offset_x];
             }
             if (apply_eltwise) UPDATE_ELEM_C(offset_c + 1);
