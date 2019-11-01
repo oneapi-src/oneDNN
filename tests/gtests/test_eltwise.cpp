@@ -238,11 +238,17 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
     const dnnl::impl::memory_desc_wrapper data_mdw(data_d.data);
     const dnnl::impl::memory_desc_wrapper diff_data_mdw(diff_data_d.data);
 
-    const data_t eps = static_cast<data_t>(
-            (p.alg_kind == algorithm::eltwise_soft_relu
-                    || p.alg_kind == algorithm::eltwise_tanh)
-                    ? 2e-6f
-                    : (p.alg_kind == algorithm::eltwise_gelu ? 1e-5f : 1e-6f));
+    float eps_f = 0;
+    if (p.alg_kind == algorithm::eltwise_soft_relu) {
+        eps_f = 2e-6f;
+    } else if (p.alg_kind == algorithm::eltwise_tanh) {
+        eps_f = (get_test_engine_kind() == engine::kind::gpu) ? 2e-5f : 2e-6f;
+    } else if (p.alg_kind == algorithm::eltwise_gelu) {
+        eps_f = 1e-5f;
+    } else {
+        eps_f = 1e-6f;
+    }
+    data_t eps = static_cast<data_t>(eps_f);
 
     memory::dim n = n_elems(md);
     for (memory::dim i = 0; i < n; ++i) {
