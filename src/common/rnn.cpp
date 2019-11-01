@@ -323,6 +323,7 @@ status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
             && IMPLICATION(cell_kind == dnnl_vanilla_lstm,
                     xnor_md(src_iter_desc, src_iter_c_desc)
                             && xnor_md(dst_iter_desc, dst_iter_c_desc));
+    if (!args_ok) return invalid_arguments;
 
     //check dimensions consistency
     dim_t L = weights_layer_desc->dims[0];
