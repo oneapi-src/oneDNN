@@ -180,9 +180,9 @@ status_t check_data_type_consistency_bwd(dnnl_alg_kind_t cell_kind,
 }
 
 status_t check_dim_consistency(dnnl_alg_kind_t cell_kind,
-        rnn_direction_t direction, int L, int D, int T, int N, int G, int SLC,
-        int SIC, int DLC, int DIC, const memory_desc_t *src_layer_desc,
-        const memory_desc_t *src_iter_desc,
+        rnn_direction_t direction, dim_t L, dim_t D, dim_t T, dim_t N, dim_t G,
+        dim_t SLC, dim_t SIC, dim_t DLC, dim_t DIC,
+        const memory_desc_t *src_layer_desc, const memory_desc_t *src_iter_desc,
         const memory_desc_t *src_iter_c_desc,
         const memory_desc_t *weights_layer_desc,
         const memory_desc_t *weights_iter_desc, const memory_desc_t *bias_desc,
@@ -196,7 +196,7 @@ status_t check_dim_consistency(dnnl_alg_kind_t cell_kind,
                                    alg_kind::lbr_gru),
                     DIC == SIC);
     if (!args_ok) return invalid_arguments;
-    int extra_bias = cell_kind == alg_kind::lbr_gru;
+    dim_t extra_bias = cell_kind == alg_kind::lbr_gru;
 
     // * on num layers
     args_ok = true && L == weights_layer_desc->dims[0]
@@ -264,7 +264,7 @@ status_t check_dim_consistency(dnnl_alg_kind_t cell_kind,
     if (!args_ok) return invalid_arguments;
 
     // * on dlc
-    int dlc_multiplier = (direction == dnnl_bidirectional_concat) ? 2 : 1;
+    dim_t dlc_multiplier = (direction == dnnl_bidirectional_concat) ? 2 : 1;
     args_ok = true && DLC == dlc_multiplier * DIC
             && DLC == dst_layer_desc->dims[2];
     if (!args_ok) return invalid_arguments;
@@ -325,18 +325,18 @@ status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
                             && xnor_md(dst_iter_desc, dst_iter_c_desc));
 
     //check dimensions consistency
-    int L = weights_layer_desc->dims[0];
-    int T = src_layer_desc->dims[0];
-    int N = src_layer_desc->dims[1];
-    const int D = one_of(direction, dnnl_unidirectional_left2right,
-                          dnnl_unidirectional_right2left)
+    dim_t L = weights_layer_desc->dims[0];
+    dim_t T = src_layer_desc->dims[0];
+    dim_t N = src_layer_desc->dims[1];
+    const dim_t D = one_of(direction, dnnl_unidirectional_left2right,
+                            dnnl_unidirectional_right2left)
             ? 1
             : 2;
-    int G = dnnl::impl::rnn::get_gates_count(cell_kind);
-    int SLC = src_layer_desc->dims[2];
-    int SIC = weights_iter_desc->dims[2];
-    int DLC = dst_layer_desc->dims[2];
-    int DIC = weights_layer_desc->dims[4];
+    dim_t G = dnnl::impl::rnn::get_gates_count(cell_kind);
+    dim_t SLC = src_layer_desc->dims[2];
+    dim_t SIC = weights_iter_desc->dims[2];
+    dim_t DLC = dst_layer_desc->dims[2];
+    dim_t DIC = weights_layer_desc->dims[4];
 
     CHECK(check_dim_consistency(cell_kind, direction, L, D, T, N, G, SLC, SIC,
             DLC, DIC, src_layer_desc, src_iter_desc, src_iter_c_desc,
