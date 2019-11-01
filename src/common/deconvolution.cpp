@@ -92,12 +92,15 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
         int dil = dd.dilates[i - 2];
-        int pad = padding_l[i - 2] + padding_r[i - 2];
+        int pad_l = padding_l[i - 2];
+        int pad_r = padding_r[i - 2];
         int str = strides[i - 2];
         int dst = dst_desc->dims[i];
         int ker_range = 1 + (ker - 1) * (dil + 1);
 
-        consistency = consistency && (dst - ker_range + pad) / str + 1 == src;
+        if (str < 1) return invalid_arguments;
+        consistency = consistency && dil >= 0 && pad_l >= 0 && pad_r + str > 0
+                && (dst - ker_range + pad_l + pad_r) / str + 1 == src;
     }
     if (!consistency) return invalid_arguments;
 
