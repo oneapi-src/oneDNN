@@ -1493,7 +1493,7 @@ struct memory : public handle<dnnl_memory_t> {
 
         /// Constructs a memory descriptor.
         ///
-        /// @param adims Data dimensions
+        /// @param adims Data dimensions.
         /// @param adata_type Data precision/type.
         /// @param aformat_tag Data layout format tag.
         desc(const dims &adims, data_type adata_type, format_tag aformat_tag) {
@@ -1508,7 +1508,7 @@ struct memory : public handle<dnnl_memory_t> {
 
         /// Constructs a memory descriptor by strides.
         ///
-        /// @param adims Data dimensions
+        /// @param adims Data dimensions.
         /// @param adata_type Data precision/type.
         /// @param astrides The strides for dimensions.
         desc(const dims &adims, data_type adata_type, const dims &astrides) {
@@ -1528,8 +1528,8 @@ struct memory : public handle<dnnl_memory_t> {
 
         /// Constructs a sub-memory descriptor.
         //
-        /// @param adims Sizes of a sub-memory
-        /// @param offsets Offsets of a sub-memory
+        /// @param adims Sizes of a sub-memory.
+        /// @param offsets Offsets of a sub-memory.
         desc submemory_desc(const dims &adims, const dims &offsets) {
             dnnl_memory_desc_t sub_md;
             error::wrap_c_api(dnnl_memory_desc_init_submemory(
@@ -1545,6 +1545,18 @@ struct memory : public handle<dnnl_memory_t> {
                                       (int)adims.size(), &adims[0]),
                     "could not reshape a memory descriptor");
             return desc(out_md);
+        }
+
+        /// Returns a copy of the dimensions array.
+        ///
+        /// Potentially expensive due to the data copy involved.
+        memory::dims dims() const {
+            return memory::dims(data.dims, data.dims + data.ndims);
+        }
+
+        /// Returns the data type.
+        memory::data_type data_type() const {
+            return static_cast<memory::data_type>(data.data_type);
         }
 
         /// Returns the number of bytes required to allocate the memory
