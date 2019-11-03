@@ -277,6 +277,9 @@ public:
     inline const_dnnl_primitive_desc_t get_primitive_desc() const;
     // TODO (Roma): add a version that returns a C++ API wrapper structure.
 
+    /// Returns the kind of the primitive.
+    inline kind get_kind() const;
+
     /// Executes the primitive in a @p astream. Arguments are passed in an
     /// argument map @p args.
     void execute(
@@ -294,6 +297,17 @@ const_dnnl_primitive_desc_t primitive::get_primitive_desc() const {
     error::wrap_c_api(dnnl_primitive_get_primitive_desc(get(), &pd),
             "could not get primitive descriptor by primitive");
     return pd;
+}
+
+dnnl::primitive::kind primitive::get_kind() const {
+    const_dnnl_primitive_desc_t pd = get_primitive_desc();
+    // TODO (Roma): the code below is only needed because get_primitive_desc
+    // returns a C type.
+    dnnl_primitive_kind_t kind;
+    error::wrap_c_api(dnnl_primitive_desc_query(
+                              pd, dnnl_query_primitive_kind, 0, (void *)&kind),
+            "could not get primitive kind from the primitive descriptor");
+    return static_cast<dnnl::primitive::kind>(kind);
 }
 /// @}
 
@@ -1854,6 +1868,15 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
                 "could not clone attributes");
 
         return primitive_attr(cattr);
+    }
+
+    /// Returns the kind of the primitive descriptor.
+    dnnl::primitive::kind get_kind() const {
+        dnnl_primitive_kind_t kind;
+        error::wrap_c_api(dnnl_primitive_desc_query(get(),
+                                  dnnl_query_primitive_kind, 0, (void *)&kind),
+                "could not get primitive kind from the primitive descriptor");
+        return static_cast<dnnl::primitive::kind>(kind);
     }
 
 protected:
