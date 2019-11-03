@@ -108,7 +108,7 @@ struct error : public std::exception {
 
 /// A class that provides the destructor for an DNNL C handle
 template <typename T>
-class handle_traits {};
+struct handle_traits {};
 
 /// A class for wrapping an DNNL handle. It is used as the base
 /// class for primitive (#dnnl_primitive_t), engine (#dnnl_engine_t), and
@@ -124,7 +124,7 @@ class handle_traits {};
 ///    deleter because it is assumed that the handle wrapper for the original
 ///    object deletes the handle (this model is similar to @p std::weak_ptr).
 template <typename T, typename traits = handle_traits<T>>
-class handle {
+struct handle {
 private:
     static dnnl_status_t dummy_destructor(T) { return dnnl_success; }
 
@@ -219,7 +219,7 @@ struct memory;
 struct primitive_desc;
 
 /// Base class for all computational primitives.
-class primitive : public handle<dnnl_primitive_t> {
+struct primitive : public handle<dnnl_primitive_t> {
     friend struct error;
     friend struct stream;
 
@@ -917,7 +917,7 @@ struct handle_traits<dnnl_engine_t> {
 
 /// An execution engine.
 struct engine : public handle<dnnl_engine_t> {
-    friend class primitive;
+    friend struct primitive;
     friend struct reorder;
 
     /// Kinds of engines.
