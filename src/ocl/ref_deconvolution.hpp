@@ -262,7 +262,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
                                     desc()->diff_dst_desc.data_type))
                     && utils::one_of(desc()->diff_src_desc.data_type,
                             data_type::bf16, data_type::f32)
-                    && desc()->alg_kind == alg_kind::deconvolution_direct;
+                    && desc()->alg_kind == alg_kind::deconvolution_direct
+                    && attr()->has_default_values();
 
             if (ok) {
                 CHECK(init_convolution());
