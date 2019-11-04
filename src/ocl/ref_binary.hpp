@@ -42,7 +42,8 @@ struct ref_binary_t : public primitive_impl_t {
                             || utils::everyone_is(bf16, src_md(0)->data_type,
                                     src_md(1)->data_type, dst_md()->data_type)
                             || utils::everyone_is(f16, src_md(0)->data_type,
-                                    src_md(1)->data_type, dst_md()->data_type));
+                                    src_md(1)->data_type, dst_md()->data_type))
+                    && attr()->has_default_values();
 
             if (!ok) return status::unimplemented;
 
