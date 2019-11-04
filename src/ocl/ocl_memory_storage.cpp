@@ -42,6 +42,8 @@ ocl_memory_storage_t::ocl_memory_storage_t(
     } else if (flags & memory_flags_t::use_runtime_ptr) {
         mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
                 static_cast<cl_mem>(handle), true);
+    } else {
+        assert(!"not expected");
     }
 }
 

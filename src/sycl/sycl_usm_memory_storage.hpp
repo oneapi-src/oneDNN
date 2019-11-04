@@ -54,6 +54,8 @@ public:
                     [&](void *ptr) { cl::sycl::free(ptr, sycl_ctx); });
         } else if (flags & memory_flags_t::use_runtime_ptr) {
             usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
+        } else {
+            assert(!"not expected");
         }
     }
 

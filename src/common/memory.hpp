@@ -41,6 +41,8 @@ enum memory_flags_t {
 } // namespace dnnl
 
 struct dnnl_memory : public dnnl::impl::c_compatible {
+    /** XXX: Parameter flags must contain either alloc or use_runtime_ptr from
+     * memory_flags_t. */
     dnnl_memory(dnnl::impl::engine_t *engine,
             const dnnl::impl::memory_desc_t *md, unsigned flags, void *handle);
     dnnl_memory(dnnl::impl::engine_t *engine,

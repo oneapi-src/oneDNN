@@ -42,6 +42,8 @@ public:
             data_ = decltype(data_)(data_ptr, destroy);
         } else if (flags & memory_flags_t::use_runtime_ptr) {
             data_ = decltype(data_)(handle, release);
+        } else {
+            assert(!"not expected");
         }
     }
 

@@ -39,6 +39,8 @@ sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(
     } else if (flags & memory_flags_t::use_runtime_ptr) {
         auto &buf_u8 = *static_cast<buffer_u8_t *>(handle);
         buffer_.reset(new buffer_u8_t(buf_u8));
+    } else {
+        assert(!"not expected");
     }
 }
 
