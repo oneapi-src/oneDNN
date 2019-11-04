@@ -2403,37 +2403,39 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
          *      reduction: 1 read from workspace and 1 write to the diff_wei
          *    - but experiments showed 8 works better than 5 or 6... */
 
-        const int src_type_size = 2;
-        const int wei_type_size = 4;
-        const int balance_threshold = 16;
+        const dim_t src_type_size = 2;
+        const dim_t wei_type_size = 4;
+        const dim_t balance_threshold = 16;
 
-        int src_size = (j.mb * j.ic * j.id * j.ih * j.iw * src_type_size);
-        int wei_size = (j.oc * j.ic * j.kd * j.kh * j.kw * wei_type_size);
+        dim_t src_size
+                = (dim_t)j.mb * j.ic * j.id * j.ih * j.iw * src_type_size;
+        dim_t wei_size
+                = (dim_t)j.oc * j.ic * j.kd * j.kh * j.kw * wei_type_size;
 
-        int r2 = nstl::min(
-                balance_threshold, nstl::max(div_up(src_size, wei_size), 1));
-        int r1 = nstl::min(
-                balance_threshold, nstl::max(div_up(wei_size, src_size), 1));
+        dim_t r2 = nstl::min(balance_threshold,
+                nstl::max(div_up(src_size, wei_size), (dim_t)1));
+        dim_t r1 = nstl::min(balance_threshold,
+                nstl::max(div_up(wei_size, src_size), (dim_t)1));
 
-        const int src_coef = (src_size <= wei_size) ? r2 : r1;
-        const int dst_coef = 1;
-        const int wei_coef = (src_size <= wei_size) ? r1 : r2;
+        const dim_t src_coef = (src_size <= wei_size) ? r2 : r1;
+        const dim_t dst_coef = 1;
+        const dim_t wei_coef = (src_size <= wei_size) ? r1 : r2;
 
-        int src_v = src_coef * div_up(j.mb, nthr_mb)
+        dim_t src_v = src_coef * div_up(j.mb, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_ic, nthr_ic_b)
                 * j.ic_block * j.ih * j.iw * j.id / j.stride_d / j.stride_h
                 / j.stride_w;
-        int wei_v = wei_coef * div_up(j.ngroups, nthr_g_)
+        dim_t wei_v = wei_coef * div_up(j.ngroups, nthr_g_)
                 * div_up(j.nb_oc, nthr_oc_b) * div_up(j.nb_ic, nthr_ic_b) * j.kh
                 * j.kw * j.kd * j.ic_block * j.oc_block;
-        int dst_v = dst_coef * div_up(j.mb, nthr_mb)
+        dim_t dst_v = dst_coef * div_up(j.mb, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_oc, nthr_oc_b)
                 * j.oc_block * j.oh * j.ow * j.od;
 
         return src_v + dst_v + wei_v;
     };
 
-    int best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+    dim_t best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
     /* step 1: find the best thread distribution with lowest memory cost */
     const int nthr_mb_max = nstl::min(nthr, j.mb * j.od);
@@ -2443,7 +2445,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
         for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
 
-            int mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            dim_t mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
                 nthr_mb_ = nthr_mb;
