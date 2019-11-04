@@ -32,6 +32,9 @@ namespace impl {
 struct rnn_data_qparams_t : public c_compatible {
     rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
     bool has_default_values() const { return (scale_ == 1. && shift_ == 0.); }
+    bool defined() const {
+        return !is_runtime_value(scale_) && !is_runtime_value(shift_);
+    }
 
     status_t set(float scale, float shift) {
         scale_ = scale;
@@ -297,6 +300,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return -1;
     }
 
+    bool defined() const;
     bool has_default_values() const { return len_ == 0; }
 
     bool contain(dnnl::impl::primitive_kind_t kind, int index) const {
@@ -339,6 +343,9 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
      *
      * @note The scratchpad_mode_ is not take into account */
     bool has_default_values(skip_mask_t mask = skip_mask_t::none) const;
+
+    /** Returns true if the attributes are fully defined. */
+    bool defined(skip_mask_t mask = skip_mask_t::none) const;
 
     bool operator==(const dnnl_primitive_attr &rhs) const {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_

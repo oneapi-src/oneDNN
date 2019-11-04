@@ -83,15 +83,19 @@ status_t zero_points_t::set(
 
 bool primitive_attr_t::has_default_values(
         dnnl_primitive_attr::skip_mask_t mask) const {
+    // prepare mask for runtime-parameters check
+    skip_mask_t defined_mask {};
+    if ((mask & skip_mask_t::oscale_runtime) == skip_mask_t::oscale_runtime)
+        defined_mask |= skip_mask_t::oscale;
+    if ((mask & skip_mask_t::zero_points_runtime)
+            == skip_mask_t::zero_points_runtime)
+        defined_mask |= skip_mask_t::zero_points;
+
     return true
             && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
                     output_scales_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::oscale_runtime),
-                    output_scales_.defined())
             && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
                     zero_points_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points_runtime),
-                    zero_points_.defined())
             && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
                     post_ops_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
@@ -99,7 +103,22 @@ bool primitive_attr_t::has_default_values(
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
                     rnn_weights_qparams_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_tparams),
-                    rnn_tparams_.has_default_values());
+                    rnn_tparams_.has_default_values())
+            && this->defined(defined_mask);
+}
+
+bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
+    return true
+            && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
+                    output_scales_.defined())
+            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
+                    zero_points_.defined())
+            && IMPLICATION(
+                    (bool)(~mask & skip_mask_t::post_ops), post_ops_.defined())
+            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
+                    rnn_data_qparams_.defined())
+            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
+                    rnn_weights_qparams_.defined());
 }
 
 status_t post_ops_t::append_sum(float scale) {
@@ -133,6 +152,22 @@ status_t post_ops_t::append_eltwise(
     len_++;
 
     return success;
+}
+
+bool post_ops_t::defined() const {
+    for (int idx = 0; idx < len_; ++idx) {
+        if (entry_[idx].kind == primitive_kind::sum) {
+            if (is_runtime_value(entry_[idx].sum.scale)) return false;
+        } else if (entry_[idx].kind == primitive_kind::eltwise) {
+            const auto &e = entry_[idx].eltwise;
+            if (is_runtime_value(e.scale) || is_runtime_value(e.alpha)
+                    || is_runtime_value(e.beta))
+                return false;
+        } else {
+            assert(!"unreachable");
+        }
+    }
+    return true;
 }
 
 status_t primitive_attr_t::set_scratchpad_mode(
