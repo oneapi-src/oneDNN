@@ -189,6 +189,15 @@ TEST_F(runtime_attr_test, TestPool) {
     CHECK_UNIMPL(pooling_forward::primitive_desc(op_d, gen_attr(true), eng));
 }
 
+CPU_TEST_F(runtime_attr_test, TestReorder) {
+    memory::desc src_md {{1, 16, 8, 8}, data_type::s8, tag::abcd};
+    memory::desc dst_md {{1, 16, 8, 8}, data_type::s8, tag::acdb};
+    CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md));
+    CHECK_OK(
+            reorder::primitive_desc(eng, src_md, eng, dst_md, gen_attr(false)));
+    CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md, gen_attr(true)));
+}
+
 TEST_F(runtime_attr_test, TestRNN) {
     memory::dim n = 1, t = 1, l = 10, c = 8, g = 4, d = 1;
     memory::desc src_layer_md {{t, n, c}, data_type::u8, tag::tnc};

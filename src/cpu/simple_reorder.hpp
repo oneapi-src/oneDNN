@@ -26,6 +26,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
 #include "tag_traits.hpp"
 
@@ -93,12 +94,24 @@ namespace {
 bool simple_fmt_check(bool order_keep, impl::format_tag_t tag_i,
         impl::format_tag_t tag_o, const memory_desc_wrapper &input_d,
         const memory_desc_wrapper &output_d) {
+    if (input_d.has_runtime_dims_or_strides()) return false;
     return input_d.matches_tag(order_keep ? tag_i : tag_o)
             && output_d.matches_tag(order_keep ? tag_o : tag_i);
 }
-bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support) {
+bool simple_po_check(const primitive_attr_t *attr) {
+    const auto &po = attr->post_ops_;
+    return po.len_ == 0 || (po.len_ == 1 && po.contain(primitive_kind::sum, 0));
+}
+bool simple_attr_check(const primitive_attr_t *attr, bool many_scales_support,
+        bool sum_support) {
+    using smask_t = primitive_attr_t::skip_mask_t;
+    smask_t skip_mask = smask_t::oscale;
+    if (sum_support) skip_mask = skip_mask | smask_t::post_ops;
+    if (!attr->has_default_values(skip_mask)) return false;
+    if (!attr->defined()) return false;
+    if (sum_support) simple_po_check(attr);
     if (many_scales_support) return true;
-    return IMPLICATION(attr, attr->output_scales_.mask_ == 0);
+    return attr->output_scales_.mask_ == 0;
 }
 } // namespace
 
@@ -112,12 +125,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace data_type;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const int oc = (input_d.dims()[tag_o == format_tag::hwigo + 0]);
         const int g = (tag_o == format_tag::hwigo) ? (input_d.dims()[0]) : 1;
 
-        return output_d.matches_tag(tag_o)
+        return simple_attr_check(attr, true, false)
+                && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
@@ -192,13 +209,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace format_tag;
         using namespace data_type;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const bool w_groups = !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
-        return input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
+        return simple_attr_check(attr, true, false)
+                && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
@@ -307,13 +328,15 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace data_type;
 
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
         const int oc = input_d.dims()[1];
         const int g = input_d.dims()[0];
 
-        return true && order_keep && input_d.matches_tag(tag_i)
-                && output_d.matches_tag(tag_o)
+        return order_keep && simple_attr_check(attr, true, false)
+                && input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
@@ -411,6 +434,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace data_type;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
         return order_keep && input_d.matches_tag(tag_i)
                 && output_d.matches_tag(tag_o) && input_d.data_type() == f32
                 && output_d.data_type() == bf16 && attr->has_default_values();
@@ -514,6 +540,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         using namespace data_type;
+
+        if (input_d.has_runtime_dims_or_strides()) return false;
+
         return input_d.matches_tag(tag_i) && output_d.matches_tag(tag_o)
                 && input_d.data_type() == f32 && output_d.data_type() == bf16
                 && attr->has_default_values();
@@ -592,7 +621,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         return simple_fmt_check(order_keep, tag_i, tag_o, input_d, output_d)
-                && simple_attr_check(attr, false);
+                && simple_attr_check(attr, false, true);
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -679,7 +708,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d, \
             const memory_desc_wrapper &output_d, \
             const primitive_attr_t *attr) { \
-        return simple_attr_check(attr, false) \
+        return !input_d.has_runtime_dims_or_strides() \
+                && simple_attr_check(attr, false, true) \
                 && (order_keep ? output_d.matches_tag(tag_o) \
                                         && input_d.is_plain() \
                                : input_d.matches_tag(tag_o) \
@@ -953,9 +983,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
         /* FIXME: is the formula correct? */
-        return input_d.similar_to(output_d, true, false, 0)
+        return !input_d.has_runtime_dims_or_strides()
+                && input_d.similar_to(output_d, true, false, 0)
                 && input_d.is_dense() && output_d.is_dense()
-                && simple_attr_check(attr, false);
+                && simple_attr_check(attr, false, true);
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -1050,9 +1081,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             return nelems_no_dim_0(data_d) == _size_no_dim_0(data_d);
         };
         /* FIXME: is the formula correct? */
-        return input_d.similar_to(output_d, true, false, 1)
+        return !input_d.has_runtime_dims_or_strides()
+                && input_d.similar_to(output_d, true, false, 1)
                 && is_dense_no_0(input_d) && is_dense_no_0(output_d)
-                && simple_attr_check(attr, false);
+                && simple_attr_check(attr, false, true);
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -1156,9 +1188,14 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
             ;
         for (; smask > 0 && smask & 0x1; smask >>= 1)
             ;
-        return true && input_d.is_blocking_desc() && output_d.is_blocking_desc()
+        return input_d.is_blocking_desc() && output_d.is_blocking_desc()
                 && !output_d.is_additional_buffer()
-                && !input_d.is_additional_buffer() && smask == 0;
+                && !input_d.is_additional_buffer() && smask == 0
+                && attr->has_default_values(
+                        dnnl_primitive_attr::skip_mask_t::oscale_runtime
+                        | dnnl_primitive_attr::skip_mask_t::zero_points_runtime
+                        | dnnl_primitive_attr::skip_mask_t::post_ops)
+                && simple_po_check(attr);
     }
 
     GET_SCRATCHPAD_SIZE_ZERO();
@@ -1182,7 +1219,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 input_d.dims() + ndims_start, ndims_mask);
         const ptrdiff_t D_rest = nelems / D_start / D_mask;
 
-        const float *scales = pd->attr()->output_scales_.scales_;
+        int i0 = 0, o0 = 0;
+        const float *scales = nullptr;
+        {
+            const auto pd_ = pd;
+            auto pd = [pd_]() { return pd_; };
+            DEFINE_SCALES_BUFFER(scales_);
+            DEFINE_ZERO_POINT_VALUE(i0_, DNNL_ARG_FROM);
+            DEFINE_ZERO_POINT_VALUE(o0_, DNNL_ARG_TO);
+            scales = scales_;
+            i0 = i0_;
+            o0 = o0_;
+        }
 
         parallel_nd(D_start, D_mask, D_rest,
                 [&](ptrdiff_t ds, ptrdiff_t dm, ptrdiff_t dr) {
@@ -1192,7 +1240,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                     const auto &i = input[input_d.off_l(e)];
                     auto &o = output[output_d.off_l(e)];
 
-                    o = _qz<type_i, type_o>()(i, o, scale, beta);
+                    float f = scale * (i - i0) + o0;
+                    o = _qz<data_type::f32, type_o>()(f, o, 1.f, beta);
                 });
 
         return status::success;
@@ -1212,11 +1261,13 @@ struct simple_reorder_t : public primitive_impl_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
-            using smask_t = primitive_attr_t::skip_mask_t;
             bool args_ok = true && src_md->data_type == type_i
                     && dst_md->data_type == type_o
                     && attr->has_default_values(
-                            smask_t::oscale | smask_t::post_ops)
+                            dnnl_primitive_attr::skip_mask_t::oscale_runtime
+                            | dnnl_primitive_attr::skip_mask_t::
+                                    zero_points_runtime
+                            | dnnl_primitive_attr::skip_mask_t::post_ops)
                     && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             spec>::is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;

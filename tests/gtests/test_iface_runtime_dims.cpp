@@ -168,6 +168,14 @@ TEST_F(runtime_dim_test, TestPool) {
             {2, 2}, {2, 2}, {0, 0}, {0, 0}));
 }
 
+CPU_TEST_F(runtime_dim_test, TestReorder) {
+    memory::desc src_md {
+            {DNNL_RUNTIME_DIM_VAL, 16, 8, 8}, data_type::f32, tag::abcd};
+    memory::desc dst_md {
+            {DNNL_RUNTIME_DIM_VAL, 16, 8, 8}, data_type::f32, tag::acdb};
+    CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md));
+}
+
 TEST_F(runtime_dim_test, TestRNN) {
     memory::dim l = 10, c = 8, g = 1, d = 1;
     memory::desc src_layer_md {{DNNL_RUNTIME_DIM_VAL, DNNL_RUNTIME_DIM_VAL, c},
