@@ -55,6 +55,8 @@ struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
                     && !has_zero_dim_memory()
                     && set_default_formats_common(
                             dat_tag(), wei_tag(), dat_tag())
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && post_ops_ok()
                     && memory_desc_matches_tag(*src_md(), dat_tag())
                     && memory_desc_matches_tag(*dst_md(), dat_tag())
@@ -260,6 +262,7 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_impl_t {
                     && !has_zero_dim_memory()
                     && set_default_formats_common(
                             dat_tag(), wei_tag(), dat_tag())
+                    && attr()->has_default_values()
                     && memory_desc_matches_tag(*diff_src_md(), dat_tag())
                     && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
                     && memory_desc_matches_tag(*weights_md(), wei_tag());
@@ -323,7 +326,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_impl_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(desc()->diff_bias_desc.data_type,
                                     data_type::bf16, data_type::f32))
-                    && !has_zero_dim_memory()
+                    && !has_zero_dim_memory() && attr()->has_default_values()
                     && set_default_formats_common(
                             dat_tag(), wei_tag(), dat_tag())
                     && memory_desc_matches_tag(*src_md(), dat_tag())

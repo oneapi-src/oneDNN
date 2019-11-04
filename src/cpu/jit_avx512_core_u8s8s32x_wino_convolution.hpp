@@ -64,6 +64,9 @@ struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t
                             utils::one_of(desc()->bias_desc.data_type,
                                     data_type::f32, data_type::s32,
                                     data_type::s8, data_type::u8))
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale
+                            | primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
 
             if (!ok) return status::unimplemented;

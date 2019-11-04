@@ -59,6 +59,9 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
                     && !has_zero_dim_memory()
                     && set_default_formats_common(
                             dat_tag(), format_tag::any, dat_tag())
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale
+                            | primitive_attr_t::skip_mask_t::post_ops)
                     && post_ops_ok()
                     && memory_desc_matches_tag(*src_md(), dat_tag())
                     && memory_desc_matches_tag(*dst_md(), dat_tag())
@@ -224,7 +227,8 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
                     && !has_zero_dim_memory()
                     && set_default_formats_common(
                             dat_tag(), wei_tag(), dat_tag())
-                    && attr()->post_ops_.has_default_values()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale)
                     && memory_desc_matches_tag(*diff_src_md(), dat_tag())
                     && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
                     && memory_desc_matches_tag(*weights_md(), wei_tag());

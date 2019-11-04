@@ -57,8 +57,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
 
             auto src_data_t = this->desc()->src_desc.data_type;
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
-                    | primitive_attr_t::skip_mask_t::post_ops;
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && utils::one_of(this->desc()->prop_kind, forward_training,
@@ -78,10 +77,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                                                     intel_subgroups_short))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(attr_skip_mask)
-                    && post_ops_ok(attr())
-                    && IMPLICATION(!attr()->output_scales_.has_default_values(),
-                            utils::one_of(src_md_.data_type, s8, u8)
-                                    && attr()->output_scales_.mask_ == 0);
+                    && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
             status_t status = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_,

@@ -51,6 +51,8 @@ struct jit_avx512_common_convolution_fwd_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, dst_type, dst_type,
                             data_type::undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
@@ -125,7 +127,7 @@ struct jit_avx512_common_convolution_bwd_data_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
-                    && !has_zero_dim_memory();
+                    && attr()->has_default_values() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status
@@ -194,7 +196,7 @@ struct jit_avx512_common_convolution_bwd_weights_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, diff_weights_type,
                             diff_weights_type, diff_dst_type, data_type::undef)
-                    && !has_zero_dim_memory();
+                    && attr()->has_default_values() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status

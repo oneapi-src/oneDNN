@@ -56,6 +56,8 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
@@ -142,7 +144,8 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
                             || expect_data_types(data_type::bf16,
                                     data_type::bf16, data_type::undef,
                                     data_type::bf16, data_type::undef))
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_bwd_data_kernel::init_conf(
@@ -217,7 +220,8 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
                     && IMPLICATION(with_bias(),
                             utils::one_of(diff_weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::

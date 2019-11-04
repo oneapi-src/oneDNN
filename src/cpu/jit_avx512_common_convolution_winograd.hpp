@@ -102,6 +102,8 @@ struct jit_avx512_common_convolution_winograd_fwd_t
                             alg_kind::convolution_winograd)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats()
                     && dnnl_thr_syncable();
             if (!ok) return status::unimplemented;
@@ -173,8 +175,8 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
                             alg_kind::convolution_winograd)
-                    && !has_zero_dim_memory() && set_default_formats()
-                    && dnnl_thr_syncable();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats() && dnnl_thr_syncable();
             if (!ok) return status::unimplemented;
 
             status_t status
@@ -242,8 +244,8 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                             alg_kind::convolution_winograd)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && set_default_formats()
-                    && dnnl_thr_syncable();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats() && dnnl_thr_syncable();
             if (!ok) return status::unimplemented;
 
             status_t status
