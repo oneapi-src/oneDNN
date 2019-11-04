@@ -313,6 +313,18 @@ inline dnnl_primitive_attr::skip_mask_t operator&(
     return static_cast<dnnl_primitive_attr::skip_mask_t>(
             static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
 }
+inline dnnl_primitive_attr::skip_mask_t &operator|=(
+        dnnl_primitive_attr::skip_mask_t &lhs,
+        dnnl_primitive_attr::skip_mask_t rhs) {
+    lhs = lhs | rhs;
+    return lhs;
+}
+inline dnnl_primitive_attr::skip_mask_t &operator&=(
+        dnnl_primitive_attr::skip_mask_t &lhs,
+        dnnl_primitive_attr::skip_mask_t rhs) {
+    lhs = lhs & rhs;
+    return lhs;
+}
 inline bool operator!=(dnnl_primitive_attr::skip_mask_t lhs,
         dnnl_primitive_attr::skip_mask_t rhs) {
     return (static_cast<unsigned>(lhs) != static_cast<unsigned>(rhs));
