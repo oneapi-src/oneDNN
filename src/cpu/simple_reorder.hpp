@@ -1230,8 +1230,11 @@ struct simple_reorder_t : public primitive_impl_t {
                 const primitive_attr_t *attr, engine_t *src_engine,
                 const memory_desc_t *src_md, engine_t *dst_engine,
                 const memory_desc_t *dst_md) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             bool args_ok = true && src_md->data_type == type_i
                     && dst_md->data_type == type_o
+                    && attr->has_default_values(
+                            smask_t::oscale | smask_t::post_ops)
                     && simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             spec>::is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;

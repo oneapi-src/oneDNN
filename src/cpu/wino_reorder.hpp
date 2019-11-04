@@ -67,6 +67,11 @@ struct wino_reorder_t : public primitive_impl_t {
             status_t status = cpu_reorder_pd_t::init();
             if (status != status::success) return status;
 
+            bool ok = attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops);
+            if (!ok) return status::unimplemented;
+
             init_scratchpad();
 
             return status::success;
