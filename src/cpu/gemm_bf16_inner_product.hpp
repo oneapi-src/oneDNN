@@ -49,7 +49,8 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_impl_t {
                     && dst_data_type == dst_md()->data_type
                     && IMPLICATION(with_bias(),
                             one_of(weights_md(1)->data_type, f32, bf16))
-                    && attr()->output_scales_.has_default_values()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && post_ops_ok() && set_default_params() == status::success
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());

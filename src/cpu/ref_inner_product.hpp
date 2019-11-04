@@ -48,7 +48,8 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(
                                     weights_md(1)->data_type, f32, s32, s8, u8))
-                    && attr()->output_scales_.has_default_values()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && attr()->post_ops_.len_ <= 1
                     && IMPLICATION(attr()->post_ops_.len_ == 1,
                             attr()->post_ops_.entry_[0].is_relu(true, false))
