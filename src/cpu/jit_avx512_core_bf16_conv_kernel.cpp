@@ -1048,7 +1048,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ur_w = jcp.stride_w;
 
-    /* Maximun number of registers available for result accumulation and delta
+    /* Maximum number of registers available for result accumulation and delta
        dst data. One additional register is reserved for weights data. */
     const int max_regs
             = isa_has_bf16(jcp.isa) ? 31 : 26; /* In case of cpx emulation
