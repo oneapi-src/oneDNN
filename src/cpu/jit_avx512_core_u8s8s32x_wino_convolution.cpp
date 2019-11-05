@@ -1101,7 +1101,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                             v_x_masks[i] = uint16_t(
                                     i < v_xs || i >= v_xe ? 0 : 0xffff);
                         }
-                        auto local_s = src + mb * jcp.ih * jcp.iw * jcp.ic
+                        auto local_s = src
+                                + (dim_t)mb * jcp.ih * jcp.iw * jcp.ic
                                 + y * jcp.iw * jcp.ic + x * jcp.ic;
                         auto local_w = wino_src + m * jcp.ic;
 
@@ -1143,7 +1144,8 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                             v_y_masks[i]
                                     = uint16_t(y + i < jcp.oh ? 0xffff : 0);
                         }
-                        auto local_d = dst + mb * jcp.oh * jcp.ow * jcp.oc
+                        auto local_d = dst
+                                + (dim_t)mb * jcp.oh * jcp.ow * jcp.oc
                                 + y * jcp.ow * jcp.oc + x * jcp.oc;
                         auto local_w = wino_dst + m * jcp.oc;
 
@@ -1211,7 +1213,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                                 = uint16_t(i < v_xs || i >= v_xe ? 0 : 0xffff);
                     }
                     auto local_s = src
-                            + (mbb * jcp.mb_block + mb) * jcp.ih * jcp.iw
+                            + ((dim_t)mbb * jcp.mb_block + mb) * jcp.ih * jcp.iw
                                     * jcp.ic
                             + y * jcp.iw * jcp.ic + x * jcp.ic;
                     auto local_w = wino_src + m * jcp.ic;
@@ -1264,7 +1266,7 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
                         v_y_masks[i] = uint16_t(y + i < jcp.oh ? 0xffff : 0);
                     }
                     auto local_d = dst
-                            + (mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow
+                            + ((dim_t)mbb * jcp.mb_block + mb) * jcp.oh * jcp.ow
                                     * jcp.oc
                             + y * jcp.ow * jcp.oc + x * jcp.oc;
                     auto local_w = wino_dst + m * jcp.oc;

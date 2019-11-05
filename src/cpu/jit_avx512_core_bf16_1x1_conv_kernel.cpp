@@ -959,7 +959,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         load_blocking = jcp.load_dim;
 
         int load_size = jcp.load_dim * jcp.reduce_dim;
-        int bcast_size = jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
+        auto bcast_size
+                = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
 
         if (nthreads <= 28 && jcp.mb < nthreads
                 && nb_load * nb_bcast > nthreads) {

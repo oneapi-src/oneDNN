@@ -899,7 +899,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
                             v_x_masks[i] = (i < v_xs || i >= v_xe) ? 0 : 0xffff;
                         }
                         auto local_s = src
-                                + mb * jcp.nb_ic * jcp.ih * jcp.iw
+                                + (dim_t)mb * jcp.nb_ic * jcp.ih * jcp.iw
                                         * jcp.ic_block
                                 + y * jcp.iw * jcp.ic_block + x * jcp.ic_block;
                         auto local_w = wino_src + m * jcp.ic;
@@ -939,7 +939,7 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
                             v_y_masks[i] = (y + i < jcp.oh) ? 0xffff : 0;
                         }
                         auto local_d = dst
-                                + mb * jcp.nb_oc * jcp.oh * jcp.ow
+                                + (dim_t)mb * jcp.nb_oc * jcp.oh * jcp.ow
                                         * jcp.oc_block
                                 + y * jcp.ow * jcp.oc_block + x * jcp.oc_block;
                         auto local_w = wino_dst + m * jcp.oc;
@@ -1009,7 +1009,8 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
                         v_x_masks[i] = (i < v_xs || i >= v_xe) ? 0 : 0xffff;
                     }
                     auto local_s = src
-                            + mb * jcp.nb_ic * jcp.ih * jcp.iw * jcp.ic_block
+                            + (dim_t)mb * jcp.nb_ic * jcp.ih * jcp.iw
+                                    * jcp.ic_block
                             + y * jcp.iw * jcp.ic_block + x * jcp.ic_block;
                     auto local_w = ptr_V + m * jcp.ic;
 
@@ -1058,7 +1059,8 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_small_mb(
                         v_y_masks[i] = (y + i < jcp.oh) ? 0xffff : 0;
                     }
                     auto local_d = dst
-                            + mb * jcp.nb_oc * jcp.oh * jcp.ow * jcp.oc_block
+                            + (dim_t)mb * jcp.nb_oc * jcp.oh * jcp.ow
+                                    * jcp.oc_block
                             + y * jcp.ow * jcp.oc_block + x * jcp.oc_block;
                     auto local_w = ptr_M + m * jcp.oc;
 
