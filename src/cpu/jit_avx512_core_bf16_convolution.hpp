@@ -150,7 +150,7 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
 
             status_t status = jit_avx512_core_bf16_bwd_data_kernel::init_conf(
                     jcp_, *desc(), *diff_src_md(), *weights_md(),
-                    *diff_dst_md());
+                    *diff_dst_md(), dnnl_get_max_threads());
             return status;
         }
 

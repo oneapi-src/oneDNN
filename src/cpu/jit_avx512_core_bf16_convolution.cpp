@@ -514,7 +514,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
     parallel(0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
-        int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
+        int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih * jcp.nb_iw;
         balance211(work_amount, nthr, ithr, start, end);
 
         auto par_conv = jit_conv_call_s();
@@ -524,13 +524,13 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
         bool is_fast_path = jcp.dilate_h == 0 && jcp.stride_h == 1;
 
-        int n {0}, g {0}, icc {0}, ih_s {0};
-        if (jcp.loop_order == loop_cgn)
-            nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n, jcp.mb,
-                    ih_s, jcp.ih);
-        else if (jcp.loop_order == loop_gnc)
+        int n {0}, g {0}, icc {0}, ih_s {0}, iwb {0};
+        if (jcp.loop_order == loop_cwgn)
+            nd_iterator_init(start, icc, ic_chunks, iwb, jcp.nb_iw, g,
+                    jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
+        else if (jcp.loop_order == loop_gncw)
             nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, icc, ic_chunks,
-                    ih_s, jcp.ih);
+                    iwb, jcp.nb_iw, ih_s, jcp.ih);
         else
             assert(!"unsupported loop order");
 
@@ -541,10 +541,20 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
             int work_rem = end - start;
             int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
+            int iw_s = iwb * jcp.iw_block;
+            int ow_s = iw_s / jcp.stride_w;
 
-            auto diff_src_w = diff_src
-                    + jcp.typesize_out * diff_src_d.blk_off(n, g_icb);
-            auto diff_dst_w = diff_dst + diff_dst_d.blk_off(n, g_ocb);
+            auto diff_src_w = diff_src;
+            auto diff_dst_w = diff_dst;
+            if (jcp.ndims == 3) {
+                diff_src_w += jcp.typesize_out
+                        * diff_src_d.blk_off(n, g_icb, iw_s);
+                diff_dst_w += diff_dst_d.blk_off(n, g_ocb, ow_s);
+            } else {
+                diff_src_w += jcp.typesize_out
+                        * diff_src_d.blk_off(n, g_icb, 0, iw_s);
+                diff_dst_w += diff_dst_d.blk_off(n, g_ocb, 0, ow_s);
+            }
             auto wht_w = weights + wht_blk_off(weights_d, g, 0, icb);
 
             for (int ij = ih_s; ij < ih_e; ++ij) {
@@ -590,16 +600,17 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
                 par_conv.dst = diff_dst_w + oj * diff_dst_h_stride;
                 par_conv.filt = wht_w + k_lo * wht_h_stride;
                 par_conv.kh_padding = k_len;
+                par_conv.iwb = iwb;
 
                 kernel_->jit_ker(&par_conv);
             }
 
-            if (jcp.loop_order == loop_cgn)
-                nd_iterator_jump(start, end, icc, ic_chunks, g, jcp.ngroups, n,
-                        jcp.mb, ih_s, jcp.ih);
-            else if (jcp.loop_order == loop_gnc)
+            if (jcp.loop_order == loop_cwgn)
+                nd_iterator_jump(start, end, icc, ic_chunks, iwb, jcp.nb_iw, g,
+                        jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
+            else if (jcp.loop_order == loop_gncw)
                 nd_iterator_jump(start, end, g, jcp.ngroups, n, jcp.mb, icc,
-                        ic_chunks, ih_s, jcp.ih);
+                        ic_chunks, iwb, jcp.nb_iw, ih_s, jcp.ih);
             else
                 assert(!"unsupported loop order");
         }

@@ -201,7 +201,7 @@ struct jit_avx512_core_bf16_bwd_data_kernel : public jit_generator {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &diff_dst_d);
+            const memory_desc_wrapper &diff_dst_d, int nthreads);
 
     const jit_conv_conf_t &jcp;
     void (*jit_ker)(jit_conv_call_s *);
@@ -217,6 +217,8 @@ private:
     reg64_t reg_dst = r8;
     reg64_t reg_ker = r9;
     reg64_t reg_src = r10;
+
+    reg64_t reg_iwb = rdx;
 
     reg64_t aux_reg_dst = r14;
     reg64_t aux_reg_ker = r15;

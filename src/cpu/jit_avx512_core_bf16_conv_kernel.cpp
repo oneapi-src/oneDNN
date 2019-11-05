@@ -16,6 +16,7 @@
 
 #include "bfloat16.hpp"
 #include "c_types_map.hpp"
+#include "math_utils.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -50,8 +51,14 @@ inline void pick_loop_order(jit_conv_conf_t &jcp) {
     // TODO: single code for fwd and bwd after ow-thr for bwd
     // meaningless switch was removed
     if (jcp.prop_kind == backward_data) {
-        jcp.loop_order = (w <= small_spatial && h <= small_spatial) ? loop_cgn
-                                                                    : loop_gnc;
+        if (jcp.ndims < 5)
+            jcp.loop_order = (w <= small_spatial && h <= small_spatial)
+                    ? loop_cwgn
+                    : loop_gncw;
+        else
+            jcp.loop_order = (w <= small_spatial && h <= small_spatial)
+                    ? loop_cgn
+                    : loop_gnc;
     } else {
         jcp.loop_order = (w <= small_spatial && h <= small_spatial) ? loop_cwgn
                                                                     : loop_gncw;
@@ -63,6 +70,12 @@ inline bool is_ow_threading_available(const jit_conv_conf_t &jcp) {
 }
 inline bool is_ow_threading_on(const jit_conv_conf_t &jcp) {
     return (jcp.nb_ow > 1);
+}
+inline bool is_iw_threading_available(const jit_conv_conf_t &jcp) {
+    return one_of(jcp.ndims, 3, 4);
+}
+inline bool is_iw_threading_on(const jit_conv_conf_t &jcp) {
+    return (jcp.nb_iw > 1);
 }
 } // namespace
 
@@ -884,6 +897,8 @@ void jit_avx512_core_bf16_bwd_data_kernel::generate() {
     int ur_w = jcp.ur_w;
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
+    int nb_iw = jcp.nb_iw;
+    int iw_block = jcp.iw_block;
     int ur_w_tail = jcp.ur_w_tail;
     int dilate_w = jcp.dilate_w + 1;
     int stride_w = jcp.stride_w;
@@ -902,48 +917,134 @@ void jit_avx512_core_bf16_bwd_data_kernel::generate() {
     int l_overflow = nstl::max(0, ((kw - 1) * dilate_w - jcp.l_pad) / stride_w);
     int r_overflow = nstl::max(
             0, ((kw - 1) * dilate_w - nstl::max(0, jcp.r_pad)) / stride_w);
-    int r_overflow1 = nstl::max(
-            0, ((kw - 1) * dilate_w - jcp.r_pad - ur_w_tail) / stride_w);
+    int r_overflow1 = nstl::max(0,
+            ((kw - 1) * dilate_w - nstl::max(0, jcp.r_pad + ur_w_tail))
+                    / stride_w);
 
+    int body_l_overflow = 0, body_r_overflow = 0;
     int n_oi = iw / ur_w;
+    int head_n_oi = 0, body_n_oi = 0, pretail_n_oi = 0, tail_n_oi = 0;
+    int head_thread = 0, pretail_thread = 0, tail_thread = 0;
+    bool threaded = is_iw_threading_on(jcp);
+    Label head_label, body_label, pretail_label, tail_label, end_label;
+    assert(n_oi > 0);
+
     if (r_overflow1 > 0) n_oi--;
+    if (l_overflow > 0) n_oi--;
+    if (n_oi < 0) {
+        // l_overflow and r_overflow1 are handled in the same compute_loop.
+        // Perform one iteration of body handling l_overflow and r_overflow1.
+        body_l_overflow = l_overflow;
+        body_r_overflow = r_overflow1;
+        n_oi = 1;
+        l_overflow = 0;
+        r_overflow1 = 0;
+    }
 
-    if (ur_w == iw) {
-        compute_loop(ur_w, l_overflow, r_overflow);
-    } else if (n_oi == 0) {
-        compute_loop(ur_w, l_overflow, r_overflow1);
-        add(reg_src, src_shift);
-        add(reg_dst, dst_shift);
-        if (ur_w_tail != 0) compute_loop(ur_w_tail, 0, r_overflow);
+    if (!threaded) {
+        if (n_oi > 1) { mov(reg_oi, n_oi); }
     } else {
-        xor_(reg_oi, reg_oi);
-        if (l_overflow > 0) {
-            compute_loop(ur_w, l_overflow, 0);
-            add(reg_src, src_shift);
-            add(reg_dst, dst_shift);
+        // Setup for threaded code generation, and jump into the correct
+        // portion of code for execution.
+        head_thread = 0;
+        tail_thread = nb_iw - 1;
+        pretail_thread = tail_thread;
 
-            inc(reg_oi);
-        }
-        if ((l_overflow <= 0 && n_oi > 0) || (l_overflow > 0 && n_oi > 1)) {
-            Label ow_loop_label;
-            L(ow_loop_label);
-            {
-                compute_loop(ur_w, 0, 0);
-                add(reg_src, src_shift);
-                add(reg_dst, dst_shift);
-
-                inc(reg_oi);
-                cmp(reg_oi, n_oi);
-                jl(ow_loop_label, T_NEAR);
+        int base_n_oi = iw_block / ur_w;
+        head_n_oi = l_overflow > 0 ? base_n_oi - 1 : base_n_oi;
+        tail_n_oi = (iw - iw_block * (nb_iw - 1)) / ur_w;
+        pretail_n_oi = tail_n_oi;
+        if (r_overflow1 > 0) {
+            if (tail_n_oi > 0) {
+                pretail_n_oi--;
+                tail_n_oi = pretail_n_oi;
+            } else {
+                // pretail_thread and tail_thread are different
+                pretail_n_oi = base_n_oi - 1;
+                pretail_thread = tail_thread - 1;
+            }
+            if (head_thread == pretail_thread) {
+                head_n_oi--;
+                pretail_n_oi = 0;
+                tail_n_oi = 0;
             }
         }
-        if (r_overflow1 > 0) {
-            compute_loop(ur_w, 0, r_overflow1);
-            add(reg_src, src_shift);
-            add(reg_dst, dst_shift);
+        body_n_oi = (head_thread < pretail_thread - 1) ? base_n_oi : 0;
+
+        // n_oi is used to determine how much control flow in the body portion
+        // of the code needs generated. As such, n_oi needs to be set to the
+        // maximum number of iterations it will be used the body code section.
+        n_oi = nstl::max(body_n_oi, head_n_oi);
+        n_oi = nstl::max(n_oi, pretail_n_oi);
+
+        assert(iw_block % ur_w == 0);
+        mov(reg_iwb, ptr[param1 + GET_OFF(iwb)]);
+
+        if (head_n_oi != 0) mov(reg_oi, head_n_oi);
+        cmp(reg_iwb, head_thread);
+        je(head_label, T_NEAR);
+
+        cmp(reg_iwb, pretail_thread);
+        if (pretail_n_oi == 0) {
+            je(pretail_label, T_NEAR);
+        } else {
+            mov(reg_oi, pretail_n_oi);
+            je(body_label, T_NEAR);
         }
-        if (ur_w_tail != 0) { compute_loop(ur_w_tail, 0, r_overflow); }
+        if (pretail_thread != tail_thread) {
+            cmp(reg_iwb, tail_thread);
+            je(tail_label, T_NEAR);
+        }
+        if (body_n_oi != 0) {
+            mov(reg_oi, body_n_oi);
+            jmp(body_label, T_NEAR);
+        } else {
+            jmp(end_label, T_NEAR);
+        }
     }
+    L(head_label);
+    if (l_overflow > 0) {
+        compute_loop(ur_w, l_overflow, 0);
+        if (threaded && head_n_oi == 0 && head_thread != pretail_thread)
+            jmp(end_label, T_NEAR);
+        add(reg_src, src_shift);
+        add(reg_dst, dst_shift);
+    }
+    L(body_label);
+    if (n_oi > 0) {
+        Label ow_loop_label;
+        L(ow_loop_label);
+        {
+            compute_loop(ur_w, body_l_overflow, body_r_overflow);
+            if (n_oi > 1 || r_overflow1 > 0 || ur_w_tail != 0) {
+                add(reg_src, src_shift);
+                add(reg_dst, dst_shift);
+            }
+            if (n_oi > 1) {
+                sub(reg_oi, 1);
+                jg(ow_loop_label, T_NEAR);
+            }
+        }
+    }
+    if (threaded) {
+        cmp(reg_iwb, pretail_thread);
+        jne(end_label, T_NEAR);
+    }
+    L(pretail_label);
+    if (r_overflow1 > 0) {
+        compute_loop(ur_w, 0, r_overflow1);
+        if (ur_w_tail != 0) {
+            if (threaded && tail_thread != pretail_thread)
+                jmp(end_label, T_NEAR);
+            else {
+                add(reg_src, src_shift);
+                add(reg_dst, dst_shift);
+            }
+        }
+    }
+    L(tail_label);
+    if (ur_w_tail != 0) { compute_loop(ur_w_tail, 0, r_overflow); }
+    L(end_label);
 
     postamble();
 }
@@ -951,7 +1052,7 @@ void jit_avx512_core_bf16_bwd_data_kernel::generate() {
 status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
         const convolution_desc_t &cd, const memory_desc_wrapper &diff_src_d,
         const memory_desc_wrapper &weights_d,
-        const memory_desc_wrapper &diff_dst_d) {
+        const memory_desc_wrapper &diff_dst_d, int nthreads) {
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
     int ndims = diff_src_d.ndims();
@@ -992,6 +1093,8 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
     jcp.dst_dt = cd.diff_src_desc.data_type;
+    jcp.nb_iw = 1;
+    jcp.iw_block = jcp.iw;
 
     /* Dilated convolutions supported with unit strides only */
     if ((jcp.dilate_w != 0 && jcp.stride_w != 1)
@@ -1057,7 +1160,8 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
     int l_overflow = nstl::max(
             0, ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad) / jcp.stride_w);
     int r_overflow1 = nstl::max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.r_pad - jcp.iw % jcp.ur_w)
+            ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - nstl::max(0, jcp.r_pad + jcp.iw % jcp.ur_w))
                     / jcp.stride_w);
     int n_oi = jcp.iw / jcp.ur_w;
     if (r_overflow1 > 0) n_oi--;
@@ -1102,14 +1206,43 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
                                                   appropriate blocking */
             return status::unimplemented;
     }
-
-    jcp.loop_order = loop_gnc;
-
     jcp.ur_w_tail = jcp.iw % jcp.ur_w;
+
+    if (is_iw_threading_available(jcp)) {
+        int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
+        int work_units = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
+        float no_iw_block_eff
+                = (float)work_units / rnd_up(work_units, nthreads);
+
+        // current design of generate() requires iw_block >= 2 * ur_w
+        const int min_iw_block = jcp.ur_w * 2;
+        int iw_threads = nthreads / math::gcd(work_units, nthreads);
+        int iw_block = nstl::max(min_iw_block,
+                rnd_up(jcp.iw, jcp.ur_w * iw_threads) / iw_threads);
+        int nb_iw = div_up(jcp.iw, iw_block);
+
+        float block_eff = (float)jcp.iw / rnd_up(jcp.iw, iw_block);
+        work_units = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih * nb_iw;
+        float work_eff = (float)work_units / rnd_up(work_units, nthreads);
+        float iw_block_eff = block_eff * work_eff;
+
+        const int iw_thread_min_size = 16 * 128;
+        const float iw_block_cost = 20.0;
+        float block_overhead = nstl::max(0.0f, 1.0f - iw_block_cost / iw_block);
+
+        bool iw_thread_useful = no_iw_block_eff < block_overhead * iw_block_eff
+                && jcp.ic_block * jcp.iw > iw_thread_min_size;
+
+        if (iw_thread_useful) {
+            jcp.iw_block = iw_block;
+            jcp.nb_iw = nb_iw;
+        }
+    }
 
     if (l_overflow * jcp.stride_w > jcp.ur_w) return status::unimplemented;
     int r_overflow_no_tail = nstl::max(0,
-            ((jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.r_pad - jcp.ur_w_tail)
+            ((jcp.kw - 1) * (jcp.dilate_w + 1)
+                    - nstl::max(0, jcp.r_pad + jcp.ur_w_tail))
                     / jcp.stride_w);
     bool tails_not_ok = false
             /* maximum 1 ur_w block with r_overflow so far */
