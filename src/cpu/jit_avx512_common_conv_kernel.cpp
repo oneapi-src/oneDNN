@@ -2241,7 +2241,12 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::generate() {
         }
         body_n_oi = (head_thread < pretail_thread - 1) ? base_n_oi : 0;
 
+        // n_oi is used to determine how much control flow in the body portion
+        // of the code needs generated. As such, n_oi needs to be set to the
+        // maximum number of iterations it will be used the body code section.
         n_oi = nstl::max(body_n_oi, head_n_oi);
+        n_oi = nstl::max(n_oi, pretail_n_oi);
+
         assert(iw_block % ur_w == 0);
         mov(reg_iwb, ptr[param1 + GET_OFF(iwb)]);
 
