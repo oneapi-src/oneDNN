@@ -190,7 +190,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
 }
 
 static int compare_padded_area_for_zeros(
-        const prb_t *p, const dnn_mem_t &mem_dt, void *handle, res_t *r) {
+        const prb_t *p, const dnn_mem_t &mem_dt, res_t *r) {
     const auto nelems = mem_dt.nelems();
     const auto nelems_padded = mem_dt.nelems(true);
     if (nelems == nelems_padded) return OK; // no padding - no worries
@@ -198,14 +198,15 @@ static int compare_padded_area_for_zeros(
     const auto md = mem_dt.md_;
     const dnnl_dim_t *padded_dims = md.padded_dims;
 
-    // create memory with dims = md.padded_dims with same format and assign
-    // handle. This way when reorder to plain format values from padding are
-    // saved and then iterate over plain format.
+    // Create memory with dims = md.padded_dims with same format.
+    // This way reorder to plain format keeps padding values.
     dnnl_memory_desc_t pad_data_d;
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &pad_data_d, md.ndims, padded_dims, md.data_type, p->tag),
             WARN);
-    dnn_mem_t padded_mem_dt(pad_data_d, engine_tgt, handle);
+    dnn_mem_t padded_mem_dt(pad_data_d, engine_tgt);
+    for (int64_t i = 0; i < nelems_padded; i++)
+        padded_mem_dt.set_elem(i, mem_dt.get_elem(i));
 
     const auto tag = get_default_tag(md.ndims);
     dnn_mem_t plain_padded_mem_dt(padded_mem_dt, md.data_type, tag);
@@ -297,20 +298,16 @@ int doit(const prb_t *p, res_t *r) {
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = ed.data_desc;
 
-    void *handle_src = zmalloc(dnnl_memory_desc_get_size(&data_desc), 4096);
     dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
-    dnn_mem_t src_dt(data_desc, engine_tgt, handle_src);
+    dnn_mem_t src_dt(data_desc, engine_tgt);
 
     dnn_mem_t dst_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t placeholder_dst_dt;
-    void *handle_dst = NULL;
     if (!p->inplace) {
-        handle_dst = zmalloc(dnnl_memory_desc_get_size(&data_desc), 4096);
-        placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt, handle_dst);
+        placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt);
         SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = !p->inplace ? placeholder_dst_dt : src_dt;
-    void *handle = !p->inplace ? handle_dst : handle_src;
 
     SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
@@ -329,7 +326,7 @@ int doit(const prb_t *p, res_t *r) {
             compute_ref_fwd(p, src_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, src_fp, dst_fp, dst, r), WARN);
-            SAFE(compare_padded_area_for_zeros(p, dst_dt, handle, r), WARN);
+            SAFE(compare_padded_area_for_zeros(p, dst_dt, r), WARN);
         }
     } else {
         const_dnnl_primitive_desc_t const_epd;
@@ -364,8 +361,6 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, e, args);
 
-    zfree(handle_src);
-    if (!p->inplace) zfree(handle_dst);
     DNN_SAFE(dnnl_primitive_destroy(e), CRIT);
 
     return OK;
