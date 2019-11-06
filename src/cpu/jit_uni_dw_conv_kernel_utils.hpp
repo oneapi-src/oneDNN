@@ -223,6 +223,8 @@ private:
             jit_avx512_dw_conv_bwd_data_kernel_bf16,
             jit_uni_dw_conv_bwd_data_kernel_f32<isa>>::type;
     jit_kernel_t *ker_;
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_uni_dw_conv_bwd_data_kernel);
 };
 
 template <cpu_isa_t isa, data_type_t kernel_dt>

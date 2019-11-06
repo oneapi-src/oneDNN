@@ -304,6 +304,9 @@ struct jit_bnorm_bf16_emulation_t {
             }
         }
     }
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_bnorm_bf16_emulation_t);
 };
 
 template <cpu_isa_t isa>
@@ -1260,6 +1263,8 @@ private:
         dim_t N, C, S;
         dim_t glob;
     };
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(driver_t);
 
 public:
     driver_t(const batch_normalization_pd_t *bdesc)

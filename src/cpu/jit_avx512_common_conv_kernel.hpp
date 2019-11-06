@@ -214,6 +214,9 @@ struct jit_avx512_common_conv_fwd_kernel {
     void (*jit_ker)(jit_conv_call_s *);
     _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm> *zmm_kernel_;
     _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_common_conv_fwd_kernel);
 };
 
 template <typename Vmm>
@@ -349,6 +352,9 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
     void (*jit_ker)(jit_conv_call_s *);
     _jit_avx512_common_conv_bwd_data_kernel_f32<Xbyak::Zmm> *zmm_kernel_;
     _jit_avx512_common_conv_bwd_data_kernel_f32<Xbyak::Xmm> *xmm_kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_common_conv_bwd_data_kernel_f32);
 };
 
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {

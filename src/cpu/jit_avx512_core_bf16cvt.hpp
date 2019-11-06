@@ -151,7 +151,7 @@ struct jit_avx512_core_cvt_ps_to_bf16_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_cvt_ps_to_bf16)
 
     jit_avx512_core_cvt_ps_to_bf16_t(void)
-        : simd_w_(16), is_dynamic_size_(true) {
+        : size_(0), tail_mask_(0), simd_w_(16), is_dynamic_size_(true) {
         bf16_emu_ = new bf16_emulation_t(
                 this, one, even, selector, scratch, fp32_tmp);
 
@@ -296,7 +296,7 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_cvt_bf16_to_ps_t)
 
     jit_avx512_core_cvt_bf16_to_ps_t(void)
-        : simd_w_(16), is_dynamic_size_(true) {
+        : size_(0), tail_mask_(0), simd_w_(16), is_dynamic_size_(true) {
         generate();
         jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
     }

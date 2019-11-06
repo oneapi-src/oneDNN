@@ -642,11 +642,11 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
 
     const memory_tracking::grantor_t scratchpad;
 
-    src_data_t *tr_src;
-    diff_dst_data_t *tr_diff_dst;
+    src_data_t *tr_src = nullptr;
+    diff_dst_data_t *tr_diff_dst = nullptr;
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
-    simple_barrier::ctx_t *tr_src_bctx;
-    simple_barrier::ctx_t *tr_diff_dst_bctx;
+    simple_barrier::ctx_t *tr_src_bctx = nullptr;
+    simple_barrier::ctx_t *tr_diff_dst_bctx = nullptr;
 #endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
 
     float *wei_bia_reduction;
