@@ -70,9 +70,9 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const dim_t D = pd()->D();
     const dim_t H = pd()->H();
     const dim_t W = pd()->W();
-    const size_t stride_mb = data_d.blocking_desc().strides[0];
+    const auto stride_mb = data_d.blocking_desc().strides[0];
     const bool across_channels = pd()->desc()->alg_kind == lrn_across_channels;
-    constexpr dim_t blksize = tag == nChw16c ? 16 : 8;
+    static constexpr dim_t blksize = tag == nChw16c ? 16 : 8;
     const auto ndims = data_d.ndims();
 
     auto compute_n_summands = [&](dim_t size) {
@@ -93,12 +93,11 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const dim_t half_size = (size - 1) / 2;
     const dim_t summands = compute_n_summands(size);
 
-    auto data_off
-            = [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) -> size_t {
+    auto data_off = [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) -> dim_t {
         switch (tag) {
             case nChw16c:
             case nChw8c:
-                return mb * stride_mb + c / blksize * H * W * blksize
+                return mb * stride_mb + (c / blksize) * H * W * blksize
                         + h * W * blksize + w * blksize + c % blksize;
             case nchw: return mb * stride_mb + c * H * W + h * W + w;
             case nhwc: return mb * stride_mb + h * W * C + w * C + c;
@@ -137,9 +136,8 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             }
         }
         sum = k + alpha * sum / summands;
-        size_t off = data_off(mb, oc, od, oh, ow);
-        d[0] = static_cast<data_t>(
-                (acc_data_t)src[off] * fast_negative_powf(sum, beta));
+        const acc_data_t s = src[data_off(mb, oc, od, oh, ow)];
+        d[0] = static_cast<data_t>(s * fast_negative_powf(sum, beta));
     };
 
     const dim_t MB = pd()->MB();
@@ -147,7 +145,7 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
                 [&](dim_t mb, dim_t c_blk, dim_t h, dim_t w) {
                     dim_t c = c_blk * blksize;
-                    const size_t off = mb * stride_mb + c * H * W
+                    const dim_t off = mb * stride_mb + c * H * W
                             + (h * W + w) * blksize;
                     PRAGMA_OMP_SIMD()
                     for (dim_t cc = 0; cc < nstl::min(blksize, C - c); ++cc)
@@ -155,13 +153,13 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
                 });
     } else if (tag == nhwc) {
         parallel_nd(MB, H, W, C, [&](dim_t mb, dim_t h, dim_t w, dim_t c) {
-            const size_t off = mb * stride_mb + h * W * C + w * C + c;
+            const dim_t off = mb * stride_mb + h * W * C + w * C + c;
             ker(&dst[off], mb, c, 0, h, w);
         });
     } else {
         parallel_nd(MB, C, D, H, W,
                 [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) {
-                    const size_t off = data_off(mb, c, d, h, w);
+                    const dim_t off = data_off(mb, c, d, h, w);
                     ker(&dst[off], mb, c, d, h, w);
                 });
     }
@@ -197,7 +195,7 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
     const dim_t W = pd()->W();
     const auto stride_mb = data_d.blocking_desc().strides[0];
     const bool across_channels = pd()->desc()->alg_kind == lrn_across_channels;
-    constexpr dim_t blksize = tag == nChw16c ? 16 : 8;
+    static constexpr dim_t blksize = tag == nChw16c ? 16 : 8;
     const auto ndims = data_d.ndims();
 
     auto compute_n_summands = [&](dim_t size) {
@@ -218,12 +216,11 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
     const dim_t half_size = (size - 1) / 2;
     const dim_t summands = compute_n_summands(size);
 
-    auto data_off
-            = [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) -> size_t {
+    auto data_off = [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) -> dim_t {
         switch (tag) {
             case nChw16c:
             case nChw8c:
-                return mb * stride_mb + c / blksize * H * W * blksize
+                return mb * stride_mb + (c / blksize) * H * W * blksize
                         + h * W * blksize + w * blksize + c % blksize;
             case nchw: return mb * stride_mb + c * H * W + h * W + w;
             case nhwc: return mb * stride_mb + h * W * C + w * C + c;
@@ -311,7 +308,7 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
                 [&](dim_t mb, dim_t c_blk, dim_t h, dim_t w) {
                     dim_t c = c_blk * blksize;
-                    const auto off = mb * stride_mb + c * H * W
+                    const dim_t off = mb * stride_mb + c * H * W
                             + (h * W + w) * blksize;
                     PRAGMA_OMP_SIMD()
                     for (dim_t cc = 0; cc < nstl::min(blksize, C - c); ++cc)
@@ -319,13 +316,13 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                 });
     } else if (tag == nhwc) {
         parallel_nd(MB, H, W, C, [&](dim_t mb, dim_t h, dim_t w, dim_t c) {
-            const size_t off = mb * stride_mb + h * W * C + w * C + c;
+            const dim_t off = mb * stride_mb + h * W * C + w * C + c;
             ker(&diff_src[off], mb, c, 0, h, w);
         });
     } else {
         parallel_nd(MB, C, D, H, W,
                 [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) {
-                    const size_t off = data_off(mb, c, d, h, w);
+                    const dim_t off = data_off(mb, c, d, h, w);
                     ker(&diff_src[off], mb, c, d, h, w);
                 });
     }
