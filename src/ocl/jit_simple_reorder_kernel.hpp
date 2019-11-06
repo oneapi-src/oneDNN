@@ -31,7 +31,7 @@ namespace ocl {
 
 struct jit_simple_reorder_kernel {
 
-    jit_simple_reorder_kernel(jit_reorder_conf_t ajrp) : jrp(ajrp) {}
+    jit_simple_reorder_kernel(const jit_reorder_conf_t &ajrp) : jrp(ajrp) {}
 
     ~jit_simple_reorder_kernel() {}
 

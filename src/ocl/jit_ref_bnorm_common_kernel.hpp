@@ -28,9 +28,9 @@ namespace ocl {
 
 struct jit_ref_bnorm_common_kernel {
 
-    jit_ref_bnorm_common_kernel(jit_bnorm_conf_t ajbn) : jbn(ajbn) {};
+    jit_ref_bnorm_common_kernel(const jit_bnorm_conf_t &ajbn) : jbn(ajbn) {}
 
-    ~jit_ref_bnorm_common_kernel() {};
+    ~jit_ref_bnorm_common_kernel() {}
 
     static status_t init_conf(jit_bnorm_conf_t &jbn,
             const batch_normalization_desc_t &bd,

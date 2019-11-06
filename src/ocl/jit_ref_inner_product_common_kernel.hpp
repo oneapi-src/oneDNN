@@ -27,10 +27,10 @@ namespace ocl {
 
 struct jit_ref_inner_product_fwd_kernel {
 
-    jit_ref_inner_product_fwd_kernel(jit_inner_product_conf_t ajip)
-        : jip(ajip) {};
+    jit_ref_inner_product_fwd_kernel(const jit_inner_product_conf_t &ajip)
+        : jip(ajip) {}
 
-    ~jit_ref_inner_product_fwd_kernel() {};
+    ~jit_ref_inner_product_fwd_kernel() {}
 
     static status_t init_conf(jit_inner_product_conf_t &jip,
             const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
@@ -152,8 +152,6 @@ struct jit_ref_inner_product_fwd_kernel {
     }
 
     jit_inner_product_conf_t jip;
-
-private:
 };
 
 } // namespace ocl

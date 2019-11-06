@@ -27,9 +27,9 @@ namespace ocl {
 
 struct jit_gen9_common_conv_fwd_kernel {
 
-    jit_gen9_common_conv_fwd_kernel(jit_conv_conf_t ajcp) : jcp(ajcp) {};
+    jit_gen9_common_conv_fwd_kernel(const jit_conv_conf_t &ajcp) : jcp(ajcp) {}
 
-    ~jit_gen9_common_conv_fwd_kernel() {};
+    ~jit_gen9_common_conv_fwd_kernel() {}
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_t &src_md,
@@ -472,9 +472,10 @@ struct jit_gen9_common_conv_fwd_kernel {
 
 struct jit_gen9_common_conv_bwd_data_kernel {
 
-    jit_gen9_common_conv_bwd_data_kernel(jit_conv_conf_t ajcp) : jcp(ajcp) {};
+    jit_gen9_common_conv_bwd_data_kernel(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
-    ~jit_gen9_common_conv_bwd_data_kernel() {};
+    ~jit_gen9_common_conv_bwd_data_kernel() {}
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
@@ -688,8 +689,8 @@ struct jit_gen9_common_conv_bwd_data_kernel {
 
 struct jit_gen9_common_conv_bwd_weights_kernel {
 
-    jit_gen9_common_conv_bwd_weights_kernel(jit_conv_conf_t ajcp)
-        : jcp(ajcp) {};
+    jit_gen9_common_conv_bwd_weights_kernel(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
     ~jit_gen9_common_conv_bwd_weights_kernel() {};
 

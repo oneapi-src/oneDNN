@@ -40,9 +40,9 @@ namespace ocl {
 
 struct jit_ref_rnn_kernel {
 
-    jit_ref_rnn_kernel(jit_rnn_conf_t ajrnn) : jrnn(ajrnn) {};
+    jit_ref_rnn_kernel(const jit_rnn_conf_t &ajrnn) : jrnn(ajrnn) {}
 
-    ~jit_ref_rnn_kernel() {};
+    ~jit_ref_rnn_kernel() {}
 
     static status_t init_conf(jit_rnn_conf_t &jrnn,
             const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *rnn_pd,

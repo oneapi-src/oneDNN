@@ -27,9 +27,9 @@ namespace ocl {
 
 struct jit_ref_pooling_fwd_kernel {
 
-    jit_ref_pooling_fwd_kernel(jit_pool_conf_t ajpp) : jpp(ajpp) {};
+    jit_ref_pooling_fwd_kernel(const jit_pool_conf_t &ajpp) : jpp(ajpp) {}
 
-    ~jit_ref_pooling_fwd_kernel() {};
+    ~jit_ref_pooling_fwd_kernel() {}
 
     static status_t init_conf(jit_pool_conf_t &jpp, const pooling_desc_t &pd,
             const memory_desc_wrapper &src_d, const memory_desc_wrapper &dst_d,
@@ -165,8 +165,6 @@ struct jit_ref_pooling_fwd_kernel {
     }
 
     jit_pool_conf_t jpp;
-
-private:
 };
 
 } // namespace ocl

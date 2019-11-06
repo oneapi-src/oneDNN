@@ -28,7 +28,7 @@ namespace ocl {
 
 struct jit_ref_binary_common_kernel {
 
-    jit_ref_binary_common_kernel(jit_binary_conf_t ajib) : jib(ajib) {}
+    jit_ref_binary_common_kernel(const jit_binary_conf_t &ajib) : jib(ajib) {}
 
     ~jit_ref_binary_common_kernel() {}
 

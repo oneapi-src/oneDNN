@@ -28,7 +28,7 @@ namespace ocl {
 
 struct jit_ref_eltwise_common_kernel {
 
-    jit_ref_eltwise_common_kernel(jit_eltwise_conf_t ajel) : jel(ajel) {}
+    jit_ref_eltwise_common_kernel(const jit_eltwise_conf_t &ajel) : jel(ajel) {}
 
     ~jit_ref_eltwise_common_kernel() {}
 
