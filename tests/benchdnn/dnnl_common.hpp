@@ -142,9 +142,9 @@ inline int digits_dt(dnnl_data_type_t dt) {
 
 template <dnnl_data_type_t dt>
 inline float saturate(float val) {
-    return MAX2(dnnl::impl::nstl::numeric_limits<
+    return MAX2((float)dnnl::impl::nstl::numeric_limits<
                         typename prec_traits<dt>::type>::lowest(),
-            MIN2(dnnl::impl::nstl::numeric_limits<
+            MIN2((float)dnnl::impl::nstl::numeric_limits<
                          typename prec_traits<dt>::type>::max(),
                     mxcsr_round(val)));
 }
