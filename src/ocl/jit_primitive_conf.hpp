@@ -297,7 +297,8 @@ struct jit_bnorm_conf_t {
     data_type_t data_type;
 
     int ndims;
-    int mb, ic, mb_chunk, sp_chunk, mb_block;
+    int mb, ic, mb_block;
+    int reduce_stat_nblocks;
     int id, ih, iw;
     bool with_relu, use_16mb_unroll;
     bool is_forward, is_backward;
@@ -305,7 +306,10 @@ struct jit_bnorm_conf_t {
     bool fuse_norm_relu, calculate_stats, calculate_diff_stats;
     bool diff_scaleshift;
     float relu_negative_slope, eps;
-    size_t gws_d[3], lws_d[3];
+
+    compute::dispatch_t dispatch_calc_stat;
+    compute::dispatch_t dispatch_reduce_stat;
+    compute::dispatch_t dispatch;
 };
 
 /* lnorm */

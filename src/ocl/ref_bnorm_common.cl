@@ -29,22 +29,25 @@
 
 #if USE_16MB_UNROLL == 1
 
-__attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format
-__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
-__kernel void
-calculate_mean(__global DATA_T *src, __global float *mean) {
-    const int mb = get_global_id(1);
-    const int sp_chunk = get_global_id(0);
-    const int c = get_group_id(2) * 16;
-    const uint sp_str = (sp_chunk * ID * IH * IW) / SP_CHUNK;
-    const uint sp_end = ((sp_chunk + 1) * ID * IH * IW) / SP_CHUNK;
-    const int chunk = mb * SP_CHUNK + sp_chunk;
+NAMED_KERNEL_ATTR(CALC)
+__kernel void calculate_mean(__global DATA_T *src, __global float *mean) {
+    const int mb = GWS_GET_STAT_MB();
+    const int c = GWS_GET_STAT_IC();
 
-    src += c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW * MB_BLOCK
-            + sp_str * MB_BLOCK * IC_BLOCK;
+    const int sp_beg = GWS_GET_STAT_SP();
+    const int stat_sp_block = GWS_GET_STAT_SP_BLOCK();
+    const int stat_sp_nblocks = ID * IH * IW / stat_sp_block;
+
+    const int stat_mb_block_idx = mb / MB_BLOCK;
+    const int stat_sp_block_idx = sp_beg / stat_sp_block;
+    const int mb_sp_idx
+            = stat_mb_block_idx * stat_sp_nblocks + stat_sp_block_idx;
+
+    src += c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW
+            + sp_beg * MB_BLOCK * IC_BLOCK;
 
     VECT_FLOAT_T sum0 = 0.0f, sum1 = 0.0f;
-    for (int sp = 0; sp < sp_end - sp_str; sp++) {
+    for (int sp = sp_beg; sp < sp_beg + stat_sp_block; sp++) {
         sum0 += CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[0])));
 #ifdef MB16
@@ -62,39 +65,43 @@ calculate_mean(__global DATA_T *src, __global float *mean) {
     float v_mean = sum0;
 #endif
     intel_sub_group_block_write(
-            (__global uint *)&mean[chunk * IC + c], as_uint(v_mean));
+            (__global uint *)&mean[mb_sp_idx * IC + c], as_uint(v_mean));
 }
-__attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
-__kernel void
-reduce_mean(__global float *reduce_temp, __global float *mean) {
-    const int c = get_global_id(0);
+
+NAMED_KERNEL_ATTR(REDUCE)
+__kernel void reduce_mean(__global float *reduce_temp, __global float *mean) {
+    const int c = GWS_GET_REDUCE_STAT_IC();
     reduce_temp += c;
     float sum = 0.0f;
-    for (int i = 0; i < SP_CHUNK * MB_CHUNK; i++)
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++)
         sum += reduce_temp[i * IC];
 
     mean[c] = sum / (MB * ID * IH * IW);
 }
-__attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format
-__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
-__kernel void
-calculate_variance(
-        __global DATA_T *src, __global float *mean, __global float *variance) {
-    const int mb = get_global_id(1);
-    const int sp_chunk = get_global_id(0);
-    const int c = get_group_id(2) * 16;
-    const uint sp_str = (sp_chunk * ID * IH * IW) / SP_CHUNK;
-    const uint sp_end = ((sp_chunk + 1) * ID * IH * IW) / SP_CHUNK;
-    const int chunk = mb * SP_CHUNK + sp_chunk;
 
-    src += c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW * MB_BLOCK
-            + sp_str * MB_BLOCK * IC_BLOCK;
+NAMED_KERNEL_ATTR(CALC)
+__kernel void calculate_variance(
+        __global DATA_T *src, __global float *mean, __global float *variance) {
+    const int mb = GWS_GET_STAT_MB();
+    const int c = GWS_GET_STAT_IC();
+
+    const int sp_beg = GWS_GET_STAT_SP();
+    const int stat_sp_block = GWS_GET_STAT_SP_BLOCK();
+    const int stat_sp_nblocks = ID * IH * IW / stat_sp_block;
+
+    const int stat_mb_block_idx = mb / MB_BLOCK;
+    const int stat_sp_block_idx = sp_beg / stat_sp_block;
+    const int mb_sp_idx
+            = stat_mb_block_idx * stat_sp_nblocks + stat_sp_block_idx;
+
+    src += c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW
+            + sp_beg * MB_BLOCK * IC_BLOCK;
 
     VECT_FLOAT_T sum0 = 0.0, sum1 = 0.0f;
     float v_mean = as_float(
             intel_sub_group_block_read((const __global uint *)&mean[c]));
 
-    for (int sp = 0; sp < sp_end - sp_str; sp++) {
+    for (int sp = sp_beg; sp < sp_beg + stat_sp_block; sp++) {
         VECT_FLOAT_T v0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(VECT_BLOCK_READ(
                                   (const __global BLOCK_DATA_T *)&src[0])))
                 - (VECT_FLOAT_T)v_mean;
@@ -116,43 +123,36 @@ calculate_variance(
     float v_variance = sum0;
 #endif
     intel_sub_group_block_write(
-            (__global uint *)&variance[SP_CHUNK * (MB / MB_BLOCK) * IC
-                    + chunk * IC + c],
+            (__global uint *)&variance[REDUCE_STAT_NBLOCKS * IC + mb_sp_idx * IC
+                    + c],
             as_uint(v_variance));
 }
-__attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
-__kernel void
-reduce_variance(__global float *reduce_temp, __global float *variance) {
-    const int c = get_global_id(0);
-    reduce_temp += SP_CHUNK * MB_CHUNK * IC + c;
+__kernel void reduce_variance(
+        __global float *reduce_temp, __global float *variance) {
+    const int c = GWS_GET_REDUCE_STAT_IC();
+    reduce_temp += REDUCE_STAT_NBLOCKS * IC + c;
 #if SAVE_STATS == 0
     variance += IC;
 #endif
     float sum = 0.0f;
-    for (int i = 0; i < SP_CHUNK * MB_CHUNK; i++)
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++)
         sum += reduce_temp[i * IC];
 
     variance[c] = sum / (MB * ID * IH * IW);
 }
 #endif
 
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
-#if USE_16MB_UNROLL == 1
-__attribute__((intel_reqd_sub_group_size(LWS_1))) // attr:no-format
-#endif
-__kernel void
-ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
+KERNEL_ATTR
+__kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global int *ws, float eps) {
 
 #if USE_16MB_UNROLL == 1
-    const int n = get_global_id(0) * MB_BLOCK;
-    const int c = get_group_id(1) * IC_BLOCK;
-    const int sp = get_global_id(2);
-    const int d = sp / (IW * IH);
-    const int hw = sp % (IW * IH);
-    const int h = hw / IW;
-    const int w = hw % IW;
+    const int n = GWS_GET_MB();
+    const int c = GWS_GET_IC();
+    const int d = GWS_GET_ID();
+    const int h = GWS_GET_IH();
+    const int w = GWS_GET_IW();
 
 #if USE_SCALESHIFT == 1
     float sm = as_float(
@@ -217,7 +217,7 @@ ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
             AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD1)));
 #endif
 #else
-    const int c = get_global_id(0);
+    const int c = GWS_GET_IC();
 
 #if USE_SCALESHIFT == 1
     float sm = scaleshift[c];
@@ -297,20 +297,25 @@ ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
 #if IS_BWD == 1
 
 #if USE_16MB_UNROLL == 1
-__attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format
-__attribute__((intel_reqd_sub_group_size(16))) // attr:no-format
-__kernel void
-calculate_stats(__global DATA_T *src, __global float *mean,
+NAMED_KERNEL_ATTR(CALC)
+__kernel void calculate_stats(__global DATA_T *src, __global float *mean,
         __global DATA_T *diff_dst, __global int *ws,
         __global float *diff_scaleshift) {
-    const int mb = get_global_id(1);
-    const int sp_chunk = get_global_id(0);
-    const int c = get_group_id(2) * 16;
-    const uint sp_str = (sp_chunk * ID * IH * IW) / SP_CHUNK;
-    const uint sp_end = ((sp_chunk + 1) * ID * IH * IW) / SP_CHUNK;
-    const int chunk = mb * SP_CHUNK + sp_chunk;
-    const int s_off = c * ID * IH * IW * MB_BLOCK
-            + mb * IC * ID * IH * IW * MB_BLOCK + sp_str * MB_BLOCK * IC_BLOCK;
+    const int mb = GWS_GET_STAT_MB();
+    const int stat_mb_block_idx = mb / MB_BLOCK;
+
+    const int c = GWS_GET_STAT_IC();
+
+    const int sp_beg = GWS_GET_STAT_SP();
+    const int stat_sp_block = GWS_GET_STAT_SP_BLOCK();
+    const int stat_sp_nblocks = ID * IH * IW / stat_sp_block;
+    const int stat_sp_block_idx = sp_beg / stat_sp_block;
+
+    const int mb_sp_idx
+            = stat_mb_block_idx * stat_sp_nblocks + stat_sp_block_idx;
+
+    const int s_off = c * ID * IH * IW * MB_BLOCK + mb * IC * ID * IH * IW
+            + sp_beg * MB_BLOCK * IC_BLOCK;
     src += s_off;
     diff_dst += s_off;
 #if FUSE_BN_RELU == 1
@@ -321,7 +326,7 @@ calculate_stats(__global DATA_T *src, __global float *mean,
     float v_mean = as_float(
             intel_sub_group_block_read((const __global uint *)&mean[c]));
 
-    for (int sp = 0; sp < sp_end - sp_str; sp++) {
+    for (int sp = sp_beg; sp < sp_beg + stat_sp_block; sp++) {
         VECT_FLOAT_T dd0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
                 VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&diff_dst[0])));
         VECT_FLOAT_T ss0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
@@ -363,24 +368,23 @@ calculate_stats(__global DATA_T *src, __global float *mean,
     float v_diff_gamma = diff_gamma0, v_diff_beta = diff_beta0;
 #endif
     intel_sub_group_block_write(
-            (__global uint *)&diff_scaleshift[chunk * IC + c],
+            (__global uint *)&diff_scaleshift[mb_sp_idx * IC + c],
             as_uint(v_diff_gamma));
     intel_sub_group_block_write(
-            (__global uint *)&diff_scaleshift[MB_CHUNK * SP_CHUNK * IC
-                    + chunk * IC + c],
+            (__global uint *)&diff_scaleshift[REDUCE_STAT_NBLOCKS * IC
+                    + mb_sp_idx * IC + c],
             as_uint(v_diff_beta));
 }
 
-__attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
-__kernel void
-reduce_stats(__global float *reduce_temp, __global float *diff_scaleshift,
-        __global float *variance, float eps) {
-    const int c = get_global_id(0);
+NAMED_KERNEL_ATTR(REDUCE)
+__kernel void reduce_stats(__global float *reduce_temp,
+        __global float *diff_scaleshift, __global float *variance, float eps) {
+    const int c = GWS_GET_REDUCE_STAT_IC();
     reduce_temp += c;
     float diff_gamma = 0.0f, diff_beta = 0.0f;
-    for (int i = 0; i < MB_CHUNK * SP_CHUNK; i++) {
+    for (int i = 0; i < REDUCE_STAT_NBLOCKS; i++) {
         diff_gamma += reduce_temp[i * IC];
-        diff_beta += reduce_temp[MB_CHUNK * SP_CHUNK * IC + i * IC];
+        diff_beta += reduce_temp[REDUCE_STAT_NBLOCKS * IC + i * IC];
     }
 
     float sqrt_variance = 1.0f / sqrt(variance[c] + eps);
@@ -389,29 +393,23 @@ reduce_stats(__global float *reduce_temp, __global float *diff_scaleshift,
 #if DIFF_SCALESHIFT == 1
     diff_scaleshift[IC + c] = diff_beta;
 #else
-    diff_scaleshift[MB_CHUNK * SP_CHUNK * IC + c] = diff_beta;
+    diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + c] = diff_beta;
 #endif
 }
 #endif
 
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
-#if USE_16MB_UNROLL == 1
-__attribute__((intel_reqd_sub_group_size(LWS_1))) // attr:no-format
-#endif
-__kernel void
-ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
+KERNEL_ATTR
+__kernel void ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global int *ws, __global DATA_T *diff_src,
         __global float *diff_scaleshift, float eps) {
 
 #if USE_16MB_UNROLL == 1
-    const int n = get_global_id(0) * MB_BLOCK;
-    const int c = get_group_id(1) * IC_BLOCK;
-    const int sp = get_global_id(2);
-    const int d = sp / (IW * IH);
-    const int hw = sp % (IW * IH);
-    const int h = hw / IW;
-    const int w = hw % IW;
+    const int n = GWS_GET_MB();
+    const int c = GWS_GET_IC();
+    const int d = GWS_GET_ID();
+    const int h = GWS_GET_IH();
+    const int w = GWS_GET_IW();
 
 #if USE_SCALESHIFT == 1
     float gamma = as_float(
@@ -433,7 +431,7 @@ ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
             (const __global uint *)&diff_scaleshift[IC + c]));
 #else
     float diff_beta = as_float(intel_sub_group_block_read((const __global uint
-                    *)&diff_scaleshift[MB_CHUNK * SP_CHUNK * IC + c]));
+                    *)&diff_scaleshift[REDUCE_STAT_NBLOCKS * IC + c]));
 #endif
 
     const uint d_off = SRC_OFF(n, c, d, h, w);
@@ -487,7 +485,7 @@ ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
 #endif
 #else
 
-    const int c = get_global_id(0);
+    const int c = GWS_GET_IC();
 
     float v_mean = mean[c];
     float v_variance = variance[c];

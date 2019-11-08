@@ -67,16 +67,8 @@ struct jit_ref_bnorm_common_kernel {
 
         set_offsets(data_mdw, jit_off.src_off);
 
-        jbn.lws_d[0] = 1;
-        jbn.lws_d[1] = 1;
-        jbn.lws_d[2] = 1;
-        jbn.gws_d[0] = jbn.ic;
-        jbn.gws_d[1] = 1;
-        jbn.gws_d[2] = 1;
-        jbn.use_16mb_unroll = 0;
-        jbn.mb_chunk = 1;
-        jbn.sp_chunk = 1;
-        jbn.mb_block = 1;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
 
         const bool has_padding = !data_mdw.is_dense();
         if (!has_padding
@@ -86,16 +78,50 @@ struct jit_ref_bnorm_common_kernel {
                                    NCw16n16c, NChw16n16c, NCdhw16n16c)
                     ? 16
                     : 1;
-            jbn.mb_chunk = nstl::min((jbn.mb / jbn.mb_block), 256);
-            jbn.sp_chunk = nstl::min(jbn.ih * jbn.iw * jbn.id,
-                    nstl::max(1, utils::div_up(256, jbn.mb_chunk)));
+
             jbn.use_16mb_unroll = 1;
-            jbn.lws_d[0] = 1;
-            jbn.lws_d[1] = 16;
-            jbn.lws_d[2] = 1;
-            jbn.gws_d[2] = jbn.ih * jbn.iw * jbn.id;
-            jbn.gws_d[1] = jbn.ic;
-            jbn.gws_d[0] = jbn.mb / jbn.mb_block;
+
+            const int max_stat_nblocks = 256;
+            int stat_mb_nblocks = jbn.mb / jbn.mb_block;
+            int stat_sp_nblocks = utils::max_div(jbn.id * jbn.ih * jbn.iw,
+                    nstl::max(1, max_stat_nblocks / stat_mb_nblocks));
+            assert(stat_mb_nblocks * stat_sp_nblocks <= max_stat_nblocks);
+
+            int stat_sp_block = jbn.id * jbn.ih * jbn.iw / stat_sp_nblocks;
+
+            jbn.reduce_stat_nblocks = stat_mb_nblocks * stat_sp_nblocks;
+
+            jbn.dispatch_calc_stat = compute_engine->create_dispatch();
+            jbn.dispatch_calc_stat.define_dim_with_nesting_level(
+                    "STAT_SP", 2, jbn.id * jbn.ih * jbn.iw, stat_sp_block);
+            jbn.dispatch_calc_stat.define_dim_with_nesting_level(
+                    "STAT_IC", 1, jbn.ic);
+            jbn.dispatch_calc_stat.define_dim_with_nesting_level(
+                    "STAT_MB", 0, jbn.mb, jbn.mb_block);
+            jbn.dispatch_calc_stat.vectorize_dim("STAT_IC", 16);
+            jbn.dispatch_calc_stat.set_kernel_attr_suffix("CALC");
+            jbn.dispatch_calc_stat.generate();
+
+            jbn.dispatch_reduce_stat = compute_engine->create_dispatch();
+            jbn.dispatch_reduce_stat.define_dim("REDUCE_STAT_IC", jbn.ic);
+            jbn.dispatch_reduce_stat.set_kernel_attr_suffix("REDUCE");
+            jbn.dispatch_reduce_stat.generate();
+
+            jbn.dispatch = compute_engine->create_dispatch(data_mdw.md_);
+            jbn.dispatch.define_dim("MB", 0, jbn.mb, jbn.mb_block);
+            jbn.dispatch.define_dim("IC", 1, jbn.ic);
+            jbn.dispatch.define_dim("ID", nstl::max(2, ndims - 3), jbn.id);
+            jbn.dispatch.define_dim("IH", nstl::max(2, ndims - 2), jbn.ih);
+            jbn.dispatch.define_dim("IW", nstl::max(2, ndims - 1), jbn.iw);
+            jbn.dispatch.vectorize_dim("IC", 16);
+            jbn.dispatch.generate();
+        } else {
+            // Reference
+            jbn.use_16mb_unroll = 0;
+            jbn.mb_block = 1;
+            jbn.dispatch = compute_engine->create_dispatch();
+            jbn.dispatch.define_dim("IC", jbn.ic);
+            jbn.dispatch.generate();
         }
 
         return status::success;
@@ -111,12 +137,8 @@ struct jit_ref_bnorm_common_kernel {
         kernel_ctx.define_int("ID", jbn.id);
         kernel_ctx.define_int("IH", jbn.ih);
         kernel_ctx.define_int("IW", jbn.iw);
-        kernel_ctx.define_int("LWS_0", jbn.lws_d[0]);
-        kernel_ctx.define_int("LWS_1", jbn.lws_d[1]);
-        kernel_ctx.define_int("LWS_2", jbn.lws_d[2]);
         kernel_ctx.define_int("USE_16MB_UNROLL", jbn.use_16mb_unroll);
-        kernel_ctx.define_int("MB_CHUNK", jbn.mb_chunk);
-        kernel_ctx.define_int("SP_CHUNK", jbn.sp_chunk);
+        kernel_ctx.define_int("REDUCE_STAT_NBLOCKS", jbn.reduce_stat_nblocks);
         kernel_ctx.define_int("MB_BLOCK", jbn.mb_block);
 
         if (jbn.is_forward)
@@ -135,6 +157,12 @@ struct jit_ref_bnorm_common_kernel {
 
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", jbn.ndims);
 
+        if (jbn.use_16mb_unroll) {
+            def_dispatch(kernel_ctx, jbn.dispatch_calc_stat);
+            def_dispatch(kernel_ctx, jbn.dispatch_reduce_stat);
+        }
+        def_dispatch(kernel_ctx, jbn.dispatch);
+
         return status::success;
     }
 
@@ -142,7 +170,7 @@ struct jit_ref_bnorm_common_kernel {
             const jit_bnorm_conf_t &jbn) {
         if (jbn.is_forward) {
             if (jbn.use_16mb_unroll && jbn.calculate_stats) {
-                size_t size = 2 * jbn.mb_chunk * jbn.sp_chunk * jbn.ic
+                size_t size = 2 * jbn.reduce_stat_nblocks * jbn.ic
                         * types::data_type_size(data_type::f32);
 
                 scratchpad.book(
@@ -151,7 +179,7 @@ struct jit_ref_bnorm_common_kernel {
         }
         if (jbn.is_backward) {
             if (jbn.use_16mb_unroll) {
-                size_t size = 2 * jbn.mb_chunk * jbn.sp_chunk * jbn.ic
+                size_t size = 2 * jbn.reduce_stat_nblocks * jbn.ic
                         * types::data_type_size(data_type::f32);
                 scratchpad.book(
                         memory_tracking::names::key_bnorm_reduction, size);
