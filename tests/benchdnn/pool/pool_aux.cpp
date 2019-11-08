@@ -138,7 +138,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
-            d.ph = 0;
+            if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(d.ih, d.kh, d.sh, d.ph);
         } else if (d.ph < 0)
             d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh);
@@ -147,7 +147,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (!no_w) {
         if (!d.iw || !d.kw) return FAIL;
         if (!d.ow) {
-            d.pw = 0;
+            if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(d.iw, d.kw, d.sw, d.pw);
         } else if (d.pw < 0)
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw);
@@ -156,7 +156,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (!no_d && d.id) {
         if (!d.id || !d.kd) return FAIL;
         if (!d.od) {
-            d.pd = 0;
+            if (d.pd < 0) d.pd = 0;
             d.od = compute_out(d.id, d.kd, d.sd, d.pd);
         } else if (d.pd < 0)
             d.pd = compute_pad(d.od, d.id, d.kd, d.sd);
