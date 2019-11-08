@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define DT_UNDEF
+#include "ocl/ocl_types.h"
+
 #if IN_TYPE_F16 || OUT_TYPE_F16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
@@ -67,11 +70,8 @@
 
 #define QZ_B0(v, scale) CONVERT_F32_TO_OUT(v *scale)
 
-#if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
-#endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
-wei_reorder(__global DT_IN *input, __global DT_IN *scales,
+KERNEL_ATTR
+__kernel void wei_reorder(__global DT_IN *input, __global DT_IN *scales,
         __global DT_OUT *output, float alpha, float beta) {
 
     __global char *temp = (__global char *)(output + COMP_DST_OFFSET_EL);
@@ -81,10 +81,10 @@ wei_reorder(__global DT_IN *input, __global DT_IN *scales,
 
 #if REF_REORDER
 
-    const int d0 = get_global_id(0) / DST_D1;
-    const int d1 = get_global_id(0) % DST_D1;
-    const int d3 = get_global_id(1) / DST_D4;
-    const int d4 = get_global_id(1) % DST_D4;
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
 
     int reduction = 0;
     for (int d2 = 0; d2 < SRC_D2; ++d2) {

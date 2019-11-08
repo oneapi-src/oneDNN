@@ -286,7 +286,7 @@ struct jit_rnn_reorder_conf_t {
     bool use_ref_impl;
     int ndims;
     size_t nelems;
-    compute::nd_dispatch_t nd_dispatch;
+    compute::dispatch_t dispatch;
     int block[3];
     int sub_group_size;
     int mask;

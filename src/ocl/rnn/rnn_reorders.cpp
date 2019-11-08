@@ -44,7 +44,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
         arg_list.set(3, alpha);
         arg_list.set(4, beta);
 
-        auto nd_range = compute::nd_range_t(jrp.gws_d, jrp.lws_d);
+        auto nd_range = jrp.dispatch.nd_range();
         return compute_stream->parallel_for(nd_range, kernel_, arg_list);
     };
 
