@@ -439,10 +439,11 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::kh_loop(int ur_w,
 
     mov(reg_kh, ptr[param1 + GET_OFF(kh_padding)]);
 
-    if (jcp.signed_input || ((!jcp.signed_input)
-        && ((min(jcp.t_pad, jcp.b_pad) < 0)
-            || ((jcp.kh - 1) * (jcp.dilate_h + 1)
-                < nstl::max(jcp.t_pad, jcp.b_pad))))) {
+    if ((jcp.signed_input) || (jcp.dilate_h >= jcp.ih)
+            || ((!jcp.signed_input)
+                    && ((min(jcp.t_pad, jcp.b_pad) < 0)
+                            || ((jcp.kh - 1) * (jcp.dilate_h + 1)
+                                    < nstl::max(jcp.t_pad, jcp.b_pad))))) {
         cmp(reg_kh, 0);
         je(skip_kh_loop, T_NEAR);
     }
