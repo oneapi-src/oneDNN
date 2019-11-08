@@ -286,7 +286,7 @@ struct jit_rnn_reorder_conf_t {
     bool use_ref_impl;
     int ndims;
     size_t nelems;
-    size_t gws_d[3], lws_d[3];
+    compute::nd_dispatch_t nd_dispatch;
     int block[3];
     int sub_group_size;
     int mask;
@@ -360,9 +360,9 @@ struct jit_reorder_conf_t {
     bool use_ref_impl;
     int ndims;
     size_t nelems;
-    size_t gws_d[3], lws_d[3];
-    int block[3];
-    int dim_block[MAX_NDIMS];
+
+    compute::dispatch_t dispatch;
+
     int sub_group_size;
     int scale_mask;
     size_t scales_num;

@@ -262,34 +262,26 @@
 
 #endif // SCALE_QUANT
 
-#if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
-#endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
-__kernel void
-simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
-        float beta, __global float *scales) {
+KERNEL_ATTR
+__kernel void simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst,
+        float alpha, float beta, __global float *scales) {
 
     src += SRC_OFFSET0;
     dst += DST_OFFSET0;
 
 #if REF_REORDER
 
-    const int d0 = get_global_id(0);
-    const int d1 = get_global_id(1);
-    int d2345 = get_global_id(2);
-    const int d5_blk_start = (d2345 % D5_NBLOCKS) * D5_BLOCK;
-    d2345 /= D5_NBLOCKS;
-    const int d4_blk_start = (d2345 % D4_NBLOCKS) * D4_BLOCK;
-    d2345 /= D4_NBLOCKS;
-    const int d3_blk_start = (d2345 % D3_NBLOCKS) * D3_BLOCK;
-    d2345 /= D3_NBLOCKS;
-    const int d2_blk_start = (d2345 % D2_NBLOCKS) * D2_BLOCK;
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2_blk_start = GWS_GET_D2();
+    const int d3_blk_start = GWS_GET_D3();
+    const int d4_blk_start = GWS_GET_D4();
+    const int d5_blk_start = GWS_GET_D5();
 
-    const int d5_blk_end = d5_blk_start + D5_BLOCK;
-    const int d4_blk_end = d4_blk_start + D4_BLOCK;
-    const int d3_blk_end = d3_blk_start + D3_BLOCK;
-    const int d2_blk_end = d2_blk_start + D2_BLOCK;
+    const int d2_blk_end = d2_blk_start + GWS_GET_D2_BLOCK();
+    const int d3_blk_end = d3_blk_start + GWS_GET_D3_BLOCK();
+    const int d4_blk_end = d4_blk_start + GWS_GET_D4_BLOCK();
+    const int d5_blk_end = d5_blk_start + GWS_GET_D5_BLOCK();
 
     for (int d2 = d2_blk_start; d2 < d2_blk_end; ++d2) {
         for (int d3 = d3_blk_start; d3 < d3_blk_end; ++d3) {
@@ -321,19 +313,15 @@ simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
 
 #else // REF_REORDER == 0
 
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d2 = GWS_GET_D2();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
+    const int d5 = GWS_GET_D5();
+    const int local_id = get_sub_group_local_id();
+
 #if SRC_16A16B || DST_16A16B || SRC_16B16A || DST_16B16A
-    const int d0 = get_global_id(0) * 16;
-    const int d1 = get_group_id(1) * 16;
-    const int local_id = get_local_id(1);
-    const int sp = get_group_id(2);
-
-    const int d23 = sp / (max(1, DST_D4) * max(1, DST_D5));
-    const int d45 = sp % (max(1, DST_D4) * max(1, DST_D5));
-    const int d2 = d23 / max(1, DST_D3);
-    const int d3 = d23 % max(1, DST_D3);
-    const int d4 = d45 / max(1, DST_D5);
-    const int d5 = d45 % max(1, DST_D5);
-
     src += SRC_OFF(d0, d1, d2, d3, d4, d5);
     dst += DST_OFF(d0, d1, d2, d3, d4, d5);
 
@@ -414,18 +402,6 @@ simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
 #endif // (SRC_16A16B || SRC_16B16A) && (DST_16A16B || DST_16B16A)
 
 #elif SRC_16B || DST_16B
-    const int d0 = get_global_id(0);
-    const int d1 = get_group_id(1) * 16;
-    const int local_id = get_local_id(1);
-    const int sp = get_group_id(2);
-
-    const int d23 = sp / (max(1, DST_D4) * max(1, DST_D5));
-    const int d45 = sp % (max(1, DST_D4) * max(1, DST_D5));
-    const int d2 = d23 / max(1, DST_D3);
-    const int d3 = d23 % max(1, DST_D3);
-    const int d4 = d45 / max(1, DST_D5);
-    const int d5 = d45 % max(1, DST_D5);
-
     SRC_DATA_T src_tmp;
 #if SRC_16B
     src += SRC_OFF(d0, d1, d2, d3, d4, d5);
@@ -457,16 +433,7 @@ simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
 #endif // DST_16B
 
 #elif SRC_16B16C || DST_16B16C || SRC_16C16B || DST_16C16B
-    const int g = get_global_id(0) / BLOCK_0;
-    const int d1 = ((get_global_id(0) % BLOCK_0) / 16) * 16;
-    const int d2 = get_group_id(1) * 16;
-    const int local_id = get_local_id(0);
-    const int sp = get_global_id(2);
-
-    const int d34 = sp / max(1, DST_D5);
-    const int d3 = d34 / max(1, DST_D4);
-    const int d4 = d34 % max(1, DST_D4);
-    const int d5 = sp % max(1, DST_D5);
+    const int g = d0;
 
     SRC_DATA8_T in0, in1;
 #if SRC_16B16C || SRC_16C16B

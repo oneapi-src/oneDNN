@@ -100,6 +100,9 @@ struct simple_reorder_t : public primitive_impl_t {
                 kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
         if (status != status::success) return status;
 
+        const auto &jrp = pd()->jrp_;
+        if (jrp.nelems == 0) return status::success;
+
         compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
