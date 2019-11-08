@@ -57,10 +57,24 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            for (int i = 0; i < src_md()->ndims; ++i) {
+            gws[0] = 1;
+            gws[1] = 1;
+            gws[2] = 1;
+
+            lws[0] = 1;
+            lws[1] = 1;
+            lws[2] = 1;
+
+            block[0] = 1;
+            block[1] = 1;
+            block[2] = 1;
+
+            for (int i = 0, j = 0; i < src_md()->ndims; ++i) {
                 if (i != desc()->softmax_axis) {
-                    gws.push_back(src_md()->dims[i]);
-                    lws.push_back(1);
+                    auto dim = src_md()->dims[i];
+                    gws[j % 3] *= dim;
+                    if (j < 3) block[j % 3] = dim;
+                    j++;
                 }
             }
 
@@ -84,8 +98,9 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
             return status::success;
         }
 
-        std::vector<size_t> gws;
-        std::vector<size_t> lws;
+        size_t gws[3] = {};
+        size_t lws[3] = {};
+        size_t block[3] = {};
         size_t group_size = 0;
     };
 
@@ -111,6 +126,12 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
 
         kernel_ctx.set_data_type(desc->data_desc.data_type);
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
+
+        for (int i = 0; i < 3; i++) {
+            char tempstr[32];
+            snprintf(tempstr, 32, "BLOCK_%d", i);
+            kernel_ctx.define_int(tempstr, pd()->block[i]);
+        }
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
@@ -147,15 +168,28 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            for (int i = 0; i < desc()->data_desc.ndims; ++i) {
-                if (i != desc()->softmax_axis)
-                    gws.push_back(desc()->data_desc.dims[i]);
+            gws[0] = 1;
+            gws[1] = 1;
+            gws[2] = 1;
+
+            block[0] = 1;
+            block[1] = 1;
+            block[2] = 1;
+
+            for (int i = 0, j = 0; i < desc()->data_desc.ndims; ++i) {
+                if (i != desc()->softmax_axis) {
+                    auto dim = desc()->data_desc.dims[i];
+                    gws[j % 3] *= dim;
+                    if (j < 3) block[j % 3] = dim;
+                    j++;
+                }
             }
 
             return status::success;
         }
 
-        std::vector<size_t> gws;
+        size_t gws[3] = {};
+        size_t block[3] = {};
     };
 
     ref_softmax_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -177,6 +211,12 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
                 desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
 
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
+
+        for (int i = 0; i < 3; i++) {
+            char tempstr[32];
+            snprintf(tempstr, 32, "BLOCK_%d", i);
+            kernel_ctx.define_int(tempstr, pd()->block[i]);
+        }
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_bwd_generic", kernel_ctx);
