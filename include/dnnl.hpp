@@ -978,6 +978,8 @@ struct engine : public handle<dnnl_engine_t> {
         gpu = dnnl_gpu,
     };
 
+    using handle::handle;
+
     engine() = default;
 
     /// Returns the number of engines of a certain kind.
@@ -1012,10 +1014,6 @@ struct engine : public handle<dnnl_engine_t> {
         reset(aengine);
     }
 #endif
-
-    /// Constructs an engine from other engine @p aengine. The result is a
-    /// weak handle.
-    explicit engine(const dnnl_engine_t &aengine) : handle(aengine, true) {}
 
     /// Constructs an engine from the primitive descriptor @p pd
     /// by querying its engine.
@@ -1073,7 +1071,7 @@ private:
         error::wrap_c_api(dnnl_primitive_desc_query(pd.get(),
                                   dnnl::convert_to_c(what), 0, &engine_q),
                 "could not get engine from primitive_desc");
-        return engine(engine_q);
+        return engine(engine_q, true);
     }
 };
 
@@ -1660,7 +1658,7 @@ struct memory : public handle<dnnl_memory_t> {
         dnnl_engine_t engine_q;
         error::wrap_c_api(dnnl_memory_get_engine(get(), &engine_q),
                 "could not get engine from a memory");
-        return engine(engine_q);
+        return engine(engine_q, true);
     }
 
     /// Returns a handle of the data contained in the memory.
@@ -1893,7 +1891,7 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
                                   0, &engine_q),
                 "could not get scratchpad engine from a primitive_desc");
 
-        return engine(engine_q);
+        return engine(engine_q, true);
     }
 
     /// Returns the attributes.
