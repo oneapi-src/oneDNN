@@ -187,7 +187,7 @@ struct jit_pool_conf_t {
     alg_kind_t alg;
     bool is_training, is_backward;
     bool use_16mb_unroll, use_16c_unroll;
-    size_t gws_d[3], lws_d[3];
+    compute::dispatch_t dispatch;
     int sub_group_size;
 };
 
