@@ -213,6 +213,22 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
         DPRINT(str, len, written, ";");
     }
 
+    const arg_scales_t &as = attr->scales_;
+    if (!as.has_default_values()) {
+        const char *delim = "";
+        DPRINT(str, len, written, "scales:'");
+        for (const auto &map_entry : as.scales_) {
+            const auto &val = map_entry.second;
+            if (!val.has_default_values()) {
+                DPRINT(str, len, written, "%ssrc:%d", delim, val.mask_);
+                if (val.mask_ == 0)
+                    DPRINT(str, len, written, ":%g", val.scales_[0]);
+                delim = "_";
+            }
+        }
+        DPRINT(str, len, written, "';");
+    }
+
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
         DPRINT(str, len, written, "post_ops:'");

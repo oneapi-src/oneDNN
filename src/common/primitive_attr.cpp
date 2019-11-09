@@ -51,6 +51,25 @@ status_t scales_t::set(dim_t count, int mask, const float *scales) {
     return status::success;
 }
 
+status_t arg_scales_t::set(
+        int arg, dim_t count, int mask, const float *scales) {
+    if (!check_arg(arg)) return status::invalid_arguments;
+
+    scales_[arg] = scales_t(count, mask, scales);
+    return status::success;
+}
+
+status_t arg_scales_t::get(
+        int arg, dim_t *count, int *mask, const float **scales) const {
+    if (!check_arg(arg)) return status::invalid_arguments;
+    const auto &s = get(arg);
+
+    *count = s.count_;
+    *mask = s.mask_;
+    *scales = s.scales_;
+    return status::success;
+}
+
 status_t zero_points_t::get(
         int arg, dim_t *count, int *mask, const int **zero_points) const {
     if (count) *count = 1;
@@ -74,7 +93,6 @@ status_t zero_points_t::set(
         case DNNL_ARG_WEIGHTS: zero_point_wei = *zero_points; break;
         case DNNL_ARG_DST: zero_point_dst = *zero_points; break;
     }
-
     return status::success;
 }
 
@@ -94,6 +112,8 @@ bool primitive_attr_t::has_default_values(
     return true
             && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
                     output_scales_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::scales),
+                    scales_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
                     zero_points_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
@@ -239,10 +259,28 @@ status_t dnnl_primitive_attr_get_output_scales(const primitive_attr_t *attr,
 
 status_t dnnl_primitive_attr_set_output_scales(
         primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
-    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
+    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0
+            && attr->scales_.has_default_values();
     if (!ok) return invalid_arguments;
 
     return attr->output_scales_.set(count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
+        dim_t count, int mask, const float *scales) {
+    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0 && arg >= 0
+            && attr->output_scales_.has_default_values();
+    if (!ok) return invalid_arguments;
+
+    return attr->scales_.set(arg, count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_get_scales(primitive_attr_t *attr, int arg,
+        dim_t *count, int *mask, const float **scales) {
+    bool ok = !any_null(attr, count, mask, scales) && arg >= 0;
+    if (!ok) return invalid_arguments;
+
+    return attr->scales_.get(arg, count, mask, scales);
 }
 
 status_t dnnl_primitive_attr_get_zero_points(const primitive_attr_t *attr,

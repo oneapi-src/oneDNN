@@ -1023,8 +1023,54 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set primitive output scales attribute");
     }
 
-    /// Returns zero points correspondence mask and values for a given memory
+    /// Returns scaling factors correspondence mask and values for a given
+    /// memory argument.
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor is used for each index along that dimension. Set the mask to
+    ///     0 to use a common scaling factor for the whole output tensor.
+    /// @param scales Output vector of scaling factors.
+    void get_scales(int arg, int &mask, std::vector<float> &scales) const {
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(dnnl_primitive_attr_get_scales(
+                                  get(), arg, &count, &c_mask, &c_scales),
+                "could not get scales");
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+    }
+
+    /// Sets scaling factors for primitive operations for a given memory
     /// argument.
+    ///
+    /// @sa dnnl_primitive_attr_set_scales
+    /// @sa dnnl::primitive_attr::set_output_scales
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p scales
+    ///     vector. The set i-th bit indicates that a dedicated scaling factor
+    ///     is used for each index along that dimension. Set the mask to 0 to
+    ///     use a common scaling factor for the whole output tensor.
+    /// @param scales Constant vector of scaling factors. The following equality
+    ///     must hold:
+    ///     \f[scales.size() = \prod\limits_{d \in mask} argument.dims[d].\f]
+    void set_scales(int arg, int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg,
+                                  (dnnl_dim_t)scales.size(), mask, &scales[0]),
+                "could not set scales");
+    }
+
+    /// Returns zero points correspondence mask and values.
     ///
     /// @param arg Parameter argument index as passed to the
     ///     primitive::execute() call.
