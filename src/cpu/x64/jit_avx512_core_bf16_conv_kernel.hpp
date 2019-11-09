@@ -475,6 +475,7 @@ private:
     reg64_t reg_tmp = r14;
     reg64_t reg_ih_shift = reg_tmp;
     reg64_t reg_long_offt = r14;
+    reg64_t reg_icb = rbx;
 
     reg64_t ki = r11;
     reg64_t reg_oj_setup = r11;
@@ -523,6 +524,16 @@ private:
     inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
             int pad_r, int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool is_tail = false);
+    inline bool is_src_layout_nxc() {
+        return jcp.uses_permw_transposition
+                && utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return jcp.uses_permw_transposition
+                && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                        format_tag::nhwc, format_tag::nwc);
+    }
 
     void generate();
 
@@ -568,9 +579,11 @@ private:
 
     ptrdiff_t get_inp_offset(
             int pad_l, int i_ur, int i_kw, ptrdiff_t base_offset_bytes) {
-        ptrdiff_t local_offset_bytes
-                = jcp.typesize_in * (i_ur + i_kw - pad_l) * jcp.ic_block;
-        return base_offset_bytes + local_offset_bytes;
+        ptrdiff_t local_w_offset
+                = i_ur * jcp.stride_w + i_kw * (jcp.dilate_w + 1) - pad_l;
+        int inp_mult
+                = is_src_layout_nxc() ? jcp.ngroups * jcp.ic : jcp.ic_block;
+        return base_offset_bytes + jcp.typesize_in * local_w_offset * inp_mult;
     };
 
     Xbyak::Zmm get_perm_reg() {
@@ -600,6 +613,8 @@ private:
     int d_index_offset;
     int trans_tmp_offset;
     int ih_dilate_shift;
+    int icb_loop_ker_ptr;
+    int icb_loop_inp_ptr;
 };
 } // namespace x64
 } // namespace cpu

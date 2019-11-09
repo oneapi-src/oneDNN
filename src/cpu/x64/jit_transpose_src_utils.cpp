@@ -354,7 +354,7 @@ private:
         transpose_size = 16,
         small_spatial = 14
     };
-    int src_stride, tr_src_stride;
+    size_t src_stride, tr_src_stride;
     int tail;
     bool enable_prefetch;
 
@@ -461,13 +461,16 @@ void jit_trans_iw_ic_int16_t::transpose(
         vmovups(addr, r);
     };
 
+    const bool is_layout_nxc = utils::one_of(conf_->src_tag, format_tag::ndhwc,
+            format_tag::nhwc, format_tag::nwc);
     if (mayiuse(avx512_core)) {
-        if (conf_->stride_w > 1 || nrows % 2) kmovd(kFFFF, 0x0000ffff);
-        if (conf_->stride_w > 1) kmovd(k33, 0xffff0000);
+        if (conf_->stride_w > 1 || nrows % 2 || is_layout_nxc)
+            kmovd(kFFFF, 0x0000ffff);
+        if (conf_->stride_w > 1 || is_layout_nxc) kmovd(k33, 0xffff0000);
 
         for (int i = 0; i < nrows / 2; i++) {
             auto zmm_src0 = src_zmm(2 * i);
-            if (conf_->stride_w == 1) {
+            if (conf_->stride_w == 1 && !is_layout_nxc) {
                 vmovdqu16(zmm_src0,
                         EVEX_compress_addr(reg_src, 2 * i * src_stride));
             } else {
@@ -489,7 +492,7 @@ void jit_trans_iw_ic_int16_t::transpose(
             vpermw(zmm_src0, vidx5, zmm_src0);
         }
 
-        if (conf_->stride_w > 1) kmovw(k33, 0x33);
+        if (conf_->stride_w > 1 || is_layout_nxc) kmovw(k33, 0x33);
 
         for (int i = rnd_up(nrows, 2); i < 16; i += 2) {
             vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
@@ -634,6 +637,10 @@ void jit_trans_iw_ic_int16_t::generate() {
                     3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
 
     const int ic_block = conf_->ic_block;
+    const bool is_layout_nxc = utils::one_of(conf_->src_tag, format_tag::ndhwc,
+            format_tag::nhwc, format_tag::nwc);
+    const size_t src_mult
+            = is_layout_nxc ? conf_->ngroups * conf_->ic : ic_block;
     const int iw = conf_->iw;
     const int tr_iw = conf_->tr_iw;
     const int str_w = conf_->stride_w;
@@ -682,14 +689,14 @@ void jit_trans_iw_ic_int16_t::generate() {
         int loop_iters = nstl::max(0, transposes - 1);
         tail = iw_s - loop_iters * transpose_size;
 
-        src_stride = ic_block * typesize * str_w;
+        src_stride = src_mult * typesize * str_w;
         tr_src_stride = tr_iw * typesize;
 
         bool nontemporal_stores = false;
         enable_prefetch = iw > small_spatial ? 1 : 0;
 
-        const int src_step = ic_block * transpose_size * str_w * typesize;
-        const int tr_src_step = transpose_size * typesize;
+        const size_t src_step = src_mult * transpose_size * str_w * typesize;
+        const size_t tr_src_step = transpose_size * typesize;
 
         mov(reg_src, ptr[param1 + GET_OFF(src)]);
         mov(reg_tr_src, ptr[param1 + GET_OFF(tr_src)]);
@@ -699,9 +706,9 @@ void jit_trans_iw_ic_int16_t::generate() {
         if (str_w > 1) {
             int tr_src_shift = s;
             int src_shift = (str_w - (conf_->l_pad % str_w) + s) % str_w;
-            add(reg_src, src_shift * ic_block * typesize);
+            add(reg_src, src_shift * src_mult * typesize);
             add(reg_tr_src, tr_src_shift * tr_iw_s * typesize);
-            add(reg_src_prf, src_shift * ic_block * typesize);
+            add(reg_src_prf, src_shift * src_mult * typesize);
             add(reg_tr_src_prf, tr_src_shift * tr_iw_s * typesize);
         }
 
@@ -754,7 +761,7 @@ private:
         transpose_size = 16,
         small_spatial = 14
     };
-    int src_stride, tr_src_stride;
+    size_t src_stride, tr_src_stride;
     int tail;
     bool enable_prefetch;
 
@@ -801,8 +808,11 @@ void jit_trans_ow_oc_t::transpose(
         else
             vmovups(addr, r);
     };
+    const bool is_layout_nxc = utils::one_of(conf_->dst_tag, format_tag::ndhwc,
+            format_tag::nhwc, format_tag::nwc);
 
-    if (mayiuse(avx512_core)) {
+    if (mayiuse(avx512_core) && !is_layout_nxc) {
+        // TODO: adopt for nhwc?
         for (int i = 0; i < nrows / 2; i++) {
             auto zmm_src0 = src_zmm(i);
             vmovdqu16(
@@ -859,19 +869,23 @@ void jit_trans_ow_oc_t::generate() {
                     25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
 
     const int oc_block = conf_->oc_block;
+    const bool is_layout_nxc = utils::one_of(conf_->dst_tag, format_tag::ndhwc,
+            format_tag::nhwc, format_tag::nwc);
+    const size_t src_mult
+            = is_layout_nxc ? conf_->ngroups * conf_->oc : oc_block;
     const int ow = conf_->ow;
     const int transposes = utils::div_up(ow, transpose_size);
     int loop_iters = nstl::max(0, transposes - 1);
     tail = ow - loop_iters * transpose_size;
 
-    src_stride = oc_block * typesize;
+    src_stride = src_mult * typesize;
     tr_src_stride = oc_block * typesize;
 
     bool nontemporal_stores = false;
     enable_prefetch = ow > small_spatial ? 1 : 0;
 
-    const int src_step = oc_block * transpose_size * typesize;
-    const int tr_src_step = oc_block * transpose_size * typesize;
+    const size_t src_step = src_mult * transpose_size * typesize;
+    const size_t tr_src_step = (size_t)oc_block * transpose_size * typesize;
     const int right_pad = ow % 2;
 
     mov(reg_src, ptr[param1 + GET_OFF(src)]);
