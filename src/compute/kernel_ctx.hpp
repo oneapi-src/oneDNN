@@ -21,10 +21,10 @@
 #ifdef DEBUG_PRINT
 #include <iostream>
 #endif
+#include <map>
+#include <set>
 #include <sstream>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace dnnl {
 namespace impl {
@@ -107,9 +107,9 @@ private:
         add_option("-cl-fp32-correctly-rounded-divide-sqrt");
     }
 
-    std::unordered_map<std::string, int64_t> int_var_map_;
-    std::unordered_map<std::string, float> float_var_map_;
-    std::unordered_set<std::string> option_set_;
+    std::map<std::string, int64_t> int_var_map_;
+    std::map<std::string, float> float_var_map_;
+    std::set<std::string> option_set_;
 };
 
 template <>
