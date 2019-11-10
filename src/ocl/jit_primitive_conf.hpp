@@ -585,6 +585,11 @@ inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
     }
 }
 
+inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,
+        const compute::dispatch_t &dispatch) {
+    dispatch.def_kernel_macros(kernel_ctx);
+}
+
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl

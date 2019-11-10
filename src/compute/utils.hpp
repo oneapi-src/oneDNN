@@ -27,6 +27,13 @@ namespace compute {
 // Stores global/local ranges to use for kernel enqueueing
 class nd_range_t {
 public:
+    nd_range_t() {
+        global_range_[0] = 1;
+        global_range_[1] = 1;
+        global_range_[2] = 1;
+        with_local_range_ = false;
+    }
+
     nd_range_t(size_t n, const size_t *global_range,
             const size_t *local_range = nullptr) {
 

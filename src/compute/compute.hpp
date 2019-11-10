@@ -20,6 +20,7 @@
 #include "compute/compute_engine.hpp"
 #include "compute/compute_stream.hpp"
 #include "compute/device_info.hpp"
+#include "compute/dispatch.hpp"
 #include "compute/kernel.hpp"
 #include "compute/kernel_arg_list.hpp"
 #include "compute/kernel_ctx.hpp"

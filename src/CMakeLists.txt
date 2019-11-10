@@ -69,6 +69,7 @@ if(WIN32)
 endif()
 
 add_subdirectory(common)
+add_subdirectory(compute)
 add_subdirectory(cpu)
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")

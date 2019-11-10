@@ -72,6 +72,17 @@ public:
     void add_option(const char *option) { option_set_.insert(option); }
     void add_option(const std::string &option) { add_option(option.c_str()); }
 
+    bool has_macro(const char *name) const {
+        std::string opt_start = std::string("-D") + name + "=";
+        for (auto &opt : option_set_)
+            if (opt.find(opt_start) != std::string::npos) return true;
+
+        return int_var_map_.count(name) != 0 || float_var_map_.count(name) != 0;
+    }
+    bool has_macro(const std::string &name) const {
+        return has_macro(name.c_str());
+    }
+
     void set_data_type(data_type_t dt) {
         switch (dt) {
             case data_type::bf16: define_int("DT_BF16", 1); break;
