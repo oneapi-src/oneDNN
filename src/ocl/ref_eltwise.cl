@@ -39,27 +39,16 @@
             + ((x5) % DIFF_DATA_B5) * DIFF_DATA_SB5 \
             + ((x5) / DIFF_DATA_B5) * DIFF_DATA_S5)
 
+KERNEL_ATTR
 __kernel void ref_eltwise_fwd(
         __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
-    const int i = get_global_id(0);
 
-    int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0;
-    d0 = i % DATA_D0;
-#if NDIMS > 1
-    d1 = (i / DATA_D0) % DATA_D1;
-#endif
-#if NDIMS > 2
-    d2 = (i / (DATA_D0 * DATA_D1)) % DATA_D2;
-#endif
-#if NDIMS > 3
-    d3 = (i / (DATA_D0 * DATA_D1 * DATA_D2)) % DATA_D3;
-#endif
-#if NDIMS > 4
-    d4 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3)) % DATA_D4;
-#endif
-#if NDIMS > 5
-    d5 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3 * DATA_D4)) % DATA_D5;
-#endif
+    int d0 = GWS_GET_D0();
+    int d1 = GWS_GET_D1();
+    int d2 = GWS_GET_D2();
+    int d3 = GWS_GET_D3();
+    int d4 = GWS_GET_D4();
+    int d5 = GWS_GET_D5();
 
     const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
 
@@ -68,27 +57,16 @@ __kernel void ref_eltwise_fwd(
     dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta));
 }
 
+KERNEL_ATTR
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
         __global DATA_T *diff_dst, float alpha, float beta) {
-    const int i = get_global_id(0);
 
-    int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0;
-    d0 = i % DATA_D0;
-#if NDIMS > 1
-    d1 = (i / DATA_D0) % DATA_D1;
-#endif
-#if NDIMS > 2
-    d2 = (i / (DATA_D0 * DATA_D1)) % DATA_D2;
-#endif
-#if NDIMS > 3
-    d3 = (i / (DATA_D0 * DATA_D1 * DATA_D2)) % DATA_D3;
-#endif
-#if NDIMS > 4
-    d4 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3)) % DATA_D4;
-#endif
-#if NDIMS > 5
-    d5 = (i / (DATA_D0 * DATA_D1 * DATA_D2 * DATA_D3 * DATA_D4)) % DATA_D5;
-#endif
+    int d0 = GWS_GET_D0();
+    int d1 = GWS_GET_D1();
+    int d2 = GWS_GET_D2();
+    int d3 = GWS_GET_D3();
+    int d4 = GWS_GET_D4();
+    int d5 = GWS_GET_D5();
 
     const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
     const size_t diff_data_off = DIFF_DATA_OFF(d0, d1, d2, d3, d4, d5);

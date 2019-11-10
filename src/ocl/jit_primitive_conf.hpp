@@ -375,7 +375,7 @@ struct jit_eltwise_conf_t {
     data_type_t data_type;
     alg_kind_t alg;
     bool is_forward;
-    size_t gws_d[3];
+    compute::dispatch_t dispatch;
 };
 
 /* shuffle */

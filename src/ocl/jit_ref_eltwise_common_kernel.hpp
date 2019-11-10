@@ -54,9 +54,19 @@ struct jit_ref_eltwise_common_kernel {
         set_offsets(diff_data_d, jit_off.dst_off);
 
         const auto &dims = data_d.dims();
-        jel.gws_d[0] = utils::array_product(&dims[0], ndims);
-        jel.gws_d[1] = 1;
-        jel.gws_d[2] = 1;
+
+        int max_ndims = 6;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        jel.dispatch = compute_engine->create_dispatch(
+                is_forward ? data_d.md_ : diff_data_d.md_);
+        for (int i = 0; i < max_ndims; ++i) {
+            if (i < ndims)
+                jel.dispatch.define_dim(utils::format("D%d", i), i, dims[i]);
+            else
+                jel.dispatch.define_dim(utils::format("D%d", i), 1);
+        }
+        jel.dispatch.generate();
 
         return status::success;
     }
@@ -86,6 +96,8 @@ struct jit_ref_eltwise_common_kernel {
         def_offsets(jit_off.src_off, kernel_ctx, "DATA", jel.ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA",
                 jel.is_forward ? 0 : jel.ndims);
+
+        def_dispatch(kernel_ctx, jel.dispatch);
 
         return status::success;
     }
