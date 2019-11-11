@@ -30,7 +30,8 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <impl::data_type_t data_type>
+template <data_type_t src0_type, data_type_t src1_type = src0_type,
+        data_type_t dst_type = src0_type>
 struct ref_binary_t : public primitive_impl_t {
     struct pd_t : public cpu_binary_pd_t {
         using cpu_binary_pd_t::cpu_binary_pd_t;
@@ -39,14 +40,31 @@ struct ref_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
-            bool ok = utils::everyone_is(data_type, src_md(0)->data_type,
-                              src_md(1)->data_type, dst_md()->data_type)
-                    && IMPLICATION(data_type == bf16, mayiuse(avx512_core))
-                    && attr()->has_default_values()
-                    && set_default_params() == status::success;
+            bool ok = src0_type == src_md(0)->data_type
+                    && src1_type == src_md(1)->data_type
+                    && dst_type == dst_md()->data_type
+                    && IMPLICATION(utils::everyone_is(bf16, src0_type,
+                                           src1_type, dst_type),
+                            mayiuse(avx512_core))
+                    && set_default_params() == status::success
+                    && IMPLICATION(utils::one_of(src0_type, f32, bf16),
+                            attr()->has_default_values())
+                    && IMPLICATION(utils::one_of(src0_type, s8, u8),
+                            attr()->has_default_values(
+                                    primitive_attr_t::skip_mask_t::scales))
+                    && IMPLICATION(!attr()->scales_.has_default_values(),
+                            check_scales_mask());
             if (!ok) return status::unimplemented;
 
             return status::success;
+        }
+
+    private:
+        bool check_scales_mask() const {
+            for (const auto &s : attr()->scales_.scales_) {
+                if (s.second.mask_ != 0) return false;
+            }
+            return true;
         }
     };
 
@@ -54,7 +72,9 @@ struct ref_binary_t : public primitive_impl_t {
 
     ~ref_binary_t() {}
 
-    typedef typename prec_traits<data_type>::type data_t;
+    using src0_data_t = typename prec_traits<src0_type>::type;
+    using src1_data_t = typename prec_traits<src1_type>::type;
+    using dst_data_t = typename prec_traits<dst_type>::type;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         execute_ref(ctx);

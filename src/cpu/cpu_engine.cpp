@@ -401,6 +401,11 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_uni_binary_t<avx2>),
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
+        /* binary op (int) */
+        INSTANCE(ref_binary_t<s8, u8, s8>),
+        INSTANCE(ref_binary_t<s8, s8, s8>),
+        INSTANCE(ref_binary_t<u8, s8, u8>),
+        INSTANCE(ref_binary_t<u8, u8, u8>),
         /* matmul op */
         INSTANCE(matmul::gemm_f32_matmul_t),
         INSTANCE(matmul::gemm_bf16_matmul_t<f32>),

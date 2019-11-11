@@ -406,7 +406,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales(
 ///     scales array.
 ///
 /// @warning
-///     The lifetime of @p scales array is the same as that of the primitive
+///     The lifetime of the @p scales array is the same as that of the primitive
 ///     attributes @p attr to which it belongs, so it is an error to use @p
 ///     scales after @p attr is destroyed.
 ///
@@ -427,8 +427,8 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_scales(
         dnnl_primitive_attr_t attr, int arg, dnnl_dim_t *count, int *mask,
         const float **scales);
 
-/// Sets primitive attributes scaling factors for primitive operations for given
-/// memory argument.
+/// Sets primitive attributes scaling factors for primitive operations for a
+/// given memory argument.
 ///
 /// @sa dnnl_primitive_attr_set_output_scales
 ///
@@ -483,7 +483,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
         const_dnnl_primitive_attr_t attr, int arg, dnnl_dim_t *count, int *mask,
         const int32_t **zero_points);
 
-/// Sets primitive attributes zero points for primitive operations for given
+/// Sets primitive attributes zero points for primitive operations for a given
 /// memory argument.
 ///
 /// @sa dnnl_primitive_attr_set_output_scales
