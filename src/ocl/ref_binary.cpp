@@ -35,7 +35,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const auto &jib = pd()->jib_;
 
-    auto nd_range = compute::nd_range_t(jib.gws_d);
+    auto nd_range = jib.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
     return status;
 }

@@ -339,7 +339,7 @@ struct jit_binary_conf_t {
     bool is_mul;
     bool is_add;
     bool is_tensor_op;
-    size_t gws_d[3];
+    compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
     int bcast_dims[MAX_NDIMS];
     jit_memory_desc_info_t src0_md_info;
