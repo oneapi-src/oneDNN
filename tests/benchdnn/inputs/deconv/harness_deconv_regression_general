@@ -1,0 +1,3 @@
+# Dilated deconvolution with ih<=dh when there is _no_ compute work
+--reset --allow-unimpl=true
+--cfg=u8s8u8 mb1ic16ih1iw1oc16oh2ow1kh3kw1dh1ph1n"regression_dh_equals_ih"
