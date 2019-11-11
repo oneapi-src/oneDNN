@@ -23,18 +23,17 @@
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 #define STAT_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(STAT, x0, x1, x2, x3, x4, x5)
 
+#if IS_FWD
+KERNEL_ATTR
 __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, float eps) {
 
     int x[6] = {0};
-    x[0] = get_global_id(0);
-    x[1] = get_global_id(1);
-
-    int x23 = get_global_id(2);
-
-    x[2] = x23 / max(1, STAT_D3);
-    x[3] = x23 % max(1, STAT_D3);
+    x[0] = GWS_GET_X0();
+    x[1] = GWS_GET_X1();
+    x[2] = GWS_GET_X2();
+    x[3] = GWS_GET_X3();
 
     int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
@@ -80,12 +79,15 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
     }
 }
 
+#else
+
+KERNEL_ATTR
 __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global DATA_T *diff_src,
         __global float *diff_scaleshift, float eps) {
 
-    int c = get_global_id(0);
+    int c = GWS_GET_C();
     int x[6] = {0};
 
     float gamma = USE_SCALESHIFT ? scaleshift[c] : 1.0f;
@@ -148,3 +150,5 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
         }
     }
 }
+
+#endif

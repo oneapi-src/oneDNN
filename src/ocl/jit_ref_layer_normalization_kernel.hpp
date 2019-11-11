@@ -44,17 +44,25 @@ struct jit_ref_layer_normalization_kernel_t {
         jln.dst_md_info = jit_memory_desc_info_t::create(dst_mdw);
         jln.stat_md_info = jit_memory_desc_info_t::create(stat_mdw);
 
+        jln.is_fwd = pd->is_fwd();
+
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        jln.dispatch = compute_engine->create_dispatch(
+                pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
         if (pd->is_fwd()) {
             auto &dims = src_mdw.dims();
-            jln.gws_d[0] = dims[0];
-            jln.gws_d[1] = ndims > 2 ? dims[1] : 1;
-            jln.gws_d[2]
-                    = ndims > 3 ? utils::array_product(&dims[2], ndims - 3) : 1;
+            for (int i = 0; i < 4; i++) {
+                int md_hint_idx = nstl::max(i, ndims - 1);
+                int dim = (i < ndims - 1) ? dims[i] : 1;
+                jln.dispatch.define_dim(
+                        utils::format("X%d", i), md_hint_idx, dim);
+            }
         } else {
-            jln.gws_d[0] = pd->norm_axis();
-            jln.gws_d[1] = 1;
-            jln.gws_d[2] = 1;
+            jln.dispatch.define_dim("C", pd->norm_axis());
         }
+
+        jln.dispatch.generate();
 
         jln.use_scaleshift = pd->use_scaleshift();
         jln.calculate_stats = !pd->stats_are_src();
@@ -73,10 +81,13 @@ struct jit_ref_layer_normalization_kernel_t {
         kernel_ctx.define_int("USE_SCALESHIFT", jln.use_scaleshift);
         kernel_ctx.define_int("CALCULATE_STATS", jln.calculate_stats);
         kernel_ctx.define_int("SAVE_STATS", jln.save_stats);
+        kernel_ctx.define_int("IS_FWD", jln.is_fwd);
 
         def_memory_desc_info(kernel_ctx, jln.src_md_info, "SRC");
         def_memory_desc_info(kernel_ctx, jln.dst_md_info, "DST");
         def_memory_desc_info(kernel_ctx, jln.stat_md_info, "STAT");
+
+        def_dispatch(kernel_ctx, jln.dispatch);
 
         return status::success;
     }

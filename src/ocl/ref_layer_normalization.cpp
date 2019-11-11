@@ -47,7 +47,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     arg_list.set(4, scaleshift);
     arg_list.set(5, jln.eps);
 
-    auto nd_range_kernel = compute::nd_range_t(jln.gws_d);
+    auto nd_range_kernel = jln.dispatch.nd_range();
     status_t status
             = compute_stream->parallel_for(nd_range_kernel, kernel_, arg_list);
 
@@ -80,7 +80,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     arg_list.set(6, diff_scaleshift);
     arg_list.set(7, jln.eps);
 
-    auto nd_range_kernel = compute::nd_range_t(jln.gws_d);
+    auto nd_range_kernel = jln.dispatch.nd_range();
     status_t status
             = compute_stream->parallel_for(nd_range_kernel, kernel_, arg_list);
 

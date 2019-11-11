@@ -317,6 +317,7 @@ struct jit_bnorm_conf_t {
 struct jit_lnorm_conf_t {
     data_type_t data_type;
 
+    bool is_fwd;
     int ndims;
     int norm_axis;
 
@@ -329,7 +330,7 @@ struct jit_lnorm_conf_t {
     bool save_stats;
     float eps;
 
-    size_t gws_d[3];
+    compute::dispatch_t dispatch;
 };
 
 /* simple sum */
