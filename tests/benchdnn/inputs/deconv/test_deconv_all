@@ -29,5 +29,5 @@
 # bf16
 --batch=test_deconv_bfloat16
 
-# Regression: long accumulation chains
---reset --cfg=f32_full --dir=bwd_w mb28_ic16oc16_id10od10kd3
+# Regression
+--batch=harness_deconv_regression_general
