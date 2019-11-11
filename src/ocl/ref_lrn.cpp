@@ -37,7 +37,7 @@ status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         arg_list.set(1, dst);
     }
 
-    auto nd_range = compute::nd_range_t(3, pd()->gws, pd()->lws);
+    auto nd_range = pd()->dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -55,7 +55,7 @@ status_t ref_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     arg_list.set(2, ws);
     arg_list.set(3, diff_src);
 
-    auto nd_range = compute::nd_range_t(3, pd()->gws, pd()->lws);
+    auto nd_range = pd()->dispatch.nd_range();
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);

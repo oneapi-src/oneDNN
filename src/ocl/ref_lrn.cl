@@ -23,15 +23,16 @@
 #define DST_H_STRIDE DST_S2
 
 #if IS_FWD == 1
+KERNEL_ATTR
 __kernel void ref_lrn_fwd(__global const DATA_T *src,
 #if IS_TRAINING == 1
         __global DEF_ACC_DATA_T *ws,
 #endif
         __global DATA_T *dst) {
-    const uint mb = get_global_id(GWS_MB);
-    const uint ic = get_global_id(GWS_IC);
-    const uint ih = get_global_id(GWS_HW) / IW;
-    const uint iw = get_global_id(GWS_HW) % IW;
+    const uint mb = GWS_GET_MB();
+    const uint ic = GWS_GET_IC();
+    const uint ih = GWS_GET_IH();
+    const uint iw = GWS_GET_IW();
 
     const uint src_index = SRC_OFF(mb, ic, 0, ih, iw);
     const uint dst_index = DST_OFF(mb, ic, 0, ih, iw);
@@ -91,13 +92,14 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
 #endif
 
 #if IS_BWD == 1
+KERNEL_ATTR
 __kernel void ref_lrn_bwd(__global const DATA_T *src,
         __global const DATA_T *diff_dst, __global DEF_ACC_DATA_T *ws,
         __global DATA_T *diff_src) {
-    const uint mb = get_global_id(GWS_MB);
-    const uint ic = get_global_id(GWS_IC);
-    const uint ih = get_global_id(GWS_HW) / IW;
-    const uint iw = get_global_id(GWS_HW) % IW;
+    const uint mb = GWS_GET_MB();
+    const uint ic = GWS_GET_IC();
+    const uint ih = GWS_GET_IH();
+    const uint iw = GWS_GET_IW();
 
     const uint src_index = SRC_OFF(mb, ic, 0, ih, iw);
     const uint dst_index = DST_OFF(mb, ic, 0, ih, iw);

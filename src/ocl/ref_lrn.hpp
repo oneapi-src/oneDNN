@@ -65,16 +65,17 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
                     ws_md_.data_type = data_type::f32;
             }
 
-            gws[0] = H() * W();
-            gws[1] = C();
-            gws[2] = MB();
-            ocl_utils::get_optimal_lws(gws, lws, 3);
+            dispatch = compute_engine->create_dispatch(&data_md_);
+            dispatch.define_dim("MB", 0, MB());
+            dispatch.define_dim("IC", 1, C());
+            dispatch.define_dim("IH", 2, H());
+            dispatch.define_dim("IW", 3, W());
+            dispatch.generate();
 
             return status::success;
         }
 
-        size_t gws[3];
-        size_t lws[3];
+        compute::dispatch_t dispatch;
     };
 
     ref_lrn_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -134,15 +135,13 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
 
-        kernel_ctx.define_int("GWS_MB", 2);
-        kernel_ctx.define_int("GWS_IC", 1);
-        kernel_ctx.define_int("GWS_HW", 0);
-
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
         set_offsets(dst_d, jit_off.dst_off);
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
+
+        def_dispatch(kernel_ctx, pd()->dispatch);
 
         compute_engine->create_kernel(&kernel_, "ref_lrn_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
@@ -193,16 +192,17 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
                 ws_md_.data_type = data_type::f32;
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
 
-            gws[0] = H() * W();
-            gws[1] = C();
-            gws[2] = MB();
-            ocl_utils::get_optimal_lws(gws, lws, 3);
+            dispatch = compute_engine->create_dispatch(&diff_data_md_);
+            dispatch.define_dim("MB", 0, MB());
+            dispatch.define_dim("IC", 1, C());
+            dispatch.define_dim("IH", 2, H());
+            dispatch.define_dim("IW", 3, W());
+            dispatch.generate();
 
             return status::success;
         }
 
-        size_t gws[3];
-        size_t lws[3];
+        compute::dispatch_t dispatch;
     };
 
     ref_lrn_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -259,15 +259,13 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
 
-        kernel_ctx.define_int("GWS_MB", 2);
-        kernel_ctx.define_int("GWS_IC", 1);
-        kernel_ctx.define_int("GWS_HW", 0);
-
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
         set_offsets(diff_dst_d, jit_off.dst_off);
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
+
+        def_dispatch(kernel_ctx, pd()->dispatch);
 
         compute_engine->create_kernel(&kernel_, "ref_lrn_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;

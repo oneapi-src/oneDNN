@@ -143,25 +143,6 @@ inline status_t check_device(
     return status::invalid_arguments;
 }
 
-inline void get_optimal_lws(const size_t *gws, size_t *lws, size_t n) {
-    const size_t lws_max = 256;
-    const size_t optimal_lws_values[]
-            = {256, 224, 192, 160, 128, 96, 64, 32, 16, 8, 7, 6, 5, 4, 3, 2, 1};
-    size_t total_lws = 1;
-    for (size_t i = 0; i < n; ++i) {
-        auto rest_lws = lws_max / total_lws;
-        size_t lws_idx = 0;
-        while (rest_lws < optimal_lws_values[lws_idx])
-            lws_idx++;
-
-        while (gws[i] % optimal_lws_values[lws_idx])
-            lws_idx++;
-
-        lws[i] = optimal_lws_values[lws_idx];
-        total_lws *= optimal_lws_values[lws_idx];
-    }
-}
-
 status_t get_ocl_devices(
         std::vector<cl_device_id> *devices, cl_device_type device_type);
 
