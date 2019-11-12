@@ -46,6 +46,8 @@
 
 #include <stdlib.h>
 
+#include "dnnl.h"
+
 #include "example_utils.h"
 
 #define BATCH 8
@@ -143,8 +145,7 @@ dnnl_status_t prepare_reorder(dnnl_memory_t *user_memory, // in
     return dnnl_success;
 }
 
-dnnl_status_t simple_net(dnnl_engine_kind_t engine_kind) {
-
+void simple_net(dnnl_engine_kind_t engine_kind) {
     dnnl_engine_t engine;
     CHECK(dnnl_engine_create(&engine, engine_kind, 0));
 
@@ -443,14 +444,10 @@ dnnl_status_t simple_net(dnnl_engine_kind_t engine_kind) {
     dnnl_primitive_destroy(pool);
 
     dnnl_engine_destroy(engine);
-
-    return dnnl_success;
 }
 
 int main(int argc, char **argv) {
-    dnnl_status_t result = simple_net(parse_engine_kind(argc, argv));
-    printf("%s\n",
-            (result == dnnl_success) ? "Simple net f32 inference passed!"
-                                     : "Simple net f32 inference failed!");
-    return result;
+    simple_net(parse_engine_kind(argc, argv));
+    printf("Example passed\n");
+    return 0;
 }

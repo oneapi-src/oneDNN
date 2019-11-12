@@ -30,7 +30,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "dnnl.h"
+
+#include "example_utils.h"
 
 #define BATCH 32
 #define IC 3
@@ -45,25 +48,6 @@
 #define POOL_OW 27
 #define POOL_STRIDE 2
 #define POOL_PAD 0
-
-#define CHECK(f) \
-    do { \
-        dnnl_status_t s = f; \
-        if (s != dnnl_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s); \
-            exit(2); \
-        } \
-    } while (0)
-
-#define CHECK_TRUE(expr) \
-    do { \
-        int e_ = expr; \
-        if (!e_) { \
-            printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #expr); \
-            exit(2); \
-        } \
-    } while (0)
 
 static size_t product(dnnl_dim_t *arr, size_t size) {
     size_t prod = 1;
@@ -162,7 +146,7 @@ dnnl_status_t prepare_reorder(dnnl_memory_t *user_memory, /// in
     return dnnl_success;
 }
 
-dnnl_status_t simple_net() {
+void simple_net() {
     dnnl_engine_t engine;
     CHECK(dnnl_engine_create(&engine, dnnl_cpu, 0)); // idx
 
@@ -793,12 +777,10 @@ dnnl_status_t simple_net() {
     free(conv_user_diff_weights_buffer);
 
     dnnl_engine_destroy(engine);
-
-    return dnnl_success;
 }
 
 int main(int argc, char **argv) {
-    dnnl_status_t result = simple_net();
-    printf("%s\n", (result == dnnl_success) ? "passed" : "failed");
-    return result;
+    simple_net();
+    printf("Example passed\n");
+    return 0;
 }

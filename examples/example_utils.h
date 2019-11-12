@@ -23,24 +23,28 @@
 #include <string.h>
 
 #include "dnnl.h"
+#include "dnnl_debug.h"
+
+#define COMPLAIN_DNNL_ERROR_AND_EXIT(what, status) \
+    do { \
+        printf("[%s:%d] `%s` returns DNNL error: %s\n", __FILE__, __LINE__, \
+                what, dnnl_status2str(status)); \
+        printf("Example failed\n"); \
+        exit(1); \
+    } while (0)
+
+#define COMPLAIN_EXAMPLE_ERROR_AND_EXIT(complain_fmt, ...) \
+    do { \
+        printf("[%s:%d] Error in the example: " complain_fmt "\n", __FILE__, \
+                __LINE__, __VA_ARGS__); \
+        printf("Example failed\n"); \
+        exit(2); \
+    } while (0)
 
 #define CHECK(f) \
     do { \
         dnnl_status_t s_ = f; \
-        if (s_ != dnnl_success) { \
-            printf("[%s:%d] error: %s returns %d\n", __FILE__, __LINE__, #f, \
-                    s_); \
-            exit(2); \
-        } \
-    } while (0)
-
-#define CHECK_TRUE(expr) \
-    do { \
-        int e_ = expr; \
-        if (!e_) { \
-            printf("[%s:%d] %s failed\n", __FILE__, __LINE__, #expr); \
-            exit(2); \
-        } \
+        if (s_ != dnnl_success) COMPLAIN_DNNL_ERROR_AND_EXIT(#f, s_); \
     } while (0)
 
 static inline dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
@@ -54,19 +58,19 @@ static inline dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
             return dnnl_cpu;
         } else if (!strcmp(engine_kind_str, "gpu")) {
             // Checking if a GPU exists on the machine
-            if (!dnnl_engine_get_count(dnnl_gpu)) {
-                fprintf(stderr,
-                        "Application couldn't find GPU, please run with CPU "
-                        "instead. Thanks!\n");
-                exit(1);
-            }
+            if (!dnnl_engine_get_count(dnnl_gpu))
+                COMPLAIN_EXAMPLE_ERROR_AND_EXIT("%s",
+                        "could not find compatible GPU\nPlease run the example "
+                        "with CPU instead");
             return dnnl_gpu;
         }
     }
 
-    // If all above fails, the example should be ran properly
-    fprintf(stderr, "Please run example like this: %s cpu|gpu\n", argv[0]);
-    exit(1);
+    // If all above fails, the example should be run properly
+    COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+            "inappropriate engine kind\n"
+            "Please run example like this: %s [cpu|gpu]",
+            argv[0]);
 }
 
 // Read from memory, write to handle
@@ -103,14 +107,9 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
 
         cl_int ret = clEnqueueReadBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS) {
-            fprintf(stderr,
-                    "clEnqueueReadBuffer failed.\nStatus Code: "
-                    "%d\n",
-                    ret);
-            dnnl_stream_destroy(s);
-            exit(1);
-        }
+        if (ret != CL_SUCCESS)
+            COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+                    "clEnqueueReadBuffer failed (status code: %d)", ret);
 
         dnnl_stream_destroy(s);
     }
@@ -151,14 +150,9 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
 
         cl_int ret = clEnqueueWriteBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
-        if (ret != CL_SUCCESS) {
-            fprintf(stderr,
-                    "clEnqueueWriteBuffer failed.\nStatus Code: "
-                    "%d\n",
-                    ret);
-            dnnl_stream_destroy(s);
-            exit(1);
-        }
+        if (ret != CL_SUCCESS)
+            COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+                    "clEnqueueWriteBuffer failed (status code: %d)", ret);
 
         dnnl_stream_destroy(s);
     }

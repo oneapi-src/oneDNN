@@ -64,7 +64,7 @@ int find_negative(dnnl_memory_t mem, int n_dims, const dnnl_dim_t dims[]) {
     return negs;
 }
 
-int doit() {
+void cross_engine_reorder() {
     dnnl_engine_t engine_cpu, engine_gpu;
     CHECK(dnnl_engine_create(&engine_cpu, dnnl_cpu, 0));
     CHECK(dnnl_engine_create(&engine_gpu, dnnl_gpu, 0));
@@ -82,10 +82,9 @@ int doit() {
             &m_gpu, &m_gpu_md, engine_gpu, DNNL_MEMORY_ALLOCATE));
 
     fill(m_cpu, 4, tz);
-    if (find_negative(m_cpu, 4, tz) == 0) {
-        printf("Please fix filling of data\n");
-        exit(2);
-    }
+    if (find_negative(m_cpu, 4, tz) == 0)
+        COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+                "%s", "incorrect data fill, no negative values found");
 
     /* reorder cpu -> gpu */
     dnnl_primitive_desc_t r1_pd;
@@ -129,7 +128,9 @@ int doit() {
 
     CHECK(dnnl_stream_wait(stream_gpu));
 
-    if (find_negative(m_cpu, 4, tz) != 0) return 2;
+    if (find_negative(m_cpu, 4, tz) != 0)
+        COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+                "%s", "found negative values after ReLU applied");
 
     /* clean up */
     dnnl_primitive_desc_destroy(relu_pd);
@@ -146,16 +147,10 @@ int doit() {
 
     dnnl_engine_destroy(engine_cpu);
     dnnl_engine_destroy(engine_gpu);
-
-    return 0;
 }
 
 int main() {
-    int result = doit();
-    if (result)
-        printf("failed\n");
-    else
-        printf("passed\n");
-
-    return result;
+    cross_engine_reorder();
+    printf("Example passed\n");
+    return 0;
 }
