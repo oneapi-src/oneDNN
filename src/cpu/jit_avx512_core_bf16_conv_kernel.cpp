@@ -767,6 +767,13 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
     };
 
     prepare_output(ur_w);
+
+    if (jcp.ndims == 5) {
+        mov(reg_ki, ptr[param + GET_OFF(kd_padding)]);
+        cmp(reg_ki, 0);
+        jle(skip_compute_label, T_NEAR);
+    }
+
     cmp(reg_kh, 0);
     jle(skip_compute_label, T_NEAR);
 
@@ -781,7 +788,6 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
     }
     Label kd_label;
     if (jcp.ndims == 5) {
-        push(reg_src);
         mov(reg_ki, ptr[param + GET_OFF(kd_padding)]);
         mov(aux_reg_dst_d, reg_dst);
         mov(aux_reg_ker_d, reg_ker);
@@ -853,7 +859,6 @@ void jit_avx512_core_bf16_bwd_data_kernel::compute_loop(
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-        pop(reg_src);
     }
 
     // End of OC Loop

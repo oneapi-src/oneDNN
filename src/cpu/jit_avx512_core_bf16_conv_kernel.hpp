@@ -224,7 +224,7 @@ private:
 
     reg64_t aux_reg_dst_d = r12;
     reg64_t aux_reg_ker_d = r13;
-    reg64_t reg_ki = reg_src;
+    reg64_t reg_ki = rsi;
 
     reg64_t reg_kj = rax;
     reg64_t reg_oi = rbx;
