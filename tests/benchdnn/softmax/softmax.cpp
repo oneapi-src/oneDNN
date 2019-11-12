@@ -222,6 +222,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t d_dst_dt, d_src_dt;
     dnn_mem_t d_dst_fp, d_src_fp;
+    dnn_mem_t placeholder_d_src_dt;
 
     args_t args;
 
@@ -246,9 +247,8 @@ int doit(const prb_t *p, res_t *r) {
 
         d_dst_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt),
         d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
-
         d_src_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
-        dnn_mem_t placeholder_d_src_dt;
+
         if (!p->inplace) {
             placeholder_d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
             SAFE(placeholder_d_src_dt.reorder(d_src_fp), WARN);
