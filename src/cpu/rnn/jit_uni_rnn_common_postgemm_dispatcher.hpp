@@ -20,11 +20,11 @@
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
-#include "jit_uni_gru_cell_postgemm_1.hpp"
-#include "jit_uni_gru_cell_postgemm_2.hpp"
-#include "jit_uni_gru_lbr_cell_postgemm.hpp"
-#include "jit_uni_lstm_cell_postgemm.hpp"
-#include "jit_uni_rnn_cell_postgemm.hpp"
+#include "jit_uni_gru_cell_postgemm_1_fwd.hpp"
+#include "jit_uni_gru_cell_postgemm_2_fwd.hpp"
+#include "jit_uni_gru_lbr_cell_postgemm_fwd.hpp"
+#include "jit_uni_lstm_cell_postgemm_fwd.hpp"
+#include "jit_uni_rnn_cell_postgemm_fwd.hpp"
 #include "jit_uni_rnn_common_postgemm.hpp"
 
 namespace dnnl {
