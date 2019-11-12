@@ -26,6 +26,8 @@
 #include <math.h>
 #include <numeric>
 
+#include "dnnl.hpp"
+
 #include "example_utils.hpp"
 
 using namespace dnnl;
@@ -702,13 +704,5 @@ void simple_net(engine::kind engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    try {
-        simple_net(parse_engine_kind(argc, argv));
-        std::cout << "Simple net f32 training example passed!\n";
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-        return 1;
-    }
-    return 0;
+    return handle_example_errors(simple_net, parse_engine_kind(argc, argv));
 }

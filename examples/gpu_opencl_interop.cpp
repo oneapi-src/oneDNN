@@ -50,14 +50,13 @@
 /// @page gpu_opencl_interop_cpp
 /// @snippet  gpu_opencl_interop.cpp Prologue
 // [Prologue]
-#include <dnnl.hpp>
-#include <CL/cl.h>
-// Optional header to access debug functions like `dnnl_status2str()`
-#include "dnnl_debug.h"
-
 #include <iostream>
 #include <numeric>
-#include <sstream>
+#include <stdexcept>
+
+#include <CL/cl.h>
+
+#include "dnnl.hpp"
 
 #include "example_utils.hpp"
 
@@ -69,7 +68,8 @@ using namespace std;
     do { \
         cl_int s = (x); \
         if (s != CL_SUCCESS) { \
-            printf("OpenCL error: %d at %s:%d\n", s, __FILE__, __LINE__); \
+            std::cout << "[" << __FILE__ << ":" << __LINE__ << "] '" << #x \
+                      << "' failed (status code: " << s << ")" << std::endl; \
             exit(1); \
         } \
     } while (0)
@@ -245,43 +245,20 @@ void gpu_opencl_interop_tutorial() {
     read_from_dnnl_memory(mem_data.data(), mem);
     for (size_t i = 0; i < N; i++) {
         float expected = (i % 2) ? 0.0f : (float)i;
-        if (mem_data[i] != expected)
-            throw std::string(
-                    "Unexpected output, find a negative value after the ReLU "
-                    "execution");
+        if (mem_data[i] != expected) {
+            std::cout << "Expect " << expected << " but got " << mem_data[i]
+                      << std::endl;
+            throw std::logic_error("Accuracy check failed.");
+        }
     }
     // [Check the results]
 
     OCL_CHECK(clReleaseKernel(ocl_init_kernel));
 }
-/// @section gpu_opencl_interop_cpp_main main() function
-///
-/// We now just call everything we prepared earlier.
-///
-/// Because we are using the DNNL C++ API, we use exceptions to handle
-/// errors (see @ref dev_guide_c_and_cpp_apis). The DNNL C++ API throws
-/// exceptions of type @ref dnnl::error, which contains the error status
-/// (of type @ref dnnl_status_t) and a human-readable error message accessible
-/// through the regular `what()` method.
-/// @page gpu_opencl_interop_cpp
-/// @snippet gpu_opencl_interop.cpp Main
-// [Main]
-int main(int argc, char **argv) {
-    try {
-        gpu_opencl_interop_tutorial();
-    } catch (dnnl::error &e) {
-        std::cerr << "DNNL error: " << e.what() << std::endl
-                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
-        return 1;
-    } catch (std::string &e) {
-        std::cerr << "Error in the example: " << e << std::endl;
-        return 2;
-    }
 
-    std::cout << "Example passes" << std::endl;
-    return 0;
+int main(int argc, char **argv) {
+    return handle_example_errors(gpu_opencl_interop_tutorial);
 }
-// [Main]
 
 /// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
 ///

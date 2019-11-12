@@ -25,13 +25,15 @@
 ///
 /// @include cpu_cnn_training_bf16.cpp
 
-#include <assert.h>
-
+#include <cassert>
+#include <cmath>
 #include <iostream>
-#include <math.h>
 #include <numeric>
-#include <string>
+#include <stdexcept>
+
 #include "dnnl.hpp"
+
+#include "example_utils.hpp"
 
 using namespace dnnl;
 
@@ -105,6 +107,21 @@ void simple_net() {
             algorithm::convolution_direct, conv_src_md, conv_weights_md,
             conv_bias_md, conv_dst_md, conv_strides, conv_padding,
             conv_padding);
+
+    // check if bf16 convolution is supported
+    try {
+        convolution_forward::primitive_desc(conv_desc, cpu_engine);
+    } catch (error &e) {
+        if (e.status == dnnl_unimplemented)
+            throw example_allows_unimplemented {
+                    "DNNL does not have bf16 convolution implementation "
+                    "that supports this system.\n"
+                    "Please refer to the developer guide for details."};
+
+        // on any other error just re-throw
+        throw;
+    }
+
     auto conv_pd = convolution_forward::primitive_desc(conv_desc, cpu_engine);
 
     // create reorder primitives between user input and conv src if needed
@@ -452,12 +469,5 @@ void simple_net() {
 }
 
 int main(int argc, char **argv) {
-    try {
-        simple_net();
-        std::cout << "passed" << std::endl;
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(simple_net);
 }

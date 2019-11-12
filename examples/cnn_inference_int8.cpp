@@ -25,6 +25,9 @@
 /// > Example code: @ref cnn_inference_int8.cpp
 
 #include <numeric>
+#include <stdexcept>
+
+#include "dnnl.hpp"
 
 #include "example_utils.hpp"
 
@@ -162,16 +165,15 @@ void simple_net_int8(engine::kind engine_kind) {
 
     // check if int8 convolution is supported
     try {
-        auto conv_prim_desc = convolution_forward::primitive_desc(
-                conv_desc, conv_attr, eng);
+        convolution_forward::primitive_desc(conv_desc, conv_attr, eng);
     } catch (error &e) {
-        if (e.status == dnnl_unimplemented) {
-            std::cerr << "DNNL does not have int8 convolution "
-                         "implementation that supports this system. Please "
-                         "refer to "
-                         "the developer guide for details."
-                      << std::endl;
-        }
+        if (e.status == dnnl_unimplemented)
+            throw example_allows_unimplemented {
+                    "DNNL does not have int8 convolution implementation "
+                    "that supports this system.\n"
+                    "Please refer to the developer guide for details."};
+
+        // on any other error just re-throw
         throw;
     }
 
@@ -268,13 +270,11 @@ void simple_net_int8(engine::kind engine_kind) {
     s.wait();
 }
 
+void cnn_inference_int8(int argc, char **argv) {
+    simple_net_int8(parse_engine_kind(argc, argv));
+}
+
 int main(int argc, char **argv) {
-    try {
-        simple_net_int8(parse_engine_kind(argc, argv));
-        std::cout << "Simple net int8 inference example passed!" << std::endl;
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(
+            simple_net_int8, parse_engine_kind(argc, argv));
 }

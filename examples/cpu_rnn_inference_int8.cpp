@@ -43,6 +43,8 @@
 
 #include "dnnl.hpp"
 
+#include "example_utils.hpp"
+
 // MSVC doesn't support collapse clause in omp parallel
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
@@ -873,12 +875,5 @@ void simple_net() {
 }
 
 int main(int argc, char **argv) {
-    try {
-        simple_net();
-        std::cout << "ok\n";
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(simple_net);
 }

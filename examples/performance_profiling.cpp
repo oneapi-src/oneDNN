@@ -85,8 +85,10 @@
 
 #include <chrono>
 #include <iostream>
-#include <stdio.h>
+#include <stdexcept>
 #include <vector>
+
+#include "dnnl.hpp"
 
 #include "example_utils.hpp"
 
@@ -480,11 +482,11 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 /// @page performance_profiling_cpp
 /// @section performance_profiling_cpp_roundup Performance summary
 ///
-/// | Implmentation | Time, ms | Cumulative speedup |
-/// | :--            |     --: |                --: |
-/// | Naive          |   336.1 |               1.0  |
-/// | Blocked format |   154.0 |               2.2 |
-/// | Fused          |   103.9 |               3.2 |
+/// | Implementation | Time, ms | Cumulative speedup |
+/// | :--            |      --: |                --: |
+/// | Naive          |    336.1 |                1.0 |
+/// | Blocked format |    154.0 |                2.2 |
+/// | Fused          |    103.9 |                3.2 |
 ///
 /// **  **
 /// @page performance_profiling_cpp
@@ -506,7 +508,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 /// * NUMA node(s):          2
 /// * RAM (DDR4): 1.45 TB
 
-int main(int argc, char *argv[]) {
+void performance_profiling(int argc, char **argv) {
     // Initialize engine
     engine::kind engine_kind = parse_engine_kind(argc, argv, 1);
     engine eng(engine_kind, 0);
@@ -557,7 +559,7 @@ int main(int argc, char *argv[]) {
         std::cout << " - validation: runs all implementations\n\n";
         std::cout << "Validation will run if no parameters are specified\n\n";
 
-        return -1;
+        throw std::invalid_argument("Incorrect input arguments.");
     }
 
     if (implementation == "naive" || implementation == "validation") {
@@ -580,6 +582,8 @@ int main(int argc, char *argv[]) {
         conv_relu_fused(user_src, user_wei, user_dst, eng, s);
         std::cout << "conv + relu w/ fusing completed\n";
     }
+}
 
-    return 0;
+int main(int argc, char **argv) {
+    return handle_example_errors(performance_profiling, argc, argv);
 }

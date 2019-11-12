@@ -18,11 +18,61 @@
 #define EXAMPLE_UTILS_HPP
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
+#include <stdexcept>
 #include <stdlib.h>
 #include <string>
 
 #include "dnnl.hpp"
+#include "dnnl_debug.h"
+
+// Exception class to indicate that the example uses a feature that is not
+// available on the current systems. It is not treated as an error then, but
+// just notifies a user.
+struct example_allows_unimplemented : public std::exception {
+    example_allows_unimplemented(const char *message) noexcept
+        : message(message) {}
+    virtual const char *what() const noexcept override { return message; }
+    const char *message;
+};
+
+// Runs example function with signature void() and catches errors.
+// Returns `0` on success, `1` or DNNL error, and `2` on example error.
+inline int handle_example_errors(std::function<void()> example) {
+    int exit_code = 0;
+
+    try {
+        example();
+    } catch (example_allows_unimplemented &e) {
+        std::cout << e.message << std::endl;
+        exit_code = 0;
+    } catch (dnnl::error &e) {
+        std::cout << "DNNL error caught: " << std::endl
+                  << "\tStatus: " << dnnl_status2str(e.status) << std::endl
+                  << "\tMessage: " << e.what() << std::endl;
+        exit_code = 1;
+    } catch (std::exception &e) {
+        std::cout << "Error in the example: " << e.what() << std::endl;
+        exit_code = 2;
+    }
+
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << std::endl;
+    return exit_code;
+}
+
+// Same as above, but for functions with signature void(int argc, char **argv).
+inline int handle_example_errors(
+        std::function<void(int, char **)> example, int argc, char **argv) {
+    return handle_example_errors([&]() { example(argc, argv); });
+}
+
+// Same as above, but for functions with signature void(dnnl::engine::kind).
+inline int handle_example_errors(
+        std::function<void(dnnl::engine::kind)> example,
+        dnnl::engine::kind engine_kind) {
+    return handle_example_errors([&]() { example(engine_kind); });
+}
 
 inline dnnl::engine::kind parse_engine_kind(
         int argc, char **argv, int extra_args = 0) {
@@ -37,8 +87,9 @@ inline dnnl::engine::kind parse_engine_kind(
         } else if (engine_kind_str == "gpu") {
             // Checking if a GPU exists on the machine
             if (dnnl::engine::get_count(dnnl::engine::kind::gpu) == 0) {
-                std::cerr << "Application couldn't find GPU, please run with "
-                             "CPU instead. Thanks!\n";
+                std::cout << "Could not find compatible GPU" << std::endl
+                          << "Please run the example with CPU instead"
+                          << std::endl;
                 exit(1);
             }
             return dnnl::engine::kind::gpu;
@@ -46,9 +97,9 @@ inline dnnl::engine::kind parse_engine_kind(
     }
 
     // If all above fails, the example should be ran properly
-    std::cerr << "Please run example like this" << argv[0] << " cpu|gpu";
-    if (extra_args) { std::cerr << " [extra arguments]"; }
-    std::cerr << "\n";
+    std::cout << "Inappropriate engine kind" << std::endl
+              << "Please run example like this" << argv[0] << " [cpu|gpu]"
+              << (extra_args ? " [extra arguments]" : "") << std::endl;
     exit(1);
 }
 
@@ -71,8 +122,7 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
         cl_int ret = clEnqueueReadBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
         if (ret != CL_SUCCESS)
-            throw std::runtime_error("clEnqueueReadBuffer failed. Status Code: "
-                    + std::to_string(ret) + "\n");
+            throw std::runtime_error("clEnqueueReadBuffer failed");
     }
 #endif
 }
@@ -97,9 +147,7 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
         cl_int ret = clEnqueueWriteBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
         if (ret != CL_SUCCESS)
-            throw std::runtime_error(
-                    "clEnqueueWriteBuffer failed. Status Code: "
-                    + std::to_string(ret) + "\n");
+            throw std::runtime_error("clEnqueueWriteBuffer failed");
     }
 #endif
 }

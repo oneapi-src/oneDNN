@@ -92,7 +92,6 @@
 /// handling.
 
 #include "dnnl.hpp"
-#include "dnnl_debug.h"
 
 #include "example_utils.hpp"
 
@@ -293,7 +292,7 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     /// @subsection memory_format_propagation_sub7 Reorder destination data if necessary
     ///
     /// The only potentially remaining operation is a reorder from the pooling
-    /// destination memory object to the users's one.  Similarly to the
+    /// destination memory object to the user's one.  Similarly to the
     /// reorders for the source and weights memory objects, it is performed
     /// depending on the value of the previously computed flag.
     ///
@@ -309,19 +308,8 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    try {
-        memory_format_propagation_tutorial(parse_engine_kind(argc, argv));
-    } catch (dnnl::error &e) {
-        std::cerr << "DNNL error: " << e.what() << std::endl
-                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
-        return 1;
-    } catch (std::string &e) {
-        std::cerr << "Error in the example: " << e << std::endl;
-        return 2;
-    }
-
-    std::cout << "Example passes" << std::endl;
-    return 0;
+    return handle_example_errors(
+            memory_format_propagation_tutorial, parse_engine_kind(argc, argv));
 }
 
 /// @page memory_format_propagation_cpp

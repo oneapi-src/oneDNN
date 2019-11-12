@@ -45,11 +45,11 @@
 #include <vector>
 #include <unordered_map>
 
+#include "dnnl.hpp"
+
 #include "example_utils.hpp"
 
 using namespace dnnl;
-
-using namespace std;
 
 memory::dim product(const memory::dims &dims) {
     return std::accumulate(dims.begin(), dims.end(), (memory::dim)1,
@@ -779,20 +779,18 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     s.wait();
 }
 
+void cnn_inference_f32(int argc, char **argv) {
+    auto begin = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+                         .count();
+    int times = 100;
+    simple_net(parse_engine_kind(argc, argv), times);
+    auto end = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+                       .count();
+    std::cout << "Use time " << (end - begin) / (times + 0.0) << std::endl;
+}
+
 int main(int argc, char **argv) {
-    try {
-        auto begin = chrono::duration_cast<chrono::milliseconds>(
-                chrono::steady_clock::now().time_since_epoch())
-                             .count();
-        int times = 100;
-        simple_net(parse_engine_kind(argc, argv), times);
-        auto end = chrono::duration_cast<chrono::milliseconds>(
-                chrono::steady_clock::now().time_since_epoch())
-                           .count();
-        cout << "Use time " << (end - begin) / (times + 0.0) << "\n";
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(cnn_inference_f32, argc, argv);
 }
