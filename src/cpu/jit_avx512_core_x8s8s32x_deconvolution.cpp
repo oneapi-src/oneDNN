@@ -980,9 +980,14 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
                 p.filt = wht_w + wei_stride;
                 p.bias = bias_w;
                 p.compensation = compensation_w;
-                p.t_overflow = max(
-                        0, jcp.kh - (kh_lo + max(0, kh_len - 1) * jcp.stride_h
-                                            + 1));
+                p.t_overflow = jcp.dilate_h > 0
+                        ? jcp.kh - kh_len - kh_lo
+                        : max(0,
+                                jcp.kh
+                                        - (kh_lo
+                                                + max(0, kh_len - 1)
+                                                        * jcp.stride_h
+                                                + 1));
                 p.b_overflow = kh_lo;
                 p.kh_padding = kh_len;
                 p.scales = scales;
