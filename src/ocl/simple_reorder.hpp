@@ -82,8 +82,7 @@ struct simple_reorder_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_simple_reorder_kernel::init_conf(
-                    this, jrp_, src_md(), dst_md());
+            status_t status = jit_simple_reorder_kernel::init_conf(jrp_, this);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();

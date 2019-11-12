@@ -65,8 +65,8 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return jit_ref_eltwise_common_kernel::init_conf(jel_, data_md_,
-                    glob_zero_md, jit_off_, desc()->alg_kind, true);
+            return jit_ref_eltwise_common_kernel::init_conf(
+                    jel_, this, jit_off_);
         }
 
         jit_eltwise_conf_t jel_;
@@ -129,8 +129,8 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return jit_ref_eltwise_common_kernel::init_conf(jel_, data_md_,
-                    diff_data_md_, jit_off_, desc()->alg_kind, false);
+            return jit_ref_eltwise_common_kernel::init_conf(
+                    jel_, this, jit_off_);
         }
 
         jit_eltwise_conf_t jel_;

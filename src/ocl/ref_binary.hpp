@@ -47,9 +47,7 @@ struct ref_binary_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            return jit_ref_binary_common_kernel::init_conf(jib_, src_md(0),
-                    src_md(1), dst_md_, desc()->alg_kind, broadcast_dims(),
-                    is_tensor_op());
+            return jit_ref_binary_common_kernel::init_conf(jib_, this);
         }
 
         jit_binary_conf_t jib_;

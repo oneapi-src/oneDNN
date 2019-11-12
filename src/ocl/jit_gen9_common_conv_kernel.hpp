@@ -18,6 +18,7 @@
 #define JIT_GEN9_COMMON_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
@@ -31,19 +32,21 @@ struct jit_gen9_common_conv_fwd_kernel {
 
     ~jit_gen9_common_conv_fwd_kernel() {}
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_t &src_md,
-            const memory_desc_t &weights_md, const memory_desc_t &dst_md,
-            const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+    static status_t init_conf(
+            jit_conv_conf_t &jcp, const convolution_pd_t *pd) {
         using namespace dnnl::impl::format_tag;
         using namespace data_type;
 
-        const memory_desc_wrapper src_mdw(&src_md);
-        const memory_desc_wrapper weights_mdw(&weights_md);
-        const memory_desc_wrapper dst_mdw(&dst_md);
-        const memory_desc_wrapper bias_mdw(&bias_md);
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_wrapper src_mdw(pd->src_md());
+        const memory_desc_wrapper weights_mdw(pd->weights_md());
+        const memory_desc_wrapper dst_mdw(pd->dst_md());
+        const memory_desc_wrapper bias_mdw(pd->weights_md(1));
 
-        set_default_conf(jcp, cd, src_md, weights_md, dst_md, attr);
+        const primitive_attr_t &attr = *pd->attr();
+
+        set_default_conf(
+                jcp, cd, *pd->src_md(), *pd->weights_md(), *pd->dst_md(), attr);
 
         jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
         jcp.src_data_type = cd.src_desc.data_type;
@@ -477,19 +480,21 @@ struct jit_gen9_common_conv_bwd_data_kernel {
 
     ~jit_gen9_common_conv_bwd_data_kernel() {}
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
-            const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
-            const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+    static status_t init_conf(
+            jit_conv_conf_t &jcp, const convolution_pd_t *pd) {
         using namespace dnnl::impl::format_tag;
         using namespace data_type;
 
-        const memory_desc_wrapper src_mdw(&diff_src_md);
-        const memory_desc_wrapper weights_mdw(&weights_md);
-        const memory_desc_wrapper dst_mdw(&diff_dst_md);
-        const memory_desc_wrapper bias_mdw(&bias_md);
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_wrapper src_mdw(pd->diff_src_md());
+        const memory_desc_wrapper weights_mdw(pd->weights_md());
+        const memory_desc_wrapper dst_mdw(pd->diff_dst_md());
+        const memory_desc_wrapper bias_mdw(pd->weights_md(1));
 
-        set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
+        const primitive_attr_t &attr = *pd->attr();
+
+        set_default_conf(jcp, cd, *pd->diff_src_md(), *pd->weights_md(),
+                *pd->diff_dst_md(), attr);
 
         jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
         jcp.src_data_type = cd.diff_src_desc.data_type;
@@ -694,20 +699,21 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
     ~jit_gen9_common_conv_bwd_weights_kernel() {};
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_t &src_md,
-            const memory_desc_t &diff_weights_md,
-            const memory_desc_t &diff_bias_md, const memory_desc_t &diff_dst_md,
-            const primitive_attr_t &attr) {
+    static status_t init_conf(
+            jit_conv_conf_t &jcp, const convolution_pd_t *pd) {
         using namespace dnnl::impl::format_tag;
         using namespace data_type;
 
-        const memory_desc_wrapper src_mdw(&src_md);
-        const memory_desc_wrapper weights_mdw(&diff_weights_md);
-        const memory_desc_wrapper dst_mdw(&diff_dst_md);
-        const memory_desc_wrapper bias_mdw(&diff_bias_md);
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_wrapper src_mdw(pd->src_md());
+        const memory_desc_wrapper weights_mdw(pd->diff_weights_md());
+        const memory_desc_wrapper dst_mdw(pd->diff_dst_md());
+        const memory_desc_wrapper bias_mdw(pd->diff_weights_md(1));
 
-        set_default_conf(jcp, cd, src_md, diff_weights_md, diff_dst_md, attr);
+        const primitive_attr_t &attr = *pd->attr();
+
+        set_default_conf(jcp, cd, *pd->src_md(), *pd->diff_weights_md(),
+                *pd->diff_dst_md(), attr);
 
         jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
         jcp.src_data_type = cd.src_desc.data_type;

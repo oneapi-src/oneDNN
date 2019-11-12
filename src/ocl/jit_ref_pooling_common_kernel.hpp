@@ -18,6 +18,7 @@
 #define JIT_REF_POOLING_COMMON_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/pooling_pd.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
@@ -31,11 +32,16 @@ struct jit_ref_pooling_fwd_kernel {
 
     ~jit_ref_pooling_fwd_kernel() {}
 
-    static status_t init_conf(jit_pool_conf_t &jpp, const pooling_desc_t &pd,
-            const memory_desc_wrapper &src_d, const memory_desc_wrapper &dst_d,
+    static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *_pd,
             jit_offsets &jit_off) {
         using namespace dnnl::impl::format_tag;
 
+        const memory_desc_wrapper src_d(
+                _pd->is_fwd() ? _pd->src_md() : _pd->diff_src_md());
+        const memory_desc_wrapper dst_d(
+                _pd->is_fwd() ? _pd->dst_md() : _pd->diff_dst_md());
+
+        const pooling_desc_t &pd = *_pd->desc();
         const int ndims = src_d.ndims();
         const auto &src_dims = src_d.padded_dims();
         const auto &dst_dims = dst_d.padded_dims();

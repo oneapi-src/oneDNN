@@ -80,9 +80,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                     && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_,
-                    *this->desc(), *this->src_md(), *this->weights_md(),
-                    *this->dst_md(), *this->weights_md(1), *this->attr());
+            status_t status
+                    = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -174,9 +173,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status = jit_gen9_common_conv_bwd_data_kernel::init_conf(
-                    jcp_, *this->desc(), *this->diff_src_md(),
-                    *this->weights_md(), *this->diff_dst_md(),
-                    *this->weights_md(1), *this->attr());
+                    jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -248,10 +245,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status
-                    = jit_gen9_common_conv_bwd_weights_kernel::init_conf(jcp_,
-                            *this->desc(), *this->src_md(),
-                            *this->diff_weights_md(), *this->diff_weights_md(1),
-                            *this->diff_dst_md(), *this->attr());
+                    = jit_gen9_common_conv_bwd_weights_kernel::init_conf(
+                            jcp_, this);
 
             if (status != status::success) return status;
 

@@ -56,7 +56,7 @@ struct simple_sum_t : public primitive_impl_t {
                 if (i_d != o_d) return status::unimplemented;
             }
 
-            return jit_simple_sum_kernel::init_conf(jss_, src_md(0));
+            return jit_simple_sum_kernel::init_conf(jss_, this);
         }
         jit_simple_sum_conf_t jss_;
     };

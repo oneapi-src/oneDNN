@@ -90,9 +90,8 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return jit_ref_inner_product_fwd_kernel::init_conf(jip_, this,
-                    src_md(), weights_md(), dst_md(), *this->attr(), jit_off_,
-                    desc()->accum_data_type);
+            return jit_ref_inner_product_fwd_kernel::init_conf(
+                    jip_, this, jit_off_);
         }
         bool with_eltwise() const {
             return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
@@ -196,9 +195,8 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return jit_ref_inner_product_fwd_kernel::init_conf(jip_, this,
-                    diff_src_md(), weights_md(), diff_dst_md(), *this->attr(),
-                    jit_off_, desc()->accum_data_type);
+            return jit_ref_inner_product_fwd_kernel::init_conf(
+                    jip_, this, jit_off_);
         }
         jit_inner_product_conf_t jip_;
         jit_offsets jit_off_;
@@ -260,9 +258,8 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return jit_ref_inner_product_fwd_kernel::init_conf(jip_, this,
-                    src_md(), diff_weights_md(), diff_dst_md(), *this->attr(),
-                    jit_off_, desc()->accum_data_type);
+            return jit_ref_inner_product_fwd_kernel::init_conf(
+                    jip_, this, jit_off_);
         }
         jit_inner_product_conf_t jip_;
         jit_offsets jit_off_;

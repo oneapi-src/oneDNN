@@ -71,7 +71,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
             status_t status = jit_ref_bnorm_common_kernel::init_conf(
-                    jbn_, desc_, src_md(), this, jit_off_);
+                    jbn_, this, jit_off_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -164,7 +164,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
             }
 
             status_t status = jit_ref_bnorm_common_kernel::init_conf(
-                    jbn_, desc_, diff_src_md(), this, jit_off_);
+                    jbn_, this, jit_off_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();

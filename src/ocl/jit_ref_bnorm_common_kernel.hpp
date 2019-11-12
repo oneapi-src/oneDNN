@@ -33,11 +33,12 @@ struct jit_ref_bnorm_common_kernel {
     ~jit_ref_bnorm_common_kernel() {}
 
     static status_t init_conf(jit_bnorm_conf_t &jbn,
-            const batch_normalization_desc_t &bd,
-            const memory_desc_wrapper &data_mdw,
-            const batch_normalization_pd_t *bdesc, jit_offsets &jit_off) {
+            const batch_normalization_pd_t *pd, jit_offsets &jit_off) {
         using namespace dnnl::impl::format_tag;
 
+        const batch_normalization_desc_t &bd = *pd->desc();
+        const memory_desc_wrapper data_mdw(
+                pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
         const int ndims = data_mdw.ndims();
 
         jbn.data_type = data_mdw.data_type();
@@ -50,21 +51,19 @@ struct jit_ref_bnorm_common_kernel {
         jbn.ih = (ndims == 3) ? 1 : data_mdw.dims()[ndims - 2];
         jbn.iw = data_mdw.dims()[ndims - 1];
 
-        jbn.is_forward = utils::one_of(bd.prop_kind,
-                prop_kind::forward_training, prop_kind::forward_inference);
-        jbn.is_backward = utils::one_of(
-                bd.prop_kind, prop_kind::backward, prop_kind::backward_data);
+        jbn.is_forward = pd->is_fwd();
+        jbn.is_backward = !pd->is_fwd();
 
-        jbn.use_scaleshift = bdesc->use_scaleshift();
-        jbn.save_stats = bdesc->is_training();
-        jbn.is_training = bdesc->is_training();
-        jbn.fuse_norm_relu = bdesc->fuse_norm_relu();
-        jbn.calculate_stats = !bdesc->stats_is_src();
-        jbn.with_relu = bdesc->with_relu_post_op();
+        jbn.use_scaleshift = pd->use_scaleshift();
+        jbn.save_stats = pd->is_training();
+        jbn.is_training = pd->is_training();
+        jbn.fuse_norm_relu = pd->fuse_norm_relu();
+        jbn.calculate_stats = !pd->stats_is_src();
+        jbn.with_relu = pd->with_relu_post_op();
         jbn.eps = bd.batch_norm_epsilon;
-        jbn.calculate_diff_stats = !bdesc->use_global_stats();
-        jbn.diff_scaleshift = (bdesc->use_scaleshift()
-                && bd.prop_kind == prop_kind::backward);
+        jbn.calculate_diff_stats = !pd->use_global_stats();
+        jbn.diff_scaleshift
+                = (pd->use_scaleshift() && bd.prop_kind == prop_kind::backward);
 
         set_offsets(data_mdw, jit_off.src_off);
 

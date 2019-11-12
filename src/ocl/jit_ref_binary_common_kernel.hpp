@@ -17,6 +17,7 @@
 #ifndef JIT_REF_BINARY_COMMON_KERNEL_HPP
 #define JIT_REF_BINARY_COMMON_KERNEL_HPP
 
+#include "common/binary_pd.hpp"
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "compute/compute.hpp"
@@ -32,10 +33,15 @@ struct jit_ref_binary_common_kernel {
 
     ~jit_ref_binary_common_kernel() {}
 
-    static status_t init_conf(jit_binary_conf_t &jib,
-            const memory_desc_wrapper &src0_d,
-            const memory_desc_wrapper &src1_d, const memory_desc_wrapper &dst_d,
-            alg_kind_t alg, const dims_t &broadcast_dims, bool is_tensor_op) {
+    static status_t init_conf(jit_binary_conf_t &jib, const binary_pd_t *pd) {
+
+        const memory_desc_wrapper src0_d(pd->src_md(0));
+        const memory_desc_wrapper src1_d(pd->src_md(1));
+        const memory_desc_wrapper dst_d(pd->dst_md());
+
+        alg_kind_t alg = pd->desc()->alg_kind;
+        const dims_t &broadcast_dims = pd->broadcast_dims();
+        bool is_tensor_op = pd->is_tensor_op();
 
         const int ndims = src0_d.ndims();
         jib.src0_md_info = jit_memory_desc_info_t::create(src0_d);

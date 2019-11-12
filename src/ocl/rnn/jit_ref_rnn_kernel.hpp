@@ -44,8 +44,8 @@ struct jit_ref_rnn_kernel {
 
     ~jit_ref_rnn_kernel() {}
 
-    static status_t init_conf(jit_rnn_conf_t &jrnn,
-            const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *rnn_pd,
+    static status_t init_conf(jit_rnn_conf_t &jrnn, const rnn_pd_t *rnn_pd,
+            const rnn_utils::rnn_conf_t &rnn,
             const memory_desc_wrapper &src_layer_d,
             const memory_desc_wrapper &src_iter_d,
             const memory_desc_wrapper &src_iter_c_d,
@@ -308,7 +308,7 @@ inline status_t init_jit(jit_rnn_conf_t &jrnn, const rnn_utils::rnn_conf_t &rnn,
         const rnn_pd_t *rnn_pd, jit_rnn_offsets &jit_off) {
 
     const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
-    return jit_ref_rnn_kernel::init_conf(jrnn, rnn, rnn_pd, rnn_pd->src_md(0),
+    return jit_ref_rnn_kernel::init_conf(jrnn, rnn_pd, rnn, rnn_pd->src_md(0),
             rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
             rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
             rnn_pd->dst_md(1), rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc,
@@ -320,7 +320,7 @@ template <>
 inline status_t init_jit<prop_kind::backward>(jit_rnn_conf_t &jrnn,
         const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *rnn_pd,
         jit_rnn_offsets &jit_off) {
-    return jit_ref_rnn_kernel::init_conf(jrnn, rnn, rnn_pd, rnn_pd->src_md(0),
+    return jit_ref_rnn_kernel::init_conf(jrnn, rnn_pd, rnn, rnn_pd->src_md(0),
             rnn_pd->src_md(1), rnn_pd->src_md(2), rnn_pd->weights_md(0),
             rnn_pd->weights_md(1), rnn_pd->weights_md(2), rnn_pd->dst_md(0),
             rnn_pd->dst_md(1), rnn_pd->dst_md(2), rnn_pd->diff_src_md(0),

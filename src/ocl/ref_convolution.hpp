@@ -63,9 +63,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                                     && attr()->output_scales_.mask_ == 0);
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(*this->desc(), *this->src_md(),
-                    *this->weights_md(), *this->weights_md(1), *this->dst_md(),
-                    *this->attr());
+            return kernel_.init(this);
         }
         bool with_eltwise(int position) const {
             return attr()->post_ops_.contain(primitive_kind::eltwise, position);
@@ -161,9 +159,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(*this->desc(), *this->diff_src_md(),
-                    *this->weights_md(), *this->weights_md(1),
-                    *this->diff_dst_md(), *this->attr());
+            return kernel_.init(this);
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -223,9 +219,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(*this->desc(), *this->src_md(),
-                    *this->diff_weights_md(), *this->diff_weights_md(1),
-                    *this->diff_dst_md(), *this->attr());
+            return kernel_.init(this);
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }

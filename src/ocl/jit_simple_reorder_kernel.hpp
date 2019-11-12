@@ -35,9 +35,7 @@ struct jit_simple_reorder_kernel {
 
     ~jit_simple_reorder_kernel() {}
 
-    static status_t init_conf(const reorder_pd_t *pd, jit_reorder_conf_t &jrp,
-            const memory_desc_wrapper &src_md,
-            const memory_desc_wrapper &dst_md) {
+    static status_t init_conf(jit_reorder_conf_t &jrp, const reorder_pd_t *pd) {
         using namespace format_tag;
 
         auto *compute_engine
@@ -45,6 +43,9 @@ struct jit_simple_reorder_kernel {
         auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
                 compute_engine->device_info());
         const size_t eu_count = static_cast<size_t>(dev_info->eu_count());
+
+        const memory_desc_wrapper src_md(pd->src_md());
+        const memory_desc_wrapper dst_md(pd->dst_md());
 
         jrp.src_md_info = jit_memory_desc_info_t::create(src_md);
         jrp.dst_md_info = jit_memory_desc_info_t::create(dst_md);

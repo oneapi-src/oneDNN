@@ -27,9 +27,13 @@ namespace ocl {
 struct ref_convolution_kernel_t {
     ref_convolution_kernel_t() = default;
 
-    status_t init(const convolution_desc_t &cd, const memory_desc_t &src_md,
-            const memory_desc_t &weights_md, const memory_desc_t &bias_md,
-            const memory_desc_t &dst_md, const primitive_attr_t &attr) {
+    status_t init(const convolution_pd_t *pd) {
+
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_t &src_md = *pd->invariant_src_md();
+        const memory_desc_t &weights_md = *pd->invariant_wei_md();
+        const memory_desc_t &dst_md = *pd->invariant_dst_md();
+        const primitive_attr_t &attr = *pd->attr();
 
         set_default_conf(conf_, cd, src_md, weights_md, dst_md, attr);
 

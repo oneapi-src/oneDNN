@@ -34,12 +34,14 @@ struct jit_ref_inner_product_fwd_kernel {
     ~jit_ref_inner_product_fwd_kernel() {}
 
     static status_t init_conf(jit_inner_product_conf_t &jip,
-            const inner_product_pd_t *pd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
-            jit_offsets &jit_off, data_type_t acc_data_type) {
+            const inner_product_pd_t *pd, jit_offsets &jit_off) {
 
         const inner_product_desc_t &ipd = *pd->desc();
+        const memory_desc_wrapper src_d(pd->invariant_src_md());
+        const memory_desc_wrapper weights_d(pd->invariant_wei_md());
+        const memory_desc_wrapper dst_d(pd->invariant_dst_md());
+        data_type_t acc_data_type = pd->desc()->accum_data_type;
+
         const int ndims = src_d.ndims();
 
         jip.ndims = ndims;

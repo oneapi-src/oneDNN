@@ -64,7 +64,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            jit_rnn_reorder_kernel::init_conf(this, jrp_, src_md(), dst_md());
+            jit_rnn_reorder_kernel::init_conf(jrp_, this);
             return status::success;
         }
 

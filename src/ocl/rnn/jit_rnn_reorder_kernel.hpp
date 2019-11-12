@@ -32,9 +32,11 @@ struct jit_rnn_reorder_kernel {
 
     ~jit_rnn_reorder_kernel() {}
 
-    static status_t init_conf(const reorder_pd_t *pd,
-            jit_rnn_reorder_conf_t &jrp, const memory_desc_wrapper &input_md,
-            const memory_desc_wrapper &output_md) {
+    static status_t init_conf(
+            jit_rnn_reorder_conf_t &jrp, const reorder_pd_t *pd) {
+
+        const memory_desc_wrapper input_md(pd->src_md());
+        const memory_desc_wrapper output_md(pd->dst_md());
 
         status_t status = status::success;
 

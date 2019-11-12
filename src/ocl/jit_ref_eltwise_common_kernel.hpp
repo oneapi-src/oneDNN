@@ -18,6 +18,7 @@
 #define JIT_REF_ELTWISE_COMMON_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/eltwise_pd.hpp"
 #include "common/memory.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
@@ -32,10 +33,15 @@ struct jit_ref_eltwise_common_kernel {
 
     ~jit_ref_eltwise_common_kernel() {}
 
-    static status_t init_conf(jit_eltwise_conf_t &jel,
-            const memory_desc_wrapper &data_d,
-            const memory_desc_wrapper &diff_data_d, jit_offsets &jit_off,
-            alg_kind_t alg, bool is_forward) {
+    static status_t init_conf(jit_eltwise_conf_t &jel, const eltwise_pd_t *pd,
+            jit_offsets &jit_off) {
+
+        alg_kind_t alg = pd->desc()->alg_kind;
+        bool is_forward = utils::one_of(pd->desc()->prop_kind,
+                prop_kind::forward_training, prop_kind::forward_inference);
+        const memory_desc_wrapper data_d(pd->src_md());
+        const memory_desc_wrapper diff_data_d(
+                is_forward ? &glob_zero_md : pd->diff_src_md());
 
         const int ndims = data_d.ndims();
         jel.ndims = ndims;

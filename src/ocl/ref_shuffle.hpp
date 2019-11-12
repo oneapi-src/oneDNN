@@ -54,8 +54,7 @@ struct ref_shuffle_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             dat_tag_ = any;
-            return jit_ref_shuffle_kernel::init_conf(this, jshfl_, jit_off_,
-                    src_md(), dst_md(), diff_src_md(), diff_dst_md());
+            return jit_ref_shuffle_kernel::init_conf(jshfl_, this, jit_off_);
         }
 
         jit_shuffle_conf_t jshfl_;
