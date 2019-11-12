@@ -53,7 +53,7 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(6, sum_scale);
     arg_list.set(7, output_scales[0]);
 
-    auto nd_range = compute::nd_range_t({jip.mb * jip.oc});
+    auto nd_range = jip.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -76,8 +76,7 @@ status_t ref_inner_product_bwd_data_t::execute_backward_data(
     arg_list.set(1, weights);
     arg_list.set(2, diff_dst);
 
-    auto nd_range
-            = compute::nd_range_t({jip.mb * jip.ic * jip.id * jip.ih * jip.iw});
+    auto nd_range = jip.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -102,8 +101,7 @@ status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
     arg_list.set(2, diff_bias);
     arg_list.set(3, diff_dst);
 
-    auto nd_range
-            = compute::nd_range_t({jip.oc * jip.ic * jip.ih * jip.iw * jip.id});
+    auto nd_range = jip.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

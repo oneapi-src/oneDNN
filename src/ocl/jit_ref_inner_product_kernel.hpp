@@ -77,18 +77,37 @@ struct jit_ref_inner_product_kernel {
         jip.is_backward_data = ipd.prop_kind == prop_kind::backward_data;
         jip.is_backward_weights = ipd.prop_kind == prop_kind::backward_weights;
 
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
         if (jip.is_forward) {
             jip.with_bias = ipd.bias_desc.format_kind != format_kind::undef;
             jip.bia_dt
                     = jip.with_bias ? ipd.bias_desc.data_type : data_type::f32;
+            jip.dispatch = compute_engine->create_dispatch(dst_d.md_);
+            jip.dispatch.define_dim("MB", 0, jip.mb);
+            jip.dispatch.define_dim("OC", 1, jip.oc);
+            jip.dispatch.generate();
         } else if (jip.is_backward_weights) {
             jip.with_bias
                     = ipd.diff_bias_desc.format_kind != format_kind::undef;
             jip.bia_dt = jip.with_bias ? ipd.diff_bias_desc.data_type
                                        : data_type::f32;
+            jip.dispatch = compute_engine->create_dispatch(weights_d.md_);
+            jip.dispatch.define_dim("OC", 0, jip.oc);
+            jip.dispatch.define_dim("IC", 1, jip.ic);
+            jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
+            jip.dispatch.define_dim("KH", nstl::max(1, ndims - 2), jip.kh);
+            jip.dispatch.define_dim("KW", nstl::max(1, ndims - 1), jip.kw);
+            jip.dispatch.generate();
         } else {
             jip.with_bias = 0;
             jip.bia_dt = data_type::f32;
+            jip.dispatch = compute_engine->create_dispatch(src_d.md_);
+            jip.dispatch.define_dim("MB_IC", 0, jip.mb * jip.ic);
+            jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
+            jip.dispatch.define_dim("KH", nstl::max(1, ndims - 2), jip.kh);
+            jip.dispatch.define_dim("KW", nstl::max(1, ndims - 1), jip.kw);
+            jip.dispatch.generate();
         }
 
         set_offsets(src_d, jit_off.src_off);
@@ -145,6 +164,8 @@ struct jit_ref_inner_product_kernel {
         def_data_type(kernel_ctx, jip.bia_dt, "BIA");
         def_data_type(kernel_ctx, jip.dst_dt, "DST");
         def_data_type(kernel_ctx, jip.acc_dt, "ACC");
+
+        def_dispatch(kernel_ctx, jip.dispatch);
 
         return status::success;
     }
