@@ -215,7 +215,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             if (rnn_conf_.use_workspace) {
                 dims_t ws_dims = {(dim_t)ws_sz};
                 dnnl_memory_desc_init_by_tag(
-                        &this->ws_md_, 1, ws_dims, src_type, x);
+                        &this->ws_md_, 1, ws_dims, data_type::u8, x);
             }
 
 #if !EMULATED_SCRATCHPAD
