@@ -150,6 +150,7 @@ struct jit_conv_conf_t {
     size_t wht_slm_size, src_slm_size;
     int sub_group_size;
     size_t gws_d[3], lws_d[3];
+    compute::dispatch_t dispatch;
 
     bool with_bias, with_sum, with_sum_relu, with_groups;
 
