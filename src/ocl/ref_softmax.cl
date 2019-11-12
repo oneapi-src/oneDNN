@@ -84,8 +84,12 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
     for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
         DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
+#if LOGSOFTMAX
+        denom_ += exp(temp - max_);
+#else
         dst[data_off] = TO_DATA_T(exp(temp - max_));
         denom_ += TO_DEF_ACC_DATA_T(dst[data_off]);
+#endif
     }
 
 #if GROUP_SIZE == SUB_GROUP_SIZE
@@ -94,10 +98,22 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
     denom_ = work_group_reduce_add(denom_);
 #endif
 
+#if LOGSOFTMAX
+    denom_ = log(denom_);
+
+#else
+    denom_ = 1.0 / denom_;
+#endif
+
     for (int i = begin; i < end; ++i) {
         size_t data_off = DATA_OFF(dim[0], dim[1], dim[2], i);
+#if LOGSOFTMAX
+        DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(src[data_off]);
+        dst[data_off] = TO_DATA_T(temp - max_ - denom_);
+#else
         DEF_ACC_DATA_T temp = TO_DEF_ACC_DATA_T(dst[data_off]);
-        dst[data_off] = TO_DATA_T(temp / denom_);
+        dst[data_off] = TO_DATA_T(temp * denom_);
+#endif
     }
 }
 
@@ -117,7 +133,11 @@ __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
 
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], i);
+#if LOGSOFTMAX
+        diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(diff_dst[idx]) - sbr);
+#else
         DEF_ACC_DATA_T inner_data = TO_DEF_ACC_DATA_T(diff_dst[idx]) - sbr;
         diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(dst[idx]) * inner_data);
+#endif
     }
 }

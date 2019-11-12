@@ -106,6 +106,8 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
         kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
         kernel_ctx.define_int("FWD_KERNEL", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
+        kernel_ctx.define_int("LOGSOFTMAX",
+                desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
 
         kernel_ctx.set_data_type(desc->data_desc.data_type);
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
@@ -171,6 +173,8 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
         kernel_ctx.define_int(
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
         kernel_ctx.set_data_type(desc->data_desc.data_type);
+        kernel_ctx.define_int("LOGSOFTMAX",
+                desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
 
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 

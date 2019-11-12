@@ -2,6 +2,7 @@
 
 --dt=f32,bf16
 --dir=FWD_D
+--alg=SOFTMAX,LOGSOFTMAX
 --inplace=true,false
 --tag=nc           --axis=0,1     --batch=softmax_2d
 --dir=FWD_D,BWD_D
@@ -13,6 +14,7 @@
 
 --reset
 --dir=FWD_D,FWD_I
+--alg=SOFTMAX,LOGSOFTMAX
 --dt=bf16
 --inplace=true,false
 --tag=nc --axis=0,1 --batch=softmax_2d
