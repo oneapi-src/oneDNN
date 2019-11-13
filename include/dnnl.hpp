@@ -127,10 +127,10 @@ template <typename T, typename traits = handle_traits<T>>
 struct handle {
 private:
     static dnnl_status_t dummy_destructor(T) { return dnnl_success; }
-    std::shared_ptr<typename std::remove_pointer<T>::type> _data {0};
+    std::shared_ptr<typename std::remove_pointer<T>::type> data_ {0};
 
 protected:
-    bool operator==(const T other) const { return other == _data.get(); }
+    bool operator==(const T other) const { return other == data_.get(); }
     bool operator!=(const T other) const { return !(*this == other); }
 
 public:
@@ -165,7 +165,7 @@ public:
     /// @param weak A flag specifying whether the wrapper should be weak;
     ///             defaults to `false`.
     void reset(T t, bool weak = false) {
-        _data.reset(t, weak ? &dummy_destructor : traits::destructor);
+        data_.reset(t, weak ? &dummy_destructor : traits::destructor);
     }
 
     /// Returns the underlying C API handle.
@@ -176,7 +176,7 @@ public:
     ///
     /// @returns The underlying C API handle.
     T get(bool allow_empty = false) const {
-        T result = _data.get();
+        T result = data_.get();
         if (allow_empty == false && result == nullptr)
             DNNL_THROW_ERROR(dnnl_invalid_arguments,
                     "attempt to use uninitialized object");
@@ -202,7 +202,7 @@ public:
     /// underlying C API handle, and `false` otherwise. Empty handle objects are
     /// considered to be equal.
     bool operator==(const handle<T, traits> &other) const {
-        return other._data.get() == _data.get();
+        return other.data_.get() == data_.get();
     }
 
     /// Inequality operator.
@@ -2577,7 +2577,7 @@ struct primitive_desc : public primitive_desc_base {
     primitive_desc(const_dnnl_op_desc_t desc, const primitive_attr *attr,
             const engine &engine, const_dnnl_primitive_desc_t hint_fwd_pd,
             bool allow_empty = false)
-        : allow_empty(allow_empty) {
+        : allow_empty_(allow_empty) {
         dnnl_primitive_desc_iterator_t iterator = nullptr;
         dnnl_status_t status = dnnl_primitive_desc_iterator_create(&iterator,
                 desc, attr ? attr->get() : nullptr, engine.get(), hint_fwd_pd);
@@ -2605,13 +2605,13 @@ struct primitive_desc : public primitive_desc_base {
     }
 
 private:
-    bool allow_empty = false;
+    bool allow_empty_ = false;
     handle<dnnl_primitive_desc_iterator_t> pd_iterator;
     void fetch_impl() {
         dnnl_primitive_desc_t pd = dnnl_primitive_desc_iterator_fetch(
-                pd_iterator.get(allow_empty));
-        error::wrap_c_api(pd != nullptr || allow_empty ? dnnl_success
-                                                       : dnnl_runtime_error,
+                pd_iterator.get(allow_empty_));
+        error::wrap_c_api(pd != nullptr || allow_empty_ ? dnnl_success
+                                                        : dnnl_runtime_error,
                 "could not fetch a primitive descriptor from the iterator");
         reset(pd);
     }
