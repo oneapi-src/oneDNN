@@ -79,6 +79,9 @@ if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
         ${example_sources}
         DESTINATION examples)
+    install(DIRECTORY
+        tutorials
+        DESTINATION examples)
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
         install(FILES
             ${PROJECT_SOURCE_DIR}/cmake/template.vcxproj.user
