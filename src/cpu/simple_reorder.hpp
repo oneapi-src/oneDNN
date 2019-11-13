@@ -1200,13 +1200,28 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
-    static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
-        DECLARE_COMMON_PARAMS();
+    static status_t execute(
+            const cpu_reorder_pd_t *pd_object, const exec_ctx_t &ctx) {
+        // DEFINE_SCALES_BUFFER and DEFINE_ZERO_POINT_VALUE macro use pd() to
+        // query properties, hence wrapping the primitive descriptor into a
+        // function.
+        auto pd = [pd_object]() { return pd_object; };
+
+        auto input = CTX_IN_MEM(const data_t<type_i> *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO);
+
+        const float beta = pd()->beta();
+        DEFINE_SCALES_BUFFER(scales);
+        DEFINE_ZERO_POINT_VALUE(i0, DNNL_ARG_FROM);
+        DEFINE_ZERO_POINT_VALUE(o0, DNNL_ARG_TO);
+
+        const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM);
+        const auto output_d = ctx.memory_mdw(DNNL_ARG_TO);
 
         const size_t nelems = input_d.nelems();
 
         int ndims_start = 0, ndims_mask = 0;
-        int smask = pd->attr()->output_scales_.mask_;
+        int smask = pd()->attr()->output_scales_.mask_;
         for (; smask > 0 && !(smask & 0x1); smask >>= 1)
             ++ndims_start;
         for (; smask > 0 && smask & 0x1; smask >>= 1)
@@ -1218,19 +1233,6 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const ptrdiff_t D_mask = utils::array_product(
                 input_d.dims() + ndims_start, ndims_mask);
         const ptrdiff_t D_rest = nelems / D_start / D_mask;
-
-        int i0 = 0, o0 = 0;
-        const float *scales = nullptr;
-        {
-            const auto pd_ = pd;
-            auto pd = [pd_]() { return pd_; };
-            DEFINE_SCALES_BUFFER(scales_);
-            DEFINE_ZERO_POINT_VALUE(i0_, DNNL_ARG_FROM);
-            DEFINE_ZERO_POINT_VALUE(o0_, DNNL_ARG_TO);
-            scales = scales_;
-            i0 = i0_;
-            o0 = o0_;
-        }
 
         parallel_nd(D_start, D_mask, D_rest,
                 [&](ptrdiff_t ds, ptrdiff_t dm, ptrdiff_t dr) {
