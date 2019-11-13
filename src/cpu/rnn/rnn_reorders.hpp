@@ -42,11 +42,19 @@ struct rnn_data_reorder_t : public cpu_primitive_t {
                 engine_t *src_engine, const memory_desc_t *src_md,
                 engine_t *dst_engine, const memory_desc_t *dst_md) {
             const memory_desc_wrapper id(src_md), od(dst_md);
+
             bool args_ok = true
                     && id.data_type() == type_i
                     && od.data_type() == type_o
-                    && id.matches_one_of_tag(format_tag::tnc, format_tag::ldnc)
-                    && od == id;
+                    && attr->output_scales_.has_default_values()
+                    && attr->post_ops_.has_default_values()
+                    && utils::one_of(id.ndims(), 3, 4)
+                    && IMPLICATION(id.ndims() == 3,
+                            id.matches_tag(format_tag::tnc)
+                                    && od.matches_tag(format_tag::tnc))
+                    && IMPLICATION(id.ndims() == 4,
+                            id.matches_tag(format_tag::ldnc)
+                                    && od.matches_tag(format_tag::ldnc));
             if (!args_ok) return status::invalid_arguments;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
@@ -101,7 +109,8 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
                     && od.format_kind() == format_kind::rnn_packed
                     && od.rnn_packed_desc().format == mkldnn_ldigo_p
                     && od.rnn_packed_desc().n_parts == 1
-                    && attr != nullptr;
+                    && attr->output_scales_.has_default_values()
+                    && attr->post_ops_.has_default_values();
             if (!args_ok) return status::invalid_arguments;
 
             format_tag_t itag = id.matches_one_of_tag(
@@ -291,9 +300,6 @@ struct rnn_weights_reorder_t<data_type::f32, data_type::f32>
             format_tag_t itag = id.matches_one_of_tag(
                     format_tag::ldigo, format_tag::ldgoi);
             if (itag == format_tag::undef) return status::invalid_arguments;
-
-            const int mask = attr->rnn_weights_qparams_.mask_;
-            if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
                     dst_md);
