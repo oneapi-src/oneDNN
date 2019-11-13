@@ -185,7 +185,7 @@ protected:
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovups(tmp1_vmm, one_addr);
             uni_vsubps(tmp1_vmm, tmp1_vmm, G0);
-            to_scratch<src_data_t>(tmp2_vmm, ptr[addr_states_tm1_l_reg], vlen);
+            to_float<src_data_t>(tmp2_vmm, ptr[addr_states_tm1_l_reg], vlen);
             uni_vmulps(G0, G0, tmp2_vmm);
             uni_vfmadd231ps(G0, tmp1_vmm, G2);
 
@@ -260,7 +260,7 @@ protected:
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovss(tmp1s_vmm, one_addr);
             uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
-            to_scratch<src_data_t>(
+            to_float<src_data_t>(
                     tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
             uni_vmulss(G0s, G0s, tmp2s_vmm);
             uni_vfmadd231ss(G0s, tmp1s_vmm, G2s);

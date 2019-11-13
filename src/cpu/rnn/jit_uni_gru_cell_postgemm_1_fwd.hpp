@@ -139,7 +139,7 @@ protected:
             if (is_training) to_src<src_data_t>(wg_addr(1), G1, vlen);
 
             // states_t_l = states_tm1_l * G1
-            to_scratch<src_data_t>(tmp1_vmm, ptr[addr_states_tm1_l_reg], vlen);
+            to_float<src_data_t>(tmp1_vmm, ptr[addr_states_tm1_l_reg], vlen);
             uni_vmulps(G1, G1, tmp1_vmm);
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G1, vlen);
             // if states_t_l_copy is a non null ptr, we write the output to it too
@@ -194,7 +194,7 @@ protected:
                 to_src<src_data_t>(wg_addr(1), G1, scratch_dt_size);
 
             // states_t_l = states_tm1_l * G1
-            to_scratch<src_data_t>(
+            to_float<src_data_t>(
                     tmp1s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
             uni_vmulss(G1s, G1s, tmp1s_vmm);
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G1s, scratch_dt_size);

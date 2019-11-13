@@ -369,7 +369,7 @@ protected:
     }
 
     template <data_type_t src_data_t, typename Vmm>
-    void to_scratch(Vmm dst, Xbyak::Address src, int in_len) {
+    void to_float(Vmm dst, Xbyak::Address src, int in_len) {
         switch (src_data_t) {
             case data_type::f32:
                 if (in_len == (int)dst.getBit() / 8)
