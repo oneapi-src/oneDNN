@@ -111,6 +111,8 @@ public:
     virtual status_t init() = 0;
     virtual bool has(device_ext_t ext) const = 0;
 
+    virtual int eu_count() const = 0;
+    virtual int hw_threads() const = 0;
     virtual const runtime_version_t &runtime_version() const = 0;
 };
 

@@ -92,8 +92,8 @@ public:
 
     gpu_arch_t gpu_arch() const { return gpu_arch_; }
 
-    int eu_count() const { return eu_count_; }
-    int hw_threads() const { return hw_threads_; }
+    virtual int eu_count() const override { return eu_count_; }
+    virtual int hw_threads() const override { return hw_threads_; }
 
     virtual const compute::runtime_version_t &runtime_version() const override {
         return runtime_version_;
