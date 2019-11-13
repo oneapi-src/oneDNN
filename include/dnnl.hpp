@@ -1170,12 +1170,12 @@ struct engine : public handle<dnnl_engine_t> {
     /// @param pd The primitive descriptor based on which the engine is
     ///           constructed.
     engine(const handle<dnnl_primitive_desc_t> &pd) {
-        dnnl_engine_t engine_q;
+        dnnl_engine_t c_engine;
         error::wrap_c_api(
                 dnnl_primitive_desc_query(pd.get(),
-                        dnnl::convert_to_c(dnnl::query::engine), 0, &engine_q),
+                        dnnl::convert_to_c(dnnl::query::engine), 0, &c_engine),
                 "could not get engine from primitive_desc");
-        reset(engine_q, true);
+        reset(c_engine, true);
     }
 
     /// @returns The kind of the engine.
@@ -1222,11 +1222,11 @@ private:
 
     template <class primitive_desc>
     static engine query(const primitive_desc &pd, dnnl::query what) {
-        dnnl_engine_t engine_q;
+        dnnl_engine_t c_engine;
         error::wrap_c_api(dnnl_primitive_desc_query(pd.get(),
-                                  dnnl::convert_to_c(what), 0, &engine_q),
+                                  dnnl::convert_to_c(what), 0, &c_engine),
                 "could not get engine from primitive_desc");
-        return engine(engine_q, true);
+        return engine(c_engine, true);
     }
 };
 
@@ -1883,10 +1883,10 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Returns the associated engine.
     engine get_engine() const {
-        dnnl_engine_t engine_q;
-        error::wrap_c_api(dnnl_memory_get_engine(get(), &engine_q),
+        dnnl_engine_t c_engine;
+        error::wrap_c_api(dnnl_memory_get_engine(get(), &c_engine),
                 "could not get engine from a memory");
-        return engine(engine_q, true);
+        return engine(c_engine, true);
     }
 
     /// Returns the underlying memory buffer.
@@ -2147,25 +2147,23 @@ struct primitive_desc_base : public handle<dnnl_primitive_desc_t> {
 
     /// @returns The engine that owns the scratchpad memory.
     engine scratchpad_engine() const {
-        dnnl_engine_t engine_q;
+        dnnl_engine_t c_engine;
         error::wrap_c_api(dnnl_primitive_desc_query(get(),
                                   dnnl::convert_to_c(query::scratchpad_engine),
-                                  0, &engine_q),
+                                  0, &c_engine),
                 "could not get scratchpad engine from a primitive_desc");
-
-        return engine(engine_q, true);
+        return engine(c_engine, true);
     }
 
     /// Returns the primitive attributes.
     primitive_attr get_primitive_attr() const {
-        const_dnnl_primitive_attr_t const_cattr;
-        error::wrap_c_api(dnnl_primitive_desc_get_attr(get(), &const_cattr),
+        const_dnnl_primitive_attr_t const_c_attr;
+        error::wrap_c_api(dnnl_primitive_desc_get_attr(get(), &const_c_attr),
                 "could not get attributes");
-        dnnl_primitive_attr_t cattr;
-        error::wrap_c_api(dnnl_primitive_attr_clone(&cattr, const_cattr),
+        dnnl_primitive_attr_t c_attr;
+        error::wrap_c_api(dnnl_primitive_attr_clone(&c_attr, const_c_attr),
                 "could not clone attributes");
-
-        return primitive_attr(cattr);
+        return primitive_attr(c_attr);
     }
 
     /// Returns the kind of the primitive descriptor.
@@ -2371,11 +2369,11 @@ struct reorder : public primitive {
 /// @cond DO_NOT_DOCUMENT_THIS
 inline std::vector<dnnl_memory_desc_t> convert_to_c(
         const std::vector<memory::desc> &mems) {
-    std::vector<dnnl_memory_desc_t> c_api_mems;
-    c_api_mems.reserve(mems.size());
+    std::vector<dnnl_memory_desc_t> c_mems;
+    c_mems.reserve(mems.size());
     for (const auto &s : mems)
-        c_api_mems.push_back(s.data);
-    return c_api_mems;
+        c_mems.push_back(s.data);
+    return c_mems;
 }
 /// @endcond
 
@@ -2402,13 +2400,13 @@ struct concat : public primitive {
         primitive_desc(const memory::desc &dst, int concat_dimension,
                 const std::vector<memory::desc> &srcs, const engine &engine,
                 const primitive_attr &attr = primitive_attr()) {
-            auto c_api_srcs = convert_to_c(srcs);
+            auto c_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
                     dnnl_concat_primitive_desc_create(&result, &dst.data,
-                            (int)c_api_srcs.size(), concat_dimension,
-                            &c_api_srcs[0], attr.get(), engine.get()),
+                            (int)c_srcs.size(), concat_dimension, &c_srcs[0],
+                            attr.get(), engine.get()),
                     "could not create a concat primitive descriptor");
             reset(result);
         }
@@ -2599,7 +2597,6 @@ struct primitive_desc : public primitive_desc_base {
                 = dnnl_primitive_desc_iterator_next(pd_iterator.get());
         if (status == dnnl_iterator_ends) return false;
         error::wrap_c_api(status, "primitive descriptor iterator next failed");
-
         fetch_impl();
         return true;
     }
