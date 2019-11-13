@@ -38,6 +38,13 @@ endif()
 # Locate TBB
 get_target_property(_tbb_include_dirs TBB::tbb INTERFACE_INCLUDE_DIRECTORIES)
 
+# Check for TBB version, required >= 2017
+file(READ "${_tbb_include_dirs}/tbb/tbb_stddef.h" _tbb_stddef)
+string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1" TBB_INTERFACE_VERSION "${_tbb_stddef}")
+if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
+    message(FATAL_ERROR "DNNL requires TBB version 2017 or above")
+endif()
+
 include_directories(${_tbb_include_dirs})
 list(APPEND EXTRA_SHARED_LIBS ${TBB_IMPORTED_TARGETS})
 

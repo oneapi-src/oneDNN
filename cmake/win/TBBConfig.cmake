@@ -83,14 +83,6 @@ endif()
 get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
 get_filename_component(_tbb_inc_path "${_tbb_root}/include/" ABSOLUTE)
 
-
-# we need to check the version of tbb
-file(READ "${_tbb_inc_path}/tbb/tbb_stddef.h" _tbb_stddef)
-string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1" TBB_INTERFACE_VERSION "${_tbb_stddef}")
-if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
-    message(FATAL_ERROR "DNNL requires TBB version 2017 or above")
-endif()
-
 if (TBB_FOUND)
     return()
 endif()
