@@ -63,6 +63,8 @@
 
 #include "dnnl.hpp"
 
+#include "example_utils.hpp"
+
 using namespace dnnl;
 
 namespace {
@@ -149,7 +151,7 @@ void dynamic_matmul_execute(matmul &matmul_p, char transA, char transB,
     using dims = memory::dims;
 
     if (beta != fixed_beta)
-        throw std::runtime_error("Runtime beta is not yet supported");
+        throw std::logic_error("Run-time beta is not yet supported.");
 
     // Translate transA and transB
     dims a_strides = tolower(transA) == 'n' ? dims {lda, 1} : dims {1, lda};
@@ -220,10 +222,10 @@ void static_matmul_create_and_execute(char transA, char transB, int64_t M,
     s.wait();
 }
 
-int sgemm_and_matmul(char transA, char transB, int64_t M, int64_t N, int64_t K,
-        float alpha, float beta) {
+void sgemm_and_matmul_with_params(char transA, char transB, int64_t M,
+        int64_t N, int64_t K, float alpha, float beta) {
     if (beta != fixed_beta)
-        throw std::runtime_error("Runtime beta is not yet supported");
+        throw std::logic_error("Run-time beta is not yet supported.");
 
     // Allocate and initialize matrices
     std::vector<float> A(M * K);
@@ -264,18 +266,15 @@ int sgemm_and_matmul(char transA, char transB, int64_t M, int64_t N, int64_t K,
 
     int rc = 0;
     rc |= compare_vectors(C_sgemm, C_dynamic_matmul, "SGEMM vs dynamic MatMul");
+    if (rc) throw std::logic_error("The resulting matrices diverged too much.");
     rc |= compare_vectors(C_sgemm, C_static_matmul, "SGEMM vs static MatMul");
+    if (rc) throw std::logic_error("The resulting matrices diverged too much.");
+}
 
-    return rc;
+void sgemm_and_matmul() {
+    sgemm_and_matmul_with_params('N', 'T', 10, 20, 30, 1.1f, fixed_beta);
 }
 
 int main(int argc, char **argv) {
-    try {
-        int rc = sgemm_and_matmul('N', 'T', 10, 20, 30, 1.1f, fixed_beta);
-        std::cout << (rc ? "failed" : "passed") << std::endl;
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(sgemm_and_matmul);
 }

@@ -43,6 +43,8 @@ endif()
 
 message(STATUS "DNNLROOT: ${DNNLROOT}")
 
+include_directories(${DNNLROOT}/examples)
+
 enable_testing()
 
 if(UNIX OR MINGW)

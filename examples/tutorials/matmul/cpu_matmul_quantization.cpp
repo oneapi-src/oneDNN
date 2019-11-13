@@ -123,6 +123,8 @@
 
 #include "dnnl.hpp"
 
+#include "example_utils.hpp"
+
 using namespace dnnl;
 
 enum class q10n_scheme_t { DYNAMIC, STATIC };
@@ -423,9 +425,7 @@ void static_q10n_matmul(int64_t M, int64_t N, int64_t K,
     }
 }
 
-int compare_f32_and_quantized_matmuls() {
-    int rc = 0;
-
+void compare_f32_and_quantized_matmuls() {
     // MatMul parameters
     const int64_t M = 10, N = 20, K = 30;
 
@@ -466,8 +466,9 @@ int compare_f32_and_quantized_matmuls() {
                 scale_C_dynamic_q10n, zp_C_dynamic_q10n);
 
         // Compare _true_ f32 result with dynamic q10n
-        rc |= compare_vectors(C_f32, C_u8_dynamic_q10n, scale_C_dynamic_q10n,
+        int rc = compare_vectors(C_f32, C_u8_dynamic_q10n, scale_C_dynamic_q10n,
                 zp_C_dynamic_q10n, threshold_dynamic_q10n);
+        if (rc) throw std::logic_error("Dynamic quantization accuracy failed.");
     }
 
     // Compute quantized variant (static)
@@ -512,20 +513,12 @@ int compare_f32_and_quantized_matmuls() {
                 zp_C_static_q10n, C_u8_static_q10n);
 
         // Compare _true_ f32 result with static q10n
-        rc |= compare_vectors(C_f32, C_u8_static_q10n, scale_C_static_q10n,
+        int rc = compare_vectors(C_f32, C_u8_static_q10n, scale_C_static_q10n,
                 zp_C_static_q10n, threshold_static_q10n);
+        if (rc) throw std::logic_error("Static quantization accuracy failed.");
     }
-
-    return rc;
 }
 
 int main(int argc, char **argv) {
-    try {
-        int rc = compare_f32_and_quantized_matmuls();
-        std::cout << (rc ? "failed" : "passed") << std::endl;
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(compare_f32_and_quantized_matmuls);
 }

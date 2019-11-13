@@ -31,6 +31,7 @@ append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/examples)
 
 set_if(UNIX LIBM m)
 

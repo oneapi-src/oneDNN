@@ -64,6 +64,8 @@
 
 #include "dnnl.hpp"
 
+#include "example_utils.hpp"
+
 using namespace dnnl;
 
 namespace {
@@ -126,7 +128,7 @@ matmul::primitive_desc matmul_pd_create(int64_t K, int64_t N) {
     return matmul::primitive_desc(matmul_d, attr, eng);
 }
 
-int infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
+void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
         const memory &B_s8_mem) {
     std::vector<uint8_t> A_u8(M * K), C_u8(M * N);
     init_vector(A_u8);
@@ -156,12 +158,14 @@ int infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
 
     // simple check: C_u8 >= zp_C
     for (int64_t i = 0; i < M * N; ++i)
-        if (C_u8[i] < zp_C) return 1;
-
-    return 0;
+        if (C_u8[i] < zp_C)
+            throw std::logic_error(
+                    "Smoke check failed."
+                    "\n\tQuantized value is smaller than the zero point,"
+                    "\n\twhich should not happen since ReLU was applied.");
 }
 
-int inference_int8_matmul() {
+void inference_int8_matmul() {
     const int64_t K = 96;
     const int64_t N = 1000;
     auto matmul_pd = matmul_pd_create(K, N);
@@ -183,20 +187,10 @@ int inference_int8_matmul() {
 
     matmul matmul_p(matmul_pd);
 
-    int rc = 0;
     for (int64_t M : {1, 100})
-        rc |= infer(matmul_p, M, N, K, B_s8_mem);
-
-    return rc;
+        infer(matmul_p, M, N, K, B_s8_mem);
 }
 
 int main(int argc, char **argv) {
-    try {
-        int rc = inference_int8_matmul();
-        std::cout << (rc ? "failed" : "passed") << std::endl;
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(inference_int8_matmul);
 }
