@@ -111,11 +111,6 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                                   IMPORTED_IMPLIB_DEBUG         "${_tbb_debug_lib}"
                                   INTERFACE_COMPILE_DEFINITIONS "__TBB_NO_IMPLICIT_LINKAGE=1")
 
-            # DNNL changes: set TBB_INCLUDE_DIRS to use it for include_directories()
-            if (_tbb_component STREQUAL tbb)
-                set(TBB_INCLUDE_DIRS "${_tbb_inc_path}")
-            endif()
-
             # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
             if (_tbb_component STREQUAL tbbmalloc_proxy)
                 set_target_properties(TBB::tbbmalloc_proxy PROPERTIES INTERFACE_LINK_LIBRARIES TBB::tbbmalloc)
