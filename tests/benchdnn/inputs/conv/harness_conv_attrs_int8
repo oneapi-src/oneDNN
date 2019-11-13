@@ -11,6 +11,7 @@
 --cfg=s8s8u8  --batch=shapes_vgg_19
 --cfg=s8s8f32 --batch=shapes_googlenet_v2
 --cfg=s8s8s32 --batch=shapes_tails
+--cfg=u8s8s32 --batch=shapes_3d
 --dir=FWD_D
 --attr=oscale=common:2.25;post_ops='sum:1.5'
 --cfg=u8s8s8  --batch=shapes_googlenet_v3
@@ -19,6 +20,7 @@
 --cfg=s8s8s8  --batch=shapes_googlenet_v3
 --cfg=s8s8s32 --batch=shapes_alexnet
 --cfg=s8s8s32 --batch=shapes_tails
+--cfg=s8s8s32 --batch=shapes_3d
 
 # i8 conv + f32 leaky relu
 --reset --dir=FWD_B --mb=2
@@ -30,3 +32,5 @@
 --cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
 --attr=post_ops='sum;relu:0.5'
 --cfg=s8s8f32,u8s8f32 --batch=shapes_yolov2
+--attr=post_ops='linear:-1:50;relu:0.5'
+--cfg=s8s8f32 --batch=shapes_3d

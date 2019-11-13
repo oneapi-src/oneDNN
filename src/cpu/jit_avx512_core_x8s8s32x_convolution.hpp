@@ -91,10 +91,15 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
         const auto &_pd = pd();
         if (_pd->ndims() == 3)
             execute_forward_1d(ctx);
-        else if (_pd->jcp_.is_depthwise)
-            execute_forward_2d_dw(ctx);
+        else if (_pd->ndims() == 4)
+            if (_pd->jcp_.is_depthwise)
+                execute_forward_2d_dw(ctx);
+            else
+                execute_forward_2d(ctx);
+        else if (_pd->ndims() == 5)
+            execute_forward_3d(ctx);
         else
-            execute_forward_2d(ctx);
+            return status::unimplemented;
         return status::success;
     }
 
@@ -102,6 +107,7 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_2d_dw(const exec_ctx_t &ctx) const;
+    void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx512_core_x8s8s32x_fwd_kernel *kernel_;

@@ -360,6 +360,8 @@ struct jit_conv_call_s {
     size_t ch_blocks;
     size_t t_overflow;
     size_t b_overflow;
+    size_t f_overflow;
+    size_t back_overflow;
     int flags;
 };
 
@@ -372,7 +374,10 @@ struct jit_deconv_call_s {
     const void *compensation;
     size_t t_overflow;
     size_t b_overflow;
+    size_t f_overflow;
+    size_t back_overflow;
     size_t kh_padding;
+    size_t kd_padding;
     size_t oc_blocks;
 };
 

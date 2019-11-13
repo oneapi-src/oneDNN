@@ -200,10 +200,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                     tag_i, format_tag::hwio, format_tag::oihw)
                                 && tag_o == format_tag::OIhw4i16o4i)
                         || (utils::one_of(
+                                    tag_i, format_tag::dhwio, format_tag::oidhw)
+                                && utils::one_of(
+                                        tag_o, format_tag::OIdhw4i16o4i))
+                        || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::gOIhw4o4i,
                                         format_tag::gOIhw2i8o4i,
-                                        format_tag::gOIhw4i16o4i)),
+                                        format_tag::gOIhw4i16o4i))
+                        || (utils::one_of(tag_i, format_tag::goidhw)
+                                && (utils::one_of(
+                                        tag_o, format_tag::gOIdhw4i16o4i))),
                 spec::conv_s8s8>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -234,8 +241,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         using namespace format_tag;
 
         static constexpr bool w_groups
-                = !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i);
+                = !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i);
+
         constexpr int is_1d = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i);
+        constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i);
         constexpr int blksize = tag_traits<tag_o>::inner_blks == ib::_4b4c
                 ? 4
                 : tag_traits<tag_o>::inner_blks == ib::_2c8b4c ? 8 : 16;
@@ -250,8 +259,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int NB_OC = pdims[w_groups + 0] / blksize;
         const int IC = dims[w_groups + 1];
         const int NB_IC = pdims[w_groups + 1] / blksize;
-        const int H = is_1d ? 1 : dims[w_groups + 2];
-        const int W = dims[w_groups + 3 - is_1d];
+        const int D = is_3d ? dims[2 + w_groups] : 1;
+        const int H = is_1d ? 1 : dims[2 + w_groups + is_3d];
+        const int W = dims[w_groups + is_3d + 3 - is_1d];
 
         const float *scales = pd->attr()->output_scales_.scales_;
         const size_t D_mask = utils::array_product(input_d.dims(),
@@ -283,22 +293,25 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = blksize;
         constexpr int o_mult = 1;
 
-        size_t offset = G * pdims[w_groups + 0] * pdims[w_groups + 1] * H * W;
+        size_t offset
+                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
         int32_t *cp = reinterpret_cast<int32_t *>(output + offset);
         parallel_nd(G * NB_OC * blksize, [&](int i) { cp[i] = 0; });
 
-#define wei_blk_off(md, g, o, i, h, w) \
+#define wei_blk_off(md, g, o, i, d, h, w) \
     (is_1d ? (md).blk_off<!w_groups>(g, o, i, w) \
-           : (md).blk_off<!w_groups>(g, o, i, h, w))
+           : is_3d ? (md).blk_off<!w_groups>(g, o, i, d, h, w) \
+                   : (md).blk_off<!w_groups>(g, o, i, h, w))
 
         parallel_nd(G, NB_OC, [&](int g, int O) {
             for (int I = 0; I < NB_IC; I++)
-                for_(int h = 0; h < H; h++)
+                for (int d = 0; d < D; d++)
+                    for_(int h = 0; h < H; h++)
             for (int w = 0; w < W; w++) {
                 auto i = &input[wei_blk_off(
-                        input_d, g, i_mult * O, i_mult * I, h, w)];
+                        input_d, g, i_mult * O, i_mult * I, d, h, w)];
                 auto o = &output[wei_blk_off(
-                        output_d, g, o_mult * O, o_mult * I, h, w)];
+                        output_d, g, o_mult * O, o_mult * I, d, h, w)];
                 const int oc_block = nstl::min(blksize, OC - O * blksize);
                 const int ic_block = nstl::min(blksize, IC - I * blksize);
 

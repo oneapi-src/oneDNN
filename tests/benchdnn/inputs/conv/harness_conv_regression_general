@@ -174,3 +174,7 @@ ic48ih7oc48oh5kh3ph0n"small_spatial_optimization"
 --reset
 mb1_ic16oc16_id100od1kd100
 --cfg=f32_full --dir=bwd_w mb28_ic16oc16_id10od10kd3
+
+# Int 3D Depthwise dispatch check
+--reset --skip-impl="ref:gemm" --cfg=u8s8u8
+g16mb1ic16id3ih3iw3oc16od3oh3ow3kd3kh3kw3sd1sh1sw1pd1ph1pw1n"check_int8_3d_depthwise_dispatch"

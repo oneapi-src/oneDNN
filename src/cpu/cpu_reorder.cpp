@@ -80,6 +80,14 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
         REG_SR(s8, goihw, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, hwigo, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
 
+        REG_SR(f32, oidhw, s8, OIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, dhwio, s8, OIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep,
+                spec::conv_s8s8),
+        REG_SR(s8, oidhw, s8, OIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, dhwio, s8, OIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+
         REG_SR(f32, goihw, s8, gOIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, hwigo, s8, gOIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goihw, s8, gOIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),

@@ -80,6 +80,8 @@ private:
     reg64_t reg_dst = r10;
     reg64_t param1 = abi_param1;
     reg64_t reg_kh = abi_not_param1;
+    reg64_t reg_ki = r14;
+
     reg64_t reg_nur_w = rbx;
     reg64_t reg_bias = rdx;
     reg64_t reg_icb = reg_bias;
@@ -88,6 +90,9 @@ private:
 
     reg64_t aux_reg_src = r11;
     reg64_t aux_reg_filt = r12;
+
+    reg64_t aux_reg_src_d = r13;
+    reg64_t aux_reg_filt_d = r15;
 
     reg64_t reg_compensation = r14;
     reg64_t reg_scratch = r14;
@@ -209,16 +214,22 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_impl_t {
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        if (pd()->ndims() == 3)
+        auto ndims = pd()->ndims();
+        if (ndims == 3)
             execute_forward_1d(ctx);
-        else
+        else if (ndims == 4)
             execute_forward_2d(ctx);
+        else if (ndims == 5)
+            execute_forward_3d(ctx);
+        else
+            return status::unimplemented;
         return status::success;
     }
 
 private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
+    void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
