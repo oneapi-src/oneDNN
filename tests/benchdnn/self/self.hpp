@@ -43,6 +43,10 @@ namespace self {
 #define CHECK_NE(a, b) CHECK((a) != (b), "%d == %d", (int)(a), (int)(b))
 #define CHECK_CASE_STR_EQ(a, b) CHECK(!strcasecmp(a, b), "'%s' != '%s'", a, b)
 #define CHECK_CASE_STR_NE(a, b) CHECK(strcasecmp(a, b), "'%s' == '%s'", a, b)
+#define CHECK_CASE_CPP_STR_EQ(a, b) \
+    CHECK(!strcasecmp(a.c_str(), b), "'%s' != '%s'", a.c_str(), b)
+#define CHECK_CASE_CPP_STR_NE(a, b) \
+    CHECK(strcasecmp(a.c_str(), b), "'%s' == '%s'", a.c_str(), b)
 #define CHECK_PRINT_EQ2(obj, expect_str1, expect_str2) \
     do { \
         std::stringstream ss; \

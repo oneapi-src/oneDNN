@@ -46,12 +46,12 @@ flags_t str2flags(const char *str) {
     return flags;
 }
 
-const char *flags2str(flags_t flags) {
+std::string flags2str(flags_t flags) {
     std::string str;
     if (flags & GLOB_STATS) str += "G";
     if (flags & USE_SCALESHIFT) str += "S";
     if (flags & FUSE_NORM_RELU) str += "R";
-    return str.c_str();
+    return str;
 }
 
 int str2desc(desc_t *desc, const char *str) {

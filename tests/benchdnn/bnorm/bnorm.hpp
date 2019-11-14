@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 #include <iostream>
+#include <string>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -41,7 +42,7 @@ const flags_t GLOB_STATS = dnnl_use_global_stats;
 const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
 const flags_t FUSE_NORM_RELU = dnnl_fuse_norm_relu;
 flags_t str2flags(const char *str);
-const char *flags2str(flags_t flags);
+std::string flags2str(flags_t flags);
 
 struct desc_t {
     int64_t mb, ic, id, ih, iw;
