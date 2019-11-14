@@ -97,6 +97,7 @@ protected:
                         && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support f16 data type.");
         SKIP_IF(p.base.src.dt == memory::data_type::bf16
+                        && get_test_engine_kind() == engine::kind::cpu
                         && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "current ISA doesn't support bfloat16 data type");
 
@@ -362,80 +363,68 @@ static auto cases_ef = []() {
 };
 INSTANTIATE_TEST_SUITE_P(EF, iface, cases_ef());
 
-static auto cases_f32 = []() {
+static auto cases_f = [](memory::data_type dt) {
     std::vector<matmul_test_params> cases;
 
     // simple case
-    cases.push_back(
-            {{{{10, 2}, data_type::f32, tag::ab},
-                     {{2, 20}, data_type::f32, tag::ab},
-                     {{10, 20}, data_type::f32, tag::ab}, data_type::undef},
-                    {}});
+    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}, data_type::undef},
+            {}});
     // simple case + leading dimensions
-    cases.push_back(
-            {{{{10, 1}, data_type::f32, tag::ab, P::SRC | P::LEADING_DIM},
-                     {{1, 3}, data_type::f32, tag::ba},
-                     {{10, 3}, data_type::f32, tag::ab,
-                             P::DST | P::LEADING_DIM},
-                     data_type::f32},
-                    {}});
-    // simple case + leading dimensions + runtime dims
-    cases.push_back({{{{1, 10}, data_type::f32, tag::ab,
-                              P::SRC | P::LEADING_DIM | P::RUNTIME},
-                             {{10, 2}, data_type::f32, tag::ba,
-                                     P::WEIGHTS | P::RUNTIME},
-                             {{1, 2}, data_type::f32, tag::ab,
-                                     P::DST | P::LEADING_DIM | P::RUNTIME},
+    cases.push_back({{{{10, 1}, dt, tag::ab, P::SRC | P::LEADING_DIM},
+                             {{1, 3}, dt, tag::ba},
+                             {{10, 3}, dt, tag::ab, P::DST | P::LEADING_DIM},
                              data_type::f32},
             {}});
+    // simple case + leading dimensions + runtime dims
+    cases.push_back(
+            {{{{1, 10}, dt, tag::ab, P::SRC | P::LEADING_DIM | P::RUNTIME},
+                     {{10, 2}, dt, tag::ba, P::WEIGHTS | P::RUNTIME},
+                     {{1, 2}, dt, tag::ab,
+                             P::DST | P::LEADING_DIM | P::RUNTIME},
+                     data_type::f32},
+                    {}});
 
     // output scales
-    cases.push_back(
-            {{{{10, 2}, data_type::f32, tag::ab},
-                     {{2, 20}, data_type::f32, tag::ab},
-                     {{10, 20}, data_type::f32, tag::ab}, data_type::undef},
-                    {P::SCALES | P::COMMON}});
+    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}, data_type::undef},
+            {P::SCALES | P::COMMON}});
     // output scales + per_n + runtime
-    cases.push_back(
-            {{{{10, 2}, data_type::f32, tag::ab},
-                     {{2, 20}, data_type::f32, tag::ab},
-                     {{10, 20}, data_type::f32, tag::ab}, data_type::undef},
-                    {P::SCALES | P::PER_N | P::RUNTIME}});
+    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}, data_type::undef},
+            {P::SCALES | P::PER_N | P::RUNTIME}});
 
     // post-ops
-    cases.push_back({{{{10, 1}, data_type::f32, tag::ab},
-                             {{1, 20}, data_type::f32, tag::ab},
-                             {{10, 20}, data_type::f32, tag::ab}},
+    cases.push_back({{{{10, 1}, dt, tag::ab}, {{1, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}},
             {P::NONE, {},
                     {{primitive::kind::eltwise, algorithm::eltwise_relu}}}});
     // multiple post-ops
-    cases.push_back({{{{10, 2}, data_type::f32, tag::ab},
-                             {{2, 20}, data_type::f32, tag::ab},
-                             {{10, 20}, data_type::f32, tag::ab}},
+    cases.push_back({{{{10, 2}, dt, tag::ab}, {{2, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}},
             {P::SCALES | P::COMMON, {},
                     {{primitive::kind::sum},
                             {primitive::kind::eltwise,
                                     algorithm::eltwise_relu}}}});
 
     // gemm like: output scale + post-ops(sum)
-    cases.push_back(
-            {{{{10, 1}, data_type::f32, tag::ab},
-                     {{1, 20}, data_type::f32, tag::ab},
-                     {{10, 20}, data_type::f32, tag::ab}, data_type::f32},
-                    {P::SCALES | P::COMMON, {}, {{primitive::kind::sum}}}});
+    cases.push_back({{{{10, 1}, dt, tag::ab}, {{1, 20}, dt, tag::ab},
+                             {{10, 20}, dt, tag::ab}, data_type::f32},
+            {P::SCALES | P::COMMON, {}, {{primitive::kind::sum}}}});
     // gemm like: output scale + post-ops(sum) + all runtime
-    cases.push_back(
-            {{{{10, 1}, data_type::f32, tag::ab, P::SRC | P::RUNTIME},
-                     {{1, 20}, data_type::f32, tag::ab,
-                             P::WEIGHTS | P::RUNTIME},
-                     {{10, 20}, data_type::f32, tag::ab, P::DST | P::RUNTIME},
-                     data_type::f32},
-                    {P::SCALES | P::COMMON | P::RUNTIME, {},
-                            {{primitive::kind::sum}}}});
+    cases.push_back({{{{10, 1}, dt, tag::ab, P::SRC | P::RUNTIME},
+                             {{1, 20}, dt, tag::ab, P::WEIGHTS | P::RUNTIME},
+                             {{10, 20}, dt, tag::ab, P::DST | P::RUNTIME},
+                             data_type::f32},
+            {P::SCALES | P::COMMON | P::RUNTIME, {},
+                    {{primitive::kind::sum}}}});
 
     return ::testing::ValuesIn(cases);
 };
-CPU_INSTANTIATE_TEST_SUITE_P(Generic_f32, iface, cases_f32());
+
+GPU_INSTANTIATE_TEST_SUITE_P(Generic_f16, iface, cases_f(data_type::f16));
+GPU_INSTANTIATE_TEST_SUITE_P(Generic_bf16, iface, cases_f(data_type::bf16));
+INSTANTIATE_TEST_SUITE_P(Generic_f32, iface, cases_f(data_type::f32));
 
 static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
     std::vector<matmul_test_params> cases;
@@ -526,9 +515,9 @@ static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
 
     return ::testing::ValuesIn(cases);
 };
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         Generic_s8s8s32, iface, cases_x8(data_type::s8, data_type::s32));
-CPU_INSTANTIATE_TEST_SUITE_P(
+INSTANTIATE_TEST_SUITE_P(
         Generic_u8s8u8, iface, cases_x8(data_type::u8, data_type::u8));
 
 } // namespace dnnl
