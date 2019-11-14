@@ -46,8 +46,7 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
                     && (utils::everyone_is(f16, src_data_t, dst_data_t)
                             || utils::everyone_is(bf16, src_data_t, dst_data_t)
                             || utils::everyone_is(f32, src_data_t, dst_data_t))
-                    && IMPLICATION(src_data_t == f16,
-                            !is_training() && stats_are_src())
+                    && IMPLICATION(src_data_t == f16, !is_training())
                     && stat_md()->data_type == f32
                     && IMPLICATION(
                             use_scaleshift(), weights_md()->data_type == f32)
