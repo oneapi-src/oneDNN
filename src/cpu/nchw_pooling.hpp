@@ -47,8 +47,8 @@ struct nchw_pooling_fwd_t : public primitive_t {
 
             const bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
-                            alg_kind::pooling_avg_include_padding,
                             alg_kind::pooling_avg_exclude_padding)
+                    && memory_desc_wrapper(dst_md()).is_dense(false)
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && platform::has_data_type_support(d_type)
