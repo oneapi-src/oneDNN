@@ -193,6 +193,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
 #include "z_magic.hpp"
 /* clang-format off */
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
+    ((isa) == isa_any ? prefix STRINGIFY(any) : \
     ((isa) == sse41 ? prefix STRINGIFY(sse41) : \
     ((isa) == avx ? prefix STRINGIFY(avx) : \
     ((isa) == avx2 ? prefix STRINGIFY(avx2) : \
@@ -202,7 +203,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     ((isa) == avx512_mic ? prefix STRINGIFY(avx512_mic) : \
     ((isa) == avx512_mic_4ops ? prefix STRINGIFY(avx512_mic_4ops) : \
     ((isa) == avx512_core_bf16 ? prefix STRINGIFY(avx512_core_bf16) : \
-    prefix suffix_if_any)))))))))
+    prefix suffix_if_any))))))))))
 /* clang-format on */
 
 } // namespace cpu

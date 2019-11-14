@@ -63,6 +63,7 @@
 #include "cpu/jit_uni_binary.hpp"
 #include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/jit_uni_eltwise.hpp"
+#include "cpu/jit_uni_i8i8_binary.hpp"
 #include "cpu/jit_uni_i8i8_pooling.hpp"
 #include "cpu/jit_uni_layer_normalization.hpp"
 #include "cpu/jit_uni_lrn.hpp"
@@ -402,6 +403,10 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
         /* binary op (int) */
+        INSTANCE(jit_uni_i8i8_binary_t<u8, u8>),
+        INSTANCE(jit_uni_i8i8_binary_t<u8, s8>),
+        INSTANCE(jit_uni_i8i8_binary_t<s8, s8>),
+        INSTANCE(jit_uni_i8i8_binary_t<s8, u8>),
         INSTANCE(ref_binary_t<s8, u8, s8>),
         INSTANCE(ref_binary_t<s8, s8, s8>),
         INSTANCE(ref_binary_t<u8, s8, u8>),
