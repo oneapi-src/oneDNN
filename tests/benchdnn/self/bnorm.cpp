@@ -47,6 +47,7 @@ static int check_flags() {
 
 static int check_desc() {
     desc_t d {0};
+    d.ndims = 4;
     d.mb = 3;
     d.ic = 4;
     d.ih = 5;
@@ -56,10 +57,11 @@ static int check_desc() {
 
     CHECK_PRINT_EQ(d, "mb3ic4ih5iw6eps7ntest");
 
+    d.ndims = 4;
     d.mb = 2;
     d.iw = d.ih;
     d.eps = 1.f / 16;
-    CHECK_PRINT_EQ(d, "ic4ih5ntest");
+    CHECK_PRINT_EQ(d, "ic4ih5iw5ntest");
 
 #define CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
     CHECK_EQ(d.mb, _mb); \
