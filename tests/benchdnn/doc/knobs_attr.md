@@ -9,7 +9,8 @@ The attribute string *attr_str* is defined as follows (line breaks are for
 readability):
 ```
     [oscale={none,common,per_oc}[:scale[*]];]
-    [zero_points=[arg:zero_point[*]][_]...;]
+    [scales='arg:{none,common}[:scale][[_]...]';]
+    [zero_points=arg:zero_point[*][[_]...];]
     [post_ops='eltwise[:alpha[:beta[:int8_eltwise_scale]]];sum[:sum_scale];';]
 ```
 
@@ -35,6 +36,20 @@ Known policies are:
                  to a single {dim0, dim1} point have same factor. Different
                  {dim0, dim1} points have different scaling factors.
 
+
+`scales` is used to specify scaling factors for a particular memory argument
+of a primitive operation. The first parameter is a name of the argument to
+which the scaling factors will be applied. The second parameter is a policy
+that has the same semantics and supported values as for `oscale`.
+The third parameter is `scale` which has the same semantics as in the `oscale`
+case. Scaling factors can be set in any order.
+Optional underscore (`_`) is used as a delimiter for different arguments to
+improve readability.
+Possible arguments:
+  - `src` corresponds to `DNNL_ARG_SRC`
+  - `src1` corresponds to `DNNL_ARG_SRC_1`
+
+
 `zero_points` sets zero points for given memory arguments `arg`.
 Possible arguments:
   - `src` corresponds to `DNNL_ARG_SRC`
@@ -44,6 +59,7 @@ Optional asterisk (`*`) after zero point value indicates the zero point should
 be passed to a primitive at run-time.
 Optional underscore (`_`) is used as a delimiter for different arguments to
 improve readability.
+
 
 `post_ops` stands for post operation sequence. All post operations support
 output scale (relevant for int8 operations only) which is used as a multiplier
@@ -92,4 +108,12 @@ different physical memory layout combinations {ncw, ncw}, {ncw, nwc},
     ./benchdnn --reorder --sdt=s8 --ddt=u8 \
                --stag=ncw,nwc --dtag=ncw,nwc \
                --attr=oscale=common:2.5 2x8x8
+```
+
+Run a binary problem with s8 input data and u8 output data in nc layout
+applying scales to both inputs:
+``` sh
+    ./benchdnn --binary --sdt=u8:s8 --ddt=u8 --stag=nc:nc \
+               --attr="scales='src0:common:1.5_src1:common:2.5';" \
+               100x100:100x100
 ```
