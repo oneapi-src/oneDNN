@@ -42,9 +42,9 @@ So far it supports and uses the following drivers:
 
 where:
 
- - `--DRIVER` -- is either `binary`, `bnorm`, `concat`, `conv` [default],
-            `deconv`, `eltwise`, `ip`, `lnorm`, `lrn`, `matmul`, `pool`,
-            `reorder`, `resampling`, `rnn`, `shuffle`, `softmax`, or `sum`.
+ - `--DRIVER` -- is either `binary`, `bnorm`, `concat`, `conv`, `deconv`,
+            `eltwise`, `ip`, `lnorm`, `lrn`, `matmul`, `pool`, `reorder`,
+            `resampling`, `rnn`, `shuffle`, `softmax`, or `sum`.
  - `--engine=ENGINE_KIND` -- specifies the engine kind to use for the benchmark.
             Can be `cpu` [default] or `gpu`.
  - `--mode=MODE` -- string that contains flags for benchmark mode.

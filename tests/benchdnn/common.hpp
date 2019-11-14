@@ -112,28 +112,6 @@ extern bool canonical;
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
 
-enum prim_t {
-    SELF,
-    CONV,
-    DECONV,
-    IP,
-    SHUFFLE,
-    REORDER,
-    LNORM,
-    BNORM,
-    RNN,
-    SOFTMAX,
-    POOL,
-    SUM,
-    ELTWISE,
-    CONCAT,
-    LRN,
-    BINARY,
-    MATMUL,
-    RESAMPLING,
-    DEF = CONV,
-};
-
 enum bench_mode_t {
     MODE_UNDEF = 0x0,
     CORR = 0x1,
