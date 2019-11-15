@@ -53,9 +53,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     if (!(p.stag[0] == dnnl_nchw && p.stag[1] == dnnl_nchw))
         s << "--stag=" << p.stag << " ";
     if (p.alg != ADD) s << "--alg=" << alg2str(p.alg) << " ";
-    if (p.scale_policy != policy_t::NONE)
-        s << "--scaling=" << attr_t::scale_t::policy2str(p.scale_policy) << " ";
     if (p.inplace != true) s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << p.sdims;
 

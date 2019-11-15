@@ -33,9 +33,6 @@ static int init_pd(const prb_t *p, dnnl_binary_desc_t &bd,
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
 
-    std::vector<dnnl_memory_desc_t> scale_d;
-    scale_d.resize(p->n_inputs());
-
     const std::vector<int> ndims
             = {(int)p->sdims[0].size(), (int)p->sdims[1].size()};
 
@@ -63,21 +60,15 @@ static int init_pd(const prb_t *p, dnnl_binary_desc_t &bd,
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
 
-    if (p->scale_policy != policy_t::NONE) {
-        // TODO: change with attributes
-        for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
-            dnnl_dims_t dims_scale = {1};
-            DNN_SAFE(dnnl_memory_desc_init_by_tag(&scale_d[i_input], 1,
-                             dims_scale, dnnl_f32, dnnl_x),
-                    WARN);
-        }
-    }
-
     DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
             WARN);
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&bpd, &bd, NULL, engine_tgt, NULL);
+    // At this point, p->attr is sufficient to create attributes for binary
+    auto dnnl_attr = create_dnnl_attr(p->attr, 1, NULL);
+
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
+            &bpd, &bd, dnnl_attr, engine_tgt, NULL);
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -148,22 +139,6 @@ int fill_src(
     return OK;
 }
 
-int fill_scale(
-        const prb_t *p, int input_idx, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
-    const auto dt = p->sdt[input_idx];
-    const float scales[] = {-4, -2, -0.5, -0.25, 0.25, 0.5, 2, 4};
-    const int range = sizeof(scales) / sizeof(*scales);
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const int gen = ((89 * i) - 23 * input_idx + 97) % range;
-        const float value = scales[gen];
-        mem_fp.set_elem(i, maybe_saturate(dt, value));
-    });
-    SAFE(mem_dt.reorder(mem_fp), WARN);
-
-    return OK;
-}
-
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
@@ -200,21 +175,6 @@ int doit(const prb_t *p, res_t *r) {
         args.set(arg_num, src_dt[i_input]);
     }
 
-    std::vector<dnn_mem_t> scale_fp, scale_dt;
-    scale_fp.reserve(p->n_inputs());
-    scale_dt.reserve(p->n_inputs());
-
-    if (p->scale_policy != policy_t::NONE) {
-        for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
-            const auto scale_d = q(dnnl_query_weights_md, i_input);
-            scale_fp.emplace_back(scale_d, fp, dnnl_x, engine_tgt);
-            scale_dt.emplace_back(scale_d, engine_tgt);
-
-            SAFE(fill_scale(p, i_input, scale_dt[i_input], scale_fp[i_input]),
-                    WARN);
-        }
-    }
-
     dnn_mem_t &dst_fp = src_fp[0]; // in-place in ref code
     dnn_mem_t placeholder_dst_dt;
     if (!p->inplace) {
@@ -228,7 +188,7 @@ int doit(const prb_t *p, res_t *r) {
     DNN_SAFE(execute_and_wait(bo, stream_tgt, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(p, src_fp, scale_fp, dst_fp);
+        compute_ref(p, src_fp, dst_fp);
         dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
         SAFE(compare(p, dst_fp, dst, r), WARN);
     }

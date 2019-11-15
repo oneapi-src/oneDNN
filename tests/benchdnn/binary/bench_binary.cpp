@@ -33,13 +33,14 @@ std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
 std::vector<dnnl_data_type_t> ddt {dnnl_f32};
 std::vector<std::vector<dnnl_format_tag_t>> stag {{dnnl_nchw, dnnl_nchw}};
 std::vector<alg_t> alg {ADD};
-std::vector<policy_t> scale_policy {policy_t::NONE};
 std::vector<bool> inplace {true};
 
 std::vector<dims_t> sdims;
+attr_t attr;
 bool allow_unimpl = false;
+
 const char *perf_template_csv
-        = "perf,%engine%,%sdt%,%ddt%,%stag%,%alg%,%DESC%,%-time%,%"
+        = "perf,%engine%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-time%,%"
           "0time%";
 const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
@@ -49,8 +50,8 @@ void reset_parameters() {
     ddt = {dnnl_f32};
     stag = {{dnnl_nchw, dnnl_nchw}};
     alg = {ADD};
-    scale_policy = {policy_t::NONE};
     inplace = {true};
+    attr = attr_t();
     allow_unimpl = false;
 }
 
@@ -59,24 +60,13 @@ void check_correctness() {
     for_(const auto &i_ddt : ddt)
     for_(const auto &i_stag : stag)
     for_(const auto &i_alg : alg)
-    for_(const auto &i_scale_policy : scale_policy)
     for (const auto &i_inplace : inplace) {
         const bool ok = true && sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
                 && sdims.size() == 2; // expect just two inputs
         if (!ok) SAFE_V(FAIL);
 
-        if (!(i_scale_policy == policy_t::NONE
-                    || i_scale_policy == policy_t::COMMON)) {
-            fprintf(stderr,
-                    "%s driver: scale_policy `%s` is not "
-                    "supported, exiting...\n",
-                    driver_name, attr_t::scale_t::policy2str(i_scale_policy));
-            exit(2);
-        }
-
-        const prb_t p(
-                sdims, i_sdt, i_ddt, i_stag, i_alg, i_scale_policy, i_inplace);
+        const prb_t p(sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -107,9 +97,7 @@ int bench(int argc, char **argv) {
                 || parse_dt(ddt, argv[0], "ddt")
                 || parse_multi_tag(stag, argv[0])
                 || parse_vector_option(alg, str2alg, argv[0], "alg")
-                // uncomment when run-time attribute scale support will be added
-                // || parse_scale_policy(scale_policy, argv[0])
-                || parse_inplace(inplace, argv[0])
+                || parse_inplace(inplace, argv[0]) || parse_attr(attr, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])

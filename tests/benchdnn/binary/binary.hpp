@@ -37,15 +37,15 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
-            const std::vector<dnnl_format_tag_t> &stag, alg_t alg,
-            policy_t scale_policy, bool inplace)
+            const std::vector<dnnl_format_tag_t> &stag, alg_t alg, bool inplace,
+            attr_t attr)
         : sdims(sdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , alg(alg)
-        , scale_policy(scale_policy)
-        , inplace(inplace) {
+        , inplace(inplace)
+        , attr(attr) {
         get_broadcast_dims();
     }
     ~prb_t() {}
@@ -55,8 +55,8 @@ struct prb_t {
     dnnl_data_type_t ddt;
     std::vector<dnnl_format_tag_t> stag;
     alg_t alg;
-    policy_t scale_policy;
     bool inplace;
+    attr_t attr;
 
     dims_t broadcast_dims;
 
@@ -120,8 +120,8 @@ inline int64_t dims_off(const dims_t &dims, const dims_t &dims_idx) {
     return off;
 }
 
-void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
-        const std::vector<dnn_mem_t> &scale, dnn_mem_t &dst);
+void compute_ref(
+        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);
