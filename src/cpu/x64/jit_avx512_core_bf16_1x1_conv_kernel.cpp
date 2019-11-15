@@ -125,14 +125,20 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                     backward_data)) {
             assert(jcp.reduce_loop_unroll == jcp.reduce_block);
+            const int reduce_mul = is_bcast_layout_nxc()
+                    ? jcp.reduce_dim
+                    : jcp.reduce_loop_unroll;
             offt = (i_reduce == jcp.reduce_loop_unroll)
-                    ? (jcp.bcast_dim + i_ur) * jcp.reduce_loop_unroll
-                    : i_ur * jcp.reduce_loop_unroll + i_reduce;
-        } else { // backward_weights
-            if (jcp.uses_permw_transposition)
-                offt = i_reduce * jcp.ic_block + i_ur;
-            else
+                    ? (jcp.bcast_dim + i_ur) * reduce_mul
+                    : i_ur * reduce_mul + i_reduce;
+        } else {
+            if (jcp.uses_permw_transposition) {
+                int rmul = (is_bcast_layout_nxc() ? jcp.ngroups * jcp.ic
+                                                  : jcp.ic_block);
+                offt = i_reduce * rmul + i_ur;
+            } else {
                 offt = (i_reduce / 2) * 2 * jcp.ic_block + 2 * i_ur;
+            }
         }
         return EVEX_compress_addr(
                 aux_reg_bcast_data, jcp.typesize_in * offt, bcast);
@@ -141,19 +147,29 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
     auto load_ptr = [=](int i_reduce, int i_load) {
         int u0 = i_reduce % jcp.reduce_loop_unroll;
         int u1 = i_reduce / jcp.reduce_loop_unroll;
-        int offt = (i_load * jcp.reduce_dim + u0) * jcp.load_block;
+        int lmul = jcp.load_block * (is_load_layout_nxc() ? 1 : jcp.reduce_dim);
+        int rmul = (is_load_layout_nxc() ? jcp.load_dim : jcp.load_block);
+        int offt = i_load * lmul + u0 * rmul;
         return EVEX_compress_addr(aux_reg_load_data,
                 u1 * jcp.reduce_loop_load_step + jcp.typesize_in * offt);
     };
 
     auto output_ptr = [=](int i_load, int i_ur, int scale = 1) {
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
-                    backward_data))
-            return EVEX_compress_addr(aux_reg_output_data,
-                    (i_load * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
-                            + i_ur)
-                            * jcp.load_block * jcp.typesize_out * scale);
-        else
+                    backward_data)) {
+            const bool is_output_layout_nxc = is_out_layout_nxc();
+            assert(IMPLICATION(
+                    is_output_layout_nxc, scale == 1 && !jcp.with_dw_conv));
+            int i_load_shift = is_output_layout_nxc
+                    ? jcp.load_block
+                    : (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                            * jcp.load_block;
+            int i_ur_shift
+                    = is_output_layout_nxc ? jcp.load_dim : jcp.load_block;
+            int offset = (i_load * i_load_shift + i_ur * i_ur_shift)
+                    * jcp.typesize_out * scale;
+            return EVEX_compress_addr(aux_reg_output_data, offset);
+        } else
             return ptr[aux_reg_output_data
                     + (i_load ? reg_output_stride * i_load
                               : 0) // TODO: Xbyak should allow 0 scale
@@ -161,9 +177,13 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
     };
 
     auto store_buffer_ptr = [=](int i_load, int i_ur) {
-        return EVEX_compress_addr(aux_reg_store_buf,
-                (i_load * jcp.bcast_dim + i_ur) * jcp.load_block
-                        * jcp.typesize_acc);
+        const bool is_output_layout_nxc = is_out_layout_nxc();
+        int i_load_shift
+                = jcp.load_block * (is_output_layout_nxc ? 1 : jcp.bcast_dim);
+        int i_ur_shift = is_output_layout_nxc ? jcp.load_dim : jcp.load_block;
+        int offset = (i_load * i_load_shift + i_ur * i_ur_shift)
+                * jcp.typesize_acc;
+        return EVEX_compress_addr(aux_reg_store_buf, offset);
     };
 
     auto init = [=]() {
@@ -282,7 +302,28 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                     }
                 }
             } else if (jcp.dst_dt == data_type::bf16) {
-                if (isa_has_bf16(jcp.isa)) {
+                if (isa_has_bf16(jcp.isa) && is_out_layout_nxc()) {
+                    // Optimization: use single store instruction for pair
+                    // of the nearest vectors along LOAD dimension
+                    for (int i_ur = 0; i_ur < ur; i_ur++) {
+                        int i_load = 0;
+                        for (; i_load < rnd_dn(load_loop_blk, 2); i_load += 2) {
+                            auto zmm = vreg_accum(i_load, i_ur);
+                            auto zmm_next = vreg_accum(i_load + 1, i_ur);
+                            vcvtne2ps2bf16(zmm, zmm_next, zmm);
+                            vmovups(output_ptr(i_load, i_ur), zmm);
+                        }
+                        if (load_loop_blk % 2 != 0) {
+                            auto zmm = vreg_accum(i_load, i_ur);
+                            auto ymm = Ymm(zmm.getIdx());
+                            vcvtneps2bf16(ymm, zmm);
+                            vmovups(output_ptr(i_load, i_ur), ymm);
+                        }
+                    }
+                } else if (isa_has_bf16(jcp.isa)) {
+                    // Optimization: use single store instruction for pair
+                    // of the nearest vectors along BCAST dimension
+                    assert(!is_out_layout_nxc());
                     for (int i_load = 0; i_load < load_loop_blk; i_load++) {
                         int n_2bf2ps = (ur / 2) * 2, i_ur = 0;
                         for (i_ur = 0; i_ur < n_2bf2ps; i_ur += 2) {
@@ -374,10 +415,16 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         };
 
         auto get_load_mask = [=](int i_reduce) {
-            return (jcp.reduce_loop_unroll % 2
-                           && i_reduce + 2 >= jcp.reduce_loop_unroll)
-                    ? half_mask
-                    : full_mask;
+            bool is_reduce_tail = jcp.reduce_loop_unroll % 2
+                    && i_reduce + 2 >= jcp.reduce_loop_unroll;
+            return is_load_layout_nxc() || is_reduce_tail ? half_mask
+                                                          : full_mask;
+        };
+        auto get_bcast_mask = [=](int i_reduce) {
+            bool is_reduce_tail = jcp.reduce_loop_unroll % 2
+                    && i_reduce + 2 >= jcp.reduce_loop_unroll;
+            return is_bcast_layout_nxc() || is_reduce_tail ? half_mask
+                                                           : full_mask;
         };
 
         if (jcp.uses_permw_transposition) {
@@ -387,19 +434,30 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
 
             for (; bcast_count < pipeline; bcast_count++) {
                 int i_reduce = 2 * bcast_count;
+                bool is_reduce_tail = jcp.reduce_loop_unroll % 2
+                        && i_reduce + 2 >= jcp.reduce_loop_unroll;
                 int load_idx = get_load_start_idx(bcast_count);
-                Opmask load_mask = get_load_mask(i_reduce);
+                Opmask bcast_mask = get_bcast_mask(i_reduce);
                 auto bcast_values = vreg_load(bcast_count);
 
-                vmovdqu16(bcast_values | load_mask | T_z,
+                vmovdqu16(bcast_values | bcast_mask | T_z,
                         bcast_ptr(i_reduce, 0, false));
+                if (is_bcast_layout_nxc() && !is_reduce_tail) {
+                    // Reuse i_ur argument to shift back pointer
+                    vmovdqu16(bcast_values | half_mask_hi,
+                            bcast_ptr(i_reduce + 1, -jcp.ic_block, false));
+                }
                 vpermw(bcast_values, zmm_prm(), bcast_values);
                 vmovups(pipeline_bcast_ptr(i_reduce, 0, false, bcast_count),
                         bcast_values);
 
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
-                    vmovdqu16(vreg_load(load_idx + i_load) | load_mask | T_z,
+                    vmovdqu16(vreg_load(load_idx + i_load) | bcast_mask | T_z,
                             load_ptr(i_reduce, i_load));
+                    if (is_load_layout_nxc() && !is_reduce_tail) {
+                        vmovdqu16(vreg_load(load_idx + i_load) | half_mask_hi,
+                                load_ptr(i_reduce + 1, i_load - 1));
+                    }
                     vpermw(vreg_load(load_idx + i_load), zmm_prm(),
                             vreg_load(load_idx + i_load));
                 }
@@ -430,9 +488,15 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                     int load_idx = get_load_start_idx(use_bcast_count) + i_load;
                     if (!isa_has_bf16(jcp.isa)) {
                         if (jcp.uses_permw_transposition) {
+                            bool is_reduce_tail = jcp.reduce_loop_unroll % 2
+                                    && i_reduce + 2 >= jcp.reduce_loop_unroll;
                             Opmask load_mask = get_load_mask(i_reduce);
                             vmovdqu16(vreg_load(i_load) | load_mask | T_z,
                                     load_ptr(i_reduce, i_load));
+                            if (is_load_layout_nxc() && !is_reduce_tail) {
+                                vmovdqu16(vreg_load(i_load) | half_mask_hi,
+                                        load_ptr(i_reduce + 1, i_load - 1));
+                            }
                             vpermw(vreg_load(i_load), zmm_prm(),
                                     vreg_load(i_load));
                         } else
@@ -469,12 +533,18 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                 int i_reduce = bcast_count * 2;
 
                 if (jcp.uses_permw_transposition) {
-                    Opmask load_mask = get_load_mask(i_reduce);
+                    bool is_reduce_tail = jcp.reduce_loop_unroll % 2
+                            && i_reduce + 2 >= jcp.reduce_loop_unroll;
+                    Opmask bcast_mask = get_bcast_mask(i_reduce);
                     int bcast_pl_idx = bcast_count % pipeline;
                     auto bcast_values = vreg_load(bcast_pl_idx);
 
-                    vmovdqu16(bcast_values | load_mask | T_z,
+                    vmovdqu16(bcast_values | bcast_mask | T_z,
                             bcast_ptr(i_reduce, 0, false));
+                    if (is_bcast_layout_nxc() && !is_reduce_tail) {
+                        vmovdqu16(bcast_values | half_mask_hi,
+                                bcast_ptr(i_reduce + 1, -jcp.ic_block, false));
+                    }
                     vpermw(bcast_values, zmm_prm(), bcast_values);
                     vmovups(pipeline_bcast_ptr(
                                     i_reduce, 0, false, bcast_pl_idx),
@@ -482,8 +552,13 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
 
                     for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                         vmovdqu16(
-                                vreg_load(load_idx + i_load) | load_mask | T_z,
+                                vreg_load(load_idx + i_load) | bcast_mask | T_z,
                                 load_ptr(i_reduce, i_load));
+                        if (is_load_layout_nxc() && !is_reduce_tail) {
+                            vmovdqu16(
+                                    vreg_load(load_idx + i_load) | half_mask_hi,
+                                    load_ptr(i_reduce + 1, i_load - 1));
+                        }
                         vpermw(vreg_load(load_idx + i_load), zmm_prm(),
                                 vreg_load(load_idx + i_load));
                     }
@@ -589,6 +664,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
     kmovd(half_mask, reg_trans_tmp.cvt32());
     mov(reg_trans_tmp.cvt32(), 0xffffffff);
     kmovd(full_mask, reg_trans_tmp.cvt32());
+    mov(reg_trans_tmp.cvt32(), 0xffff0000);
+    kmovd(half_mask_hi, reg_trans_tmp.cvt32());
 
     sub(rsp, stack_space_needed);
 
@@ -621,20 +698,23 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_bia);
                 add(reg_output_data,
-                        load_loop_blk
-                                * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
-                                * jcp.load_block * jcp.typesize_out);
+                        load_loop_blk * jcp.load_block * jcp.typesize_out
+                                * (is_out_layout_nxc()
+                                                ? 1
+                                                : (jcp.with_dw_conv
+                                                                ? jcp.ow
+                                                                : jcp.bcast_dim)));
                 add(reg_store_buf,
-                        load_loop_blk * jcp.bcast_dim * jcp.load_block
-                                * jcp.typesize_acc);
+                        load_loop_blk * jcp.load_block * jcp.typesize_acc
+                                * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
                 break;
             case backward_data:
                 add(reg_output_data,
-                        load_loop_blk * jcp.bcast_dim * jcp.load_block
-                                * jcp.typesize_out);
+                        load_loop_blk * jcp.load_block * jcp.typesize_out
+                                * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
                 add(reg_store_buf,
-                        load_loop_blk * jcp.bcast_dim * jcp.load_block
-                                * jcp.typesize_acc);
+                        load_loop_blk * jcp.load_block * jcp.typesize_acc
+                                * (is_out_layout_nxc() ? 1 : jcp.bcast_dim));
                 break;
             case backward_weights:
                 for (int i_load = 0; i_load < load_loop_blk; i_load++)
@@ -821,7 +901,13 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     }
 
     using namespace format_tag;
-    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto dat_tag_nxc = pick(ndims - 3, nwc, nhwc, ndhwc);
+    bool is_data_layout_nxc
+            = src_d.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
+            && dst_d.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef;
+    auto dat_tag = is_data_layout_nxc
+            ? dat_tag_nxc
+            : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
 
@@ -913,8 +999,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             jcp.bcast_dim = jcp.os;
         }
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step
-                = jcp.reduce_loop_unroll * jcp.bcast_dim * jcp.typesize_in;
+        jcp.reduce_loop_bcast_step = jcp.typesize_in * jcp.reduce_loop_unroll
+                * (is_data_layout_nxc ? 1 : jcp.bcast_dim);
         jcp.reduce_loop_load_step
                 = jcp.reduce_loop_unroll * jcp.load_block * jcp.typesize_in;
         jcp.load_loop_load_step
@@ -970,15 +1056,13 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             }
         }
 
-        jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step
-                = jcp.reduce_loop_unroll * jcp.bcast_dim * jcp.typesize_in;
-
         jcp.bcast_block = jcp.ur;
 
-        jcp.bcast_loop_output_step = jcp.ur * jcp.load_block;
+        jcp.bcast_loop_output_step
+                = jcp.ur * (is_data_layout_nxc ? jcp.load_dim : jcp.load_block);
         jcp.bcast_loop_output_substep = -1; // unused
-        jcp.bcast_loop_bcast_step = jcp.ur * jcp.reduce_block * jcp.typesize_in;
+        jcp.bcast_loop_bcast_step = jcp.typesize_in * jcp.ur
+                * (is_data_layout_nxc ? jcp.reduce_dim : jcp.reduce_block);
         jcp.bcast_loop_bcast_substep = -1; // unused
 
         jcp.load_loop_iter_step = jcp.load_block;
@@ -992,7 +1076,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         int nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
         int nb_load = div_up(jcp.load_dim, jcp.load_block);
 
-        if (jcp.prop_kind == backward_data && reduce_src) {
+        if (is_data_layout_nxc
+                || (jcp.prop_kind == backward_data && reduce_src)) {
             reduce_blocking = jcp.reduce_dim;
         } else {
             if (jcp.expl_bcast) {
@@ -1123,8 +1208,12 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.use_vmovntps = false;
         jcp.reduce_dim = jcp.is;
 
-        // cross-point for rn50 v1.5
-        jcp.uses_permw_transposition = jcp.oh > 14 && jcp.ow > 14;
+        // cross-point for rn50 v1.5 blocked layout
+        // in case of is_data_layout_nxc = true
+        // jcp.uses_permw_transposition = false shows better performance for
+        // the most problems according to performance measurements
+        jcp.uses_permw_transposition
+                = !is_data_layout_nxc && jcp.oh > 14 && jcp.ow > 14;
 
         if (jcp.uses_permw_transposition) {
             int rdim = nstl::min(256, jcp.reduce_dim);
@@ -1151,22 +1240,28 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.expl_bcast = false;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
-        jcp.reduce_loop_bcast_step
-                = jcp.reduce_loop_unroll * jcp.ic_block * jcp.typesize_in;
-        jcp.reduce_loop_load_step
-                = jcp.reduce_loop_unroll * jcp.oc_block * jcp.typesize_in;
+        jcp.reduce_loop_bcast_step = jcp.typesize_in * jcp.reduce_loop_unroll
+                * (is_data_layout_nxc && jcp.uses_permw_transposition
+                                ? jcp.ngroups * jcp.ic
+                                : jcp.ic_block);
+        jcp.reduce_loop_load_step = jcp.typesize_in * jcp.reduce_loop_unroll
+                * (is_data_layout_nxc && jcp.uses_permw_transposition
+                                ? jcp.ngroups * jcp.oc
+                                : jcp.oc_block);
 
         jcp.bcast_loop_output_step = jcp.oc_block * jcp.ic_block;
         jcp.bcast_loop_output_substep
                 = jcp.oc_block * jcp.ur * jcp.typesize_out;
         jcp.bcast_loop_bcast_step = jcp.typesize_in * jcp.ic_block
-                * (jcp.uses_permw_transposition ? jcp.reduce_dim
-                                                : rnd_up(jcp.reduce_dim, 2));
+                * (jcp.uses_permw_transposition
+                                ? (is_data_layout_nxc ? 1 : jcp.reduce_dim)
+                                : rnd_up(jcp.reduce_dim, 2));
         jcp.bcast_loop_bcast_substep = jcp.typesize_in * jcp.ur
                 * (jcp.uses_permw_transposition ? 1 : 2);
         jcp.load_loop_load_step = jcp.typesize_in * jcp.oc_block
-                * (jcp.uses_permw_transposition ? jcp.os
-                                                : rnd_up(jcp.reduce_dim, 2));
+                * (jcp.uses_permw_transposition
+                                ? (is_data_layout_nxc ? 1 : jcp.os)
+                                : rnd_up(jcp.reduce_dim, 2));
         jcp.load_loop_iter_step = jcp.oc_block;
 
         /* --- */
@@ -1271,7 +1366,10 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
         }
 
         if (jcp.with_bias) {
-            const size_t d_dst_f32_size = (size_t)jcp.os * jcp.oc_block;
+            const bool ddst_layout_nxc = utils::one_of(jcp.dst_tag,
+                    format_tag::ndhwc, format_tag::nhwc, format_tag::nwc);
+            const size_t d_dst_f32_size
+                    = (size_t)jcp.oc_block * (ddst_layout_nxc ? 1 : jcp.os);
             scratchpad.book(key_conv_dst_bf16_convert_wsp,
                     jcp.nthr * d_dst_f32_size, jcp.typesize_acc);
         }
@@ -1280,8 +1378,17 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
     // TODO: Check - do we need this buffer for ALL cases?
     const size_t grp_count = utils::div_up(
             jcp.nthr, utils::div_up(jcp.nthr, jcp.load_grp_count));
-    const size_t max_load_per_thread
-            = rnd_up((jcp.load_dim / grp_count), jcp.load_block);
+    const bool is_out_layout_nxc
+            = (utils::one_of(jcp.prop_kind, prop_kind::forward_training,
+                       prop_kind::forward_inference)
+                      && utils::one_of(jcp.dst_tag, format_tag::ndhwc,
+                              format_tag::nhwc, format_tag::nwc))
+            || (jcp.prop_kind == prop_kind::backward_data
+                    && utils::one_of(jcp.src_tag, format_tag::ndhwc,
+                            format_tag::nhwc, format_tag::nwc));
+    const size_t max_load_per_thread = is_out_layout_nxc
+            ? jcp.load_dim
+            : rnd_up((jcp.load_dim / grp_count), jcp.load_block);
     const size_t store_buffer_size
             = (size_t)jcp.nthr * jcp.bcast_dim * max_load_per_thread;
     scratchpad.book(key_conv_store_wsp, store_buffer_size, jcp.typesize_acc);

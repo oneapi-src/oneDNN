@@ -576,7 +576,14 @@ private:
 struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_bf16_reorder_s16c_to_S16c2s)
 
-    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t() : simd_w_(16) {
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t()
+        : simd_w_(16), in_stride_(16) {
+        generate();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
+    }
+
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t(int in_stride)
+        : simd_w_(16), in_stride_(in_stride) {
         generate();
         jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
@@ -595,12 +602,19 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
             return Xbyak::Zmm(idx);
         };
 
+        mov(reg32_tail, 0x00ff);
+        kmovw(ktail_mask_lo, reg32_tail);
+
+        mov(reg32_tail, 0xff00);
+        kmovw(ktail_mask_hi, reg32_tail);
+
         Xbyak::Label dst_prm_table;
         mov(reg_prm, dst_prm_table);
         vmovups(zmm_prm, ptr[reg_prm]);
 
         constexpr int n_unroll = 2; // unroll by powers of 2 from 2^n to 2^0
         int sizeofcacheline = 2 * simd_w_ * sizeof(bfloat16_t);
+        int in_stride_bytes = in_stride_ * sizeof(bfloat16_t);
         Xbyak::Label l_simd_loop[n_unroll + 2], l_simd_notail;
         for (int i = n_unroll; i >= 0; i--) {
             const int unroll = 1 << i; // 4, 2, 1
@@ -610,11 +624,22 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
                 jl(l_simd_loop[i], T_NEAR);
                 for (int j = 0; j < unroll; j++) {
                     auto zmm_inp = zmm_reg(j);
-                    vmovups(zmm_inp, zword[reg_inp + j * sizeofcacheline]);
+                    if (in_stride_ == 16)
+                        vmovups(zmm_inp, zword[reg_inp + j * sizeofcacheline]);
+                    else {
+                        vmovups(zmm_inp | ktail_mask_lo | T_z,
+                                zword[reg_inp + 2 * j * in_stride_bytes]);
+                        vmovups(zmm_inp | ktail_mask_hi,
+                                zword[reg_inp + (2 * j + 1) * in_stride_bytes
+                                        - 32]);
+                    }
                     vpermw(zmm_inp, zmm_prm, zmm_inp);
                     vmovups(zword[reg_out + j * sizeofcacheline], zmm_inp);
                 }
-                add(reg_inp, unroll * sizeofcacheline);
+                add(reg_inp,
+                        unroll
+                                * (in_stride_ == 16 ? sizeofcacheline
+                                                    : 2 * in_stride_bytes));
                 add(reg_out, unroll * sizeofcacheline);
 
                 sub(reg_nelems, 2 * unroll);
@@ -626,12 +651,9 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
         test(reg_nelems, reg_nelems);
         jz(l_simd_notail);
 
-        mov(reg32_tail, 0x00ff);
-        kmovw(ktail_mask, reg32_tail);
-
         auto zmm_inp = zmm_reg(0);
         vpxord(zmm_inp, zmm_inp, zmm_inp);
-        vmovups(zmm_inp | ktail_mask | T_z, ptr[reg_inp]);
+        vmovups(zmm_inp | ktail_mask_lo | T_z, ptr[reg_inp]);
         vpermw(zmm_inp, zmm_prm, zmm_inp);
         vmovups(zword[reg_out], zmm_inp);
 
@@ -656,9 +678,11 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
 
 private:
     int simd_w_;
+    int in_stride_;
     void (*jit_ker_)(bf16_support::jit_call_t *);
 
-    Xbyak::Opmask ktail_mask = k2;
+    Xbyak::Opmask ktail_mask_lo = k2;
+    Xbyak::Opmask ktail_mask_hi = k3;
     Xbyak::Zmm zmm_prm = Xbyak::Zmm(31);
 
     Xbyak::Reg64 reg_inp = rax;

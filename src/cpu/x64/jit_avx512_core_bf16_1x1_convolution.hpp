@@ -507,6 +507,8 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
         delete reducer_bias_;
         delete rtus_driver_;
         delete tr_reorder_;
+        delete tr_reorder_nhwc_src_;
+        delete tr_reorder_nhwc_ddst_;
     }
 
     status_t execute(const exec_ctx_t &ctx) const override {
@@ -531,6 +533,8 @@ private:
     rtus_driver_t<avx512_common> *rtus_driver_;
 
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_;
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_nhwc_src_;
+    jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_nhwc_ddst_;
 };
 
 } // namespace x64
