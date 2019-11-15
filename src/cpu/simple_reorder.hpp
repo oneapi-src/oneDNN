@@ -193,12 +193,16 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<(tag_i == format_tag::oiw
-                                          && tag_o == format_tag::OIw4i16o4i)
+                                          && utils::one_of(tag_o,
+                                                  format_tag::OIw4i16o4i,
+                                                  format_tag::OIw2i8o4i))
                         || (tag_i == format_tag::goiw
-                                && tag_o == format_tag::gOIw4i16o4i)
+                                && utils::one_of(tag_o, format_tag::gOIw4i16o4i,
+                                        format_tag::gOIw2i8o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::hwio, format_tag::oihw)
-                                && tag_o == format_tag::OIhw4i16o4i)
+                                && utils::one_of(tag_o, format_tag::OIhw4i16o4i,
+                                        format_tag::OIhw2i8o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::dhwio, format_tag::oidhw)
                                 && utils::one_of(
@@ -221,7 +225,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
-        const bool w_groups = !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i);
+        const bool w_groups = !utils::one_of(
+                tag_o, OIw4i16o4i, OIw2i8o4i, OIhw4i16o4i, OIhw2i8o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
@@ -240,14 +245,18 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
-        static constexpr bool w_groups
-                = !utils::one_of(tag_o, OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i);
+        static constexpr bool w_groups = !utils::one_of(tag_o, OIw4i16o4i,
+                OIhw4i16o4i, OIdhw4i16o4i, OIw2i8o4i, OIhw2i8o4i);
 
-        constexpr int is_1d = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i);
+        constexpr int is_1d = utils::one_of(
+                tag_o, gOIw4i16o4i, OIw4i16o4i, gOIw2i8o4i, OIw2i8o4i);
         constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i);
         constexpr int blksize = tag_traits<tag_o>::inner_blks == ib::_4b4c
                 ? 4
-                : tag_traits<tag_o>::inner_blks == ib::_2c8b4c ? 8 : 16;
+                : (tag_traits<tag_o>::inner_blks == ib::_2c8b4c
+                          || tag_traits<tag_o>::inner_blks == ib::_2b8a4b)
+                        ? 8
+                        : 16;
 
         const auto &plain_d = order_keep ? input_d : output_d;
         const auto &dims = input_d.dims();
@@ -332,10 +341,12 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<false
                         || (tag_i == format_tag::goiw
-                                && tag_o == format_tag::Goiw16g)
+                                && utils::one_of(tag_o, format_tag::Goiw16g,
+                                        format_tag::Goiw8g))
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
-                                && tag_o == format_tag::Goihw16g),
+                                && utils::one_of(tag_o, format_tag::Goihw16g,
+                                        format_tag::Goihw8g)),
                 spec::conv_s8s8>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -363,7 +374,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
 
         constexpr bool is_1d = tag_i == format_tag::goiw;
-        constexpr int blksize = 16;
+        constexpr int blksize
+                = utils::one_of(tag_o, format_tag::Goihw8g, format_tag::Goiw8g)
+                ? 8
+                : 16;
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.padded_dims();

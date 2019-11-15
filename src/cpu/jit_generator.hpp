@@ -633,6 +633,26 @@ public:
         vpaddd(x1, x2, op);
     }
 
+    void uni_vpmaddwd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+        pmaddwd(x1, op);
+    }
+    void uni_vpmaddwd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        vpmaddwd(x1, x2, op);
+    }
+
+    void uni_vpmaddubsw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+        pmaddubsw(x1, op);
+    }
+    void uni_vpmaddubsw(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        vpmaddubsw(x1, x2, op);
+    }
+
     void uni_vandps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op = Xbyak::Operand()) {
         assert(x1.getIdx() == x2.getIdx());

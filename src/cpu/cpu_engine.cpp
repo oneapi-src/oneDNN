@@ -37,6 +37,7 @@
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
+#include "cpu/jit_avx2_x8s8s32x_convolution.hpp"
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
@@ -193,6 +194,14 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, s32>),
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, u8>),
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, s8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, f32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, s32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, u8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, s8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, f32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, s32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, u8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, s8>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<u8, s32>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<u8, u8>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<u8, s8>),
