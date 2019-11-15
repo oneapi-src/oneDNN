@@ -1608,12 +1608,8 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 
 /// @}
 
-/// An auxiliary structure to specify primitive's inputs/outputs at execution
-///
-/// @warning
-///      With this API it's impossible to preserve constness of memory, so all
-///      memories are passed w/o const qualifier. However only memories with
-///      output semantics might be changed during the execution
+/// A structure that contains an index and a memory object, and is used to pass
+/// arguments to dnnl_primitive_execute().
 typedef struct {
     int arg; ///< An argument index, e.g. DNNL_ARG_SRC
     dnnl_memory_t memory; ///< Input/output memory
