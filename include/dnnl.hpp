@@ -627,8 +627,6 @@ inline dnnl_rnn_flags_t convert_to_c(rnn_flags flags) {
 DNNL_DEFINE_BITMASK_OPS(normalization_flags)
 DNNL_DEFINE_BITMASK_OPS(rnn_flags)
 
-#undef DNNL_DEFINE_BITMASK_OPS
-
 /// A direction of RNN primitive execution
 enum class rnn_direction {
     /// Unidirectional execution of RNN primitive from left to right.
@@ -1307,24 +1305,7 @@ struct stream : public handle<dnnl_stream_t> {
     }
 };
 
-inline stream::flags operator|(stream::flags lhs, stream::flags rhs) {
-    return static_cast<stream::flags>(
-            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
-}
-
-inline stream::flags operator&(stream::flags lhs, stream::flags rhs) {
-    return static_cast<stream::flags>(
-            static_cast<unsigned>(lhs) & static_cast<unsigned>(rhs));
-}
-
-inline stream::flags operator^(stream::flags lhs, stream::flags rhs) {
-    return static_cast<stream::flags>(
-            static_cast<unsigned>(lhs) ^ static_cast<unsigned>(rhs));
-}
-
-inline stream::flags operator~(stream::flags rhs) {
-    return static_cast<stream::flags>(~static_cast<unsigned>(rhs));
-}
+DNNL_DEFINE_BITMASK_OPS(stream::flags)
 
 /// @}
 
@@ -7342,6 +7323,8 @@ inline void primitive::execute(
             "could not execute a primitive");
 }
 /// @endcond
+
+#undef DNNL_DEFINE_BITMASK_OPS
 
 } // namespace dnnl
 
