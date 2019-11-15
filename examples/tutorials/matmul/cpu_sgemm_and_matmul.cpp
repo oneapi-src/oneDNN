@@ -79,7 +79,7 @@ void init_vector(std::vector<float> &v) {
 }
 
 int compare_vectors(const std::vector<float> &v1, const std::vector<float> &v2,
-        const char *message) {
+        int64_t K, const char *message) {
     double v1_l2 = 0, diff_l2 = 0;
     for (size_t n = 0; n < v1.size(); ++n) {
         float diff = v1[n] - v2[n];
@@ -89,7 +89,16 @@ int compare_vectors(const std::vector<float> &v1, const std::vector<float> &v2,
 
     v1_l2 = std::sqrt(v1_l2);
     diff_l2 = std::sqrt(diff_l2);
-    bool ok = diff_l2 / v1_l2 <= 1e-7;
+
+    // Finding the reasonable (tight and accurate) threshold is quite difficult
+    // problem.
+    // The implementation testing might also use special data filling to
+    // alleviate issues related to the finite precision arithmetic.
+    // However, in simple cases the machine epsilon multiplied by log(K) should
+    // work reasonably well.
+    const double threshold = std::numeric_limits<float>::epsilon()
+            * std::log(std::max(2., (double)K));
+    bool ok = diff_l2 <= threshold * v1_l2;
 
     printf("%s\n\tL2 Norms"
            "\n\t\tReference matrix:%g\n\t\tError:%g\n\t\tRelative_error:%g\n"
@@ -265,9 +274,11 @@ void sgemm_and_matmul_with_params(char transA, char transB, int64_t M,
                 ldc);
 
     int rc = 0;
-    rc |= compare_vectors(C_sgemm, C_dynamic_matmul, "SGEMM vs dynamic MatMul");
+    rc |= compare_vectors(
+            C_sgemm, C_dynamic_matmul, K, "Compare SGEMM vs dynamic MatMul");
     if (rc) throw std::logic_error("The resulting matrices diverged too much.");
-    rc |= compare_vectors(C_sgemm, C_static_matmul, "SGEMM vs static MatMul");
+    rc |= compare_vectors(
+            C_sgemm, C_static_matmul, K, "Compare SGEMM vs static MatMul");
     if (rc) throw std::logic_error("The resulting matrices diverged too much.");
 }
 
