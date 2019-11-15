@@ -59,7 +59,8 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
     dnnl_memory_desc_init_by_tag(&bd.data_scaleshift_desc, 2, scaleshift_dims,
             data_type::f32, dnnl_nc);
     bd.diff_data_scaleshift_desc = zero_md();
-    if (bd.prop_kind == backward) {
+
+    if (bd.prop_kind == backward && (flags & dnnl_use_scaleshift)) {
         bd.diff_data_scaleshift_desc = bd.data_scaleshift_desc;
     }
 

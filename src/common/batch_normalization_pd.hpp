@@ -266,7 +266,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
         return 4 + use_scaleshift() + fuse_norm_relu();
     }
     virtual int n_outputs() const override {
-        return 1 + (desc_.prop_kind == prop_kind::backward);
+        return 1 + (!types::is_zero_md(diff_weights_md()));
     }
 
 protected:
