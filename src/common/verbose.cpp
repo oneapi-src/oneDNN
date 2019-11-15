@@ -234,7 +234,7 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
 
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        DPRINT(str, len, written, "scratchpad_mode:%d;", spm);
+        DPRINT(str, len, written, "scratchpad_mode:%d;", (int)spm);
     }
 
     const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;

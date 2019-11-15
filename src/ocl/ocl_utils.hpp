@@ -87,7 +87,8 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
 #ifndef NDEBUG
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
-        if (get_verbose()) printf("dnnl_verbose,gpu,ocl_error,%d\n", s); \
+        if (get_verbose()) \
+            printf("dnnl_verbose,gpu,ocl_error,%d\n", (int)(s)); \
     } while (0)
 #define OCL_CHECK_V(x) \
     do { \
