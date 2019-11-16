@@ -57,10 +57,12 @@ dimensions as the \f$dst\f$.
 The MatMul primitive supports the following combinations of data
 types for source, destination, weights, and bias tensors:
 
-| Source | Weights | Destination      | Bias             |
-| :--    | :--     | :--              | :--              |
-| f32    | f32     | f32              | f32              |
-| u8, s8 | s8      | u8, s8, s32, f32 | u8, s8, s32, f32 |
+| Source | Weights  | Destination      | Bias             |
+| :--    | :--      | :--              | :--              |
+| f32    | f32      | f32              | f32              |
+| f16    | f16      | f16              | f16              |
+| bf16   | bf16     | bf16             | bf16, f32        |
+| u8, s8 | s8, u8   | u8, s8, s32, f32 | u8, s8, s32, f32 |
 
 ### Data Representation
 
@@ -121,7 +123,7 @@ argument with index set to
 
 1. Check @ref dev_guide_data_types.
 
-2. No GPU support
+2. CPU doesn't support bf16 yet nor does it support u8 data type for weights.
 
 ## Performance Tips
 
