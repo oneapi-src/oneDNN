@@ -109,7 +109,7 @@ int fill_src(
     };
 
     const auto nelems = mem_fp.nelems();
-    const int range = MIN2(get_range(p->sdt), get_range(p->ddt));
+    const int range = get_range(p->sdt);
     const int f_min = p->sdt == dnnl_u8 ? 0 : -range / 2;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
@@ -143,8 +143,8 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto dst_dt_d = q(dnnl_query_dst_md);
     const auto dst_data_type = dst_dt_d.data_type; // needed for deduced dst
-    dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_tgt),
-            dst_dt(dst_dt_d, engine_tgt);
+    dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_tgt);
+    dnn_mem_t dst_dt(dst_dt_d, engine_tgt);
 
     args_t args;
     args.set(DNNL_ARG_DST, dst_dt);
@@ -167,6 +167,13 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, dst_fp);
+
+        // convert dst_fp into target precision back and forth for proper
+        // answer comparison
+        dnn_mem_t dst_fp_dt(dst_fp, dst_data_type, tag, engine_tgt);
+        SAFE(dst_fp_dt.reorder(dst_fp), WARN);
+        SAFE(dst_fp.reorder(dst_fp_dt), WARN);
+
         dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
         SAFE(compare(p, dst_data_type, dst_fp, dst, r), WARN);
     }
