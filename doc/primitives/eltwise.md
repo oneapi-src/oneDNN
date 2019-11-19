@@ -2,7 +2,7 @@ Eltwise {#dev_guide_eltwise}
 ============================
 
 >
-> API reference: [C](@ref c_api_eltwise), [C++](@ref cpp_api_eltwise)
+> [API Reference](@ref dnnl_api_eltwise)
 >
 
 The eltwise primitive applies an operation to every element of the tensor:
@@ -50,7 +50,7 @@ The following operations are supported:
 | swish        | #dnnl_eltwise_swish        | \f$ f(x) = \frac{x}{1+e^{-\alpha x}} \f$
 | tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \tanh{x} \f$
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 There is no difference between the #dnnl_forward_training and
 #dnnl_forward_inference propagation kinds.

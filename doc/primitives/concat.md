@@ -2,7 +2,7 @@ Concat {#dev_guide_concat}
 ==========================
 
 >
-> API reference: [C](@ref c_api_concat), [C++](@ref cpp_api_concat)
+> [API Reference](@ref dnnl_api_concat)
 >
 
 The concat primitive concatenates \f$N\f$ tensors over `concat_axis` (here

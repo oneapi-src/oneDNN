@@ -2,7 +2,7 @@ Softmax {#dev_guide_softmax}
 ============================
 
 >
-> API reference: [C](@ref c_api_softmax), [C++](@ref cpp_api_softmax)
+> [API Reference](@ref dnnl_api_softmax)
 >
 
 The softmax primitive performs softmax along a particular axis on data with
@@ -35,7 +35,7 @@ where
         src(\overline{ou}, ic, \overline{in})
 \f]
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 There is no difference between the #dnnl_forward_training
 and #dnnl_forward_inference propagation kinds.

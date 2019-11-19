@@ -2,7 +2,7 @@ Matrix Multiplication {#dev_guide_matmul}
 =========================================
 
 >
-> API reference: [C](@ref c_api_matmul), [C++](@ref cpp_api_matmul)
+> [API Reference](@ref dnnl_api_matmul)
 >
 
 The matrix multiplication (MatMul) primitive computes the product of two
@@ -99,7 +99,7 @@ The following attributes and post-ops are supported:
 | :--       | :--                                                           | :--                    | :--
 | Attribute | [Output scales](@ref dnnl::primitive_attr::set_output_scales) |                        | Scales the result by given scale factor(s)
 | Attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)     | Int8 computations only | Sets zero point(s) for the corresponding tensors
-| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                |                        | Applies an @ref c_api_eltwise operation to the result
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                |                        | Applies an @ref dnnl_api_eltwise operation to the result
 | Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        |                        | Adds the operation result to the destination tensor instead of overwriting it
 
 To facilitate dynamic quantization, the primitive supports run-time output

@@ -2,7 +2,7 @@ Batch Normalization {#dev_guide_batch_normalization}
 ====================================================
 
 >
-> API reference: [C](@ref c_api_batch_normalization), [C++](@ref cpp_api_batch_normalization)
+> [API Reference](@ref dnnl_api_batch_normalization)
 >
 
 The batch normalization primitive performs a forward or backward batch
@@ -58,7 +58,7 @@ activation with zero negative slope applied to the result
   \f]
 
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
  * If mean and variance are computed at run-time (i.e., #dnnl_use_global_stats
    is not set), they become outputs for the propagation kind
@@ -184,7 +184,7 @@ normalization primitives:
 
 | Propagation | Type    | Operation | Description
 | :--         | :--     | :--       | :--
-| forward     | post-op | eltwise   | Applies an @ref c_api_eltwise operation to the result (currently only #dnnl_eltwise_relu algorithm is supported)
+| forward     | post-op | eltwise   | Applies an @ref dnnl_api_eltwise operation to the result (currently only #dnnl_eltwise_relu algorithm is supported)
 
 @note As mentioned in @ref dev_guide_attributes, the post-ops should be used
 for inference only. For instance, using ReLU as a post-op would not produce an

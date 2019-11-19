@@ -2,7 +2,7 @@ Pooling {#dev_guide_pooling}
 ============================
 
 >
-> API reference: [C](@ref c_api_pooling), [C++](@ref cpp_api_pooling)
+> [API Reference](@ref dnnl_api_pooling)
 >
 
 The pooling primitive performs forward or backward max or average pooling
@@ -45,7 +45,7 @@ Average pooling supports two algorithms:
 
 > TODO: a picture would be nice here.
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 - Max pooling requires `workspace` output for the #dnnl_forward_training
   propagation kind, and doesn't require it for #dnnl_forward_inference

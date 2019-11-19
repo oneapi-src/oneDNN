@@ -2,7 +2,7 @@ Binary {#dev_guide_binary}
 ====================
 
 >
-> API reference: [C](@ref c_api_binary), [C++](@ref cpp_api_binary)
+> [API Reference](@ref dnnl_api_binary)
 >
 
 The binary primitive computes an operation between source 0 and source 1

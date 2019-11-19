@@ -2,7 +2,7 @@ Sum {#dev_guide_sum}
 ====================
 
 >
-> API reference: [C](@ref c_api_sum), [C++](@ref cpp_api_sum)
+> [API Reference](@ref dnnl_api_sum)
 >
 
 The sum primitive sums \f$N\f$ tensors:

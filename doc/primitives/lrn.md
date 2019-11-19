@@ -2,7 +2,7 @@ Local Response Normalization (LRN) {#dev_guide_lrn}
 ====================================================
 
 >
-> API reference: [C](@ref c_api_lrn), [C++](@ref cpp_api_lrn)
+> [API Reference](@ref dnnl_api_lrn)
 >
 
 The LRN primitive performs a forward or backward local response normalization

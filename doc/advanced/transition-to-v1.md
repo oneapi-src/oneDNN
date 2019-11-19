@@ -163,7 +163,7 @@ of the [RFC for v1.0](https://github.com/intel/mkl-dnn/pull/384).
 
 ### 1.8. RNN-specific changes
 
-Each type of [RNN](@ref cpp_api_rnn) (Vanilla RNN, LSTM, and two types of GRU)
+Each type of [RNN](@ref dnnl_api_rnn) (Vanilla RNN, LSTM, and two types of GRU)
 is now initialized by a separate function/operation descriptor constructor.
 
 For instance, instead of using mkldnn::rnn_forward with specified RNN types
