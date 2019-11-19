@@ -39,7 +39,6 @@
 #define USE_MKL_PACKED_GEMM 0
 
 // TODO just to debug
-#define EMULATED_SCRATCHPAD 1
 #define WS_NAN_FILLING 0
 
 extern const char *ref_rnn_kernel;
@@ -218,9 +217,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                         &this->ws_md_, 1, ws_dims, data_type::u8, x);
             }
 
-#if !EMULATED_SCRATCHPAD
             init_scratchpad(scratchpad_sz);
-#endif
 
             rnn_conf_.acc_data_type = data_traits<acc_data_t>::data_type;
             rnn_conf_.acc_data_type_elsz = sizeof(acc_data_t);
@@ -352,7 +349,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.book(key_rnn_space, sizeof(float) * scratchpad_sz, 4096);
+            scratchpad.book(key_rnn_space, scratchpad_sz, 4096);
         }
 
         void copy_from(const pd_t &other) {
@@ -484,14 +481,6 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
         if (!gemm_ok) return status::runtime_error;
 
-#if EMULATED_SCRATCHPAD
-        if (!pd()->rnn_conf_.use_workspace) {
-            size_t scratchpad_sz {0}, ws_sz {0};
-            get_scratchpad_and_workspace_sizes(
-                    pd()->rnn_conf_, scratchpad_sz, ws_sz);
-            engine()->create_memory_storage(&scratchpad_, scratchpad_sz);
-        }
-#endif
         return status::success;
     } // status_t init() override
 
@@ -559,9 +548,6 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
     ~_ref_rnn_common_t() {
         delete ker_;
-#if EMULATED_SCRATCHPAD
-        if (!pd()->rnn_conf_.use_workspace) { delete scratchpad_; }
-#endif
         free(offset_wei_input_);
         free(offset_wei_state_);
 
@@ -653,7 +639,6 @@ private:
     primitive_t *gemm_diff_wei_layer_ = nullptr;
     primitive_t *gemm_diff_wei_iter_ = nullptr;
 
-    memory_storage_t *scratchpad_;
     std::unique_ptr<memory_storage_t> scales_buf_;
     std::unique_ptr<memory_storage_t> tm_scales_buf_;
 

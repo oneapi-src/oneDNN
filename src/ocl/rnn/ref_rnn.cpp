@@ -44,6 +44,7 @@ using namespace dnnl::impl::math;
 using namespace prop_kind;
 using namespace alg_kind;
 using namespace rnn_utils;
+using namespace dnnl::impl::memory_tracking::names;
 
 #define AOC array_offset_calculator
 
@@ -73,7 +74,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     get_scratchpad_and_workspace_sizes(pd()->rnn_conf_, scratchpad_sz, ws_sz);
     dims_t scratchpad_dims = {(int)scratchpad_sz};
     dnnl_memory_desc_init_by_tag(
-            &scratchpad_md, 1, scratchpad_dims, src_type, format_tag::x);
+            &scratchpad_md, 1, scratchpad_dims, data_type::u8, format_tag::x);
 
     void *mem_storage_scratchpad = nullptr;
 
@@ -84,7 +85,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     if (pd()->rnn_conf_.use_workspace) {
         workspace->memory_storage()->get_data_handle(&mem_storage_scratchpad);
     } else {
-        scratchpad_->get_data_handle(&mem_storage_scratchpad);
+        auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_rnn_space);
+        scratchpad->get_data_handle(&mem_storage_scratchpad);
     }
     void *mem_storage_weights = nullptr;
     memory_t *weights = nullptr;
@@ -569,14 +572,12 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto &diff_dst_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER);
     auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER_C);
 
+    auto scratchpad
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_space);
     auto &workspace_ = rnn.is_training ? is_fwd
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
-#if !EMULATED_SCRATCHPAD
-                                       : CTX_IN_STORAGE(DNNL_ARG_SCRATCHPAD);
-#else
-                                       : *scratchpad_;
-#endif
+                                       : *scratchpad.get();
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
