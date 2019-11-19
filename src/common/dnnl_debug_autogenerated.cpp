@@ -59,7 +59,7 @@ const char *dnnl_fmt_kind2str(dnnl_format_kind_t v) {
 
 const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_format_tag_undef) return "undef";
-    if (v == dnnl_format_tag_any) return "format_tag_any";
+    if (v == dnnl_format_tag_any) return "any";
     if (v == dnnl_a) return "a";
     if (v == dnnl_ab) return "ab";
     if (v == dnnl_abc) return "abc";
@@ -466,7 +466,7 @@ const char *dnnl_rnn_direction2str(dnnl_rnn_direction_t v) {
 }
 
 const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
-    if (v == dnnl_any_engine) return "any_engine";
+    if (v == dnnl_any_engine) return "any";
     if (v == dnnl_cpu) return "cpu";
     if (v == dnnl_gpu) return "gpu";
     assert(!"unknown engine_kind");

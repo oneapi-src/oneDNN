@@ -185,6 +185,8 @@ def enum_abbrev(enum):
 def sanitize_value(v):
     if 'undef' in v:
         return 'undef'
+    if 'any' in v:
+        return 'any'
     v = v.split('dnnl_format_kind_')[-1]
     v = v.split('dnnl_')[-1]
     return v
