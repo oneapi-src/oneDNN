@@ -72,7 +72,7 @@ namespace {
 void init_vector(std::vector<float> &v) {
     std::random_device rdev;
     std::mt19937 gen(rdev());
-    std::uniform_real_distribution<> u(-1, 1);
+    std::uniform_real_distribution<float> u(-1, 1);
 
     for (auto &e : v)
         e = u(gen);

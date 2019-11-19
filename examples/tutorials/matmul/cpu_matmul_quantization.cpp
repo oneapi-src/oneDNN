@@ -134,7 +134,7 @@ namespace {
 void init_vector(std::vector<float> &v, float min_value, float max_value) {
     std::random_device rdev;
     std::mt19937 gen(rdev());
-    std::uniform_real_distribution<> u(min_value, max_value);
+    std::uniform_real_distribution<float> u(min_value, max_value);
 
     for (auto &e : v)
         e = u(gen);
@@ -430,10 +430,10 @@ void compare_f32_and_quantized_matmuls() {
     const int64_t M = 10, N = 20, K = 30;
 
     // Data distribution for matrices A and B
-    const float param_A_min_val = -2;
-    const float param_A_max_val = 1.4;
+    const float param_A_min_val = -2.f;
+    const float param_A_max_val = 1.4f;
 
-    const float param_B_min_val = -1;
+    const float param_B_min_val = -1.f;
     const float param_B_max_val = -param_B_min_val; // B is centered around 0
 
     // Thresholds
@@ -442,8 +442,8 @@ void compare_f32_and_quantized_matmuls() {
     // than for dynamic quantization. However, we will slightly cheat on the
     // guessed q10n parameters of matrix C (see below), so we will get pretty
     // good accuracy as well.
-    const float threshold_dynamic_q10n = 2 * 1e-2;
-    const float threshold_static_q10n = 4 * 1e-2;
+    const float threshold_dynamic_q10n = 2 * 1e-2f;
+    const float threshold_static_q10n = 4 * 1e-2f;
 
     // Prepare matrices
     std::vector<float> A_f32(M * K), B_f32(K * N), C_f32(M * N, 0);
