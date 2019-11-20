@@ -215,7 +215,6 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
     Label skip_kh_loop;
 
     if (jcp.ndims == 5) {
-        push(reg_out);
         mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
         mov(aux_reg_ker_d, reg_ker);
         mov(aux_reg_inp_d, reg_inp);
@@ -281,6 +280,8 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
         jg(kh_label, T_NEAR);
     }
 
+    L(skip_kh_loop);
+
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d,
                 jcp.typesize_in * (jcp.dilate_d + 1) * jcp.ih * jcp.iw * jcp.ic_block);
@@ -290,11 +291,7 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
         dec(reg_ki);
         cmp(reg_ki, 0);
         jg(kd_label, T_NEAR);
-
-        pop(reg_out);
     }
-
-    L(skip_kh_loop);
 
     // End of IC Loop
     size_t inp_step = (size_t)jcp.id * jcp.ih * jcp.iw * jcp.ic_block;
