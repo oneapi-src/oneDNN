@@ -99,7 +99,7 @@ private:
     reg64_t reg_bias = rbx;
 
     reg64_t reg_kj = abi_not_param1;
-    reg64_t reg_ki = reg_out;
+    reg64_t reg_ki = reg_bias;
     reg64_t reg_oi = rdx;
     reg64_t reg_kh = rsi;
 
