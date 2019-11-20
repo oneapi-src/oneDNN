@@ -69,7 +69,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 	endif()
 endif()
 
-# XXX: Compilation with DPC++ compiler takes too long for JIT kernels
+# XXX: Compilation with Intel(R) oneAPI DPC++ Compiler takes too long for JIT kernels
 if(DNNL_SYCL_DPCPP)
     set(FILES_WITHNO_OPT)
     foreach(src in ${SOURCES})
