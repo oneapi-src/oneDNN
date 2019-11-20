@@ -292,15 +292,27 @@ struct driver_t : public c_compatible {
         const int vlen = cpu_isa_traits<isa>::vlen;
         const int simd_w = vlen / sizeof(data_t);
         const dim_t nelems0_simd = nelems0 / simd_w;
-        const dim_t nelems0_simd_tail = nelems0 - nelems0_simd * simd_w;
+        const dim_t nelems0_tail = nelems0 % simd_w;
+        bool has_tail = nelems0_tail > 0;
 
         dim_t start = 0, end = 0;
-        balance211(nelems0_simd, nthr, ithr, start, end);
+        balance211(nelems0_simd + has_tail, nthr, ithr, start, end);
+        if (start >= end) return;
 
-        const dim_t spat_offt_count_tail
-                = end == nelems0_simd && end > start ? nelems0_simd_tail : 0;
-        p.spat_offt_count = ((end - start) * simd_w + spat_offt_count_tail)
-                * sizeof(data_t);
+        dim_t spat_offt_count = ((end - start) * simd_w) * sizeof(data_t);
+
+        if (has_tail) {
+            if (nelems0_simd == 0) {
+                // there is only tail
+                spat_offt_count = nelems0_tail;
+            } else if (end == nelems0_simd + has_tail) {
+                // last thread takes care of tail
+                spat_offt_count = ((end - start - 1) * simd_w) * sizeof(data_t)
+                        + nelems0_tail;
+            }
+        }
+
+        p.spat_offt_count = spat_offt_count;
         p.src0 = src0 + start * simd_w;
         p.src1 = src1 + start * simd_w;
         p.dst = dst + start * simd_w;
