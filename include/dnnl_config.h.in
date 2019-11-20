@@ -111,7 +111,7 @@
 #    endif
 #endif
 
-// When defined, DPC++ is used.
+// When defined, oneAPI DPC++ Compiler is used.
 #cmakedefine DNNL_SYCL_DPCPP
 
 // When defined, ComputeCpp SYCL is used.

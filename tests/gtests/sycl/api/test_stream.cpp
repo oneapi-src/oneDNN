@@ -73,7 +73,8 @@ TEST_F(sycl_stream_test, BasicInterop) {
     {
         stream s(*eng, interop_sycl_queue);
 
-        // TODO: enable the following check when DPC++ adds support for it
+        // TODO: enable the following check when Intel(R) oneAPI DPC++ Compiler
+        // adds support for it
 #if 0
         auto ref_count = interop_sycl_queue.get_info<info::queue::reference_count>();
         EXPECT_EQ(ref_count, 2);
@@ -83,7 +84,8 @@ TEST_F(sycl_stream_test, BasicInterop) {
         EXPECT_EQ(sycl_queue, interop_sycl_queue);
     }
 
-    // TODO: enable the following check when DPC++ adds support for it
+    // TODO: enable the following check when Intel(R) oneAPI DPC++ Compiler adds
+    // support for it
 #if 0
     auto ref_count = interop_sycl_queue.get_info<info::queue::reference_count>();
     EXPECT_EQ(ref_count, 1);

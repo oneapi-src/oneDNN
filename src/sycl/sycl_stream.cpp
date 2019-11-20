@@ -67,9 +67,9 @@ status_t sycl_stream_t::init() {
         auto &sycl_ctx = sycl_engine.context();
         auto &sycl_dev = sycl_engine.device();
 
-        // FIXME: workaround for DPC++
-        // DPC++ does not work with multiple queues so try to reuse
-        // the service stream from the engine.
+        // FIXME: workaround for Intel(R) oneAPI DPC++ Compiler
+        // Intel(R) oneAPI DPC++ Compiler does not work with multiple queues so
+        // try to reuse the service stream from the engine.
         // That way all MKL-DNN streams constructed without interop API are
         // mapped to the same SYCL queue.
         // If service stream is NULL then the current stream will be service

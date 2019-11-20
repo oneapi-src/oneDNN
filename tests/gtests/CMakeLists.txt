@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-# XXX: DPC++ compiler doesn't support SEH with -fsycl option
+# XXX: Intel(R) oneAPI DPC++ Compiler doesn't support SEH with -fsycl option
 if(WIN32 AND DNNL_SYCL_DPCPP)
     add_definitions(-DGTEST_HAS_SEH=0)
 endif()

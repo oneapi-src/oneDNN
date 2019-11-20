@@ -187,9 +187,10 @@ TEST_P(sycl_memory_test, InteropReorder) {
     }
 }
 
-// FIXME: DPC++ does not support compilation with host compiler and
-// DPC++ does not support mixing fat binaries and host binaries.
-// So the test is enabled for ComputeCpp SYCL only
+// FIXME: Intel(R) oneAPI DPC++ Compiler does not support compilation with host
+// compiler and
+// Intel(R) oneAPI DPC++ Compiler does not support mixing fat binaries and host
+// binaries. So the test is enabled for ComputeCpp SYCL only
 #ifdef DNNL_SYCL_COMPUTECPP
 TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
     engine::kind eng_kind = GetParam();
