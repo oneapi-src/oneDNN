@@ -70,9 +70,14 @@ both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
 #### TBB
-To build DNNL with TBB support, set the `TBBROOT` environmental
-variable to point to the TBB installation path or pass the path directly to
-cmake:
+To build DNNL with TBB support, set `DNNL_CPU_RUNTIME` to `TBB`:
+
+~~~sh
+$ cmake -DDNNL_CPU_RUNTIME=TBB ..
+~~~
+
+Optionally, set the `TBBROOT` environmental variable to point to the TBB
+installation path or pass the path directly to CMake:
 
 ~~~sh
 $ cmake -DDNNL_CPU_RUNTIME=TBB -DTBBROOT=/opt/intel/path/tbb ..
@@ -83,11 +88,11 @@ limitations if built with Intel TBB.
 
 Functional limitations:
 * Winograd convolution algorithm is not supported for fp32 backward
-by data and backward by weights propogation.
+  by data and backward by weights propagation.
 
 ## GPU Options
 Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine
-is disabled in the default build configuration. 
+is disabled in the default build configuration.
 
 ### Runtimes
 To enable GPU support you need to specify the GPU runtime by setting
