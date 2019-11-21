@@ -213,7 +213,9 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
         }
     }
     mov(reg_kj, reg_kh);
-    if ((jcp.kh - 1) * (jcp.dilate_h + 1) < nstl::max(jcp.t_pad, jcp.b_pad)) {
+    if ((jcp.dilate_h >= jcp.ih)
+            || (jcp.kh - 1) * (jcp.dilate_h + 1)
+                    < nstl::max(jcp.t_pad, jcp.b_pad)) {
         cmp(reg_kj, 0);
         je(skip_compute_loop, T_NEAR);
     }
@@ -222,8 +224,6 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
     Label icb_label;
     mov(reg_icb, jcp.nb_ic);
     L(icb_label);
-
-    Label skip_kh_loop;
 
     if (jcp.ndims == 5) {
         mov(reg_ki, ptr[param1 + GET_OFF(kd_padding)]);
@@ -239,12 +239,6 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
     }
 
     mov(reg_kj, reg_kh);
-    if ((jcp.dilate_h >= jcp.ih)
-            || (jcp.kh - 1) * (jcp.dilate_h + 1)
-                    < nstl::max(jcp.t_pad, jcp.b_pad)) {
-        cmp(reg_kj, 0);
-        je(skip_kh_loop, T_NEAR);
-    }
 
     L(kh_label);
     {
@@ -280,8 +274,6 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
     }
-
-    L(skip_kh_loop);
 
     if (jcp.ndims == 5) {
         add(aux_reg_inp_d,
