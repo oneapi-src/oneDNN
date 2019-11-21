@@ -1431,18 +1431,21 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     // tune ur_w such that penultimate ur_w block (including ur_w_tail)
     // does not read past the end of src
-    const int broadcast_size = 4;
-    if (!jcp.is_depthwise && jcp.ic_without_padding % broadcast_size != 0) {
+    constexpr int broadcast_size = 4;
+    const bool leeway_check_needed = true && !jcp.is_depthwise
+            && jcp.ur_w < jcp.ow
+            && jcp.ic_without_padding % broadcast_size != 0;
+    if (leeway_check_needed) {
         while (jcp.ur_w > 0) {
+            int last_block_size
+                    = (jcp.ow % jcp.ur_w == 0) ? jcp.ur_w : jcp.ow % jcp.ur_w;
             int penultimate_iw_index
-                    = (jcp.ow - 1 - jcp.ow % jcp.ur_w) * jcp.stride_w
+                    = (jcp.ow - 1 - last_block_size) * jcp.stride_w
                     + (jcp.kw - 1) * (jcp.dilate_w + 1) - jcp.l_pad;
             int penultimate_iw_leeway = (jcp.iw - 1 - penultimate_iw_index)
                             * jcp.ic_without_padding
                     + jcp.ic_without_padding % broadcast_size;
-            if (penultimate_iw_leeway <= 0
-                    || penultimate_iw_leeway >= broadcast_size)
-                break;
+            if (penultimate_iw_leeway >= broadcast_size) break;
             --jcp.ur_w;
         }
 
