@@ -133,12 +133,23 @@ install(CODE "execute_process(COMMAND ${CMAKE_COMMAND}
 
 # MKL-DNN compat libraries
 if (WIN32)
+    if (NOT MINGW)
+        set(prefix "")
+        set(ext "lib")
+    else()
+        set(prefix "lib")
+        if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
+            set(ext "dll.a")
+        else()
+            set(ext "a")
+        endif()
+    endif()
     add_custom_target(compat_libs ALL
         ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE_DIR:${LIB_NAME}>/dnnl.lib
-        $<TARGET_FILE_DIR:${LIB_NAME}>/mkldnn.lib
+        $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}dnnl.${ext}
+        $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn.${ext}
         DEPENDS ${LIB_NAME})
-    install(FILES $<TARGET_FILE_DIR:${LIB_NAME}>/mkldnn.lib
+    install(FILES $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn.${ext}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
 else()
     if(DNNL_LIBRARY_TYPE STREQUAL "SHARED")
