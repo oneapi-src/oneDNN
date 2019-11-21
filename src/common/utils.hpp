@@ -238,23 +238,29 @@ inline R array_product(const T *arr, size_t size) {
     return prod;
 }
 
-/** sorts an array of values using @p comparator. While sorting the array
- * of value, the function permutes an array of @p keys accordingly.
- *
- * @note The arrays of @p keys can be omitted. In this case the function
- *       sorts the array of @vals only.
+/* Sorts an array of @p vals using @p comparator. Uses @p vals_2nd_level as a
+ * second level comparing criteria in case comparator returns 0 (equal values)
+ * for @p vals elements.
+ * While sorting the array of @p vals, the function permutes an array of
+ * @p vals_2nd_level and @p keys accordingly.
  */
 template <typename T, typename U, typename F>
-inline void simultaneous_sort(T *vals, U *keys, size_t size, F comparator) {
+inline void simultaneous_sort(
+        T *vals, T *vals_2nd_level, U *keys, size_t size, F comparator) {
     if (size == 0) return;
 
     for (size_t i = 0; i < size - 1; ++i) {
         bool swapped = false;
 
         for (size_t j = 0; j < size - i - 1; j++) {
-            if (comparator(vals[j], vals[j + 1]) > 0) {
+            auto res = comparator(vals[j], vals[j + 1]);
+            if (res == 0)
+                res = comparator(vals_2nd_level[j], vals_2nd_level[j + 1]);
+
+            if (res > 0) {
                 nstl::swap(vals[j], vals[j + 1]);
-                if (keys) nstl::swap(keys[j], keys[j + 1]);
+                nstl::swap(vals_2nd_level[j], vals_2nd_level[j + 1]);
+                nstl::swap(keys[j], keys[j + 1]);
                 swapped = true;
             }
         }

@@ -490,11 +490,16 @@ inline status_t memory_desc_init_by_blocking_desc(
     const int ndims = nstl::min(DNNL_MAX_NDIMS, md.ndims); // make GCC 5 happy
     utils::array_copy(mblk.strides, blk.strides, ndims);
 
-    int perm[DNNL_MAX_NDIMS];
-    for (int d = 0; d < ndims; ++d)
-        perm[d] = d;
+    dims_t ou_blocks;
+    utils::array_copy(ou_blocks, md.padded_dims, ndims);
 
-    utils::simultaneous_sort(mblk.strides, perm, ndims,
+    int perm[DNNL_MAX_NDIMS];
+    for (int d = 0; d < ndims; ++d) {
+        perm[d] = d;
+        ou_blocks[d] /= blocks[d];
+    }
+
+    utils::simultaneous_sort(mblk.strides, ou_blocks, perm, ndims,
             [](stride_t a, stride_t b) { return b - a; });
 
     dim_t stride = block_size;

@@ -121,12 +121,21 @@ struct simple_concat_t : public primitive_impl_t {
             const memory_desc_wrapper dst_d(dst_md());
             const int ndims = dst_d.ndims();
 
+            dims_t blocks;
+            dst_d.compute_blocks(blocks);
+
             strides_t strides;
             utils::array_copy(strides, dst_d.blocking_desc().strides, ndims);
-            for (int i = 0; i < ndims; i++)
-                iperm_[i] = i;
 
-            utils::simultaneous_sort(strides, iperm_, ndims,
+            dims_t ou_blocks;
+            utils::array_copy(ou_blocks, dst_d.padded_dims(), ndims);
+
+            for (int d = 0; d < ndims; d++) {
+                iperm_[d] = d;
+                ou_blocks[d] /= blocks[d];
+            }
+
+            utils::simultaneous_sort(strides, ou_blocks, iperm_, ndims,
                     [](stride_t a, stride_t b) { return b - a; });
 
             for (int i = 0; i < ndims; i++)

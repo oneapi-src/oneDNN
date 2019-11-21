@@ -176,3 +176,12 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
     zero_points_m = dnn_mem_t(1, &count, dnnl_s32, dnnl_a, engine);
     ((int *)zero_points_m)[0] = attr.zero_points[arg];
 }
+
+bool check_md_consistency_with_tag(
+        const dnnl_memory_desc_t &md, dnnl_format_tag_t tag) {
+    dnnl_memory_desc_t md_new_tag;
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                     &md_new_tag, md.ndims, md.dims, md.data_type, tag),
+            WARN);
+    return dnnl_memory_desc_equal(&md_new_tag, &md);
+}

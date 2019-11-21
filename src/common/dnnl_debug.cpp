@@ -74,15 +74,20 @@ int dnnl_md2fmt_str(
 
         char dim_chars[DNNL_MAX_NDIMS + 1];
 
+        dims_t ou_blocks;
+        utils::array_copy(ou_blocks, md.padded_dims(), md.ndims());
+
         bool plain = true;
         for (int d = 0; d < md.ndims(); ++d) {
             dim_chars[d] = (blocks[d] == 1 ? 'a' : 'A') + (char)d;
             if (blocks[d] != 1) plain = false;
+            ou_blocks[d] /= blocks[d];
         }
 
         dims_t strides;
         utils::array_copy(strides, blk.strides, md.ndims());
-        utils::simultaneous_sort(strides, dim_chars, md.ndims(),
+
+        utils::simultaneous_sort(strides, ou_blocks, dim_chars, md.ndims(),
                 [](dim_t a, dim_t b) { return b - a; });
 
         dim_chars[md.ndims()] = '\0';
