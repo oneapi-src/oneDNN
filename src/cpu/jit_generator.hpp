@@ -317,11 +317,14 @@ public:
     void uni_vmovss(const Xbyak::Address &addr, const Xbyak::Ymm &x) {
         vmovss(addr, Xbyak::Xmm(x.getIdx()));
     }
-    void uni_vmovss(const Xbyak::Xmm &x, const Xbyak::Address &addr) {
-        movss(x, addr);
+    void uni_vmovss(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
+        movss(x, op);
     }
     void uni_vmovss(const Xbyak::Ymm &x, const Xbyak::Address &addr) {
         vmovss(Xbyak::Xmm(x.getIdx()), addr);
+    }
+    void uni_vmovss(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2) {
+        vmovss(Xbyak::Xmm(x1.getIdx()), Xbyak::Xmm(x2.getIdx()));
     }
 
     void uni_vmovsd(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
