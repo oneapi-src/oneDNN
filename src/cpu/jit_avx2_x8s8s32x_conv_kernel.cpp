@@ -444,6 +444,7 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_data(data_type_t type_out,
         const Vmm &r_vmm, const Reg64 &reg, int offset, bool mask_flag) {
 
     auto addr = ptr[reg + offset];
+    constexpr bool uses_ymm_template = std::is_same<Vmm, Ymm>::value;
     const Ymm r_ymm = Ymm(r_vmm.getIdx());
     const Xmm r_xmm = Xmm(r_vmm.getIdx());
 
@@ -453,10 +454,10 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_data(data_type_t type_out,
     switch (type_out) {
         case data_type::f32:
         case data_type::s32:
-            if (!mask_flag)
-                vmovdqu(addr, r_vmm);
-            else
+            if (mask_flag)
                 store_dwords(r_vmm, reg, offset, tail_size);
+            else
+                vmovdqu(addr, r_vmm);
             break;
         case data_type::u8:
         case data_type::s8:
@@ -468,10 +469,12 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_data(data_type_t type_out,
             else
                 vpackuswb(r_vmm, r_vmm, r_vmm);
 
-            if (!mask_flag)
+            if (mask_flag)
+                store_bytes(r_vmm, reg, offset, tail_size);
+            else if (uses_ymm_template)
                 vmovq(addr, r_xmm);
             else
-                store_bytes(r_vmm, reg, offset, tail_size);
+                vmovd(addr, r_xmm);
             break;
 
         default: assert(!"unknown dst_dt");
@@ -486,25 +489,25 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::load_data(data_type_t type_in,
     assert(IMPLICATION(mask_flag, tail_size > 0));
 
     const auto op = ptr[reg + offset];
+
     switch (type_in) {
         case data_type::f32:
         case data_type::s32:
-            if (!mask_flag)
-                vmovdqu(vmm_in, op);
-            else
+            if (mask_flag)
                 load_dwords(vmm_in, reg, offset, tail_size);
+            else
+                vmovdqu(vmm_in, op);
             break;
         case data_type::s8:
         case data_type::u8:
-            if (!mask_flag) {
+            if (mask_flag)
+                load_bytes_to_dword_extension(vmm_in, reg, offset,
+                        type_in == data_type::s8, tail_size);
+            else {
                 if (type_in == data_type::s8)
                     vpmovsxbd(vmm_in, op);
                 else
                     vpmovzxbd(vmm_in, op);
-
-            } else {
-                load_bytes_to_dword_extension(vmm_in, reg, offset,
-                        type_in == data_type::s8, tail_size);
             }
             break;
 
@@ -1299,8 +1302,8 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         } else if (!is_1d && jcp.ngroups != 1 && jcp.ic % jcp.ic_block != 0) {
             /* For grouped convolutions, DNNL doesn't support padding.
              * Use Ymm when channels per group is multiple of 8,
-             * (Future) Xmm when channels per group is multiple of 4 */
-            jcp.ic_block = 8;
+             * Xmm when channels per group is multiple of 4 */
+            jcp.ic_block = jcp.ic % 8 == 0 ? 8 : 4;
             jcp.oc_block = jcp.ic_block;
         }
         if (jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0)
