@@ -48,6 +48,18 @@ const char *direction2str(dnnl_rnn_direction_t direction);
 const int H = 0;
 const int C = 1;
 
+// Gates indices
+enum {
+    LSTM_I = 0,
+    LSTM_F = 1,
+    LSTM_C = 2,
+    LSTM_O = 3,
+    GRU_U = 0,
+    GRU_R = 1,
+    GRU_O = 2,
+    LBR_GRU_U_PRIME = 3,
+};
+
 template <typename Telem>
 struct array_offset_calculator {
     template <typename... Targs>
