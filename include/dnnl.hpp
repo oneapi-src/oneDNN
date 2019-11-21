@@ -483,6 +483,8 @@ enum class algorithm {
     eltwise_gelu = dnnl_eltwise_gelu,
     /// Eltwise: natural logarithm
     eltwise_log = dnnl_eltwise_log,
+    /// Eltwise: clip
+    eltwise_clip = dnnl_eltwise_clip,
     /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = dnnl_lrn_across_channels,
     /// LRN within a single channel

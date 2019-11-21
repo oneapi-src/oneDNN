@@ -26,6 +26,11 @@ The following operations are supported:
                                                             x & \text{if}\ 0 < x \leq \alpha \\
                                                             0 & \text{if}\ x \leq 0
                                                          \end{cases} \f$
+| clip         | #dnnl_eltwise_clip         | \f$ f(x) = \begin{cases}
+                                                            \beta & \text{if}\ x > \beta, \beta \geq \alpha \\
+                                                            x & \text{if}\ \alpha < x \leq \beta \\
+                                                            \alpha & \text{if}\ x \leq \alpha
+                                                         \end{cases} \f$
 | elu          | #dnnl_eltwise_elu          | \f$ f(x) = \begin{cases}
                                                             x & \text{if}\ x > 0 \\
                                                             \alpha (e^x - 1) & \text{if}\ x \leq 0

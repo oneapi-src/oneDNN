@@ -16,9 +16,9 @@ where *eltwise-knobs* are:
  - `--alg={RELU [default], ...}` -- dnnl_eltwise algorithm.
             Refer to ``doc/primitives/eltwise.md`` for details.
  - `--alpha=FLOAT` -- float value corresponding to algorithm operation.
-            Refer to ``Scales`` below.
+            Refer to ``Floating point arguments`` below.
  - `--beta=FLOAT` -- float value corresponding to algorithm operation.
-            Refer to ``Scales`` below.
+            Refer to ``Floating point arguments`` below.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
@@ -35,13 +35,22 @@ following logical dimensions: N, C, D, H, W. Consider removing each `xN` from
 the end to specify fewer dimensions.
 
 
-## Scales
-Some algorithms support `alpha` scale multiplication such as RELU, ELU, BRELU,
-and LINEAR. LINEAR also supports `beta` scale. All other algorithms will
-silently skip the run if `alpha` or `beta` are specified but their values are
-not equal to `0`. The same works for algorithms that support `alpha` but do not
-support `beta`. The default set of scales for `alpha` and `beta` is
-{0, 0.25, 2}.
+## Floating point arguments
+Some operations support `alpha` argument such as `BRELU`, `CLIP`, `ELU`,
+`LINEAR` and `RELU`. `CLIP` and `LINEAR` also support `beta` argument.
+
+The `alpha` and `beta` parameters should meet algorithm requirements, otherwise
+the problem will be silently skipped. For instance:
+* An algorithm does not use `alpha`, but non-zero value is used;
+* An algorithm does not use `beta`, but non-zero value is used;
+* An algorithm expects `alpha` is non-negative, but negative value is used;
+* An algorithm expects `alpha` is less than or equal to `beta`, but `alpha`
+    value greater than `beta` is used;
+
+This behavior allows using `,` (comma) operator to run multiple configurations
+without dealing with the corner cases.
+
+The default set for `alpha` and `beta` is {0, 0.25, -0.25}.
 
 
 ## Essence of Testing

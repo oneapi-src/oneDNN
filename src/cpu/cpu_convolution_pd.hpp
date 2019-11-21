@@ -45,9 +45,10 @@ struct cpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
     bool wants_zero_pad_dst() const {
         if (!has_padded_dst()) return false;
         const auto &po = attr()->post_ops_;
-        int idx;
-        if ((idx = po.find(primitive_kind::eltwise)) == -1) return false;
-        return !math::eltwise_fwd_preserves_zero(po.entry_[idx].eltwise.alg);
+        int idx = po.find(primitive_kind::eltwise);
+        if (idx == -1) return false;
+        const auto &ee = po.entry_[idx].eltwise;
+        return !math::eltwise_fwd_preserves_zero(ee.alg, ee.alpha, ee.beta);
     }
 };
 

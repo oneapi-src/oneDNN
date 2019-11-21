@@ -666,7 +666,8 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         assert(utils::one_of(desc.alg_kind, eltwise_tanh, eltwise_elu,
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log));
+                eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
+                eltwise_clip));
 
         preamble();
 
@@ -809,7 +810,8 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
             && utils::one_of(desc()->alg_kind, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log)
+                    eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
+                    eltwise_clip)
             && utils::one_of(d_type, bf16, f32);
 
     bool ok = true && mayiuse(isa) && is_fwd()

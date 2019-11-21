@@ -69,7 +69,7 @@ __kernel void ref_eltwise_fwd(
 }
 
 __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst, float alpha) {
+        __global DATA_T *diff_dst, float alpha, float beta) {
     const int i = get_global_id(0);
 
     int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0;
@@ -96,5 +96,5 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     POST_OP_DATA_T tmp_dd = DATA_TO_REF(diff_dst[diff_data_off]);
     POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
 
-    diff_src[diff_data_off] = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha));
+    diff_src[diff_data_off] = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
 }

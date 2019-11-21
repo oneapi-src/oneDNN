@@ -141,6 +141,7 @@ struct attr_t {
             GELU,
             SWISH,
             LOG,
+            CLIP,
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);

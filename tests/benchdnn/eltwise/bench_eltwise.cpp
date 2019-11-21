@@ -92,8 +92,11 @@ void check_correctness() {
             case pk::BRELU:
                 // Test non-negative alpha value but beta = 0
                 if (i_alpha < 0 || i_beta != 0) continue;
+            case pk::CLIP:
+                // Test beta >= alpha values
+                if (i_beta < i_alpha) continue;
 
-            default:; // Test both alpha and beta
+            default:; // Test any alpha and beta values
         };
 
         const prb_t p(dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,

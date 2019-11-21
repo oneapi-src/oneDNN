@@ -157,6 +157,16 @@ POST_OP_DATA_T log_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd / s;
 }
 
+POST_OP_DATA_T clip_fwd(
+        POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+    s = s > alpha ? s : alpha;
+    return s > beta ? beta : s;
+}
+POST_OP_DATA_T clip_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s,
+        POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+    return dd * (alpha < s && s < beta ? 1 : 0);
+}
+
 POST_OP_DATA_T fwd_eltwise(
         POST_OP_DATA_T x, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
 #ifdef ALG_KIND
@@ -175,6 +185,7 @@ POST_OP_DATA_T fwd_eltwise(
         case GELU: return gelu_fwd(x); break;
         case SWISH: return swish_fwd(x, alpha_); break;
         case LOG: return log_fwd(x); break;
+        case CLIP: return clip_fwd(x, alpha_, beta_); break;
         default: return x; break;
     }
 #else
@@ -183,7 +194,7 @@ POST_OP_DATA_T fwd_eltwise(
 }
 
 POST_OP_DATA_T bwd_eltwise(
-        POST_OP_DATA_T x, POST_OP_DATA_T y, POST_OP_DATA_T alpha_) {
+        POST_OP_DATA_T x, POST_OP_DATA_T y, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
 #ifdef ALG_KIND
     switch (ALG_KIND) {
         case RELU: return relu_bwd(x, y, alpha_); break;
@@ -200,6 +211,7 @@ POST_OP_DATA_T bwd_eltwise(
         case GELU: return gelu_bwd(x, y); break;
         case SWISH: return swish_bwd(x, y, alpha_); break;
         case LOG: return log_bwd(x, y); break;
+        case CLIP: return clip_bwd(x, y, alpha_, beta_); break;
         default: return x; break;
     }
 #else

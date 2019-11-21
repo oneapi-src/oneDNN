@@ -120,7 +120,8 @@ struct eltwise_fwd_pd_t : public eltwise_pd_t {
     virtual int n_outputs() const override { return 1; }
 
     bool is_zero_preserved() const {
-        return math::eltwise_fwd_preserves_zero(desc_.alg_kind);
+        return math::eltwise_fwd_preserves_zero(
+                desc_.alg_kind, desc_.alpha, desc_.beta);
     }
 };
 
