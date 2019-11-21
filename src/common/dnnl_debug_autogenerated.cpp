@@ -69,6 +69,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_abdec) return "abdec";
     if (v == dnnl_acb) return "acb";
     if (v == dnnl_acbde) return "acbde";
+    if (v == dnnl_acbdef) return "acbdef";
     if (v == dnnl_acdb) return "acdb";
     if (v == dnnl_acdeb) return "acdeb";
     if (v == dnnl_ba) return "ba";
@@ -233,6 +234,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_hwigo) return "hwigo";
     if (v == dnnl_giohw) return "giohw";
     if (v == dnnl_goidhw) return "goidhw";
+    if (v == dnnl_giodhw) return "giodhw";
     if (v == dnnl_tnc) return "tnc";
     if (v == dnnl_ntc) return "ntc";
     if (v == dnnl_ldnc) return "ldnc";

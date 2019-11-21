@@ -1436,6 +1436,7 @@ struct memory : public handle<dnnl_memory_t> {
         abdec = dnnl_abdec, ///< permuted 5D tensor
         acb = dnnl_acb, ///< permuted 3D tensor
         acbde = dnnl_acbde, ///< permuted 5D tensor
+        acbdef = dnnl_acbdef, ///< permuted 6D tensor
         acdb = dnnl_acdb, ///< permuted 4D tensor
         acdeb = dnnl_acdeb, ///< permuted 5D tensor
         ba = dnnl_ba, ///< permuted 2D tensor
@@ -1598,6 +1599,7 @@ struct memory : public handle<dnnl_memory_t> {
         hwigo = dnnl_hwigo,
         giohw = dnnl_giohw,
         goidhw = dnnl_goidhw,
+        giodhw = dnnl_giodhw,
         tnc = dnnl_tnc,
         ntc = dnnl_ntc,
         ldnc = dnnl_ldnc,
