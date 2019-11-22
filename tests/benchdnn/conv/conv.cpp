@@ -609,7 +609,6 @@ int doit(const prb_t *p, res_t *r) {
     dnnl_convolution_desc_t cd_ref;
     dnnl_primitive_desc_t cpd_ref = nullptr;
     dnnl_primitive_t c_ref = nullptr;
-    dnnl_engine_t engine_ref = nullptr;
 
     int src_ndims = is_problem_3d(p) ? 5 : is_problem_1d(p) ? 3 : 4;
     int wei_ndims = src_ndims + p->has_groups;
@@ -618,9 +617,7 @@ int doit(const prb_t *p, res_t *r) {
     auto src_tag = get_default_tag(src_ndims);
     auto wei_tag = get_default_tag(wei_ndims);
 
-    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu
-            && !DNNL_WITH_SYCL) {
-        SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), WARN);
+    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
         SAFE(init_pd(engine_ref, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,
                      fp, src_tag, wei_tag, dnnl_x, src_tag),
                 WARN);
@@ -717,8 +714,6 @@ int doit(const prb_t *p, res_t *r) {
 
     DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
     DNN_SAFE(dnnl_primitive_destroy(c_ref), CRIT);
-
-    SAFE(dnnl_engine_destroy(engine_ref), CRIT);
 
     return OK;
 }

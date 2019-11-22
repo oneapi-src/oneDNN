@@ -174,12 +174,18 @@ extern dnnl_engine_kind_t engine_tgt_kind;
 extern dnnl_engine_t engine_tgt;
 extern dnnl_stream_t stream_tgt;
 
+/* for fast-ref-gpu support */
+extern dnnl_engine_t engine_ref;
+
 inline int init() {
     if (!engine_tgt) {
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
         DNN_SAFE(dnnl_stream_create(
                          &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
+    }
+    if (!engine_ref) {
+        DNN_SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), CRIT);
     }
 
     return OK;
@@ -188,6 +194,7 @@ inline int init() {
 inline int finalize() {
     DNN_SAFE(dnnl_stream_destroy(stream_tgt), CRIT);
     DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
+    DNN_SAFE(dnnl_engine_destroy(engine_ref), CRIT);
     return OK;
 }
 

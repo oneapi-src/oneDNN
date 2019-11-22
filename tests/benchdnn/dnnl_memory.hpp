@@ -185,6 +185,9 @@ struct dnn_mem_t {
         mapped_ptr_ = NULL;
     }
 
+    static dnn_mem_t create_from_host_ptr(
+            const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);
+
     /* fields */
 
     dnnl_memory_desc_t md_ {};
