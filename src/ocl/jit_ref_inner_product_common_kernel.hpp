@@ -18,6 +18,7 @@
 #define JIT_REF_INNER_PRODUCT_COMMON_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/inner_product_pd.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
@@ -33,41 +34,36 @@ struct jit_ref_inner_product_fwd_kernel {
     ~jit_ref_inner_product_fwd_kernel() {}
 
     static status_t init_conf(jit_inner_product_conf_t &jip,
-            const inner_product_desc_t &ipd, const memory_desc_wrapper &src_d,
+            const inner_product_pd_t *pd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
             const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
             jit_offsets &jit_off, data_type_t acc_data_type) {
 
+        const inner_product_desc_t &ipd = *pd->desc();
         const int ndims = src_d.ndims();
 
         jip.ndims = ndims;
         jip.has_spatial = utils::one_of(jip.ndims, 3, 4, 5);
 
-        const auto &src_dims = src_d.padded_dims();
+        jip.mb = pd->MB();
+        jip.ic = pd->IC();
 
-        jip.mb = src_dims[0];
-        jip.ic = src_dims[1];
-        if (jip.has_spatial) {
-            jip.id = (ndims == 5) ? src_dims[2] : 1;
-            jip.ih = (ndims == 3) ? 1 : src_dims[ndims - 2];
-            jip.iw = src_dims[ndims - 1];
-        } else {
-            jip.id = 1;
-            jip.ih = 1;
-            jip.iw = 1;
-        }
+        jip.id = pd->ID();
+        jip.ih = pd->IH();
+        jip.iw = pd->IW();
+
+        const auto &src_dims = src_d.padded_dims();
         jip.ic_total = utils::array_product(&src_dims[1], jip.ndims - 1);
 
-        const auto &dst_dims = dst_d.padded_dims();
+        jip.oc = pd->OC();
 
-        jip.oc = dst_dims[1];
-        jip.od = (ndims == 5) ? dst_dims[2] : 1;
-        jip.oh = (ndims == 3) ? 1 : dst_dims[ndims - 2];
-        jip.ow = dst_dims[ndims - 1];
+        jip.od = pd->OD();
+        jip.oh = pd->OH();
+        jip.ow = pd->OW();
 
-        jip.kd = (ndims == 5) ? weights_d.dims()[2] : 1;
-        jip.kh = (ndims == 3) ? 1 : weights_d.dims()[ndims - 2];
-        jip.kw = weights_d.dims()[ndims - 1];
+        jip.kd = pd->KD();
+        jip.kh = pd->KH();
+        jip.kw = pd->KW();
 
         jip.src_dt = src_d.data_type();
         jip.wei_dt = weights_d.data_type();
