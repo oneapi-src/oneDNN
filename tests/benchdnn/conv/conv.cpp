@@ -618,7 +618,7 @@ int doit(const prb_t *p, res_t *r) {
     auto wei_tag = get_default_tag(wei_ndims);
 
     if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
-        SAFE(init_pd(engine_ref, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,
+        SAFE(init_pd(engine_cpu, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,
                      fp, src_tag, wei_tag, dnnl_x, src_tag),
                 WARN);
     }
