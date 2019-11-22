@@ -53,65 +53,75 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
         }
     }
 
-    const memory_desc_wrapper o_d(pd()->src_image_md(0));
+    const memory_desc_wrapper o_d(pd()->dst_md(0));
 
     strides_t os = {0};
-    for (int i = 0; i < perm[concat_dim]; i++)
+    bool has_outer_loop = false;
+    for (int i = 0; i < perm[concat_dim]; i++) {
         os[i] = o_d.blocking_desc().strides[iperm[i]];
+        // CAVEAT: if this impl supports not matching stag and dtag, strides
+        // should be taken into account for this condition.
+        if (o_d.padded_dims()[iperm[i]] != 1) has_outer_loop = true;
+    }
 
-    dims_t phys_dims;
-    for (size_t i = 0; i < sizeof(phys_dims) / sizeof(phys_dims[0]); i++)
-        phys_dims[i] = (i < (size_t)perm[concat_dim])
-                ? o_d.padded_dims()[iperm[i]] / pd()->blocks_[iperm[i]]
-                : 1;
-
-    if (perm[concat_dim] == 0) {
+    // Applies when concat axis is the outermost dimension, e.g. concat_axis = 0
+    // or concat_axis = 1, and dims[0] = 1;
+    if (!has_outer_loop) {
         for (int a = 0; a < num_arrs; ++a) {
             const data_t *i = &iptrs[a][0];
             data_t *o = &optrs[a][0];
-            parallel_nd((ptrdiff_t)nelems_to_copy[a],
-                    [&](ptrdiff_t e) { o[e] = i[e]; });
+            parallel_nd(nelems_to_copy[a], [&](dim_t e) { o[e] = i[e]; });
         }
-    } else {
-        parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
-                phys_dims[4], num_arrs,
-                [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, int a) {
-                    // XXX: this code may access uninitialized values in is[*][0-4] --
-                    // that's why we have to set them to zero although this is
-                    // probably benign
-                    size_t in_off = is[a][0] * n0 + is[a][1] * n1
-                            + is[a][2] * n2 + is[a][3] * n3 + is[a][4] * n4;
-                    size_t out_off = os[0] * n0 + os[1] * n1 + os[2] * n2
-                            + os[3] * n3 + os[4] * n4;
-                    const data_t *i = &iptrs[a][in_off];
-                    data_t *o = &optrs[a][out_off];
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
-                    // The code below performs data copying: o[e] = i[e]
-                    // and uses a workaround to make GNU compilers optimize it
-                    uint8_t *ptro = reinterpret_cast<uint8_t *>(o);
-                    const uint8_t *ptri = reinterpret_cast<const uint8_t *>(i);
-                    const dim_t main_part = (nelems_to_copy[a] * sizeof(data_t))
-                            / sizeof(uint32_t);
-                    const dim_t tail_part = (nelems_to_copy[a] * sizeof(data_t))
-                            % sizeof(uint32_t);
-                    PRAGMA_OMP_SIMD()
-                    for (dim_t e = 0; e < main_part; ++e) {
-                        *(reinterpret_cast<uint32_t *>(ptro))
-                                = *(reinterpret_cast<const uint32_t *>(ptri));
-                        ptro += sizeof(uint32_t);
-                        ptri += sizeof(uint32_t);
-                    }
-                    for (dim_t e = 0; e < tail_part; ++e) {
-                        *ptro = *ptri;
-                        ++ptro;
-                        ++ptri;
-                    }
-#else
-            PRAGMA_OMP_SIMD()
-            for (dim_t e = 0; e < nelems_to_copy[a]; ++e) o[e] = i[e];
-#endif
-                });
+        return status::success;
     }
+
+    dims_t phys_dims;
+    for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
+        if (i < perm[concat_dim])
+            phys_dims[i] = o_d.padded_dims()[iperm[i]] / pd()->blocks_[iperm[i]];
+        else
+            phys_dims[i] = 1;
+    }
+
+    parallel_nd(phys_dims[0], phys_dims[1], phys_dims[2], phys_dims[3],
+            phys_dims[4], num_arrs,
+            [&](dim_t n0, dim_t n1, dim_t n2, dim_t n3, dim_t n4, int a) {
+                // XXX: this code may access uninitialized values in is[*][0-4] --
+                // that's why we have to set them to zero although this is
+                // probably benign
+                size_t in_off = is[a][0] * n0 + is[a][1] * n1 + is[a][2] * n2
+                        + is[a][3] * n3 + is[a][4] * n4;
+                size_t out_off = os[0] * n0 + os[1] * n1 + os[2] * n2
+                        + os[3] * n3 + os[4] * n4;
+                const data_t *i = &iptrs[a][in_off];
+                data_t *o = &optrs[a][out_off];
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER)
+                // The code below performs data copying: o[e] = i[e]
+                // and uses a workaround to make GNU compilers optimize it
+                uint8_t *ptro = reinterpret_cast<uint8_t *>(o);
+                const uint8_t *ptri = reinterpret_cast<const uint8_t *>(i);
+                const dim_t main_part = (nelems_to_copy[a] * sizeof(data_t))
+                        / sizeof(uint32_t);
+                const dim_t tail_part = (nelems_to_copy[a] * sizeof(data_t))
+                        % sizeof(uint32_t);
+
+                PRAGMA_OMP_SIMD()
+                for (dim_t e = 0; e < main_part; ++e) {
+                    *(reinterpret_cast<uint32_t *>(ptro))
+                            = *(reinterpret_cast<const uint32_t *>(ptri));
+                    ptro += sizeof(uint32_t);
+                    ptri += sizeof(uint32_t);
+                }
+                for (dim_t e = 0; e < tail_part; ++e) {
+                    *ptro = *ptri;
+                    ++ptro;
+                    ++ptri;
+                }
+#else
+                PRAGMA_OMP_SIMD()
+                for (dim_t e = 0; e < nelems_to_copy[a]; ++e) o[e] = i[e];
+#endif
+            });
 
     return status::success;
 }
