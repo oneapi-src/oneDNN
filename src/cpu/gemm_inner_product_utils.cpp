@@ -30,13 +30,14 @@ using namespace alg_kind;
 using namespace math;
 
 template <data_type_t acc_type, data_type_t dst_type>
-pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
+pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
         const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
     : ker_(nullptr)
     , eltwise_injector_(nullptr)
     , ref_eltwise_(nullptr)
     , bf16_emu_(nullptr)
     , OC_(OC)
+    , MB_(MB)
     , bias_data_type_(bias_dt)
     , bias_data_type_size_(0)
     , do_scale_(false)
@@ -118,8 +119,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         const cpu_inner_product_fwd_pd_t *pd, bool skip_sum)
-    : pp_kernel_t(
-            pd->OC(), pd->attr(), pd->desc()->bias_desc.data_type, skip_sum) {}
+    : pp_kernel_t(pd->OC(), pd->MB(), pd->attr(),
+            pd->desc()->bias_desc.data_type, skip_sum) {}
 
 template <data_type_t acc_type, data_type_t dst_type>
 void pp_kernel_t<acc_type, dst_type>::generate() {

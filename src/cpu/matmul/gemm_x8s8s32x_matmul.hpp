@@ -44,7 +44,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_impl_t {
     };
 
     gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->attr(),
+        pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(), pd()->attr(),
                 pd()->desc()->bias_desc.data_type, false));
     }
 

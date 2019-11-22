@@ -37,8 +37,8 @@ template <impl::data_type_t acc_type, impl::data_type_t dst_type>
 class pp_kernel_t : jit_generator {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
-    pp_kernel_t(size_t OC, const primitive_attr_t *attr, data_type_t bias_dt,
-            bool skip_sum);
+    pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
+            data_type_t bias_dt, bool skip_sum);
     pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool skip_sum);
     ~pp_kernel_t() {
         if (do_eltwise_) {
@@ -102,6 +102,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
     size_t OC_;
+    size_t MB_;
     data_type_t bias_data_type_;
     size_t bias_data_type_size_;
     bool do_scale_;
