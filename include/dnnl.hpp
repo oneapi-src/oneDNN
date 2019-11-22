@@ -1780,7 +1780,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param offsets Offsets of a sub-memory from the encompassing
         ///                memory object in each dimension
         desc submemory_desc(
-                const memory::dims &dims, const memory::dims &offsets) {
+                const memory::dims &dims, const memory::dims &offsets) const {
             dnnl_memory_desc_t sub_md;
             error::wrap_c_api(dnnl_memory_desc_init_submemory(
                                       &sub_md, &data, &dims[0], &offsets[0]),
@@ -1792,7 +1792,7 @@ struct memory : public handle<dnnl_memory_t> {
         //
         /// @param dims New dimensions. The product of dimensions must
         /// remain constant.
-        desc reshape(const memory::dims &dims) {
+        desc reshape(const memory::dims &dims) const {
             dnnl_memory_desc_t out_md;
             error::wrap_c_api(dnnl_memory_desc_reshape(&out_md, &data,
                                       (int)dims.size(), &dims[0]),
@@ -2343,7 +2343,7 @@ struct reorder : public primitive {
     ///               as the primitive.
     /// @param src Source memory object.
     /// @param dst Destination memory object.
-    void execute(stream stream, memory &src, memory &dst) {
+    void execute(stream stream, memory &src, memory &dst) const {
         primitive::execute(stream, {{DNNL_ARG_FROM, src}, {DNNL_ARG_TO, dst}});
     }
 };
