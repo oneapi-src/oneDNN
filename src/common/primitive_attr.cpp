@@ -141,6 +141,9 @@ status_t post_ops_t::append_eltwise(
             eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log);
     if (!known_alg) return invalid_arguments;
 
+    bool ok = true && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0);
+    if (!ok) return invalid_arguments;
+
     if (len_ == capacity) return out_of_memory;
 
     entry_[len_].kind = primitive_kind::eltwise;

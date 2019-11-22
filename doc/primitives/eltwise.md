@@ -22,7 +22,7 @@ The following operations are supported:
                                                             -x & \text{if}\ x \leq 0
                                                          \end{cases} \f$
 | bounded_relu | #dnnl_eltwise_bounded_relu | \f$ f(x) = \begin{cases}
-                                                            \alpha & \text{if}\ x > \alpha \\
+                                                            \alpha & \text{if}\ x > \alpha, \alpha \geq 0 \\
                                                             x & \text{if}\ 0 < x \leq \alpha \\
                                                             0 & \text{if}\ x \leq 0
                                                          \end{cases} \f$

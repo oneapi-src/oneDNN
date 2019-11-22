@@ -43,7 +43,8 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
                     prop_kind == backward_data, diff_data_desc != nullptr)
             && IMPLICATION(
                     one_of(data_desc->data_type, dnnl_s32, dnnl_s8, dnnl_u8),
-                    alg_kind == eltwise_relu && alpha == 0);
+                    alg_kind == eltwise_relu && alpha == 0)
+            && IMPLICATION(alg_kind == eltwise_bounded_relu, alpha >= 0);
     if (!args_ok) return invalid_arguments;
 
     bool runtime_dims_or_strides
