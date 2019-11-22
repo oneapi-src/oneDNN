@@ -71,455 +71,11 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::prepare_output(int ur_w) {
     }
 }
 
-/**
- * load_bytes is the utility function to facilitate loading of
- * load_size (0 <= load_size < 16) many bytes in the Xmm register from
- * the memory referenced by ptr[reg + offset]
- *
- * Intuitively, one can think of load_bytes as a masked-generalization of
- * vpinsrb assembly instruction.
- */
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::load_bytes(
-        const Vmm &vmm, const Reg64 &reg, int offset, int load_size) {
-    assert(load_size >= 0 && load_size < 16);
-    auto xmm = Xmm(vmm.getIdx());
-
-    constexpr int WORD_SIZE = sizeof(int16_t);
-    constexpr int DWORD_SIZE = sizeof(int32_t);
-    constexpr int QWORD_SIZE = sizeof(int64_t);
-
-    // op_i denotes the memory referenced by ptr[reg + offset + (i bytes)]
-    const auto op_0 = ptr[reg + offset];
-    const auto op_2 = ptr[reg + offset + WORD_SIZE];
-    const auto op_4 = ptr[reg + offset + DWORD_SIZE];
-    const auto op_6 = ptr[reg + offset + DWORD_SIZE + WORD_SIZE];
-
-    const auto op_8 = ptr[reg + offset + QWORD_SIZE];
-    const auto op_10 = ptr[reg + offset + QWORD_SIZE + WORD_SIZE];
-    const auto op_12 = ptr[reg + offset + QWORD_SIZE + DWORD_SIZE];
-    const auto op_14 = ptr[reg + offset + QWORD_SIZE + DWORD_SIZE + WORD_SIZE];
-
-    if (load_size >= 8) vpinsrq(xmm, xmm, op_0, 0);
-
-    switch (load_size) {
-        case 0: break;
-        case 1: vpinsrb(xmm, xmm, op_0, 0); break;
-        case 2: vpinsrw(xmm, xmm, op_0, 0); break;
-        case 3:
-            vpinsrw(xmm, xmm, op_0, 0);
-            vpinsrb(xmm, xmm, op_2, 2);
-            break;
-        case 4: vpinsrd(xmm, xmm, op_0, 0); break;
-        case 5:
-            vpinsrd(xmm, xmm, op_0, 0);
-            vpinsrb(xmm, xmm, op_4, 4);
-            break;
-        case 6:
-            vpinsrd(xmm, xmm, op_0, 0);
-            vpinsrw(xmm, xmm, op_4, 2);
-            break;
-        case 7:
-            vpinsrd(xmm, xmm, op_0, 0);
-            vpinsrw(xmm, xmm, op_4, 2);
-            vpinsrb(xmm, xmm, op_6, 6);
-            break;
-        case 8: break;
-        case 9: vpinsrb(xmm, xmm, op_8, 8); break;
-        case 10: vpinsrw(xmm, xmm, op_8, 4); break;
-        case 11:
-            vpinsrw(xmm, xmm, op_8, 4);
-            vpinsrb(xmm, xmm, op_10, 10);
-            break;
-        case 12: vpinsrd(xmm, xmm, op_8, 2); break;
-        case 13:
-            vpinsrd(xmm, xmm, op_8, 2);
-            vpinsrb(xmm, xmm, op_12, 12);
-            break;
-        case 14:
-            vpinsrd(xmm, xmm, op_8, 2);
-            vpinsrw(xmm, xmm, op_12, 6);
-            break;
-        case 15:
-            vpinsrd(xmm, xmm, op_8, 2);
-            vpinsrw(xmm, xmm, op_12, 6);
-            vpinsrb(xmm, xmm, op_14, 14);
-            break;
-        default: assert(!"improper load size");
-    }
-}
-
-/**
- * store_bytes is the utility function to facilitate loading of
- * store_size (0 <= store_size < 16) many bytes in the Xmm register from
- * the memory referenced by ptr[reg + offset]
- *
- * Intuitively, one can think of store_bytes as a masked-generalization
- * of vpextrb assembly instruction.
- *
- * Note: Content of Vmm is not guaranteed to be preserved after
- * the invocation of this routine.
- */
-
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_bytes(
-        const Vmm &vmm, const Reg64 &reg, int offset, int store_size) {
-    assert(store_size >= 0 && store_size < 16);
-    auto xmm = Xmm(vmm.getIdx());
-    auto ymm = Ymm(vmm.getIdx());
-
-    constexpr int WORD_SIZE = sizeof(int16_t);
-    constexpr int DWORD_SIZE = sizeof(int32_t);
-    constexpr int QWORD_SIZE = sizeof(int64_t);
-
-    // op_i denotes the memory referenced by ptr[reg + offset + (i bytes)]
-    const auto op_0 = ptr[reg + offset];
-    const auto op_2 = ptr[reg + offset + WORD_SIZE];
-    const auto op_4 = ptr[reg + offset + DWORD_SIZE];
-    const auto op_6 = ptr[reg + offset + DWORD_SIZE + WORD_SIZE];
-
-    const auto op_8 = ptr[reg + offset + QWORD_SIZE];
-    const auto op_10 = ptr[reg + offset + QWORD_SIZE + WORD_SIZE];
-    const auto op_12 = ptr[reg + offset + QWORD_SIZE + DWORD_SIZE];
-    const auto op_14 = ptr[reg + offset + QWORD_SIZE + DWORD_SIZE + WORD_SIZE];
-
-    if (store_size >= 8) vpextrq(op_0, xmm, 0);
-    if (store_size > 8) vextracti128(xmm, ymm, 1);
-
-    switch (store_size) {
-        case 0: break;
-        case 1: vpextrb(op_0, xmm, 0); break;
-        case 2: vpextrw(op_0, xmm, 0); break;
-        case 3:
-            vpextrw(op_0, xmm, 0);
-            vpextrb(op_2, xmm, 2);
-            break;
-        case 4: vpextrd(op_0, xmm, 0); break;
-        case 5:
-            vpextrd(op_0, xmm, 0);
-            vpextrb(op_4, xmm, 4);
-            break;
-        case 6:
-            vpextrd(op_0, xmm, 0);
-            vpextrw(op_4, xmm, 2);
-            break;
-        case 7:
-            vpextrd(op_0, xmm, 0);
-            vpextrw(op_4, xmm, 2);
-            vpextrb(op_6, xmm, 6);
-            break;
-        case 8: break;
-        case 9: vpextrb(op_8, xmm, 8); break;
-        case 10: vpextrw(op_8, xmm, 4); break;
-        case 11:
-            vpextrw(op_8, xmm, 4);
-            vpextrb(op_10, xmm, 10);
-            break;
-        case 12: vpextrd(op_8, xmm, 2); break;
-        case 13:
-            vpextrd(op_8, xmm, 2);
-            vpextrb(op_12, xmm, 12);
-            break;
-        case 14:
-            vpextrd(op_8, xmm, 2);
-            vpextrw(op_12, xmm, 6);
-            break;
-        case 15:
-            vpextrd(op_8, xmm, 2);
-            vpextrw(op_12, xmm, 6);
-            vpextrb(op_14, xmm, 14);
-            break;
-        default: assert(!"improper store size");
-    }
-}
-
-/** load_bytes_to_dword_extension is the masked version of vpmovsxbd/vpmovzxbd
-  * assembly instruction. The data in memory (referenced via ptr[reg + offset])
-  * is assumed to be contiguous and its size is calculated in the load_size
-  * variable. Valid values for the load_size variable are:
-  * [0..3] for XMM version of the function
-  * [0..7] for YMM version of the function.
-  */
-
-template <>
-void _jit_avx2_x8s8s32x_fwd_kernel<Xmm>::load_bytes_to_dword_extension(
-        const Xmm &xmm, const Reg64 &reg, int offset, bool is_signed,
-        int load_size) {
-
-    assert(load_size >= 0 && load_size < 4);
-    load_bytes(xmm, reg, offset, load_size);
-
-    if (is_signed)
-        vpmovsxbd(xmm, xmm);
-    else
-        vpmovzxbd(xmm, xmm);
-}
-
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::load_bytes_to_dword_extension(
-        const Vmm &vmm, const Reg64 &reg, int offset, bool is_signed,
-        int load_size) {
-
-    auto xmm = Xmm(vmm.getIdx());
-    auto ymm = Ymm(vmm.getIdx());
-
-    assert(load_size >= 0 && load_size < 8);
-
-    // For load_size == 4, do load/extension in one go
-    if (load_size == 4) {
-        if (is_signed)
-            vpmovsxbd(xmm, ptr[reg + offset]);
-        else
-            vpmovzxbd(xmm, ptr[reg + offset]);
-
-        return;
-    }
-
-    load_bytes(vmm, reg, offset, load_size);
-
-    if (load_size < 4) {
-        if (is_signed)
-            vpmovsxbd(xmm, xmm);
-        else
-            vpmovzxbd(xmm, xmm);
-    }
-
-    if (load_size > 4) {
-        if (is_signed)
-            vpmovsxbd(ymm, ymm);
-        else
-            vpmovzxbd(ymm, ymm);
-    }
-}
-
-/** store_dwords is the masked version of vmovups
-  * assembly instruction. The data in memory (referenced via ptr[reg + offset])
-  * is assumed to be contiguous and its size is calculated in the store_size
-  * variable. Valid values for the store_size variable are:
-  * [0..3] for XMM version of the function
-  * [0..7] for YMM version of the function.
-  *
-  * Note: Content of Vmm is not guaranteed to be preserved after
-  * the invocation of this routine.
-  */
-
-template <>
-void _jit_avx2_x8s8s32x_fwd_kernel<Xmm>::store_dwords(
-        const Xmm &xmm, const Reg64 &reg, int offset, int store_size) {
-
-    constexpr int DWORD_SIZE = sizeof(int32_t);
-    // op_i denotes the memory referenced by ptr[reg + offset + (i dwords)]
-    const auto op_0 = ptr[reg + offset];
-    const auto op_2 = ptr[reg + offset + 2 * DWORD_SIZE];
-
-    assert(store_size >= 0 && store_size < 4);
-    switch (store_size) {
-        case 0: break;
-        case 1: vpextrd(op_0, xmm, 0); break;
-        case 2: vpextrq(op_0, xmm, 0); break;
-        case 3:
-            vpextrq(op_0, xmm, 0);
-            vpextrd(op_2, xmm, 2);
-            break;
-        default: assert(!"improper store size");
-    }
-}
-
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_dwords(
-        const Vmm &vmm, const Reg64 &reg, int offset, int store_size) {
-
-    const auto ymm = Ymm(vmm.getIdx());
-    const auto xmm = Xmm(vmm.getIdx());
-
-    constexpr int DWORD_SIZE = sizeof(int32_t);
-    // op_i denotes the memory referenced by ptr[reg + offset + (i dwords)]
-    const auto op_0 = ptr[reg + offset];
-    const auto op_2 = ptr[reg + offset + 2 * DWORD_SIZE];
-    const auto op_4 = ptr[reg + offset + 4 * DWORD_SIZE];
-    const auto op_6 = ptr[reg + offset + 6 * DWORD_SIZE];
-
-    assert(store_size >= 0 && store_size < 8);
-    switch (store_size) {
-        case 1: vpextrd(op_0, xmm, 0); break;
-        case 2: vpextrq(op_0, xmm, 0); break;
-        case 3:
-            vpextrq(op_0, xmm, 0);
-            vpextrd(op_2, xmm, 2);
-            break;
-        case 4: vmovdqu(op_0, xmm); break;
-        case 5:
-            vmovdqu(op_0, xmm);
-            vextracti128(xmm, ymm, 1);
-            vpextrd(op_4, xmm, 0);
-            break;
-        case 6:
-            vmovdqu(op_0, xmm);
-            vextracti128(xmm, ymm, 1);
-            vpextrq(op_4, xmm, 0);
-            break;
-        case 7:
-            vmovdqu(op_0, xmm);
-            vextracti128(xmm, ymm, 1);
-            vpextrq(op_4, xmm, 0);
-            vpextrd(op_6, xmm, 2);
-            break;
-        default: assert(!"improper store size");
-    }
-}
-
-/** load_dwords is the masked version of vmovups
-  * assembly instruction. The data in memory (referenced via ptr[reg + offset])
-  * is assumed to be contiguous and its size is calculated in the load_size
-  * variable. Valid values for the load_size variable are:
-  * [0..3] for XMM version of the function
-  * [0..7] for YMM version of the function.
-  */
-
-template <>
-void _jit_avx2_x8s8s32x_fwd_kernel<Xmm>::load_dwords(
-        const Xmm &xmm, const Reg64 &reg, int offset, int load_size) {
-
-    constexpr int DWORD_SIZE = sizeof(int32_t);
-    // op_i denotes the memory referenced by ptr[reg + offset + (i dwords)]
-    const auto op_0 = ptr[reg + offset];
-    const auto op_2 = ptr[reg + offset + 2 * DWORD_SIZE];
-
-    switch (load_size) {
-        case 0: break;
-        case 1: vpinsrd(xmm, xmm, op_0, 0); break;
-        case 2: vpinsrq(xmm, xmm, op_0, 0); break;
-        case 3:
-            vpinsrq(xmm, xmm, op_0, 0);
-            vpinsrd(xmm, xmm, op_2, 2);
-            break;
-        default: assert(!"improper load size");
-    }
-}
-
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::load_dwords(
-        const Vmm &vmm, const Reg64 &reg, int offset, int load_size) {
-
-    const auto ymm = Ymm(vmm.getIdx());
-    const auto xmm = Xmm(vmm.getIdx());
-
-    constexpr int DWORD_SIZE = sizeof(int32_t);
-    // op_i denotes the memory referenced by ptr[reg + offset + (i dwords)]
-    const auto op_0 = ptr[reg + offset];
-    const auto op_2 = ptr[reg + offset + 2 * DWORD_SIZE];
-    const auto op_4 = ptr[reg + offset + 4 * DWORD_SIZE];
-    const auto op_6 = ptr[reg + offset + 6 * DWORD_SIZE];
-
-    switch (load_size) {
-        case 1: vpinsrd(xmm, xmm, op_0, 0); break;
-        case 2: vpinsrq(xmm, xmm, op_0, 0); break;
-        case 3:
-            vpinsrq(xmm, xmm, op_0, 0);
-            vpinsrd(xmm, xmm, op_2, 2);
-            break;
-        case 4: vmovdqu(xmm, op_0); break;
-        case 5:
-            vpinsrd(xmm, xmm, op_4, 0);
-            vperm2i128(ymm, ymm, ymm, 1);
-            vinserti128(ymm, ymm, op_0, 0);
-            break;
-        case 6:
-            vpinsrq(xmm, xmm, op_4, 0);
-            vperm2i128(ymm, ymm, ymm, 1);
-            vinserti128(ymm, ymm, op_0, 0);
-            break;
-        case 7:
-            vpinsrq(xmm, xmm, op_4, 0);
-            vpinsrd(xmm, xmm, op_6, 2);
-            vperm2i128(ymm, ymm, ymm, 1);
-            vinserti128(ymm, ymm, op_0, 0);
-            break;
-        default: assert(!"improper load size");
-    }
-}
-
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_data(data_type_t type_out,
-        const Vmm &r_vmm, const Reg64 &reg, int offset, bool mask_flag) {
-
-    auto addr = ptr[reg + offset];
-    constexpr bool uses_ymm_template = std::is_same<Vmm, Ymm>::value;
-    const Ymm r_ymm = Ymm(r_vmm.getIdx());
-    const Xmm r_xmm = Xmm(r_vmm.getIdx());
-
-    const auto tail_size = get_tail_size();
-    assert(IMPLICATION(mask_flag, tail_size > 0));
-
-    switch (type_out) {
-        case data_type::f32:
-        case data_type::s32:
-            if (mask_flag)
-                store_dwords(r_vmm, reg, offset, tail_size);
-            else
-                vmovdqu(addr, r_vmm);
-            break;
-        case data_type::u8:
-        case data_type::s8:
-            vpackssdw(r_vmm, r_vmm, r_vmm);
-            vpermq(r_ymm, r_ymm, 0x08);
-
-            if (type_out == data_type::s8)
-                vpacksswb(r_vmm, r_vmm, r_vmm);
-            else
-                vpackuswb(r_vmm, r_vmm, r_vmm);
-
-            if (mask_flag)
-                store_bytes(r_vmm, reg, offset, tail_size);
-            else if (uses_ymm_template)
-                vmovq(addr, r_xmm);
-            else
-                vmovd(addr, r_xmm);
-            break;
-
-        default: assert(!"unknown dst_dt");
-    }
-}
-
-template <typename Vmm>
-void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::load_data(data_type_t type_in,
-        const Vmm &vmm_in, const Reg64 &reg, int offset, bool mask_flag) {
-
-    const auto tail_size = get_tail_size();
-    assert(IMPLICATION(mask_flag, tail_size > 0));
-
-    const auto op = ptr[reg + offset];
-
-    switch (type_in) {
-        case data_type::f32:
-        case data_type::s32:
-            if (mask_flag)
-                load_dwords(vmm_in, reg, offset, tail_size);
-            else
-                vmovdqu(vmm_in, op);
-            break;
-        case data_type::s8:
-        case data_type::u8:
-            if (mask_flag)
-                load_bytes_to_dword_extension(vmm_in, reg, offset,
-                        type_in == data_type::s8, tail_size);
-            else {
-                if (type_in == data_type::s8)
-                    vpmovsxbd(vmm_in, op);
-                else
-                    vpmovzxbd(vmm_in, op);
-            }
-            break;
-
-        default: assert(!"unsupported data type");
-    }
-}
-
 template <typename Vmm>
 void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::cvt2ps(data_type_t type_in,
-        const Vmm &vmm_in, const Reg64 &reg, int offset, bool mask_flag) {
+        const Vmm &vmm_in, const Reg64 &reg, int offset, int load_size) {
 
-    load_data(type_in, vmm_in, reg, offset, mask_flag);
+    load_data(type_in, vmm_in, reg, offset, load_size);
     if (type_in != data_type::f32) vcvtdq2ps(vmm_in, vmm_in);
 }
 template <typename Vmm>
@@ -570,14 +126,15 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_output(
         if (jcp.with_bias) {
 
             int bias_offset = jcp.typesize_bia * k * oc_block;
-            cvt2ps(jcp.bia_dt, vmm_bias, reg_bias, bias_offset, mask_flag);
+            cvt2ps(jcp.bia_dt, vmm_bias, reg_bias, bias_offset,
+                    mask_flag ? get_tail_size() : get_blocking_size());
             if (jcp.signed_input) /* bias *= 0.5 */
                 vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
         }
         if (jcp.signed_input) {
             int comp_offset = sizeof(int32_t) * k * oc_block;
             cvt2ps(data_type::s32, vmm_comp, reg_compensation, comp_offset,
-                    mask_flag);
+                    mask_flag ? get_tail_size() : get_blocking_size());
         }
         /* add to ymm_accum: compensation, bias and permute */
         for (int j = 0; j < ur_w; ++j) {
@@ -587,13 +144,13 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_output(
             if (jcp.signed_input) vaddps(vmm, vmm, vmm_comp);
             if (jcp.with_bias) vaddps(vmm, vmm, vmm_bias);
 
-            if (!mask_flag)
-                vmulps(vmm, vmm, ptr[reg_ptr_scales + scale_offset]);
-            else {
+            if (mask_flag) {
                 vpxor(vmm_tmp, vmm_tmp, vmm_tmp);
                 load_data(data_type::s32, vmm_tmp, reg_ptr_scales, scale_offset,
-                        mask_flag);
+                        get_tail_size());
                 vmulps(vmm, vmm, vmm_tmp);
+            } else {
+                vmulps(vmm, vmm, ptr[reg_ptr_scales + scale_offset]);
             }
         }
     }
@@ -608,7 +165,7 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_output(
                         * (k * oc_block
                                 + j * jcp.oc_without_padding * jcp.ngroups);
                 cvt2ps(jcp.dst_dt, vmm_prev_dst, reg_out, aux_output_offset,
-                        mask_flag);
+                        mask_flag ? get_tail_size() : get_blocking_size());
                 Vmm vmm = vmm_out(j, k);
                 if (*p_sum_scale == 1.f)
                     vaddps(vmm, vmm_prev_dst);
@@ -638,8 +195,8 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_output(
             Vmm r_vmm = vmm_out(j, k);
             int aux_output_offset = jcp.typesize_out
                     * (k * oc_block + j * jcp.oc_without_padding * jcp.ngroups);
-            store_data(
-                    jcp.dst_dt, r_vmm, reg_out, aux_output_offset, mask_flag);
+            store_data(jcp.dst_dt, r_vmm, reg_out, aux_output_offset,
+                    mask_flag ? get_tail_size() : get_blocking_size());
         }
     }
 }
@@ -706,7 +263,8 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Ymm>::compute_ker_dw(int ur_w, int pad_l,
 
                 vpxor(ymm_inp_tmp, ymm_inp_tmp, ymm_inp_tmp);
                 load_data(data_type::u8, ymm_inp_tmp, aux_reg_inp,
-                        aux_input_offset, mask_flag);
+                        aux_input_offset,
+                        mask_flag ? get_tail_size() : get_blocking_size());
                 if (jcp.signed_input)
                     vpaddb(ymm_inp_tmp, ymm_inp_tmp, vmm_shift);
             }
@@ -732,7 +290,9 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Ymm>::compute_ker_dw(int ur_w, int pad_l,
                         } else {
                             int aux_input_offset = input_offset3(oi, ci, ki);
                             load_data(data_type::u8, ymm_src, aux_reg_inp,
-                                    aux_input_offset, mask_flag);
+                                    aux_input_offset,
+                                    mask_flag ? get_tail_size()
+                                              : get_blocking_size());
                             if (jcp.signed_input)
                                 vpaddb(ymm_src, ymm_src, vmm_shift);
                         }
