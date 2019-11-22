@@ -92,11 +92,11 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
                     gates(ib, LSTM_O, ih) * func2(p.linear_cscale, tmp));
 
             for (int64_t ig = 0; ig < 4; ig++) {
-                print(80,
+                BENCHDNN_PRINT(80,
                         "activation 1 a[" IFMT "][" IFMT "][" IFMT "] = %.7f\n",
                         ib, ig, ih, gates(ib, ig, ih));
             }
-            print(80, "recomp tmp(%a) cin(%a) ht(%a)\n", tmp,
+            BENCHDNN_PRINT(80, "recomp tmp(%a) cin(%a) ht(%a)\n", tmp,
                     src_iter_c(ib, ih), h_dst(ib, ih));
         }
     });
@@ -154,7 +154,8 @@ void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
 
     for (int64_t ib = 0; ib < p.mb; ib++)
         for (int64_t ih = 0; ih < p.dic; ih++) {
-            print(80, "rnn_single_bwd: ib = " IFMT " ih = " IFMT "\n", ib, ih);
+            BENCHDNN_PRINT(80, "rnn_single_bwd: ib = " IFMT " ih = " IFMT "\n",
+                    ib, ih);
             float hi = gates(ib, LSTM_I, ih);
             float hf = gates(ib, LSTM_F, ih);
             float hc = gates(ib, LSTM_C, ih);

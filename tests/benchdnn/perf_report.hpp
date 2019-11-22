@@ -122,7 +122,7 @@ struct base_perf_report_t {
         }
 
         std::string str = ss.str();
-        print(0, "%s\n", str.c_str());
+        BENCHDNN_PRINT(0, "%s\n", str.c_str());
     };
 
     /* truly common types */
@@ -156,7 +156,7 @@ private:
     void dump_perf_footer() const {
         static bool footer_printed = false;
         if (!footer_printed) {
-            print(0, "Output template: %s\n", pt_);
+            BENCHDNN_PRINT(0, "Output template: %s\n", pt_);
             footer_printed = true;
         }
     }

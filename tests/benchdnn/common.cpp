@@ -181,36 +181,36 @@ void parse_result(res_t &res, bool &want_perf_report, bool allow_unimpl,
         case FAILED:
             assert(status == FAIL);
             bs.failed++;
-            print(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n", bs.tests,
-                    state, (unsigned long)res.errors, (unsigned long)res.total,
-                    pstr);
+            BENCHDNN_PRINT(0, "%d:%s (errors:%lu total:%lu) __REPRO: %s\n",
+                    bs.tests, state, (unsigned long)res.errors,
+                    (unsigned long)res.total, pstr);
             break;
         case SKIPPED:
             assert(status == OK);
-            print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.skipped++;
             break;
         case UNIMPLEMENTED:
             assert(status == OK);
-            print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             bs.unimplemented++;
             bs.failed += !allow_unimpl;
             break;
         case MISTRUSTED:
             assert(status == OK);
             bs.mistrusted++;
-            print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             // bs.failed++; /* temporal workaround for some tests */
             break;
         case PASSED:
             assert(status == OK);
-            print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             want_perf_report = true;
             bs.passed++;
             break;
         case LISTED:
             assert(status == OK);
-            print(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
+            BENCHDNN_PRINT(0, "%d:%s __REPRO: %s\n", bs.tests, state, pstr);
             want_perf_report = false;
             bs.listed++;
             break;
@@ -453,7 +453,7 @@ std::string locate_batch_file(const std::string &fname) {
         const std::string fullname = search_paths[n] + "/" + fname;
         ifs.open(fullname);
         if (ifs.is_open()) {
-            print(50, "batch file used: %s\n", fullname.c_str());
+            BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
             return fullname;
         }
     }
@@ -475,7 +475,7 @@ std::string locate_batch_file(const std::string &fname) {
             ifs.open(fullname);
             if (ifs.is_open()) {
                 search_paths[n_paths++] = std::move(fdir);
-                print(50, "batch file used: %s\n", fullname.c_str());
+                BENCHDNN_PRINT(50, "batch file used: %s\n", fullname.c_str());
                 return fullname;
             }
         }

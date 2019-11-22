@@ -118,7 +118,7 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
     if (!fits_device_ram) {
         auto GB = [](double bytes) { return bytes / powf(2, 30); };
 
-        print(2,
+        BENCHDNN_PRINT(2,
                 "benchdnn: not enough RAM for a problem.\nRequested: %g GB, "
                 "benchdnn limit: %g GB, CPU RAM capacity: %g GB, GPU RAM "
                 "capacity: %g GB\n",

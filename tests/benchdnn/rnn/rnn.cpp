@@ -559,7 +559,7 @@ inline int init_pd(
     SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(rpd);
-    print(5, "dnnl implementation: %s\n", impl_str);
+    BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
 
     return OK;
 }

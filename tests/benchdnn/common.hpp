@@ -100,7 +100,7 @@ extern int verbose;
 extern bool canonical;
 extern bool mem_check;
 
-#define print(v, fmt, ...) \
+#define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
         if (verbose >= v) { \
             printf(fmt, __VA_ARGS__); \

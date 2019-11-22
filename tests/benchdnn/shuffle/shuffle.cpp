@@ -80,8 +80,8 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
             ss << dims_idx;
             std::string ind_str = ss.str();
 
-            print(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n", (long)i,
-                    ind_str.c_str(), fp, dt, diff, rel_diff);
+            BENCHDNN_PRINT(0, "[%4ld][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, ind_str.c_str(), fp, dt, diff, rel_diff);
         }
     }
 
@@ -135,7 +135,7 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
     SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(spd);
-    print(5, "dnnl implementation: %s\n", impl_str);
+    BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
 
     return OK;
 }
