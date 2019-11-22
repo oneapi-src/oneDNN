@@ -62,7 +62,7 @@ namespace self {
 
 #define RUN(f) \
     do { \
-        print(1, "%s ...\n", STRINGIFY(f)); \
+        BENCHDNN_PRINT(1, "%s ...\n", STRINGIFY(f)); \
         int rc = f; \
         benchdnn_stat.tests++; \
         if (rc == OK) \

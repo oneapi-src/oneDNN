@@ -112,7 +112,7 @@ inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(ippd);
-    print(5, "dnnl implementation: %s\n", impl_str);
+    BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
 
     auto q = [=](dnnl_query_t query, int index = 0) {
         return *dnnl_primitive_desc_query_md(ippd, query, index);
@@ -166,7 +166,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
                 || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
-            print(0,
+            BENCHDNN_PRINT(0,
                     "[%4ld][%s]"
                     "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
                     (long)i, skind, fp, fp0, dt, diff, rel_diff);
@@ -179,7 +179,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     if (no_trust) {
         r->state = MISTRUSTED;
         const char *skind = data_kind2str(kind);
-        print(0,
+        BENCHDNN_PRINT(0,
                 "@@@ [%s] test-bug: trust is too low."
                 " Nonzeros in output: %.2f\n",
                 skind, trust_nz);

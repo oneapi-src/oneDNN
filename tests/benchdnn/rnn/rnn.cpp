@@ -397,7 +397,7 @@ inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
             SAFE(init_status, WARN);
 
         const char *impl_str = query_impl_info(rpd[i]);
-        print(5, "dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
     }
     dnnl_primitive_attr_destroy(dnnl_attr);
 

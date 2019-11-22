@@ -96,7 +96,7 @@ enum { CRIT = 1, WARN = 2 };
 
 extern int verbose;
 
-#define print(v, fmt, ...) \
+#define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
         if (verbose >= v) { \
             printf(fmt, __VA_ARGS__); \

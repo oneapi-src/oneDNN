@@ -183,16 +183,16 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
                                      int64_t dir_val, rnn_action_t action) {
         // we first need to copy the initial states and input into ws
         // it simplifies the logic in the following code
-        print(80, "rnn_linear_fwd: call copy_init dir_val = " IFMT "\n",
-                dir_val);
+        BENCHDNN_PRINT(80,
+                "rnn_linear_fwd: call copy_init dir_val = " IFMT "\n", dir_val);
         copy_init_fwd(p, ws_, src_layer_, src_iter_, src_iter_c_, iter_dir,
                 lay_dir, dir_val);
 
         // We run the grid of computation
         for (int64_t il = 0; il < p.n_layer; il++) {
             for (int64_t it = 0; it < p.n_iter; it++) {
-                print(80, "==== layer = " IFMT " iter = " IFMT " ===\n", il,
-                        it);
+                BENCHDNN_PRINT(80,
+                        "==== layer = " IFMT " iter = " IFMT " ===\n", il, it);
                 int64_t iter
                         = (iter_dir == left2right) ? it + 1 : p.n_iter - it;
                 int64_t prev_iter

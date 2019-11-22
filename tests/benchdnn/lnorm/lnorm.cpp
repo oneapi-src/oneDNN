@@ -82,7 +82,7 @@ static int prepare_fwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &mean,
             : 1.f;
     assert((exact_bits - ceilf(log2f(L * density))) / 2 >= flex_bits);
 
-    print(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
+    BENCHDNN_PRINT(6, "check_alg: %s, density = %g, flex_bits = " IFMT "\n",
             check_alg2str(alg), density, flex_bits);
 
     dnnl::impl::parallel_nd(p->n, [&](int64_t n) {
@@ -171,7 +171,8 @@ static int prepare_bwd(const prb_t *p, dnn_mem_t &src, dnn_mem_t &d_dst,
     const float density
             = MIN3(1.f, (1 << exact_bits) / ub_dg, (1 << exact_bits) / ub_db);
 
-    print(5, "prep_bwd: k:" IFMT ", P:" IFMT " log2P:" IFMT ", density = %g\n",
+    BENCHDNN_PRINT(5,
+            "prep_bwd: k:" IFMT ", P:" IFMT " log2P:" IFMT ", density = %g\n",
             k, P, log2P, density);
 
     for (int64_t n = 0; n < p->n; ++n) {
@@ -326,7 +327,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
                     }
                 }
                 std::string ind_str = ss.str();
-                print(0, "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                BENCHDNN_PRINT(0,
+                        "[%4ld][%s%s][%s] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                         (long)i, p->dir & FLAG_BWD ? "D_" : "", skind,
                         ind_str.c_str(), fp, dt, diff, rel_diff);
             }
@@ -337,7 +339,7 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 
     if (r->errors || verbose >= 5) {
         const int vl = r->errors ? 0 : 2;
-        print(vl,
+        BENCHDNN_PRINT(vl,
                 "@@@ [%s%s] diff: l0(``%g``) "
                 "l1:(%g,%g,%g,``%g``) "
                 "l2:(%g,%g,%g,``%g``) "
@@ -421,17 +423,17 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
 
     const char *impl_str = query_impl_info(lpd);
     if (maybe_skip(skip_impl, impl_str)) {
-        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
         DNN_SAFE(dnnl_primitive_desc_destroy(lpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        print(5, "dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
         if (!strstr(impl_str, "jit")) {
-            print(2, "WARNING: %s",
+            BENCHDNN_PRINT(2, "WARNING: %s",
                     "accuracy of the implementation being tested "
                     "depends on the compiler and might give "
                     "false-positives.\n");
-            print(2, "         %s",
+            BENCHDNN_PRINT(2, "         %s",
                     "please consider recompiling the sources with"
                     " `-prec-div -fp-model precise` for a reliable testing.\n");
         }

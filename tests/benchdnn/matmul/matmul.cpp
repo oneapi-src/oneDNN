@@ -87,11 +87,11 @@ int init_pd(const prb_t *p, dnnl_primitive_desc_t &matmul_pd, res_t *r) {
 
     const char *impl_str = query_impl_info(matmul_pd);
     if (maybe_skip(skip_impl, impl_str)) {
-        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
         DNN_SAFE(dnnl_primitive_desc_destroy(matmul_pd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        print(5, "dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
     }
 
     return OK;
@@ -120,7 +120,7 @@ int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         const bool dump = false || (!ok && (r->errors < 10 || verbose >= 10))
                 || (verbose >= 50 && i < 30) || (verbose >= 99);
         if (dump) {
-            print(0,
+            BENCHDNN_PRINT(0,
                     "[%4ld][%s]"
                     "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
                     (long)i, skind, fp, fp0, dt, diff, rel_diff);
@@ -133,7 +133,7 @@ int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     if (no_trust) {
         r->state = MISTRUSTED;
         const char *skind = data_kind2str(kind);
-        print(0,
+        BENCHDNN_PRINT(0,
                 "@@@ [%s] test-bug: trust is too low."
                 " Nonzeros in output: %.2f\n",
                 skind, trust_nz);

@@ -37,7 +37,7 @@
         dnnl_status_t status = f; \
         if (status != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
-                print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
+                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
                         __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
                         (int)status); \
                 fflush(0); \
@@ -51,8 +51,9 @@
     do { \
         dnnl_status_t status = f; \
         if (status != dnnl_success) { \
-            print(0, "error [%s:%d]: '%s' -> %s(%d)\n", __PRETTY_FUNCTION__, \
-                    __LINE__, STRINGIFY(f), status2str(status), (int)status); \
+            BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
+                    __PRETTY_FUNCTION__, __LINE__, STRINGIFY(f), \
+                    status2str(status), (int)status); \
             fflush(0); \
             exit(2); \
         } \
@@ -63,7 +64,7 @@
         dnnl_status_t status = f; \
         if (status != dnnl_success) { \
             if (s == CRIT || s == WARN) { \
-                print(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
+                BENCHDNN_PRINT(0, "error [%s:%d]: '%s' -> %s(%d)\n", \
                         __PRETTY_FUNCTION__, __LINE__, #f, status2str(status), \
                         (int)status); \
                 fflush(0); \

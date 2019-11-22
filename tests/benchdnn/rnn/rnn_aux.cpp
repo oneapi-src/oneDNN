@@ -416,7 +416,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case input:
                         case dst_diff_input:
                             inv_ntc_off_f(p, i, n, t, c);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "] "
                                     "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -426,7 +426,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case states:
                         case dst_diff_states:
                             inv_ldnc_off_f(p, i, l, d, n, c);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "," IFMT
                                     "] "
@@ -437,7 +437,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case weights_input:
                         case dst_diff_weights_input:
                             inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "," IFMT "," IFMT
                                     "] "
@@ -449,7 +449,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case weights_states:
                         case dst_diff_weights_states:
                             inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "," IFMT "," IFMT
                                     "] "
@@ -461,7 +461,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case bias:
                         case dst_diff_bias:
                             inv_ldgo_off_f(p, i, l, d, b, c);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "," IFMT
                                     "] "
@@ -472,7 +472,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case dst_last_layer:
                         case diff_last_layer:
                             inv_tnc_off_f(p, i, t, n, c);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "] "
                                     "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -484,7 +484,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                         case diff_last_iteration:
                         case diff_c_last_iteration:
                             inv_ldnc_off_f(p, i, l, d, n, c);
-                            print(0,
+                            BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "," IFMT
                                     "] "
@@ -506,21 +506,21 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             switch (kind) {
                 case input:
                     inv_ntc_off_f(p, i, n, t, c);
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
                     break;
                 case states:
                     inv_ldnc_off_f(p, i, l, d, n, c);
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, n, c, fp, dt);
                     break;
                 case weights_input:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, w, ic, oc, fp, dt);
@@ -528,20 +528,20 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 case weights_states:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                     break;
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, w, ic, oc, fp, dt);
                 case bias:
                     inv_ldgo_off_f(p, i, l, d, b, c);
                     break;
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, b, c, fp, dt);
                 case dst_last_layer:
                     inv_tnc_off_f(p, i, t, n, c);
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
@@ -549,14 +549,14 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 case dst_last_iteration:
                 case dst_c_last_iteration:
                     inv_ldnc_off_f(p, i, l, d, n, c);
-                    print(0,
+                    BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, n, c, fp, dt);
                     break;
                 default:
-                    print(0, "[%4ld][unknown] fp:%8g dt:%8g\n", (long)i, fp,
-                            dt);
+                    BENCHDNN_PRINT(0, "[%4ld][unknown] fp:%8g dt:%8g\n",
+                            (long)i, fp, dt);
                     break;
             }
         }
@@ -575,7 +575,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
     if (final_compare || r->errors) {
         const int vl = r->errors ? 0 : 2;
-        print(vl,
+        BENCHDNN_PRINT(vl,
                 "@@@ [%s] %sdiff: l0(``%g``) "
                 "l1:(%g,%g,%g,``%g``) "
                 "l2:(%g,%g,%g,``%g``) "

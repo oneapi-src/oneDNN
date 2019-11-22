@@ -59,7 +59,7 @@ int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
             int64_t mb = 0, ic = 0, d = 0, h = 0, w = 0;
             inv_data_off(p, i, mb, ic, d, h, w);
 
-            print(0,
+            BENCHDNN_PRINT(0,
                     "[%4ld][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                     "] "
                     "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
@@ -145,11 +145,11 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_lrn_desc_t &ld,
 
     const char *impl_str = query_impl_info(lpd);
     if (maybe_skip(skip_impl, impl_str)) {
-        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
         DNN_SAFE(dnnl_primitive_desc_destroy(lpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        print(5, "dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
     }
 
     return OK;

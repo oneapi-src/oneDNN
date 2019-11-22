@@ -84,7 +84,7 @@ void check_correctness() {
         const char *pstr = cpp_pstr.c_str();
 
         if (pattern && !match_regex(pstr, pattern)) return;
-        print(1, "run: %s\n", pstr);
+        BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
         const int status = doit(&p, &res);

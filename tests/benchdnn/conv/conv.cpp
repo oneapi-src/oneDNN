@@ -174,7 +174,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                         inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w);
                         break;
                 }
-                print(0,
+                BENCHDNN_PRINT(0,
                         "[%4ld][%s%s]"
                         "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                         "] "
@@ -201,7 +201,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
             }
 
-            print(0,
+            BENCHDNN_PRINT(0,
                     "[%4ld][%s]"
                     "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                     "] "
@@ -217,7 +217,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
     if (final_compare || r->errors) {
         const int vl = r->errors ? 0 : 2;
-        print(vl,
+        BENCHDNN_PRINT(vl,
                 "@@@ [%s] %sdiff: err:%d, l0(``%g``) "
                 "l1:(%g,%g,%g,``%g``) "
                 "l2:(%g,%g,%g,``%g``) "
@@ -245,7 +245,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     const bool dump = verbose >= 20
             || (verbose >= 10 && (trust_rg < 1. || trust_nz < 1.));
     if (dump) {
-        print(0,
+        BENCHDNN_PRINT(0,
                 "@@@ [%s] %strust range:%.2f nz:%.2f "
                 "(level range:%.2f nz:%.2f). "
                 "in:%d (ok:%d) below:%d (ok:%d) above:%d (ok:%d) nz:%d "
@@ -257,7 +257,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
     if (no_trust) {
         if (r->state != FAILED) r->state = MISTRUSTED;
-        print(0,
+        BENCHDNN_PRINT(0,
                 "@@@ [%s] test-bug: trust is too low. "
                 "range:%.2f (?<%.2f) nz:%.2f (?<%.2f) (nz: %d total: %lu)\n",
                 skind, trust_rg, trust_rg_level, trust_nz, trust_nz_level,
@@ -549,11 +549,11 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     if (r) {
         const char *impl_str = query_impl_info(cpd);
         if (maybe_skip(skip_impl, impl_str)) {
-            print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+            BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
             DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
             return r->state = SKIPPED, OK;
         } else {
-            print(5, "dnnl implementation: %s\n", impl_str);
+            BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
         }
     }
 
@@ -635,7 +635,8 @@ int doit(const prb_t *p, res_t *r) {
     DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
     if (cpd_ref) {
         DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
-        print(5, "%s\n", "benchdnn: use CPU primitive as the reference");
+        BENCHDNN_PRINT(
+                5, "%s\n", "benchdnn: use CPU primitive as the reference");
     }
 
     DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
