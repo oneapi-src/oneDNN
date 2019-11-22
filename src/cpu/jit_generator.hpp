@@ -625,8 +625,12 @@ public:
 
     void uni_vpaddd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x2.getIdx());
-        paddd(x2, op);
+        if (mayiuse(avx))
+            vpaddd(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+            paddd(x1, op);
+        }
     }
     void uni_vpaddd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
@@ -635,8 +639,12 @@ public:
 
     void uni_vpmaddwd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
-        pmaddwd(x1, op);
+        if (mayiuse(avx))
+            vpmaddwd(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+            pmaddwd(x1, op);
+        }
     }
     void uni_vpmaddwd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
@@ -645,8 +653,12 @@ public:
 
     void uni_vpmaddubsw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
-        if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
-        pmaddubsw(x1, op);
+        if (mayiuse(avx))
+            vpmaddubsw(x1, x2, op);
+        else {
+            if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+            pmaddubsw(x1, op);
+        }
     }
     void uni_vpmaddubsw(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
