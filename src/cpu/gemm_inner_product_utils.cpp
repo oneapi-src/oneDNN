@@ -123,42 +123,9 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
             pd->desc()->bias_desc.data_type, skip_sum) {}
 
 template <data_type_t acc_type, data_type_t dst_type>
-void pp_kernel_t<acc_type, dst_type>::generate() {
+void pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
     using namespace Xbyak;
     using namespace utils;
-
-    const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
-
-    preamble();
-
-#define PARAM_OFF(x) offsetof(ker_args, x)
-    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-    mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
-    mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
-    if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
-    if (do_dst_zero_points_) {
-        // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
-        mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
-        vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
-    }
-    if (runtime_oc())
-        mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
-    else
-        mov(reg_oc, OC_);
-    mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
-    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
-    if (do_scale_ && scale_idx_mult_ == 0)
-        vbroadcastss(vreg_scale, dword[reg_scales]);
-#undef PARAM_OFF
-
-    if (do_sum_) {
-        mov(reg_tmp, float2int(sum_scale_));
-        auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
-        vmovq(xreg_sum_scale, reg_tmp);
-        vbroadcastss(vreg_sum_scale, xreg_sum_scale);
-    }
-
-    if (dst_type == data_type::u8) vxorps(vreg_zero, vreg_zero, vreg_zero);
 
     // Load accumulated value, convert to float, apply bias (if any), scaling,
     // and eltwise (if any); then convert to destination type and store
@@ -433,6 +400,45 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
         process_runtime_oc();
     }
     L(l_epilogue_end);
+}
+
+template <data_type_t acc_type, data_type_t dst_type>
+void pp_kernel_t<acc_type, dst_type>::generate() {
+    using namespace Xbyak;
+    using namespace utils;
+
+    preamble();
+
+#define PARAM_OFF(x) offsetof(ker_args, x)
+    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
+    mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
+    mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
+    if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
+    if (do_dst_zero_points_) {
+        // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
+        mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
+        vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
+    }
+    if (runtime_oc())
+        mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
+    else
+        mov(reg_oc, OC_);
+    mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
+    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
+    if (do_scale_ && scale_idx_mult_ == 0)
+        vbroadcastss(vreg_scale, dword[reg_scales]);
+#undef PARAM_OFF
+
+    if (do_sum_) {
+        mov(reg_tmp, float2int(sum_scale_));
+        auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
+        vmovq(xreg_sum_scale, reg_tmp);
+        vbroadcastss(vreg_sum_scale, xreg_sum_scale);
+    }
+
+    if (dst_type == data_type::u8) vxorps(vreg_zero, vreg_zero, vreg_zero);
+
+    compute_oc_channel_blk();
 
     postamble();
 

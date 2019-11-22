@@ -56,6 +56,7 @@ public:
 
 private:
     void generate();
+    void compute_oc_channel_blk();
 
     struct ker_args {
         dst_data_t *dst;
@@ -118,6 +119,8 @@ private:
     int idx_compute_vreg_max_;
     int compute_vregs_per_iter_;
     int compute_vreg_bias_shift_, compute_vreg_prev_dst_shift_;
+
+    const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
     bool do_bias() const { return bias_data_type_ != data_type::undef; }
     bool runtime_oc() const { return OC_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
