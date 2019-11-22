@@ -37,9 +37,6 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     dnnl_primitive_desc_t r_pd = nullptr;
     dnnl_primitive_t r;
 
-    dnnl_engine_t engine_cpu = nullptr;
-    dnnl_stream_t stream_cpu = nullptr;
-
     // Optimization to reduce testing time for GPU.
     //
     // For CPU <-> GPU reorders, the library creates GPU-side kernels.
@@ -60,11 +57,6 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     if (!is_reorder_related_driver
             && (src.engine_kind() == dnnl_gpu
                     || dst.engine_kind() == dnnl_gpu)) {
-
-        DNN_SAFE(dnnl_engine_create(&engine_cpu, dnnl_cpu, 0), CRIT);
-        DNN_SAFE(dnnl_stream_create(
-                         &stream_cpu, engine_cpu, dnnl_stream_default_flags),
-                CRIT);
 
         dnnl_status_t status = dnnl_reorder_primitive_desc_create(
                 &r_pd, &src.md_, engine_cpu, &dst.md_, engine_cpu, attr);
@@ -110,9 +102,6 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
 
     DNN_SAFE(execute_and_wait(r, r_stream, args), CRIT);
     DNN_SAFE(dnnl_primitive_destroy(r), CRIT);
-
-    if (stream_cpu) DNN_SAFE(dnnl_stream_destroy(stream_cpu), CRIT);
-    if (engine_cpu) DNN_SAFE(dnnl_engine_destroy(engine_cpu), CRIT);
 
     return OK;
 }

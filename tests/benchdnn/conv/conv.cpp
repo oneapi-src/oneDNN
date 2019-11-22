@@ -608,12 +608,10 @@ int doit(const prb_t *p, res_t *r) {
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time
     dnnl_primitive_t c_ref = nullptr;
-    dnnl_engine_t engine_ref = nullptr;
 
     if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
         dnnl_primitive_desc_t cpd_ref = nullptr;
-        SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), WARN);
-        SAFE(init_pd(engine_ref, p, cpd_ref, nullptr, fp, fp, fp, fp, fp,
+        SAFE(init_pd(engine_cpu, p, cpd_ref, nullptr, fp, fp, fp, fp, fp,
                      src_tag, wei_tag, dnnl_x, src_tag),
                 WARN);
         if (cpd_ref) {
@@ -694,7 +692,6 @@ int doit(const prb_t *p, res_t *r) {
 
     DNN_SAFE_V(dnnl_primitive_destroy(c));
     DNN_SAFE_V(dnnl_primitive_destroy(c_ref));
-    DNN_SAFE_V(dnnl_engine_destroy(engine_ref));
 
     return OK;
 }

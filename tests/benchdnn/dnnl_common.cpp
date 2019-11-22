@@ -46,6 +46,12 @@ dnnl_stream_t stream_tgt;
 // Scratchpad mode for DNNL
 dnnl_scratchpad_mode_t scratchpad_mode;
 
+// Engine used to run reference implementations (fast-ref-gpu option)
+dnnl_engine_t engine_cpu;
+
+// Stream for CPU engine
+dnnl_stream_t stream_cpu;
+
 args_t &args_t::set(int arg, const dnn_mem_t &mem) {
     args_.push_back(std::make_pair(arg, &mem));
     return *this;
