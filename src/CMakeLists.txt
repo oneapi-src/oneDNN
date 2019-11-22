@@ -142,21 +142,22 @@ if (WIN32)
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
 else()
     if(DNNL_LIBRARY_TYPE STREQUAL "SHARED")
-        set_ternary(ext APPLE "dylib" "so")
+        set_ternary(ext APPLE ".dylib" ".so")
         set(vers ".${DNNL_VERSION_MAJOR};.${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
     else()
-        set(ext "a")
+        set(ext ".a")
         set(vers "")
     endif()
     foreach(ver "" ${vers})
-        add_custom_command(OUTPUT libmkldnn.${ext}${ver}
+        set_ternary(ext_and_ver APPLE "${ver}${ext}" "${ext}${ver}")
+        add_custom_command(OUTPUT libmkldnn${ext_and_ver}
             # to make the next command work fine
-            COMMAND ${CMAKE_COMMAND} -E remove -f libmkldnn.${ext}${ver}
-            COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl.${ext}${ver} libmkldnn.${ext}${ver}
+            COMMAND ${CMAKE_COMMAND} -E remove -f libmkldnn${ext_and_ver}
+            COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl${ext_and_ver} libmkldnn${ext_and_ver}
             DEPENDS ${LIB_NAME})
         add_custom_target(compat_libs${ver} ALL
-                DEPENDS libmkldnn.${ext}${ver})
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libmkldnn.${ext}${ver}
+                DEPENDS libmkldnn${ext_and_ver})
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libmkldnn${ext_and_ver}
             DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
     endforeach()
 endif()
