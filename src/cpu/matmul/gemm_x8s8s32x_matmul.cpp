@@ -210,7 +210,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
             || dst_type != s32 || dst_zero_point_f32 != 0.f;
 
     if (postops_in_matmul) {
-        parallel(0, [&](int ithr, int nthr) {
+        const bool force_sequential = pp_kernel_->sequential_kernel();
+        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);
             (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,

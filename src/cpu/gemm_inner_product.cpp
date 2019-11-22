@@ -53,7 +53,8 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
             postops_in_ip_ ? nullptr : bias);
 
     if (postops_in_ip_) {
-        parallel(0, [&](int ithr, int nthr) {
+        const bool force_sequential = pp_kernel_->sequential_kernel();
+        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)OC * MB, nthr, ithr, start, end);
             (*pp_kernel_)(dst, dst, (char *)bias, scales, start, end);

@@ -59,13 +59,15 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             wei_tr ? &K : &M, src, &K, &beta_, acc, &M);
 
     const float *scales = pd()->attr()->output_scales_.scales_;
-    if (postops_in_ip_)
-        parallel(0, [&](int ithr, int nthr) {
+    if (postops_in_ip_) {
+        const bool force_sequential = pp_kernel_->sequential_kernel();
+        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start = 0, end = 0;
             size_t work_size = M * N;
             balance211(work_size, nthr, ithr, start, end);
             (*pp_kernel_)(dst, acc, bias, scales, start, end);
         });
+    }
 }
 
 template <data_type_t diff_src_data_type>

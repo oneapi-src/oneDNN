@@ -50,6 +50,10 @@ public:
     typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
+    // mb kernel only supports single-threaded execution where performance
+    // degradation is larger
+    bool sequential_kernel() const { return mb_blk_kernel; }
+
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t end,
             size_t runtime_oc = 0, const float *dst_zero_points = nullptr);
@@ -57,6 +61,7 @@ public:
 private:
     void generate();
     void compute_oc_channel_blk();
+    void compute_mb_blk(); // vectorize across minibatch
 
     struct ker_args {
         dst_data_t *dst;
@@ -119,11 +124,13 @@ private:
     int idx_compute_vreg_max_;
     int compute_vregs_per_iter_;
     int compute_vreg_bias_shift_, compute_vreg_prev_dst_shift_;
+    bool mb_blk_kernel;
 
     const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
     bool do_bias() const { return bias_data_type_ != data_type::undef; }
     bool runtime_oc() const { return OC_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
+    bool runtime_mb() const { return MB_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
 
     Xbyak::Zmm vreg_dst(int iter) {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_;
