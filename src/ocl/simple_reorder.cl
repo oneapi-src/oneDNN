@@ -37,7 +37,7 @@
 #define DST_OFF_G(gr, x0, x1, x2, x3, x4) OFF_MD(DST, x0, x1, x2, x3, x4, 0)
 #endif
 
-#if SRC_DT_S8 || SRC_DT_U8
+#if SRC_DT_S8
 #define SRC_BLOCK_READ(src) \
     as_char(intel_sub_group_block_read_uc((const __global uchar *)(src)))
 #define SRC_BLOCK_READ8(src) \
@@ -275,87 +275,49 @@ simple_reorder(__global SRC_DATA_T *src, __global DST_DATA_T *dst, float alpha,
 
 #if REF_REORDER
 
-#if NDIMS <= 3
     const int d0 = get_global_id(0);
     const int d1 = get_global_id(1);
-    const int d2 = get_global_id(2);
-#if PAD_FILL_ZERO
-    if (d0 >= SRC_D0 || d1 >= SRC_D1 || d2 >= SRC_D2) {
-        dst[DST_OFF(d0, d1, d2, 0, 0, 0)] = 0;
-        return;
-    }
-#endif // PAD_FILL_ZERO
-    {
-        const int src_off = SRC_OFF(d0, d1, d2, 0, 0, 0);
-        const int dst_off = DST_OFF(d0, d1, d2, 0, 0, 0);
-#if SCALE_QUANT
-        alpha = scales[SCALE_OFF(d0, d1, d2, 0, 0, 0)];
-#endif
-        REORDER(dst[dst_off], src[src_off], alpha, beta);
-    }
-#elif NDIMS <= 5
-    const int d0 = get_global_id(0);
-    const int d1 = get_global_id(1);
-#if PAD_FILL_ZERO
-    if (d0 >= SRC_D0 || d1 >= SRC_D1) {
-        for (int d2 = 0; d2 < DST_D2; ++d2)
-            for (int d3 = 0; d3 < DST_D3; ++d3)
-                for (int d4 = 0; d4 < max(1, DST_D4); ++d4) {
-                    dst[DST_OFF(d0, d1, d2, d3, d4, 0)] = 0;
-                }
-        return;
-    }
-#endif // PAD_FILL_ZERO
-    for (int d2 = 0; d2 < SRC_D2; ++d2)
-        for (int d3 = 0; d3 < SRC_D3; ++d3)
-            for (int d4 = 0; d4 < max(1, SRC_D4); ++d4) {
-                const int src_off = SRC_OFF(d0, d1, d2, d3, d4, 0);
-                const int dst_off = DST_OFF(d0, d1, d2, d3, d4, 0);
-#if SCALE_QUANT
-                alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, 0)];
-#endif
-                REORDER(dst[dst_off], src[src_off], alpha, beta);
-            }
-#if PAD_FILL_ZERO
-    for (int d2 = SRC_D2; d2 < DST_D2; ++d2)
-        for (int d3 = SRC_D3; d3 < DST_D3; ++d3)
-            for (int d4 = SRC_D4; d4 < max(1, DST_D4); ++d4) {
-                dst[DST_OFF(d0, d1, d2, d3, d4, 0)] = 0;
-            }
-#endif // PAD_FILL_ZERO
+    int d2345 = get_global_id(2);
+    const int d5_blk_start = (d2345 % D5_NBLOCKS) * D5_BLOCK;
+    d2345 /= D5_NBLOCKS;
+    const int d4_blk_start = (d2345 % D4_NBLOCKS) * D4_BLOCK;
+    d2345 /= D4_NBLOCKS;
+    const int d3_blk_start = (d2345 % D3_NBLOCKS) * D3_BLOCK;
+    d2345 /= D3_NBLOCKS;
+    const int d2_blk_start = (d2345 % D2_NBLOCKS) * D2_BLOCK;
 
-#elif NDIMS == 6
-    const int d0 = get_global_id(0);
-    const int d1 = get_global_id(1);
-    const int d2 = get_global_id(2);
-#if PAD_FILL_ZERO
-    if (d0 >= SRC_D0 || d1 >= SRC_D1 || d2 >= SRC_D2) {
-        for (int d3 = 0; d3 < DST_D3; ++d3)
-            for (int d4 = 0; d4 < DST_D4; ++d4)
-                for (int d5 = 0; d5 < DST_D5; ++d5) {
-                    dst[DST_OFF(d0, d1, d2, d3, d4, d5)] = 0;
-                }
-        return;
-    }
-#endif // PAD_FILL_ZERO
-    for (int d3 = 0; d3 < DST_D3; ++d3)
-        for (int d4 = 0; d4 < DST_D4; ++d4)
-            for (int d5 = 0; d5 < DST_D5; ++d5) {
-                const int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5);
-                const int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5);
-#if SCALE_QUANT
-                alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, d5)];
+    const int d5_blk_end = d5_blk_start + D5_BLOCK;
+    const int d4_blk_end = d4_blk_start + D4_BLOCK;
+    const int d3_blk_end = d3_blk_start + D3_BLOCK;
+    const int d2_blk_end = d2_blk_start + D2_BLOCK;
+
+    for (int d2 = d2_blk_start; d2 < d2_blk_end; ++d2) {
+        for (int d3 = d3_blk_start; d3 < d3_blk_end; ++d3) {
+            for (int d4 = d4_blk_start; d4 < d4_blk_end; ++d4) {
+                for (int d5 = d5_blk_start; d5 < d5_blk_end; ++d5) {
+                    const int src_off = SRC_OFF(d0, d1, d2, d3, d4, d5);
+                    const int dst_off = DST_OFF(d0, d1, d2, d3, d4, d5);
+#if PAD_FILL_ZERO == 1
+                    int pad_d0 = d0 >= SRC_D0;
+                    int pad_d1 = NDIMS > 1 && d1 >= SRC_D1;
+                    int pad_d2 = NDIMS > 2 && d2 >= SRC_D2;
+                    int pad_d3 = NDIMS > 3 && d3 >= SRC_D3;
+                    int pad_d4 = NDIMS > 4 && d4 >= SRC_D4;
+                    int pad_d5 = NDIMS > 5 && d5 >= SRC_D5;
+                    if (pad_d0 || pad_d1 || pad_d2 || pad_d3 || pad_d4
+                            || pad_d5) {
+                        dst[dst_off] = 0;
+                        continue;
+                    }
 #endif
-                REORDER(dst[dst_off], src[src_off], alpha, beta);
+#if SCALE_QUANT
+                    alpha = scales[SCALE_OFF(d0, d1, d2, d3, d4, d5)];
+#endif
+                    REORDER(dst[dst_off], src[src_off], alpha, beta);
+                }
             }
-#if PAD_FILL_ZERO
-    for (int d3 = SRC_D3; d3 < DST_D3; ++d3)
-        for (int d4 = SRC_D4; d4 < DST_D4; ++d4)
-            for (int d5 = SRC_D5; d5 < DST_D5; ++d5) {
-                dst[DST_OFF(d0, d1, d2, d3, d4, d5)] = 0;
-            }
-#endif // PAD_FILL_ZERO
-#endif // NDIMS == 6
+        }
+    }
 
 #else // REF_REORDER == 0
 

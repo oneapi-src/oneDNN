@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_CONVOLUTION_FWD_PD_HPP
-#define OCL_CONVOLUTION_FWD_PD_HPP
+#ifndef OCL_CONVOLUTION_PD_HPP
+#define OCL_CONVOLUTION_PD_HPP
 
 #include <assert.h>
 
@@ -40,10 +40,16 @@ protected:
                 = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
         auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
 
+        bool is_int8
+                = utils::one_of(conv_prop_invariant_src_d(desc())->data_type,
+                        data_type::s8, data_type::u8);
         switch (p.len_) {
             case 0: return true; // no post_ops
             case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-            case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+            case 2:
+                // sum -> eltwise (or eltwise -> sum for int8)
+                return (is_sum(0) && is_eltwise(1))
+                        || (is_int8 && is_eltwise(0) && is_sum(1));
             default: return false;
         }
 

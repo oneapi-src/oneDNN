@@ -42,12 +42,12 @@ namespace ocl_utils {
 inline status_t convert_to_dnnl(cl_int cl_status) {
     switch (cl_status) {
         case CL_SUCCESS: return status::success;
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE:
+        case CL_OUT_OF_RESOURCES:
+        case CL_OUT_OF_HOST_MEMORY: return status::out_of_memory;
         case CL_DEVICE_NOT_FOUND:
         case CL_DEVICE_NOT_AVAILABLE:
         case CL_COMPILER_NOT_AVAILABLE:
-        case CL_MEM_OBJECT_ALLOCATION_FAILURE:
-        case CL_OUT_OF_RESOURCES:
-        case CL_OUT_OF_HOST_MEMORY:
         case CL_PROFILING_INFO_NOT_AVAILABLE:
         case CL_MEM_COPY_OVERLAP:
         case CL_IMAGE_FORMAT_MISMATCH:
@@ -85,24 +85,31 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
     }
 }
 
-#define OCL_CHECK(x) \
+#ifndef NDEBUG
+#define MAYBE_REPORT_OCL_ERROR(s) \
     do { \
-        cl_int s = x; \
-        if (s != CL_SUCCESS) { \
-            if (dnnl_verbose()->level >= 5) { \
-                printf("Error from OpenCL: %d\n", s); \
-            } \
-            return dnnl::impl::ocl::ocl_utils::convert_to_dnnl(s); \
-        } \
+        if (get_verbose()) \
+            printf("dnnl_verbose,gpu,ocl_error,%d\n", (int)(s)); \
     } while (0)
-
 #define OCL_CHECK_V(x) \
     do { \
         cl_int s = x; \
         if (s != CL_SUCCESS) { \
-            printf("Error from OpenCL: %d\n", s); \
-            exit(1); \
+            MAYBE_REPORT_OCL_ERROR(s); \
             return; \
+        } \
+    } while (0)
+#else
+#define MAYBE_REPORT_OCL_ERROR(s)
+#define OCL_CHECK_V(x) x
+#endif
+
+#define OCL_CHECK(x) \
+    do { \
+        cl_int s = x; \
+        if (s != CL_SUCCESS) { \
+            MAYBE_REPORT_OCL_ERROR(s); \
+            return dnnl::impl::ocl::ocl_utils::convert_to_dnnl(s); \
         } \
     } while (0)
 

@@ -54,6 +54,9 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
                             utils::one_of(bias_md_.data_type, data_type::f32,
                                     data_type::s32, data_type::s8,
                                     data_type::u8))
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale
+                            | primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
@@ -88,10 +91,15 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
         const auto &_pd = pd();
         if (_pd->ndims() == 3)
             execute_forward_1d(ctx);
-        else if (_pd->jcp_.is_depthwise)
-            execute_forward_2d_dw(ctx);
+        else if (_pd->ndims() == 4)
+            if (_pd->jcp_.is_depthwise)
+                execute_forward_2d_dw(ctx);
+            else
+                execute_forward_2d(ctx);
+        else if (_pd->ndims() == 5)
+            execute_forward_3d(ctx);
         else
-            execute_forward_2d(ctx);
+            return status::unimplemented;
         return status::success;
     }
 
@@ -99,6 +107,7 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_2d_dw(const exec_ctx_t &ctx) const;
+    void execute_forward_3d(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     jit_avx512_core_x8s8s32x_fwd_kernel *kernel_;

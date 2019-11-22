@@ -29,33 +29,37 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
 
     if (!IMPLICATION(nargs > 0, c_args != nullptr)) return invalid_arguments;
 
-    int n_inputs = 0;
-    int n_outputs = 0;
+    // TODO: better put extra_* in primitive_desc
+    int n_inputs = 0, extra_inputs = 0;
+    int n_outputs = 0, extra_outputs = 0;
 
     for (int i = 0; i < nargs; ++i) {
         int arg = c_args[i].arg;
         auto *mem = c_args[i].memory;
+
+        // allows dummy arguments
+        if (mem == nullptr) continue;
 
         switch (pd->arg_usage(arg)) {
             case primitive_desc_t::arg_usage_t::input:
                 if (args.count(arg) != 0) return invalid_arguments;
                 args[arg] = {mem, true};
                 n_inputs++;
+                extra_inputs += (arg == DNNL_ARG_ATTR_OUTPUT_SCALES)
+                        || (arg & DNNL_ARG_ATTR_ZERO_POINTS);
                 break;
             case primitive_desc_t::arg_usage_t::output:
                 if (args.count(arg) != 0) return invalid_arguments;
                 args[arg] = {mem, false};
                 n_outputs++;
+                extra_outputs += (arg == DNNL_ARG_SCRATCHPAD);
                 break;
             case primitive_desc_t::arg_usage_t::unused: break;
         }
     }
 
-    bool scratchpad_required = !types::is_zero_md(pd->scratchpad_md());
-
-    if (n_inputs != pd->n_inputs()) return invalid_arguments;
-    if (n_outputs != pd->n_outputs() + (scratchpad_required ? 1 : 0))
-        return invalid_arguments;
+    if (n_inputs != pd->n_inputs() + extra_inputs) return invalid_arguments;
+    if (n_outputs != pd->n_outputs() + extra_outputs) return invalid_arguments;
 
     return success;
 }
@@ -131,6 +135,11 @@ void exec_ctx_t::unmap_memory_storage(
     status_t status = storage->unmap_data(mapped_ptr);
     assert(status == status::success);
     MAYBE_UNUSED(status);
+}
+
+memory_desc_wrapper exec_ctx_t::memory_mdw(int arg) const {
+    if (args_.count(arg) != 1) return memory_desc_wrapper(&glob_zero_md);
+    return memory_desc_wrapper(args_.at(arg).mem->md());
 }
 
 void exec_ctx_t::set_scratchpad_grantor(

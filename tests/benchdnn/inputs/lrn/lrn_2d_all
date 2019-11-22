@@ -7,8 +7,12 @@ mb50ic96ih112_alpha0.0005_k2n"fastrcnn:norm1"
 mb50ic96ih112_ls3_alpha0.00005n"fastrcnn_zf:norm1"
 
 # random problems
-mb2ic15_ih16n"channel_tail"
-mb2ic16_ih5_ls7n"non_default_local_size"
-mb2ic16_ih5_beta1.0n"non_default_beta"
-mb2ic16_ih5_k14.2n"non_default_k"
+ic15_ih16n"channel_tail"
+ic16_ih5_ls7n"non_default_local_size"
+ic16_ih5_beta1.0n"non_default_beta"
+ic16_ih5_k14.2n"non_default_k"
+ic16_ih10iw7n"non_square_shape"
+ic12_ih15iw1n"unit_width"
+ic31_ih1iw16n"unit_heigth"
+ic64_ih1iw1n"unit_heigth_and_width"
 

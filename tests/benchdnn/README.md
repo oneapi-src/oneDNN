@@ -1,8 +1,7 @@
 # benchdnn
 
 **benchdnn** is a standalone correctness and performance benchmark for
-[Deep Neural Network Library (DNNL)](
-/intel/mkl-dnn).
+[Deep Neural Network Library (DNNL)](https://github.com/intel/mkl-dnn).
 
 The purpose of the benchmark is extended and robust correctness verification of
 the primitives provided by DNNL.
@@ -16,6 +15,7 @@ So far it supports and uses the following drivers:
 * [inner product](doc/driver_ip.md)
 * [layer normalization](doc/driver_lnorm.md)
 * [local response normalization (LRN)](doc/driver_lrn.md)
+* [matrix multiplication (MatMul)](doc/driver_matmul.md)
 * [pooling](doc/driver_pool.md)
 * [reorder](doc/driver_reorder.md)
 * [recurrent neural network (RNN)](doc/driver_rnn.md)
@@ -31,9 +31,10 @@ So far it supports and uses the following drivers:
 ``` sh
     ./benchdnn --DRIVER [--engine=ENGINE_KIND] [--mode=MODE] [--reset] \
                [--max-ms-per-prb=INT] [--fix-times-per-prb=INT] \
-               [-vINT|--verbose=INT] [--skip-impl=SKIP_IMPL] \
-               [--allow-unimpl=BOOL] [--perf-template=PERF_TEMPLATE] \
-               [DRIVER-OPTS] PROBLEM-DESCRIPTION [--batch=FILE]
+               [-vINT|--verbose=INT] [--fast-ref-gpu=BOOL] \
+               [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
+               [--perf-template=PERF_TEMPLATE] [DRIVER-OPTS] \
+               PROBLEM-DESCRIPTION [--batch=FILE]
 ```
 
 where:
@@ -53,13 +54,15 @@ where:
             non-negative. Default is `0` (not applied, time criterion is used).
  - `-vINT, --verbose=INT` -- verbose level; use for printing additional
             information. Default is `0`.
+ - `--fast-ref-gpu=true|false` -- allow using CPU primitives as the reference
+            for GPU testing to reduce testing time. Default is `true`.
  - `--skip-impl="str1[:str2]..."` -- skip a specific implementation
             (see dnnl_query_impl_info_str), default `""`.
  - `--allow-unimpl=true|false` -- do not treat unimplemented configuration
             as an error. Default is `false`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
-            [performace report](doc/knobs_perf_report.md) for details.
+            [performance report](doc/knobs_perf_report.md) for details.
  - `DRIVER-OPTS` -- each driver has a customized list of options. Refer to
             the corresponding driver_DRIVER.md for detailed information.
  - `PROBLEM-DESCRIPTION` -- each driver requires a specific problem format.
@@ -119,6 +122,20 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 |  any          | dnnl_format_tag_any. Let the library decide, which layout should be used.
 |  undef        | dnnl_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
 
+## Running Testing
+
+DNNL comes with its own testing infrastructure enabled through CMake. Tests
+can be executed via the command:
+``` sh
+    make test_<test-name>
+```
+This will order cmake to build a deployable project and run the specific test.
+
+These tests target specific DNNL features and are based out of benchdnn
+configurable executions.
+
+The different tests available can be found in the DNNL directory:
+inputs/<primitive_name>/test_<target>.
 
 ## Issues and Contributions
 

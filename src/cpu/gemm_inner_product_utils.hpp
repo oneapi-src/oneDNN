@@ -22,7 +22,7 @@
 #include "cpu_inner_product_pd.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 #include "ref_eltwise.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -37,6 +37,8 @@ template <impl::data_type_t acc_type, impl::data_type_t dst_type>
 class pp_kernel_t : jit_generator {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
+    pp_kernel_t(size_t OC, const primitive_attr_t *attr, data_type_t bias_dt,
+            bool skip_sum);
     pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool skip_sum);
     ~pp_kernel_t() {
         if (do_eltwise_) {
@@ -49,7 +51,8 @@ public:
     typedef typename prec_traits<dst_type>::type dst_data_t;
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
-            const float *scales, size_t start, size_t end);
+            const float *scales, size_t start, size_t end,
+            size_t runtime_oc = 0, const float *dst_zero_points = nullptr);
 
 private:
     void generate();
@@ -59,7 +62,9 @@ private:
         const acc_data_t *acc;
         const char *bias;
         const float *scales;
+        const float *dst_zero_points;
         float nslope;
+        size_t oc;
         size_t len;
         size_t oc_offset;
     };
@@ -77,14 +82,15 @@ private:
     Xbyak::Reg64 reg_bias = rbx;
     Xbyak::Reg64 reg_scales = rsi;
 
+    Xbyak::Reg64 reg_oc = r13;
     Xbyak::Reg64 reg_len = r8;
     Xbyak::Reg64 reg_tmp = rcx; // intentional for shifting purposes
     Xbyak::Reg64 reg_oc_offset = r9;
     Xbyak::Reg64 reg_rem_mask = r10;
     Xbyak::Opmask kreg_rem_mask = k1;
 
-    // Will be asigned in constructor
-    Xbyak::Zmm vreg_zero, vreg_scale, vreg_sum_scale;
+    // Will be assigned in constructor
+    Xbyak::Zmm vreg_zero, vreg_scale, vreg_sum_scale, vreg_dst_zero_points;
 
     Xbyak::Reg64 eltwise_reserved_1_ = r11;
     Xbyak::Opmask eltwise_reserved_2_ = k2;
@@ -96,7 +102,6 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
     size_t OC_;
-    bool do_bias_;
     data_type_t bias_data_type_;
     size_t bias_data_type_size_;
     bool do_scale_;
@@ -104,6 +109,7 @@ private:
     bool do_eltwise_;
     post_ops_t::entry_t::eltwise_t eltwise_;
     bool do_sum_;
+    bool do_dst_zero_points_;
     float sum_scale_;
     cpu_isa_t isa_;
     int max_OC_loop_unroll_;
@@ -111,6 +117,9 @@ private:
     int idx_compute_vreg_max_;
     int compute_vregs_per_iter_;
     int compute_vreg_bias_shift_, compute_vreg_prev_dst_shift_;
+
+    bool do_bias() const { return bias_data_type_ != data_type::undef; }
+    bool runtime_oc() const { return OC_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
 
     Xbyak::Zmm vreg_dst(int iter) {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_;

@@ -180,7 +180,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
-                    && attr()->post_ops_.has_default_values();
+                    && attr()->has_default_values();
 
             if (ok) {
                 CHECK(init_convolution());
@@ -324,7 +324,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
                                             bf16, wei_type, ddst_type)))
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
-                            alg_kind::deconvolution_winograd);
+                            alg_kind::deconvolution_winograd)
+                    && attr()->has_default_values();
 
             if (ok) {
                 CHECK(init_convolution());

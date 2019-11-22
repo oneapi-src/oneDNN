@@ -331,6 +331,21 @@ struct jit_simple_sum_conf_t {
     int ndims;
 };
 
+/* binary */
+struct jit_binary_conf_t {
+    int ndims;
+    data_type_t data_type;
+    bool is_mul;
+    bool is_add;
+    bool is_tensor_op;
+    size_t gws_d[3];
+    int dim0[MAX_NDIMS];
+    int bcast_dims[MAX_NDIMS];
+    jit_memory_desc_info_t src0_md_info;
+    jit_memory_desc_info_t src1_md_info;
+    jit_memory_desc_info_t dst_md_info;
+};
+
 /* simple reorder */
 struct jit_reorder_conf_t {
     bool do_reorder, with_group, has_padding;
@@ -340,8 +355,10 @@ struct jit_reorder_conf_t {
     size_t nelems;
     size_t gws_d[3], lws_d[3];
     int block[3];
+    int dim_block[6];
     int sub_group_size;
     int scale_mask;
+    size_t scales_num;
 
     jit_memory_desc_info_t src_md_info;
     jit_memory_desc_info_t dst_md_info;
@@ -539,6 +556,7 @@ inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
     kernel_ctx.define_int("EXP", alg_kind::eltwise_exp);
     kernel_ctx.define_int("GELU", alg_kind::eltwise_gelu);
     kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
+    kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
     kernel_ctx.define_int("ALG_KIND", alg);
 }
 

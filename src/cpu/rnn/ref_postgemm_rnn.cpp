@@ -73,14 +73,22 @@ float linear(float s, float alpha, float clipping) {
 
 template <typename T, typename src_data_t, typename scratch_data_t>
 void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
-        const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_,
+        const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *states_t_l_,
-        src_data_t *states_tm1_l_, float *bias_) {
+        src_data_t *states_t_l_copy_, const src_data_t *states_tm1_l_,
+        float *bias_) {
 
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
+
+    auto dst_ld = rnn.dst_ld(cell_position);
+    auto dst_copy_ld = rnn.dst_copy_ld(cell_position);
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_ld);
+    ws_states_aoc<src_data_t> states_t_l_copy(
+            rnn, states_t_l_copy_, dst_copy_ld);
+
     if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](int i) {
@@ -88,6 +96,7 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
             const float h
                     = func1(scratch_gates(i, 0, j) + bias(0, j), alpha, 0);
             states_t_l(i, j) = h;
+            if (states_t_l_copy_ != nullptr) states_t_l_copy(i, j) = h;
             if (rnn.is_training) ws_gates(i, 0, j) = h;
         }
     });
@@ -104,11 +113,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::rnn_postgemm) {
     };
     auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
-        rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+        rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
+                ws_gates_, scratch_gates_, states_t_l_, states_t_l_copy_,
+                states_tm1_l_, bias_);
     else
-        rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+        rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, cell_position,
+                ws_gates_, scratch_gates_, states_t_l_, states_t_l_copy_,
+                states_tm1_l_, bias_);
 }
 
 template <>
@@ -122,11 +133,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::rnn_postgemm) {
     };
     auto alpha = pd_->desc()->alpha;
     if (!pd_->attr()->rnn_tparams_.test_mode_)
-        rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+        rnn_fwd_postgemm_template(act_f, nullptr, alpha, rnn, cell_position,
+                ws_gates_, scratch_gates_, states_t_l_, states_t_l_copy_,
+                states_tm1_l_, bias_);
     else
-        rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+        rnn_fwd_postgemm_template(linear_f, scales, alpha, rnn, cell_position,
+                ws_gates_, scratch_gates_, states_t_l_, states_t_l_copy_,
+                states_tm1_l_, bias_);
 }
 
 template <>

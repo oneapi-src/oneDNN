@@ -59,7 +59,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
             PROPERTIES COMPILE_FLAGS "-prec-div")
     endif()
 endif()
-if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
     file(GLOB FILES_REQUIRED_BIGOBJ
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp)

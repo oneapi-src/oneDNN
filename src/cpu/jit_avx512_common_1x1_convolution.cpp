@@ -80,8 +80,6 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
     const int ndims = src_d.ndims();
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
     const int stride_w = pd()->desc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : pd()->desc()->padding[0][0];
-    const int pad_l = pd()->desc()->padding[0][ndims - 3];
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
@@ -115,8 +113,8 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         oh = os / jcp.ow;
         ow = os % jcp.ow;
 
-        ih = nstl::max(oh * stride_h - pad_t, 0);
-        iw = nstl::max(ow * stride_w - pad_l, 0);
+        ih = oh * stride_h;
+        iw = ow * stride_w;
         rp.iw_start = iw;
 
         p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
@@ -267,8 +265,6 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
     const int stride_w = pd()->desc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : pd()->desc()->padding[0][0];
-    const int pad_l = pd()->desc()->padding[0][ndims - 3];
 
     const int nb_ic = jcp.nb_load;
     const int nb_oc = jcp.nb_reduce;
@@ -331,8 +327,8 @@ void jit_avx512_common_1x1_convolution_bwd_data_t<diff_dst_type, wei_type,
 
                     const int oh = os / jcp.ow;
                     const int ow = os % jcp.ow;
-                    const int ih = nstl::max(oh * stride_h - pad_t, 0);
-                    const int iw = nstl::max(ow * stride_w - pad_l, 0);
+                    const int ih = oh * stride_h;
+                    const int iw = ow * stride_w;
                     rp.iw_start = iw;
 
                     const int _icb = g * nb_ic + icb;
@@ -468,8 +464,6 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
 
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
     const int stride_w = pd()->desc()->strides[ndims - 3];
-    const int pad_t = (ndims == 3) ? 0 : pd()->desc()->padding[0][0];
-    const int pad_l = pd()->desc()->padding[0][ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -656,8 +650,8 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                             const int oh = sp / jcp.ow;
                             const int ow = sp % jcp.ow;
 
-                            const int ih = nstl::max(oh * stride_h - pad_t, 0);
-                            const int iw = nstl::max(ow * stride_w - pad_l, 0);
+                            const int ih = oh * stride_h;
+                            const int iw = ow * stride_w;
                             rp.iw_start = iw;
 
                             rp.ws = rtus_space

@@ -43,6 +43,23 @@ STRUCT_ALIGN(
             char pad2[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
         });
 
+/* TODO: remove ctx_64_t once batch normalization switches to barrier-less
+ * implementation.
+ * Different alignments of context structure affect performance differently for
+ * convolution and batch normalization. Convolution performance becomes more
+ * stable with page alignment compared to cache line size alignment.
+ * Batch normalization (that creates C / simd_w barriers) degrades with page
+ * alignment due to significant overhead of ctx_init in case of mb=1. */
+STRUCT_ALIGN(
+        64, struct ctx_64_t {
+            enum { CACHE_LINE_SIZE = 64 };
+            volatile size_t ctr;
+            char pad1[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
+            volatile size_t sense;
+            char pad2[CACHE_LINE_SIZE - 1 * sizeof(size_t)];
+        });
+
+template <typename ctx_t>
 inline void ctx_init(ctx_t *ctx) {
     *ctx = utils::zero<ctx_t>();
 }

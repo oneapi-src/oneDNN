@@ -67,7 +67,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
      *
      * implicit rules:
      *  - default values:
-     *      mb = 2, g = 1, d = fd, sh = sw = 1, dh = dw = 0, S="wip"
+     *      mb = 2, g = 1, d = fd, sh = sw = 1, dh = dw = 0
      *  - if H is undefined => H = W
      *  - if W is undefined => W = H
      *  - if `output` is undefined => compute output
@@ -78,7 +78,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.dd = d.dh = d.dw = 0;
-    d.has_groups = false, d.name = "\"wip\"";
+    d.has_groups = false;
     d.pw = -1;
     d.ph = -1;
     d.pd = -1;
@@ -162,7 +162,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_d) {
         if (!d.id || !d.kd) return FAIL;
         if (!d.od) {
-            d.pd = 0;
+            if (d.pd < 0) d.pd = 0;
             d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
         } else if (d.pd < 0)
             d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
@@ -171,7 +171,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
-            d.ph = 0;
+            if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(is_deconv, d.ih, d.kh, d.sh, d.ph, d.dh);
         } else if (d.ph < 0)
             d.ph = compute_pad(is_deconv, d.oh, d.ih, d.kh, d.sh, d.dh);
@@ -180,7 +180,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     if (!no_w) {
         if (!d.iw || !d.kw) return FAIL;
         if (!d.ow) {
-            d.pw = 0;
+            if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(is_deconv, d.iw, d.kw, d.sw, d.pw, d.dw);
         } else if (d.pw < 0)
             d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);
@@ -265,7 +265,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (canonical || d.dh != 0 || d.dw != 0 || d.dd != 0)
         print_spatial("dd", d.dd, "dh", d.dh, "dw", d.dw);
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }
@@ -330,6 +330,12 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
     if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (p.stag != dnnl_format_tag_any)
+        s << "--stag=" << fmt_tag2str(p.stag) << " ";
+    if (p.wtag != dnnl_format_tag_any)
+        s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
+    if (p.dtag != dnnl_format_tag_any)
+        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
     if (p.alg != DIRECT) s << "--alg=" << alg2str(p.alg) << " ";
     if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 

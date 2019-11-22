@@ -119,6 +119,7 @@ The operation supports the following combinations of data types:
 | Propagation        | Source / Destination | Mean / Variance / ScaleShift
 | :--                | :--                  | :--
 | forward / backward | f32                  | f32
+| forward            | f16                  | f32
 
 ### Data Representation
 
@@ -132,7 +133,7 @@ Corresponding memory object can have arbitrary memory format. Unless mean and
 variance are computed at runtime and not exposed (i.e. propagation kind is
 #dnnl_forward_inference and #dnnl_use_global_stats is not set), user should
 provide memory descriptor for statistics when initializing layer normalization
-descriptor. For best performance it is adviced to use memory format that follows
+descriptor. For best performance it is advised to use memory format that follows
 the data memory format, i.e. data format is #dnnl_tnc, best performance can be
 expected for statistics with #dnnl_tn format and suboptimal for statistics with
 #dnnl_nc format.

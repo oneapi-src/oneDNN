@@ -15,23 +15,27 @@
 *******************************************************************************/
 
 /// @example getting_started.cpp
-/// This C++ API example demonstrates basics of DNNL programming
-/// model.
-///
+/// @copybrief getting_started_cpp
 /// > Annotated version: @ref getting_started_cpp
 
 #include <cmath>
 #include <numeric>
-#include <sstream>
+#include <stdexcept>
 #include <vector>
 
+#include "dnnl.hpp"
 #include "dnnl_debug.h"
+
 #include "example_utils.hpp"
 
 using namespace dnnl;
 // [Prologue]
 
 /// @page getting_started_cpp Getting started
+///
+/// This C++ API example demonstrates basics of DNNL programming
+/// model.
+///
 /// > Example code: @ref getting_started.cpp
 ///
 /// This C++ API example demonstrates basics of DNNL programming
@@ -67,7 +71,7 @@ using namespace dnnl;
 
 /// @page getting_started_cpp
 /// @section getting_started_cpp_tutorial getting_started_tutorial() function
-/// @page getting_started_cpp
+///
 void getting_started_tutorial(engine::kind engine_kind) {
     /// @page getting_started_cpp
     /// @subsection getting_started_cpp_sub1 Engine and stream
@@ -248,7 +252,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     // Sanity check: the memory descriptors should be the same
     if (src_md != alt_src_md)
-        throw std::string("memory descriptor initialization mismatch");
+        throw std::logic_error("Memory descriptor initialization mismatch.");
     // [Init alt_src_md]
 
     /// Just as before, the tensor's dimensions come in the `N, C, H, W` order
@@ -444,12 +448,11 @@ void getting_started_tutorial(engine::kind engine_kind) {
                             ? 0.f
                             : image[off]; // expected value
                     if (relu_image[off] != expected) {
-                        std::stringstream ss;
-                        ss << "Unexpected output at index(" << n << ", " << c
-                           << ", " << h << ", " << w << "): "
-                           << "Expect " << expected << " "
-                           << "Got " << relu_image[off];
-                        throw ss.str();
+                        std::cout << "At index(" << n << ", " << c << ", " << h
+                                  << ", " << w << ") expect " << expected
+                                  << " but got " << relu_image[off]
+                                  << std::endl;
+                        throw std::logic_error("Accuracy check failed.");
                     }
                 }
     // [Check the results]
@@ -471,23 +474,28 @@ void getting_started_tutorial(engine::kind engine_kind) {
 /// @snippet getting_started.cpp Main
 // [Main]
 int main(int argc, char **argv) {
+    int exit_code = 0;
+
     try {
         engine::kind engine_kind = parse_engine_kind(argc, argv);
         getting_started_tutorial(engine_kind);
-        std::cout << "Example passes" << std::endl;
     } catch (dnnl::error &e) {
-        std::cerr << "DNNL error: " << e.what() << std::endl
-                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
-        return 1;
+        std::cout << "DNNL error caught: " << std::endl
+                  << "\tStatus: " << dnnl_status2str(e.status) << std::endl
+                  << "\tMessage: " << e.what() << std::endl;
+        exit_code = 1;
     } catch (std::string &e) {
-        std::cerr << "Error in the example: " << e << std::endl;
-        return 2;
+        std::cout << "Error in the example: " << e << std::endl;
+        exit_code = 2;
     }
 
-    return 0;
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << std::endl;
+    return exit_code;
 }
 // [Main]
 
+/// @page getting_started_cpp
+///
 /// <b></b>
 ///
 /// Upon compiling and run the example the output should be just:
@@ -523,5 +531,3 @@ int main(int argc, char **argv) {
 /// DNNL error: could not execute a primitive
 /// Error status: invalid_arguments
 /// ~~~
-///
-/// @page getting_started_cpp

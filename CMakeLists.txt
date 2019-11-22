@@ -47,6 +47,11 @@ if(POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW)
 endif()
 
+if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+    message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 set(PROJECT_NAME "DNNL")
 set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
 set(PROJECT_VERSION "1.90.0")
@@ -62,11 +67,6 @@ endif()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "DNNL supports 64 bit platforms only")
-endif()
-
-if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-    message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
-    set(CMAKE_BUILD_TYPE "Release")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -93,6 +93,7 @@ include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
+include("cmake/coverage.cmake")
 
 # Handle cases when OpenMP runtime is requested but not found: override CPU
 # runtime to be sequential

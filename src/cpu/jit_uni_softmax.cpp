@@ -25,7 +25,7 @@
 
 #include "jit_generator.hpp"
 
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 #include "jit_uni_softmax.hpp"
 
 namespace dnnl {
@@ -57,11 +57,12 @@ struct jit_softmax_base_t : public jit_generator {
 
     void (*ker)(const call_params_t *);
     void operator()(const call_params_t *p) { (*ker)(p); }
-    jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<isa> *exp_injector_, *log_injector_;
 
     Reg64 reg_param = abi_param1;
 
-    Reg64 reg_injector_table = rax;
+    Reg64 reg_exp_injector_table = rax;
+    Reg64 reg_log_injector_table = rbx;
     Reg64 reg_src = r8;
     Reg64 reg_dst = r9;
     Reg64 reg_spat_offt = r10;
@@ -79,6 +80,9 @@ struct jit_softmax_base_t : public jit_generator {
     Vmm vone = Vmm(isa == avx512_common ? 29 : 13);
     Vmm vsum = Vmm(isa == avx512_common ? 30 : 14);
     Vmm vmax = Vmm(isa == avx512_common ? 31 : 15);
+
+    bool is_softmax_ = pd_->is_softmax();
+    bool is_logsoftmax_ = pd_->is_logsoftmax();
 
     size_t simd_w_ = vlen / sizeof(data_t);
     size_t unroll_regs_ = 4;
@@ -171,25 +175,15 @@ struct jit_softmax_base_t : public jit_generator {
         }
     }
 
-    virtual void prepare_tail_mask() {}
-    virtual void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) {};
-    virtual void accumulate_vmax() {};
-    virtual void accumulate_vsum() {};
-    virtual void compute_dst() {};
+    virtual void prepare_tail_mask() = 0;
+    virtual void get_horizontal_op(const Vmm &v, const Vmm &vtmp, op_t op) = 0;
+    virtual void accumulate_vmax() = 0;
+    virtual void accumulate_vsum() = 0;
+    virtual void compute_dst() = 0;
 
     void forward() {
-        // flush to -FLT_MAX before accumulation
-        uni_vmovups(vmax, vneg_flt_max);
         accumulate_vmax();
-
-        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
-
-        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
         accumulate_vsum();
-
-        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
-
-        uni_vdivps(vsum, vone, vsum, vtmp = vmax);
         compute_dst();
     }
 
@@ -197,17 +191,25 @@ struct jit_softmax_base_t : public jit_generator {
     // that are participated are not defined at the moment of base ctor
     // initialization.
     void get_code() {
-        eltwise_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
+        exp_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
                 alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
-                reg_injector_table, injector_mask);
+                reg_exp_injector_table, injector_mask);
+        if (is_logsoftmax_) {
+            log_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
+                    alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
+                    reg_log_injector_table, injector_mask);
+        }
+
         compute_predefined_variables();
         preamble();
-        eltwise_injector_->load_table_addr();
+        exp_injector_->load_table_addr();
+        if (is_logsoftmax_) log_injector_->load_table_addr();
         if (axis_simd_tail_) prepare_tail_mask();
         load_common_params();
         forward();
         postamble();
-        eltwise_injector_->prepare_table();
+        exp_injector_->prepare_table();
+        if (is_logsoftmax_) log_injector_->prepare_table();
 
         ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t *>(getCode()));
     }
@@ -241,6 +243,9 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
     }
 
     void accumulate_vmax() override {
+        // flush to -FLT_MAX before accumulation
+        uni_vmovups(vmax, vneg_flt_max);
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 if (!tail)
@@ -251,29 +256,44 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
                 }
             }
         });
+
+        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
 
     void accumulate_vsum() override {
+        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (!tail) {
                     uni_vmovups(vreg_tmp_src, src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    eltwise_injector_->compute_vector(vreg_tmp_src.getIdx());
+                    if (is_logsoftmax_) // store before applying exp
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                     uni_vaddps(vsum, vsum, vreg_tmp_src);
-                    uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
+                    if (is_softmax_) // store after applying exp
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
                 } else {
                     uni_vmovups_tail(vreg_tmp_src, tail_opmask,
                             src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    eltwise_injector_->compute_vector(vreg_tmp_src.getIdx());
+                    if (is_logsoftmax_) // store before applying exp
+                        uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_opmask,
+                                vreg_tmp_src);
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                     uni_vaddps(vsum | tail_opmask, vsum, vreg_tmp_src);
-                    uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_opmask,
-                            vreg_tmp_src);
+                    if (is_softmax_) // store after applying exp
+                        uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_opmask,
+                                vreg_tmp_src);
                 }
             }
         });
+
+        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
+        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
+        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
     }
 
     void compute_dst() override {
@@ -281,11 +301,23 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (!tail) {
-                    uni_vmulps(vreg_tmp_src, vsum, dst_ptr(axis_stride_ * i));
+                    if (is_softmax_)
+                        uni_vmulps(
+                                vreg_tmp_src, vsum, dst_ptr(axis_stride_ * i));
+                    if (is_logsoftmax_) {
+                        uni_vmovups(vreg_tmp_src, dst_ptr(axis_stride_ * i));
+                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    }
                     uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
                 } else {
-                    uni_vmulps(vreg_tmp_src | tail_opmask, vsum,
-                            dst_ptr(axis_stride_ * i));
+                    if (is_softmax_)
+                        uni_vmulps(vreg_tmp_src | tail_opmask, vsum,
+                                dst_ptr(axis_stride_ * i));
+                    if (is_logsoftmax_) {
+                        uni_vmovups_tail(vreg_tmp_src, tail_opmask,
+                                dst_ptr(axis_stride_ * i));
+                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    }
                     uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_opmask,
                             vreg_tmp_src);
                 }
@@ -297,7 +329,10 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
         get_code();
     }
 
-    virtual ~jit_softmax_t() { delete eltwise_injector_; }
+    virtual ~jit_softmax_t() {
+        delete exp_injector_;
+        if (is_logsoftmax_) delete log_injector_;
+    }
 };
 
 template <>
@@ -322,6 +357,9 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
     }
 
     void accumulate_vmax() override {
+        // flush to -FLT_MAX before accumulation
+        uni_vmovups(vmax, vneg_flt_max);
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 if (!tail)
@@ -335,33 +373,47 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
                 }
             }
         });
+
+        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
 
     void accumulate_vsum() override {
+        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (!tail) {
                     uni_vmovups(vreg_tmp_src, src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    eltwise_injector_->compute_vector(vreg_tmp_src.getIdx());
+                    if (is_logsoftmax_) // store before applying exp
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                     uni_vaddps(vsum, vsum, vreg_tmp_src);
-                    uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
+                    if (is_softmax_) // store after applying exp
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
                 } else {
                     uni_vmovups_tail(vreg_tmp_src, tail_vmask,
                             src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    eltwise_injector_->compute_vector(vreg_tmp_src.getIdx());
-                    vtmp = Vmm(vreg_tmp_src.getIdx()
-                            + 1); // next after vreg_tmp_src
+                    if (is_logsoftmax_) // store before applying exp
+                        uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
+                                vreg_tmp_src);
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
+                    vtmp = Vmm(vreg_tmp_src.getIdx() + 1);
                     uni_vpxor(vtmp, vtmp, vtmp);
                     uni_vblendvps(vtmp, vtmp, vreg_tmp_src, tail_vmask);
                     uni_vaddps(vsum, vsum, vtmp);
-                    uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
-                            vreg_tmp_src);
+                    if (is_softmax_) // store after applying exp
+                        uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
+                                vreg_tmp_src);
                 }
             }
         });
+
+        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
+        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
+        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
     }
 
     void compute_dst() override {
@@ -369,12 +421,21 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (!tail) {
-                    uni_vmulps(vreg_tmp_src, vsum, dst_ptr(axis_stride_ * i));
+                    if (is_softmax_)
+                        uni_vmulps(
+                                vreg_tmp_src, vsum, dst_ptr(axis_stride_ * i));
+                    if (is_logsoftmax_) {
+                        uni_vmovups(vreg_tmp_src, dst_ptr(axis_stride_ * i));
+                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    }
                     uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
                 } else {
                     uni_vmovups_tail(vreg_tmp_src, tail_vmask,
                             dst_ptr(axis_stride_ * i));
-                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    if (is_softmax_)
+                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    if (is_logsoftmax_)
+                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
                     uni_vmovups_tail(dst_ptr(axis_stride_ * i), tail_vmask,
                             vreg_tmp_src);
                 }
@@ -386,7 +447,10 @@ struct jit_softmax_t<avx2> : public jit_softmax_base_t<avx2> {
         get_code();
     }
 
-    virtual ~jit_softmax_t() { delete eltwise_injector_; }
+    virtual ~jit_softmax_t() {
+        delete exp_injector_;
+        if (is_logsoftmax_) delete log_injector_;
+    }
 };
 
 template <>
@@ -409,6 +473,9 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
     }
 
     void accumulate_vmax() override {
+        // flush to -FLT_MAX before accumulation
+        uni_vmovups(vmax, vneg_flt_max);
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
@@ -431,38 +498,51 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
                 }
             }
         });
+
+        get_horizontal_op(vmax, vtmp = vsum, op_t::max);
     }
 
     void accumulate_vsum() override {
+        uni_vpxor(vsum, vsum, vsum); // flush to zero before accumulation
+
         axis_loop([&](int unroll, bool tail = false) {
             for (int i = 0; i < unroll; i++) {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (!tail) {
                     uni_vmovups(vreg_tmp_src, src_ptr(axis_stride_ * i));
                     uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                    eltwise_injector_->compute_vector(vreg_tmp_src.getIdx());
+                    if (is_logsoftmax_) // store before applying exp
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
+                    exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                     uni_vaddps(vsum, vsum, vreg_tmp_src);
-                    uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
+                    if (is_softmax_) // store after applying exp
+                        uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
                 } else {
-                    vtmp = Vmm(vreg_tmp_src.getIdx()
-                            + 1); // next after vreg_tmp_src
-
+                    vtmp = Vmm(vreg_tmp_src.getIdx() + 1);
                     for (size_t j = 0; j < axis_simd_tail_; j++) {
                         uni_vmovss(vreg_tmp_src,
                                 src_ptr(axis_stride_ * i + sizeof(data_t) * j));
                         uni_vsubps(vreg_tmp_src, vreg_tmp_src, vmax);
-                        eltwise_injector_->compute_vector(
-                                vreg_tmp_src.getIdx());
+                        if (is_logsoftmax_) // store before applying exp
+                            uni_vmovss(dst_ptr(axis_stride_ * i
+                                               + sizeof(data_t) * j),
+                                    vreg_tmp_src);
+                        exp_injector_->compute_vector(vreg_tmp_src.getIdx());
                         uni_vpxor(vtmp, vtmp, vtmp);
                         uni_vblendvps(vtmp, vtmp, vreg_tmp_src, tail_vmask);
                         uni_vaddps(vsum, vsum, vtmp);
-                        uni_vmovss(
-                                dst_ptr(axis_stride_ * i + sizeof(data_t) * j),
-                                vreg_tmp_src);
+                        if (is_softmax_) // store after applying exp
+                            uni_vmovss(dst_ptr(axis_stride_ * i
+                                               + sizeof(data_t) * j),
+                                    vreg_tmp_src);
                     }
                 }
             }
         });
+
+        get_horizontal_op(vsum, vtmp = vmax, op_t::sum);
+        if (is_softmax_) uni_vdivps(vsum, vone, vsum, vtmp = vmax);
+        if (is_logsoftmax_) log_injector_->compute_vector(vsum.getIdx());
     }
 
     void compute_dst() override {
@@ -471,13 +551,19 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
                 Vmm vreg_tmp_src = Vmm(i + 1);
                 if (!tail) {
                     uni_vmovups(vreg_tmp_src, dst_ptr(axis_stride_ * i));
-                    uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    if (is_softmax_)
+                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                    if (is_logsoftmax_)
+                        uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
                     uni_vmovups(dst_ptr(axis_stride_ * i), vreg_tmp_src);
                 } else {
                     for (size_t j = 0; j < axis_simd_tail_; j++) {
                         uni_vmovss(vreg_tmp_src,
                                 dst_ptr(axis_stride_ * i + sizeof(data_t) * j));
-                        uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                        if (is_softmax_)
+                            uni_vmulps(vreg_tmp_src, vreg_tmp_src, vsum);
+                        if (is_logsoftmax_)
+                            uni_vsubps(vreg_tmp_src, vreg_tmp_src, vsum);
                         uni_vmovss(
                                 dst_ptr(axis_stride_ * i + sizeof(data_t) * j),
                                 vreg_tmp_src);
@@ -491,7 +577,10 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
         get_code();
     }
 
-    virtual ~jit_softmax_t() { delete eltwise_injector_; }
+    virtual ~jit_softmax_t() {
+        delete exp_injector_;
+        if (is_logsoftmax_) delete log_injector_;
+    }
 };
 
 } // namespace

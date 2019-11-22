@@ -39,10 +39,11 @@ struct ref_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
-            bool ok = true && set_default_params() == status::success
-                    && utils::everyone_is(data_type, src_md(0)->data_type,
-                            src_md(1)->data_type, dst_md()->data_type)
-                    && IMPLICATION(data_type == bf16, mayiuse(avx512_core));
+            bool ok = utils::everyone_is(data_type, src_md(0)->data_type,
+                              src_md(1)->data_type, dst_md()->data_type)
+                    && IMPLICATION(data_type == bf16, mayiuse(avx512_core))
+                    && attr()->has_default_values()
+                    && set_default_params() == status::success;
             if (!ok) return status::unimplemented;
 
             return status::success;

@@ -6,7 +6,7 @@ open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
 for Intel Architecture Processors and Intel Processor Graphics.
 DNNL is intended for deep learning applications and framework
-developers intersted in improving application performance
+developers interested in improving application performance
 on Intel CPUs and GPUs.
 
 # Building and Linking
@@ -19,7 +19,6 @@ on Intel CPUs and GPUs.
 
  * @ref dev_guide_basic_concepts
  * @ref getting_started_cpp
- * @ref cross_engine_reorder_cpp
  * @ref memory_format_propagation_cpp
  * @ref dev_guide_inference_and_training_aspects
    * @ref dev_guide_inference
@@ -31,25 +30,28 @@ on Intel CPUs and GPUs.
    * @ref dev_guide_attributes_post_ops
  * @ref dev_guide_data_types
  * @ref dev_guide_c_and_cpp_apis
+ * @ref cross_engine_reorder_cpp
 
 # Primitives
 
 Compute intensive operations:
  * [(De-)Convolution](@ref dev_guide_convolution): Direct 1D/2D/3D, Winograd 2D
  * [Inner Product](@ref dev_guide_inner_product)
+ * [Matrix Multiplication](@ref dev_guide_matmul)
  * [RNN](@ref dev_guide_rnn): LSTM, Vanilla RNN, GRU
 
 Memory bandwidth limited operations:
- * [Pooling](@ref dev_guide_pooling)
  * [Batch Normalization](@ref dev_guide_batch_normalization)
+ * [Binary](@ref dev_guide_binary)
+ * [Concat](@ref dev_guide_concat)
+ * [Elementwise](@ref dev_guide_eltwise): ReLU, Tanh, ELU, Abs, and other
  * [Layer Normalization](@ref dev_guide_layer_normalization)
  * [Local Response Normalization](@ref dev_guide_lrn)
- * [Softmax](@ref dev_guide_softmax)
- * [Elementwise](@ref dev_guide_eltwise): ReLU, Tanh, ELU, Abs, and other
- * [Sum](@ref dev_guide_sum)
- * [Concat](@ref dev_guide_concat)
+ * [LogSoftmax](@ref dev_guide_logsoftmax)
+ * [Pooling](@ref dev_guide_pooling)
  * [Shuffle](@ref dev_guide_shuffle)
- * [Binary](@ref dev_guide_binary)
+ * [Softmax](@ref dev_guide_softmax)
+ * [Sum](@ref dev_guide_sum)
 
 Data manipulation:
  * [Reorder](@ref dev_guide_reorder)
@@ -58,7 +60,7 @@ Data manipulation:
 
  * @ref dev_guide_verbose
  * @ref dev_guide_benchdnn
- * @ref dev_guide_vtune
+ * @ref dev_guide_profilers
  * @ref dev_guide_inspecting_jit
  * @ref performance_profiling_cpp
 

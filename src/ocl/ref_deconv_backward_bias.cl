@@ -17,17 +17,17 @@
 #include "ocl/ocl_types.h"
 
 __kernel void ref_deconv_backward_bias(
-        __global DATA_T *diff_dst, __global DATA_T *diff_bias) {
+        __global DST_DATA_T *diff_dst, __global BIA_DATA_T *diff_bias) {
     const int g = get_global_id(0) / OC;
     const int oc = get_global_id(0) % OC;
-    DATA_T db = 0;
+    ACC_DATA_T db = 0;
     for (int mb = 0; mb < MB; ++mb)
         for (int od = 0; od < OD; ++od)
             for (int oh = 0; oh < OH; ++oh)
                 for (int ow = 0; ow < OW; ++ow) {
                     uint diff_dst_off = DST_OFF(mb, g * OC + oc, od, oh, ow);
-                    db += diff_dst[diff_dst_off];
+                    db += DST_TO_REF(diff_dst[diff_dst_off]);
                 }
 
-    diff_bias[g * OC + oc] = db;
+    diff_bias[g * OC + oc] = TO_BIA(db);
 }

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TYPE_MAPPING_HPP
-#define TYPE_MAPPING_HPP
+#ifndef C_TYPES_MAP_HPP
+#define C_TYPES_MAP_HPP
 
 #include "dnnl_types.h"
 #include "gemm_types.hpp"
@@ -76,6 +76,7 @@ const alg_kind_t eltwise_soft_relu = dnnl_eltwise_soft_relu;
 const alg_kind_t eltwise_logistic = dnnl_eltwise_logistic;
 const alg_kind_t eltwise_exp = dnnl_eltwise_exp;
 const alg_kind_t eltwise_gelu = dnnl_eltwise_gelu;
+const alg_kind_t eltwise_log = dnnl_eltwise_log;
 const alg_kind_t pooling_max = dnnl_pooling_max;
 const alg_kind_t pooling_avg = dnnl_pooling_avg;
 const alg_kind_t pooling_avg_include_padding = dnnl_pooling_avg_include_padding;
@@ -136,6 +137,7 @@ const format_tag_t abcdef = dnnl_abcdef;
 const format_tag_t abdec = dnnl_abdec;
 const format_tag_t acb = dnnl_acb;
 const format_tag_t acbde = dnnl_acbde;
+const format_tag_t acbdef = dnnl_acbdef;
 const format_tag_t acdb = dnnl_acdb;
 const format_tag_t acdeb = dnnl_acdeb;
 const format_tag_t ba = dnnl_ba;
@@ -156,6 +158,7 @@ const format_tag_t ABc16b16a = dnnl_ABc16b16a;
 const format_tag_t Abc4a = dnnl_Abc4a;
 const format_tag_t aBc4b = dnnl_aBc4b;
 const format_tag_t ABc4b16a4b = dnnl_ABc4b16a4b;
+const format_tag_t ABc2b8a4b = dnnl_ABc2b8a4b;
 const format_tag_t ABc4b4a = dnnl_ABc4b4a;
 const format_tag_t ABc8a16b2a = dnnl_ABc8a16b2a;
 const format_tag_t BAc8a16b2a = dnnl_BAc8a16b2a;
@@ -164,6 +167,7 @@ const format_tag_t aBc8b = dnnl_aBc8b;
 const format_tag_t ABc8b16a2b = dnnl_ABc8b16a2b;
 const format_tag_t ABc8b8a = dnnl_ABc8b8a;
 const format_tag_t Abcd16a = dnnl_Abcd16a;
+const format_tag_t Abcd8a = dnnl_Abcd8a;
 const format_tag_t ABcd16a16b = dnnl_ABcd16a16b;
 const format_tag_t aBcd16b = dnnl_aBcd16b;
 const format_tag_t ABcd16b16a = dnnl_ABcd16b16a;
@@ -175,6 +179,7 @@ const format_tag_t ABcd4b16a4b = dnnl_ABcd4b16a4b;
 const format_tag_t ABcd4b4a = dnnl_ABcd4b4a;
 const format_tag_t ABcd4a4b = dnnl_ABcd4a4b;
 const format_tag_t aBCd4c16b4c = dnnl_aBCd4c16b4c;
+const format_tag_t aBCd2c8b4c = dnnl_aBCd2c8b4c;
 const format_tag_t aBCd4c4b = dnnl_aBCd4c4b;
 const format_tag_t aBCd4b4c = dnnl_aBCd4b4c;
 const format_tag_t ABcd8a16b2a = dnnl_ABcd8a16b2a;
@@ -182,6 +187,7 @@ const format_tag_t BAcd8a16b2a = dnnl_BAcd8a16b2a;
 const format_tag_t ABcd8a8b = dnnl_ABcd8a8b;
 const format_tag_t aBcd8b = dnnl_aBcd8b;
 const format_tag_t ABcd8b16a2b = dnnl_ABcd8b16a2b;
+const format_tag_t ABcd2b8a4b = dnnl_ABcd2b8a4b;
 const format_tag_t aBCd8b16c2b = dnnl_aBCd8b16c2b;
 const format_tag_t aCBd8b16c2b = dnnl_aCBd8b16c2b;
 const format_tag_t ABcd8b8a = dnnl_ABcd8b8a;
@@ -208,6 +214,7 @@ const format_tag_t aBcde8b = dnnl_aBcde8b;
 const format_tag_t ABcde8b16a2b = dnnl_ABcde8b16a2b;
 const format_tag_t ABcde8a16b2a = dnnl_ABcde8a16b2a;
 const format_tag_t BAcde8a16b2a = dnnl_BAcde8a16b2a;
+const format_tag_t ABcde4b16a4b = dnnl_ABcde4b16a4b;
 const format_tag_t aBCde8b16c2b = dnnl_aBCde8b16c2b;
 const format_tag_t aCBde8b16c2b = dnnl_aCBde8b16c2b;
 const format_tag_t ABcde8b8a = dnnl_ABcde8b8a;
@@ -221,6 +228,7 @@ const format_tag_t aBCde8c8b = dnnl_aBCde8c8b;
 const format_tag_t aBcdef16b = dnnl_aBcdef16b;
 const format_tag_t aBCdef16b16c = dnnl_aBCdef16b16c;
 const format_tag_t aBCdef16c16b = dnnl_aBCdef16c16b;
+const format_tag_t aBCdef4c16b4c = dnnl_aBCdef4c16b4c;
 const format_tag_t aBcdef4b = dnnl_aBcdef4b;
 const format_tag_t aBCdef4c4b = dnnl_aBCdef4c4b;
 const format_tag_t aBCdef4b4c = dnnl_aBCdef4b4c;
@@ -293,6 +301,7 @@ const format_tag_t goihw = dnnl_goihw;
 const format_tag_t hwigo = dnnl_hwigo;
 const format_tag_t giohw = dnnl_giohw;
 const format_tag_t goidhw = dnnl_goidhw;
+const format_tag_t giodhw = dnnl_giodhw;
 const format_tag_t tnc = dnnl_tnc;
 const format_tag_t ntc = dnnl_ntc;
 const format_tag_t ldnc = dnnl_ldnc;
@@ -325,6 +334,7 @@ const format_tag_t OIw16i16o = dnnl_OIw16i16o;
 const format_tag_t OIw16o16i = dnnl_OIw16o16i;
 const format_tag_t Oiw16o = dnnl_Oiw16o;
 const format_tag_t OIw4i16o4i = dnnl_OIw4i16o4i;
+const format_tag_t OIw2i8o4i = dnnl_OIw2i8o4i;
 const format_tag_t OIw4i4o = dnnl_OIw4i4o;
 const format_tag_t OIw4o4i = dnnl_OIw4o4i;
 const format_tag_t Oiw4o = dnnl_Oiw4o;
@@ -348,6 +358,7 @@ const format_tag_t OIhw4i4o = dnnl_OIhw4i4o;
 const format_tag_t OIhw4o4i = dnnl_OIhw4o4i;
 const format_tag_t Oihw4o = dnnl_Oihw4o;
 const format_tag_t OIhw8i16o2i = dnnl_OIhw8i16o2i;
+const format_tag_t OIhw2i8o4i = dnnl_OIhw2i8o4i;
 const format_tag_t OIhw8i8o = dnnl_OIhw8i8o;
 const format_tag_t OIhw8o16i2o = dnnl_OIhw8o16i2o;
 const format_tag_t IOhw8o16i2o = dnnl_IOhw8o16i2o;
@@ -362,16 +373,19 @@ const format_tag_t OIdhw4i4o = dnnl_OIdhw4i4o;
 const format_tag_t OIdhw4o4i = dnnl_OIdhw4o4i;
 const format_tag_t Oidhw4o = dnnl_Oidhw4o;
 const format_tag_t OIdhw8i16o2i = dnnl_OIdhw8i16o2i;
+const format_tag_t OIdhw4i16o4i = dnnl_OIdhw4i16o4i;
 const format_tag_t OIdhw8o16i2o = dnnl_OIdhw8o16i2o;
 const format_tag_t IOdhw8o16i2o = dnnl_IOdhw8o16i2o;
 const format_tag_t OIdhw8i8o = dnnl_OIdhw8i8o;
 const format_tag_t OIdhw8o8i = dnnl_OIdhw8o8i;
 const format_tag_t gIOw16o16i = dnnl_gIOw16o16i;
 const format_tag_t Goiw16g = dnnl_Goiw16g;
+const format_tag_t Goiw8g = dnnl_Goiw8g;
 const format_tag_t gOIw16i16o = dnnl_gOIw16i16o;
 const format_tag_t gOIw16o16i = dnnl_gOIw16o16i;
 const format_tag_t gOiw16o = dnnl_gOiw16o;
 const format_tag_t gOIw4i16o4i = dnnl_gOIw4i16o4i;
+const format_tag_t gOIw2i8o4i = dnnl_gOIw2i8o4i;
 const format_tag_t gOIw4i4o = dnnl_gOIw4i4o;
 const format_tag_t gOIw4o4i = dnnl_gOIw4o4i;
 const format_tag_t gOiw4o = dnnl_gOiw4o;
@@ -417,6 +431,7 @@ const format_tag_t gOIdhw4i4o = dnnl_gOIdhw4i4o;
 const format_tag_t gOIdhw4o4i = dnnl_gOIdhw4o4i;
 const format_tag_t gOidhw4o = dnnl_gOidhw4o;
 const format_tag_t gOIdhw8i16o2i = dnnl_gOIdhw8i16o2i;
+const format_tag_t gOIdhw4i16o4i = dnnl_gOIdhw4i16o4i;
 const format_tag_t gOIdhw8o16i2o = dnnl_gOIdhw8o16i2o;
 const format_tag_t gIOdhw8o16i2o = dnnl_gIOdhw8o16i2o;
 const format_tag_t gOIdhw8i8o = dnnl_gOIdhw8i8o;
@@ -477,6 +492,8 @@ const primitive_kind_t inner_product = dnnl_inner_product;
 const primitive_kind_t rnn = dnnl_rnn;
 const primitive_kind_t gemm = dnnl_gemm;
 const primitive_kind_t binary = dnnl_binary;
+const primitive_kind_t logsoftmax = dnnl_logsoftmax;
+const primitive_kind_t matmul = dnnl_matmul;
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;
@@ -516,6 +533,8 @@ const query_t inner_product_d = dnnl_query_inner_product_d;
 const query_t rnn_d = dnnl_query_rnn_d;
 const query_t gemm_d = dnnl_query_gemm_d;
 const query_t binary_d = dnnl_query_binary_d;
+const query_t logsoftmax_d = dnnl_query_logsoftmax_d;
+const query_t matmul_d = dnnl_query_matmul_d;
 
 const query_t some_md = dnnl_query_some_md;
 const query_t src_md = dnnl_query_src_md;
@@ -546,6 +565,8 @@ using batch_normalization_desc_t = dnnl_batch_normalization_desc_t;
 using layer_normalization_desc_t = dnnl_layer_normalization_desc_t;
 using inner_product_desc_t = dnnl_inner_product_desc_t;
 using binary_desc_t = dnnl_binary_desc_t;
+using logsoftmax_desc_t = dnnl_logsoftmax_desc_t;
+using matmul_desc_t = dnnl_matmul_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;
@@ -581,9 +602,10 @@ struct op_desc_t {
         reorder_desc_t reorder;
         sum_desc_t sum;
         binary_desc_t binary;
+        matmul_desc_t matmul;
     };
 
-#define DECL_CTOR_AND_CONVERTERS(c_type, name) \
+#define DECL_CTOR_AND_CONVERTERS(c_type) \
     op_desc_t(const c_type &) = delete; \
     static op_desc_t *convert_from_c(c_type *_) { \
         return reinterpret_cast<op_desc_t *>(_); \
@@ -592,21 +614,22 @@ struct op_desc_t {
         return reinterpret_cast<const op_desc_t *>(_); \
     }
 
-    DECL_CTOR_AND_CONVERTERS(convolution_desc_t, convolution);
-    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t, shuffle);
-    DECL_CTOR_AND_CONVERTERS(pooling_desc_t, pooling);
-    DECL_CTOR_AND_CONVERTERS(eltwise_desc_t, eltwise);
-    DECL_CTOR_AND_CONVERTERS(softmax_desc_t, softmax);
-    DECL_CTOR_AND_CONVERTERS(lrn_desc_t, lrn);
-    DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t, batch_normalization);
-    DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t, layer_normalization);
-    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t, inner_product);
-    DECL_CTOR_AND_CONVERTERS(rnn_desc_t, rnn);
-    DECL_CTOR_AND_CONVERTERS(gemm_desc_t, gemm);
-    DECL_CTOR_AND_CONVERTERS(concat_desc_t, concat);
-    DECL_CTOR_AND_CONVERTERS(reorder_desc_t, reorder);
-    DECL_CTOR_AND_CONVERTERS(sum_desc_t, sum);
-    DECL_CTOR_AND_CONVERTERS(binary_desc_t, binary);
+    DECL_CTOR_AND_CONVERTERS(convolution_desc_t);
+    DECL_CTOR_AND_CONVERTERS(shuffle_desc_t);
+    DECL_CTOR_AND_CONVERTERS(pooling_desc_t);
+    DECL_CTOR_AND_CONVERTERS(eltwise_desc_t);
+    DECL_CTOR_AND_CONVERTERS(softmax_desc_t);
+    DECL_CTOR_AND_CONVERTERS(lrn_desc_t);
+    DECL_CTOR_AND_CONVERTERS(batch_normalization_desc_t);
+    DECL_CTOR_AND_CONVERTERS(layer_normalization_desc_t);
+    DECL_CTOR_AND_CONVERTERS(inner_product_desc_t);
+    DECL_CTOR_AND_CONVERTERS(rnn_desc_t);
+    DECL_CTOR_AND_CONVERTERS(gemm_desc_t);
+    DECL_CTOR_AND_CONVERTERS(concat_desc_t);
+    DECL_CTOR_AND_CONVERTERS(reorder_desc_t);
+    DECL_CTOR_AND_CONVERTERS(sum_desc_t);
+    DECL_CTOR_AND_CONVERTERS(binary_desc_t);
+    DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly
@@ -664,6 +687,7 @@ struct layer_normalization_pd_t;
 struct lrn_bwd_pd_t;
 struct lrn_fwd_pd_t;
 struct lrn_pd_t;
+struct matmul_pd_t;
 struct pooling_bwd_pd_t;
 struct pooling_fwd_pd_t;
 struct pooling_pd_t;

@@ -33,12 +33,13 @@ memory::memory(with_sycl_tag, const desc &md, const engine &eng, void *handle,
     const memory_desc_t *md_c = &md.data;
 
     if (!eng_c || eng_c->runtime_kind() != runtime_kind::sycl)
-        error::wrap_c_api(
-                status::invalid_arguments, "could not create a memory");
+        error::wrap_c_api(dnnl::impl::status::invalid_arguments,
+                "could not create a memory");
 
-    if (md_c->format_kind == dnnl::impl::format_kind::any)
-        error::wrap_c_api(
-                status::invalid_arguments, "could not create a memory");
+    const auto mdw = memory_desc_wrapper(&md.data);
+    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
+        error::wrap_c_api(dnnl::impl::status::invalid_arguments,
+                "could not create a memory");
 
     size_t size = memory_desc_wrapper(md_c).size();
     unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
@@ -57,7 +58,8 @@ memory::memory(with_sycl_tag, const desc &md, const engine &eng, void *handle,
                 new sycl_buffer_memory_storage_t(eng_c, flags, size, handle));
     }
     if (!mem_storage)
-        error::wrap_c_api(status::out_of_memory, "could not create a memory");
+        error::wrap_c_api(
+                dnnl::impl::status::out_of_memory, "could not create a memory");
 
     auto *mem = new memory_t(eng_c, md_c, std::move(mem_storage), true);
     reset(mem);

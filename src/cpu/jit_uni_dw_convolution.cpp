@@ -49,7 +49,9 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
         auto bias_in = CTX_IN_MEM(const bf16_data_t *, DNNL_ARG_BIAS);
         bias = ctx.get_scratchpad_grantor().template get<f32_data_t>(
                 key_conv_bias_bf16_convert_wsp);
-        cvt_bfloat16_to_float(bias, bias_in, jcp.oc);
+        cvt_bfloat16_to_float(bias, bias_in, jcp.oc_without_padding);
+        utils::array_set(bias + jcp.oc_without_padding, 0.f,
+                jcp.oc - jcp.oc_without_padding);
     } else {
         auto bias_in = CTX_IN_MEM(const f32_data_t *, DNNL_ARG_BIAS);
         if (pd()->wants_padded_bias()) {

@@ -19,40 +19,11 @@
 #include "lnorm/lnorm.hpp"
 
 namespace lnorm {
-check_alg_t str2check_alg(const char *str) {
-    if (!strcasecmp("alg_0", str)) return ALG_0;
-    if (!strcasecmp("alg_1", str)) return ALG_1;
-    return ALG_AUTO;
-}
-
-const char *check_alg2str(check_alg_t alg) {
-    switch (alg) {
-        case ALG_0: return "alg_0";
-        case ALG_1: return "alg_1";
-        case ALG_AUTO: return "alg_auto";
-    }
-    return "alg_auto";
-}
 
 flags_t str2flags(const char *str) {
-    flags_t flags = (flags_t)0;
-    while (str && *str) {
-        if (*str == 'G') flags |= GLOB_STATS;
-        if (*str == 'S') flags |= USE_SCALESHIFT;
-        str++;
-    }
+    flags_t flags = bnorm::str2flags(str);
+    assert(flags <= (GLOB_STATS | USE_SCALESHIFT));
     return flags;
-}
-
-const char *flags2str(flags_t flags) {
-    if (flags & GLOB_STATS) {
-        if (flags & USE_SCALESHIFT) return "GS";
-        return "G";
-    }
-
-    if (flags & USE_SCALESHIFT) return "S";
-
-    return "";
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {

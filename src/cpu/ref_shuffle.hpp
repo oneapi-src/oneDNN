@@ -46,6 +46,7 @@ struct ref_shuffle_t : public primitive_impl_t {
                     && IMPLICATION(this->desc()->data_desc.data_type
                                     == data_type::bf16,
                             mayiuse(avx512_core))
+                    && attr()->has_default_values()
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
 

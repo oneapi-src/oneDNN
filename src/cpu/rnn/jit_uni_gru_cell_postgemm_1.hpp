@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GRU_CELL_POSTGEMM_PART1
-#define CPU_JIT_GRU_CELL_POSTGEMM_PART1
+#ifndef CPU_JIT_UNI_GRU_CELL_POSTGEMM_1_HPP
+#define CPU_JIT_UNI_GRU_CELL_POSTGEMM_1_HPP
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
@@ -66,11 +66,12 @@ protected:
         auto is_training
                 = pd_->desc()->prop_kind == prop_kind::forward_training;
         // Labels declaration
-        Label vector_loop_start_label, vector_loop_end_label;
-        Label rem_loop_start_label, rem_loop_end_label;
+        Label vector_loop_start_label, vector_loop_inc_regs,
+                vector_loop_end_label;
+        Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
 
         // Register map
-        Reg64 loop_cnt(r11); // loop counter
+        Reg64 loop_cnt(rbx); // loop counter
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
         Vmm G0(1), G1(2), tmp1_vmm(3);
@@ -84,10 +85,17 @@ protected:
         auto addr_bias_reg = abi_param3;
         auto addr_states_t_l_reg = abi_param4;
 #if _WIN32
-        auto addr_states_tm1_l_reg = r10;
-        mov(addr_states_tm1_l_reg, ptr[rsp + get_size_of_abi_save_regs() + 40]);
+        auto addr_states_t_l_copy_reg = r10;
+        auto addr_states_tm1_l_reg = r11;
+        // Here we cannot use rbp to have initial stack pointer so we
+        // use rsp and offset it with the size of pushed registers in
+        // preamble
+        auto base_args = rsp + get_size_of_abi_save_regs() + 40;
+        mov(addr_states_t_l_copy_reg, ptr[base_args]);
+        mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
 #else
-        auto addr_states_tm1_l_reg = abi_param5;
+        auto addr_states_t_l_copy_reg = abi_param5;
+        auto addr_states_tm1_l_reg = abi_param6;
 #endif
         // helper lambda to address the gates and biases
         auto sg_addr = [&](int i) {
@@ -134,11 +142,18 @@ protected:
             to_scratch<src_data_t>(tmp1_vmm, ptr[addr_states_tm1_l_reg], vlen);
             uni_vmulps(G1, G1, tmp1_vmm);
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G1, vlen);
+            // if states_t_l_copy is a non null ptr, we write the output to it too
+            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            jle(vector_loop_inc_regs);
+            to_src<src_data_t>(
+                    ptr[addr_states_t_l_copy_reg], tmp1_vmm, vlen, true);
 
             // increment address pointers
+            L(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
+            add(addr_states_t_l_copy_reg, vlen_dst);
             add(addr_states_tm1_l_reg, vlen_dst);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
             inc_regs(vlen);
@@ -183,11 +198,18 @@ protected:
                     tmp1s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
             uni_vmulss(G1s, G1s, tmp1s_vmm);
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G1s, scratch_dt_size);
+            // if states_t_l_copy is a non null ptr, we write the output to it too
+            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            jle(rem_loop_inc_regs);
+            to_src<src_data_t>(
+                    ptr[addr_states_t_l_copy_reg], G1s, scratch_dt_size, true);
 
             // increment address pointers
+            L(rem_loop_inc_regs);
             add(addr_scratch_gates_reg, scratch_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
+            add(addr_states_t_l_copy_reg, hstate_dt_size);
             add(addr_states_tm1_l_reg, hstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
             inc_regs(qscale_dt_size);

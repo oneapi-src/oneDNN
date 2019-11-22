@@ -31,6 +31,7 @@ std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
 std::vector<dnnl_format_tag_t> stag {dnnl_nchw}, dtag {dnnl_nchw};
 std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
 std::vector<flag_t> oflag {FLAG_NONE};
+std::vector<unsigned> runtime_dim_mask {0};
 
 dims_t dims;
 alg_t alg = ALG_REF;
@@ -50,6 +51,7 @@ void reset_parameters() {
     dtag = {dnnl_nchw};
     def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
     oflag = {FLAG_NONE};
+    runtime_dim_mask = {0};
     alg = ALG_REF;
     attr = attr_t();
     allow_unimpl = false;
@@ -60,7 +62,8 @@ void check_correctness() {
     for_(const auto &i_ddt : ddt)
     for_(const auto &i_stag : stag)
     for_(const auto &i_dtag : dtag)
-    for (const auto &i_oflag : oflag) {
+    for_(const auto &i_oflag : oflag)
+    for (const auto &i_runtime_dim_mask : runtime_dim_mask) {
         reorder_conf_t reorder_conf {dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);
@@ -69,8 +72,8 @@ void check_correctness() {
         auto &scale = attr.oscale.scale == 0 ? def_scale : attr_scale;
 
         for (const auto &i_scale : scale) {
-            const prb_t p(
-                    reorder_conf, iconf, oconf, attr, alg, i_oflag, i_scale);
+            const prb_t p(reorder_conf, iconf, oconf, attr, alg, i_oflag,
+                    i_runtime_dim_mask, i_scale);
             std::stringstream ss;
             ss << p;
             const std::string cpp_pstr = ss.str();
@@ -103,6 +106,8 @@ int bench(int argc, char **argv) {
                 || parse_tag(stag, argv[0], "stag")
                 || parse_tag(dtag, argv[0], "dtag")
                 || parse_vector_option(oflag, str2flag, argv[0], "oflag")
+                || parse_vector_option(
+                        runtime_dim_mask, atoi, argv[0], "runtime-dim-mask")
                 || parse_single_value_option(alg, str2alg, argv[0], "alg")
                 || parse_vector_option(def_scale, atof, argv[0], "def-scales")
                 || parse_attr(attr, argv[0])

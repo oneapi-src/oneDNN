@@ -54,21 +54,19 @@ inline void jit_conv_ker_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
     if (p.src) ker(&p);
 }
 // The special case for the driver with ow-parallelization (FWD)
-// TODO: implement it for BWD_D and BWD_W too
 inline void jit_conv_ker_pipeline_ow_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
         int channel, int kh_padding, int owb) {
-    PIPELINE(src);
-    PIPELINE(dst);
-    PIPELINE(filt);
-    PIPELINE(bias);
-    PIPELINE(channel);
-    // non-positive value of kh_padding is allowed, in this case kernel must
-    // skip computation part and initialize output by zeroes
-    PIPELINE(kh_padding);
     PIPELINE(owb);
+    jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding);
+}
+// The special case for the driver with iw-parallelization (BWD)
+inline void jit_conv_ker_pipeline_iw_thr(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int kh_padding, int iwb) {
+    PIPELINE(iwb);
 
-    if (p.src) ker(&p);
+    jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding);
 }
 
 inline void jit_conv_3d_ker_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
@@ -520,7 +518,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     const auto &jcp = pd()->jcp_;
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
-    int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
+    int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.nb_iw;
 
     parallel(0, [&](const int ithr, const int nthr) {
         int start {0}, end {0}, start_copy;
@@ -533,15 +531,15 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
         for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
             start = start_copy;
-            int n {0}, g {0}, icc {0};
-            if (jcp.loop_order == loop_cgn) {
+            int n {0}, g {0}, icc {0}, iwb {0};
+            if (jcp.loop_order == loop_cwgn) {
                 int dummy {0};
-                nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n,
-                        jcp.mb, dummy, 1);
-            } else if (jcp.loop_order == loop_gnc) {
+                nd_iterator_init(start, icc, ic_chunks, iwb, jcp.nb_iw, g,
+                        jcp.ngroups, n, jcp.mb, dummy, 1);
+            } else if (jcp.loop_order == loop_gncw) {
                 int dummy {0};
                 nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, icc,
-                        ic_chunks, dummy, 1);
+                        ic_chunks, iwb, jcp.nb_iw, dummy, 1);
             } else {
                 assert(!"unsupported loop order");
             }
@@ -550,28 +548,30 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                 int icb = icc * jcp.nb_ic_blocking;
                 int g_icb = g * jcp.nb_ic + icb;
                 int g_ocb = g * jcp.nb_oc;
+                int iw_s = iwb * jcp.iw_block;
+                int ow_s = iw_s / jcp.stride_w;
 
-                auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
-                auto diff_dst_w
-                        = diff_dst + diff_dst_d.blk_off(n, g_ocb + ocb_l2);
+                auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb, iw_s);
+                auto diff_dst_w = diff_dst
+                        + diff_dst_d.blk_off(n, g_ocb + ocb_l2, ow_s);
                 auto wht_w = weights + wht_blk_off(weights_d, g, ocb_l2, icb);
 
                 for (int ocb = ocb_l2;
                         ocb < min(jcp.nb_oc, ocb_l2 + jcp.nb_oc_L2); ++ocb) {
-                    jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
-                            diff_src_w, diff_dst_w, wht_w, 0, ocb, 1);
+                    jit_conv_ker_pipeline_iw_thr(kernel_->jit_ker, par_conv,
+                            diff_src_w, diff_dst_w, wht_w, 0, ocb, 1, iwb);
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
                 }
 
-                if (jcp.loop_order == loop_cgn) {
+                if (jcp.loop_order == loop_cwgn) {
                     int dummy {0};
-                    nd_iterator_jump(start, end, icc, ic_chunks, g, jcp.ngroups,
-                            n, jcp.mb, dummy, 1);
-                } else if (jcp.loop_order == loop_gnc) {
+                    nd_iterator_jump(start, end, icc, ic_chunks, iwb, jcp.nb_iw,
+                            g, jcp.ngroups, n, jcp.mb, dummy, 1);
+                } else if (jcp.loop_order == loop_gncw) {
                     int dummy {0};
                     nd_iterator_jump(start, end, g, jcp.ngroups, n, jcp.mb, icc,
-                            ic_chunks, dummy, 1);
+                            ic_chunks, iwb, jcp.nb_iw, dummy, 1);
                 } else {
                     assert(!"unsupported loop order");
                 }
@@ -582,8 +582,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv, diff_src, diff_dst,
-                weights, 0, 0, 0);
+        jit_conv_ker_pipeline_iw_thr(kernel_->jit_ker, par_conv, diff_src,
+                diff_dst, weights, 0, 0, 0, 0);
     });
 }
 
@@ -602,7 +602,7 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
     const auto &jcp = pd()->jcp_;
 
     int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
-    int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
+    int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih * jcp.nb_iw;
 
     parallel(0, [&](const int ithr, const int nthr) {
         int start {0}, end {0}, start_copy;
@@ -620,14 +620,15 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
         for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
             start = start_copy;
-            int n {0}, g {0}, icc {0}, ih_s {0};
-            if (jcp.loop_order == loop_cgn)
-                nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n,
-                        jcp.mb, ih_s, jcp.ih);
-            else if (jcp.loop_order == loop_gnc)
+            int n {0}, g {0}, icc {0}, ih_s {0}, iwb {0};
+
+            if (jcp.loop_order == loop_cwgn) {
+                nd_iterator_init(start, icc, ic_chunks, iwb, jcp.nb_iw, g,
+                        jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
+            } else if (jcp.loop_order == loop_gncw) {
                 nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, icc,
-                        ic_chunks, ih_s, jcp.ih);
-            else
+                        ic_chunks, iwb, jcp.nb_iw, ih_s, jcp.ih);
+            } else
                 assert(!"unsupported loop order");
 
             while (start < end) {
@@ -637,10 +638,13 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
 
                 int work_rem = end - start;
                 int ih_e = ih_s + work_rem > jcp.ih ? jcp.ih : ih_s + work_rem;
+                int iw_s = iwb * jcp.iw_block;
+                int ow_s = iw_s / jcp.stride_w;
 
-                auto diff_src_w = diff_src + diff_src_d.blk_off(n, g_icb);
-                auto diff_dst_w
-                        = diff_dst + diff_dst_d.blk_off(n, g_ocb + ocb_l2);
+                auto diff_src_w
+                        = diff_src + diff_src_d.blk_off(n, g_icb, 0, iw_s);
+                auto diff_dst_w = diff_dst
+                        + diff_dst_d.blk_off(n, g_ocb + ocb_l2, 0, ow_s);
                 auto wht_w = weights + wht_blk_off(weights_d, g, ocb_l2, icb);
 
                 for (int ocb = ocb_l2;
@@ -691,21 +695,22 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                             oj = (ij + jcp.t_pad - k_lo) / jcp.stride_h;
                         }
 
-                        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv,
+                        jit_conv_ker_pipeline_iw_thr(kernel_->jit_ker, par_conv,
                                 diff_src_w + ij * diff_src_h_stride,
                                 diff_dst_w + oj * diff_dst_h_stride,
-                                wht_w + k_lo * wht_h_stride, 0, ocb, k_len);
+                                wht_w + k_lo * wht_h_stride, 0, ocb, k_len,
+                                iwb);
                     }
                     diff_dst_w += diff_dst_c_stride;
                     wht_w += wht_oc_stride;
                 }
 
-                if (jcp.loop_order == loop_cgn)
-                    nd_iterator_jump(start, end, icc, ic_chunks, g, jcp.ngroups,
-                            n, jcp.mb, ih_s, jcp.ih);
-                else if (jcp.loop_order == loop_gnc)
+                if (jcp.loop_order == loop_cwgn)
+                    nd_iterator_jump(start, end, icc, ic_chunks, iwb, jcp.nb_iw,
+                            g, jcp.ngroups, n, jcp.mb, ih_s, jcp.ih);
+                else if (jcp.loop_order == loop_gncw)
                     nd_iterator_jump(start, end, g, jcp.ngroups, n, jcp.mb, icc,
-                            ic_chunks, ih_s, jcp.ih);
+                            ic_chunks, iwb, jcp.nb_iw, ih_s, jcp.ih);
                 else
                     assert(!"unsupported loop order");
             }
@@ -715,8 +720,8 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
-        jit_conv_ker_pipeline(kernel_->jit_ker, par_conv, diff_src, diff_dst,
-                weights, 0, 0, 0);
+        jit_conv_ker_pipeline_iw_thr(kernel_->jit_ker, par_conv, diff_src,
+                diff_dst, weights, 0, 0, 0, 0);
     });
 }
 
@@ -758,10 +763,12 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
         for (int ocb_l2 = 0; ocb_l2 < jcp.nb_oc; ocb_l2 += jcp.nb_oc_L2) {
             start = start_copy;
             int n {0}, g {0}, icc {0}, ih_s {0}, id_s {0};
-            if (jcp.loop_order == loop_cgn)
+            // Input width threading is not currently implemented for 3d, so it
+            // is not included in the iterator.
+            if (jcp.loop_order == loop_cwgn)
                 nd_iterator_init(start, icc, ic_chunks, g, jcp.ngroups, n,
                         jcp.mb, id_s, jcp.id, ih_s, jcp.ih);
-            else if (jcp.loop_order == loop_gnc)
+            else if (jcp.loop_order == loop_gncw)
                 nd_iterator_init(start, g, jcp.ngroups, n, jcp.mb, icc,
                         ic_chunks, id_s, jcp.id, ih_s, jcp.ih);
             else
@@ -880,10 +887,10 @@ void jit_avx512_common_convolution_bwd_data_t<diff_dst_type, wei_type,
                     wht_w += wht_oc_stride;
                 }
 
-                if (jcp.loop_order == loop_cgn)
+                if (jcp.loop_order == loop_cwgn)
                     nd_iterator_jump(start, end, icc, ic_chunks, g, jcp.ngroups,
                             n, jcp.mb, id_s, jcp.id, ih_s, jcp.ih);
-                else if (jcp.loop_order == loop_gnc)
+                else if (jcp.loop_order == loop_gncw)
                     nd_iterator_jump(start, end, g, jcp.ngroups, n, jcp.mb, icc,
                             ic_chunks, id_s, jcp.id, ih_s, jcp.ih);
                 else

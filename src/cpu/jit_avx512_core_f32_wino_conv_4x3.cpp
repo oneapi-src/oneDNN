@@ -322,70 +322,58 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_S_G_D(
             last_slice_bias[oc] = bias(jcp.dimM / jcp.dimM_simd_block - 1, oc);
     }
 
-    PRAGMA_OMP(parallel) {
+    parallel_nd(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
+            [&](int img, int K_blk1, int K_blk2) {
+                input_transform_data(img, jcp,
+                        &(input(img, K_blk1 * jcp.dimK_block + K_blk2, 0, 0,
+                                0)),
+                        &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
+            });
 
-        parallel_nd_in_omp(jcp.mb, jcp.dimK_nb_block, jcp.dimK_block,
-                [&](int img, int K_blk1, int K_blk2) {
-                    input_transform_data(img, jcp,
-                            &(input(img, K_blk1 * jcp.dimK_block + K_blk2, 0, 0,
-                                    0)),
-                            &(V(0, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
-                });
-
-        if (jcp.prop_kind != prop_kind::forward_inference) {
-            parallel_nd_in_omp(jcp.nb_oc, jcp.nb_ic,
-                    (jcp.oc_block * jcp.oc_reg_block),
-                    (jcp.ic_block * jcp.ic_reg_block),
-                    [&](int ofm1, int ifm1, int ofm2, int ifm2) {
-                        float *U_base_ptr = is_fwd
-                                ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
-                                : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
-                        weight_transform_data(jcp,
-                                &(weights(ofm1 * jcp.oc_block * jcp.oc_reg_block
-                                                + ofm2,
-                                        ifm1 * jcp.ic_block * jcp.ic_reg_block
-                                                + ifm2,
-                                        0, 0, 0, 0)),
-                                U_base_ptr);
-                    });
-        }
-
-        PRAGMA_OMP(barrier)
-
-        parallel_nd_in_omp(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
-                [&](int N_blk1, int oj, int oi, int M_blk1) {
-                    for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
-                        for (int N_blk2 = 0; N_blk2 < jcp.dimN_block; N_blk2++)
-                            kernel_->gemm_loop_ker(
-                                    (float *)&(M(N_blk1, M_blk1, oj, oi, N_blk2,
-                                            0, 0, 0)),
-                                    (const float *)&(U(M_blk1, oj, oi, K_blk1,
-                                            0, 0, 0, 0)),
-                                    (const float *)&(V(N_blk1, oj, oi, N_blk2,
-                                            K_blk1, 0, 0, 0)),
-                                    K_blk1);
-                });
-
-        PRAGMA_OMP(barrier)
-
-        parallel_nd_in_omp(jcp.mb, jcp.dimM_nb_block,
-                (jcp.dimM_block * jcp.dimM_reg_block),
-                [&](int img, int M_blk1, int M_blk2) {
-                    const int M_blk
-                            = M_blk1 * jcp.dimM_block * jcp.dimM_reg_block
-                            + M_blk2;
-
-                    float *bias_ptr = wants_padded_bias
-                                    && M_blk
-                                            == jcp.dimM / jcp.dimM_simd_block
-                                                    - 1
-                            ? last_slice_bias
-                            : &bias(M_blk, 0);
-                    output_transform_data(img, jcp, p_ops,
-                            &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
-                            &(output(img, M_blk, 0, 0, 0)), bias_ptr);
+    if (jcp.prop_kind != prop_kind::forward_inference) {
+        parallel_nd(jcp.nb_oc, jcp.nb_ic, (jcp.oc_block * jcp.oc_reg_block),
+                (jcp.ic_block * jcp.ic_reg_block),
+                [&](int ofm1, int ifm1, int ofm2, int ifm2) {
+                    float *U_base_ptr = is_fwd
+                            ? &(U(ofm1, 0, 0, ifm1, ofm2, ifm2, 0, 0))
+                            : &(U(ifm1, 0, 0, ofm1, ifm2, ofm2, 0, 0));
+                    weight_transform_data(jcp,
+                            &(weights(ofm1 * jcp.oc_block * jcp.oc_reg_block
+                                            + ofm2,
+                                    ifm1 * jcp.ic_block * jcp.ic_reg_block
+                                            + ifm2,
+                                    0, 0, 0, 0)),
+                            U_base_ptr);
                 });
     }
+
+    parallel_nd(jcp.dimN_nb_block, alpha, alpha, jcp.dimM_nb_block,
+            [&](int N_blk1, int oj, int oi, int M_blk1) {
+                for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
+                    for (int N_blk2 = 0; N_blk2 < jcp.dimN_block; N_blk2++)
+                        kernel_->gemm_loop_ker((float *)&(M(N_blk1, M_blk1, oj,
+                                                       oi, N_blk2, 0, 0, 0)),
+                                (const float *)&(
+                                        U(M_blk1, oj, oi, K_blk1, 0, 0, 0, 0)),
+                                (const float *)&(V(N_blk1, oj, oi, N_blk2,
+                                        K_blk1, 0, 0, 0)),
+                                K_blk1);
+            });
+
+    parallel_nd(jcp.mb, jcp.dimM_nb_block,
+            (jcp.dimM_block * jcp.dimM_reg_block),
+            [&](int img, int M_blk1, int M_blk2) {
+                const int M_blk
+                        = M_blk1 * jcp.dimM_block * jcp.dimM_reg_block + M_blk2;
+
+                float *bias_ptr = wants_padded_bias
+                                && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
+                        ? last_slice_bias
+                        : &bias(M_blk, 0);
+                output_transform_data(img, jcp, p_ops,
+                        &(M(0, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
+                        &(output(img, M_blk, 0, 0, 0)), bias_ptr);
+            });
 }
 
 template <bool is_fwd>
@@ -456,53 +444,50 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
                 });
     }
 
-    PRAGMA_OMP(parallel) {
-
+    parallel_nd(jcp.tile_block, [&](int tile_block) {
         int ithr = dnnl_get_thread_num();
 
-PRAGMA_OMP(for schedule(static))
-for (int tile_block = 0; tile_block < jcp.tile_block; tile_block++) {
-    for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
-        for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
+        for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
+            for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
 
-            input_transform_tileblock_data(tile_block, jcp,
-                    &(input(0, K_blk1 * jcp.dimK_block + K_blk2, 0, 0, 0)),
-                    &(V(ithr, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
+                input_transform_tileblock_data(tile_block, jcp,
+                        &(input(0, K_blk1 * jcp.dimK_block + K_blk2, 0, 0, 0)),
+                        &(V(ithr, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
+            }
         }
-    }
 
-    for (int oj = 0; oj < alpha; oj++) {
-        for (int oi = 0; oi < alpha; oi++) {
-            for_(int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++)
-            for_(int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
-            for (int N_blk = 0; N_blk < jcp.dimN_block; N_blk++)
-                kernel_->gemm_loop_ker(
-                        (float *)&(M(ithr, M_blk1, oj, oi, N_blk, 0, 0, 0)),
-                        (const float *)&(U(M_blk1, oj, oi, K_blk1, 0, 0, 0, 0)),
-                        (const float *)&(
-                                V(ithr, oj, oi, N_blk, K_blk1, 0, 0, 0)),
-                        K_blk1);
+        for (int oj = 0; oj < alpha; oj++) {
+            for (int oi = 0; oi < alpha; oi++) {
+                for_(int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++)
+                for_(int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
+                for (int N_blk = 0; N_blk < jcp.dimN_block; N_blk++)
+                    kernel_->gemm_loop_ker(
+                            (float *)&(M(ithr, M_blk1, oj, oi, N_blk, 0, 0, 0)),
+                            (const float *)&(
+                                    U(M_blk1, oj, oi, K_blk1, 0, 0, 0, 0)),
+                            (const float *)&(
+                                    V(ithr, oj, oi, N_blk, K_blk1, 0, 0, 0)),
+                            K_blk1);
+            }
         }
-    }
 
-    for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++) {
-        for (int M_blk2 = 0; M_blk2 < jcp.dimM_block * jcp.dimM_reg_block;
-                M_blk2++) {
-            const int M_blk
-                    = M_blk1 * jcp.dimM_block * jcp.dimM_reg_block + M_blk2;
+        for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++) {
+            for (int M_blk2 = 0; M_blk2 < jcp.dimM_block * jcp.dimM_reg_block;
+                    M_blk2++) {
+                const int M_blk
+                        = M_blk1 * jcp.dimM_block * jcp.dimM_reg_block + M_blk2;
 
-            float *bias_ptr = wants_padded_bias
-                            && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
-                    ? last_slice_bias
-                    : &bias(M_blk, 0);
+                float *bias_ptr = wants_padded_bias
+                                && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
+                        ? last_slice_bias
+                        : &bias(M_blk, 0);
 
-            output_transform_tileblock_data(tile_block, jcp, p_ops,
-                    &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
-                    &(output(0, M_blk, 0, 0, 0)), bias_ptr);
+                output_transform_tileblock_data(tile_block, jcp, p_ops,
+                        &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
+                        &(output(0, M_blk, 0, 0, 0)), bias_ptr);
+            }
         }
-    }
-}
-    }
+    });
 }
 
 template struct _jit_avx512_core_f32_wino_conv_4x3_t<true>;

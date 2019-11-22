@@ -1,7 +1,7 @@
 Primitive Attributes: Scratchpad {#dev_guide_attributes_scratchpad}
 ===================================================================
 
-Some primitives might require temporary space while performing the
+Some primitives might require a temporary buffer while performing their
 computations. For instance, the operations that do not have enough independent
 work to utilize all cores on a system might use parallelization over the
 reduction axis (e.g. k-axis in matrix-matrix multiplication). In this case
@@ -9,11 +9,12 @@ the threads compute partial results in a temporary buffer and once finished
 the library reduces partial results into the final one. Another example is
 a convolution implementation that uses GEMM. Before using a GEMM the source
 images needs to be rearranged by so-called `im2col` transformation.
-The rearrangement happens to an intermediate buffer that is then used as an
+The transformation happens in a temporary buffer that is then used as an
 input for GEMM.
 
-In both of these examples, the temporary memory is not required once the
-computations are done. DNNL refers to such memory as a **scratchpad**.
+In both of these examples, the temporary buffer is no longer required
+once the primitive computation is completed. DNNL refers to such a
+memory buffer as a **scratchpad**.
 
 @warning
     Do not confuse **scratchpad** with
@@ -22,10 +23,10 @@ computations are done. DNNL refers to such memory as a **scratchpad**.
     propagation of a primitive (hence **must** be preserved between the calls)
     and is used only in training.
 
-The amount of space required for the scratchpad depends on the primitive and the
-actual implementation. The GEMM-based convolutions require a scratchpad for
-the `im2col` data, while directly implemented convolutions can work with the
-original data.
+The amount of space required for the scratchpad depends on the
+primitive and its actual implementation. For example, the GEMM-based
+convolution requires a scratchpad for the `im2col` data, while the
+direct convolution does not.
 
 Both types of implementation might need extra space for the reduction in case
 there are too few independent tasks. The `im2col` size is proportional to the
@@ -35,37 +36,60 @@ buffer for reduction is proportional to the tensor size to be reduced (e.g.,
 threads in the reduction groups (the upper bound is the overall number of
 threads).
 
-As you can see, the scratchpad in these cases might be significant.
 By contrast, some other primitives might require very little extra space. For
 instance, one of the implementation of the @ref dnnl::sum primitive requires
 temporary space only to store the pointers to data for each and every input
 array (that is, the size of the scratchpad is `n * sizeof(void *)`, where `n` is
 the number of summands).
 
-DNNL supports two modes of dealing with scratchpads:
+DNNL supports two modes for handling scratchpads:
 1. #dnnl::scratchpad_mode::library.
    The library allocates memory for each primitive during its creation. This
    is the **default** behavior which enables user to not worry about the
-   scratchpad at all. However this approach has two major downsides:
-   - If primitives are cached, they may reserve a significant amount of memory.
-   - Primitives are not thread safe, because simultaneous runs will make
-     different threads to use the same scratchpad buffer.
+   scratchpad at all.
+   The scratchpad management policy can be configured at compile-time
+   using the DNNL_ENABLE_CONCURRENT_EXEC (@ref dev_guide_build_options)
+   cmake option.
+   - When DNNL_ENABLE_CONCURRENT_EXEC=OFF (**default**), a global scratchpad
+      memory is  shared across primitives. This mode minimizes the
+      amount of memory needed for scratchpads at the application level. The global
+      scratchpad is freed when all the primitives referencing it are destroyed.
+      @warning
+      In this mode, primitives can be created and executed in parallel but must
+      be executed in the same thread they were created in. Executing primitives
+      in a different thread than the one they were created in will result in
+      segmentation fault. If you might execute a primitive in a thread
+      different than the one it was created in, consider using
+      #dnnl::scratchpad_mode::user or DNNL_ENABLE_CONCURRENT_EXEC=ON.
+   - When DNNL_ENABLE_CONCURRENT_EXEC=ON, each primitive allocates its own
+      private scratchpad memory. The scratchpad memory is freed when its
+      primitive is destroyed. This mode can lead to larger memory footprint when
+      compared to DNNL_ENABLE_CONCURRENT_EXEC=OFF.
+      @warning
+      In this mode, primitives can be created in one thread and executed in
+      another. Also, different primitives can be run concurrently.
+      If the same primitive is run from two different threads concurrently,
+      the library will return incorrect results.
+      If you might run the same primitive in two threads concurrently, consider
+      using #dnnl::scratchpad_mode::user or DNNL_ENABLE_CONCURRENT_EXEC=OFF.
 2. #dnnl::scratchpad_mode::user.
    A user provides scratchpad memory that has sufficient space at primitive
    execution (using the `DNNL_ARG_SCRATCHPAD` tag). This enables the user to
    reuse the memory as well as to make the primitives thread-safe. However, this
    requires a good memory manager (in terms of speed and locality) on the user's
-   side and some extra boilerplate code.
+   side.
 
 @warning
-    Primitives are not thread-safe by default. Users should use
-    #dnnl::scratchpad_mode::user if they want to use a single primitive from
-    different threads simultaneously.
+   Primitives are not thread-safe by default. The only way to make the
+   primitive execution fully thread-safe is to use the
+   #dnnl::scratchpad_mode::user mode and not pass the same scratchpad memory to
+   two primitives that are executed concurrently.
 
-The attributes (@ref dev_guide_attributes) are used to control who provides
-a scratchpad:
-- C @ref dnnl_primitive_attr_set_scratchpad_mode
-- C++ @ref dnnl::primitive_attr::set_scratchpad_mode
+The scratchpad mode is controlled though the
+@ref dnnl_primitive_attr_set_scratchpad_mode (C API) and
+@ref dnnl::primitive_attr::set_scratchpad_mode (C++ API) primitive attributes,
+and should be passed during the primitive descriptor creation
+(@ref dev_guide_attributes).
 
 It is worth mentioning that all primitives support both scratchpad modes.
 That is, primitive descriptor creation success or failure cannot depend on the

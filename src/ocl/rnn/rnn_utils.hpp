@@ -61,12 +61,10 @@
             const memory_storage_t &tm_scales) const
 
 #define gemm_sig(f) \
-    void f(const exec_ctx_t &ctx, int m, int n, int k, int strideA_m, \
-            int strideA_k, int strideB_n, int strideB_k, int strideC_m, \
-            int strideC_n, const memory_storage_t &a, size_t off_a, \
+    void f(const exec_ctx_t &ctx, const memory_storage_t &a, size_t off_a, \
             const memory_storage_t &b, size_t off_b, \
-            const memory_storage_t &c, size_t off_c, bool is_B_trans, \
-            float beta, gemm_kind_t gemm_kind) const
+            const memory_storage_t &c, size_t off_c, gemm_kind_t gemm_kind) \
+            const
 
 #define packing_sig(f) \
     void f(int n_layer, int n_dir, int n_weights, int n_gates, int batch, \

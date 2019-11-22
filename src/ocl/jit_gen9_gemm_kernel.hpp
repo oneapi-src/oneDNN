@@ -46,6 +46,9 @@ struct jit_gen9_gemm_kernel {
 #else
         kernel_ctx.add_option("-Dget_enqueued_local_size=get_local_size");
 #endif
+#ifndef _WIN32
+        kernel_ctx.add_option("-DALLOW_READ_OVERRUNS");
+#endif
         return status::success;
     }
 

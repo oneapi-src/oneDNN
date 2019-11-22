@@ -23,6 +23,10 @@
 #include "cpu_stream.hpp"
 #include "memory.hpp"
 
+#include "cpu/matmul/gemm_f32_matmul.hpp"
+#include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
+#include "cpu/matmul/ref_matmul.hpp"
+
 #include "cpu/rnn/ref_rnn.hpp"
 
 #include "cpu/gemm_bf16_convolution.hpp"
@@ -33,6 +37,7 @@
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
+#include "cpu/jit_avx2_x8s8s32x_convolution.hpp"
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution_winograd.hpp"
@@ -81,8 +86,15 @@ namespace cpu {
 
 status_t cpu_engine_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    return safe_ptr_assign<memory_storage_t>(
-            *storage, new cpu_memory_storage_t(this, flags, size, handle));
+    auto _storage = new cpu_memory_storage_t(this);
+    if (_storage == nullptr) return status::out_of_memory;
+    status_t status = _storage->init(flags, size, handle);
+    if (status != status::success) {
+        delete _storage;
+        return status;
+    }
+    *storage = _storage;
+    return status::success;
 }
 
 status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
@@ -182,6 +194,14 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, s32>),
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, u8>),
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, s8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, f32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, s32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, u8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, s8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, f32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, s32>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, u8>),
+        INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, s8>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<u8, s32>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<u8, u8>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<u8, s8>),
@@ -368,6 +388,25 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_uni_binary_t<avx2>),
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
+        /* matmul op */
+        INSTANCE(gemm_f32_matmul_t),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, f32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s8>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, u8>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, f32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s32>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>),
+        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>),
+        INSTANCE(ref_matmul_t<f32>),
+        INSTANCE(ref_matmul_t<s8, s8, f32, s32>),
+        INSTANCE(ref_matmul_t<s8, s8, s32, s32>),
+        INSTANCE(ref_matmul_t<s8, s8, s8, s32>),
+        INSTANCE(ref_matmul_t<s8, s8, u8, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, f32, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, s32, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, s8, s32>),
+        INSTANCE(ref_matmul_t<u8, s8, u8, s32>),
         /* eol */
         nullptr,
 };

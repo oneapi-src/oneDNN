@@ -44,6 +44,7 @@ using namespace dnnl::impl::math;
 using namespace prop_kind;
 using namespace alg_kind;
 using namespace rnn_utils;
+using namespace dnnl::impl::memory_tracking::names;
 
 #define AOC array_offset_calculator
 
@@ -52,14 +53,9 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 #if USE_MKL_PACKED_GEMM
 // TBD
 #else
-    UNUSED(m);
-    UNUSED(n);
-    UNUSED(k);
     UNUSED(a);
     UNUSED(b);
     UNUSED(c);
-    UNUSED(is_B_trans);
-    UNUSED(beta);
     UNUSED(gemm_kind);
     assert(!"packed gemm is disabled");
 #endif
@@ -78,18 +74,20 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     get_scratchpad_and_workspace_sizes(pd()->rnn_conf_, scratchpad_sz, ws_sz);
     dims_t scratchpad_dims = {(int)scratchpad_sz};
     dnnl_memory_desc_init_by_tag(
-            &scratchpad_md, 1, scratchpad_dims, src_type, format_tag::x);
+            &scratchpad_md, 1, scratchpad_dims, data_type::u8, format_tag::x);
 
-    memory_storage_t *scratchpad_mem_storage = nullptr;
+    std::unique_ptr<memory_storage_t> scratchpad_mem_storage;
 
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
 
     if (pd()->rnn_conf_.use_workspace) {
-        scratchpad_mem_storage = workspace->memory_storage();
+        scratchpad_mem_storage = workspace->memory_storage()->clone();
     } else {
-        scratchpad_mem_storage = scratchpad_;
+        scratchpad_mem_storage
+                = ctx.get_scratchpad_grantor().get_memory_storage(
+                        key_rnn_space);
     }
     memory_storage_t *weights_mem_storage = nullptr;
     memory_t *weights = nullptr;
@@ -178,24 +176,108 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 grid_execution_sig(
         (_ref_rnn_common_t<aprop, src_type, weights_type>::linear_execution)) {
+
+    using src_t = typename prec_traits<src_type>::type;
+    using wei_t = typename prec_traits<weights_type>::type;
+
     // We run the grid of computation
     for (int dir = 0; dir < n_dir; dir++) {
         for (int j = 0; j < n_layer; j++) {
+            int lay = (aprop == prop_kind::forward) ? j : n_layer - j - 1;
+
+            if (aprop == prop_kind::forward
+                    && pd()->rnn_conf_.merge_gemm_layer) {
+                cl_ulong wei_offset
+                        = OFF3(lay, n_layer, dir, n_dir, 0,
+                                  pd()->rnn_conf_.weights_layer_nld
+                                          * pd()->rnn_conf_.weights_layer_ld)
+                        * sizeof(wei_t);
+
+                cl_ulong offset_input = (cl_ulong)(ws_states_offset_
+                        + OFF4(lay, n_layer + 1, dir, n_dir, 1, n_iter + 1, 0,
+                                  batch * pd()->rnn_conf_.states_ws_ld)
+                                * sizeof(src_t));
+                cl_ulong offset_gates = (cl_ulong)(ws_gates_offset_
+                        + OFF4(lay, n_layer, dir, n_dir, 0, n_iter, 0,
+                                  batch * pd()->rnn_conf_.gates_ws_ld)
+                                * pd()->rnn_conf_.acc_data_type_elsz);
+
+                gemm_primitive(ctx, w_input, wei_offset, workspace,
+                        offset_input, workspace, offset_gates, gemm_layer);
+            }
+
             for (int i = 0; i < n_iter; i++) {
-                int lay, iter;
-                if (aprop == prop_kind::forward) {
-                    lay = j;
-                    iter = i;
-                } else { // backward
-                    lay = n_layer - j - 1;
-                    iter = n_iter - i - 1;
-                }
+                int iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
                 (this->*cell_func)(ctx, dir, lay, iter, dic, slc, sic, wic,
                         batch, n_layer, n_dir, n_iter, n_gates, n_states,
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
                         workspace, w_input, w_state, diff_weights_layer,
                         diff_weights_iter, diff_bias, scales, tm_scales);
+            }
+
+            if (aprop == prop_kind::backward
+                    && pd()->rnn_conf_.merge_gemm_layer) {
+                AOC<size_t, 3> off_weights_i(
+                        weights_input, n_layer, n_dir, n_parts_weights_layer);
+                cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0))
+                        * sizeof(wei_t);
+
+                gemm_primitive(ctx, w_input, offset_w_input, workspace,
+                        ws_gates_offset_
+                                + OFF3(lay, n_layer, dir, n_dir, 0,
+                                          n_iter * pd()->rnn_conf_.gates_nld
+                                                  * pd()->rnn_conf_.gates_ws_ld)
+                                        * pd()->rnn_conf_.acc_data_type_elsz,
+                        workspace,
+                        ws_diff_states_offset_
+                                + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
+                                          n_states + 1, 0, n_iter + 1, 0,
+                                          pd()->rnn_conf_.states_nld
+                                                  * pd()->rnn_conf_
+                                                            .states_ws_ld)
+                                        * sizeof(src_t),
+                        gemm_layer);
+                gemm_primitive(ctx, workspace,
+                        ws_gates_offset_
+                                + OFF3(lay, n_layer, dir, n_dir, 0,
+                                          n_iter * pd()->rnn_conf_.gates_nld
+                                                  * pd()->rnn_conf_.gates_ws_ld)
+                                        * pd()->rnn_conf_.acc_data_type_elsz,
+                        workspace,
+                        ws_states_offset_
+                                + OFF4(lay, n_layer + 1, dir, n_dir, 1,
+                                          n_iter + 1, 0,
+                                          batch * pd()->rnn_conf_.states_ws_ld)
+                                        * sizeof(src_t),
+                        diff_weights_layer,
+                        OFF3(lay, n_layer, dir, n_dir, 0,
+                                pd()->rnn_conf_.diff_weights_layer_nld
+                                        * pd()->rnn_conf_.diff_weights_layer_ld)
+                                * sizeof(wei_t),
+                        gemm_diff_wei_layer);
+            }
+
+            if (aprop == prop_kind::backward
+                    && pd()->rnn_conf_.merge_gemm_iter) {
+
+                gemm_primitive(ctx, workspace,
+                        ws_gates_offset_
+                                + OFF4(lay, n_layer, dir, n_dir, 0, n_iter, 0,
+                                          batch * pd()->rnn_conf_.gates_ws_ld)
+                                        * pd()->rnn_conf_.acc_data_type_elsz,
+                        workspace,
+                        ws_states_offset_
+                                + OFF4(lay + 1, n_layer + 1, dir, n_dir, 0,
+                                          n_iter + 1, 0,
+                                          batch * pd()->rnn_conf_.states_ws_ld)
+                                        * sizeof(src_t),
+                        diff_weights_iter,
+                        OFF3(lay, n_layer, dir, n_dir, 0,
+                                pd()->rnn_conf_.diff_weights_iter_nld
+                                        * pd()->rnn_conf_.diff_weights_iter_ld)
+                                * sizeof(wei_t),
+                        gemm_diff_wei_iter);
             }
         }
     }
@@ -485,14 +567,12 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
     auto &diff_dst_iter_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER);
     auto &diff_dst_iter_c_native_ = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST_ITER_C);
 
+    auto scratchpad
+            = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_space);
     auto &workspace_ = rnn.is_training ? is_fwd
                     ? CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE)
                     : CTX_IN_STORAGE(DNNL_ARG_WORKSPACE)
-#if !EMULATED_SCRATCHPAD
-                                       : CTX_IN_STORAGE(DNNL_ARG_SCRATCHPAD);
-#else
-                                       : *scratchpad_;
-#endif
+                                       : *scratchpad.get();
 
     auto &diff_src_layer_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_LAYER);
     auto &diff_src_iter_native_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC_ITER);
@@ -548,7 +628,7 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 #endif
 
 #if WS_NAN_FILLING
-    if (rnn_conf.is_fwd) {
+    if (rnn.is_fwd) {
         DPRINT("DEBUG ws NaN filling: (offset, size) states: %ld %ld c_states: "
                "%ld %ld gates: %ld %ld\n",
                 ws_states_offset_, rnn.ws_states_size, ws_c_states_offset_,

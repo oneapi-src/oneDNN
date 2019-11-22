@@ -63,9 +63,6 @@ meaning associated with any of tensors dimensions.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
-2. **GPU**
-    - No support.
-
 
 ## Performance Tips
 

@@ -47,10 +47,11 @@ struct jit_uni_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
-            bool ok = true && set_default_params() == status::success
-                    && mayiuse(isa) && !has_zero_dim_memory()
+            bool ok = mayiuse(isa)
                     && utils::everyone_is(
                             f32, src_md(0)->data_type, src_md(1)->data_type)
+                    && set_default_params() == status::success
+                    && !has_zero_dim_memory()
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(src_md(1))
                     && attr()->has_default_values();

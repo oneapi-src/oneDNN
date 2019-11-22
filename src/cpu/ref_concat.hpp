@@ -143,21 +143,28 @@ struct ref_concat_t : public primitive_impl_t {
             auto scratchpad = ctx.get_scratchpad_grantor();
             auto tent_dst_storage
                     = scratchpad.get_memory_storage(key_concat_tent_dst);
-            memory_t tent_dst(pd()->engine(), &pd()->tent_dst_md_,
-                    std::move(tent_dst_storage), false);
 
-            for (int i = 0; i < n; ++i)
+            for (int i = 0; i < n; ++i) {
+                memory_t tent_dst_i(engine(), pd()->src_image_md(i),
+                        tent_dst_storage->clone(), false);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst, false});
+                        {&tent_dst_i, false});
+            }
 
+            memory_t tent_dst(pd()->engine(), &pd()->tent_dst_md_,
+                    tent_dst_storage->clone(), false);
             execute_reorder(reorders_[n], {&tent_dst, true},
                     ctx.args().at(DNNL_ARG_DST));
         } else {
-            for (int i = 0; i < n; ++i)
+            auto &dst_mem_storage = CTX_OUT_STORAGE(DNNL_ARG_DST);
+            for (int i = 0; i < n; ++i) {
+                memory_t tent_dst_i(engine(), pd()->src_image_md(i),
+                        dst_mem_storage.clone(), false);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        ctx.args().at(DNNL_ARG_DST));
+                        {&tent_dst_i, false});
+            }
         }
 
         return status::success;

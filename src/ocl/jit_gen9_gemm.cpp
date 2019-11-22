@@ -58,7 +58,7 @@ union plan_element_t {
     };
     struct {
         int32_t next_id;
-        int32_t _;
+        int32_t done_count;
     };
 };
 static_assert(sizeof(plan_element_t) == 8,
@@ -290,6 +290,109 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::max_plan_size() const {
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
         data_type_t acc_type>
+status_t
+jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::init_superkernel_plan() {
+
+    auto m = pd()->desc()->m;
+    auto n = pd()->desc()->n;
+
+    bool transa = (pd()->desc()->transa == dnnl_trans);
+    bool transb = (pd()->desc()->transb == dnnl_trans);
+
+    int unroll_m[2], unroll_n;
+    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
+            transa, transb, unroll_m, unroll_n);
+
+    int km = utils::div_up(m, unroll_m[0]);
+    int kn = utils::div_up(n, unroll_n);
+    int last_ldispatch = 0;
+    int km_large = km;
+    int best_km_large = 0;
+
+    auto good_enough = [=](int ldispatch, int threads) -> bool {
+        return (threads < hw_threads_) && (ldispatch >= eu_count_ * 3);
+    };
+
+    while (km_large >= 0) {
+        int km_small = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
+        km_small = nstl::max(0, km_small);
+
+        auto threads = (km_large + km_small) * kn;
+        auto ldispatch = threads % hw_threads_;
+
+        if (ldispatch == 0 || good_enough(ldispatch, threads)) {
+            best_km_large = km_large;
+            break;
+        } else if (ldispatch < last_ldispatch)
+            break;
+        else if (ldispatch > last_ldispatch)
+            best_km_large = km_large;
+
+        last_ldispatch = ldispatch;
+        km_large--;
+    }
+
+    km_large = best_km_large;
+
+    int km_small = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
+    km_small = nstl::max(0, km_small);
+
+    km = km_small + km_large;
+
+    auto n_block_target = nstl::max<int>(1, 128 / unroll_n);
+    auto columns = utils::div_up(kn, n_block_target);
+    auto kn_left = (n_block_target - kn) % n_block_target;
+    if (kn_left < 0) kn_left += n_block_target;
+    auto spread = nstl::min(kn_left, columns);
+
+    int bn0, bn1, columns_small;
+    if (spread == columns) {
+        bn0 = utils::div_up(kn, columns);
+        bn1 = bn0 - 1;
+        columns_small = (bn0 * columns) - kn;
+    } else {
+        bn0 = n_block_target;
+        bn1 = n_block_target - 1;
+        columns_small = spread;
+    }
+
+    void *plan_void = nullptr;
+    temp_buf_->map_data(&plan_void);
+
+    if (!plan_void) return status::runtime_error;
+
+    auto plan = (plan_element_t *)plan_void;
+
+    plan[0].next_id = hw_threads_;
+    plan[0].done_count = 0;
+
+    int p = 1, j0 = 0;
+    for (int column = 0; column < columns; column++) {
+        auto bn = (column >= (columns - columns_small)) ? bn1 : bn0;
+        int i0 = 0;
+        for (int ki = 0; ki < km; ki++) {
+            int m_idx = (ki >= (km - km_small));
+            for (int bj = 0; bj < bn; bj++, p++) {
+                plan[p].i0 = i0;
+                plan[p].j0 = j0 + bj * unroll_n;
+                plan[p].kid0 = m_idx;
+                plan[p].kid1 = 0;
+            }
+            auto um = m_idx ? unroll_m[1] : unroll_m[0];
+            i0 += um;
+        }
+        j0 += bn * unroll_n;
+    }
+
+    temp_buf_->unmap_data(plan_void);
+
+    threads_ = km * kn;
+
+    return status::success;
+}
+
+template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
+        data_type_t acc_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
         const exec_ctx_t &ctx) const {
     if (gemm_type_ == type::no_copy_superkernel)
@@ -426,10 +529,6 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    using a_t = typename prec_traits<a_type>::type;
-    using b_t = typename prec_traits<b_type>::type;
-    using c_t = typename prec_traits<c_type>::type;
-
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
     auto k = pd()->desc()->k;
@@ -451,103 +550,32 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    size_t off_a = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
+    size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
+    size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
     size_t off_c = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
-    int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
-            transa, transb, unroll_m, unroll_n);
+    status_t status;
+    auto block_k = jit_gen9_gemm_driver_params<acc_type, true>::block_k;
 
-    int km = utils::div_up(m, unroll_m[0]);
-    int kn = utils::div_up(n, unroll_n);
-    int last_ldispatch = 0;
-    int km_large = km;
-    int best_km_large = 0;
+    for (int64_t Bk = 0; Bk < k; Bk += block_k) {
+        int64_t size_k = k - Bk;
+        bool last_k_block = (size_k <= block_k);
+        if (!last_k_block) size_k = block_k;
 
-    auto good_enough = [=](int ldispatch, int threads) -> bool {
-        return (threads < hw_threads_) && (ldispatch >= eu_count_ * 3);
-    };
+        auto off_a = off_a0 + (!transa ? Bk * lda : Bk);
+        auto off_b = off_b0 + (!transb ? Bk : Bk * ldb);
 
-    while (km_large >= 0) {
-        int km_small = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
-        km_small = nstl::max(0, km_small);
+        acc_t this_beta = (Bk == 0) ? beta : 1.0f;
 
-        auto threads = (km_large + km_small) * kn;
-        auto ldispatch = threads % hw_threads_;
+        status = launch_nocopy_superkernel(compute_stream, *temp_buf_, threads_,
+                a, b, c, off_a, off_b, off_c, lda, ldb, ldc, m, n, size_k,
+                alpha, this_beta, (int)last_k_block, eltwise_alpha,
+                eltwise_beta);
 
-        if (ldispatch == 0 || good_enough(ldispatch, threads)) {
-            best_km_large = km_large;
-            break;
-        } else if (ldispatch < last_ldispatch)
-            break;
-        else if (ldispatch > last_ldispatch)
-            best_km_large = km_large;
-
-        last_ldispatch = ldispatch;
-        km_large--;
+        if (status) return status;
     }
 
-    km_large = best_km_large;
-
-    int km_small = utils::div_up(m - (km_large * unroll_m[0]), unroll_m[1]);
-    km_small = nstl::max(0, km_small);
-
-    km = km_small + km_large;
-
-    auto n_block_target = nstl::max<int>(1, 128 / unroll_n);
-    auto columns = utils::div_up(kn, n_block_target);
-    auto kn_left = (n_block_target - kn) % n_block_target;
-    if (kn_left < 0) kn_left += n_block_target;
-    auto spread = nstl::min(kn_left, columns);
-
-    int bn0, bn1, columns_small;
-    if (spread == columns) {
-        bn0 = utils::div_up(kn, columns);
-        bn1 = bn0 - 1;
-        columns_small = (bn0 * columns) - kn;
-    } else {
-        bn0 = n_block_target;
-        bn1 = n_block_target - 1;
-        columns_small = spread;
-    }
-
-    void *plan_void;
-    temp_buf_->map_data(&plan_void);
-
-    if (!plan_void) return status::runtime_error;
-
-    auto plan = (plan_element_t *)plan_void;
-
-    plan[0].next_id = hw_threads_;
-    plan[0]._ = 0;
-
-    int p = 1, j0 = 0;
-    for (int column = 0; column < columns; column++) {
-        auto bn = (column >= (columns - columns_small)) ? bn1 : bn0;
-        int i0 = 0;
-        for (int ki = 0; ki < km; ki++) {
-            int m_idx = (ki >= (km - km_small));
-            for (int bj = 0; bj < bn; bj++, p++) {
-                plan[p].i0 = i0;
-                plan[p].j0 = j0 + bj * unroll_n;
-                plan[p].kid0 = m_idx;
-                plan[p].kid1 = 0;
-            }
-            auto um = m_idx ? unroll_m[1] : unroll_m[0];
-            i0 += um;
-        }
-        j0 += bn * unroll_n;
-    }
-
-    temp_buf_->unmap_data(plan_void);
-
-    int32_t threads = km * kn;
-    bool last_k_block = true;
-
-    return launch_nocopy_superkernel(compute_stream, *temp_buf_, threads, a, b,
-            c, off_a, off_b, off_c, lda, ldb, ldc, m, n, k, alpha, beta,
-            (int)last_k_block, eltwise_alpha, eltwise_beta);
+    return status::success;
 }
 
 using namespace data_type;

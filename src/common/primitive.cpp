@@ -64,7 +64,7 @@ status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx) {
 
     status_t status = success;
 
-    if (dnnl_verbose()->level) {
+    if (get_verbose()) {
         double ms = get_msec();
         status = stream->enqueue_primitive(primitive, ctx);
         stream->wait();

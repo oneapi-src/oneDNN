@@ -22,6 +22,8 @@
 #include <string.h>
 
 #include <iostream>
+#include <map>
+#include <memory>
 #include <vector>
 
 #include "common.hpp"
@@ -82,12 +84,44 @@ struct attr_t {
         static const char *policy2str(policy_t policy);
 
         int str2scale(const char *str, const char **end_s);
-        void scale2str(char *buffer, char **end_b) const;
 
         bool is_def() const { return this->policy == NONE; }
 
         policy_t policy = NONE;
         float scale = 1.;
+        bool runtime = false;
+    };
+
+    struct zero_points_t {
+        struct entry_t {
+            int value;
+            bool runtime;
+        };
+
+        int from_str(const char *str, const char **end_s);
+
+        int operator[](int arg) const { return get(arg).value; }
+        bool runtime(int arg) const { return get(arg).runtime; }
+
+        bool is_def() const { return points.empty(); }
+
+        void set(int arg, const entry_t &entry) {
+            if (entry.value != 0 || entry.runtime) points[arg] = entry;
+        }
+        entry_t get(int arg) const {
+            const auto it = points.find(arg);
+            return it == points.end() ? entry_t() : it->second;
+        }
+
+        std::map<int, entry_t>::const_iterator begin() const {
+            return points.begin();
+        }
+        std::map<int, entry_t>::const_iterator end() const {
+            return points.end();
+        }
+
+        std::map<int, entry_t> points;
+        static const std::map<int, const char *> NAME_MAP;
     };
 
     struct post_ops_t {
@@ -106,6 +140,7 @@ struct attr_t {
             EXP,
             GELU,
             SWISH,
+            LOG,
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);
@@ -138,6 +173,7 @@ struct attr_t {
     };
 
     scale_t oscale;
+    zero_points_t zero_points;
     post_ops_t post_ops;
 
     bool is_def() const;
@@ -146,8 +182,39 @@ using policy_t = attr_t::scale_t::policy_t;
 
 int str2attr(attr_t *attr, const char *str);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
+std::ostream &operator<<(
+        std::ostream &s, const attr_t::zero_points_t &zero_points);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
+
+/* Container for becnhdnn description of attributes and dnnl primitive
+ * attributes. Also contains the generated scales and zero-points.
+ *
+ * Usage model:
+ * 1. Create attr_bundle_t with benchdnn attr
+ * 2. Borrow and fill oscale
+ *    - zero_point is automatically initialized at construct time
+ *      (will be changed later)
+ * 3. Call generate(scale_mask) to prepare dnnl_attr
+ */
+struct attr_bundle_t {
+    attr_t attr;
+    std::vector<float> oscale;
+    std::map<int, std::vector<int>> zero_points; // arg -> arg_zero_points
+
+    attr_bundle_t(const attr_t &attr) : attr(attr) { init_zero_points(); }
+    int generate(int scale_mask);
+
+    const_dnnl_primitive_attr_t dnnl_attr() const { return dnnl_attr_.get(); }
+    int scale_mask() const { return scale_mask_; }
+
+private:
+    bool initialized_ = false;
+    int scale_mask_ = 0;
+    std::shared_ptr<dnnl_primitive_attr> dnnl_attr_ {0};
+
+    void init_zero_points();
+};
 
 std::ostream &dump_global_params(std::ostream &s);
 

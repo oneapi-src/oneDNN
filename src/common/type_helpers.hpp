@@ -345,6 +345,15 @@ inline bool operator==(const lrn_desc_t &lhs, const lrn_desc_t &rhs) {
     return ret;
 }
 
+inline bool operator==(const matmul_desc_t &lhs, const matmul_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(weights_desc)
+            && COMPARE_DESC_MEMBERS(bias_desc) && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(accum_data_type);
+    return ret;
+}
+
 inline bool operator==(const pooling_desc_t &lhs, const pooling_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind) && COMPARE_DESC_MEMBERS(alg_kind)
@@ -565,6 +574,20 @@ format_tag_t memory_desc_matches_one_of_tag(
         if (memory_desc_matches_tag(md, tag)) return tag;
     }
     return format_tag::undef;
+}
+
+/** returns true if fp32 value denotes DNNL_RUNTIME_F32_VAL */
+inline bool is_runtime_value(float val) {
+    union {
+        float f;
+        unsigned u;
+    } tmp {val};
+    return tmp.u == DNNL_RUNTIME_F32_VAL_REP.u;
+}
+
+/** returns true if s32 value denotes DNNL_RUNTIME_S32_VAL */
+inline bool is_runtime_value(int val) {
+    return val == DNNL_RUNTIME_S32_VAL;
 }
 
 } // namespace impl

@@ -14,16 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_BF16_1x1_CONV_KERNEL_HPP
-#define JIT_AVX512_CORE_BF16_1x1_CONV_KERNEL_HPP
+#ifndef JIT_AVX512_CORE_BF16_1X1_CONV_KERNEL_HPP
+#define JIT_AVX512_CORE_BF16_1X1_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 
-//#define BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
+#define BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
 
 namespace dnnl {
 namespace impl {
@@ -115,6 +115,8 @@ private:
 
     Xbyak::Zmm zmm_tmp2 = Xbyak::Zmm(30);
 
+    Xbyak::Opmask full_mask = Xbyak::Opmask(7);
+    Xbyak::Opmask half_mask = Xbyak::Opmask(6);
     Xbyak::Label dst_prm_table;
 
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
@@ -124,7 +126,7 @@ private:
     int perm_reg_offset = 8;
     int broadcast_space = 24;
 #endif
-    int stack_space_needed = 96;
+    int stack_space_needed = 352;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);

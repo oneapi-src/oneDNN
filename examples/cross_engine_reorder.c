@@ -16,28 +16,18 @@
 
 /// @example cross_engine_reorder.c
 /// @copybrief cross_engine_reorder_c
-/// > Annotated version: @ref cross_engine_reorder_c
 
 /// @page cross_engine_reorder_c Reorder between CPU and GPU engines
 /// This C API example demonstrates programming flow when reordering memory
-/// between CPU and GPU engines
-///
-/// > Example code: @ref cross_engine_reorder.c
-///
-/// - How to create DNNL memory objects.
-///   - How to get data from user's buffer into an DNNL
-///     memory object.
-///   - How tensor's logical dimensions and memory object formats relate.
-/// - How to create DNNL primitives.
-/// - How to execute the primitives.
+/// between CPU and GPU engines.
 ///
 /// @include cross_engine_reorder.c
-/// @page cross_engine_reorder_c
 
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "dnnl.h"
+
 #include "example_utils.h"
 
 size_t product(int n_dims, const dnnl_dim_t dims[]) {
@@ -49,34 +39,32 @@ size_t product(int n_dims, const dnnl_dim_t dims[]) {
 }
 
 void fill(dnnl_memory_t mem, int n_dims, const dnnl_dim_t dims[]) {
-    float *array;
-    CHECK(dnnl_memory_map_data(mem, (void **)&array));
-
     const size_t n_elems = product(n_dims, dims);
+    float *array = (float *)malloc(n_elems * sizeof(float));
+
     for (size_t e = 0; e < n_elems; ++e) {
         array[e] = e % 7 ? 1.0f : -1.0f;
     }
 
-    CHECK(dnnl_memory_unmap_data(mem, array));
+    write_to_dnnl_memory(array, mem);
+    free(array);
 }
 
 int find_negative(dnnl_memory_t mem, int n_dims, const dnnl_dim_t dims[]) {
-    int negs = 0;
-
-    float *array;
-    CHECK(dnnl_memory_map_data(mem, (void **)&array));
-
     const size_t n_elems = product(n_dims, dims);
+    float *array = (float *)malloc(n_elems * sizeof(float));
+    read_from_dnnl_memory(array, mem);
+
+    int negs = 0;
     for (size_t e = 0; e < n_elems; ++e) {
         negs += array[e] < 0.0f;
     }
 
-    CHECK(dnnl_memory_unmap_data(mem, array));
-
+    free(array);
     return negs;
 }
 
-int doit() {
+void cross_engine_reorder() {
     dnnl_engine_t engine_cpu, engine_gpu;
     CHECK(dnnl_engine_create(&engine_cpu, validate_engine_kind(dnnl_cpu), 0));
     CHECK(dnnl_engine_create(&engine_gpu, validate_engine_kind(dnnl_gpu), 0));
@@ -94,10 +82,9 @@ int doit() {
             &m_gpu, &m_gpu_md, engine_gpu, DNNL_MEMORY_ALLOCATE));
 
     fill(m_cpu, 4, tz);
-    if (find_negative(m_cpu, 4, tz) == 0) {
-        printf("Please fix filling of data\n");
-        exit(2);
-    }
+    if (find_negative(m_cpu, 4, tz) == 0)
+        COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+                "%s", "incorrect data fill, no negative values found");
 
     /* reorder cpu -> gpu */
     dnnl_primitive_desc_t r1_pd;
@@ -141,7 +128,9 @@ int doit() {
 
     CHECK(dnnl_stream_wait(stream_gpu));
 
-    if (find_negative(m_cpu, 4, tz) != 0) return 2;
+    if (find_negative(m_cpu, 4, tz) != 0)
+        COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
+                "%s", "found negative values after ReLU applied");
 
     /* clean up */
     dnnl_primitive_desc_destroy(relu_pd);
@@ -158,16 +147,10 @@ int doit() {
 
     dnnl_engine_destroy(engine_cpu);
     dnnl_engine_destroy(engine_gpu);
-
-    return 0;
 }
 
 int main() {
-    int result = doit();
-    if (result)
-        printf("failed\n");
-    else
-        printf("passed\n");
-
-    return result;
+    cross_engine_reorder();
+    printf("Example passed\n");
+    return 0;
 }

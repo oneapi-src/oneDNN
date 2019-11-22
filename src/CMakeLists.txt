@@ -154,10 +154,13 @@ else()
         set(vers "")
     endif()
     foreach(ver "" ${vers})
-        add_custom_target(compat_libs${ver} ALL
-            ${CMAKE_COMMAND} -E remove -f libmkldnn.${ext}${ver} # to make the next command work fine
+        add_custom_command(OUTPUT libmkldnn.${ext}${ver}
+            # to make the next command work fine
+            COMMAND ${CMAKE_COMMAND} -E remove -f libmkldnn.${ext}${ver}
             COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl.${ext}${ver} libmkldnn.${ext}${ver}
             DEPENDS ${LIB_NAME})
+        add_custom_target(compat_libs${ver} ALL
+                DEPENDS libmkldnn.${ext}${ver})
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libmkldnn.${ext}${ver}
             DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
     endforeach()

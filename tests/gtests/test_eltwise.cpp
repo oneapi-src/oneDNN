@@ -87,16 +87,6 @@ T abs_bwd(T dd, T s) {
     return dd * (s > 0 ? 1 : s < 0 ? -1 : 0);
 }
 
-template <typename T>
-T sqrt_fwd(T s) {
-    return s > 0 ? ::sqrtf(s) : 0;
-}
-
-template <typename T>
-T sqrt_bwd(T dd, T s) {
-    return s > 0 ? dd / (2 * ::sqrtf(s)) : 0;
-}
-
 template <typename T, typename A>
 T linear_fwd(T s, A alpha, A beta) {
     return alpha * s + beta;
@@ -197,7 +187,6 @@ void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
             case algorithm::eltwise_elu: ref_d = elu_fwd(s, p.alpha); break;
             case algorithm::eltwise_square: ref_d = square_fwd(s); break;
             case algorithm::eltwise_abs: ref_d = abs_fwd(s); break;
-            case algorithm::eltwise_sqrt: ref_d = sqrt_fwd(s); break;
             case algorithm::eltwise_linear:
                 ref_d = linear_fwd(s, p.alpha, p.beta);
                 break;
@@ -274,9 +263,6 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
                 ref_ds = square_bwd(ref_dd, ref_s);
                 break;
             case algorithm::eltwise_abs: ref_ds = abs_bwd(ref_dd, ref_s); break;
-            case algorithm::eltwise_sqrt:
-                ref_ds = sqrt_bwd(ref_dd, ref_s);
-                break;
             case algorithm::eltwise_linear:
                 ref_ds = linear_bwd(ref_dd, ref_s, p.alpha, p.beta);
                 break;
@@ -466,8 +452,7 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
             EXPAND(PARAMS(eltwise_swish, __VA_ARGS__))
 
 #define PARAMS_ALL_ALG_SDPART(...) \
-    EXPAND(PARAMS(eltwise_sqrt, __VA_ARGS__)), \
-            EXPAND(PARAMS(eltwise_linear, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_linear, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_soft_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_bounded_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_logistic, __VA_ARGS__))
@@ -521,8 +506,7 @@ INST_TEST_CASE(SimpleZeroDim,
                 0.f, 0.f, {d0, d1, d2, d3}, true, dnnl_invalid_arguments \
     }
 INST_TEST_CASE(SimpleExpectedFails, CASE_EF(relu, -1, 2, 4, 4),
-        CASE_EF(sqrt, -1, 2, 4, 4), CASE_EF(logistic, -1, 2, 4, 4),
-        CASE_EF(relu, 1, -2, 4, 4), CASE_EF(sqrt, 1, -2, 4, 4),
+        CASE_EF(logistic, -1, 2, 4, 4), CASE_EF(relu, 1, -2, 4, 4),
         CASE_EF(logistic, 1, -2, 4, 4));
 
 INST_TEST_CASE(Simple_3D,

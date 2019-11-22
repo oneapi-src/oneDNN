@@ -36,16 +36,28 @@ template <typename T1, typename T2, typename T3, typename T4,
         typename src_data_t, typename scratch_data_t>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
         const float *scales, const float *cscale,
-        const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_,
+        const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *states_t_l_,
-        float *c_states_t_l_, src_data_t *states_tm1_l_, float *c_states_tm1_l_,
+        src_data_t *states_t_l_copy_, float *c_states_t_l_,
+        const src_data_t *states_tm1_l_, const float *c_states_tm1_l_,
         float *bias_) {
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<float> c_states_t_l(rnn, c_states_t_l_);
-    ws_states_aoc<float> c_states_tm1_l(rnn, c_states_tm1_l_);
+
+    auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+    auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+
+    auto dst_ld = rnn.dst_ld(cell_position);
+    auto dst_copy_ld = rnn.dst_copy_ld(cell_position);
+
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_ld);
+    ws_states_aoc<src_data_t> states_t_l_copy(
+            rnn, states_t_l_copy_, dst_copy_ld);
+    ws_states_aoc<float> c_states_t_l(rnn, c_states_t_l_, dst_iter_c_ld);
+    ws_states_aoc<const float> c_states_tm1_l(
+            rnn, c_states_tm1_l_, src_iter_c_ld);
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
@@ -64,6 +76,8 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
                     to_float(scratch_gates(i, 3, j), 3, j) + bias(3, j));
             float tmp = G1 * c_states_tm1_l(i, j) + G0 * G2;
             states_t_l(i, j) = to_src_dt(G3 * func2(cscale, tmp));
+            if (states_t_l_copy_ != nullptr)
+                states_t_l_copy(i, j) = states_t_l(i, j);
             c_states_t_l(i, j) = tmp;
 
             // write gates back to memory for training
@@ -95,12 +109,14 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::lstm_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_fwd_postgemm_template(logistic_f, tanh_f, q_id, deq_id, scales,
-                cscale, rnn, ws_gates_, scratch_gates_, states_t_l_,
-                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
+                cscale, rnn, cell_position, ws_gates_, scratch_gates_,
+                states_t_l_, states_t_l_copy_, c_states_t_l_, states_tm1_l_,
+                c_states_tm1_l_, bias_);
     else
         lstm_fwd_postgemm_template(linear_f, linear_f, q_id, deq_id, scales,
-                cscale, rnn, ws_gates_, scratch_gates_, states_t_l_,
-                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
+                cscale, rnn, cell_position, ws_gates_, scratch_gates_,
+                states_t_l_, states_t_l_copy_, c_states_t_l_, states_tm1_l_,
+                c_states_tm1_l_, bias_);
 }
 
 template <>
@@ -119,12 +135,14 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::lstm_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_fwd_postgemm_template(logistic_f, tanh_f, round_f32_bf16, deq_id,
-                scales, cscale, rnn, ws_gates_, scratch_gates_, states_t_l_,
-                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
+                scales, cscale, rnn, cell_position, ws_gates_, scratch_gates_,
+                states_t_l_, states_t_l_copy_, c_states_t_l_, states_tm1_l_,
+                c_states_tm1_l_, bias_);
     else
         lstm_fwd_postgemm_template(linear_f, linear_f, round_f32_bf16, deq_id,
-                scales, cscale, rnn, ws_gates_, scratch_gates_, states_t_l_,
-                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
+                scales, cscale, rnn, cell_position, ws_gates_, scratch_gates_,
+                states_t_l_, states_t_l_copy_, c_states_t_l_, states_tm1_l_,
+                c_states_tm1_l_, bias_);
 }
 
 template <>
@@ -159,29 +177,32 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         lstm_fwd_postgemm_template(logistic_f, tanh_f, quantize_f32_u8,
-                dequantize_s32_f32, scales, cscale, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
-                c_states_tm1_l_, bias_);
+                dequantize_s32_f32, scales, cscale, rnn, cell_position,
+                ws_gates_, scratch_gates_, states_t_l_, states_t_l_copy_,
+                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
     else
         lstm_fwd_postgemm_template(linear_f, linear_f, quantize_f32_u8,
-                dequantize_s32_f32, scales, cscale, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
-                c_states_tm1_l_, bias_);
+                dequantize_s32_f32, scales, cscale, rnn, cell_position,
+                ws_gates_, scratch_gates_, states_t_l_, states_t_l_copy_,
+                c_states_t_l_, states_tm1_l_, c_states_tm1_l_, bias_);
 }
 
 template <typename T1, typename T2, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
 void lstm_bwd_postgemm_template(T1 func1, T2 to_src_dt, const float *cscale,
-        const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_,
-        scratch_data_t *scratch_gates_, float *c_states_t_l_,
-        float *c_states_tm1_l_, acc_data_t *diff_states_t_l_,
-        acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_,
-        float *bias_) {
+        const rnn_utils::rnn_conf_t &rnn, const cell_position_t cell_position,
+        src_data_t *ws_gates_, scratch_data_t *scratch_gates_,
+        float *c_states_t_l_, const float *c_states_tm1_l_,
+        acc_data_t *diff_states_t_l_, acc_data_t *diff_states_t_lp1_,
+        acc_data_t *diff_states_tp1_l_, float *bias_) {
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<float> c_states_t_l(rnn, c_states_t_l_);
-    ws_states_aoc<float> c_states_tm1_l(rnn, c_states_tm1_l_);
+    auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+    auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+    ws_states_aoc<float> c_states_t_l(rnn, c_states_t_l_, dst_iter_c_ld);
+    ws_states_aoc<const float> c_states_tm1_l(
+            rnn, c_states_tm1_l_, src_iter_c_ld);
     ws_diff_states_aoc<acc_data_t> diff_states_t_l(rnn, diff_states_t_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_t_lp1(rnn, diff_states_t_lp1_);
@@ -225,15 +246,15 @@ rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::lstm_postgemm) {
     auto to_src_dt = [](float a) { return a; };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
-        lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn, ws_gates_,
-                scratch_gates_, c_states_t_l_, c_states_tm1_l_,
-                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                bias_);
+        lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn,
+                cell_position, ws_gates_, scratch_gates_, c_states_t_l_,
+                c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
+                diff_states_tp1_l_, bias_);
     else
-        lstm_bwd_postgemm_template(linear_f, to_src_dt, cscale, rnn, ws_gates_,
-                scratch_gates_, c_states_t_l_, c_states_tm1_l_,
-                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                bias_);
+        lstm_bwd_postgemm_template(linear_f, to_src_dt, cscale, rnn,
+                cell_position, ws_gates_, scratch_gates_, c_states_t_l_,
+                c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
+                diff_states_tp1_l_, bias_);
 }
 
 template <>
@@ -245,15 +266,15 @@ rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_postgemm) {
     auto to_src_dt = [](float a) { return bfloat16_t(a); };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
-        lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn, ws_gates_,
-                scratch_gates_, c_states_t_l_, c_states_tm1_l_,
-                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                bias_);
+        lstm_bwd_postgemm_template(tanh_f, to_src_dt, cscale, rnn,
+                cell_position, ws_gates_, scratch_gates_, c_states_t_l_,
+                c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
+                diff_states_tp1_l_, bias_);
     else
-        lstm_bwd_postgemm_template(linear_f, to_src_dt, cscale, rnn, ws_gates_,
-                scratch_gates_, c_states_t_l_, c_states_tm1_l_,
-                diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                bias_);
+        lstm_bwd_postgemm_template(linear_f, to_src_dt, cscale, rnn,
+                cell_position, ws_gates_, scratch_gates_, c_states_t_l_,
+                c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
+                diff_states_tp1_l_, bias_);
 }
 
 } // namespace cpu

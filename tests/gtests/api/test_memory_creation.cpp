@@ -125,13 +125,17 @@ auto cases_generic = ::testing::Values(params_t {{2, 15, 3, 2}, fmt::nChw16c},
         params_t {{2, 9, 3, 2}, fmt::OIhw16o16i},
         params_t {{2, 9, 3, 2}, fmt::OIhw16i16o},
         params_t {{2, 9, 3, 2}, fmt::OIhw4i16o4i},
+        params_t {{2, 9, 3, 2}, fmt::OIhw2i8o4i},
         params_t {{2, 9, 4, 3, 2}, fmt::gOihw16o},
         params_t {{1, 2, 9, 3, 2}, fmt::gOIhw8o8i},
         params_t {{1, 2, 9, 3, 2}, fmt::gOIhw4o4i},
         params_t {{1, 2, 9, 3, 2}, fmt::gOIhw8i8o},
         params_t {{2, 17, 9, 3, 2}, fmt::gOIhw4i16o4i},
         params_t {{2, 17, 9, 3, 2}, fmt::gOIhw2i8o4i},
-        params_t {{15, 16, 16, 3, 3}, fmt::Goihw8g});
+        params_t {{15, 16, 16, 3, 3}, fmt::Goihw8g},
+        params_t {{2, 9, 3}, fmt::OIw2i8o4i},
+        params_t {{2, 17, 9, 3}, fmt::gOIw2i8o4i},
+        params_t {{15, 16, 16, 3}, fmt::Goiw8g});
 } // namespace
 
 INSTANTIATE_TEST_SUITE_P(TestMemoryCreationEF, memory_creation_test,
@@ -142,4 +146,51 @@ INSTANTIATE_TEST_SUITE_P(TestMemoryCreationZeroDim, memory_creation_test,
 
 INSTANTIATE_TEST_SUITE_P(TestMemoryCreationOK, memory_creation_test,
         ::testing::Combine(all_engine_kinds, cases_generic));
+
+class c_api_memory_test : public ::testing::Test {
+    virtual void SetUp() {}
+};
+
+TEST_F(c_api_memory_test, TestZeroPadBoom) {
+    SKIP_IF(DNNL_WITH_SYCL, "Test does not support SYCL.");
+
+    dnnl_memory_desc_t md;
+    memset(&md, 0xcc, sizeof(md));
+
+    md.ndims = 2;
+    md.data_type = dnnl_f32;
+    md.offset0 = 0;
+    md.dims[0] = 1;
+    md.dims[1] = 1001;
+    md.padded_dims[0] = 1;
+    md.padded_dims[1] = 1008;
+    md.padded_offsets[0] = 0;
+    md.padded_offsets[1] = 0;
+
+    md.extra.flags = dnnl_memory_extra_flag_none;
+
+    md.format_kind = dnnl_blocked;
+    md.format_desc.blocking.inner_nblks = 1;
+    md.format_desc.blocking.inner_blks[0] = 16;
+    md.format_desc.blocking.inner_idxs[0] = 1;
+    md.format_desc.blocking.strides[0] = 1008;
+    md.format_desc.blocking.strides[1] = 16;
+
+    dnnl_engine_t e;
+    ASSERT_TRUE(dnnl_success == dnnl_engine_create(&e, dnnl_cpu, 0));
+
+    dnnl_memory_t m;
+    ASSERT_TRUE(
+            dnnl_success == dnnl_memory_create(&m, &md, e, DNNL_MEMORY_NONE));
+
+    void *p = malloc(dnnl_memory_desc_get_size(&md));
+    ASSERT_TRUE(p != NULL);
+    ASSERT_TRUE(dnnl_success == dnnl_memory_set_data_handle(m, p)); // Boom
+
+    ASSERT_TRUE(dnnl_success == dnnl_memory_destroy(m));
+    free(p);
+
+    ASSERT_TRUE(dnnl_success == dnnl_engine_destroy(e));
+}
+
 } // namespace dnnl

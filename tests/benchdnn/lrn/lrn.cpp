@@ -32,20 +32,12 @@
 
 namespace lrn {
 
-inline bool is_3d(const prb_t *p) {
-    return p->id > 1;
-}
-
-inline bool is_1d(const prb_t *p) {
-    return !is_3d(p) && p->ih == 1;
-}
-
 int compare(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
 
     r->errors = 0;
     r->total = nelems;
-    const int summands = get_summands(p);
+    const int summands = compute_n_summands(p);
     float trh = 1e-6 * summands;
     if (p->dt == dnnl_f16) trh = 1e-3 * summands;
     if (p->dt == dnnl_bf16) trh = 1e-2 * summands;
@@ -112,17 +104,18 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_lrn_desc_t &ld,
         res_t *r) {
     dnnl_memory_desc_t data_d;
 
-    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-
+    dnnl_dims_t data_dims_0d = {p->mb, p->ic};
     dnnl_dims_t data_dims_1d = {p->mb, p->ic, p->iw};
     dnnl_dims_t data_dims_2d = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t data_dims_3d = {p->mb, p->ic, p->id, p->ih, p->iw};
 
-    dnnl_dim_t *data_dims
-            = is_3d(p) ? data_dims_3d : is_1d(p) ? data_dims_1d : data_dims_2d;
+    dnnl_dim_t *data_dims = p->ndims == 5
+            ? data_dims_3d
+            : p->ndims == 4 ? data_dims_2d
+                            : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, ndims, data_dims, p->dt, p->tag),
+                     &data_d, p->ndims, data_dims, p->dt, p->tag),
             WARN);
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
@@ -134,7 +127,7 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_lrn_desc_t &ld,
                 WARN);
     } else {
         dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims, data_dims,
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, p->ndims, data_dims,
                          p->dt, dnnl_format_tag_any),
                 WARN);
         DNN_SAFE(dnnl_lrn_backward_desc_init(&ld, alg, &diff_data_d, &data_d,

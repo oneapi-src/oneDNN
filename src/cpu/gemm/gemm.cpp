@@ -53,10 +53,11 @@ void msan_unpoison_matrix(void *C, int M, int N, int LDC, size_t typesize) {
 }
 
 dnnl_status_t check_gemm_input(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const int *lda,
-        const int *ldb, const int *ldc, const float *alpha, const float *beta,
-        const bool with_bias) {
-    if (utils::any_null(transa, transb, M, N, K, lda, ldb, ldc, alpha, beta))
+        const int *M, const int *N, const int *K, const void *A, const int *lda,
+        const void *B, const int *ldb, const void *C, const int *ldc,
+        const float *alpha, const float *beta, const bool with_bias) {
+    if (utils::any_null(
+                transa, transb, M, N, K, A, lda, B, ldb, C, ldc, alpha, beta))
         return dnnl_invalid_arguments;
     if (with_bias && *beta != 0) return dnnl_unimplemented;
     bool consistency = true
@@ -82,14 +83,15 @@ dnnl_status_t check_gemm_input(const char *transa, const char *transb,
 
 dnnl_status_t check_gemm_x8x8x32_input(const char *offsetc, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const int *ldc, const float *alpha,
-        const float *beta, const bool with_bias) {
+        const void *A, const int *lda, const void *B, const int *ldb,
+        const void *C, const int *ldc, const float *alpha, const float *beta,
+        const bool with_bias) {
     if (offsetc == nullptr) return dnnl_invalid_arguments;
     if (!utils::one_of(*offsetc, 'F', 'f', 'C', 'c', 'R', 'r'))
         return dnnl_invalid_arguments;
 
-    return check_gemm_input(
-            transa, transb, M, N, K, lda, ldb, ldc, alpha, beta, with_bias);
+    return check_gemm_input(transa, transb, M, N, K, A, lda, B, ldb, C, ldc,
+            alpha, beta, with_bias);
 }
 
 dnnl_status_t extended_sgemm(const char *transa, const char *transb,
@@ -97,8 +99,8 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
         const float *A, const int *lda, const float *B, const int *ldb,
         const float *beta, float *C, const int *ldc, const float *bias,
         const bool force_jit_nocopy_gemm) {
-    dnnl_status_t status = check_gemm_input(transa, transb, M, N, K, lda, ldb,
-            ldc, alpha, beta, bias != nullptr);
+    dnnl_status_t status = check_gemm_input(transa, transb, M, N, K, A, lda, B,
+            ldb, C, ldc, alpha, beta, bias != nullptr);
     if (status != dnnl_success) return status;
 
 #ifdef USE_CBLAS
@@ -183,7 +185,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const uint8_t *B, const int *LDB, const uint8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
     dnnl_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb, M,
-            N, K, LDA, LDB, LDC, alpha, beta, false);
+            N, K, A, LDA, B, LDB, C, LDC, alpha, beta, false);
     if (status != dnnl_success) return status;
 
     if (*M == 0 || *N == 0 || *K == 0) return dnnl_success;
@@ -192,7 +194,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
             LDA, ao, B, LDB, bo, beta, C, LDC, co);
     if (status == dnnl_success) return status;
 
-    if (mayiuse(avx512_core))
+    if (mayiuse(avx2) && !mayiuse(avx512_mic))
         status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA,
                 ao, B, LDB, bo, beta, C, LDC, co, false);
     else
@@ -211,7 +213,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         const int8_t *B, const int *LDB, const int8_t *bo, const float *beta,
         int32_t *C, const int *LDC, const int32_t *co) {
     dnnl_status_t status = check_gemm_x8x8x32_input(offsetc, transa, transb, M,
-            N, K, LDA, LDB, LDC, alpha, beta, false);
+            N, K, A, LDA, B, LDB, C, LDC, alpha, beta, false);
     if (status != dnnl_success) return status;
 
     if (*M == 0 || *N == 0 || *K == 0) return dnnl_success;
@@ -219,7 +221,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     bool use_jit = mayiuse(avx512_core);
     bool use_s8u8 = true
             && utils::everyone_is(0, *ao, *bo) // so far a requirement
-            && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(avx512_core));
+            && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(avx2));
 
     if (use_jit)
         status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA,
@@ -237,18 +239,11 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
 }
 
 dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
-        const int64_t *M, const int64_t *N, const int64_t *K,
-        const float *alpha, const bfloat16_t *A, const int64_t *lda,
-        const bfloat16_t *B, const int64_t *ldb, const float *beta, float *C,
-        const int64_t *ldc) {
-    int M_s32 = (int)*M;
-    int N_s32 = (int)*N;
-    int K_s32 = (int)*K;
-    int lda_s32 = (int)*lda;
-    int ldb_s32 = (int)*ldb;
-    int ldc_s32 = (int)*ldc;
-    dnnl_status_t status = check_gemm_input(transa, transb, &M_s32, &N_s32,
-            &K_s32, &lda_s32, &ldb_s32, &ldc_s32, alpha, beta, false);
+        const int *M, const int *N, const int *K, const float *alpha,
+        const bfloat16_t *A, const int *lda, const bfloat16_t *B,
+        const int *ldb, const float *beta, float *C, const int *ldc) {
+    dnnl_status_t status = check_gemm_input(transa, transb, M, N, K, A, lda, B,
+            ldb, C, ldc, alpha, beta, false);
     if (status != dnnl_success) return status;
 
     char *dummyOffsetC = NULL;
@@ -257,10 +252,9 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
     float *dummy_co = NULL;
 
     if (mayiuse(avx512_core)) {
-        return gemm_driver(transa, transb, dummyOffsetC, &M_s32, &N_s32, &K_s32,
-                alpha, (const bfloat16_t *)A, &lda_s32, dummy_ao,
-                (const bfloat16_t *)B, &ldb_s32, dummy_bo, beta, (float *)C,
-                &ldc_s32, dummy_co, false);
+        return gemm_driver(transa, transb, dummyOffsetC, M, N, K, alpha,
+                (const bfloat16_t *)A, lda, dummy_ao, (const bfloat16_t *)B,
+                ldb, dummy_bo, beta, (float *)C, ldc, dummy_co, false);
     } else {
         return dnnl_unimplemented;
     }
@@ -333,8 +327,14 @@ dnnl_status_t DNNL_API dnnl_gemm_bf16bf16f32(char transa, char transb,
         dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha,
         const bfloat16_t *A, dnnl_dim_t lda, const bfloat16_t *B,
         dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc) {
+    int M_s32 = (int)M;
+    int N_s32 = (int)N;
+    int K_s32 = (int)K;
+    int lda_s32 = (int)lda;
+    int ldb_s32 = (int)ldb;
+    int ldc_s32 = (int)ldc;
 
-    return gemm_bf16bf16f32(&transb, &transa, &N, &M, &K, &alpha, B, &ldb, A,
-            &lda, &beta, C, &ldc);
+    return gemm_bf16bf16f32(&transb, &transa, &N_s32, &M_s32, &K_s32, &alpha, B,
+            &ldb_s32, A, &lda_s32, &beta, C, &ldc_s32);
 }
 }

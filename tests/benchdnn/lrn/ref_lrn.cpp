@@ -29,7 +29,7 @@ float get_omega(const prb_t *p, const dnn_mem_t &src, int64_t mb, int64_t c,
         int64_t d, int64_t h, int64_t w) {
     const int size = p->ls;
     const int half_size = (size - 1) / 2;
-    const int summands = get_summands(p);
+    const int summands = compute_n_summands(p);
 
     float sum = 0;
     if (p->alg == ACROSS) {
@@ -75,7 +75,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &d_dst, dnn_mem_t &d_src) {
     const int size = p->ls;
     const int half_size = (size - 1) / 2;
-    const int summands = get_summands(p);
+    const int summands = compute_n_summands(p);
 
     dnnl::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
             [&](int64_t mb, int64_t c, int64_t d, int64_t h, int64_t w) {

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_COMMON_1x1_CONVOLUTION_HPP
-#define CPU_JIT_AVX512_COMMON_1x1_CONVOLUTION_HPP
+#ifndef CPU_JIT_AVX512_COMMON_1X1_CONVOLUTION_HPP
+#define CPU_JIT_AVX512_COMMON_1X1_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
@@ -53,6 +53,8 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, dst_type, dst_type,
                             data_type::undef)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
@@ -148,7 +150,8 @@ struct jit_avx512_common_1x1_convolution_bwd_data_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, data_type::undef)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -238,7 +241,8 @@ struct jit_avx512_common_1x1_convolution_bwd_weights_t
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();

@@ -38,14 +38,6 @@ extern "C" {
 /// @addtogroup c_api_types_generic Generic
 /// @{
 
-/// Version type
-typedef struct {
-    int major;
-    int minor;
-    int patch;
-    const char *hash;
-} dnnl_version_t;
-
 /// Status values returned by the library functions.
 typedef enum {
     /// The operation was successful
@@ -192,6 +184,7 @@ typedef enum {
     dnnl_abdec, ///< permuted 5D tensor
     dnnl_acb, ///< permuted 3D tensor
     dnnl_acbde, ///< permuted 5D tensor
+    dnnl_acbdef, ///< permuted 6D tensor
     dnnl_acdb, ///< permuted 4D tensor
     dnnl_acdeb, ///< permuted 5D tensor
     dnnl_ba, ///< permuted 2D tensor
@@ -217,6 +210,7 @@ typedef enum {
     /// 3D tensor blocked by 2nd dimension with block size 4
     dnnl_aBc4b,
     dnnl_ABc4b16a4b,
+    dnnl_ABc2b8a4b,
     dnnl_ABc4b4a,
     dnnl_ABc8a16b2a,
     dnnl_ABc8a8b,
@@ -226,6 +220,7 @@ typedef enum {
     dnnl_BAc8a16b2a,
     dnnl_ABc8b8a,
     dnnl_Abcd16a,
+    dnnl_Abcd8a,
     dnnl_ABcd16a16b,
     dnnl_ABcd32a32b,
     /// 4D tensor blocked by 2nd dimension with block size 16
@@ -240,9 +235,11 @@ typedef enum {
     dnnl_ABcd4b4a,
     dnnl_ABcd4a4b,
     dnnl_aBCd4c16b4c,
+    dnnl_aBCd2c8b4c,
     dnnl_aBCd4c4b,
     dnnl_aBCd4b4c,
     dnnl_ABcd8a16b2a,
+    dnnl_ABcd2b8a4b,
     dnnl_ABcd8a8b,
     /// 4D tensor blocked by 2nd dimension with block size 8
     dnnl_aBcd8b,
@@ -259,6 +256,8 @@ typedef enum {
     dnnl_Abcde16a,
     dnnl_ABcde16a16b,
     dnnl_BAcde8a16b2a,
+    /// 5D tensor blocked by 1st dimension with block size 16
+    dnnl_ABcde4b16a4b,
     /// 5D tensor blocked by 2nd dimension with block size 16
     dnnl_aBcde16b,
     dnnl_ABcde16b16a,
@@ -293,6 +292,7 @@ typedef enum {
     dnnl_aBcdef16b,
     dnnl_aBCdef16b16c,
     dnnl_aBCdef16c16b,
+    dnnl_aBCdef4c16b4c,
     /// 6D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcdef4b,
     dnnl_aBCdef4c4b,
@@ -405,6 +405,8 @@ typedef enum {
     dnnl_giohw = dnnl_acbde,
     /// 6D CNN weights tensor (incl. groups), an alias to #dnnl_abcdef
     dnnl_goidhw = dnnl_abcdef,
+    /// 6D CNN weights tensor (incl. groups), an alias to #dnnl_acbdef
+    dnnl_giodhw = dnnl_acbdef,
 
     /// 3D RNN data tensor in the format (seq_length, batch, input channels).
     dnnl_tnc = dnnl_abc,
@@ -478,6 +480,7 @@ typedef enum {
     dnnl_OIw16o16i = dnnl_ABc16a16b,
     dnnl_Oiw16o = dnnl_Abc16a,
     dnnl_OIw4i16o4i = dnnl_ABc4b16a4b,
+    dnnl_OIw2i8o4i = dnnl_ABc2b8a4b,
     dnnl_OIw4i4o = dnnl_ABc4b4a,
     dnnl_OIw4o4i = dnnl_ABc4a4b,
     dnnl_Oiw4o = dnnl_Abc4a,
@@ -507,6 +510,7 @@ typedef enum {
     dnnl_OIhw8i16o2i = dnnl_ABcd8b16a2b,
     dnnl_OIhw8i8o = dnnl_ABcd8b8a,
     dnnl_OIhw8o16i2o = dnnl_ABcd8a16b2a,
+    dnnl_OIhw2i8o4i = dnnl_ABcd2b8a4b,
     dnnl_IOhw8o16i2o = dnnl_BAcd8a16b2a,
     dnnl_OIhw8o8i = dnnl_ABcd8a8b,
 
@@ -524,17 +528,20 @@ typedef enum {
     dnnl_OIdhw8i8o = dnnl_ABcde8b8a,
     dnnl_OIdhw8o16i2o = dnnl_ABcde8a16b2a,
     dnnl_IOdhw8o16i2o = dnnl_BAcde8a16b2a,
+    dnnl_OIdhw4i16o4i = dnnl_ABcde4b16a4b,
     dnnl_OIdhw8o8i = dnnl_ABcde8a8b,
     dnnl_IOdhw16i16o = dnnl_BAcde16b16a,
 
     // weights w/ groups, 3D
     dnnl_Goiw16g = dnnl_Abcd16a,
+    dnnl_Goiw8g = dnnl_Abcd8a,
     dnnl_gIOw16o16i = dnnl_aCBd16b16c,
     dnnl_gIOw16i16o = dnnl_aCBd16c16b,
     dnnl_gOIw16i16o = dnnl_aBCd16c16b,
     dnnl_gOIw16o16i = dnnl_aBCd16b16c,
     dnnl_gOiw16o = dnnl_aBcd16b,
     dnnl_gOIw4i16o4i = dnnl_aBCd4c16b4c,
+    dnnl_gOIw2i8o4i = dnnl_aBCd2c8b4c,
     dnnl_gOIw4i4o = dnnl_aBCd4c4b,
     dnnl_gOIw4o4i = dnnl_aBCd4b4c,
     dnnl_gOiw4o = dnnl_aBcd4b,
@@ -581,6 +588,7 @@ typedef enum {
     dnnl_gOdhwi4o = dnnl_aBdefc4b,
     dnnl_gOdhwi8o = dnnl_aBdefc8b,
     dnnl_gOIdhw16i16o = dnnl_aBCdef16c16b,
+    dnnl_gOIdhw4i16o4i = dnnl_aBCdef4c16b4c,
     dnnl_gOIdhw16o16i = dnnl_aBCdef16b16c,
     dnnl_gOidhw16o = dnnl_aBcdef16b,
     dnnl_gOIdhw4i4o = dnnl_aBCdef4c4b,
@@ -653,10 +661,14 @@ typedef enum {
     dnnl_inner_product,
     /// A rnn primitive.
     dnnl_rnn,
-    /// A matrix multiplication primitive.
+    /// A matrix multiplication primitive (internal).
     dnnl_gemm,
     /// A binary primitive.
     dnnl_binary,
+    /// A logsoftmax primitive.
+    dnnl_logsoftmax,
+    /// A matrix multiplication primitive.
+    dnnl_matmul,
 } dnnl_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -701,6 +713,8 @@ typedef enum {
     dnnl_eltwise_gelu = 0xcf,
     /// Eltwise: swish
     dnnl_eltwise_swish = 0xdf,
+    /// Eltwise: natural logarithm
+    dnnl_eltwise_log = 0xef,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding
@@ -783,6 +797,35 @@ typedef enum {
 /// of space used for the tensor description. Individual computational
 /// primitives may support only tensors of certain dimensions.
 #define DNNL_MAX_NDIMS 12
+
+/// A wildcard value for dimensions that are unknown at a primitive creation
+/// time.
+#define DNNL_RUNTIME_DIM_VAL INT64_MIN
+
+/// A `size_t` counterpart of the DNNL_RUNTIME_DIM_VAL.
+/// For instance, this value is returned by dnnl_memory_desc_get_size() if
+/// either of the dimensions or strides equal to #DNNL_RUNTIME_DIM_VAL.
+#define DNNL_RUNTIME_SIZE_VAL ((size_t)DNNL_RUNTIME_DIM_VAL)
+
+/// @cond DO_NOT_DOCUMENT_THIS
+/// Hex representation for a **special** quiet NAN (!= NAN from math.h)
+static const union {
+    unsigned u;
+    float f;
+} DNNL_RUNTIME_F32_VAL_REP = {0x7fc000d0};
+/// @endcond
+
+/// A wildcard value for floating point values that are unknown at a primitive
+/// creation time.
+#define DNNL_RUNTIME_F32_VAL (DNNL_RUNTIME_F32_VAL_REP.f)
+
+/// @cond DO_NOT_DOCUMENT_THIS
+static const int DNNL_RUNTIME_S32_VAL_REP = INT32_MIN;
+/// @endcond
+
+/// A wildcard value for int32_t values that are unknown at a primitive creation
+/// time.
+#define DNNL_RUNTIME_S32_VAL DNNL_RUNTIME_S32_VAL_REP
 
 /// A type to describe tensor dimension.
 typedef int64_t dnnl_dim_t;
@@ -1035,8 +1078,8 @@ typedef struct {
     /// #dnnl_eltwise_tanh, #dnnl_eltwise_elu, #dnnl_eltwise_square,
     /// #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
     /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
-    /// #dnnl_eltwise_swish, #dnnl_eltwise_logistic and
-    /// #dnnl_eltwise_exp.
+    /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu,
+    /// #dnnl_eltwise_swish, #dnnl_eltwise_log.
     dnnl_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     dnnl_memory_desc_t data_desc;
@@ -1051,11 +1094,13 @@ typedef struct {
     ///  - #dnnl_eltwise_abs: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_sqrt: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_linear: @p alpha -- scale, @p beta -- shift
-    ///  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
     ///  - #dnnl_eltwise_bounded_relu: @p alpha -- upper bound, @p beta ignored
     ///  - #dnnl_eltwise_soft_relu: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_logistic: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_exp: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_gelu: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
+    ///  - #dnnl_eltwise_log: @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 
@@ -1074,6 +1119,10 @@ typedef struct {
     /// The axis along which to perform the softmax.
     int softmax_axis;
 } dnnl_softmax_desc_t;
+
+/// A descriptor of a LogSoftmax operation. An alias of Softmax structure, but
+/// primitive_kind must be #dnnl_logsoftmax.
+typedef dnnl_softmax_desc_t dnnl_logsoftmax_desc_t;
 
 /// A descriptor of a pooling operation.
 typedef struct {
@@ -1326,6 +1375,29 @@ typedef struct {
     dnnl_memory_desc_t dst_desc;
 } dnnl_binary_desc_t;
 
+/// A descriptor of a matrix multiplication operation.
+///
+/// 2D case:
+///     dst[m, n] = src[m, k] * weights[k, n] + bias[m, n]
+///
+/// 3D case:
+///     dst[mb, m, n] = src[mb, m, k] * weights[mb, k, n] + bias[mb, m, n]
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_matmul.
+    dnnl_primitive_kind_t primitive_kind;
+    /// Source memory descriptor.
+    dnnl_memory_desc_t src_desc;
+    /// Weights memory descriptor.
+    dnnl_memory_desc_t weights_desc;
+    /// Bias memory descriptor.
+    dnnl_memory_desc_t bias_desc;
+    /// Destination memory descriptor.
+    dnnl_memory_desc_t dst_desc;
+    /// The accumulator data type. Initialized automatically.
+    dnnl_data_type_t accum_data_type;
+} dnnl_matmul_desc_t;
+
 /// @}
 
 /// @addtogroup c_api_engine_types Engine
@@ -1391,8 +1463,26 @@ typedef const struct dnnl_primitive_desc *const_dnnl_primitive_desc_t;
 /// Scratchpad mode
 typedef enum {
     /// The library manages scratchpad (default)
+    /// The allocation policy is controlled by the DNNL_ENABLE_CONCURRENT_EXEC
+    /// build option (@ref dev_guide_build_options).
+    ///
+    /// When DNNL_ENABLE_CONCURRENT_EXEC=OFF (default), the library
+    /// scratchpad is common to all primitives to reduce the memory
+    /// footprint.  This configuration comes with limited
+    /// thread-safety properties, namely different primitives can be
+    /// created and executed in parallel but cannot migrate between
+    /// threads (in other words, each primitive should be executed in
+    /// the same thread it was created in).
+    ///
+    /// When DNNL_ENABLE_CONCURRENT_EXEC=ON, the library scratchpad is private
+    /// to each primitive. The memory footprint is larger than when using
+    /// DNNL_ENABLE_CONCURRENT_EXEC=OFF but different primitives can be created
+    /// and run concurrently (the same primitive cannot be run concurrently from
+    /// two different threads though).
     dnnl_scratchpad_mode_library,
     /// A user shall query and provide the scratchpad memory to primitives
+    /// This mode is thread-safe as long as the scratchpad buffers
+    /// are not used concurrently by two primitive executions.
     dnnl_scratchpad_mode_user,
 } dnnl_scratchpad_mode_t;
 
@@ -1520,17 +1610,17 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 
 #define DNNL_ARG_DIFF_BIAS 169
 
+#define DNNL_ARG_ATTR_OUTPUT_SCALES 513
+
 #define DNNL_ARG_MULTIPLE_SRC 1024
 #define DNNL_ARG_MULTIPLE_DST 2048
 
+#define DNNL_ARG_ATTR_ZERO_POINTS 4096
+
 /// @}
 
-/// An auxiliary structure to specify primitive's inputs/outputs at execution
-///
-/// @warning
-///      With this API it's impossible to preserve constness of memory, so all
-///      memories are passed w/o const qualifier. However only memories with
-///      output semantics might be changed during the execution
+/// A structure that contains an index and a memory object, and is used to pass
+/// arguments to dnnl_primitive_execute().
 typedef struct {
     int arg; ///< An argument index, e.g. DNNL_ARG_SRC
     dnnl_memory_t memory; ///< Input/output memory
@@ -1608,8 +1698,10 @@ typedef enum {
     dnnl_query_layer_normalization_d, ///< layer normalization descriptor
     dnnl_query_inner_product_d, ///< inner product descriptor
     dnnl_query_rnn_d, ///< rnn descriptor
-    dnnl_query_gemm_d, ///< GEMM descriptor
+    dnnl_query_gemm_d, ///< GEMM descriptor (internal)
     dnnl_query_binary_d, ///< binary descriptor
+    dnnl_query_logsoftmax_d, ///< logsoftmax descriptor
+    dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub
@@ -1651,6 +1743,41 @@ typedef struct dnnl_stream *dnnl_stream_t;
 typedef const struct dnnl_stream *const_dnnl_stream_t;
 
 /// @}
+
+/// @addtogroup c_api_types_service Service
+/// @{
+
+/// Structure containing version information as per [Semantic
+/// Versioning](https://semver.org)
+typedef struct {
+    int major; ///< Major version
+    int minor; ///< Minor version
+    int patch; ///< Patch version
+    const char *hash; ///< Git hash of the sources (may be absent)
+} dnnl_version_t;
+
+/// Disable profiling completely
+#define DNNL_JIT_PROFILE_NONE 0u
+
+/// Enable VTune integration
+#define DNNL_JIT_PROFILE_VTUNE 1u
+
+/// Enable Linux perf integration via perfmap files
+#define DNNL_JIT_PROFILE_LINUX_PERFMAP 2u
+
+/// Enable Linux perf integration via jitdump files
+#define DNNL_JIT_PROFILE_LINUX_JITDUMP 4u
+
+/// Instruct Linux perf integration via jitdump files to use TSC. @ref
+/// DNNL_JIT_PROFILE_LINUX_JITDUMP must be set too for this to take effect.
+#define DNNL_JIT_PROFILE_LINUX_JITDUMP_USE_TSC 8u
+
+/// Enable Linux perf integration (both jitdump and perfmap)
+#define DNNL_JIT_PROFILE_LINUX_PERF \
+    (DNNL_JIT_PROFILE_LINUX_JITDUMP | DNNL_JIT_PROFILE_LINUX_PERFMAP)
+
+/// @}
+
 /// @}
 /// @}
 

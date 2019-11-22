@@ -27,7 +27,6 @@
 --alg=VANILLA_LSTM
 --direction=left2right
 --activation=TANH
---allow-unimpl=true
 --prop=FWD_D
 
 --cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small

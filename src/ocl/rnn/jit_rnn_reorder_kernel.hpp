@@ -28,7 +28,7 @@ namespace ocl {
 
 struct jit_rnn_reorder_kernel {
 
-    jit_rnn_reorder_kernel(jit_rnn_reorder_conf_t ajrp) : jrp(ajrp) {}
+    jit_rnn_reorder_kernel(const jit_rnn_reorder_conf_t &ajrp) : jrp(ajrp) {}
 
     ~jit_rnn_reorder_kernel() {}
 

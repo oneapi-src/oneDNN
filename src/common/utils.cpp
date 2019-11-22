@@ -14,14 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <string.h>
 #ifdef _WIN32
 #include <malloc.h>
 #include <windows.h>
 #endif
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
+
+#ifdef __linux__
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <string>
 
 #include "dnnl.h"
 #include "utils.hpp"
@@ -111,23 +119,78 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #endif
 }
 
-static int jit_dump_flag = 0;
-static bool jit_dump_flag_initialized = false;
-bool jit_dump_enabled() {
-    if (!jit_dump_flag_initialized) {
-        jit_dump_flag = getenv_int("MKLDNN_JIT_DUMP");
-        jit_dump_flag = getenv_int("DNNL_JIT_DUMP", jit_dump_flag);
-        jit_dump_flag_initialized = true;
+static setting_t<bool> jit_dump {0};
+bool get_jit_dump() {
+    if (!jit_dump.initialized()) {
+        jit_dump.set(!!getenv_int("MKLDNN_JIT_DUMP", 0));
+        jit_dump.set(!!getenv_int("DNNL_JIT_DUMP", jit_dump.get()));
     }
-    return jit_dump_flag != 0;
+    return jit_dump.get();
+}
+
+static setting_t<unsigned> jit_profiling_flags {DNNL_JIT_PROFILE_VTUNE};
+unsigned get_jit_profiling_flags() {
+    if (!jit_profiling_flags.initialized()) {
+        jit_profiling_flags.set(
+                getenv_int("DNNL_JIT_PROFILE", jit_profiling_flags.get()));
+    }
+    return jit_profiling_flags.get();
+}
+
+static setting_t<std::string> jit_profiling_jitdumpdir;
+dnnl_status_t init_jit_profiling_jitdumpdir(
+        const char *jitdumpdir, bool overwrite) {
+#ifdef __linux__
+    static std::mutex m;
+    std::lock_guard<std::mutex> g(m);
+
+    if (jit_profiling_jitdumpdir.initialized() && !overwrite)
+        return status::success;
+
+    if (!jitdumpdir) {
+        char buf[PATH_MAX];
+        if (getenv("JITDUMPDIR", buf, sizeof(buf)) > 0)
+            jit_profiling_jitdumpdir.set(buf);
+        else if (getenv("HOME", buf, sizeof(buf)) > 0)
+            jit_profiling_jitdumpdir.set(buf);
+        else
+            jit_profiling_jitdumpdir.set(".");
+    } else
+        jit_profiling_jitdumpdir.set(jitdumpdir);
+
+    return status::success;
+#else
+    return status::unimplemented;
+#endif
+}
+
+std::string get_jit_profiling_jitdumpdir() {
+    if (!jit_profiling_jitdumpdir.initialized())
+        init_jit_profiling_jitdumpdir(nullptr, false);
+    return jit_profiling_jitdumpdir.get();
 }
 
 } // namespace impl
 } // namespace dnnl
 
 dnnl_status_t dnnl_set_jit_dump(int enabled) {
-    using namespace dnnl::impl::status;
-    dnnl::impl::jit_dump_flag = enabled;
-    dnnl::impl::jit_dump_flag_initialized = true;
-    return success;
+    using namespace dnnl::impl;
+    jit_dump.set(enabled);
+    return status::success;
+}
+
+dnnl_status_t dnnl_set_jit_profiling_flags(unsigned flags) {
+    using namespace dnnl::impl;
+    unsigned mask = DNNL_JIT_PROFILE_VTUNE;
+#ifdef __linux__
+    mask |= DNNL_JIT_PROFILE_LINUX_PERF;
+    mask |= DNNL_JIT_PROFILE_LINUX_JITDUMP_USE_TSC;
+#endif
+    if (flags & ~mask) return status::invalid_arguments;
+    jit_profiling_flags.set(flags);
+    return status::success;
+}
+
+dnnl_status_t dnnl_set_jit_profiling_jitdumpdir(const char *dir) {
+    return dnnl::impl::init_jit_profiling_jitdumpdir(dir, true);
 }

@@ -1,0 +1,15 @@
+--stag=nchw:nchw       3x5x6x9:3x5x6x9 5x3x2x9:1x3x1x9 4x4x4x4:4x4x1x4
+--stag=nchw:nChw16c    1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
+--stag=nchw:nc         3x7x5x1:3x7 2x16x4x3:1x16
+--stag=nchw:x          7x2x1x8:7 3x2x3x2:1
+
+--stag=nhwc:nhwc       3x5x6x9:3x5x6x9 5x3x2x9:1x3x1x9 4x4x4x4:4x4x1x4
+--stag=nhwc:nc         3x7x5x1:3x7 2x16x4x3:1x16
+--stag=nhwc:x          7x2x1x8:7 3x2x3x2:1
+
+--stag=nChw16c:nChw16c 1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
+--stag=nChw16c:nChw8c  1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
+--stag=nChw16c:nCw16c  2x32x3x3:1x32x3 2x33x3x3:1x33x3
+--stag=nChw16c:x       3x16x2x4:1 3x24x2x4:1
+
+--stag=x:x             256:256 127:1

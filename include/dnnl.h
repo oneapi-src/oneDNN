@@ -44,16 +44,16 @@ extern "C" {
 /// @{
 
 /// Creates a primitive descriptor @p iterator for given @p op_desc, @p attr,
-/// @p engine, and optionally a hint primitive descriptor from forward
-/// propagation (required for backward propagation). Pass @c NULL for forward
-/// propagation.
+/// @p engine, and optionally a hint primitive descriptor @p
+/// hint_forward_primitive_desc from forward propagation (required for
+/// backward propagation). Pass @c NULL for forward propagation.
 dnnl_status_t DNNL_API dnnl_primitive_desc_iterator_create(
         dnnl_primitive_desc_iterator_t *iterator, const_dnnl_op_desc_t op_desc,
         const_dnnl_primitive_attr_t attr, dnnl_engine_t engine,
         const_dnnl_primitive_desc_t hint_forward_primitive_desc);
 
-/// Iterates over primitive descriptors. Returns #dnnl_iterator_ends if no
-/// more primitive descriptors are available.
+/// Advances the primitive descriptor @p iterator. Returns #dnnl_iterator_ends
+/// if no more primitive descriptors are available.
 dnnl_status_t DNNL_API dnnl_primitive_desc_iterator_next(
         dnnl_primitive_desc_iterator_t iterator);
 
@@ -159,8 +159,12 @@ int DNNL_API dnnl_primitive_desc_query_s32(
 dnnl_status_t DNNL_API dnnl_primitive_create(dnnl_primitive_t *primitive,
         const_dnnl_primitive_desc_t primitive_desc);
 
-/// Executes a @p primitive using a @p stream, and @p nargs arguments
-/// @p args.
+/// Executes a @p primitive using a @p stream, and @p nargs arguments @p args.
+/// Each argument is an <index, #dnnl_memory_t> pair. The index is one of the
+/// `DNNL_ARG_*` values such as `DNNL_ARG_SRC`. Unless runtime shapes are used
+/// (see #DNNL_RUNTIME_DIM_VAL), the memory object must have the same memory
+/// descriptor as that returned by
+/// #dnnl_primitive_desc_query_md(#dnnl_query_exec_arg_md, index).
 dnnl_status_t DNNL_API dnnl_primitive_execute(const_dnnl_primitive_t primitive,
         dnnl_stream_t stream, int nargs, const dnnl_exec_arg_t *args);
 
@@ -264,6 +268,38 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_get_output_scales(
 dnnl_status_t DNNL_API dnnl_primitive_attr_set_output_scales(
         dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
         const float *scales);
+
+/// Returns @p count, correspondence zero point @p mask, and a pointer to a
+/// constant int32_t array of @p zero_points for given @p attr and memory
+/// argument (index), previously set by dnnl_primitive_attr_set_zero_points.
+///
+/// @warning
+///      The @p zero_points array points to the internal @p attr field, so the
+///      user should not modify or destroy @p zero_points.
+///
+/// @warning
+///      The lifetime of @p zero_points is the same as that of the @p attr to
+///      which it belongs, so it is illegal to use @p zero_points after @p attr
+///      is destroyed.
+dnnl_status_t DNNL_API dnnl_primitive_attr_get_zero_points(
+        const_dnnl_primitive_attr_t attr, int arg, dnnl_dim_t *count, int *mask,
+        const int32_t **zero_points);
+
+/// Sets @p zero_points for primitive operations for given memory argument
+/// @p arg. The number of elements @p count and correspondence scale @p mask
+/// are stored for future use.
+///
+/// @note
+///      There is no way to check that @p count corresponds to @p mask until an
+///      actual primitive descriptor is created, so it is the user's
+///      responsibility to set proper values. The following formula must hold:
+///
+///      \f[count = \prod\limits_{d \in mask} memory[arg].dims[d]\f]
+///
+/// @sa dnnl_primitive_attr_set_output_scales
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_zero_points(
+        dnnl_primitive_attr_t attr, int arg, dnnl_dim_t count, int mask,
+        const int32_t *zero_points);
 
 /// Returns @p post_ops for given @p attr.
 ///
@@ -1103,6 +1139,42 @@ dnnl_status_t DNNL_API dnnl_softmax_backward_desc_init(
 
 /// @}
 
+/// @addtogroup c_api_logsoftmax LogSoftmax
+/// A primitive to perform logsoftmax.
+///
+/// @sa @ref dev_guide_logsoftmax in developer guide
+/// @sa @ref cpp_api_logsoftmax in @ref cpp_api
+/// @{
+
+/// Initializes a @p logsoftmax_desc for forward propagation using @p prop_kind
+/// (possible values are #dnnl_forward_training and #dnnl_forward_inference)
+/// and memory descriptor @p data_desc.
+///
+/// Inputs:
+///  - src (#dnnl_query_src_md, 0)
+///
+/// Outputs:
+///  - dst (#dnnl_query_dst_md, 0)
+dnnl_status_t DNNL_API dnnl_logsoftmax_forward_desc_init(
+        dnnl_logsoftmax_desc_t *logsoftmax_desc, dnnl_prop_kind_t prop_kind,
+        const dnnl_memory_desc_t *data_desc, int logsoftmax_axis);
+
+/// Initializes a @p logsoftmax_desc for backward propagation using memory
+/// descriptors @p diff_desc and @p data_desc.
+///
+/// Inputs:
+///  - dst (#dnnl_query_dst_md, 0)
+///  - diff_dst (#dnnl_query_diff_dst_md, 0)
+///
+/// Outputs:
+///  - diff_src (#dnnl_query_diff_src_md, 0)
+dnnl_status_t DNNL_API dnnl_logsoftmax_backward_desc_init(
+        dnnl_logsoftmax_desc_t *logsoftmax_desc,
+        const dnnl_memory_desc_t *diff_desc,
+        const dnnl_memory_desc_t *data_desc, int logsoftmax_axis);
+
+/// @}
+
 /// @addtogroup c_api_pooling Pooling
 /// A primitive to perform max or average pooling.
 ///
@@ -1901,6 +1973,36 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_backward_desc_init(
 
 /// @}
 
+/// @addtogroup c_api_matmul Matrix Multiplication
+/// A primitive to perform matrix multiplication of two tensors and possibly
+/// bias addition to the result. Batched mode supported with 3D tensors.
+///
+/// @sa @ref dev_guide_matmul in developer guide
+/// @sa @ref cpp_api_matmul in @ref cpp_api
+/// @{
+
+/// Initializes a matrix multiplication descriptor @p matmul_desc with given
+/// source memory descriptors, optionally bias, and destination memory
+/// descriptor.
+///
+/// @note To omit applying bias @p bias_desc can be NULL or point to zero
+///       memory descriptor.
+///
+/// Inputs:
+///  - src (#dnnl_query_src_md, 0)
+///  - weights (#dnnl_query_weights_md, 0)
+///  - bias (#dnnl_query_weights_md, 1)
+///
+/// Outputs:
+///  - dst (#dnnl_query_dst_md, 0)
+dnnl_status_t DNNL_API dnnl_matmul_desc_init(dnnl_matmul_desc_t *matmul_desc,
+        const dnnl_memory_desc_t *src_desc,
+        const dnnl_memory_desc_t *weights_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_desc);
+
+/// @}
+
 /// @}
 
 /// @addtogroup c_api_engine Engine operations
@@ -1969,33 +2071,95 @@ dnnl_status_t DNNL_API dnnl_stream_destroy(dnnl_stream_t stream);
 /// @addtogroup c_api_service Service functions
 /// @{
 
-/// Sets verbosity level (print information to stdout).
-/// Possible levels are:
-///  - 0 -- no verbose output (default)
-///  - 1 -- primitive information at execution
-///  - 2 -- primitive information at creation and execution
+/// Configures verbose output to stdout.
+///
+/// @param level Verbosity level:
+///  - 0: no verbose output (default),
+///  - 1: primitive information at execution,
+///  - 2: primitive information at creation and execution.
 ///
 /// @note
-///     Dumping information might affect performance.
+///     Enabling verbose output affects performance.
 ///     This setting overrides the DNNL_VERBOSE environment variable.
+///
+/// @returns #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the
+/// @p level value is invalid, and #dnnl_success/#dnnl::status::success on
+/// success.
 dnnl_status_t DNNL_API dnnl_set_verbose(int level);
 
-/// Enables or disables dumping of JIT-generated code.
-/// The enable parameter can be:
-///  - 0 -- disable
-///  - any other value -- enable
+/// Configures dumping of JIT-generated code.
+///
+/// @param enable Flag value. Set to 0 to disable and set to 1 to enable.
 ///
 /// @note
 ///     This setting overrides the DNNL_JIT_DUMP environment variable.
+///
+/// @returns #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the
+/// @p flag value is invalid, and #dnnl_success/#dnnl::status::success on
+/// success.
 dnnl_status_t DNNL_API dnnl_set_jit_dump(int enable);
 
-/// Gets library version information.
-/// Version information includes:
-///  - major -- major version number
-///  - minor -- minor version number
-///  - patch -- patch release number
-///  - hash -- git commit hash
+/// Returns library version information.
+/// @returns Pointer to a constant structure containing
+///  - major: major version number,
+///  - minor: minor version number,
+///  - patch: patch release number,
+///  - hash: git commit hash.
 const dnnl_version_t DNNL_API *dnnl_version();
+
+/// Sets library profiling flags. The flags define which profilers are
+/// supported.
+///
+/// @param flags Profiling flags that can contain the following bits:
+///
+///  - @ref DNNL_JIT_PROFILE_VTUNE -- integration with VTune (on by default)
+///
+///  - @ref DNNL_JIT_PROFILE_LINUX_JITDUMP -- produce Linux-specific
+///    jit-pid.dump output (off by default). The location of the output is
+///    controlled via JITDUMPDIR environment variable or via
+///    dnnl_set_jit_profiling_jitdumpdir() function.
+///
+///  - @ref DNNL_JIT_PROFILE_LINUX_PERFMAP -- produce Linux-specific
+///    perf-pid.map output (off by default). The output is always placed into
+///    /tmp.
+///
+/// Passing @ref DNNL_JIT_PROFILE_NONE disables profiling completely.
+///
+/// @returns #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the
+/// @p flags value is invalid, and #dnnl_success/#dnnl::status::success on
+/// success.
+///
+/// See also @ref dev_guide_profilers
+///
+/// @note
+///     This setting overrides DNNL_JIT_PROFILE environment variable
+dnnl_status_t DNNL_API dnnl_set_jit_profiling_flags(unsigned flags);
+
+/// Sets JIT dump output path. Only applicable to Linux and is only
+/// used when profiling flags have DNNL_JIT_PROFILE_LINUX_PERF bit set.
+///
+/// After the first jit kernel is generated, the jitdump output will be placed
+/// into temporary directory created using the mkdtemp template
+/// 'dir/.debug/jit/dnnl.XXXXXX'.
+///
+/// @param dir JIT dump output path.
+///
+/// See also @ref dev_guide_profilers
+///
+/// @returns #dnnl_success/#dnnl::status::success if the
+/// output directory was set correctly.
+/// @returns #dnnl_unimplemented/#dnnl::status::unimplemented on Windows.
+///
+/// @note
+///     This setting overrides JITDUMPDIR environment variable.  If
+///     JITDUMPDIR is not set, and this function is never called, the path
+///     defaults to HOME. Passing NULL reverts the value to default.
+///
+/// @note
+///     The directory is only accessed only when the first JIT kernel is being
+///     created. JIT profiling will be disabled in case of any errors
+///     accessing or creating this directory.
+dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 
 /// @}
 

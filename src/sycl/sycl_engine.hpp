@@ -69,11 +69,11 @@ public:
 
         auto exception_handler = [](cl::sycl::exception_list eptr_list) {
             for (auto &eptr : eptr_list) {
-                if (dnnl_verbose()->level >= 5) {
+                if (get_verbose()) {
                     try {
                         std::rethrow_exception(eptr);
                     } catch (const cl::sycl::exception &e) {
-                        printf("Caught asynchronous SYCL exception: %s\n",
+                        printf("dnnl_verbose,gpu,sycl_exception,%s\n",
                                 e.what());
                     }
                 } else {

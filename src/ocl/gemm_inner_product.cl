@@ -27,10 +27,11 @@ __kernel void gemm_inner_product_forward_bias(
 
 __kernel void gemm_inner_product_backward_weights_bias(
         __global DATA_T *diff_dst, __global DATA_T *diff_bias) {
+    const uint oc = get_global_id(0);
+    DATA_T sum = DATA_ZERO;
 
-    const int oc = get_global_id(0);
-    diff_bias[oc] = DATA_ZERO;
+    for (uint n = 0; n < MB; ++n)
+        sum += diff_dst[n * OC + oc];
 
-    for (int n = 0; n < MB; ++n)
-        diff_bias[oc] += diff_dst[n * OC + oc];
+    diff_bias[oc] = sum;
 }

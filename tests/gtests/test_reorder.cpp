@@ -145,7 +145,9 @@ CPU_INSTANTIATE_TEST_SUITE_P(Weights_3d, reorder_simple_test_f32_f32,
                 cfg_f32 {fmt::goidhw, fmt::gOIdhw8i8o, {2, 16, 24, 2, 2, 3}},
                 cfg_f32 {fmt::gOIdhw8i8o, fmt::goidhw, {2, 16, 24, 3, 2, 3}},
                 cfg_f32 {fmt::goidhw, fmt::gOIdhw8o8i, {2, 16, 24, 2, 2, 3}},
-                cfg_f32 {fmt::gOIdhw8o8i, fmt::goidhw, {2, 16, 24, 3, 2, 3}}));
+                cfg_f32 {fmt::gOIdhw8o8i, fmt::goidhw, {2, 16, 24, 3, 2, 3}},
+                cfg_f32 {fmt::giodhw, fmt::gOIdhw8o8i, {2, 16, 24, 2, 2, 3}},
+                cfg_f32 {fmt::goidhw, fmt::giodhw, {2, 16, 24, 3, 2, 3}}));
 
 CPU_INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
         ::testing::Values(cfg_f32 {fmt::nchw, fmt::nchw, {10, 10, 13, 13}},

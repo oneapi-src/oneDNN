@@ -22,7 +22,7 @@
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 #include "memory.hpp"
 
 namespace dnnl {
@@ -31,7 +31,7 @@ namespace cpu {
 
 struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
     jit_avx2_conv_fwd_kernel_f32(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_
@@ -97,7 +97,7 @@ private:
 struct jit_avx2_conv_bwd_data_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_data_kernel_f32)
 
-    jit_avx2_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
+    jit_avx2_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp) : jcp(ajcp) {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }
@@ -164,7 +164,8 @@ private:
 struct jit_avx2_conv_bwd_weights_kernel_f32 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_conv_bwd_weights_kernel_f32)
 
-    jit_avx2_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp) : jcp(ajcp) {
+    jit_avx2_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {
         this->generate();
         jit_ker = (void (*)(jit_conv_call_s *))this->getCode();
     }

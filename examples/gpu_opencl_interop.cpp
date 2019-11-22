@@ -15,13 +15,15 @@
 *******************************************************************************/
 
 /// @example  gpu_opencl_interop.cpp
-/// Annotated version: @ref gpu_opencl_interop_cpp
-///
+/// @copybrief gpu_opencl_interop_cpp
+/// > Annotated version: @ref gpu_opencl_interop_cpp
+
 /// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
-/// Full example text: @ref gpu_opencl_interop.cpp
-///
 /// This C++ API example demonstrates programming for Intel(R) Processor
 /// Graphics with OpenCL* extensions API in DNNL.
+///
+/// > Example code: @ref gpu_opencl_interop.cpp
+///
 /// The workflow includes following steps:
 ///   - Create a GPU engine. It uses OpenCL as the runtime in this sample.
 ///   - Create a GPU memory descriptor/object.
@@ -34,8 +36,8 @@
 ///   - Validate the result by mapping the OpenCL memory via OpenCL interoperability
 ///     interface
 ///
-/// @page gpu_opencl_interop_cpp
 
+/// @page gpu_opencl_interop_cpp
 /// @section gpu_opencl_interop_cpp_headers Public headers
 ///
 /// To start using DNNL, we must first include the @ref dnnl.hpp
@@ -48,14 +50,15 @@
 /// @page gpu_opencl_interop_cpp
 /// @snippet  gpu_opencl_interop.cpp Prologue
 // [Prologue]
-#include <dnnl.hpp>
-#include <CL/cl.h>
-// Optional header to access debug functions like `dnnl_status2str()`
-#include "dnnl_debug.h"
-
 #include <iostream>
 #include <numeric>
-#include <sstream>
+#include <stdexcept>
+
+#include <CL/cl.h>
+
+#include "dnnl.hpp"
+
+#include "example_utils.hpp"
 
 using namespace dnnl;
 using namespace std;
@@ -65,7 +68,8 @@ using namespace std;
     do { \
         cl_int s = (x); \
         if (s != CL_SUCCESS) { \
-            printf("OpenCL error: %d at %s:%d\n", s, __FILE__, __LINE__); \
+            std::cout << "[" << __FILE__ << ":" << __LINE__ << "] '" << #x \
+                      << "' failed (status code: " << s << ")" << std::endl; \
             exit(1); \
         } \
     } while (0)
@@ -90,7 +94,7 @@ cl_kernel create_init_opencl_kernel(
 
 /// @page gpu_opencl_interop_cpp
 /// @section gpu_opencl_interop_cpp_tutorial gpu_opencl_interop_tutorial() function
-/// @page gpu_opencl_interop_cpp
+///
 void gpu_opencl_interop_tutorial() {
     /// @page gpu_opencl_interop_cpp
     /// @subsection gpu_opencl_interop_cpp_sub1 Engine and stream
@@ -230,58 +234,34 @@ void gpu_opencl_interop_tutorial() {
     /// @page gpu_opencl_interop_cpp
     /// @subsection gpu_opencl_interop_cpp_sub5 Validate the results
     ///
-    /// Before running validation codes, we need to access the OpenCL memory on
-    /// the host. The simplest way to access the OpenCL memory is to map it to
-    /// the host using the dnnl::memory::map_data() and
-    /// dnnl::memory::unmap_data() APIs. After mapping, this data is directly
-    /// accessible  for reading or writing on the host.
-    /// We can run validation codes on the host accordingly. While
-    /// the data is mapped, no GPU-side operations on this data are allowed.
-    /// The data should be unmapped to release all resources associated with
-    /// mapping.
+    /// Before running validation codes, we need to copy the OpenCL memory to
+    /// the host. This can be done using OpenCL API. For convenience, we use a
+    /// utility function read_from_dnnl_memory() implementing required OpenCL API
+    /// calls. After we read the data to the host, we can run validation codes
+    /// on the host accordingly.
     /// @snippet gpu_opencl_interop.cpp Check the results
     // [Check the results]
-    float *mapped_data = mem.map_data<float>();
+    std::vector<float> mem_data(N);
+    read_from_dnnl_memory(mem_data.data(), mem);
     for (size_t i = 0; i < N; i++) {
         float expected = (i % 2) ? 0.0f : (float)i;
-        if (mapped_data[i] != expected)
-            throw std::string(
-                    "Unexpected output, find a negative value after the ReLU "
-                    "execution");
+        if (mem_data[i] != expected) {
+            std::cout << "Expect " << expected << " but got " << mem_data[i]
+                      << std::endl;
+            throw std::logic_error("Accuracy check failed.");
+        }
     }
-    mem.unmap_data(mapped_data);
     // [Check the results]
 
     OCL_CHECK(clReleaseKernel(ocl_init_kernel));
 }
-/// @section gpu_opencl_interop_cpp_main main() function
-///
-/// We now just call everything we prepared earlier.
-///
-/// Because we are using the DNNL C++ API, we use exceptions to handle
-/// errors (see @ref dev_guide_c_and_cpp_apis). The DNNL C++ API throws
-/// exceptions of type @ref dnnl::error, which contains the error status
-/// (of type @ref dnnl_status_t) and a human-readable error message accessible
-/// through the regular `what()` method.
-/// @page gpu_opencl_interop_cpp
-/// @snippet gpu_opencl_interop.cpp Main
-// [Main]
-int main(int argc, char **argv) {
-    try {
-        gpu_opencl_interop_tutorial();
-    } catch (dnnl::error &e) {
-        std::cerr << "DNNL error: " << e.what() << std::endl
-                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
-        return 1;
-    } catch (std::string &e) {
-        std::cerr << "Error in the example: " << e << std::endl;
-        return 2;
-    }
 
-    std::cout << "Example passes" << std::endl;
-    return 0;
+int main(int argc, char **argv) {
+    return handle_example_errors(gpu_opencl_interop_tutorial);
 }
-// [Main]
+
+/// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
+///
 /// <b></b>
 ///
 /// Upon compiling and running the example, the output should be just:
@@ -290,4 +270,3 @@ int main(int argc, char **argv) {
 /// Example passes
 /// ~~~
 ///
-/// @page gpu_opencl_interop_cpp

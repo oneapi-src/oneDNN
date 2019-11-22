@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GEMM_CONVOLUTION_UTILS_HPP
-#define CPU_JIT_GEMM_CONVOLUTION_UTILS_HPP
+#ifndef CPU_GEMM_CONVOLUTION_UTILS_HPP
+#define CPU_GEMM_CONVOLUTION_UTILS_HPP
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"

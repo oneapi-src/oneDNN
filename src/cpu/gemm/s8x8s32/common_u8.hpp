@@ -85,6 +85,62 @@ public:
     jit_avx512_core_u8_copy_sum_bt_kern(bool s8 = false);
 };
 
+class jit_avx2_u8_copy_an_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_an_kern);
+
+public:
+    jit_avx2_u8_copy_an_kern();
+};
+
+class jit_avx2_u8_copy_at_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_at_kern);
+
+public:
+    jit_avx2_u8_copy_at_kern();
+};
+
+class jit_avx2_u8_copy_bn_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_bn_kern);
+
+public:
+    jit_avx2_u8_copy_bn_kern();
+};
+
+class jit_avx2_u8_copy_bt_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_bt_kern);
+
+public:
+    jit_avx2_u8_copy_bt_kern();
+};
+
+class jit_avx2_u8_copy_sum_an_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_sum_an_kern);
+
+public:
+    jit_avx2_u8_copy_sum_an_kern();
+};
+
+class jit_avx2_u8_copy_sum_at_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_sum_at_kern);
+
+public:
+    jit_avx2_u8_copy_sum_at_kern();
+};
+
+class jit_avx2_u8_copy_sum_bn_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_sum_bn_kern);
+
+public:
+    jit_avx2_u8_copy_sum_bn_kern();
+};
+
+class jit_avx2_u8_copy_sum_bt_kern : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_u8_copy_sum_bt_kern);
+
+public:
+    jit_avx2_u8_copy_sum_bt_kern();
+};
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

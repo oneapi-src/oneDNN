@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_2x3_HPP
-#define CPU_JIT_AVX512_CORE_F32_WINO_CONV_2x3_HPP
+#ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_2X3_HPP
+#define CPU_JIT_AVX512_CORE_F32_WINO_CONV_2X3_HPP
 
 #include <assert.h>
 
@@ -56,6 +56,8 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_impl_t {
                             alg_kind::convolution_winograd)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && set_default_formats();
             if (!ok) return status::unimplemented;
 

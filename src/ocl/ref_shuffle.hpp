@@ -45,6 +45,7 @@ struct ref_shuffle_t : public primitive_impl_t {
                     && utils::one_of(
                             (int)types::data_type_size(data_md()->data_type), 1,
                             2, 4)
+                    && attr()->has_default_values()
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
                             compute_engine->mayiuse(

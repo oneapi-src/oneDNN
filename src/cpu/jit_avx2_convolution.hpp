@@ -47,6 +47,8 @@ struct jit_avx2_convolution_fwd_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
@@ -116,7 +118,8 @@ struct jit_avx2_convolution_bwd_data_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::undef, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx2_conv_bwd_data_kernel_f32::init_conf(jcp_,
@@ -180,7 +183,8 @@ struct jit_avx2_convolution_bwd_weights_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx2_conv_bwd_weights_kernel_f32::init_conf(

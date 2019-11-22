@@ -6,7 +6,7 @@ Local Response Normalization (LRN) {#dev_guide_lrn}
 >
 
 The LRN primitive performs a forward or backward local response normalization
-operation on 2D spatial data and is defined by the following formulas:
+operation defined by the following formulas:
 
 ### Forward
 
@@ -35,7 +35,8 @@ LRN [within channel](#dnnl_lrn_within_channel):
         src(n, c, h, w),
 \f]
 
-where \f$n_{l}\f$ is the @p local_size.
+where \f$n_{l}\f$ is the @p local_size. Formulas are provided for 2D spatial
+data case.
 
 ### Backward
 
@@ -79,8 +80,15 @@ The LRN primitive supports the following combinations of data types:
 
 #### Source, Destination, and Their Gradients
 
-The LRN primitive supports only 2D spatial data. Like other CNN primitives, the
-LRN primitive expects data to be \f$N \times C \times H \times W\f$ tensor.
+Like most other primitives, the LRN primitive expects the following
+tensors:
+
+| Spatial | Source / Destination
+| :--     | :--
+| 0D      | \f$N \times C\f$
+| 1D      | \f$N \times C \times W\f$
+| 2D      | \f$N \times C \times H \times W\f$
+| 3D      | \f$N \times C \times D \times H \times W\f$
 
 The LRN primitive is optimized for the following memory formats:
 
@@ -102,6 +110,9 @@ The LRN primitive doesn't support any post-ops or attributes.
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
+
+2. **GPU**
+    - Supports only 2D spatial case.
 
 
 ## Performance Tips

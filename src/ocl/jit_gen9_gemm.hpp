@@ -251,7 +251,7 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
                 "gen9_gemm_nocopy_superkernel_f32", kernel_ctx);
         if (!nocopy_superkernel_) return status::runtime_error;
 
-        return status::success;
+        return init_superkernel_plan();
     }
 
     jit_gen9_gemm_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -260,9 +260,9 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
 
 protected:
 #ifdef _WIN32
-    bool disable_nocopy = true;
+    bool disable_superkernel = true;
 #else
-    bool disable_nocopy = false;
+    bool disable_superkernel = false;
 #endif
 
 private:
@@ -297,6 +297,7 @@ private:
             c_t eltwise_alpha, c_t eltwise_beta) const;
 
     size_t max_plan_size() const;
+    status_t init_superkernel_plan();
 
     virtual status_t execute_standard(const exec_ctx_t &ctx) const;
     virtual status_t execute_superkernel(const exec_ctx_t &ctx) const;
@@ -312,12 +313,11 @@ private:
     type gemm_type_ = type::copy_based;
     int hw_threads_ = 0;
     int eu_count_ = 0;
+    int threads_ = 0;
 
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     bool use_nocopy() const {
-        if (disable_nocopy) return false;
-
         bool transa = (pd()->desc()->transa == dnnl_trans);
         bool transb = (pd()->desc()->transb == dnnl_trans);
 
@@ -348,6 +348,8 @@ private:
     }
 
     bool use_superkernel() const {
+        if (disable_superkernel) return false;
+
         if (c_type != data_type::f32) return false;
         if (a_type != c_type || b_type != c_type) return false;
 

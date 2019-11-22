@@ -230,12 +230,12 @@ inline U abs_bwd(T dd, T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_fwd(T s) {
-    return s > 0 ? (U)(::sqrtf((float)(s))) : (U)0;
+    return (U)(::sqrtf((float)(s)));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_bwd(T dd, T s) {
-    return s > 0 ? (U)(dd / (2 * ::sqrtf((float)(s)))) : (U)0;
+    return (U)(dd / (2 * ::sqrtf((float)(s))));
 }
 
 template <typename T, typename A,
@@ -295,7 +295,7 @@ inline U exp_fwd(T s) {
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U exp_bwd(T dd, T s) {
-    return dd * (::expf((float)s));
+    return (U)(dd * (::expf((float)s)));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
@@ -316,14 +316,22 @@ inline U gelu_bwd(T dd, T s) {
     return (U)(dd * 0.5 * (1. + v) * (1. + s * (1 - v) * dg));
 }
 
-inline bool eltwise_fwd_preserves_zero(alg_kind_t alg, bool jit_impl = false) {
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U log_fwd(T s) {
+    return (U)(::logf((float)s));
+}
+
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U log_bwd(T dd, T s) {
+    return (U)(dd * (1.f / (float)s));
+}
+
+inline bool eltwise_fwd_preserves_zero(alg_kind_t alg) {
     using namespace alg_kind;
     using namespace utils;
-    const bool preserves_zero = true
-            && !one_of(alg, eltwise_linear, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp)
-            && IMPLICATION(jit_impl, !one_of(alg, eltwise_elu, eltwise_tanh));
-    return preserves_zero;
+    return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
+            eltwise_abs, eltwise_sqrt, eltwise_swish, eltwise_bounded_relu,
+            eltwise_gelu);
 }
 
 inline float get_bias(const char *bias, size_t offset, data_type_t data_type) {

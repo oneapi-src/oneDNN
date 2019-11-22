@@ -31,13 +31,14 @@ append(CMAKE_C_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_NOWARN_FLAGS}")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/examples)
 
 if(UNIX)
     find_library(LIBM m)
 endif()
 
-file(GLOB sources *.cpp *.c)
-file(GLOB headers *.hpp *.h)
+file(GLOB_RECURSE sources *.cpp *.c)
+file(GLOB_RECURSE headers *.hpp *.h)
 
 # Skip SYCL, GPU and cross-engine examples
 foreach(f ${sources})
@@ -67,10 +68,25 @@ if(DNNL_SYCL_COMPUTECPP)
     list(REMOVE_ITEM sources "${CMAKE_CURRENT_LIST_DIR}/sycl_interop_usm.cpp")
 endif()
 
+# Skip matmul examples with SYCL
+foreach(f ${sources})
+    if(DNNL_WITH_SYCL AND ${f} MATCHES "matmul")
+        list(REMOVE_ITEM sources "${f}")
+    endif()
+endforeach()
+
 foreach(src ${sources})
-    get_filename_component(src_name ${src} NAME)
-    string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
-    if(${example_name} MATCHES "^(cross-engine|cpu|gpu)")
+    file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
+    string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})
+
+    # Put hw-specific part of the name in front.
+    # It is important for examples in subdirectories.
+    foreach(pat "cpu-" "gpu-" "cross-engine-")
+        string(REGEX REPLACE "^(.*)${pat}" "${pat}\\1"
+            example_name ${example_name})
+    endforeach()
+
+    if(${example_name} MATCHES "(cross-engine|cpu|gpu)-")
         # Example name contains cross-engine, cpu or gpu
         if(NOT ${example_name} MATCHES ".*opencl" OR DNNL_GPU_RUNTIME STREQUAL "OCL")
             register_exe(${example_name} ${src} "test" ${LIBM})
@@ -120,6 +136,9 @@ if (DNNL_INSTALL_MODE STREQUAL "BUNDLE")
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/CMakeLists.txt
         ${sources} ${headers}
+        DESTINATION examples)
+    install(DIRECTORY
+        tutorials
         DESTINATION examples)
     if(CMAKE_GENERATOR MATCHES "Visual Studio")
         install(FILES

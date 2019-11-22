@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GRU_LBR_CELL_POSTGEMM
-#define CPU_JIT_GRU_LBR_CELL_POSTGEMM
+#ifndef CPU_JIT_UNI_GRU_LBR_CELL_POSTGEMM_HPP
+#define CPU_JIT_UNI_GRU_LBR_CELL_POSTGEMM_HPP
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
@@ -74,12 +74,13 @@ protected:
                 = (pd_->desc()->prop_kind == prop_kind::forward_training);
 
         // Labels declaration
-        Label vector_loop_start_label, vector_loop_end_label;
-        Label rem_loop_start_label, rem_loop_end_label;
+        Label vector_loop_start_label, vector_loop_inc_regs,
+                vector_loop_end_label;
+        Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
         Label table_label;
 
         // Register map
-        Reg64 loop_cnt(r11); // loop counter
+        Reg64 loop_cnt(r10); // loop counter
         Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.1
@@ -97,20 +98,26 @@ protected:
         auto addr_bias_reg = abi_param3;
         auto addr_states_t_l_reg = abi_param4;
 #ifdef _WIN32
+        auto addr_states_t_l_copy_reg = r11;
         auto addr_states_tm1_l_reg = r12;
-        auto addr_scratch_cell_reg = r10;
+        auto addr_scratch_cell_reg = rsi;
         auto addr_ws_h_reg = rdi;
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
-        mov(addr_states_tm1_l_reg, ptr[rsp + get_size_of_abi_save_regs() + 40]);
-        mov(addr_scratch_cell_reg, ptr[rsp + get_size_of_abi_save_regs() + 48]);
-        mov(addr_ws_h_reg, ptr[rsp + get_size_of_abi_save_regs() + 56]);
+        auto base_args = rsp + get_size_of_abi_save_regs() + 40;
+        mov(addr_states_t_l_copy_reg, ptr[base_args]);
+        mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
+        mov(addr_scratch_cell_reg, ptr[base_args + 16]);
+        mov(addr_ws_h_reg, ptr[base_args + 24]);
 #else
-        auto addr_states_tm1_l_reg = abi_param5;
-        auto addr_scratch_cell_reg = abi_param6;
-        auto addr_ws_h_reg = r10;
-        mov(addr_ws_h_reg, ptr[rsp + get_size_of_abi_save_regs() + 8]);
+        auto addr_states_t_l_copy_reg = abi_param5;
+        auto addr_states_tm1_l_reg = abi_param6;
+        auto addr_scratch_cell_reg = r11;
+        auto addr_ws_h_reg = r12;
+        auto base_args = rsp + get_size_of_abi_save_regs() + 8;
+        mov(addr_scratch_cell_reg, ptr[base_args]);
+        mov(addr_ws_h_reg, ptr[base_args + 8]);
 #endif
 
         // helper lambda to address the gates and biases
@@ -184,12 +191,18 @@ protected:
 
             // write back the result
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, vlen);
+            // if states_t_l_copy is a non null ptr, we write the output to it too
+            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            jle(vector_loop_inc_regs);
+            to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0, vlen, true);
 
             // increment address pointers
+            L(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen);
             add(addr_ws_h_reg, vlen_dst);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
+            add(addr_states_t_l_copy_reg, vlen_dst);
             add(addr_states_tm1_l_reg, vlen_dst);
             add(addr_scratch_cell_reg, vlen);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
@@ -254,12 +267,19 @@ protected:
 
             // write back the result
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, scratch_dt_size);
+            // if states_t_l_copy is a non null ptr, we write the output to it too
+            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            jle(rem_loop_inc_regs);
+            to_src<src_data_t>(
+                    ptr[addr_states_t_l_copy_reg], G0, scratch_dt_size, true);
 
             // increment address pointers
+            L(rem_loop_inc_regs);
             add(addr_scratch_gates_reg, scratch_dt_size);
             add(addr_ws_h_reg, gate_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
+            add(addr_states_t_l_copy_reg, hstate_dt_size);
             add(addr_states_tm1_l_reg, hstate_dt_size);
             add(addr_scratch_cell_reg, scratch_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);

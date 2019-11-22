@@ -34,11 +34,6 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     AOC<float> h_dst(dst_iter_h_, p.mb, p.wc);
     AOC<float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
 
-    const int64_t ohi = 0;
-    const int64_t ohf = 1;
-    const int64_t ohc = 2;
-    const int64_t oho = 3;
-
     auto maybe_deq_w = [&](float g, int64_t oc) {
         if (!is_cfg_u8(p.cfg)) return g;
         float scale = 1.;
@@ -64,18 +59,18 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     // run the eltwise
     dnnl::impl::parallel_nd(p.mb, [&](int64_t ib) {
         for (int64_t ih = 0; ih < p.dic; ih++) {
-            gates(ib, 0, ih) = func1(p.linear_scales[0],
-                    maybe_deq_w(gates(ib, 0, ih), 0 * p.dic + ih)
-                            + bias(0, ih));
-            gates(ib, 1, ih) = func1(p.linear_scales[1],
-                    maybe_deq_w(gates(ib, 1, ih), 1 * p.dic + ih)
-                            + bias(1, ih));
-            gates(ib, 2, ih) = func2(p.linear_scales[2],
-                    maybe_deq_w(gates(ib, 2, ih), 2 * p.dic + ih)
-                            + bias(2, ih));
-            gates(ib, 3, ih) = func1(p.linear_scales[3],
-                    maybe_deq_w(gates(ib, 3, ih), 3 * p.dic + ih)
-                            + bias(3, ih));
+            gates(ib, LSTM_I, ih) = func1(p.linear_scales[LSTM_I],
+                    maybe_deq_w(gates(ib, LSTM_I, ih), LSTM_I * p.dic + ih)
+                            + bias(LSTM_I, ih));
+            gates(ib, LSTM_F, ih) = func1(p.linear_scales[LSTM_F],
+                    maybe_deq_w(gates(ib, LSTM_F, ih), LSTM_F * p.dic + ih)
+                            + bias(LSTM_F, ih));
+            gates(ib, LSTM_C, ih) = func2(p.linear_scales[LSTM_C],
+                    maybe_deq_w(gates(ib, LSTM_C, ih), LSTM_C * p.dic + ih)
+                            + bias(LSTM_C, ih));
+            gates(ib, LSTM_O, ih) = func1(p.linear_scales[LSTM_O],
+                    maybe_deq_w(gates(ib, LSTM_O, ih), LSTM_O * p.dic + ih)
+                            + bias(LSTM_O, ih));
             for (int64_t ig = 0; ig < 4; ig++) {
                 print(80,
                         "activation 1 a[" IFMT "][" IFMT "][" IFMT "] = %.7f\n",
@@ -83,11 +78,11 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
             }
 
             // compute C_t_l and H_t_l
-            float tmp = gates(ib, ohf, ih) * src_iter_c(ib, ih)
-                    + gates(ib, ohi, ih) * gates(ib, ohc, ih);
+            float tmp = gates(ib, LSTM_F, ih) * src_iter_c(ib, ih)
+                    + gates(ib, LSTM_I, ih) * gates(ib, LSTM_C, ih);
             dst_iter_c(ib, ih) = tmp;
             h_dst(ib, ih) = maybe_q_d(
-                    gates(ib, oho, ih) * func2(p.linear_cscale, tmp));
+                    gates(ib, LSTM_O, ih) * func2(p.linear_cscale, tmp));
             print(80, "recomp tmp(%a) cin(%a) ht(%a)\n", tmp,
                     src_iter_c(ib, ih), h_dst(ib, ih));
         }
@@ -139,23 +134,18 @@ void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
     AOC<float> diff_src_iter_c(diff_src_iter_c_, p.mb, p.wc);
     AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dic);
 
-    const int64_t ohi = 0;
-    const int64_t ohf = 1;
-    const int64_t ohc = 2;
-    const int64_t oho = 3;
-
     for (int64_t ib = 0; ib < p.mb; ib++)
         for (int64_t ih = 0; ih < p.dic; ih++) {
             print(80, "rnn_single_bwd: ib = " IFMT " ih = " IFMT "\n", ib, ih);
-            float ho = gates(ib, oho, ih);
-            float hf = gates(ib, ohf, ih);
-            float hc = gates(ib, ohc, ih);
-            float hi = gates(ib, ohi, ih);
+            float ho = gates(ib, LSTM_O, ih);
+            float hf = gates(ib, LSTM_F, ih);
+            float hc = gates(ib, LSTM_C, ih);
+            float hi = gates(ib, LSTM_I, ih);
             float dh = diff_dst_layer(ib, ih) + diff_dst_iter_h(ib, ih);
             float c = dst_iter_c(ib, ih);
             float tanhC = func1(p.linear_cscale, c);
             float dho = tanhC * dh;
-            b_gates(ib, oho, ih) = x_m_square(ho) * dho;
+            b_gates(ib, LSTM_O, ih) = x_m_square(ho) * dho;
 
             float dc_next = diff_dst_iter_c(ib, ih);
             float dc = ho * dh * one_m_square(tanhC) + dc_next;
@@ -163,13 +153,13 @@ void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
 
             float c_old = src_iter_c(ib, ih);
             float dhf = c_old * dc;
-            b_gates(ib, ohf, ih) = x_m_square(hf) * dhf;
+            b_gates(ib, LSTM_F, ih) = x_m_square(hf) * dhf;
 
             float dhi = hc * dc;
-            b_gates(ib, ohi, ih) = x_m_square(hi) * dhi;
+            b_gates(ib, LSTM_I, ih) = x_m_square(hi) * dhi;
 
             float dhc = hi * dc;
-            b_gates(ib, ohc, ih) = one_m_square(hc) * dhc;
+            b_gates(ib, LSTM_C, ih) = one_m_square(hc) * dhc;
         }
 }
 

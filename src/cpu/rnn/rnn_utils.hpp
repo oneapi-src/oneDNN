@@ -22,34 +22,39 @@
 #include "utils.hpp"
 
 #define rnn_postgemm_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_, \
+    void f(const rnn_utils::rnn_conf_t &rnn, \
+            rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_, \
             scratch_data_t *scratch_gates_, src_data_t *states_t_l_, \
-            float *c_states_t_l_, src_data_t *states_tm1_l_, \
-            float *c_states_tm1_l_, acc_data_t *diff_states_t_l_, \
+            float *c_states_t_l_, const src_data_t *states_tm1_l_, \
+            const float *c_states_tm1_l_, acc_data_t *diff_states_t_l_, \
             acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_, \
-            float *bias_, src_data_t *ws_grid_, scratch_data_t *scratch_cell_) \
-            const
+            float *bias_, src_data_t *ws_grid_, scratch_data_t *scratch_cell_, \
+            src_data_t *states_t_l_copy_) const
 
 #define rnn_cell_execution_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, src_data_t *states_t_l_, \
+    void f(const rnn_utils::rnn_conf_t &rnn, \
+            rnn_utils::cell_position_t cell_position, src_data_t *states_t_l_, \
             float *c_states_t_l_, acc_data_t *diff_states_t_l_, \
             weights_data_t **w_layer_, weights_data_t **w_iter_, \
-            float **bias_, src_data_t *states_t_lm1_, \
-            src_data_t *states_tm1_l_, float *c_states_tm1_l_, \
+            float **bias_, const src_data_t *states_t_lm1_, \
+            const src_data_t *states_tm1_l_, const float *c_states_tm1_l_, \
             acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_, \
             acc_data_t *diff_w_layer_, acc_data_t *diff_w_iter_, \
             acc_data_t *diff_bias_, src_data_t *ws_gates_, \
             scratch_data_t *scratch_gates_, src_data_t *ws_grid_, \
-            scratch_data_t *scratch_cell_) const
+            scratch_data_t *scratch_cell_, src_data_t *states_t_l_copy_) const
 
 #define rnn_grid_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, weights_data_t **weights_layer_, \
             weights_data_t **weights_iter_, float **bias_, \
-            src_data_t *ws_states_, float *ws_c_states_, \
-            acc_data_t *ws_diff_states_, src_data_t *ws_gates_, \
-            src_data_t *ws_grid_, scratch_data_t *scratch_gates_, \
-            scratch_data_t *scratch_cell_, acc_data_t *diff_weights_layer_, \
-            acc_data_t *diff_weights_iter_, acc_data_t *diff_bias_) const
+            const src_data_t *src_layer_, const src_data_t *src_iter_, \
+            const float *src_iter_c_, src_data_t *dst_layer_, \
+            src_data_t *dst_iter_, float *dst_iter_c_, src_data_t *ws_states_, \
+            float *ws_c_states_, acc_data_t *ws_diff_states_, \
+            src_data_t *ws_gates_, src_data_t *ws_grid_, \
+            scratch_data_t *scratch_gates_, scratch_data_t *scratch_cell_, \
+            acc_data_t *diff_weights_layer_, acc_data_t *diff_weights_iter_, \
+            acc_data_t *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
     void f(const char transA, const char transB, int m, int n, int k, \
@@ -85,6 +90,27 @@ enum execution_direction_t {
     bi_sum,
 };
 
+enum cell_position_t {
+    middle_cell = 0x0,
+    first_layer = 0x1,
+    first_iter = 0x2,
+    last_layer = 0x4,
+    last_iter = 0x8,
+    c_state_first_iter = 0x10,
+    c_state_last_iter = 0x20
+};
+
+inline cell_position_t &operator|=(cell_position_t &lhs, cell_position_t rhs) {
+    lhs = static_cast<cell_position_t>(
+            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
+    return lhs;
+}
+
+inline cell_position_t operator|(cell_position_t lhs, cell_position_t rhs) {
+    return static_cast<cell_position_t>(
+            static_cast<unsigned>(lhs) | static_cast<unsigned>(rhs));
+}
+
 enum data_type_conf_t {
     all_f32,
     all_bf16,
@@ -115,7 +141,8 @@ struct rnn_conf_t {
     int diff_weights_layer_ld, diff_weights_layer_nld;
     int weights_iter_ld, weights_iter_nld;
     int diff_weights_iter_ld, diff_weights_iter_nld;
-    int states_nld, states_ws_ld;
+    int states_nld, states_ws_ld, src_layer_ld_, src_iter_ld_, src_iter_c_ld_,
+            dst_layer_ld_, dst_iter_ld_, dst_iter_c_ld_;
     int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr;
     bool use_workspace;
@@ -132,6 +159,79 @@ struct rnn_conf_t {
         return utils::one_of(
                 dt_conf, u8u8u8f32, f32u8f32f32, u8u8u8u8, f32u8f32u8);
     }
+
+    inline bool skip_src_layer_copy() const {
+        // Note: this currently always returns true
+        return (exec_dir == l2r)
+                && utils::one_of(dt_conf, u8u8u8u8, u8u8u8f32, f32u8f32u8,
+                        f32u8f32f32, all_f32, all_bf16);
+    }
+    inline bool skip_src_iter_copy() const {
+        return (exec_dir == l2r) && (src_iter_ld_ > 0)
+                && utils::one_of(
+                        dt_conf, u8u8u8u8, u8u8u8f32, all_f32, all_bf16);
+    }
+    inline bool skip_dst_layer_copy() const {
+        return (exec_dir == l2r)
+                && utils::one_of(
+                        dt_conf, u8u8u8u8, f32u8f32u8, all_f32, all_bf16);
+    }
+    inline bool skip_dst_iter_copy() const {
+        return (exec_dir == l2r) && (dst_iter_ld_ > 0)
+                && utils::one_of(
+                        dt_conf, u8u8u8u8, u8u8u8f32, all_f32, all_bf16);
+    }
+
+    inline dim_t src_layer_ld(cell_position_t cell_position) const {
+        return (cell_position & first_layer) && skip_src_layer_copy()
+                ? src_layer_ld_
+                : (cell_position & last_iter) && skip_dst_iter_copy()
+                        ? dst_iter_ld_
+                        : states_ws_ld;
+    }
+
+    inline dim_t src_iter_ld(cell_position_t cell_position) const {
+        return (cell_position & first_iter) && skip_src_iter_copy()
+                ? src_iter_ld_
+                : ((cell_position & last_layer) && skip_dst_layer_copy()
+                                        && !(cell_position & first_iter)
+                                ? dst_layer_ld_
+                                : states_ws_ld);
+    }
+
+    inline dim_t src_iter_c_ld(cell_position_t cell_position) const {
+        return (cell_position & c_state_first_iter) ? src_iter_c_ld_
+                                                    : states_ws_ld;
+    }
+
+    inline dim_t dst_layer_ld(cell_position_t cell_position) const {
+        return (cell_position & last_layer) && skip_dst_layer_copy()
+                ? dst_layer_ld_
+                : (cell_position & last_iter) && skip_dst_iter_copy()
+                        ? dst_iter_ld_
+                        : states_ws_ld;
+    }
+
+    inline dim_t dst_iter_ld(cell_position_t cell_position) const {
+        return (cell_position & last_iter) && skip_dst_iter_copy()
+                ? dst_iter_ld_
+                : states_ws_ld;
+    }
+
+    inline dim_t dst_iter_c_ld(cell_position_t cell_position) const {
+        return (cell_position & c_state_last_iter) ? dst_iter_c_ld_
+                                                   : states_ws_ld;
+    }
+
+    // when skipping copy, the output ld can be states_ws_ld,
+    // dst_iter_ld or dst_layer_ld depending on the cell position
+    inline dim_t dst_ld(cell_position_t cell_position) const {
+        return (cell_position & last_layer) ? dst_layer_ld(cell_position)
+                                            : dst_iter_ld(cell_position);
+    }
+    inline dim_t dst_copy_ld(cell_position_t cell_position) const {
+        return dst_iter_ld(cell_position);
+    }
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);
@@ -142,9 +242,12 @@ int get_good_ld(int dim, int sizeof_dt);
 void init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
+        const memory_desc_wrapper &src_iter_c_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
-        const memory_desc_wrapper &dst_layer_d);
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
+        const memory_desc_wrapper &dst_iter_c_d);
 
 void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
@@ -191,6 +294,8 @@ private:
 
 template <typename T>
 struct ws_states_aoc {
+    ws_states_aoc(const rnn_conf_t &rnn, T *data, int leading_dim)
+        : state_(data, rnn.states_nld, leading_dim) {}
     ws_states_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.states_nld, rnn.states_ws_ld) {}
     T &operator()(int batch, int dic) { return state_(batch, dic); }

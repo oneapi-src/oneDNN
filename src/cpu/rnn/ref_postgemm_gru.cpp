@@ -35,14 +35,22 @@ using namespace rnn_utils;
 template <typename T1, typename T2, typename src_data_t,
         typename scratch_data_t>
 void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, const float *scales,
-        const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_,
+        const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *states_t_l_,
-        src_data_t *states_tm1_l_, float *bias_) {
+        const src_data_t *states_tm1_l_, float *bias_) {
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
+
+    // auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
+    // auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
+    auto src_iter_ld = rnn.src_iter_ld(cell_position);
+
+    auto dst_ld = rnn.dst_ld(cell_position);
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_ld);
+    ws_states_aoc<const src_data_t> states_tm1_l(
+            rnn, states_tm1_l_, src_iter_ld);
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
@@ -54,7 +62,8 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, const float *scales,
             /* TODO: Can be optimized for fwd_training by using ws_gates instead of scratch_gates in p2 */
             scratch_gates(i, 0, j) = to_src(G0);
             scratch_gates(i, 1, j) = to_src(G1);
-            states_t_l(i, j) = to_src(states_tm1_l(i, j) * G1);
+            auto t = to_src(states_tm1_l(i, j) * G1);
+            states_t_l(i, j) = t;
 
             if (rnn.is_training) {
                 ws_gates(i, 0, j) = to_src(G0);
@@ -67,14 +76,23 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, const float *scales,
 template <typename T1, typename T2, typename src_data_t,
         typename scratch_data_t>
 void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, const float *scales,
-        const rnn_utils::rnn_conf_t &rnn, src_data_t *ws_gates_,
+        const rnn_utils::rnn_conf_t &rnn,
+        rnn_utils::cell_position_t cell_position, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *states_t_l_,
-        src_data_t *states_tm1_l_, float *bias_) {
+        src_data_t *states_t_l_copy_, const src_data_t *states_tm1_l_,
+        float *bias_) {
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
+
+    auto dst_ld = rnn.dst_ld(cell_position);
+    auto dst_copy_ld = rnn.dst_copy_ld(cell_position);
+    auto src_iter_ld = rnn.src_iter_ld(cell_position);
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_ld);
+    ws_states_aoc<src_data_t> states_t_l_copy(
+            rnn, states_t_l_copy_, dst_copy_ld);
+    ws_states_aoc<const src_data_t> states_tm1_l(
+            rnn, states_tm1_l_, src_iter_ld);
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
@@ -83,8 +101,9 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, const float *scales,
             auto G2 // default func1 is tanh
                     = func1(scales + 2, scratch_gates(i, 2, j) + bias(2, j));
 
-            states_t_l(i, j)
-                    = to_src(states_tm1_l(i, j) * G0 + (1.0f - G0) * G2);
+            auto tmp = to_src(states_tm1_l(i, j) * G0 + (1.0f - G0) * G2);
+            states_t_l(i, j) = tmp;
+            if (states_t_l_copy_ != nullptr) states_t_l_copy(i, j) = tmp;
 
             if (rnn.is_training) { ws_gates(i, 2, j) = to_src(G2); }
         }
@@ -102,10 +121,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part1_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part1_postgemm_template(logistic_f, to_src, scales, rnn,
-                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_tm1_l_, bias_);
     else
         gru_fwd_part1_postgemm_template(linear_f, to_src, scales, rnn,
-                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_tm1_l_, bias_);
 }
 
 template <>
@@ -117,11 +138,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_f32_t::gru_part2_postgemm) {
     auto to_src = [](float a) { return a; };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
-        gru_fwd_part2_postgemm_template(tanh_f, to_src, scales, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+        gru_fwd_part2_postgemm_template(tanh_f, to_src, scales, rnn,
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_t_l_copy_, states_tm1_l_, bias_);
     else
         gru_fwd_part2_postgemm_template(linear_f, to_src, scales, rnn,
-                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_t_l_copy_, states_tm1_l_, bias_);
 }
 
 template <>
@@ -135,10 +158,12 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part1_postgemm) {
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
         gru_fwd_part1_postgemm_template(logistic_f, to_src, scales, rnn,
-                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_tm1_l_, bias_);
     else
         gru_fwd_part1_postgemm_template(linear_f, to_src, scales, rnn,
-                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_tm1_l_, bias_);
 }
 template <>
 rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
@@ -149,11 +174,13 @@ rnn_postgemm_sig(rnn_postgemm_fwd_bf16_t::gru_part2_postgemm) {
     auto to_src = [](float a) { return bfloat16_t(a); };
 
     if (!pd_->attr()->rnn_tparams_.test_mode_)
-        gru_fwd_part2_postgemm_template(tanh_f, to_src, scales, rnn, ws_gates_,
-                scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+        gru_fwd_part2_postgemm_template(tanh_f, to_src, scales, rnn,
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_t_l_copy_, states_tm1_l_, bias_);
     else
         gru_fwd_part2_postgemm_template(linear_f, to_src, scales, rnn,
-                ws_gates_, scratch_gates_, states_t_l_, states_tm1_l_, bias_);
+                cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                states_t_l_copy_, states_tm1_l_, bias_);
 }
 
 template <>
@@ -169,14 +196,17 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::gru_part2_postgemm) {
 template <typename T, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
 void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
-        src_data_t *ws_gates_, scratch_data_t *scratch_gates_,
-        src_data_t *states_t_l_, src_data_t *states_tm1_l_,
-        acc_data_t *diff_states_t_l_, acc_data_t *diff_states_tp1_l_,
-        acc_data_t *diff_states_t_lp1_) {
+        cell_position_t cell_position, src_data_t *ws_gates_,
+        scratch_data_t *scratch_gates_, src_data_t *states_t_l_,
+        const src_data_t *states_tm1_l_, acc_data_t *diff_states_t_l_,
+        acc_data_t *diff_states_tp1_l_, acc_data_t *diff_states_t_lp1_) {
+    auto src_iter_ld = rnn.src_iter_ld(cell_position);
+    auto dst_ld = rnn.dst_ld(cell_position);
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_ld);
+    ws_states_aoc<const src_data_t> states_tm1_l(
+            rnn, states_tm1_l_, src_iter_ld);
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_t_l(rnn, diff_states_t_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_t_lp1(rnn, diff_states_t_lp1_);
@@ -205,14 +235,18 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
 template <typename T, typename src_data_t, typename acc_data_t,
         typename scratch_data_t>
 void gru_bwd_part2_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
-        src_data_t *ws_gates_, scratch_data_t *scratch_gates_,
-        src_data_t *states_t_l_, src_data_t *states_tm1_l_,
-        acc_data_t *diff_states_t_l_, acc_data_t *diff_states_tp1_l_,
-        acc_data_t *diff_states_t_lp1_, scratch_data_t *scratch_cell_) {
+        cell_position_t cell_position, src_data_t *ws_gates_,
+        scratch_data_t *scratch_gates_, src_data_t *states_t_l_,
+        const src_data_t *states_tm1_l_, acc_data_t *diff_states_t_l_,
+        acc_data_t *diff_states_tp1_l_, acc_data_t *diff_states_t_lp1_,
+        scratch_data_t *scratch_cell_) {
+    auto src_iter_ld = rnn.src_iter_ld(cell_position);
+    auto dst_ld = rnn.dst_ld(cell_position);
+    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_, dst_ld);
+    ws_states_aoc<const src_data_t> states_tm1_l(
+            rnn, states_tm1_l_, src_iter_ld);
     ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
-    ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-    ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_t_l(rnn, diff_states_t_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_t_lp1(rnn, diff_states_t_lp1_);
@@ -240,36 +274,38 @@ template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part1_postgemm) {
     auto to_src = [](float a) { return a; };
 
-    gru_bwd_part1_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
-            states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
-            diff_states_t_lp1_);
+    gru_bwd_part1_postgemm_template(to_src, rnn, cell_position, ws_gates_,
+            scratch_gates_, states_t_l_, states_tm1_l_, diff_states_t_l_,
+            diff_states_tp1_l_, diff_states_t_lp1_);
 }
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_f32_t::gru_part2_postgemm) {
     auto to_src = [](float a) { return a; };
 
-    gru_bwd_part2_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
-            states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
-            diff_states_t_lp1_, (scratch_data_t *)scratch_cell_);
+    gru_bwd_part2_postgemm_template(to_src, rnn, cell_position, ws_gates_,
+            scratch_gates_, states_t_l_, states_tm1_l_, diff_states_t_l_,
+            diff_states_tp1_l_, diff_states_t_lp1_,
+            (scratch_data_t *)scratch_cell_);
 }
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part1_postgemm) {
     auto to_src = [](float a) { return bfloat16_t(a); };
 
-    gru_bwd_part1_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
-            states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
-            diff_states_t_lp1_);
+    gru_bwd_part1_postgemm_template(to_src, rnn, cell_position, ws_gates_,
+            scratch_gates_, states_t_l_, states_tm1_l_, diff_states_t_l_,
+            diff_states_tp1_l_, diff_states_t_lp1_);
 }
 
 template <>
 rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::gru_part2_postgemm) {
     auto to_src = [](float a) { return bfloat16_t(a); };
 
-    gru_bwd_part2_postgemm_template(to_src, rnn, ws_gates_, scratch_gates_,
-            states_t_l_, states_tm1_l_, diff_states_t_l_, diff_states_tp1_l_,
-            diff_states_t_lp1_, (scratch_data_t *)scratch_cell_);
+    gru_bwd_part2_postgemm_template(to_src, rnn, cell_position, ws_gates_,
+            scratch_gates_, states_t_l_, states_tm1_l_, diff_states_t_l_,
+            diff_states_tp1_l_, diff_states_t_lp1_,
+            (scratch_data_t *)scratch_cell_);
 }
 
 #undef AOC

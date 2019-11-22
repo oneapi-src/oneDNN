@@ -215,7 +215,7 @@ const _dt_conf_t conf_s8s8u8 = {
 const _dt_conf_t conf_u8s8f32_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
         {dnnl_f32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
                 dnnl_s32,
@@ -225,7 +225,7 @@ const _dt_conf_t conf_u8s8f32_wino = {
 const _dt_conf_t conf_u8s8s32_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
         {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, 1, .25, 0.},
         {
                 dnnl_s32,
@@ -235,7 +235,7 @@ const _dt_conf_t conf_u8s8s32_wino = {
 const _dt_conf_t conf_u8s8s8_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, 1, .25, 0.},
         {
                 dnnl_s32,
@@ -245,7 +245,7 @@ const _dt_conf_t conf_u8s8s8_wino = {
 const _dt_conf_t conf_u8s8u8_wino = {
         {dnnl_u8, 0, UINT8_MAX, 0, 239, 0, 4, .25, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -72, 71, 0, 9, .25, 0.},
-        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 32, 0, 9, .25, 0.},
+        {dnnl_f32, INT32_MIN, INT32_MAX, -9, 35, 0, 9, .25, 0.},
         {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, 1, .25, 0.},
         {
                 dnnl_s32,

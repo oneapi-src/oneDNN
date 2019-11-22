@@ -28,9 +28,9 @@ namespace ocl {
 
 struct jit_ref_bnorm_common_kernel {
 
-    jit_ref_bnorm_common_kernel(jit_bnorm_conf_t ajbn) : jbn(ajbn) {};
+    jit_ref_bnorm_common_kernel(const jit_bnorm_conf_t &ajbn) : jbn(ajbn) {}
 
-    ~jit_ref_bnorm_common_kernel() {};
+    ~jit_ref_bnorm_common_kernel() {}
 
     static status_t init_conf(jit_bnorm_conf_t &jbn,
             const batch_normalization_desc_t &bd,
@@ -137,6 +137,27 @@ struct jit_ref_bnorm_common_kernel {
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", jbn.ndims);
 
         return status::success;
+    }
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_bnorm_conf_t &jbn) {
+        if (jbn.is_forward) {
+            if (jbn.use_16mb_unroll && jbn.calculate_stats) {
+                size_t size = 2 * jbn.mb_chunk * jbn.sp_chunk * jbn.ic
+                        * types::data_type_size(data_type::f32);
+
+                scratchpad.book(
+                        memory_tracking::names::key_bnorm_reduction, size);
+            }
+        }
+        if (jbn.is_backward) {
+            if (jbn.use_16mb_unroll) {
+                size_t size = 2 * jbn.mb_chunk * jbn.sp_chunk * jbn.ic
+                        * types::data_type_size(data_type::f32);
+                scratchpad.book(
+                        memory_tracking::names::key_bnorm_reduction, size);
+            }
+        }
     }
 
     jit_bnorm_conf_t jbn;

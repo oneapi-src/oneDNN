@@ -30,8 +30,6 @@
 
 namespace softmax {
 
-const int64_t global_fill_range = 200;
-
 static int init_pd(const prb_t *p, dnnl_softmax_desc_t &sd,
         dnnl_primitive_desc_t &spd, res_t *r) {
     dnnl_memory_desc_t data_d;
@@ -45,16 +43,31 @@ static int init_pd(const prb_t *p, dnnl_softmax_desc_t &sd,
         auto prop = p->dir & FLAG_INF ? dnnl_forward_inference
                                       : dnnl_forward_training;
 
-        DNN_SAFE(dnnl_softmax_forward_desc_init(&sd, prop, &data_d, p->axis),
-                WARN);
+        if (p->alg == SOFTMAX)
+            DNN_SAFE(
+                    dnnl_softmax_forward_desc_init(&sd, prop, &data_d, p->axis),
+                    WARN);
+        else if (p->alg == LOGSOFTMAX)
+            DNN_SAFE(dnnl_logsoftmax_forward_desc_init(
+                             &sd, prop, &data_d, p->axis),
+                    WARN);
+        else
+            SAFE_V(FAIL);
     } else {
         dnnl_memory_desc_t diff_data_d;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims,
                          p->dims.data(), p->dt, dnnl_format_tag_any),
                 WARN);
-        DNN_SAFE(dnnl_softmax_backward_desc_init(
-                         &sd, &diff_data_d, &data_d, p->axis),
-                WARN);
+        if (p->alg == SOFTMAX)
+            DNN_SAFE(dnnl_softmax_backward_desc_init(
+                             &sd, &diff_data_d, &data_d, p->axis),
+                    WARN);
+        else if (p->alg == LOGSOFTMAX)
+            DNN_SAFE(dnnl_logsoftmax_backward_desc_init(
+                             &sd, &diff_data_d, &data_d, p->axis),
+                    WARN);
+        else
+            SAFE_V(FAIL);
     }
 
     dnnl_status_t init_status
@@ -79,28 +92,10 @@ static int init_pd(const prb_t *p, dnnl_softmax_desc_t &sd,
 
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
-    // FWD
-    // When axis_size is big, significant values will be only in points with the
-    // biggest values are. So we adjust machine epsilon to the amount of such
-    // inputs, which is equally distibuted by fill_data(), thus, dividing
-    // axis_size by global_fill_range gives that number.
-    // When axis_size is small, significant values are coming not only from the
-    // biggest input, but also from some smaller. For this case we estimate the
-    // amount of such number by log2f(axis_size).
-    // exp accuracy is expected to be no lower than 1e-6, so we bump the
-    // coefficient to 10.
-    // The final criterion picks the max of these numbers.
-    // BWD
-    // We have sum over axis dim, the worst case for error is amount of elements
-    // times machine eps and additional subtract.
-    const float num_significant_values
-            = MAX2(div_up(p->dims[p->axis], global_fill_range),
-                    MAX2(log2f(p->dims[p->axis]), 10));
     const int f32_mant_digits = 24;
-    const float trh_coeff = (1 << (f32_mant_digits - digits_dt(p->dt)));
-    const float trh = trh_coeff * 1e-7
-            * (p->dir & FLAG_FWD ? num_significant_values
-                                 : (p->dims[p->axis] + 1));
+    const float trh_coeff_dt = (1 << (f32_mant_digits - digits_dt(p->dt)));
+    const float trh_coeff_log = p->alg == LOGSOFTMAX ? 4 : 1;
+    const float trh = trh_coeff_dt * trh_coeff_log * 1e-6;
 
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
@@ -112,7 +107,10 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+
+        // check for abs error
+        if (!ok) ok = diff < 1e-7;
 
         r->errors += !ok;
 
@@ -137,19 +135,40 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 }
 
 int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
-    const auto nelems = mem_fp.nelems();
+    int64_t outer_size = 0, inner_size = 0, axis_size = 0;
+    get_sizes(p, outer_size, inner_size, axis_size);
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        int64_t mb {0}, c {0};
-        map_off_to_mb_ic(p, i, mb, c);
+    // Fill data the way it tests two modes: max_val < 0 and max_val >= 0;
+    // Test max_val < 0 by using only negative numbers to check correct max_val
+    // subtraction, mostly if library used signed value, not abs.
+    // Test max_val >= 0 by exceeding `exp_overflow_arg` value to check answer
+    // does not contain +infinity (nan).
+    // Distribute several top-1 values to check softmax works right. Also use
+    // bit more top-2 values so they contribute in final exp sum as well. Fill
+    // much more values with top-3 to check we apply correct maths for whole
+    // input.
+    // Filling data such way prevents cancellation error for LOGSOFTMAX due to
+    // log(sum(x_j)) won't be close to zero as in case of single top-1 value.
+    const int exp_overflow_arg = 88;
+    const int top1_val = exp_overflow_arg + 2;
+    const int top2_val = exp_overflow_arg + 1;
+    const int top3_val = exp_overflow_arg;
+    const float top1_prob = 4. / axis_size;
+    const float top2_prob = 7. * top1_prob;
+    const float top3_prob = 3. * top2_prob;
 
-        const float f_min = ((p->axis > 0) ? mb : c) % 2 == 0
-                ? -global_fill_range
-                : -global_fill_range / 2;
-        const float gen = ((11 * i) + 37) % global_fill_range;
-        const float value = f_min + gen;
-        mem_fp.set_elem(i, value);
-    });
+    dnnl::impl::parallel_nd(outer_size, axis_size, inner_size,
+            [&](int64_t ou, int64_t as, int64_t in) {
+                const int sign = (outer_size > 1 ? ou : in) % 2 == 0 ? -1 : 1;
+                const int gen = 13 * ou + 101 * as + 7 * in + 1637;
+                const bool top1 = flip_coin(gen, top1_prob);
+                const bool top2 = !top1 && flip_coin(gen, top2_prob);
+                const bool top3 = !top1 && !top2 && flip_coin(gen, top3_prob);
+                const int value = sign
+                        * (top1 * top1_val + top2 * top2_val + top3 * top3_val);
+                const int64_t ou_in_offset = ou * axis_size * inner_size + in;
+                mem_fp.set_elem(ou_in_offset + as * inner_size, value);
+            });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
 
@@ -159,12 +178,13 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 int fill_data_bwd(
         const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int seed) {
     const auto nelems = mem_fp.nelems();
+    const int range = 128;
 
     // keep all values negative to have sum and sub of same sign, avoiding
     // cancellation error.
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const float gen = ((11 * i) + 37 + 19 * seed) % global_fill_range;
-        const float value = -gen / global_fill_range;
+        const float gen = ((11 * i) + 37 + 19 * seed) % range;
+        const float value = -gen / range;
         mem_fp.set_elem(i, value);
     });
 
@@ -189,18 +209,20 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = dnnl_f32;
     const auto tag = get_default_tag((int)p->dims.size());
     auto &data_desc = sd.data_desc;
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt),
-            src_dt(data_desc, engine_tgt);
+    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
+    dnn_mem_t src_dt(data_desc, engine_tgt);
 
     dnn_mem_t dst_fp(data_desc, fp, tag, engine_tgt);
-    dnn_mem_t dst_dt;
+    dnn_mem_t placeholder_dst_dt;
     if (!p->inplace) {
-        dst_dt = dnn_mem_t(data_desc, engine_tgt);
-        SAFE(dst_dt.reorder(dst_fp), WARN);
+        placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt);
+        SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
+    dnn_mem_t &dst_dt = !p->inplace ? placeholder_dst_dt : src_dt;
 
     dnn_mem_t d_dst_dt, d_src_dt;
     dnn_mem_t d_dst_fp, d_src_fp;
+    dnn_mem_t placeholder_d_src_dt;
 
     args_t args;
 
@@ -208,13 +230,13 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
 
         DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
-            dnn_mem_t dst(p->inplace ? src_dt : dst_dt, fp, tag, engine_tgt);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
             SAFE(compare(p, dst_fp, dst, r), WARN);
         }
     } else {
@@ -225,26 +247,26 @@ int doit(const prb_t *p, res_t *r) {
 
         d_dst_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt),
         d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
-
         d_src_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
+
         if (!p->inplace) {
-            d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
-            SAFE(d_src_dt.reorder(d_src_fp), WARN);
+            placeholder_d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
+            SAFE(placeholder_d_src_dt.reorder(d_src_fp), WARN);
         }
+        dnn_mem_t &d_src_dt = !p->inplace ? placeholder_d_src_dt : d_dst_dt;
 
         SAFE(fill_data_bwd(p, src_dt, src_fp, 0), WARN);
         SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp, 1), WARN);
 
         args.set(DNNL_ARG_DST, src_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
-        args.set(DNNL_ARG_DIFF_SRC, p->inplace ? d_dst_dt : d_src_dt);
+        args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
 
         DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
-            dnn_mem_t d_src(
-                    p->inplace ? d_dst_dt : d_src_dt, fp, tag, engine_tgt);
+            dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, d_src_fp, d_src, r), WARN);
         }
     }

@@ -38,13 +38,21 @@ status_t eltwise_desc_init(eltwise_desc_t *eltwise_desc, prop_kind_t prop_kind,
             && one_of(alg_kind, eltwise_relu, eltwise_tanh, eltwise_elu,
                     eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu, eltwise_swish)
+                    eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log)
             && IMPLICATION(
                     prop_kind == backward_data, diff_data_desc != nullptr)
             && IMPLICATION(
                     one_of(data_desc->data_type, dnnl_s32, dnnl_s8, dnnl_u8),
                     alg_kind == eltwise_relu && alpha == 0);
     if (!args_ok) return invalid_arguments;
+
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides();
+    if (prop_kind == backward_data)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(diff_data_desc)
+                           .has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
 
     auto ed = eltwise_desc_t();
     ed.primitive_kind = primitive_kind::eltwise;

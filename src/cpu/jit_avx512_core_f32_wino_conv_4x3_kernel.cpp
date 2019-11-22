@@ -1395,8 +1395,6 @@ bool jit_avx512_core_f32_wino_conv_4x3_fwd_kernel::post_ops_ok(
         case 3: return is_relu(0) && is_sum(1) && is_relu(2); // relu->sum->relu
         default: return false;
     }
-
-    return false;
 }
 
 status_t jit_avx512_core_f32_wino_conv_4x3_fwd_kernel::init_conf(

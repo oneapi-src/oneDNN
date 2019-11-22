@@ -61,7 +61,7 @@ struct jit_bnorm_t : public jit_generator {
         const void *diff_src, *diff_dst;
         const acc_data_t *rbuf1, *rbuf2;
         const uint8_t *ws;
-        barrier::ctx_t *barrier;
+        barrier::ctx_64_t *barrier;
     };
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_bnorm_t)
@@ -1157,7 +1157,8 @@ struct driver_t : public c_compatible {
 
         if (dnnl_thr_syncable()) {
             int n_barriers = C_PADDED / simd_w;
-            scratchpad.book(key_barrier, sizeof(barrier::ctx_t) * n_barriers);
+            scratchpad.book(
+                    key_barrier, sizeof(barrier::ctx_64_t) * n_barriers);
         }
     }
 
@@ -1169,7 +1170,7 @@ struct driver_t : public c_compatible {
         auto sbuf = scratchpad.get<acc_data_t>(key_bnorm_tmp_stats);
         auto pbuf = scratchpad.get<acc_data_t>(key_bnorm_tmp_diff_ss);
         auto rbuf = scratchpad.get<acc_data_t>(key_bnorm_reduction);
-        auto barriers = scratchpad.get<barrier::ctx_t>(key_barrier);
+        auto barriers = scratchpad.get<barrier::ctx_64_t>(key_barrier);
 
         dim_t N = bdesc_->MB();
         dim_t C = bdesc_->C();
@@ -1283,7 +1284,7 @@ struct driver_t : public c_compatible {
     }
 
     void init_barriers(const memory_tracking::grantor_t &scratchpad) {
-        auto barriers = scratchpad.get<barrier::ctx_t>(key_barrier);
+        auto barriers = scratchpad.get<barrier::ctx_64_t>(key_barrier);
         if (barriers) {
             const int n_barriers = get_c_padded(bdesc_) / simd_w;
             for (int i = 0; i < n_barriers; ++i)

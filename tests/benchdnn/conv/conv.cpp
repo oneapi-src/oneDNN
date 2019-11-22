@@ -301,7 +301,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnnl::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
             [&](int mb, int ic, int id, int ih, int iw) {
                 const int gen
-                        = 5 * id + 17 * ih + 13 * iw + 13 * mb + 19 * ic + 1637;
+                        = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
@@ -337,7 +337,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnnl::impl::parallel_nd(p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh,
             p->kw, [&](int g, int oc, int ic, int kd, int kh, int kw) {
                 const int gen
-                        = 5 * kd + 17 * kh + 13 * kw + 13 * oc + 19 * ic + 38;
+                        = 127 * kd + 131 * kh + 137 * kw + 139 * oc + 149 * ic;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
@@ -366,7 +366,7 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     const size_t sz = mem_00.nelems();
     for (size_t i = 0; i < sz; ++i) {
-        const int gen = (int)(19 * i);
+        const int gen = (int)(151 * i);
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value
                 = non_base ? c.f_min + gen * c.f_step % range : c.f_base;
@@ -398,7 +398,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     dnnl::impl::parallel_nd(p->mb, p->oc, p->od, p->oh, p->ow,
             [&](int mb, int oc, int od, int oh, int ow) {
                 const int gen
-                        = 7 * od + 19 * oh + 17 * ow + 13 * mb + 13 * oc + 223;
+                        = 157 * od + 163 * oh + 167 * ow + 173 * mb + 179 * oc;
                 const bool non_base = flip_coin(gen, c.f_sparsity);
                 const float value = non_base ? c.f_min + gen * c.f_step % range
                                              : c.f_base;
@@ -415,8 +415,17 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-inline int init_pd(const prb_t *p, dnnl_convolution_desc_t &cd,
-        dnnl_primitive_desc_t &cpd, res_t *r) {
+inline int init_pd(dnnl_engine_t eng, const prb_t *p,
+        dnnl_convolution_desc_t &cd, dnnl_primitive_desc_t &cpd, res_t *r,
+        dnnl_data_type_t src_dt = dnnl_data_type_undef,
+        dnnl_data_type_t wei_dt = dnnl_data_type_undef,
+        dnnl_data_type_t bia_dt = dnnl_data_type_undef,
+        dnnl_data_type_t dst_dt = dnnl_data_type_undef,
+        dnnl_data_type_t acc_dt = dnnl_data_type_undef,
+        dnnl_format_tag_t src_tag = dnnl_format_tag_undef,
+        dnnl_format_tag_t wei_tag = dnnl_format_tag_undef,
+        dnnl_format_tag_t bia_tag = dnnl_format_tag_undef,
+        dnnl_format_tag_t dst_tag = dnnl_format_tag_undef) {
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     int ndims = is_problem_3d(p) ? 5 : is_problem_1d(p) ? 3 : 4;
@@ -435,11 +444,21 @@ inline int init_pd(const prb_t *p, dnnl_convolution_desc_t &cd,
     dnnl_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     dnnl_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
 
+    if (src_dt == dnnl_data_type_undef) src_dt = p->cfg[SRC].dt;
+    if (wei_dt == dnnl_data_type_undef) wei_dt = p->cfg[WEI].dt;
+    if (bia_dt == dnnl_data_type_undef) bia_dt = p->cfg[BIA].dt;
+    if (dst_dt == dnnl_data_type_undef) dst_dt = p->cfg[DST].dt;
+    if (acc_dt == dnnl_data_type_undef) acc_dt = p->cfg[ACC].dt;
+    if (src_tag == dnnl_format_tag_undef) src_tag = p->stag;
+    if (wei_tag == dnnl_format_tag_undef) wei_tag = p->wtag;
+    if (bia_tag == dnnl_format_tag_undef) bia_tag = dnnl_format_tag_any;
+    if (dst_tag == dnnl_format_tag_undef) dst_tag = p->dtag;
+
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, ndims,
                      is_problem_3d(p)
                              ? src_3d_dims
                              : is_problem_1d(p) ? src_1d_dims : src_2d_dims,
-                     p->cfg[SRC].dt, p->stag),
+                     src_dt, src_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, ndims + p->has_groups,
@@ -447,18 +466,17 @@ inline int init_pd(const prb_t *p, dnnl_convolution_desc_t &cd,
                              ? &wei_3d_dims[!p->has_groups]
                              : is_problem_1d(p) ? &wei_1d_dims[!p->has_groups]
                                                 : &wei_2d_dims[!p->has_groups],
-                     p->cfg[WEI].dt, p->wtag),
+                     wei_dt, wei_tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, bia_dt, bia_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, ndims,
                      is_problem_3d(p)
                              ? dst_3d_dims
                              : is_problem_1d(p) ? dst_1d_dims : dst_2d_dims,
-                     p->cfg[DST].dt, p->dtag),
+                     dst_dt, dst_tag),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
@@ -511,30 +529,32 @@ inline int init_pd(const prb_t *p, dnnl_convolution_desc_t &cd,
         default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
     }
 
-    DNN_SAFE(cd.accum_data_type == p->cfg[ACC].dt ? dnnl_success
-                                                  : dnnl_unimplemented,
+    DNN_SAFE(cd.accum_data_type == acc_dt ? dnnl_success : dnnl_unimplemented,
             CRIT);
 
     auto dnnl_attr = create_dnnl_attr(p->attr, p->oc, p->scales);
 
     dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(
-            &cpd, &cd, dnnl_attr, engine_tgt, NULL);
+    init_status = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, eng, NULL);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
-    if (init_status == dnnl_unimplemented)
-        return r->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
-
-    const char *impl_str = query_impl_info(cpd);
-    if (maybe_skip(skip_impl, impl_str)) {
-        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
-        DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
-        return r->state = SKIPPED, OK;
+    if (init_status == dnnl_unimplemented) {
+        if (r) r->state = UNIMPLEMENTED;
+        return OK;
     } else {
-        print(5, "dnnl implementation: %s\n", impl_str);
+        SAFE(init_status, WARN);
+    }
+
+    if (r) {
+        const char *impl_str = query_impl_info(cpd);
+        if (maybe_skip(skip_impl, impl_str)) {
+            print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+            DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
+            return r->state = SKIPPED, OK;
+        } else {
+            print(5, "dnnl implementation: %s\n", impl_str);
+        }
     }
 
     auto q = [=](dnnl_query_t query, int index = 0) {
@@ -581,9 +601,30 @@ int doit(const prb_t *p, res_t *r) {
     dnnl_primitive_desc_t cpd;
     dnnl_primitive_t c;
 
-    SAFE(init_pd(p, cd, cpd, r), WARN);
-
+    SAFE(init_pd(engine_tgt, p, cd, cpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+
+    // Try to use CPU primitive as the reference in GPU testing to reduce
+    // testing time
+    dnnl_convolution_desc_t cd_ref;
+    dnnl_primitive_desc_t cpd_ref = nullptr;
+    dnnl_primitive_t c_ref = nullptr;
+    dnnl_engine_t engine_ref = nullptr;
+
+    int src_ndims = is_problem_3d(p) ? 5 : is_problem_1d(p) ? 3 : 4;
+    int wei_ndims = src_ndims + p->has_groups;
+
+    const auto fp = dnnl_f32;
+    auto src_tag = get_default_tag(src_ndims);
+    auto wei_tag = get_default_tag(wei_ndims);
+
+    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu
+            && !DNNL_WITH_SYCL) {
+        SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), WARN);
+        SAFE(init_pd(engine_ref, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,
+                     fp, src_tag, wei_tag, dnnl_x, src_tag),
+                WARN);
+    }
 
     const auto alg = alg_kind2alg(cd.alg_kind);
     const auto cfg = auto_cfg(alg, p->cfg);
@@ -592,7 +633,13 @@ int doit(const prb_t *p, res_t *r) {
     p = &p_new;
 
     DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
+    if (cpd_ref) {
+        DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
+        print(5, "%s\n", "benchdnn: use CPU primitive as the reference");
+    }
+
     DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
+    DNN_SAFE(dnnl_primitive_desc_destroy(cpd_ref), CRIT);
 
     auto &src_dt_d = p->dir == BWD_D ? cd.diff_src_desc : cd.src_desc;
     auto &wei_dt_d = p->dir & FLAG_WEI ? cd.diff_weights_desc : cd.weights_desc;
@@ -606,10 +653,6 @@ int doit(const prb_t *p, res_t *r) {
     if (p->dir & FLAG_BIA)
         bia_dt = dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt);
 
-    auto src_tag = get_default_tag(src_dt.md_.ndims);
-    auto wei_tag = get_default_tag(wei_dt.md_.ndims);
-
-    const auto fp = dnnl_f32;
     dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_tgt);
     dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_tgt);
     dnn_mem_t dst_fp(dst_dt_d, fp, src_tag, engine_tgt);
@@ -632,7 +675,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_fwd(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, src_tag, engine_tgt);
             SAFE(compare_dst(p, dst, dst_fp, r, true), WARN);
         }
@@ -644,7 +687,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd_d(p, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_bwd_d(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t src(src_dt, fp, src_tag, engine_tgt);
             SAFE(compare_src(p, src, src_fp, r, true), WARN);
         }
@@ -657,7 +700,7 @@ int doit(const prb_t *p, res_t *r) {
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_bwd_w(p, c_ref, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t wei(wei_dt, fp, wei_tag, engine_tgt);
             SAFE(compare_wei(p, wei, wei_fp, r, true), WARN);
             if (p->dir & FLAG_BIA) {
@@ -672,6 +715,9 @@ int doit(const prb_t *p, res_t *r) {
     measure_perf(r->timer, c, args);
 
     DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(c_ref), CRIT);
+
+    SAFE(dnnl_engine_destroy(engine_ref), CRIT);
 
     return OK;
 }

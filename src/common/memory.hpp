@@ -33,10 +33,7 @@ namespace impl {
 
 struct exec_ctx_t;
 
-enum memory_flags_t {
-    alloc = 0x1,
-    use_runtime_ptr = 0x2,
-};
+enum memory_flags_t { alloc = 0x1, use_runtime_ptr = 0x2, omit_zero_pad = 0x4 };
 } // namespace impl
 } // namespace dnnl
 

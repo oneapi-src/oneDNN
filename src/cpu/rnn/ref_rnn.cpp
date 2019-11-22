@@ -76,9 +76,8 @@ rnn_gemm_sig((ref_rnn_bwd_f32_t::gemm)) {
 template <>
 rnn_gemm_sig((ref_rnn_fwd_bf16_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    dim_t M = m, N = n, K = k, LDA = ldA, LDB = ldB, LDC = ldC;
-    auto st = gemm_bf16bf16f32(&transA, &transB, &M, &N, &K, &alpha, a_, &LDA,
-            b_, &LDB, &beta, c_, &LDC);
+    auto st = gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA,
+            b_, &ldB, &beta, c_, &ldC);
     assert(st == dnnl_success);
     MAYBE_UNUSED(st);
 }
@@ -86,9 +85,8 @@ rnn_gemm_sig((ref_rnn_fwd_bf16_t::gemm)) {
 template <>
 rnn_gemm_sig((ref_rnn_bwd_bf16_t::gemm)) {
     assert(ldA * ldB * ldC != 0);
-    dim_t M = m, N = n, K = k, LDA = ldA, LDB = ldB, LDC = ldC;
-    auto st = gemm_bf16bf16f32(&transA, &transB, &M, &N, &K, &alpha, a_, &LDA,
-            b_, &LDB, &beta, c_, &LDC);
+    auto st = gemm_bf16bf16f32(&transA, &transB, &m, &n, &k, &alpha, a_, &ldA,
+            b_, &ldB, &beta, c_, &ldC);
     assert(st == dnnl_success);
     MAYBE_UNUSED(st);
 }
@@ -121,11 +119,31 @@ rnn_gemm_sig(ref_rnn_bwd_f32_t::packed_gemm) {
 }
 
 template <>
+rnn_gemm_sig((ref_rnn_fwd_bf16_t::packed_gemm)) {
+    assert(transA == 'N' && transB == 'N' && alpha == 1.);
+    auto st = gemm_bf16bf16f32_compute(
+            "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
+    assert(st == dnnl_success);
+    MAYBE_UNUSED(st);
+}
+
+template <>
+rnn_gemm_sig((ref_rnn_bwd_bf16_t::packed_gemm)) {
+    assert(transA == 'N' && transB == 'N' && alpha == 1.);
+    auto st = gemm_bf16bf16f32_compute(
+            "P", "N", &m, &n, &k, a_, &ldA, b_, &ldB, &beta, c_, &ldC);
+    assert(st == dnnl_success);
+    MAYBE_UNUSED(st);
+}
+
+template <>
 rnn_gemm_sig(ref_rnn_fwd_u8s8_t::packed_gemm) {
     assert(transA == 'N' && transB == 'N' && alpha == 1.);
     int32_t offsetc = 0;
-    gemm_s8u8s32_compute("P", "N", "F", &m, &n, &k, a_, &ldA, b_, &ldB, &beta,
-            c_, &ldC, &offsetc);
+    auto st = gemm_s8u8s32_compute("P", "N", "F", &m, &n, &k, a_, &ldA, b_,
+            &ldB, &beta, c_, &ldC, &offsetc);
+    assert(st == dnnl_success);
+    MAYBE_UNUSED(st);
 }
 
 //*************** Grid computations strategy: linear ***************//
@@ -156,30 +174,116 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     AOC<src_data_t, 4> ws_grid(
             ws_grid_, rnn.n_layer, rnn.n_dir, rnn.n_iter, (int)rnn.ws_per_cell);
 
+    /* Raw inputs/ouputs coming from the user */
+    // Here we cannot use AOC as user's input can have arbitrary strides, so we use desc_wrapper.
+    auto src_layer_mdw = memory_desc_wrapper(pd()->src_md(0));
+    auto dst_layer_mdw = memory_desc_wrapper(pd()->dst_md(0));
+    auto src_iter_mdw = memory_desc_wrapper(pd()->src_md(1));
+    auto dst_iter_mdw = memory_desc_wrapper(pd()->dst_md(1));
+    auto src_iter_c_mdw = memory_desc_wrapper(pd()->src_md(2));
+    auto dst_iter_c_mdw = memory_desc_wrapper(pd()->dst_md(2));
+
     // We run the grid of computation
     for (int dir = 0; dir < rnn.n_dir; dir++) {
         for (int j = 0; j < rnn.n_layer; j++) {
             int lay = (aprop == prop_kind::forward) ? j : rnn.n_layer - j - 1;
 
             if ((aprop == prop_kind::forward) && rnn.merge_gemm_layer) {
+                const src_data_t *states_t_lm1 = &(ws_states(lay, dir, 1, 0));
+                auto src_layer_ld = rnn.states_ws_ld;
+
+                if ((lay == 0) && rnn.skip_src_layer_copy()) {
+                    states_t_lm1 = src_layer_;
+                    src_layer_ld = rnn.src_layer_ld_;
+                }
+
                 (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic,
                         rnn.mb * rnn.n_iter, rnn.slc, 1.0,
                         weights_layer(lay, dir, 0), rnn.weights_layer_ld,
-                        &(ws_states(lay, dir, 1, 0)), rnn.states_ws_ld, 0.0,
+                        states_t_lm1, src_layer_ld, 0.0,
                         (acc_data_t *)scratch_gates_, rnn.gates_ws_ld);
             }
 
             for (int i = 0; i < rnn.n_iter; i++) {
                 int iter = (aprop == prop_kind::forward) ? i
                                                          : rnn.n_iter - i - 1;
-                (this->*cell_func)(rnn, &(ws_states(lay + 1, dir, iter + 1, 0)),
-                        &(ws_c_states(lay + 1, dir, iter + 1, 0)),
+
+                // We set the FWD parameters to the cell execution call
+                src_data_t *states_t_l
+                        = &(ws_states(lay + 1, dir, iter + 1, 0));
+                // this is not null only if nocopy dst_layer and dst_iter and for the last cell
+                src_data_t *states_t_l_copy_ = nullptr;
+
+                const src_data_t *states_t_lm1
+                        = &(ws_states(lay, dir, iter + 1, 0));
+                const src_data_t *states_tm1_l
+                        = &(ws_states(lay + 1, dir, iter, 0));
+                float *c_states_t_l = &(ws_c_states(lay + 1, dir, iter + 1, 0));
+                const float *c_states_tm1_l
+                        = &(ws_c_states(lay + 1, dir, iter, 0));
+
+                // the cell_positin is used only when skip_data_copy is supported
+                // currently supported only for forward
+                cell_position_t cell_position = middle_cell;
+                cell_position = (lay == rnn.n_layer - 1)
+                        ? (cell_position | last_layer)
+                        : cell_position;
+                cell_position = (iter == rnn.n_iter - 1)
+                        ? (cell_position | last_iter)
+                        : cell_position;
+                cell_position = (iter == 0) ? (cell_position | first_iter)
+                                            : cell_position;
+                cell_position = (lay == 0) ? (cell_position | first_layer)
+                                           : cell_position;
+
+                // The dst_* paths should be before the src_* paths as
+                // the later will override states_tm1_l and
+                // states_l_tm1 appropriatly for 1st layer and 1st
+                // iter.
+                bool last_iter_skip_copy = rnn.skip_dst_iter_copy()
+                        && (cell_position & last_iter);
+                if (last_iter_skip_copy) {
+                    states_t_l = dst_iter_ + dst_iter_mdw.off(lay, dir, 0, 0);
+                    states_t_lm1
+                            = dst_iter_ + dst_iter_mdw.off(lay - 1, dir, 0, 0);
+                }
+
+                if (rnn.skip_dst_layer_copy() && (cell_position & last_layer)) {
+                    // Note: for last layer and last iter, the output is in dst_layer
+                    // and still need to be copied to dst_iter
+                    states_t_l = dst_layer_ + dst_layer_mdw.off(iter, 0, 0);
+                    states_t_l_copy_ = last_iter_skip_copy
+                            ? dst_iter_ + dst_iter_mdw.off(lay, dir, 0, 0)
+                            : nullptr;
+                    states_tm1_l = (iter != 0)
+                            ? dst_layer_ + dst_layer_mdw.off(iter - 1, 0, 0)
+                            : states_tm1_l;
+                }
+                if (rnn.skip_src_iter_copy() && (cell_position & first_iter))
+                    states_tm1_l = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
+
+                if (rnn.skip_src_layer_copy() && (cell_position & first_layer))
+                    states_t_lm1 = src_layer_ + src_layer_mdw.off(iter, 0, 0);
+
+                // because the c state is always f32 and require no
+                // conversion, we can always skip to copy for the 1st
+                // and last iteration
+                if (iter == 0 && src_iter_c_) {
+                    c_states_tm1_l
+                            = src_iter_c_ + src_iter_c_mdw.off(lay, dir, 0, 0);
+                    cell_position |= c_state_first_iter;
+                }
+                if (iter == rnn.n_iter - 1 && dst_iter_c_) {
+                    c_states_t_l
+                            = dst_iter_c_ + dst_iter_c_mdw.off(lay, dir, 0, 0);
+                    cell_position |= c_state_last_iter;
+                }
+
+                (this->*cell_func)(rnn, cell_position, states_t_l, c_states_t_l,
                         &(ws_diff_states(lay, dir, 0, iter, 0)),
                         &(weights_layer(lay, dir, 0)),
                         &(weights_iter(lay, dir, 0)), &(bias(lay, dir, 0)),
-                        &(ws_states(lay, dir, iter + 1, 0)),
-                        &(ws_states(lay + 1, dir, iter, 0)),
-                        &(ws_c_states(lay + 1, dir, iter, 0)),
+                        states_t_lm1, states_tm1_l, c_states_tm1_l,
                         &(ws_diff_states(lay + 1, dir, 0, iter, 0)),
                         &(ws_diff_states(lay, dir, 0, iter + 1, 0)),
                         &(diff_weights_layer(lay, dir, 0)),
@@ -190,10 +294,18 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                                                       : scratch_gates_
                                         + iter * rnn.gates_nld
                                                 * rnn.gates_ws_ld,
-                        &(ws_grid(lay, dir, iter, 0)), scratch_cell_);
+                        &(ws_grid(lay, dir, iter, 0)), scratch_cell_,
+                        states_t_l_copy_);
             }
 
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
+                const src_data_t *states_t_lm1 = &(ws_states(lay, dir, 1, 0));
+                auto src_layer_ld = rnn.states_ws_ld;
+                if ((lay == 0) && rnn.skip_src_layer_copy()) {
+                    states_t_lm1 = src_layer_;
+                    src_layer_ld = rnn.src_layer_ld_;
+                }
+
                 (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
                         rnn.n_gates * rnn.dic, 1.0, weights_layer(lay, dir, 0),
                         rnn.weights_layer_ld, (src_data_t *)scratch_gates_,
@@ -203,21 +315,50 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc,
                         rnn.mb * rnn.n_iter, 1.0,
                         (weights_data_t *)scratch_gates_, rnn.gates_ws_ld,
-                        &(ws_states(lay, dir, 1, 0)), rnn.states_ws_ld, 1.0,
+                        states_t_lm1, src_layer_ld, 1.0,
                         &(diff_weights_layer(lay, dir, 0)),
                         rnn.diff_weights_layer_ld);
             }
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_iter) {
+                // TODO: this should be split in 3 pieces is we skip copies.
+                // last iter in user mem, middle iters in ws, first iter in user mem
+                const src_data_t *states_t_l = nullptr;
+                int src_iter_ld = 0;
+                int niter_merge_gemm_iter = 0;
+
+                states_t_l = &(
+                        ws_states(lay + 1, dir, rnn.skip_src_iter_copy(), 0));
+                src_iter_ld = rnn.states_ws_ld;
+                if (rnn.skip_dst_layer_copy()
+                        && (lay == rnn.n_layer - 1)) { // last layer
+                    states_t_l = dst_layer_;
+                    src_iter_ld = rnn.dst_layer_ld_;
+                }
+                niter_merge_gemm_iter = rnn.n_iter - rnn.skip_src_iter_copy();
                 gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic,
-                        rnn.mb * rnn.n_iter, 1.0,
-                        (weights_data_t *)scratch_gates_, rnn.gates_ws_ld,
-                        &(ws_states(lay + 1, dir, 0, 0)), rnn.states_ws_ld, 1.0,
+                        rnn.mb * niter_merge_gemm_iter, 1.0,
+                        (weights_data_t *)scratch_gates_
+                                + rnn.skip_src_iter_copy() * rnn.gates_nld
+                                        * rnn.gates_ws_ld,
+                        rnn.gates_ws_ld, states_t_l, src_iter_ld, 1.0,
                         &(diff_weights_iter(lay, dir, 0)),
                         rnn.diff_weights_iter_ld);
+
+                if (rnn.skip_src_iter_copy()) {
+                    states_t_l = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
+                    src_iter_ld = rnn.src_iter_ld_;
+                    niter_merge_gemm_iter = 1;
+                    gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic,
+                            rnn.mb * niter_merge_gemm_iter, 1.0,
+                            (weights_data_t *)scratch_gates_, rnn.gates_ws_ld,
+                            states_t_l, src_iter_ld, 1.0,
+                            &(diff_weights_iter(lay, dir, 0)),
+                            rnn.diff_weights_iter_ld);
+                }
             }
         }
     }
-}
+} // namespace cpu
 
 //********* GRID computations strategy: utility functions **********//
 
@@ -365,15 +506,6 @@ void copy_init_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                     PRAGMA_OMP_SIMD()
                     for (int s = 0; s < rnn.sic; s++)
                         dd[s] = maybe_q(ss[s]);
-
-                    if (pd->cell_kind() == alg_kind::vanilla_lstm) {
-                        const auto *ss = &src_iter_c_[src_iter_c_d.blk_off(
-                                lay, dir, b, 0)];
-                        auto *dd = &ws_c_states(lay + 1, dir, 0, b, 0);
-                        PRAGMA_OMP_SIMD()
-                        for (int s = 0; s < rnn.dic; s++)
-                            dd[s] = ss[s];
-                    }
                 });
     } else {
         parallel_nd(
@@ -458,9 +590,10 @@ RNN_DECL_COPY_INIT_ITER_FWD(ref_rnn_fwd_u8s8_t)
 RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_bwd_f32_t)
 RNN_DECL_COPY_INIT_ITER_BWD(ref_rnn_bwd_bf16_t)
 
-template <typename src_data_t, typename dst_data_t>
+template <typename src_data_t, typename dst_layer_dt, typename dst_iter_dt>
 void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
-        dst_data_t *dst_layer_, memory_desc_wrapper &dst_layer_d,
+        dst_layer_dt *dst_layer_, memory_desc_wrapper &dst_layer_d,
+        const dst_iter_dt *dst_iter_, const memory_desc_wrapper &dst_iter_d,
         const src_data_t *ws_states_) {
 
     AOC<const src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
@@ -470,44 +603,81 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
     const bool dequantize
             = pd->dst_md(0)->data_type == data_type::f32 && rnn.is_int8();
-    auto maybe_deq = [&](src_data_t s) {
-        if (dequantize)
-            return (dst_data_t)(((float)s - shift) / scale);
-        else
-            return (dst_data_t)s;
-    };
 
-    parallel_nd(rnn.n_iter, rnn.mb, [&](int it, int b) {
-        int dir = 0;
-
-        if (rnn.exec_dir != r2l) {
-            const auto *ss = &ws_states(rnn.n_layer, dir, it + 1, b, 0);
-            auto *dd = &dst_layer_[dst_layer_d.blk_off(it, b, dir * rnn.dic)];
+    auto copy_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
+        if (dequantize) {
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
-                dd[s] = maybe_deq(ss[s]);
-
-            dir = 1;
+                dd[s] = (dst_layer_dt)(((float)ss[s] - shift) / scale);
+        } else {
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++)
+                dd[s] = (dst_layer_dt)ss[s];
         }
+    };
 
-        if (rnn.exec_dir != l2r) {
-            const auto *ss
-                    = &ws_states(rnn.n_layer, dir, rnn.n_iter - it, b, 0);
+    auto acc_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
+        if (dequantize) {
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++)
+                dd[s] += (dst_layer_dt)(((float)ss[s] - shift) / scale);
+        } else {
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++)
+                dd[s] += (dst_layer_dt)ss[s];
+        }
+    };
 
-            if (rnn.exec_dir == bi_sum) {
-                auto *dd = &dst_layer_[dst_layer_d.blk_off(it, b, 0)];
-                PRAGMA_OMP_SIMD()
-                for (int s = 0; s < rnn.dic; s++)
-                    dd[s] += maybe_deq(ss[s]);
-            } else {
+    // if skip_dst_iter_copy, then the data for the last iteration is
+    // in dst_iter, not in workspace
+    parallel_nd(rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0), rnn.mb,
+            [&](int it, int b) {
+                int dir = 0;
+                if (rnn.exec_dir != r2l) {
+                    const auto *ss = &ws_states(rnn.n_layer, dir, it + 1, b, 0);
+                    auto *dd = &dst_layer_[dst_layer_d.blk_off(
+                            it, b, dir * rnn.dic)];
+                    copy_vec(dd, ss);
+                    dir = 1;
+                }
+                if (rnn.exec_dir != l2r) {
+                    const auto *ss = &ws_states(
+                            rnn.n_layer, dir, rnn.n_iter - it, b, 0);
+                    if (rnn.exec_dir == bi_sum) {
+                        auto *dd = &dst_layer_[dst_layer_d.blk_off(it, b, 0)];
+                        acc_vec(dd, ss);
+                    } else {
+                        auto *dd = &dst_layer_[dst_layer_d.blk_off(
+                                it, b, dir * rnn.dic)];
+                        copy_vec(dd, ss);
+                    }
+                }
+            });
+    if (rnn.skip_dst_iter_copy()) {
+        parallel_nd(1, rnn.mb, [&](int it, int b) {
+            int dir = 0;
+            if (rnn.exec_dir != r2l) {
+                const auto *ss = dst_iter_
+                        + dst_iter_d.blk_off(rnn.n_layer - 1, dir, b, 0);
                 auto *dd = &dst_layer_[dst_layer_d.blk_off(
                         it, b, dir * rnn.dic)];
-                PRAGMA_OMP_SIMD()
-                for (int s = 0; s < rnn.dic; s++)
-                    dd[s] = maybe_deq(ss[s]);
+                copy_vec(dd, (src_data_t *)ss);
+                dir = 1;
             }
-        }
-    });
+            if (rnn.exec_dir != l2r) {
+                const auto *ss = dst_iter_
+                        + dst_iter_d.blk_off(rnn.n_layer - 1, dir, b, 0);
+                if (rnn.exec_dir == bi_sum) {
+                    auto *dd = &dst_layer_[dst_layer_d.blk_off(it, b, 0)];
+                    acc_vec(dd, (src_data_t *)ss);
+                } else {
+                    auto *dd = &dst_layer_[dst_layer_d.blk_off(
+                            it, b, dir * rnn.dic)];
+                    copy_vec(dd, (src_data_t *)ss);
+                }
+            }
+        });
+    }
 }
 
 template <typename acc_data_t>
@@ -536,13 +706,15 @@ void copy_res_layer_bwd_template(const rnn_conf_t &rnn,
 
 #define RNN_DECL_COPY_RES_LAYER_FWD(cname) \
     template <> \
-    template <typename dst_data_t> \
-    void cname::copy_res_layer(const rnn_conf_t &rnn, dst_data_t *dst_layer_, \
-            acc_data_t *diff_src_layer, const src_data_t *ws_states_, \
+    template <typename dst_layer_dt, typename dst_iter_dt> \
+    void cname::copy_res_layer(const rnn_conf_t &rnn, \
+            dst_layer_dt *dst_layer_, acc_data_t *diff_src_layer, \
+            const dst_iter_dt *dst_iter_, const src_data_t *ws_states_, \
             const acc_data_t *ws_diff_states_) const { \
         auto dst_layer_d = memory_desc_wrapper(pd()->dst_md(0)); \
-        copy_res_layer_fwd_template( \
-                rnn, pd(), dst_layer_, dst_layer_d, ws_states_); \
+        auto dst_iter_d = memory_desc_wrapper(pd()->dst_md(1)); \
+        copy_res_layer_fwd_template(rnn, pd(), dst_layer_, dst_layer_d, \
+                dst_iter_, dst_iter_d, ws_states_); \
     }
 
 RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_f32_t)
@@ -551,9 +723,10 @@ RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_u8s8_t)
 
 #define RNN_DECL_COPY_RES_LAYER_BWD(cname) \
     template <> \
-    template <typename dst_data_t> \
-    void cname::copy_res_layer(const rnn_conf_t &rnn, dst_data_t *dst_layer_, \
-            acc_data_t *diff_src_layer_, const src_data_t *ws_states_, \
+    template <typename dst_layer_dt, typename dst_iter_dt> \
+    void cname::copy_res_layer(const rnn_conf_t &rnn, \
+            dst_layer_dt *dst_layer_, acc_data_t *diff_src_layer_, \
+            const dst_iter_dt *dst_iter_, const src_data_t *ws_states_, \
             const acc_data_t *ws_diff_states_) const { \
         auto diff_src_layer_d = memory_desc_wrapper(pd()->diff_src_md(0)); \
         copy_res_layer_bwd_template( \
@@ -563,11 +736,12 @@ RNN_DECL_COPY_RES_LAYER_FWD(ref_rnn_fwd_u8s8_t)
 RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_bwd_f32_t)
 RNN_DECL_COPY_RES_LAYER_BWD(ref_rnn_bwd_bf16_t)
 
-template <typename src_data_t, typename output_data_t>
+template <typename src_data_t, typename dst_iter_dt, typename dst_layer_dt>
 void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
-        output_data_t *dst_iter_, memory_desc_wrapper &dst_iter_d,
+        dst_iter_dt *dst_iter_, memory_desc_wrapper &dst_iter_d,
         float *dst_iter_c_, memory_desc_wrapper dst_iter_c_d,
-        const src_data_t *ws_states_, float *ws_c_states_) {
+        const dst_layer_dt *dst_layer_, memory_desc_wrapper dst_layer_d,
+        const src_data_t *ws_states_, const float *ws_c_states_) {
     if (dst_iter_ == nullptr) return;
 
     AOC<const src_data_t, 5> ws_states(ws_states_, rnn.n_layer + 1, rnn.n_dir,
@@ -580,28 +754,37 @@ void copy_res_iter_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
     const bool dequantize = pd->with_dst_iter()
             && pd->dst_md(1)->data_type == data_type::f32 && rnn.is_int8();
-    auto maybe_deq = [&](src_data_t s) {
-        if (dequantize)
-            return (output_data_t)(((float)s - data_shift) / data_scale);
-        else
-            return (output_data_t)s;
-    };
-
-    parallel_nd(rnn.n_layer, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
-        const auto *ss = &ws_states(lay + 1, dir, rnn.n_iter, b, 0);
-        auto *dd = &dst_iter_[dst_iter_d.blk_off(lay, dir, b, 0)];
-        PRAGMA_OMP_SIMD()
-        for (int s = 0; s < rnn.dic; s++)
-            dd[s] = maybe_deq(ss[s]);
-
-        if (pd->cell_kind() == alg_kind::vanilla_lstm) {
-            const auto *ss = &ws_c_states(lay + 1, dir, rnn.n_iter, b, 0);
-            auto *dd = &dst_iter_c_[dst_iter_c_d.blk_off(lay, dir, b, 0)];
+    auto copy_vec = [&](dst_iter_dt *dd, const src_data_t *ss) {
+        if (dequantize) {
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
-                dd[s] = ss[s];
+                dd[s] = (dst_iter_dt)(((float)ss[s] - data_shift) / data_scale);
+        } else {
+            PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++)
+                dd[s] = (dst_iter_dt)ss[s];
         }
+    };
+
+    // If skip_dst_layer_copy, then the data to copy for the last
+    // layer is in dst_layer, not in workspace.
+    auto n_layer_in_ws = rnn.n_layer - rnn.skip_dst_layer_copy();
+
+    parallel_nd(n_layer_in_ws, rnn.n_dir, rnn.mb, [&](int lay, int dir, int b) {
+        const auto *ss = &ws_states(lay + 1, dir, rnn.n_iter, b, 0);
+        auto *dd = dst_iter_ + dst_iter_d.blk_off(lay, dir, b, 0);
+        copy_vec(dd, ss);
     });
+
+    if (rnn.skip_dst_layer_copy()) {
+        parallel_nd(rnn.n_dir, rnn.mb, [&](int dir, int b) {
+            const auto *ss
+                    = &dst_layer_[dst_layer_d.blk_off(rnn.n_iter - 1, b, dir)];
+            auto *dd = &dst_iter_[dst_iter_d.blk_off(
+                    rnn.n_layer - 1, dir, b, 0)];
+            copy_vec(dd, (src_data_t *)ss);
+        });
+    }
 }
 
 template <typename acc_data_t>
@@ -631,15 +814,18 @@ void copy_res_iter_bwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
 #define RNN_DECL_COPY_RES_ITER_FWD(cname) \
     template <> \
-    template <typename output_data_t> \
-    void cname::copy_res_iter(const rnn_conf_t &rnn, output_data_t *dst_iter_, \
+    template <typename dst_iter_dt, typename dst_layer_dt> \
+    void cname::copy_res_iter(const rnn_conf_t &rnn, dst_iter_dt *dst_iter_, \
             float *dst_iter_c_, acc_data_t *diff_src_iter_, \
-            float *diff_src_iter_c_, const src_data_t *ws_states_, \
-            float *ws_c_states_, const acc_data_t *ws_diff_states_) const { \
+            float *diff_src_iter_c_, const dst_layer_dt *dst_layer_, \
+            const src_data_t *ws_states_, const float *ws_c_states_, \
+            const acc_data_t *ws_diff_states_) const { \
+        auto dst_layer_d = memory_desc_wrapper(pd()->dst_md(0)); \
         auto dst_iter_d = memory_desc_wrapper(pd()->dst_md(1)); \
         auto dst_iter_c_d = memory_desc_wrapper(pd()->dst_md(2)); \
         copy_res_iter_fwd_template(rnn, pd(), dst_iter_, dst_iter_d, \
-                dst_iter_c_, dst_iter_c_d, ws_states_, ws_c_states_); \
+                dst_iter_c_, dst_iter_c_d, dst_layer_, dst_layer_d, \
+                ws_states_, ws_c_states_); \
     }
 
 RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_f32_t)
@@ -648,11 +834,12 @@ RNN_DECL_COPY_RES_ITER_FWD(ref_rnn_fwd_u8s8_t)
 
 #define RNN_DECL_COPY_RES_ITER_BWD(cname) \
     template <> \
-    template <typename output_data_t> \
+    template <typename output_data_t, typename dst_data_t> \
     void cname::copy_res_iter(const rnn_conf_t &rnn, output_data_t *dst_iter_, \
             float *dst_iter_c_, acc_data_t *diff_src_iter_, \
-            float *diff_src_iter_c_, const src_data_t *ws_states_, \
-            float *ws_c_states_, const acc_data_t *ws_diff_states_) const { \
+            float *diff_src_iter_c_, const dst_data_t *dst_layer_, \
+            const src_data_t *ws_states_, const float *ws_c_states_, \
+            const acc_data_t *ws_diff_states_) const { \
         auto diff_src_iter_d = memory_desc_wrapper(pd()->diff_src_md(1)); \
         auto diff_src_iter_c_d = memory_desc_wrapper(pd()->diff_src_md(2)); \
         copy_res_iter_bwd_template(rnn, pd(), diff_src_iter_, diff_src_iter_d, \
@@ -674,8 +861,12 @@ rnn_bias_prepare_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             scratch_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
 
     if (rnn.copy_bias) {
-        parallel_nd(rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic,
-                [&](size_t i) { scratch_bias_[i] = b_[i]; });
+        parallel_nd(rnn.n_layer * rnn.n_dir, [&](size_t i) {
+            int off = i * rnn.n_bias * rnn.dic;
+            PRAGMA_OMP_SIMD()
+            for (int j = 0; j < rnn.n_bias * rnn.dic; j++)
+                scratch_bias_[off + j] = b_[off + j];
+        });
     }
 
     for (int i = 0; i < rnn.n_layer; i++) {
@@ -863,38 +1054,47 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     (this->*bias_finalization_func)(rnn, ws_bias, w_iter_comp, w_layer_comp);
 
     // we first need to copy the initial states and input into ws
-    copy_init_layer(rnn, ws_states, ws_diff_states, input, diff_dst_layer);
-    if (pd()->src_md(1)->data_type == data_type::f32)
-        copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
-                (const float *)states, c_states, diff_dst_iter,
-                diff_dst_iter_c);
-    else
-        copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
-                (const src_data_t *)states, c_states, diff_dst_iter,
-                diff_dst_iter_c);
+    if (!(rnn.skip_src_layer_copy() && rnn.is_fwd))
+        copy_init_layer(rnn, ws_states, ws_diff_states, input, diff_dst_layer);
+
+    if (!(rnn.skip_src_iter_copy() && rnn.is_fwd)) {
+        if (pd()->src_md(1)->data_type == data_type::f32)
+            copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
+                    (const float *)states, c_states, diff_dst_iter,
+                    diff_dst_iter_c);
+        else
+            copy_init_iter(rnn, ws_states, ws_c_states, ws_diff_states,
+                    (const src_data_t *)states, c_states, diff_dst_iter,
+                    diff_dst_iter_c);
+    }
 
     // run the execution on the grid
-    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter, ptr_bias,
-            ws_states, ws_c_states, ws_diff_states, ws_gates, ws_grid,
-            scratch_gates, scratch_cell, diff_weights_layer, diff_weights_iter,
-            diff_bias);
+    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter, ptr_bias, input,
+            (const src_data_t *)states, c_states, (src_data_t *)dst_last_layer,
+            (src_data_t *)dst_last_iter, dst_last_iter_c, ws_states,
+            ws_c_states, ws_diff_states, ws_gates, ws_grid, scratch_gates,
+            scratch_cell, diff_weights_layer, diff_weights_iter, diff_bias);
 
     // Finally we copy the results to the result buffers
-    if (pd()->dst_md(0)->data_type == data_type::f32)
-        copy_res_layer(rnn, (float *)dst_last_layer, diff_src_layer, ws_states,
-                ws_diff_states);
-    else
-        copy_res_layer(rnn, (src_data_t *)dst_last_layer, diff_src_layer,
-                ws_states, ws_diff_states);
+    if (!(rnn.skip_dst_layer_copy() && rnn.is_fwd)) {
+        if (pd()->dst_md(0)->data_type == data_type::f32)
+            copy_res_layer(rnn, (float *)dst_last_layer, diff_src_layer,
+                    dst_last_iter, ws_states, ws_diff_states);
+        else
+            copy_res_layer(rnn, (src_data_t *)dst_last_layer, diff_src_layer,
+                    dst_last_iter, ws_states, ws_diff_states);
+    }
 
-    if (pd()->dst_md(1)->data_type == data_type::f32)
-        copy_res_iter(rnn, (float *)dst_last_iter, dst_last_iter_c,
-                diff_src_iter, diff_src_iter_c, ws_states, ws_c_states,
-                ws_diff_states);
-    else
-        copy_res_iter(rnn, (src_data_t *)dst_last_iter, dst_last_iter_c,
-                diff_src_iter, diff_src_iter_c, ws_states, ws_c_states,
-                ws_diff_states);
+    if (!(rnn.skip_dst_iter_copy() && rnn.is_fwd)) {
+        if (pd()->dst_md(1)->data_type == data_type::f32)
+            copy_res_iter(rnn, (float *)dst_last_iter, dst_last_iter_c,
+                    diff_src_iter, diff_src_iter_c, dst_last_layer, ws_states,
+                    ws_c_states, ws_diff_states);
+        else
+            copy_res_iter(rnn, (src_data_t *)dst_last_iter, dst_last_iter_c,
+                    diff_src_iter, diff_src_iter_c, dst_last_layer, ws_states,
+                    ws_c_states, ws_diff_states);
+    }
 };
 
 /* Fix for MSVS warning C4661 */

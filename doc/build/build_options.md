@@ -11,6 +11,7 @@ DNNL supports the following build-time options.
 | DNNL_BUILD_EXAMPLES          | **ON**, OFF                          | Controls building the examples
 | DNNL_BUILD_TESTS             | **ON**, OFF                          | Controls building the tests
 | DNNL_ARCH_OPT_FLAGS          | *compiler flags*                     | Specifies compiler optimization flags (see warning note below)
+| DNNL_ENABLE_CONCURRENT_EXEC  | ON, **OFF**                          | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
 | DNNL_ENABLE_JIT_PROFILING    | **ON**, OFF                          | Enables integration with Intel(R) VTune(TM) Amplifier
 | DNNL_ENABLE_PRIMITIVE_CACHE  | ON, **OFF**                          | Enables primitive cache
 
@@ -81,7 +82,8 @@ DNNL has limited optimizations for Intel TBB and has some functional
 limitations if built with Intel TBB.
 
 Functional limitations:
-* Winograd convolution algorithm is not supported.
+* Winograd convolution algorithm is not supported for fp32 backward
+by data and backward by weights propogation.
 
 ## GPU Options
 Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine

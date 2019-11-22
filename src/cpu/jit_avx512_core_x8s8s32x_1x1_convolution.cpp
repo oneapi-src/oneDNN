@@ -85,8 +85,6 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
 
     const int stride_h = pd()->desc()->strides[0];
     const int stride_w = pd()->desc()->strides[1];
-    const int pad_t = pd()->desc()->padding[0][0];
-    const int pad_l = pd()->desc()->padding[0][1];
 
     const auto &oscales = pd()->attr()->output_scales_;
 
@@ -128,8 +126,8 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
         oh = os / jcp.ow;
         ow = os % jcp.ow;
 
-        ih = nstl::max(oh * stride_h - pad_t, 0);
-        iw = nstl::max(ow * stride_w - pad_l, 0);
+        ih = oh * stride_h;
+        iw = ow * stride_w;
         rp.iw_start = iw;
 
         p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);

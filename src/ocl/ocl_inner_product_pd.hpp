@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_INNER_PRODUCT_FWD_PD_HPP
-#define OCL_INNER_PRODUCT_FWD_PD_HPP
+#ifndef OCL_INNER_PRODUCT_PD_HPP
+#define OCL_INNER_PRODUCT_PD_HPP
 
 #include <assert.h>
 
@@ -78,14 +78,18 @@ status_t template_set_default_params(memory_desc_t &src_md,
         memory_desc_t *bias_md, int ndims) {
     using namespace format_tag;
 
-    auto matching_tag = [&](const memory_desc_t &md) {
-        if (memory_desc_matches_one_of_tag(md, ba, cba, cdba, cdeba))
-            return utils::pick(ndims - 2, ab, acb, acdb, acdeb);
-        if (memory_desc_matches_one_of_tag(md, acb, acdb, acdeb))
-            return utils::pick(ndims - 3, cba, cdba, cdeba);
-        auto src_tag = memory_desc_matches_one_of_tag(md, ab, abc, abcd, abcde,
-                aBcd16b, aBcde16b, aBcd8b, aBcde8b, aBcd4b, aBcde4b);
-        return src_tag;
+    auto init_md = [&](memory_desc_t &out_md, const memory_desc_t &in_md) {
+        format_tag_t md_tag;
+        if (memory_desc_matches_one_of_tag(in_md, ba, cba, cdba, cdeba))
+            md_tag = utils::pick(ndims - 2, ab, acb, acdb, acdeb);
+        else if (memory_desc_matches_one_of_tag(in_md, acb, acdb, acdeb))
+            md_tag = utils::pick(ndims - 3, cba, cdba, cdeba);
+        else {
+            memory_desc_wrapper md_desc_wrapper(in_md);
+            return memory_desc_init_by_blocking_desc(
+                    out_md, md_desc_wrapper.blocking_desc());
+        }
+        return memory_desc_init_by_tag(out_md, md_tag);
     };
     if (src_md.format_kind == format_kind::any
             && weights_md.format_kind == format_kind::any) {
@@ -94,9 +98,9 @@ status_t template_set_default_params(memory_desc_t &src_md,
         CHECK(memory_desc_init_by_tag(
                 weights_md, utils::pick(ndims - 2, oi, oiw, oihw, oidhw)));
     } else if (src_md.format_kind == format_kind::any)
-        CHECK(memory_desc_init_by_tag(src_md, matching_tag(weights_md)));
+        CHECK(init_md(src_md, weights_md));
     else if (weights_md.format_kind == format_kind::any)
-        CHECK(memory_desc_init_by_tag(weights_md, matching_tag(src_md)));
+        CHECK(init_md(weights_md, src_md));
     if (dst_md.format_kind == format_kind::any)
         CHECK(memory_desc_init_by_tag(dst_md, nc));
     if (bias_md->format_kind == format_kind::any)

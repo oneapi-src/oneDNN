@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UNI_1x1_CONV_UTILS_HPP
-#define JIT_UNI_1x1_CONV_UTILS_HPP
+#ifndef JIT_UNI_1X1_CONV_UTILS_HPP
+#define JIT_UNI_1X1_CONV_UTILS_HPP
 
 #include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"

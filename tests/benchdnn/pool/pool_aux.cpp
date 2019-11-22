@@ -66,7 +66,7 @@ int str2desc(desc_t *desc, const char *str) {
      *
      * implicit rules:
      *  - default values:
-     *      mb = 2, d = fd, sh = sw = 1, S="wip"
+     *      mb = 2, d = fd, sh = sw = 1
      *  - if H is undefined => H = W
      *  - if W is undefined => W = H
      *  - if `output` is undefined => compute output
@@ -76,7 +76,6 @@ int str2desc(desc_t *desc, const char *str) {
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.pd = d.ph = d.pw = -1;
-    d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -139,7 +138,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
         if (!d.oh) {
-            d.ph = 0;
+            if (d.ph < 0) d.ph = 0;
             d.oh = compute_out(d.ih, d.kh, d.sh, d.ph);
         } else if (d.ph < 0)
             d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh);
@@ -148,7 +147,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (!no_w) {
         if (!d.iw || !d.kw) return FAIL;
         if (!d.ow) {
-            d.pw = 0;
+            if (d.pw < 0) d.pw = 0;
             d.ow = compute_out(d.iw, d.kw, d.sw, d.pw);
         } else if (d.pw < 0)
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw);
@@ -157,7 +156,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (!no_d && d.id) {
         if (!d.id || !d.kd) return FAIL;
         if (!d.od) {
-            d.pd = 0;
+            if (d.pd < 0) d.pd = 0;
             d.od = compute_out(d.id, d.kd, d.sd, d.pd);
         } else if (d.pd < 0)
             d.pd = compute_pad(d.od, d.id, d.kd, d.sd);
@@ -225,7 +224,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
     print_spatial("pd", d.pd, "ph", d.ph, "pw", d.pw);
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

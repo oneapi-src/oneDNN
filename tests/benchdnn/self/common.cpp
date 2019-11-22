@@ -51,11 +51,20 @@ static int check_attr2str() {
 
     attr.oscale.policy = attr_t::scale_t::policy_t::PER_OC;
     attr.oscale.scale = 3.2;
-    CHECK_PRINT_EQ(attr, "oscale=per_oc:3.2;");
+    attr.oscale.runtime = true;
+    CHECK_PRINT_EQ(attr, "oscale=per_oc:3.2*;");
 
     attr.oscale.policy = attr_t::scale_t::policy_t::PER_DIM_01;
     attr.oscale.scale = 3.2;
+    attr.oscale.runtime = false;
     CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;");
+
+    attr.zero_points.set(DNNL_ARG_SRC, {1, false});
+    CHECK_PRINT_EQ(attr, "oscale=per_dim_01:3.2;zero_points=src:1;");
+
+    attr.zero_points.set(DNNL_ARG_WEIGHTS, {2, true});
+    CHECK_PRINT_EQ2(attr, "oscale=per_dim_01:3.2;zero_points=src:1_wei:2*;",
+            "oscale=per_dim_01:3.2;zero_points=wei:2*_src:1;");
 
     return OK;
 }
@@ -63,25 +72,44 @@ static int check_attr2str() {
 static int check_str2attr() {
     attr_t attr;
 
-#define CHECK_ATTR(str, os_policy, os_scale) \
+#define CHECK_ATTR(str, os_policy, os_scale, os_runtime) \
     do { \
         CHECK_EQ(str2attr(&attr, str), OK); \
         CHECK_EQ(attr.oscale.policy, attr_t::scale_t::policy_t::os_policy); \
         CHECK_EQ(attr.oscale.scale, os_scale); \
+        CHECK_EQ(attr.oscale.runtime, os_runtime); \
+    } while (0)
+#define CHECK_ATTR_ZP(arg, zero_points_value, zero_points_runtime) \
+    do { \
+        const auto entry = attr.zero_points.get(arg); \
+        CHECK_EQ(entry.value, zero_points_value); \
+        CHECK_EQ(entry.runtime, zero_points_runtime); \
     } while (0)
 
-    CHECK_ATTR("", NONE, 1.);
+    CHECK_ATTR("", NONE, 1., false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR("oscale=none:1.0", NONE, 1.);
+    CHECK_ATTR("oscale=none:1.0", NONE, 1., false);
     CHECK_EQ(attr.is_def(), true);
 
-    CHECK_ATTR("oscale=none:2.0", NONE, 2.);
-    CHECK_ATTR("oscale=common:2.0", COMMON, 2.);
-    CHECK_ATTR("oscale=per_oc:.5;", PER_OC, .5);
-    CHECK_ATTR("oscale=none:.5;oscale=common:1.5", COMMON, 1.5);
+    CHECK_ATTR(
+            "oscale=none:1.0;zero_points=src:0_wei:0_dst:0", NONE, 1., false);
+    CHECK_EQ(attr.is_def(), true);
+
+    CHECK_ATTR("oscale=none:2.0", NONE, 2., false);
+    CHECK_ATTR("oscale=none:2.0*", NONE, 2., false);
+    CHECK_ATTR("oscale=common:2.0*", COMMON, 2., true);
+    CHECK_ATTR("oscale=per_oc:.5*;", PER_OC, .5, true);
+    CHECK_ATTR("oscale=none:.5*;oscale=common:1.5", COMMON, 1.5, false);
+
+    CHECK_ATTR(
+            "oscale=common:2.0*;zero_points=src:0_dst:-2*", COMMON, 2., true);
+    CHECK_ATTR_ZP(DNNL_ARG_SRC, 0, false);
+    CHECK_ATTR_ZP(DNNL_ARG_WEIGHTS, 0, false);
+    CHECK_ATTR_ZP(DNNL_ARG_DST, -2, true);
 
 #undef CHECK_ATTR
+#undef CHECK_ATTR_ZP
 
     return OK;
 }
@@ -101,13 +129,13 @@ static int check_post_ops2str() {
         ops.entry[2 * i + 1].eltwise.alpha = (i == 0 ? 0. : 5.);
         ops.entry[2 * i + 1].eltwise.beta = 0.;
     }
-    CHECK_PRINT_EQ(ops, "'sum:2;relu:0;sum:3;relu:5'");
+    CHECK_PRINT_EQ(ops, "'sum:2;relu;sum:3;relu:5'");
 
     ops.len = 3;
-    CHECK_PRINT_EQ(ops, "'sum:2;relu:0;sum:3'");
+    CHECK_PRINT_EQ(ops, "'sum:2;relu;sum:3'");
 
     ops.len = 2;
-    CHECK_PRINT_EQ(ops, "'sum:2;relu:0'");
+    CHECK_PRINT_EQ(ops, "'sum:2;relu'");
 
     ops.len = 1;
     CHECK_PRINT_EQ(ops, "'sum:2'");

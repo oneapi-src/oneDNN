@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef OCL_REF_BATCH_NORMALIZATION_FWD_HPP
-#define OCL_REF_BATCH_NORMALIZATION_FWD_HPP
+#ifndef OCL_REF_BATCH_NORMALIZATION_HPP
+#define OCL_REF_BATCH_NORMALIZATION_HPP
 
 #include <assert.h>
 
@@ -70,8 +70,13 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
-            return jit_ref_bnorm_common_kernel::init_conf(
+            status_t status = jit_ref_bnorm_common_kernel::init_conf(
                     jbn_, desc_, src_md(), this, jit_off_);
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_ref_bnorm_common_kernel::init_scratchpad(scratchpad, jbn_);
+            return status::success;
         }
 
         jit_bnorm_conf_t jbn_;
@@ -89,13 +94,6 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_fwd_kernel", nullptr, nullptr, nullptr, nullptr};
         if (pd()->jbn_.use_16mb_unroll && pd()->jbn_.calculate_stats) {
-            size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
-                    * pd()->jbn_.ic * types::data_type_size(data_type::f32);
-            memory_storage_t *temp_reduce_ptr;
-            engine()->create_memory_storage(&temp_reduce_ptr, size);
-            temp_reduce.reset(temp_reduce_ptr);
-            if (!temp_reduce) return status::runtime_error;
-
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
             kernel_names[3] = "reduce_mean";
@@ -134,7 +132,6 @@ private:
     compute::kernel_t reduce_mean_kernel_;
     compute::kernel_t calculate_variance_kernel_;
     compute::kernel_t reduce_variance_kernel_;
-    std::unique_ptr<memory_storage_t> temp_reduce;
 };
 
 struct ref_batch_normalization_bwd_t : public primitive_impl_t {
@@ -166,8 +163,13 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            return jit_ref_bnorm_common_kernel::init_conf(
+            status_t status = jit_ref_bnorm_common_kernel::init_conf(
                     jbn_, desc_, diff_src_md(), this, jit_off_);
+            if (status != status::success) return status;
+
+            auto scratchpad = scratchpad_registry().registrar();
+            jit_ref_bnorm_common_kernel::init_scratchpad(scratchpad, jbn_);
+            return status::success;
         }
 
         jit_bnorm_conf_t jbn_;
@@ -186,14 +188,6 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 = {"ref_bnorm_bwd_kernel", nullptr, nullptr};
 
         if (pd()->jbn_.use_16mb_unroll) {
-            size_t size = 2 * pd()->jbn_.mb_chunk * pd()->jbn_.sp_chunk
-                    * pd()->jbn_.ic * types::data_type_size(data_type::f32);
-
-            memory_storage_t *temp_reduce_ptr;
-            engine()->create_memory_storage(&temp_reduce_ptr, size);
-            temp_reduce.reset(temp_reduce_ptr);
-            if (!temp_reduce) return status::runtime_error;
-
             kernel_names[1] = "calculate_stats";
             kernel_names[2] = "reduce_stats";
         }
@@ -226,7 +220,6 @@ private:
     compute::kernel_t kernel_;
     compute::kernel_t calculate_stats_kernel_;
     compute::kernel_t reduce_stats_kernel_;
-    std::unique_ptr<memory_storage_t> temp_reduce;
 };
 
 } // namespace ocl

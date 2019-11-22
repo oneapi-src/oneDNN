@@ -1,17 +1,17 @@
 # f32
 --reset
 --mb=2,16
---dir=FWD_B,BWD_D,BWD_WB --batch=conv_gpu
+--dir=FWD_B,BWD_D,BWD_WB --batch=set_gpu
 
 # f16
 --cfg=f16
 --mb=2,16
---dir=FWD_B --batch=conv_gpu
+--dir=FWD_B --batch=set_gpu
 
 # bf16
 --cfg=bf16bf16bf16
 --mb=2
---dir=FWD_B,BWD_D,BWD_WB --batch=conv_resnet_50
+--dir=FWD_B,BWD_D,BWD_WB --batch=shapes_resnet_50
 
 # i8
 # i8 - 1x1 tests
@@ -24,7 +24,18 @@ mb2ic512ih14oc32oh14kh1ph0n
 
 --reset --cfg=u8s8u8
 --mb=2
---dir=FWD_B --batch=conv_gpu
+--dir=FWD_B --batch=set_gpu
 
 # test scale and post-ops
---batch=test_conv_attrs_gpu
+--batch=harness_conv_attrs_gpu
+
+# test padding
+--reset --cfg=f16,f32
+g1mb16ic16ih2iw9oc16oh2ow11kh2kw1sh2sw1ph1pw1
+g1mb16ic32id9ih1iw9oc32od3oh1ow5kd3kh1kw1sd3sh1sw3pd1ph0pw2dd1dh0dw0
+g1mb16ic32ih5iw9oc32oh1ow5kh4kw1sh3sw3ph1pw2dh1dw1
+g1mb32ic16id12ih5iw5oc32od14oh2ow4kd1kh3kw2sd1sh2sw2pd1ph1pw2dd0dh1dw1
+g1mb32ic32ih11iw6oc16oh15ow4kh1kw4sh1sw2ph2pw2
+g1mb32ic32ih6iw15oc32oh7ow19kh4kw1ph2pw2dh0dw1
+g1ic32id2ih13iw15oc32od4oh15ow9kd1kh2kw3sd1sh1sw2pd1ph2pw2dd1dh1dw0
+g1mb32ic32ih3iw4oc16oh4ow3kh1kw2sh2sw2ph2pw1dh1dw0

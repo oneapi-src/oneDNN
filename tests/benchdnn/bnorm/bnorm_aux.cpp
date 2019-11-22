@@ -46,40 +46,27 @@ flags_t str2flags(const char *str) {
     return flags;
 }
 
-const char *flags2str(flags_t flags) {
-    if (flags & GLOB_STATS) {
-        if (flags & USE_SCALESHIFT)
-            return flags & FUSE_NORM_RELU ? "GSR" : "GS";
-        return flags & FUSE_NORM_RELU ? "GR" : "G";
-    }
-
-    if (flags & USE_SCALESHIFT) return flags & FUSE_NORM_RELU ? "SR" : "S";
-
-    return flags & FUSE_NORM_RELU ? "R" : "";
+std::string flags2str(flags_t flags) {
+    std::string str;
+    if (flags & GLOB_STATS) str += "G";
+    if (flags & USE_SCALESHIFT) str += "S";
+    if (flags & FUSE_NORM_RELU) str += "R";
+    return str;
 }
 
 int str2desc(desc_t *desc, const char *str) {
-    /* canonical form:
-     * mbXicXihXiwXidXepsYnS
-     *
-     * where:
-     *  X is number (integer)
-     *  Y is real (float)
-     *  S - string
-     * note: symbol `_` is ignored
-     *
-     * implicit rules:
-     *  eps = 1./16
-     *  S = "wip"
-     *  if iw is unset iw <-- ih
-     *  if ih is unset ih <-- iw
-     *  if id is unset id <-- 1
-     */
+    // Canonical form: mbXicXihXiwXidXepsYnS,
+    // where
+    //     X is integer
+    //     Y is float
+    //     S is string
+    // note: symbol `_` is ignored.
+    // Cubic/square shapes are supported by specifying just highest dimension.
 
     desc_t d {0};
     d.mb = 2;
     d.eps = 1.f / 16;
-    d.name = "\"wip\"";
+    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -119,11 +106,28 @@ int str2desc(desc_t *desc, const char *str) {
 #undef CASE_NN
 #undef CASE_N
 
-    if (d.ic == 0 || (d.id == 0 && d.ih == 0 && d.iw == 0)) return FAIL;
+    if (d.ic == 0) return FAIL;
 
+    if (d.id == 0) { d.ndims--; }
+    if (d.ih == 0) {
+        if (d.id == 0) {
+            d.ndims--;
+        } else { // square shape
+            d.ih = d.id;
+        }
+    }
+    if (d.iw == 0) {
+        if (d.ih == 0) {
+            d.ndims--;
+        } else { // square shape
+            d.iw = d.ih;
+        }
+    }
+
+    // to keep logic when treating unspecified dimension as it's of length 1.
     if (d.id == 0) d.id = 1;
     if (d.ih == 0) d.ih = 1;
-    if (d.iw == 0) d.iw = d.ih;
+    if (d.iw == 0) d.iw = 1;
 
     *desc = d;
 
@@ -131,19 +135,17 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool canonical = s.flags() & std::ios_base::fixed;
-
-    if (canonical || d.mb != 2) s << "mb" << d.mb;
+    if (d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
 
-    if (d.id > 1) s << "id" << d.id;
-    s << "ih" << d.ih;
-    if (canonical || d.iw != d.ih || d.id > 1) s << "iw" << d.iw;
+    if (d.ndims >= 5) s << "id" << d.id;
+    if (d.ndims >= 4) s << "ih" << d.ih;
+    if (d.ndims >= 3) s << "iw" << d.iw;
 
-    if (canonical || d.eps != 1.f / 16) s << "eps" << d.eps;
+    if (d.eps != 1.f / 16) s << "eps" << d.eps;
 
-    s << "n" << d.name;
+    if (d.name) s << "n" << d.name;
 
     return s;
 }

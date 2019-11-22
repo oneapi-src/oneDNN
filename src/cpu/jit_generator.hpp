@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_GENERATOR_HPP
-#define CPU_JIT_AVX2_GENERATOR_HPP
+#ifndef CPU_JIT_GENERATOR_HPP
+#define CPU_JIT_GENERATOR_HPP
 
 #include <limits.h>
 
@@ -50,6 +50,10 @@ typedef enum {
     PAGE_4K = 4096,
     PAGE_2M = 2097152,
 } cpu_page_size_t;
+
+typedef enum {
+    MAX_CODE_SIZE = 256 * 1024,
+} max_code_size_t;
 
 // TODO: move this somewhere else? Although this is only used by jit kernels
 // (Roma)
@@ -602,6 +606,16 @@ public:
         vfnmadd231ps(x1, x2, op);
     }
 
+    void uni_vfmsub213ps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        mulps(x1, x2);
+        subps(x1, op);
+    }
+    void uni_vfmsub213ps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op) {
+        vfmsub213ps(x1, x2, op);
+    }
+
     void uni_vsqrtps(const Xbyak::Xmm &x, const Xbyak::Operand &op) {
         sqrtps(x, op);
     }
@@ -617,6 +631,26 @@ public:
     void uni_vpaddd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
         vpaddd(x1, x2, op);
+    }
+
+    void uni_vpmaddwd(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+        pmaddwd(x1, op);
+    }
+    void uni_vpmaddwd(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        vpmaddwd(x1, x2, op);
+    }
+
+    void uni_vpmaddubsw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        if (x1.getIdx() != x2.getIdx()) movdqa(x1, x2);
+        pmaddubsw(x1, op);
+    }
+    void uni_vpmaddubsw(const Xbyak::Ymm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op) {
+        vpmaddubsw(x1, x2, op);
     }
 
     void uni_vandps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
@@ -645,6 +679,19 @@ public:
             vpord(x1, x2, op);
     }
 
+    void uni_vxorps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        if (x1.getIdx() != x2.getIdx()) { uni_vmovups(x1, x2); }
+        xorps(x1, op);
+    }
+    void uni_vxorps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op = Xbyak::Operand()) {
+        if (!mayiuse(avx512_common) || x1.getBit() < 512)
+            vxorps(x1, x2, op);
+        else
+            vpxord(x1, x2, op);
+    }
+
     void uni_vpslld(
             const Xbyak::Xmm &x, const Xbyak::Operand &op, const int imm) {
         assert(x.getIdx() == op.getIdx());
@@ -657,7 +704,7 @@ public:
 
     void uni_vpsrld(
             const Xbyak::Xmm &x, const Xbyak::Operand &op, const int imm) {
-        assert(x.getIdx() == op.getIdx());
+        if (x.getIdx() != op.getIdx()) uni_vmovups(x, op);
         psrld(x, imm);
     }
     void uni_vpsrld(
@@ -685,26 +732,14 @@ public:
         vminps(x, op1, op2);
     }
 
-    void uni_vcmpgtps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x2.getIdx());
-        cmpps(x1, op, _cmp_nle_us);
+    void uni_vcmpps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
+            const Xbyak::Operand &op, int cmp_predicate) {
+        if (x1.getIdx() != x2.getIdx()) uni_vmovups(x1, x2);
+        cmpps(x1, op, cmp_predicate);
     }
-
-    void uni_vcmpgtps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op) {
-        vcmpgtps(x1, x2, op);
-    }
-
-    void uni_vcmpgeps(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
-            const Xbyak::Operand &op) {
-        assert(x1.getIdx() == x2.getIdx());
-        cmpps(x1, op, _cmp_nlt_us);
-    }
-
-    void uni_vcmpgeps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
-            const Xbyak::Operand &op) {
-        vcmpps(x1, x2, op, _cmp_nlt_us);
+    void uni_vcmpps(const Xbyak::Ymm &x1, const Xbyak::Ymm &x2,
+            const Xbyak::Operand &op, int cmp_predicate) {
+        vcmpps(x1, x2, op, cmp_predicate);
     }
 
     void uni_vtestps(const Xbyak::Xmm &x1, const Xbyak::Operand &op) {
@@ -817,14 +852,18 @@ public:
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator);
 
 public:
-    jit_generator(void *code_ptr = nullptr, size_t code_size = 256 * 1024)
-        : Xbyak::CodeGenerator(code_size, code_ptr) {}
+    jit_generator(void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE,
+            bool use_autogrow = true)
+        : Xbyak::CodeGenerator(code_size,
+                (code_ptr == nullptr && use_autogrow) ? Xbyak::AutoGrow
+                                                      : code_ptr) {}
     virtual ~jit_generator() {}
 
     virtual const char *name() const = 0;
     virtual const char *source_file() const = 0;
 
     const Xbyak::uint8 *getCode() {
+        this->ready();
         const Xbyak::uint8 *code = CodeGenerator::getCode();
         size_t code_size = getSize();
         jit_utils::register_jit_code(code, code_size, name(), source_file());

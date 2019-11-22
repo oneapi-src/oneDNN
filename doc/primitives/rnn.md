@@ -132,17 +132,16 @@ A three-gate gated recurrent unit cell, initialized with
 ~~~
 
 Note that for all tensors with a dimension depending on the gates
-number, we implicitly require the order of these gates to be `u`, `r`
-and \f$\tilde{c}\f$. The following equation gives the mathematical
-definition of these gates.
+number, we implicitly require the order of these gates to be `u`, `r`, and `o`.
+The following equation gives the mathematical definition of these gates.
 
 \f[
 
 \begin{align}
 u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
 r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
-\tilde c_t &= tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r * h_{t-1, l}) + B_o) \\
-h_t &= u_t * h_{t-1, l} + (1 - u_t) * \tilde c_t
+o_t &= tanh(W_o \cdot h_{t,l-1} + U_o \cdot (r_t * h_{t-1, l}) + B_o) \\
+h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
 
 \f]
@@ -172,18 +171,18 @@ The following equation describes the mathematical behavior of the Linear-Before-
 \f[
 
 \begin{align}
-u &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
-r &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
-\tilde c &= tanh(W_o \cdot h_{t,l-1} + r *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
-h_t &= u_t * h_{t-1, l} + (1 - u_t) * \tilde c
+u_t &= \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l} + B_u) \\
+r_t &= \sigma(W_r \cdot h_{t,l-1} + U_r \cdot h_{t-1, l} + B_r) \\
+o_t &= tanh(W_o \cdot h_{t,l-1} + r_t *(U_o \cdot h_{t-1, l} + B_{u'}) + B_o) \\
+h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \end{align}
 
 \f]
 
 Note that for all tensors with a dimension depending on the gates number, except
-the bias, we implicitly require the order of these gates to be `u`, `r` and
-\f$\tilde{c}\f$. For the `bias` tensor, we implicitly require the order of the
-gates to be `u`, `r`, \f$\tilde{c}\f$ and `u'`.
+the bias, we implicitly require the order of these gates to be `u`, `r`, and `o`.
+For the `bias` tensor, we implicitly require the order of the
+gates to be `u`, `r`, `o`, and `u'`.
 
 @note If you need to replace u_t by (1-u_t) when computing h_t, you can
 achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.

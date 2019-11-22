@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_COMMON_CONV_KERNEL_F32_HPP
-#define JIT_AVX512_COMMON_CONV_KERNEL_F32_HPP
+#ifndef JIT_AVX512_COMMON_CONV_KERNEL_HPP
+#define JIT_AVX512_COMMON_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,7 +32,7 @@ template <typename Vmm>
 struct _jit_avx512_common_conv_fwd_kernel : public jit_generator {
 
     _jit_avx512_common_conv_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
@@ -177,7 +177,7 @@ private:
 struct jit_avx512_common_conv_fwd_kernel {
 
     jit_avx512_common_conv_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t ajcp, const primitive_attr_t &attr)
         : jit_ker(nullptr), zmm_kernel_(nullptr), xmm_kernel_(nullptr) {
         switch (ajcp.oc_block) {
             case 16:
@@ -214,12 +214,15 @@ struct jit_avx512_common_conv_fwd_kernel {
     void (*jit_ker)(jit_conv_call_s *);
     _jit_avx512_common_conv_fwd_kernel<Xbyak::Zmm> *zmm_kernel_;
     _jit_avx512_common_conv_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_common_conv_fwd_kernel);
 };
 
 template <typename Vmm>
 struct _jit_avx512_common_conv_bwd_data_kernel_f32 : public jit_generator {
 
-    _jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp)
+    _jit_avx512_common_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp) {
         generate();
         jit_ker_ = (void (*)(jit_conv_call_s *))getCode();
@@ -244,6 +247,7 @@ private:
     reg64_t reg_dst_prf = r11;
     reg64_t reg_ker_prf = r12;
     reg64_t reg_src_prf = r13;
+    reg64_t reg_iwb = r14;
 
     reg64_t aux_reg_dst = r14;
     reg64_t aux_reg_ker = r15;
@@ -341,18 +345,21 @@ struct jit_avx512_common_conv_bwd_data_kernel_f32 {
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &diff_src_d,
-            memory_desc_t &weights_d, memory_desc_t &diff_dst_d);
+            memory_desc_t &weights_d, memory_desc_t &diff_dst_d, int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
     void (*jit_ker)(jit_conv_call_s *);
     _jit_avx512_common_conv_bwd_data_kernel_f32<Xbyak::Zmm> *zmm_kernel_;
     _jit_avx512_common_conv_bwd_data_kernel_f32<Xbyak::Xmm> *xmm_kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_common_conv_bwd_data_kernel_f32);
 };
 
 struct jit_avx512_common_conv_bwd_weights_kernel_f32 : public jit_generator {
 
-    jit_avx512_common_conv_bwd_weights_kernel_f32(jit_conv_conf_t ajcp)
+    jit_avx512_common_conv_bwd_weights_kernel_f32(const jit_conv_conf_t &ajcp)
         : jcp(ajcp) {
         generate();
         jit_ker = (void (*)(jit_conv_call_s *))getCode();

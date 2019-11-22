@@ -115,6 +115,11 @@ bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
     return parse_single_value_option(allow_unimpl, str2bool, str, option_name);
 }
 
+bool parse_fast_ref_gpu(
+        const char *str, const std::string &option_name /* = "fast-ref-gpu"*/) {
+    return parse_single_value_option(fast_ref_gpu, str2bool, str, option_name);
+}
+
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name /* = "perf-template"*/) {
@@ -269,6 +274,8 @@ bool parse_bench_settings(const char *str) {
     else if (parse_verbose(str))
         ;
     else if (parse_engine_kind(str))
+        ;
+    else if (parse_fast_ref_gpu(str))
         ;
     else
         return false;

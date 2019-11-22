@@ -22,11 +22,51 @@
 
 namespace dnnl {
 
-using fmt = memory::format_tag;
+using tag = memory::format_tag;
+
+/* iface tests */
+
+class iface_sum_test : public ::testing::Test {
+protected:
+    engine eng;
+    stream strm;
+
+    virtual void SetUp() {
+        eng = engine(get_test_engine_kind(), 0);
+        strm = stream(eng);
+    }
+};
+
+TEST_F(iface_sum_test, SumTestDstDataTypeCompliance) {
+    using dt = memory::data_type;
+
+    const dt src_dt = dt::s8;
+
+    memory::dims shape = {10, 10, 10, 10};
+    auto src_md = memory::desc(shape, src_dt, tag::abcd);
+
+    for_(tag dst_tag : {tag::any, tag::abcd, tag::acdb})
+    for (dt dst_dt : {dt::undef, dt::s8, dt::s32, dt::f32}) {
+        sum::primitive_desc sum_pd;
+
+        if (dst_dt != dt::undef) {
+            memory::desc dst_md(shape, dst_dt, dst_tag);
+            sum_pd = sum::primitive_desc(
+                    dst_md, {2., 2.}, {src_md, src_md}, eng);
+        } else {
+            sum_pd = sum::primitive_desc({2., 2.}, {src_md, src_md}, eng);
+        }
+
+        dt expect_dst_dt = dst_dt == dt::undef ? src_dt : dst_dt;
+        ASSERT_EQ(sum_pd.dst_desc().data.data_type, expect_dst_dt);
+    }
+}
+
+/* correctness tests */
 
 struct sum_test_params {
-    std::vector<fmt> srcs_format;
-    fmt dst_format;
+    std::vector<tag> srcs_format;
+    tag dst_format;
     memory::dims dims;
     std::vector<float> scale;
     bool is_output_omitted;
@@ -188,87 +228,87 @@ protected:
 
 static auto simple_test_cases = [](bool omit_output) {
     return ::testing::Values(
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {0, 7, 4, 4},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {0, 7, 4, 4},
                     {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {1, 0, 4, 4},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {1, 0, 4, 4},
                     {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {1, 8, 0, 4},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {1, 8, 0, 4},
                     {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {-1, 8, 4, 4},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {-1, 8, 4, 4},
                     {1.0f, 1.0f}, omit_output, true, dnnl_invalid_arguments},
 
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw,
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw,
                     {1, 1024, 38, 50}, {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw}, fmt::nchw, {2, 8, 2, 2},
+            sum_test_params {{tag::nchw, tag::nchw}, tag::nchw, {2, 8, 2, 2},
                     {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nChw8c, fmt::nChw8c}, fmt::nChw8c,
+            sum_test_params {{tag::nChw8c, tag::nChw8c}, tag::nChw8c,
                     {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw}, fmt::nChw8c, {2, 16, 2, 2},
+            sum_test_params {{tag::nchw, tag::nchw}, tag::nChw8c, {2, 16, 2, 2},
                     {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nChw8c, fmt::nChw8c}, fmt::nchw,
+            sum_test_params {{tag::nChw8c, tag::nChw8c}, tag::nchw,
                     {2, 16, 3, 4}, {1.0f, 1.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw}, fmt::nchw, {2, 8, 2, 2},
+            sum_test_params {{tag::nchw, tag::nchw}, tag::nchw, {2, 8, 2, 2},
                     {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nChw8c, fmt::nChw8c}, fmt::nChw8c,
+            sum_test_params {{tag::nChw8c, tag::nChw8c}, tag::nChw8c,
                     {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw}, fmt::nChw8c, {2, 16, 2, 2},
+            sum_test_params {{tag::nchw, tag::nchw}, tag::nChw8c, {2, 16, 2, 2},
                     {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nChw8c, fmt::nChw8c}, fmt::nchw,
+            sum_test_params {{tag::nChw8c, tag::nChw8c}, tag::nchw,
                     {2, 16, 3, 4}, {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {5, 8, 3, 3},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {5, 8, 3, 3},
                     {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw,
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw,
                     {32, 32, 13, 14}, {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nChw16c, fmt::nChw8c}, fmt::nChw16c,
+            sum_test_params {{tag::nChw16c, tag::nChw8c}, tag::nChw16c,
                     {2, 16, 3, 3}, {2.0f, 3.0f}, omit_output});
 };
 
 static auto simple_test_cases_bf16 = [](bool omit_output) {
     return ::testing::Values(
-            sum_test_params {{fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
+            sum_test_params {{tag::nChw16c, tag::nChw16c}, tag::nChw16c,
                     {1, 16, 1, 1}, {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw}, fmt::nchw, {1, 16, 1, 1},
+            sum_test_params {{tag::nchw, tag::nchw}, tag::nchw, {1, 16, 1, 1},
                     {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw}, fmt::nchw, {2, 16, 13, 7},
+            sum_test_params {{tag::nchw, tag::nchw}, tag::nchw, {2, 16, 13, 7},
                     {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw, fmt::nchw, fmt::nchw},
-                    fmt::nchw, {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f, 5.0f},
+            sum_test_params {{tag::nchw, tag::nchw, tag::nchw, tag::nchw},
+                    tag::nchw, {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f, 5.0f},
                     omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw, fmt::nchw}, fmt::nchw,
+            sum_test_params {{tag::nchw, tag::nchw, tag::nchw}, tag::nchw,
                     {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f}, omit_output},
             sum_test_params {
-                    {fmt::nchw, fmt::nchw, fmt::nchw, fmt::nchw, fmt::nchw},
-                    fmt::nchw, {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f, 5.0f, 6.0f},
+                    {tag::nchw, tag::nchw, tag::nchw, tag::nchw, tag::nchw},
+                    tag::nchw, {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f, 5.0f, 6.0f},
                     omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw, fmt::nchw}, fmt::nchw,
+            sum_test_params {{tag::nchw, tag::nchw, tag::nchw}, tag::nchw,
                     {2, 37, 13, 7}, {2.0f, 3.0f, 4.0f}, omit_output},
-            sum_test_params {{fmt::nchw, fmt::nchw, fmt::nchw}, fmt::nchw,
+            sum_test_params {{tag::nchw, tag::nchw, tag::nchw}, tag::nchw,
                     {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f}, omit_output},
-            sum_test_params {{fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
+            sum_test_params {{tag::nChw16c, tag::nChw16c}, tag::nChw16c,
                     {2, 16, 13, 7}, {2.0f, 3.0f}, omit_output},
-            sum_test_params {{fmt::nChw16c, fmt::nChw16c, fmt::nChw16c},
-                    fmt::nChw16c, {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f},
+            sum_test_params {{tag::nChw16c, tag::nChw16c, tag::nChw16c},
+                    tag::nChw16c, {2, 16, 13, 7}, {2.0f, 3.0f, 4.0f},
                     omit_output},
-            sum_test_params {{fmt::nChw16c, fmt::nChw16c, fmt::nChw16c,
-                                     fmt::nChw16c, fmt::nChw16c},
-                    fmt::nChw16c, {2, 16, 13, 7},
+            sum_test_params {{tag::nChw16c, tag::nChw16c, tag::nChw16c,
+                                     tag::nChw16c, tag::nChw16c},
+                    tag::nChw16c, {2, 16, 13, 7},
                     {2.0f, 3.0f, 4.0f, 5.0f, 6.0f}, omit_output},
-            sum_test_params {{fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
+            sum_test_params {{tag::nChw16c, tag::nChw16c}, tag::nChw16c,
                     {2, 128, 23, 15}, {2.5f, 0.125f}, omit_output});
 };
 
 static auto special_test_cases = []() {
     return ::testing::Values(
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {1, 8, 4, 4},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {1, 8, 4, 4},
                     {1.0f}, false, true, dnnl_invalid_arguments},
-            sum_test_params {{fmt::nchw, fmt::nChw8c}, fmt::nchw, {2, 8, 4, 4},
+            sum_test_params {{tag::nchw, tag::nChw8c}, tag::nchw, {2, 8, 4, 4},
                     {0.1f}, false, true, dnnl_invalid_arguments});
 };
 
 /* corner cases */
-#define CASE_CC(ifmt0, ifmt1, ofmt, dims_, ef, st) \
+#define CASE_CC(itag0, itag1, otag, dims_, ef, st) \
     sum_test_params { \
-        {fmt::ifmt0, fmt::ifmt1}, fmt::ofmt, memory::dims dims_, {1.0f, 1.0f}, \
+        {tag::itag0, tag::itag1}, tag::otag, memory::dims dims_, {1.0f, 1.0f}, \
                 0, ef, st \
     }
 static auto corner_test_cases = []() {

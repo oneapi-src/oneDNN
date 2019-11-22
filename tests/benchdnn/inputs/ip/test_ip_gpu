@@ -3,14 +3,14 @@
 --mb=2
 --dir=FWD_B,FWD_D
 --cfg=s8s8s32,s8s8s8,s8s8u8,u8s8s32,u8s8s8,u8s8u8
---attr=oscale=per_oc:2.25;post_ops='sum:0.5;relu:0.5' --batch=ip_all
---attr=oscale=common:2.25;post_ops='sum:0.5;tanh' --batch=ip_all
+--attr=oscale=per_oc:2.25;post_ops='sum:0.5;relu:0.5' --batch=ip_all_gpu
+--attr=oscale=common:2.25;post_ops='sum:0.5;tanh' --batch=ip_all_gpu
 
 # f32, bf16
 --reset
 --cfg=f32,bf16bf16bf16
 --mb=2
---dir=FWD_B,BWD_D,BWD_WB --batch=ip_all
+--dir=FWD_B,BWD_D,BWD_WB --batch=ip_all_gpu
 
 # f32 + post_ops
 --reset
@@ -18,7 +18,7 @@
 --mb=2
 --dir=FWD_B,FWD_D
 --attr=post_ops='sum:2.0;relu:3.0' --batch=ip_1d
---attr=post_ops='sum:2.0' --batch=ip_all
+--attr=post_ops='sum:2.0' --batch=ip_all_gpu
 --attr=post_ops='linear:3.0:2.0' --batch=ip_1d
 
 # f16
@@ -32,17 +32,20 @@
 --mb=2
 --attr=
 --dir=FWD_B
---cfg=bf16bf16f32 --batch=ip_all
+--cfg=bf16bf16f32 --batch=ip_all_gpu
 
 --dir=BWD_D
---cfg=f32bf16bf16 --batch=ip_all
+--cfg=f32bf16bf16 --batch=ip_all_gpu
 
 --dir=BWD_WB
---cfg=bf16f32bf16 --batch=ip_all
+--cfg=bf16f32bf16 --batch=ip_all_gpu
 
 # bf16 + post_ops
 --mb=2
 --dir=FWD_B
 --cfg=bf16bf16bf16,bf16bf16f32
---attr=post_ops='sum:0.5;relu:0.5' --batch=ip_all
---attr=post_ops='sum:0.5;tanh'     --batch=ip_all
+--attr=post_ops='sum:0.5;relu:0.5' --batch=ip_all_gpu
+--attr=post_ops='sum:0.5;tanh'     --batch=ip_all_gpu
+
+# diff mem tags
+--batch=ip_resnet50_swfmt

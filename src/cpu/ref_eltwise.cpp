@@ -30,13 +30,59 @@ namespace cpu {
 using namespace alg_kind;
 using namespace math;
 
+static float compute_eltwise_scalar_fwd(
+        const alg_kind_t alg, float s, float alpha, float beta) {
+    float d = 0.f;
+    switch (alg) {
+        case eltwise_relu: d = relu_fwd(s, alpha); break;
+        case eltwise_tanh: d = tanh_fwd(s); break;
+        case eltwise_elu: d = elu_fwd(s, alpha); break;
+        case eltwise_square: d = square_fwd(s); break;
+        case eltwise_abs: d = abs_fwd(s); break;
+        case eltwise_sqrt: d = sqrt_fwd(s); break;
+        case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
+        case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha); break;
+        case eltwise_soft_relu: d = soft_relu_fwd(s); break;
+        case eltwise_logistic: d = logistic_fwd(s); break;
+        case eltwise_exp: d = exp_fwd(s); break;
+        case eltwise_gelu: d = gelu_fwd(s); break;
+        case eltwise_swish: d = swish_fwd(s, alpha); break;
+        case eltwise_log: d = log_fwd(s); break;
+        default: assert(!"unknown eltwise alg_kind");
+    }
+    return d;
+}
+
+static float compute_eltwise_scalar_bwd(
+        const alg_kind_t alg, float dd, float s, float alpha, float beta) {
+    float ds = 0.f;
+    switch (alg) {
+        case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
+        case eltwise_tanh: ds = tanh_bwd(dd, s); break;
+        case eltwise_elu: ds = elu_bwd(dd, s, alpha); break;
+        case eltwise_square: ds = square_bwd(dd, s); break;
+        case eltwise_abs: ds = abs_bwd(dd, s); break;
+        case eltwise_sqrt: ds = sqrt_bwd(dd, s); break;
+        case eltwise_linear: ds = linear_bwd(dd, s, alpha, beta); break;
+        case eltwise_bounded_relu: ds = bounded_relu_bwd(dd, s, alpha); break;
+        case eltwise_soft_relu: ds = soft_relu_bwd(dd, s); break;
+        case eltwise_logistic: ds = logistic_bwd(dd, s); break;
+        case eltwise_exp: ds = exp_bwd(dd, s); break;
+        case eltwise_gelu: ds = gelu_bwd(dd, s); break;
+        case eltwise_swish: ds = swish_bwd(dd, s, alpha); break;
+        case eltwise_log: ds = log_bwd(dd, s); break;
+        default: assert(!"unknown eltwise alg_kind");
+    }
+    return ds;
+}
+
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
         alg_kind_t alg, float alpha, float beta, float scale)
     : alg_(alg), alpha_(alpha), beta_(beta), scale_(scale) {
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_exp, eltwise_gelu, eltwise_swish));
+            eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log));
 }
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
@@ -45,24 +91,7 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
             eltwise.alg, eltwise.alpha, eltwise.beta, eltwise.scale) {}
 
 float ref_eltwise_scalar_fwd_t::compute_scalar(float s) {
-    float d = 0.f;
-    switch (alg_) {
-        case eltwise_relu: d = relu_fwd(s, alpha_); break;
-        case eltwise_tanh: d = tanh_fwd(s); break;
-        case eltwise_elu: d = elu_fwd(s, alpha_); break;
-        case eltwise_square: d = square_fwd(s); break;
-        case eltwise_abs: d = abs_fwd(s); break;
-        case eltwise_sqrt: d = sqrt_fwd(s); break;
-        case eltwise_linear: d = linear_fwd(s, alpha_, beta_); break;
-        case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha_); break;
-        case eltwise_soft_relu: d = soft_relu_fwd(s); break;
-        case eltwise_logistic: d = logistic_fwd(s); break;
-        case eltwise_exp: d = exp_fwd(s); break;
-        case eltwise_gelu: d = gelu_fwd(s); break;
-        case eltwise_swish: d = swish_fwd(s, alpha_); break;
-        default: assert(!"unknown eltwise alg_kind");
-    }
-    return d * scale_;
+    return compute_eltwise_scalar_fwd(alg_, s, alpha_, beta_) * scale_;
 }
 
 template <impl::data_type_t data_type>
@@ -73,37 +102,28 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_nCspBc_padded(
 
     const memory_desc_wrapper data_d(pd()->src_md());
     const blocking_desc_t &blk = data_d.blocking_desc();
-    const int block = blk.inner_blks[0];
+    const dim_t block = blk.inner_blks[0];
 
-    const int MB = pd()->MB();
-    const int C = pd()->C() / block;
-    const int C_PADDED = data_d.padded_dims()[1] / block;
-    const int tail = pd()->C() % block;
-    const int SP = pd()->D() * pd()->H() * pd()->W();
+    const dim_t MB = pd()->MB();
+    const dim_t C = pd()->C() / block;
+    const dim_t C_PADDED = data_d.padded_dims()[1] / block;
+    const dim_t tail = pd()->C() % block;
+    const dim_t SP = pd()->D() * pd()->H() * pd()->W();
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
     auto ker = [=](data_t &d, data_t s) {
-        switch (alg_kind) {
-            case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
-            case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha); break;
-            case eltwise_soft_relu: d = soft_relu_fwd(s); break;
-            case eltwise_logistic: d = logistic_fwd(s); break;
-            case eltwise_exp: d = exp_fwd(s); break;
-            default: assert(!"unknown eltwise alg_kind");
-        }
+        d = compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta);
     };
 
-    // FIXME: integer overflow?
-
-    parallel_nd(MB, C_PADDED, SP, [&](int n, int c, int sp) {
+    parallel_nd(MB, C_PADDED, SP, [&](dim_t n, dim_t c, dim_t sp) {
         auto d_off = (n * C_PADDED * SP + c * SP + sp) * block;
         if (c < C) {
-            for (int v = 0; v < block; v++)
+            for (dim_t v = 0; v < block; v++)
                 ker(dst[d_off + v], src[d_off + v]);
         } else {
-            for (int v = 0; v < tail; v++)
+            for (dim_t v = 0; v < tail; v++)
                 ker(dst[d_off + v], src[d_off + v]);
         }
     });
@@ -120,38 +140,24 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
-    const int MB = pd()->MB();
-    const int C = pd()->C();
-    const int D = pd()->D();
-    const int H = pd()->H();
-    const int W = pd()->W();
+    const dim_t MB = pd()->MB();
+    const dim_t C = pd()->C();
+    const dim_t D = pd()->D();
+    const dim_t H = pd()->H();
+    const dim_t W = pd()->W();
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
     const bool is_3d = pd()->desc()->data_desc.ndims == 5;
 
-    parallel_nd(MB, C, D, H, W, [&](int n, int c, int id, int h, int w) {
-        auto d_off
-                = is_3d ? data_d.off(n, c, id, h, w) : data_d.off(n, c, h, w);
-        data_t s = src[d_off];
-        data_t &d = dst[d_off];
-        switch (alg_kind) {
-            case eltwise_relu: d = relu_fwd(s, alpha); break;
-            case eltwise_tanh: d = tanh_fwd(s); break;
-            case eltwise_elu: d = elu_fwd(s, alpha); break;
-            case eltwise_square: d = square_fwd(s); break;
-            case eltwise_abs: d = abs_fwd(s); break;
-            case eltwise_sqrt: d = sqrt_fwd(s); break;
-            case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
-            case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha); break;
-            case eltwise_soft_relu: d = soft_relu_fwd(s); break;
-            case eltwise_logistic: d = logistic_fwd(s); break;
-            case eltwise_exp: d = exp_fwd(s); break;
-            case eltwise_gelu: d = gelu_fwd(s); break;
-            case eltwise_swish: d = swish_fwd(s, alpha); break;
-            default: assert(!"unknown eltwise alg_kind");
-        }
-    });
+    parallel_nd(
+            MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t id, dim_t h, dim_t w) {
+                auto d_off = is_3d ? data_d.off(n, c, id, h, w)
+                                   : data_d.off(n, c, h, w);
+                data_t s = src[d_off];
+                data_t &d = dst[d_off];
+                d = compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta);
+            });
 }
 
 template <impl::data_type_t data_type>
@@ -180,22 +186,7 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_dense(
     parallel_nd(nelems, [&](ptrdiff_t e) {
         const data_t s = src[e];
         data_t &d = dst[e];
-
-        switch (alg_kind) {
-            case eltwise_tanh: d = tanh_fwd(s); break;
-            case eltwise_elu: d = elu_fwd(s, alpha); break;
-            case eltwise_square: d = square_fwd(s); break;
-            case eltwise_abs: d = abs_fwd(s); break;
-            case eltwise_sqrt: d = sqrt_fwd(s); break;
-            case eltwise_linear: d = linear_fwd(s, alpha, beta); break;
-            case eltwise_bounded_relu: d = bounded_relu_fwd(s, alpha); break;
-            case eltwise_soft_relu: d = soft_relu_fwd(s); break;
-            case eltwise_logistic: d = logistic_fwd(s); break;
-            case eltwise_exp: d = exp_fwd(s); break;
-            case eltwise_gelu: d = gelu_fwd(s); break;
-            case eltwise_swish: d = swish_fwd(s, alpha); break;
-            default: assert(!"unknown eltwise alg_kind");
-        }
+        d = compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta);
     });
 }
 
@@ -212,43 +203,27 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     const memory_desc_wrapper data_d(pd()->src_md());
     const memory_desc_wrapper diff_data_d(pd()->diff_src_md());
 
-    const int MB = pd()->MB();
-    const int C = pd()->C();
-    const int D = pd()->D();
-    const int H = pd()->H();
-    const int W = pd()->W();
+    const dim_t MB = pd()->MB();
+    const dim_t C = pd()->C();
+    const dim_t D = pd()->D();
+    const dim_t H = pd()->H();
+    const dim_t W = pd()->W();
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
     const bool is_3d = pd()->desc()->data_desc.ndims == 5;
 
-    parallel_nd(MB, C, D, H, W, [&](int n, int c, int d, int h, int w) {
-        auto data_off
-                = is_3d ? data_d.off(n, c, d, h, w) : data_d.off(n, c, h, w);
-        auto diff_data_off = is_3d ? diff_data_d.off(n, c, d, h, w)
-                                   : diff_data_d.off(n, c, h, w);
-        data_t s = src[data_off];
-        data_t dd = diff_dst[diff_data_off];
-        data_t &ds = diff_src[diff_data_off];
-        switch (alg_kind) {
-            case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
-            case eltwise_tanh: ds = tanh_bwd(dd, s); break;
-            case eltwise_elu: ds = elu_bwd(dd, s, alpha); break;
-            case eltwise_square: ds = square_bwd(dd, s); break;
-            case eltwise_abs: ds = abs_bwd(dd, s); break;
-            case eltwise_sqrt: ds = sqrt_bwd(dd, s); break;
-            case eltwise_linear: ds = linear_bwd(dd, s, alpha, beta); break;
-            case eltwise_bounded_relu:
-                ds = bounded_relu_bwd(dd, s, alpha);
-                break;
-            case eltwise_soft_relu: ds = soft_relu_bwd(dd, s); break;
-            case eltwise_logistic: ds = logistic_bwd(dd, s); break;
-            case eltwise_exp: ds = exp_bwd(dd, s); break;
-            case eltwise_gelu: ds = gelu_bwd(dd, s); break;
-            case eltwise_swish: ds = swish_bwd(dd, s, alpha); break;
-            default: assert(!"unknown eltwise alg_kind");
-        }
-    });
+    parallel_nd(
+            MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
+                auto data_off = is_3d ? data_d.off(n, c, d, h, w)
+                                      : data_d.off(n, c, h, w);
+                auto diff_data_off = is_3d ? diff_data_d.off(n, c, d, h, w)
+                                           : diff_data_d.off(n, c, h, w);
+                data_t s = src[data_off];
+                data_t dd = diff_dst[diff_data_off];
+                data_t &ds = diff_src[diff_data_off];
+                ds = compute_eltwise_scalar_bwd(alg_kind, dd, s, alpha, beta);
+            });
 }
 
 template <impl::data_type_t data_type>
@@ -274,25 +249,7 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_dense(
         const data_t dd = diff_dst[e];
         const data_t s = src[e];
         data_t &ds = diff_src[e];
-
-        switch (alg_kind) {
-            case eltwise_relu: ds = relu_bwd(dd, s, alpha); break;
-            case eltwise_tanh: ds = tanh_bwd(dd, s); break;
-            case eltwise_elu: ds = elu_bwd(dd, s, alpha); break;
-            case eltwise_square: ds = square_bwd(dd, s); break;
-            case eltwise_abs: ds = abs_bwd(dd, s); break;
-            case eltwise_sqrt: ds = sqrt_bwd(dd, s); break;
-            case eltwise_linear: ds = linear_bwd(dd, s, alpha, beta); break;
-            case eltwise_bounded_relu:
-                ds = bounded_relu_bwd(dd, s, alpha);
-                break;
-            case eltwise_soft_relu: ds = soft_relu_bwd(dd, s); break;
-            case eltwise_logistic: ds = logistic_bwd(dd, s); break;
-            case eltwise_exp: ds = exp_bwd(dd, s); break;
-            case eltwise_gelu: ds = gelu_bwd(dd, s); break;
-            case eltwise_swish: ds = swish_bwd(dd, s, alpha); break;
-            default: assert(!"unknown eltwise alg_kind");
-        }
+        ds = compute_eltwise_scalar_bwd(alg_kind, dd, s, alpha, beta);
     });
 }
 

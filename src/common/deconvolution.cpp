@@ -58,6 +58,15 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
             = bias_desc && bias_desc->format_kind != format_kind::undef;
     const bool with_groups = weights_desc->ndims == src_desc->ndims + 1;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(weights_desc).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_desc).has_runtime_dims_or_strides();
+    if (with_bias)
+        runtime_dims_or_strides = runtime_dims_or_strides
+                || memory_desc_wrapper(bias_desc).has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     (prop_kind == backward_data ? dd.diff_src_desc : dd.src_desc) = *src_desc;
     (is_fwd ? dd.dst_desc : dd.diff_dst_desc) = *dst_desc;
     (prop_kind == backward_weights ? dd.diff_weights_desc : dd.weights_desc)
@@ -92,12 +101,15 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
         int dil = dd.dilates[i - 2];
-        int pad = padding_l[i - 2] + padding_r[i - 2];
+        int pad_l = padding_l[i - 2];
+        int pad_r = padding_r[i - 2];
         int str = strides[i - 2];
         int dst = dst_desc->dims[i];
         int ker_range = 1 + (ker - 1) * (dil + 1);
 
-        consistency = consistency && (dst - ker_range + pad) / str + 1 == src;
+        if (str < 1) return invalid_arguments;
+        consistency = consistency && dil >= 0 && pad_l >= 0 && pad_r + str > 0
+                && (dst - ker_range + pad_l + pad_r) / str + 1 == src;
     }
     if (!consistency) return invalid_arguments;
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_RNN_CELL_POSTGEMM
-#define CPU_JIT_RNN_CELL_POSTGEMM
+#ifndef CPU_JIT_UNI_RNN_CELL_POSTGEMM_HPP
+#define CPU_JIT_UNI_RNN_CELL_POSTGEMM_HPP
 
 #include "jit_uni_rnn_common_postgemm.hpp"
 
@@ -66,8 +66,9 @@ protected:
         using namespace Xbyak;
 
         // Labels declaration
-        Label vector_loop_start_label, vector_loop_end_label;
-        Label rem_loop_start_label, rem_loop_end_label;
+        Label vector_loop_start_label, vector_loop_inc_regs,
+                vector_loop_end_label;
+        Label rem_loop_start_label, rem_loop_inc_regs, rem_loop_end_label;
         Label table_label;
 
         // Register map
@@ -88,6 +89,16 @@ protected:
         auto addr_scratch_gates_reg = abi_param2;
         auto addr_bias_reg = abi_param3;
         auto addr_states_t_l_reg = abi_param4;
+#ifdef _WIN32
+        auto addr_states_t_l_copy_reg = r10;
+        // Here we cannot use rbp to have initial stack pointer so we
+        // use rsp and offset it with the size of pushed registers in
+        // preamble
+        auto base_args = rsp + get_size_of_abi_save_regs() + 40;
+        mov(addr_states_t_l_copy_reg, ptr[base_args]);
+#else
+        auto addr_states_t_l_copy_reg = abi_param5;
+#endif
 
         auto sg_addr
                 = ptr[addr_scratch_gates_reg + 0 * rnn_.dic * scratch_dt_size];
@@ -123,11 +134,17 @@ protected:
             if (is_training) to_src<src_data_t>(wg_addr, G, vlen);
 
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G, vlen);
+            // if states_t_l_copy is a non null ptr, we write the output to it too
+            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            jle(vector_loop_inc_regs);
+            to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G, vlen, true);
 
             // increment address pointers
+            L(vector_loop_inc_regs);
             add(addr_scratch_gates_reg, vlen);
             add(addr_bias_reg, vlen);
             add(addr_states_t_l_reg, vlen_dst);
+            add(addr_states_t_l_copy_reg, vlen_dst);
             if (is_training) add(addr_ws_gates_reg, vlen_dst);
             inc_regs(vlen);
 
@@ -167,11 +184,18 @@ protected:
             if (is_training) to_src<src_data_t>(wg_addr, G, scratch_dt_size);
 
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G, scratch_dt_size);
+            // if states_t_l_copy is a non null ptr, we write the output to it too
+            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            jle(rem_loop_inc_regs);
+            to_src<src_data_t>(
+                    ptr[addr_states_t_l_copy_reg], G, scratch_dt_size, true);
 
             // increment address pointers
+            L(rem_loop_inc_regs);
             add(addr_scratch_gates_reg, scratch_dt_size);
             add(addr_bias_reg, bias_dt_size);
             add(addr_states_t_l_reg, hstate_dt_size);
+            add(addr_states_t_l_copy_reg, hstate_dt_size);
             if (is_training) add(addr_ws_gates_reg, gate_dt_size);
             inc_regs(qscale_dt_size);
 

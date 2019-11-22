@@ -22,6 +22,8 @@
 
 #include "ocl/jit_gen9_common_convolution.hpp"
 
+using namespace dnnl::impl::memory_tracking::names;
+
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -91,7 +93,13 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
 
     const auto &jcp = ker_->jcp;
 
+    std::unique_ptr<memory_storage_t> wht_work;
+    std::unique_ptr<memory_storage_t> bias_work;
+    std::unique_ptr<memory_storage_t> tails;
+
     if (jcp.ver == ver_8ow16c) {
+        tails = ctx.get_scratchpad_grantor().get_memory_storage(key_conv_tails);
+
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, src);
         arg_list.set(1, *tails);
@@ -103,7 +111,12 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
-            || pd()->jcp_.ver == ver_1stconv) {
+            || jcp.ver == ver_1stconv) {
+        wht_work = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_conv_wei_reduction);
+        bias_work = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_conv_bia_reduction);
+
         arg_list.set(1, *wht_work);
         arg_list.set(2, *bias_work);
     } else {
@@ -118,7 +131,7 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
     if (status != status::success) return status;
 
     if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
-            || pd()->jcp_.ver == ver_1stconv) {
+            || jcp.ver == ver_1stconv) {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, diff_weights);
         arg_list.set(1, *wht_work);

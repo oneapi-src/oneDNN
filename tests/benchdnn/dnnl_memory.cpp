@@ -17,8 +17,7 @@
 #include "dnnl_memory.hpp"
 #include "dnnl_reorder.hpp"
 
-int dnn_mem_t::reorder(
-        const dnn_mem_t &rhs, const dnnl_primitive_attr_t &attr) {
+int dnn_mem_t::reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle) {
     if (this == &rhs) return OK;
-    return execute_reorder(rhs, *this, attr);
+    return execute_reorder(rhs, *this, attr_bundle);
 }

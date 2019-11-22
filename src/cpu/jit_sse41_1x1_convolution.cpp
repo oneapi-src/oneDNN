@@ -77,8 +77,8 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward(
             const int os = osb * os_block;
             const int ow = os % jcp.ow;
             const int oh = os / jcp.ow;
-            const int iw = nstl::max<int>(ow * jcp.stride_w - jcp.l_pad, 0);
-            const int ih = nstl::max<int>(oh * jcp.stride_h - jcp.t_pad, 0);
+            const int iw = ow * jcp.stride_w;
+            const int ih = oh * jcp.stride_h;
 
             par_conv.bcast_dim
                     = this_block_size(os, jcp.os, bcast_step * os_block);

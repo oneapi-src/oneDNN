@@ -139,7 +139,7 @@ protected:
         if (src_mds_[0].format_kind != format_kind::blocked)
             return status::unimplemented;
 
-        dst_md_ = src_mds_[0];
+        memory_desc_init_by_md_and_dt(dst_md_, src_mds_[0], dst_md_.data_type);
 
         return status::success;
     }

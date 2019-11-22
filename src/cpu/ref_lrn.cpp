@@ -66,84 +66,102 @@ void ref_lrn_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
-    const int C = pd()->C();
-    const int H = pd()->H();
-    const int W = pd()->W();
-    const size_t stride_mb = data_d.blocking_desc().strides[0];
+    const dim_t C = pd()->C();
+    const dim_t D = pd()->D();
+    const dim_t H = pd()->H();
+    const dim_t W = pd()->W();
+    const auto stride_mb = data_d.blocking_desc().strides[0];
     const bool across_channels = pd()->desc()->alg_kind == lrn_across_channels;
-    constexpr int blksize = tag == nChw16c ? 16 : 8;
+    static constexpr dim_t blksize = tag == nChw16c ? 16 : 8;
+    const auto ndims = data_d.ndims();
 
-    auto data_off = [&](int mb, int c, int h, int w) -> size_t {
+    auto compute_n_summands = [&](dim_t size) {
+        if (across_channels) {
+            return size;
+        } else { // within_channel
+            dim_t n_summands = 1;
+            for (auto d = ndims - 2; d > 0; --d)
+                n_summands *= size;
+            return n_summands;
+        }
+    };
+
+    const acc_data_t alpha = static_cast<acc_data_t>(pd()->desc()->lrn_alpha);
+    const acc_data_t beta = static_cast<acc_data_t>(pd()->desc()->lrn_beta);
+    const acc_data_t k = static_cast<acc_data_t>(pd()->desc()->lrn_k);
+    const dim_t size = pd()->desc()->local_size;
+    const dim_t half_size = (size - 1) / 2;
+    const dim_t summands = compute_n_summands(size);
+
+    auto data_off = [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) -> dim_t {
         switch (tag) {
             case nChw16c:
             case nChw8c:
-                return mb * stride_mb + c / blksize * H * W * blksize
+                return mb * stride_mb + (c / blksize) * H * W * blksize
                         + h * W * blksize + w * blksize + c % blksize;
             case nchw: return mb * stride_mb + c * H * W + h * W + w;
             case nhwc: return mb * stride_mb + h * W * C + w * C + c;
-            default: return data_d.off(mb, c, h, w);
+            default:
+                if (ndims >= 5) return data_d.off(mb, c, d, h, w);
+                if (ndims >= 4) return data_d.off(mb, c, h, w);
+                if (ndims >= 3) return data_d.off(mb, c, w);
+                return data_d.off(mb, c);
         }
     };
 
     // pass by value due to icc170 and icc180 problem on KNL
-    auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
-        const acc_data_t alpha
-                = static_cast<acc_data_t>(pd()->desc()->lrn_alpha);
-        const acc_data_t beta = static_cast<acc_data_t>(pd()->desc()->lrn_beta);
-        const acc_data_t k = static_cast<acc_data_t>(pd()->desc()->lrn_k);
-
-        const int size = pd()->desc()->local_size;
-        const int half_size = (size - 1) / 2;
-
+    auto ker = [=](data_t *d, dim_t mb, dim_t oc, dim_t od, dim_t oh,
+                       dim_t ow) {
         acc_data_t sum = 0;
         if (across_channels) {
-            const int c_st = nstl::max(oc - half_size + 0, 0);
-            const int c_en = nstl::min(oc + half_size + 1, C);
+            const dim_t c_st = nstl::max(oc - half_size + 0, (dim_t)0);
+            const dim_t c_en = nstl::min(oc + half_size + 1, C);
 
-            for (int c = c_st; c < c_en; ++c) {
-                const acc_data_t s = src[data_off(mb, c, oh, ow)];
+            for (dim_t c = c_st; c < c_en; ++c) {
+                const acc_data_t s = src[data_off(mb, c, od, oh, ow)];
                 sum += s * s;
             }
         } else {
-            int h_st = nstl::max(oh - half_size + 0, 0);
-            int h_en = nstl::min(oh + half_size + 1, H);
-            int w_st = nstl::max(ow - half_size + 0, 0);
-            int w_en = nstl::min(ow + half_size + 1, W);
-            for (int h = h_st; h < h_en; ++h) {
-                for (int w = w_st; w < w_en; ++w) {
-                    const acc_data_t s = src[data_off(mb, oc, h, w)];
-                    sum += s * s;
-                }
+            dim_t d_st = nstl::max(od - half_size + 0, (dim_t)0);
+            dim_t d_en = nstl::min(od + half_size + 1, D);
+            dim_t h_st = nstl::max(oh - half_size + 0, (dim_t)0);
+            dim_t h_en = nstl::min(oh + half_size + 1, H);
+            dim_t w_st = nstl::max(ow - half_size + 0, (dim_t)0);
+            dim_t w_en = nstl::min(ow + half_size + 1, W);
+            for_(dim_t d = d_st; d < d_en; ++d)
+            for_(dim_t h = h_st; h < h_en; ++h)
+            for (dim_t w = w_st; w < w_en; ++w) {
+                const acc_data_t s = src[data_off(mb, oc, d, h, w)];
+                sum += s * s;
             }
         }
-        const int summands = across_channels ? size : size * size;
         sum = k + alpha * sum / summands;
-        size_t off = data_off(mb, oc, oh, ow);
-        d[0] = static_cast<data_t>(
-                (acc_data_t)src[off] * fast_negative_powf(sum, beta));
+        const acc_data_t s = src[data_off(mb, oc, od, oh, ow)];
+        d[0] = static_cast<data_t>(s * fast_negative_powf(sum, beta));
     };
 
-    const int MB = pd()->MB();
+    const dim_t MB = pd()->MB();
     if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
-                [&](int mb, int c_blk, int h, int w) {
-                    int c = c_blk * blksize;
-                    const size_t off = mb * stride_mb + c * H * W
+                [&](dim_t mb, dim_t c_blk, dim_t h, dim_t w) {
+                    dim_t c = c_blk * blksize;
+                    const dim_t off = mb * stride_mb + c * H * W
                             + (h * W + w) * blksize;
                     PRAGMA_OMP_SIMD()
-                    for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
-                        ker(&dst[off + cc], mb, c + cc, h, w);
+                    for (dim_t cc = 0; cc < nstl::min(blksize, C - c); ++cc)
+                        ker(&dst[off + cc], mb, c + cc, 0, h, w);
                 });
     } else if (tag == nhwc) {
-        parallel_nd(MB, H, W, C, [&](int mb, int h, int w, int c) {
-            const size_t off = mb * stride_mb + h * W * C + w * C + c;
-            ker(&dst[off], mb, c, h, w);
+        parallel_nd(MB, H, W, C, [&](dim_t mb, dim_t h, dim_t w, dim_t c) {
+            const dim_t off = mb * stride_mb + h * W * C + w * C + c;
+            ker(&dst[off], mb, c, 0, h, w);
         });
     } else {
-        parallel_nd(MB, C, H, W, [&](int mb, int c, int h, int w) {
-            const size_t off = data_off(mb, c, h, w);
-            ker(&dst[off], mb, c, h, w);
-        });
+        parallel_nd(MB, C, D, H, W,
+                [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) {
+                    const dim_t off = data_off(mb, c, d, h, w);
+                    ker(&dst[off], mb, c, d, h, w);
+                });
     }
 }
 
@@ -171,69 +189,88 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
-    const int MB = pd()->MB();
-    const int C = pd()->C();
-    const int H = pd()->H();
-    const int W = pd()->W();
+    const dim_t C = pd()->C();
+    const dim_t D = pd()->D();
+    const dim_t H = pd()->H();
+    const dim_t W = pd()->W();
     const auto stride_mb = data_d.blocking_desc().strides[0];
     const bool across_channels = pd()->desc()->alg_kind == lrn_across_channels;
-    constexpr int blksize = tag == nChw16c ? 16 : 8;
+    static constexpr dim_t blksize = tag == nChw16c ? 16 : 8;
+    const auto ndims = data_d.ndims();
+
+    auto compute_n_summands = [&](dim_t size) {
+        if (across_channels) {
+            return size;
+        } else { // within_channel
+            dim_t n_summands = 1;
+            for (auto d = ndims - 2; d > 0; --d)
+                n_summands *= size;
+            return n_summands;
+        }
+    };
 
     const acc_data_t alpha = static_cast<acc_data_t>(pd()->desc()->lrn_alpha);
     const acc_data_t beta = static_cast<acc_data_t>(pd()->desc()->lrn_beta);
     const acc_data_t k = static_cast<acc_data_t>(pd()->desc()->lrn_k);
-    const int size = pd()->desc()->local_size;
-    const int half_size = (size - 1) / 2;
-    const int summands = across_channels ? size : size * size;
+    const dim_t size = pd()->desc()->local_size;
+    const dim_t half_size = (size - 1) / 2;
+    const dim_t summands = compute_n_summands(size);
 
-    auto data_off = [&](int mb, int c, int h, int w) -> size_t {
+    auto data_off = [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) -> dim_t {
         switch (tag) {
             case nChw16c:
             case nChw8c:
-                return mb * stride_mb + c / blksize * H * W * blksize
+                return mb * stride_mb + (c / blksize) * H * W * blksize
                         + h * W * blksize + w * blksize + c % blksize;
             case nchw: return mb * stride_mb + c * H * W + h * W + w;
             case nhwc: return mb * stride_mb + h * W * C + w * C + c;
-            default: return data_d.off(mb, c, h, w);
+            default:
+                if (ndims >= 5) return data_d.off(mb, c, d, h, w);
+                if (ndims >= 4) return data_d.off(mb, c, h, w);
+                if (ndims >= 3) return data_d.off(mb, c, w);
+                return data_d.off(mb, c);
         }
     };
 
     // pass by value due to icc170 and icc180 problem on KNL
-    auto get_omega = [=](int mb, int oc, int oh, int ow) {
+    auto get_omega = [=](dim_t mb, dim_t oc, dim_t od, dim_t oh, dim_t ow) {
         acc_data_t sum = 0;
         if (across_channels) {
-            const int c_st = nstl::max(oc - half_size + 0, 0);
-            const int c_en = nstl::min(oc + half_size + 1, C);
+            const dim_t c_st = nstl::max(oc - half_size + 0, (dim_t)0);
+            const dim_t c_en = nstl::min(oc + half_size + 1, C);
 
-            for (int c = c_st; c < c_en; ++c) {
-                const acc_data_t s = src[data_off(mb, c, oh, ow)];
+            for (dim_t c = c_st; c < c_en; ++c) {
+                const acc_data_t s = src[data_off(mb, c, od, oh, ow)];
                 sum += s * s;
             }
         } else {
-            int h_st = nstl::max(oh - half_size + 0, 0);
-            int h_en = nstl::min(oh + half_size + 1, H);
-            int w_st = nstl::max(ow - half_size + 0, 0);
-            int w_en = nstl::min(ow + half_size + 1, W);
-            for (int h = h_st; h < h_en; ++h) {
-                for (int w = w_st; w < w_en; ++w) {
-                    const acc_data_t s = src[data_off(mb, oc, h, w)];
-                    sum += s * s;
-                }
+            dim_t d_st = nstl::max(od - half_size + 0, (dim_t)0);
+            dim_t d_en = nstl::min(od + half_size + 1, D);
+            dim_t h_st = nstl::max(oh - half_size + 0, (dim_t)0);
+            dim_t h_en = nstl::min(oh + half_size + 1, H);
+            dim_t w_st = nstl::max(ow - half_size + 0, (dim_t)0);
+            dim_t w_en = nstl::min(ow + half_size + 1, W);
+            for_(dim_t d = d_st; d < d_en; ++d)
+            for_(dim_t h = h_st; h < h_en; ++h)
+            for (dim_t w = w_st; w < w_en; ++w) {
+                const acc_data_t s = src[data_off(mb, oc, d, h, w)];
+                sum += s * s;
             }
         }
         return (acc_data_t)(k + alpha * sum / summands);
     };
 
     // pass by value due to icc170 and icc180 problem on KNL
-    auto ker = [=](data_t *d, int mb, int oc, int oh, int ow) {
+    auto ker = [=](data_t *d, dim_t mb, dim_t oc, dim_t od, dim_t oh,
+                       dim_t ow) {
         acc_data_t A = 0, B = 0;
         if (across_channels) {
-            const int c_st = nstl::max(oc - half_size + 0, 0);
-            const int c_en = nstl::min(oc + half_size + 1, C);
+            const dim_t c_st = nstl::max(oc - half_size + 0, (dim_t)0);
+            const dim_t c_en = nstl::min(oc + half_size + 1, C);
 
-            for (int c = c_st; c < c_en; c++) {
-                const auto off = data_off(mb, c, oh, ow);
-                const acc_data_t omega = get_omega(mb, c, oh, ow);
+            for (dim_t c = c_st; c < c_en; c++) {
+                const auto off = data_off(mb, c, od, oh, ow);
+                const acc_data_t omega = get_omega(mb, c, od, oh, ow);
                 const acc_data_t omega_in_beta
                         = fast_negative_powf(omega, beta);
                 const acc_data_t tmp
@@ -242,49 +279,52 @@ void ref_lrn_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                 B += (src[off] * tmp / omega);
             }
         } else {
-            const int h_st = nstl::max(oh - half_size + 0, 0);
-            const int h_en = nstl::min(oh + half_size + 1, H);
-            const int w_st = nstl::max(ow - half_size + 0, 0);
-            const int w_en = nstl::min(ow + half_size + 1, W);
-
-            for (int h = h_st; h < h_en; ++h) {
-                for (int w = w_st; w < w_en; ++w) {
-                    const auto off = data_off(mb, oc, h, w);
-                    const acc_data_t omega = get_omega(mb, oc, h, w);
-                    const acc_data_t omega_in_beta
-                            = fast_negative_powf(omega, beta);
-                    const acc_data_t tmp
-                            = omega_in_beta * (acc_data_t)diff_dst[off];
-                    if (h == oh && w == ow) A = tmp;
-                    B += (src[off] * tmp / omega);
-                }
+            dim_t d_st = nstl::max(od - half_size + 0, (dim_t)0);
+            dim_t d_en = nstl::min(od + half_size + 1, D);
+            dim_t h_st = nstl::max(oh - half_size + 0, (dim_t)0);
+            dim_t h_en = nstl::min(oh + half_size + 1, H);
+            dim_t w_st = nstl::max(ow - half_size + 0, (dim_t)0);
+            dim_t w_en = nstl::min(ow + half_size + 1, W);
+            for_(dim_t d = d_st; d < d_en; ++d)
+            for_(dim_t h = h_st; h < h_en; ++h)
+            for (dim_t w = w_st; w < w_en; ++w) {
+                const auto off = data_off(mb, oc, d, h, w);
+                const acc_data_t omega = get_omega(mb, oc, d, h, w);
+                const acc_data_t omega_in_beta
+                        = fast_negative_powf(omega, beta);
+                const acc_data_t tmp
+                        = omega_in_beta * (acc_data_t)diff_dst[off];
+                if (d == od && h == oh && w == ow) A = tmp;
+                B += (src[off] * tmp / omega);
             }
         }
-        const auto off = data_off(mb, oc, oh, ow);
+        const auto off = data_off(mb, oc, od, oh, ow);
         B *= (2.0f * alpha * beta * src[off] / summands);
         *d = static_cast<data_t>(A - B);
     };
 
+    const dim_t MB = pd()->MB();
     if (tag == nChw16c || tag == nChw8c) {
         parallel_nd(MB, utils::div_up(C, blksize), H, W,
-                [&](int mb, int c_blk, int h, int w) {
-                    int c = c_blk * blksize;
-                    const auto off = mb * stride_mb + c * H * W
+                [&](dim_t mb, dim_t c_blk, dim_t h, dim_t w) {
+                    dim_t c = c_blk * blksize;
+                    const dim_t off = mb * stride_mb + c * H * W
                             + (h * W + w) * blksize;
                     PRAGMA_OMP_SIMD()
-                    for (int cc = 0; cc < nstl::min(blksize, C - c); ++cc)
-                        ker(&diff_src[off + cc], mb, c + cc, h, w);
+                    for (dim_t cc = 0; cc < nstl::min(blksize, C - c); ++cc)
+                        ker(&diff_src[off + cc], mb, c + cc, 0, h, w);
                 });
     } else if (tag == nhwc) {
-        parallel_nd(MB, H, W, C, [&](int mb, int h, int w, int c) {
-            const size_t off = mb * stride_mb + h * W * C + w * C + c;
-            ker(&diff_src[off], mb, c, h, w);
+        parallel_nd(MB, H, W, C, [&](dim_t mb, dim_t h, dim_t w, dim_t c) {
+            const dim_t off = mb * stride_mb + h * W * C + w * C + c;
+            ker(&diff_src[off], mb, c, 0, h, w);
         });
     } else {
-        parallel_nd(MB, C, H, W, [&](int mb, int c, int h, int w) {
-            const size_t off = data_off(mb, c, h, w);
-            ker(&diff_src[off], mb, c, h, w);
-        });
+        parallel_nd(MB, C, D, H, W,
+                [&](dim_t mb, dim_t c, dim_t d, dim_t h, dim_t w) {
+                    const dim_t off = data_off(mb, c, d, h, w);
+                    ker(&diff_src[off], mb, c, d, h, w);
+                });
     }
 }
 

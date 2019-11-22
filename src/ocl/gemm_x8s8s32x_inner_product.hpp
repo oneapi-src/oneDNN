@@ -99,7 +99,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
             primitive_attr_t::skip_mask_t attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale
                     | primitive_attr_t::skip_mask_t::post_ops;
-            bool ok = true && set_default_params() == success && is_fwd()
+            bool ok = true && is_fwd() && set_default_params() == success
                     && one_of(src_md()->data_type, s8, u8)
                     && weights_md()->data_type == s8
                     && IMPLICATION(with_bias(),

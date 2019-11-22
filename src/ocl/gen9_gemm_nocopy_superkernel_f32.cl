@@ -187,6 +187,13 @@
 \
     sub_group_barrier(0); \
     id = sub_group_broadcast(id, 0); \
+    } \
+    if (get_sub_group_local_id() == 0) { \
+        if (atomic_inc(plan + 1) == (get_num_groups(0) - 1)) { \
+            mem_fence(CLK_GLOBAL_MEM_FENCE); \
+            plan[0] = get_num_groups(0); \
+            plan[1] = 0; \
+        } \
     }
 
 #ifdef NN

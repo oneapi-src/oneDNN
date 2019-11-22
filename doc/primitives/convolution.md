@@ -18,6 +18,15 @@ IW\f$, \f$OC \times IC \times KH \times KW\f$, and \f$N \times OC \times OH
 \times OW\f$ tensors respectively. Let \f$bias\f$ be a 1D tensor with \f$OC\f$
 elements.
 
+Furthermore, let the remaining convolution parameters be:
+
+| Parameter                            | Depth      | Height     | Width      | Comment                                                                                                                |
+| --:--                                | :--        | :--        | :--        | :--                                                                                                                    |
+| Padding: <br>Front, top, and left    | \f$PD_L\f$ | \f$PH_L\f$ | \f$PW_L\f$ | In the API we use `padding_l` to indicate the corresponding vector of paddings (`_l` in the name stands for **left**)  |
+| Padding: <br>Back, bottom, and right | \f$PD_R\f$ | \f$PH_R\f$ | \f$PW_R\f$ | In the API we use `padding_r` to indicate the corresponding vector of paddings (`_r` in the name stands for **right**) |
+| Stride                               | \f$SD\f$   | \f$SH\f$   | \f$SW\f$   | Non-strided convolution should have the stride parameters equal `1`                                                    |
+| Dilation                             | \f$DD\f$   | \f$DH\f$   | \f$DW\f$   | Dilation starts with 0, so non-dilated convolution should have the dilation parameters equal `0`                       |
+
 The following formulas show how DNNL computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
 convolution types can be combined.
@@ -31,16 +40,16 @@ if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 
 \f[dst(n, oc, oh, ow) =  bias(oc) + \\
     + \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-        src(n, ic, oh \cdot SH + kh - ph_0, ow \cdot SW + kw - pw_0)
+        src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
         \cdot
         weights(oc, ic, kh, kw).\f]
 
 Here:
 
-- \f$OH = \left\lfloor{\frac{IH \cdot SH - KH + ph_0 + ph_1}{sh}}
+- \f$OH = \left\lfloor{\frac{IH \cdot SH - KH + PH_L + PH_R}{SH}}
         \right\rfloor + 1,\f$
 
-- \f$OW = \left\lfloor{\frac{IW \cdot SW - KW + pw_0 + pw_1}{sw}}
+- \f$OW = \left\lfloor{\frac{IW \cdot SW - KW + PW_L + PW_R}{SW}}
         \right\rfloor + 1.\f$
 
 #### Convolution with Groups
@@ -54,15 +63,14 @@ IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
         bias(g \cdot OC_G + oc_g) + \\
         +
         \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            src(n, g \cdot IC_G + ic_g, oh + kh - ph_0, ow + kw - pw_0)
+            src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
         \cdot
         weights(g, oc_g, ic_g, kh, kw),
 \f]
 
 where
 - \f$IC_G = \frac{IC}{G}\f$,
-- \f$OC_G = \frac{OC}{G}\f$,
-- \f$ic_g \in [0, IC_G)\f$ and
+- \f$OC_G = \frac{OC}{G}\f$, and
 - \f$oc_g \in [0, OC_G).\f$
 
 The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
@@ -74,18 +82,24 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
         bias(oc) + \\
         +
         \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            src(n, ic, oh + kh \cdot dh - ph_0, ow + kw \cdot dw - pw_0)
+            src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
+                    ow + kw \cdot (DW + 1) - PW_L)
             \cdot
             weights(oc, ic, kh, kw).
 \f]
 
 Here:
 
-- \f$OH = \left\lfloor{\frac{IH - DKH + ph_0 + ph_1}{sh}}
+- \f$OH = \left\lfloor{\frac{IH - DKH + PH_L + PH_R}{SH}}
         \right\rfloor + 1,\f$ where \f$DKH = 1 + (KH - 1) \cdot (DH + 1)\f$, and
 
-- \f$OW = \left\lfloor{\frac{IW - DKW + pw_0 + pw_1}{sw}}
+- \f$OW = \left\lfloor{\frac{IW - DKW + PW_L + PW_R}{SW}}
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
+
+@note
+    In DNNL dilation parameter equals 0 means no-dilation, i.e. regular
+    convolution. Other libraries might use another convention, where
+    dilation parameter equals 1 indicates no-dilation case.
 
 #### Deconvolution (Transposed Convolution)
 
@@ -178,11 +192,11 @@ primitive by applying the output scale to the result of the primitive and by
 chaining certain operations after the primitive. The following attributes and
 post-ops are supported:
 
-| Propagation | Type      | Operation                                                      | Restrictions           | Description
-| :--         | :--       | :--                                                            | :--                    | :--
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales)   | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)                 |                        | Applies an @ref c_api_eltwise operation to the result
-| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                         |                        | Adds the operation result to the destination tensor instead of overwriting it
+| Propagation | Type      | Operation                                                    | Restrictions           | Description
+| :--         | :--       | :--                                                          | :--                    | :--
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
+| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result
+| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
 
 @note The library doesn't prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
@@ -268,8 +282,8 @@ algorithms:
 
 - _Winograd_. This algorithm reduces computational complexity of convolution
   at the expense of accuracy loss and additional memory operations. The
-  implementation is based on the [**Fast Algorithms for Convolutional Neural
-  Networks by A. Lavin and S. Gray**](https://arxiv.org/abs/1509.09308). The
+  implementation is based on the [Fast Algorithms for Convolutional Neural
+  Networks by A. Lavin and S. Gray](https://arxiv.org/abs/1509.09308). The
   Winograd algorithm often results in the best performance, but it is
   applicable only to particular shapes. Moreover, Winograd only supports
   int8 and f32 data types.
@@ -294,7 +308,7 @@ platforms for the following conditions:
 - For each spatial direction padding does not exceed one half of the
   corresponding dimension of the weights tensor.
 
-- Weights tensor width does not exceed 14
+- Weights tensor width does not exceed 14.
 
 In case any of these constraints are not met, the implementation will silently
 fall back to an explicit GEMM algorithm.
@@ -302,15 +316,15 @@ fall back to an explicit GEMM algorithm.
 #### Winograd Convolution
 
 DNNL supports the Winograd convolution algorithm on systems with
-Intel AVX-512 support and above under the following conditions:
+Intel(R) AVX-512 support and above under the following conditions:
 
 - Data and weights memory formats are defined by the convolution primitive
   (user passes `any` as the data format).
 
 - The spatial domain is two-dimensional.
 
-- The weights shape is 3x3, there are no groups, dilation or strides (\f$kh =
-  kw = 3\f$, and \f$sw = sh = 1\f$, \f$dw = dh = 0\f$).
+- The weights shape is 3x3, there are no groups, dilation or strides
+  (\f$KH = KW = 3\f$, \f$SH = SW = 1\f$, and \f$DH = DW = 0\f$).
 
 - The data type is either int8 or f32.
 
@@ -349,7 +363,7 @@ the Winograd algorithm. The rest of the steps are exactly the same.
 auto conv1_desc = convolution_forward::desc(
     prop_kind::forward_inference, algorithm::convolution_winograd,
     conv1_src_md, conv1_weights_md, conv1_bias_md, conv1_dst_md,
-    conv1_strides, conv1_padding, padding_kind::zero);
+    conv1_strides, conv1_padding_l, conv1_padding_r);
 ~~~
 
 #### Automatic Algorithm Selection

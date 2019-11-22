@@ -185,8 +185,57 @@ int attr_t::scale_t::str2scale(const char *str, const char **end_s) {
     char *end;
     this->scale = strtof(s, &end);
     if (this->scale < 0 || end == s) return FAIL;
-
     s = end;
+
+    if (*s == '*') {
+        ++s;
+        if (this->policy != NONE) this->runtime = true;
+    }
+
+    assert(*s == '\0' || *s == ';');
+
+    return OK;
+}
+
+const std::map<int, const char *> attr_t::zero_points_t::NAME_MAP = {
+        {DNNL_ARG_SRC, "src:"},
+        {DNNL_ARG_WEIGHTS, "wei:"},
+        {DNNL_ARG_DST, "dst:"},
+};
+
+int attr_t::zero_points_t::from_str(const char *str, const char **end_s) {
+    *this = attr_t::zero_points_t();
+
+    if (str == NULL) return FAIL;
+
+    const char *s_;
+    const char *&s = end_s ? *end_s : s_;
+    s = str;
+
+    while (isalpha(*s)) {
+        for (const auto &arg : NAME_MAP) {
+            const size_t arg_name_len = strlen(arg.second);
+            if (!strncasecmp(arg.second, s, arg_name_len)) {
+                s += arg_name_len;
+                char *end = NULL;
+                int zero_point = (int)strtol(s, &end, 10);
+                bool runtime = false;
+                if (end == s) return FAIL;
+                s = end;
+                if (*s == '*') {
+                    runtime = true;
+                    ++s;
+                }
+                set(arg.first, {zero_point, runtime});
+            }
+        }
+
+        while (*s == '_')
+            ++s;
+    }
+
+    while (*s == '_')
+        ++s;
     assert(*s == '\0' || *s == ';');
 
     return OK;
@@ -209,6 +258,7 @@ attr_t::post_ops_t::kind_t attr_t::post_ops_t::str2kind(const char *str) {
     CASE(EXP);
     CASE(GELU);
     CASE(SWISH);
+    CASE(LOG);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return KIND_TOTAL;
@@ -231,6 +281,7 @@ const char *attr_t::post_ops_t::kind2str(attr_t::post_ops_t::kind_t kind) {
     CASE(EXP, "exp");
     CASE(GELU, "gelu");
     CASE(SWISH, "swish");
+    CASE(LOG, "log");
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return "unknown attr::post_ops::kind";
@@ -253,6 +304,7 @@ dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(
     CASE(EXP, dnnl_eltwise_exp);
     CASE(GELU, dnnl_eltwise_gelu);
     CASE(SWISH, dnnl_eltwise_swish);
+    CASE(LOG, dnnl_eltwise_log);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return dnnl_alg_kind_undef;
@@ -328,7 +380,7 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
 }
 
 bool attr_t::is_def() const {
-    return true && oscale.is_def() && post_ops.is_def();
+    return oscale.is_def() && zero_points.is_def() && post_ops.is_def();
 }
 
 int str2attr(attr_t *attr, const char *str) {
@@ -348,6 +400,13 @@ int str2attr(attr_t *attr, const char *str) {
             if (rc != OK) return rc;
         }
 
+        param = "zero_points=";
+        if (!strncasecmp(param, s, strlen(param))) {
+            s += strlen(param);
+            rc = attr->zero_points.from_str(s, &s);
+            if (rc != OK) return rc;
+        }
+
         param = "post_ops=";
         if (!strncasecmp(param, s, strlen(param))) {
             s += strlen(param);
@@ -363,7 +422,23 @@ int str2attr(attr_t *attr, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
-    return s << attr_t::scale_t::policy2str(scale.policy) << ":" << scale.scale;
+    s << attr_t::scale_t::policy2str(scale.policy) << ":" << scale.scale;
+    if (scale.runtime) s << '*';
+    return s;
+}
+
+std::ostream &operator<<(
+        std::ostream &s, const attr_t::zero_points_t &zero_points) {
+    bool first = true;
+    for (const auto &point : zero_points.points) {
+        if (!first) s << '_';
+        first = false;
+
+        s << zero_points.NAME_MAP.at(point.first) << point.second.value;
+        if (point.second.runtime) s << '*';
+    }
+
+    return s;
 }
 
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
@@ -394,6 +469,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
             case pk::EXP:
             case pk::GELU:
             case pk::SWISH:
+            case pk::LOG:
                 s << kind2str(e.kind);
                 if (e.eltwise.scale != 1.f)
                     s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"
@@ -414,6 +490,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
 
 std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
     if (!attr.oscale.is_def()) s << "oscale=" << attr.oscale << ";";
+    if (!attr.zero_points.is_def())
+        s << "zero_points=" << attr.zero_points << ";";
     if (!attr.post_ops.is_def()) s << "post_ops=" << attr.post_ops << ";";
     return s;
 }
@@ -447,6 +525,23 @@ const char *engine_kind2str(dnnl_engine_kind_t engine) {
     return "incorrect engine kind";
 }
 
+void attr_bundle_t::init_zero_points() {
+    for (const auto &arg_entry : attr.zero_points)
+        zero_points[arg_entry.first] = {arg_entry.second.value};
+}
+
+int attr_bundle_t::generate(int scale_mask) {
+    dnnl_primitive_attr_t dnnl_attr = create_dnnl_attr(
+            attr, (int64_t)oscale.size(), scale_mask, oscale.data());
+    if (dnnl_attr == NULL) return FAIL;
+
+    scale_mask_ = scale_mask;
+    dnnl_attr_.reset(dnnl_attr, &dnnl_primitive_attr_destroy);
+    initialized_ = true;
+
+    return OK;
+}
+
 dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         int scale_mask, const float *scales) {
     dnnl_primitive_attr_t dnnl_attr = NULL;
@@ -458,6 +553,9 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         if (scale_mask == -1)
             scale_mask = attr.oscale.policy == P::PER_OC ? 1 << 1 : 0;
 
+        const bool runtime = attr.oscale.runtime;
+        SAFE_V(scales == NULL && runtime ? FAIL : OK);
+
         float *gen_scs = NULL;
         if (scales == NULL) {
             gen_scs = (float *)zmalloc(count * sizeof(float), 64);
@@ -467,10 +565,20 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
             scales = gen_scs;
         }
 
-        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(
-                dnnl_attr, count, scale_mask, scales));
+        DNN_SAFE_V(dnnl_primitive_attr_set_output_scales(dnnl_attr, count,
+                scale_mask, runtime ? &DNNL_RUNTIME_F32_VAL : scales));
 
         if (gen_scs) zfree(gen_scs);
+    }
+
+    if (!attr.zero_points.is_def()) {
+        for (const auto &zero_points : attr.zero_points) {
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(dnnl_attr,
+                    zero_points.first,
+                    /* count */ 1, /* mask */ 0,
+                    zero_points.second.runtime ? &DNNL_RUNTIME_S32_VAL
+                                               : &zero_points.second.value));
+        }
     }
 
     if (!attr.post_ops.is_def()) {
@@ -495,6 +603,7 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
                 case attr_t::post_ops_t::EXP:
                 case attr_t::post_ops_t::GELU:
                 case attr_t::post_ops_t::SWISH:
+                case attr_t::post_ops_t::LOG:
                     DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops,
                             e.eltwise.scale, e.eltwise.alg, e.eltwise.alpha,
                             e.eltwise.beta));
@@ -557,6 +666,7 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
         case pk::EXP: return scale * exp_fwd(src);
         case pk::GELU: return scale * gelu_fwd(src);
         case pk::SWISH: return scale * swish_fwd(src, alpha);
+        case pk::LOG: return scale * log_fwd(src);
         default: assert(!"unknown attr::post_ops::kind");
     };
     return NAN;
@@ -581,6 +691,7 @@ float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         case pk::EXP: return exp_bwd(d_dst, src);
         case pk::GELU: return gelu_bwd(d_dst, src);
         case pk::SWISH: return swish_bwd(d_dst, src, alpha);
+        case pk::LOG: return log_bwd(d_dst, src);
         default: assert(!"unknown attr::post_ops::kind");
     }
     return NAN;

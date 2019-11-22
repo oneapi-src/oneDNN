@@ -1,6 +1,0 @@
---batch=conv_1d_wavenet
---batch=conv_alexnet
---batch=conv_resnet_50
---batch=conv_3d
---batch=conv_mobilenet_dw
---batch=conv_tails

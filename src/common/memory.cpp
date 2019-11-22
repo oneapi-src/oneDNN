@@ -43,12 +43,20 @@ bool memory_desc_sanity_check(int ndims, const dims_t dims,
         data_type_t data_type, format_kind_t format_kind) {
     if (ndims == 0) return true;
 
-    bool ok = true && dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
-            && one_of(data_type, f16, bf16, f32, s32, s8, u8)
-            && format_kind != format_kind::undef;
+    bool ok = dims != nullptr && 0 < ndims && ndims <= DNNL_MAX_NDIMS
+            && one_of(data_type, f16, bf16, f32, s32, s8, u8);
     if (!ok) return false;
-    for (int d = 0; d < ndims; ++d)
-        if (dims[d] < 0) return false;
+
+    bool has_runtime_dims = false;
+    for (int d = 0; d < ndims; ++d) {
+        if (dims[d] != DNNL_RUNTIME_DIM_VAL && dims[d] < 0) return false;
+        if (dims[d] == DNNL_RUNTIME_DIM_VAL) has_runtime_dims = true;
+    }
+
+    if (has_runtime_dims) {
+        // format `any` is currently not supported for run-time dims
+        if (format_kind == format_kind::any) return false;
+    }
 
     return true;
 }
@@ -56,7 +64,7 @@ bool memory_desc_sanity_check(int ndims, const dims_t dims,
 bool memory_desc_sanity_check(const memory_desc_t *md) {
     if (md == nullptr) return false;
     return memory_desc_sanity_check(
-            md->ndims, md->dims, md->data_type, format_kind::any);
+            md->ndims, md->dims, md->data_type, format_kind::undef);
 }
 } // namespace
 
@@ -68,12 +76,11 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     memory_storage_t *memory_storage_ptr;
     status_t status = engine->create_memory_storage(
             &memory_storage_ptr, flags, size, handle);
-
     assert(status == status::success);
-    MAYBE_UNUSED(status);
+    if (status != status::success) return;
 
     memory_storage_.reset(memory_storage_ptr);
-    zero_pad();
+    if (!(flags & omit_zero_pad)) zero_pad();
 }
 
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
@@ -146,7 +153,7 @@ status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
     /* memory_desc != 0 */
     bool args_ok = !any_null(memory_desc)
             && memory_desc_sanity_check(
-                    ndims, dims, data_type, format_kind::any);
+                    ndims, dims, data_type, format_kind::undef);
     if (!args_ok) return invalid_arguments;
 
     auto md = memory_desc_t();
@@ -158,9 +165,15 @@ status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
 
     dims_t default_strides = {0};
     if (strides == nullptr) {
+        bool has_runtime_strides = false;
         default_strides[md.ndims - 1] = 1;
-        for (int d = md.ndims - 2; d >= 0; --d)
-            default_strides[d] = default_strides[d + 1] * md.padded_dims[d + 1];
+        for (int d = md.ndims - 2; d >= 0; --d) {
+            if (md.padded_dims[d] == DNNL_RUNTIME_DIM_VAL)
+                has_runtime_strides = true;
+            default_strides[d] = has_runtime_strides
+                    ? DNNL_RUNTIME_DIM_VAL
+                    : default_strides[d + 1] * md.padded_dims[d + 1];
+        }
         strides = default_strides;
     } else {
         /* TODO: add sanity check for the provided strides */
@@ -180,8 +193,12 @@ status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
         return invalid_arguments;
 
     const memory_desc_wrapper src_d(parent_md);
+    if (src_d.has_runtime_dims_or_strides()) return unimplemented;
 
     for (int d = 0; d < src_d.ndims(); ++d) {
+        if (utils::one_of(DNNL_RUNTIME_DIM_VAL, dims[d], offsets[d]))
+            return unimplemented;
+
         if (dims[d] < 0 || offsets[d] < 0
                 || (offsets[d] + dims[d] > src_d.dims()[d]))
             return invalid_arguments;
@@ -285,13 +302,21 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     memory_desc_t z_md = types::zero_md();
     if (md == nullptr) md = &z_md;
 
-    if (md->format_kind == format_kind::any) return invalid_arguments;
+    const auto mdw = memory_desc_wrapper(md);
+    if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
+        return invalid_arguments;
 
     unsigned flags = (handle == DNNL_MEMORY_ALLOCATE)
             ? memory_flags_t::alloc
             : memory_flags_t::use_runtime_ptr;
-    return safe_ptr_assign<memory_t>(
-            *memory, new memory_t(engine, md, flags, handle));
+    auto _memory = new memory_t(engine, md, flags, handle);
+    if (_memory == nullptr) return out_of_memory;
+    if (_memory->memory_storage() == nullptr) {
+        delete _memory;
+        return out_of_memory;
+    }
+    *memory = _memory;
+    return success;
 }
 
 status_t dnnl_memory_get_memory_desc(

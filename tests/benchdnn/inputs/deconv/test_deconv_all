@@ -21,6 +21,10 @@
 --attr=oscale=none;
 --cfg=u8s8s32,s8s8s8 --batch=deconv_2d
 
+# 3D
+--attr=oscale=common:3.14;post_ops='relu:0.5;sum'
+--cfg=u8s8u8,s8s8u8 --batch=deconv_3d
+
 # 1x1
 --cfg=f32
 --attr=oscale=per_oc:2.25;post_ops='sum:1.5;relu' --batch=test_deconv_1x1
@@ -28,3 +32,6 @@
 
 # bf16
 --batch=test_deconv_bfloat16
+
+# Regression
+--batch=harness_deconv_regression_general

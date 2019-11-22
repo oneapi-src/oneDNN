@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_COMMON_1x1_CONV_KERNEL_HPP
-#define JIT_AVX512_COMMON_1x1_CONV_KERNEL_HPP
+#ifndef JIT_AVX512_COMMON_1X1_CONV_KERNEL_HPP
+#define JIT_AVX512_COMMON_1X1_CONV_KERNEL_HPP
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,7 +30,7 @@ namespace cpu {
 
 struct jit_avx512_common_1x1_conv_kernel : public jit_generator {
     jit_avx512_common_1x1_conv_kernel(
-            jit_1x1_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(

@@ -37,6 +37,10 @@
 namespace dnnl {
 namespace impl {
 
+namespace memory_tracking {
+struct grantor_t;
+} // namespace memory_tracking
+
 struct memory_arg_t {
     memory_t *mem;
     bool is_const;
@@ -72,6 +76,9 @@ struct exec_ctx_t {
     void *map_memory_storage(const memory_storage_t *storage) const;
     void unmap_memory_storage(
             const memory_storage_t *storage, void *mapped_ptr) const;
+
+    memory_desc_wrapper memory_mdw(int arg) const;
+
     void set_scratchpad_grantor(
             const memory_tracking::grantor_t &scratchpad_grantor);
     const memory_tracking::grantor_t &get_scratchpad_grantor() const;

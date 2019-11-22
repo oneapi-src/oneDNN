@@ -96,8 +96,19 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
     auto im_d = memory_desc_wrapper(imd);
     auto om_d = memory_desc_wrapper(omd);
 
-    bool ok = true && im_d.is_blocking_desc() && om_d.is_blocking_desc()
-            && !im_d.has_zero_dim() && !om_d.has_zero_dim();
+    auto check_post_ops = [](const primitive_attr_t *attr) {
+        const auto &po = attr->post_ops_;
+        return po.len_ == 0
+                || (po.len_ == 1 && po.contain(primitive_kind::sum, 0));
+    };
+
+    bool ok = im_d.is_blocking_desc() && om_d.is_blocking_desc()
+            && !im_d.has_runtime_dims_or_strides() && !im_d.has_zero_dim()
+            && !om_d.has_runtime_dims_or_strides() && !om_d.has_zero_dim()
+            && attr->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale_runtime
+                    | primitive_attr_t::skip_mask_t::post_ops)
+            && check_post_ops(attr);
     if (!ok) return unimplemented;
 
     dims_t iblocks, oblocks;

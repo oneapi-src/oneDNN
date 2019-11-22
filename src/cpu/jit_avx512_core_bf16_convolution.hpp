@@ -56,6 +56,8 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 
@@ -142,12 +144,13 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
                             || expect_data_types(data_type::bf16,
                                     data_type::bf16, data_type::undef,
                                     data_type::bf16, data_type::undef))
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_bwd_data_kernel::init_conf(
                     jcp_, *desc(), *diff_src_md(), *weights_md(),
-                    *diff_dst_md());
+                    *diff_dst_md(), dnnl_get_max_threads());
             return status;
         }
 
@@ -217,7 +220,8 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
                     && IMPLICATION(with_bias(),
                             utils::one_of(diff_weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
@@ -266,10 +270,8 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
     jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd);
     ~jit_avx512_core_bf16_convolution_bwd_weights_t() {
         delete kernel_;
-#ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
         delete trans_kernel_;
         delete trans_dst_kernel_;
-#endif
         delete acc_ker_;
         delete reducer_bias_;
     }
@@ -299,10 +301,8 @@ private:
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
     cpu_reducer_t<data_type::f32> *reducer_bias_;
 
-#ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
     jit_trans_src_t *trans_kernel_;
     jit_trans_dst_t *trans_dst_kernel_;
-#endif
 };
 
 } // namespace cpu

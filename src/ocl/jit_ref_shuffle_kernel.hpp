@@ -29,7 +29,7 @@ namespace ocl {
 
 struct jit_ref_shuffle_kernel {
 
-    jit_ref_shuffle_kernel(jit_shuffle_conf_t ajshfl) : jshfl(ajshfl) {}
+    jit_ref_shuffle_kernel(const jit_shuffle_conf_t &ajshfl) : jshfl(ajshfl) {}
 
     ~jit_ref_shuffle_kernel() {}
 

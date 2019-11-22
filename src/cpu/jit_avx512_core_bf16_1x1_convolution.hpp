@@ -53,6 +53,8 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
                     && IMPLICATION(with_bias(),
                             utils::one_of(weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
 
             if (!ok) return status::unimplemented;
@@ -143,7 +145,8 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, data_type::bf16,
                             data_type::undef, data_type::bf16, data_type::undef)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();
@@ -236,7 +239,8 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t
                     && IMPLICATION(with_bias(),
                             utils::one_of(diff_weights_md(1)->data_type,
                                     data_type::f32, data_type::bf16))
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory()
+                    && set_default_formats();
             if (!ok) return status::unimplemented;
 
             const convolution_desc_t *conv_d = desc();

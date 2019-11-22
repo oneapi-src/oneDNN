@@ -27,9 +27,9 @@ namespace ocl {
 
 struct jit_simple_sum_kernel {
 
-    jit_simple_sum_kernel(jit_simple_sum_conf_t ajss) : jss(ajss) {};
+    jit_simple_sum_kernel(const jit_simple_sum_conf_t &ajss) : jss(ajss) {}
 
-    ~jit_simple_sum_kernel() {};
+    ~jit_simple_sum_kernel() {}
 
     static status_t init_conf(
             jit_simple_sum_conf_t &jss, const memory_desc_t *data_d) {

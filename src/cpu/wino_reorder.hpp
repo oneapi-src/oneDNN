@@ -67,6 +67,11 @@ struct wino_reorder_t : public primitive_impl_t {
             status_t status = cpu_reorder_pd_t::init();
             if (status != status::success) return status;
 
+            bool ok = attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale
+                    | primitive_attr_t::skip_mask_t::post_ops);
+            if (!ok) return status::unimplemented;
+
             init_scratchpad();
 
             return status::success;
@@ -187,11 +192,11 @@ private:
             out_data_t *__restrict _out
                     = tmp_wei + (iic * nb_oc_ + ob) * oc_block_;
 
-            parallel_nd(size_wspace_, [&](int i) { wspace[i] = 0.f; });
+            for_nd(0, 1, size_wspace_, [&](int i) { wspace[i] = 0.f; });
 
             if (has_oihw_format) {
-                parallel_nd(
-                        r_, w_alpha_, oc_block_, [&](int ih, int j, int ioc) {
+                for_nd(0, 1, r_, w_alpha_, oc_block_,
+                        [&](int ih, int j, int ioc) {
                             for (int iw = 0; iw < r_; ++iw) {
                                 int inp_oc = ob * oc_block_ + ioc;
                                 int inp_ic = iic;
@@ -205,7 +210,7 @@ private:
                             }
                         });
             } else { // hwio format case
-                parallel_nd(r_, w_alpha_, [&](int ih, int j) {
+                for_nd(0, 1, r_, w_alpha_, [&](int ih, int j) {
                     for (int iw = 0; iw < kw_; ++iw) {
                         const float g_multiplier = g[j * r_ + iw];
                         const in_data_t *__restrict inp_base
@@ -227,8 +232,8 @@ private:
                 });
             }
 
-            parallel_nd(
-                    w_alpha_, w_alpha_, oc_block_, [&](int i, int j, int ioc) {
+            for_nd(0, 1, w_alpha_, w_alpha_, oc_block_,
+                    [&](int i, int j, int ioc) {
                         float t = 0;
                         for (int k = 0; k < r_; ++k)
                             t += g[i * r_ + k]
@@ -261,7 +266,7 @@ private:
         int index = 0;
         for_(int u_h = 0; u_h < w_alpha_; u_h++)
         for (int u_w = 0; u_w < w_alpha_; u_w++) {
-            parallel_nd(nb_oc_, oc_block_, [&](int ob, int o) {
+            for_nd(0, 1, nb_oc_, oc_block_, [&](int ob, int o) {
                 int u_h_shift = u_h * w_alpha_ * ic_ * oc_;
                 int u_w_shift = u_w * ic_ * oc_;
                 int u_h_shift_b = u_h * w_alpha_ * oc_;
@@ -296,7 +301,7 @@ private:
 
     void reorder_to_aaOio(out_data_t *__restrict output,
             const out_data_t *__restrict tmp_wei) const {
-        parallel_nd(w_alpha_, w_alpha_, nb_oc_, [&](int u_h, int u_w, int ob) {
+        for_nd(0, 1, w_alpha_, w_alpha_, nb_oc_, [&](int u_h, int u_w, int ob) {
             for_(int ib = 0; ib < nb_ic_; ib++)
             for_(int i = 0; i < ic_block_; i++)
             for (int o = 0; o < oc_block_; o++) {
@@ -317,8 +322,8 @@ private:
             const out_data_t *__restrict tmp_wei) const {
         int oc_chunks = nb_oc_ / oc2_block_;
 
-        parallel_nd(
-                w_alpha_, w_alpha_, oc_chunks, [&](int u_h, int u_w, int occ) {
+        for_nd(0, 1, w_alpha_, w_alpha_, oc_chunks,
+                [&](int u_h, int u_w, int occ) {
                     for (int ib = 0; ib < nb_ic_; ib++) {
                         out_data_t *__restrict wei_ptr = output
                                 + (((u_h * w_alpha_ + u_w) * oc_chunks + occ)
@@ -348,8 +353,8 @@ private:
         int ic_chunks = nb_ic_ / ic2_block_;
         int oc_chunks = nb_oc_ / oc2_block_;
 
-        parallel_nd(
-                oc_chunks, w_alpha_, w_alpha_, [&](int occ, int u_h, int u_w) {
+        for_nd(0, 1, oc_chunks, w_alpha_, w_alpha_,
+                [&](int occ, int u_h, int u_w) {
                     for_(int icc = 0; icc < ic_chunks; icc++)
                     for (int ob = 0; ob < oc2_block_; ob++) {
                         int ocp = (occ * oc2_block_ + ob) * oc_block_;

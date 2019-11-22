@@ -53,7 +53,7 @@
             STATES_WS_LD)
 
 #define OFF_WS_DIFF_STATES(i0, i1, i2, i3, i4, i5) \
-    OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), N_STATES + 1, \
+    OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_STATES + 1, (i3), N_ITER + 1, \
             (i4), BATCH, (i5), STATES_WS_LD)
 
 // cannot be presented by OFF6 due to leading dimension across two dims
@@ -68,7 +68,7 @@
 
 #define CELL_WS_GATES(i3, i4, i5) OFF_WS_GATES(0, 0, 0, i3, i4, i5)
 #define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
-#define CELL_WS_DIFF_STATES(i3, i4, i5) OFF_WS_DIFF_STATES(0, 0, 0, i3, i4, i5)
+#define CELL_WS_DIFF_STATES(i2, i4, i5) OFF_WS_DIFF_STATES(0, 0, i2, 0, i4, i5)
 
 #define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DIC)
 
@@ -320,29 +320,29 @@ __kernel void ref_rnn_copy_init_layer_kernel(
     __global SRC_DATA_T *src
             = (__global SRC_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
     for (int s = 0; s < DIC; s++) {
-        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, it, N_STATES, b, s)] = src[s];
-        dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_ITER - it - 1, N_STATES, b, s)]
+        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
+        dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_STATES, N_ITER - it - 1, b, s)]
                 = src[DIC + s];
     }
 #elif DIRECTION_KIND == SUM
     __global SRC_DATA_T *src
             = (__global SRC_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
     for (int s = 0; s < DIC; s++) {
-        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, it, N_STATES, b, s)] = src[s];
-        dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_ITER - it - 1, N_STATES, b, s)]
+        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
+        dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_STATES, N_ITER - it - 1, b, s)]
                 = src[s];
     }
 #elif DIRECTION_KIND == L2R
     __global SRC_DATA_T *src
             = (__global SRC_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
     for (int s = 0; s < DIC; s++) {
-        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, it, N_STATES, b, s)] = src[s];
+        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
     }
 #elif DIRECTION_KIND == R2L
     __global SRC_DATA_T *src = (__global SRC_DATA_T *)src_base
             + DIFF_DST_L_OFF(N_ITER - it - 1, b, 0);
     for (int s = 0; s < DIC; s++) {
-        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, it, N_STATES, b, s)] = src[s];
+        dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
     }
 #else
 #error "Unsupported direction_kind"
@@ -390,11 +390,11 @@ __kernel void ref_rnn_copy_init_iter_kernel(
     __global PRECISE_DATA_T *dst
             = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
     if (s < DIC)
-        dst[OFF_WS_DIFF_STATES(lay, dir, N_ITER, 0, b, s)]
+        dst[OFF_WS_DIFF_STATES(lay, dir, 0, N_ITER, b, s)]
                 = src_base ? src[DIFF_DST_I_OFF(lay, dir, b, s)] : 0.0f;
 #if WITH_DST_ITER_C
     if (s < DIC)
-        dst[OFF_WS_DIFF_STATES(lay, dir, N_ITER, 1, b, s)]
+        dst[OFF_WS_DIFF_STATES(lay, dir, 1, N_ITER, b, s)]
                 = src_c_base ? src_c[DIFF_DST_I_C_OFF(lay, dir, b, s)] : 0.0f;
 #endif
 #endif
@@ -452,9 +452,9 @@ __kernel void ref_rnn_copy_res_layer_kernel(
 #else
     const int iter = it;
 #endif
-    PRECISE_DATA_T res = src[OFF_WS_DIFF_STATES(0, 0, it, N_STATES, b, s)];
+    PRECISE_DATA_T res = src[OFF_WS_DIFF_STATES(0, 0, N_STATES, it, b, s)];
 #if N_DIR > 1
-    res += src[OFF_WS_DIFF_STATES(0, 1, N_ITER - 1 - it, N_STATES, b, s)];
+    res += src[OFF_WS_DIFF_STATES(0, 1, N_STATES, N_ITER - 1 - it, b, s)];
 #endif
     dst[DIFF_SRC_L_OFF(iter, b, dir * SLC + s)] = res;
 #endif
@@ -513,7 +513,7 @@ __kernel void ref_rnn_copy_res_iter_kernel(
 #if WITH_SRC_ITER_C
     if (dst_base && s < DIC) {
         dst_c[DIFF_SRC_I_C_OFF(lay, dir, b, s)]
-                = src[OFF_WS_DIFF_STATES(lay, dir, 0, 1, b, s)];
+                = src[OFF_WS_DIFF_STATES(lay, dir, 1, 0, b, s)];
     }
 #endif
 #endif
@@ -572,6 +572,7 @@ __kernel void ref_rnn_ws_print_kernel(const __global char *ws) {
             printf("\n");
         }
     }
+#if IS_FWD
     {
         __global PRECISE_DATA_T *wt
                 = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET);
@@ -588,6 +589,7 @@ __kernel void ref_rnn_ws_print_kernel(const __global char *ws) {
             printf("\n");
         }
     }
+#endif
 #if !IS_FWD
     {
         __global PRECISE_DATA_T *wt
@@ -601,7 +603,7 @@ __kernel void ref_rnn_ws_print_kernel(const __global char *ws) {
             printf("[%d,%d,%d,%d] : ", j, dir, st, i);
             for_(int b = 0; b < BATCH; b++)
             for (int s = 0; s < WIC; s++) {
-                printf(" %f", *(wt + OFF_WS_DIFF_STATES(j, dir, i, st, b, s)));
+                printf(" %f", *(wt + OFF_WS_DIFF_STATES(j, dir, st, i, b, s)));
             }
             printf("\n");
         }
@@ -692,8 +694,8 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         float alpha, float data_shift, float data_scale,
         __global float *tm_scales, float tm_cscale) {
 
-    const int i = get_global_id(0); // batch
-    const int j = get_global_id(1); // dic
+    const int i = get_global_id(1); // batch
+    const int j = get_global_id(0); // dic
 
     const __global float *c_states_tm1_l
             = (__global float *)(ws + WS_C_STATE_OFFSET)
@@ -740,8 +742,8 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
         __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
         __global float *tm_scales, float tm_cscale) {
 
-    const int i = get_global_id(0); // batch
-    const int j = get_global_id(1); // dic
+    const int i = get_global_id(1); // batch
+    const int j = get_global_id(0); // dic
 
     const __global PRECISE_DATA_T *c_states_tm1_l
             = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET)
@@ -807,8 +809,8 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
         __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
         __global float *tm_scales, float tm_cscale) {
 
-    const int i = get_global_id(0); // batch
-    const int j = get_global_id(1); // dic
+    const int i = get_global_id(1); // batch
+    const int j = get_global_id(0); // dic
 
 #if CELL_KIND == VANILLA_LSTM
     __global PRECISE_DATA_T *ws_gates
@@ -822,13 +824,13 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
             + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
     __global PRECISE_DATA_T *diff_states_t_l
             = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
-            + OFF_WS_DIFF_STATES(lay, dir, iter, 0, 0, 0);
+            + OFF_WS_DIFF_STATES(lay, dir, 0, iter, 0, 0);
     __global PRECISE_DATA_T *diff_states_tp1_l
             = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
-            + OFF_WS_DIFF_STATES(lay, dir, iter + 1, 0, 0, 0);
+            + OFF_WS_DIFF_STATES(lay, dir, 0, iter + 1, 0, 0);
     __global PRECISE_DATA_T *diff_states_t_lp1
             = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
-            + OFF_WS_DIFF_STATES(lay + 1, dir, iter, 0, 0, 0);
+            + OFF_WS_DIFF_STATES(lay + 1, dir, 0, iter, 0, 0);
 
     float Ct = c_states_t_l[CELL_WS_STATE(i, j)];
     /// @todo save it in the workspace in fwd pass or recompute it to
@@ -864,9 +866,9 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
     __global PRECISE_DATA_T *ws_diff_states
             = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
     __global PRECISE_DATA_T *diff_states_t_lp1 = ws_diff_states
-            + OFF_WS_DIFF_STATES(lay + 1, dir, iter, N_STATES, i, j);
+            + OFF_WS_DIFF_STATES(lay + 1, dir, N_STATES, iter, i, j);
     __global PRECISE_DATA_T *diff_states_tp1_l
-            = ws_diff_states + OFF_WS_DIFF_STATES(lay, dir, iter + 1, 0, i, j);
+            = ws_diff_states + OFF_WS_DIFF_STATES(lay, dir, 0, iter + 1, i, j);
 
     const float dH = (float)diff_states_t_lp1[0] + diff_states_tp1_l[0];
 

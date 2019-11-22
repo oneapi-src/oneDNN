@@ -42,9 +42,9 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
-    const int64_t M = pd()->OC();
-    const int64_t N = pd()->MB();
-    const int64_t K = pd()->IC_total_padded();
+    const int M = pd()->OC();
+    const int N = pd()->MB();
+    const int K = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
@@ -75,9 +75,9 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
-    const int64_t M = pd()->IC_total_padded();
-    const int64_t N = pd()->MB();
-    const int64_t K = pd()->OC();
+    const int M = pd()->IC_total_padded();
+    const int N = pd()->MB();
+    const int K = pd()->OC();
 
     const auto &wmd = *pd()->weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
@@ -123,9 +123,9 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
     const auto &wmd = *pd()->diff_weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
 
-    const int64_t M = wei_tr ? OC : IC;
-    const int64_t N = wei_tr ? IC : OC;
-    const int64_t K = MB;
+    const int M = wei_tr ? OC : IC;
+    const int N = wei_tr ? IC : OC;
+    const int K = MB;
 
     acc_data_t *acc = pd()->diff_wei_is_acc_
             ? (acc_data_t *)diff_weights

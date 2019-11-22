@@ -23,13 +23,14 @@ The following operations are supported:
 | exp          | #dnnl_eltwise_exp          | \f$ f(x) = e^x \f$
 | gelu         | #dnnl_eltwise_gelu         | \f$ f(x) = 0.5 x (1 + tanh[\sqrt{\frac{2}{\pi}} (x + 0.044715 x^3)])\f$
 | linear       | #dnnl_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
+| log          | #dnnl_eltwise_log          | \f$ f(x) = \log_{e}{x} \f$
 | logistic     | #dnnl_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
 | relu         | #dnnl_eltwise_relu         | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
 | soft_relu    | #dnnl_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$
 | sqrt         | #dnnl_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
 | square       | #dnnl_eltwise_square       | \f$ f(x) = x^2 \f$
 | swish        | #dnnl_eltwise_swish        | \f$ f(x) = \frac{x}{1+e^{-\alpha x}} \f$
-| tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \frac{e^z - e^{-z}}{e^z + e^{-z}} \f$
+| tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \tanh{x} \f$
 
 #### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
 
@@ -106,9 +107,6 @@ The eltwise primitive doesn't support any post-ops or attributes.
 
 1. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
-
-2. **GPU**
-    - No support for swish (#dnnl_eltwise_swish) operation
 
 ## Performance Tips
 

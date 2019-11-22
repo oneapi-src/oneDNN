@@ -43,6 +43,8 @@
 
 #include "dnnl.hpp"
 
+#include "example_utils.hpp"
+
 // MSVC doesn't support collapse clause in omp parallel
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
@@ -331,23 +333,6 @@ void simple_net() {
 
     ///
     /// Create bidirectional RNN
-
-    // Check if int8 RNN is supported
-    try {
-        lstm_forward::desc bi_layer_desc(prop_kind::forward_inference,
-                rnn_direction::bidirectional_concat, enc_bidir_src_layer_md,
-                memory::desc(), memory::desc(), enc_bidir_wei_layer_md,
-                enc_bidir_wei_iter_md, user_enc_bidir_bias_md,
-                enc_bidir_dst_layer_md, memory::desc(), memory::desc());
-    } catch (error &e) {
-        if (e.status == dnnl_unimplemented) {
-            std::cerr
-                    << "Dependency on Intel(R) MKL version 2019u2 or newer is "
-                       "required for int8 RNN"
-                    << std::endl;
-        }
-        throw;
-    }
 
     ///
     /// @snippet cpu_rnn_inference_int8.cpp create rnn desc
@@ -890,12 +875,5 @@ void simple_net() {
 }
 
 int main(int argc, char **argv) {
-    try {
-        simple_net();
-        std::cout << "ok\n";
-    } catch (error &e) {
-        std::cerr << "status: " << e.status << std::endl;
-        std::cerr << "message: " << e.message << std::endl;
-    }
-    return 0;
+    return handle_example_errors(simple_net);
 }

@@ -65,16 +65,6 @@ void reset_parameters() {
     allow_unimpl = false;
 }
 
-void check_case_validity(const dir_t &dir, const flags_t &flags) {
-    if (dir == BWD_DW && !(flags & USE_SCALESHIFT)) {
-        fprintf(stderr,
-                "%s driver: BWD_DW requires --flags=S (at least S) to be set,"
-                " exiting...\n",
-                driver_name);
-        SAFE_V(FAIL);
-    }
-}
-
 void check_correctness(const desc_t *c) {
     for_(const auto &i_dir : dir)
     for_(const auto &i_dt : dt)
@@ -82,8 +72,6 @@ void check_correctness(const desc_t *c) {
     for_(const auto &i_flags : flags)
     for_(const auto &i_inplace : inplace)
     for (const auto &i_mb : mb) {
-        check_case_validity(i_dir, i_flags);
-
         const prb_t p(*c, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace, attr,
                 check_alg);
         std::stringstream ss;

@@ -90,6 +90,9 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
             seed = hash_combine(seed, attr->output_scales_.scales_[i]);
         }
     }
+    // zero_points
+    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
+        seed = hash_combine(seed, *attr->zero_points_.get(arg));
     // post_ops: entry[:]
     for (int i = 0; i < attr->post_ops_.len_; i++) {
         const auto &entry = attr->post_ops_.entry_[i];
@@ -399,6 +402,23 @@ size_t get_desc_hash<lrn_desc_t>(const op_desc_t *op_desc) {
 }
 
 template <>
+size_t get_desc_hash<matmul_desc_t>(const op_desc_t *op_desc) {
+    const auto *desc = reinterpret_cast<const matmul_desc_t *>(op_desc);
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc->primitive_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc->src_desc));
+    seed = hash_combine(seed, get_md_hash(desc->weights_desc));
+    seed = hash_combine(seed, get_md_hash(desc->bias_desc));
+    seed = hash_combine(seed, get_md_hash(desc->dst_desc));
+    // Accumulator type
+    seed = hash_combine(seed, static_cast<size_t>(desc->accum_data_type));
+    // Combined hash for matmul op desc
+    return seed;
+}
+
+template <>
 size_t get_desc_hash<pooling_desc_t>(const op_desc_t *op_desc) {
     const auto *desc = reinterpret_cast<const pooling_desc_t *>(op_desc);
     size_t seed = 0;
@@ -595,9 +615,17 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
                         get_desc_hash<layer_normalization_desc_t>(
                                 key.op_desc_));
                 break;
+            case primitive_kind::logsoftmax:
+                seed = hash_combine(
+                        seed, get_desc_hash<logsoftmax_desc_t>(key.op_desc_));
+                break;
             case primitive_kind::lrn:
                 seed = hash_combine(
                         seed, get_desc_hash<lrn_desc_t>(key.op_desc_));
+                break;
+            case primitive_kind::matmul:
+                seed = hash_combine(
+                        seed, get_desc_hash<matmul_desc_t>(key.op_desc_));
                 break;
             case primitive_kind::pooling:
                 seed = hash_combine(

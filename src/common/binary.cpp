@@ -39,6 +39,12 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
     bod.primitive_kind = primitive_kind::binary;
     bod.alg_kind = alg_kind;
 
+    bool runtime_dims_or_strides
+            = memory_desc_wrapper(src0_md).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(src1_md).has_runtime_dims_or_strides()
+            || memory_desc_wrapper(dst_md).has_runtime_dims_or_strides();
+    if (runtime_dims_or_strides) return unimplemented;
+
     bod.src_desc[0] = *src0_md;
     bod.src_desc[1] = *src1_md;
     bod.dst_desc = *dst_md;

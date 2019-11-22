@@ -22,7 +22,7 @@
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,7 +35,7 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
     enum { STATE_FIRST_DST_LOAD = 0x1U };
 
     _jit_avx512_core_x8s8s32x_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
@@ -74,6 +74,9 @@ private:
     const Xbyak::Reg64 reg_ptr_sum_scale = r11;
     const Xbyak::Reg64 aux_reg_ker = r12;
     const Xbyak::Reg64 reg_compensation = r14;
+    const Xbyak::Reg64 aux_reg_inp_d = r13;
+    const Xbyak::Reg64 aux_reg_ker_d = r15;
+
     /* counter regs */
     const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
     const Xbyak::Reg64 reg_oi = rbx;
@@ -82,6 +85,7 @@ private:
     const Xbyak::Reg64 reg_owb = aux_reg_ker;
     const Xbyak::Reg64 reg_scratch = reg_compensation;
     const Xbyak::Reg64 reg_kj = reg_ptr_scales;
+    const Xbyak::Reg64 reg_ki = reg_compensation;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
 
@@ -176,7 +180,7 @@ private:
 struct jit_avx512_core_x8s8s32x_fwd_kernel {
 
     jit_avx512_core_x8s8s32x_fwd_kernel(
-            jit_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jit_ker(nullptr)
         , zmm_kernel_(nullptr)
         , ymm_kernel_(nullptr)

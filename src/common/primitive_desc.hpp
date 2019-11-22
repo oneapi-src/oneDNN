@@ -67,6 +67,12 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     enum class arg_usage_t { unused, input, output };
     virtual arg_usage_t arg_usage(int arg) const {
         using dnnl::impl::types::is_zero_md;
+        if (arg == DNNL_ARG_ATTR_OUTPUT_SCALES
+                && !attr()->output_scales_.defined())
+            return arg_usage_t::input;
+        if ((arg & DNNL_ARG_ATTR_ZERO_POINTS)
+                && !attr()->zero_points_.defined(arg))
+            return arg_usage_t::input;
         if (arg == DNNL_ARG_SCRATCHPAD && !is_zero_md(scratchpad_md()))
             return arg_usage_t::output;
         return arg_usage_t::unused;
@@ -141,7 +147,12 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
         using namespace dnnl::impl;
         using namespace dnnl::impl::status;
         using pd_op_desc_t = typename pkind_traits<pd_t::base_pkind>::desc_type;
-        if (adesc->kind != pd_t::base_pkind) return invalid_arguments;
+        // A hack to reuse softmax code using logsoftmax primitive.
+        // TODO: consider removing it in v2.0 by introducing alg_kind in softmax
+        bool valid_logsoftmax = pd_t::base_pkind == primitive_kind::softmax
+                && adesc->kind == primitive_kind::logsoftmax;
+        if (adesc->kind != pd_t::base_pkind && !valid_logsoftmax)
+            return invalid_arguments;
         assert(hint_fwd ? hint_fwd->kind() == pd_t::base_pkind : true);
         auto hint
                 = reinterpret_cast<const typename pd_t::hint_class *>(hint_fwd);

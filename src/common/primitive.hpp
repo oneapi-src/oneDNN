@@ -23,6 +23,7 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "memory_storage.hpp"
 #include "memory_tracking.hpp"
 #include "primitive_exec_types.hpp"
 #include "primitive_impl.hpp"

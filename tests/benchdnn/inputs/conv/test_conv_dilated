@@ -1,17 +1,15 @@
-# f32 (full)
+# dilated f32 (full)
 --reset
 --mb=2
 --cfg=f32_full
 --dir=FWD_B,BWD_D,BWD_WB
---batch=conv_dilated --batch=conv_dilated_rfcn
---match=.*fc6.* --batch=conv_ssd_300_voc0712
+--batch=shapes_dilated --batch=shapes_dilated_rfcn
+--match=.*fc6.* --batch=shapes_ssd_300_voc0712
 
-# int8 (full)
---reset
+--reset --cfg=f32_full
 --mb=2
---dir=FWD_D
---cfg=u8s8u8 --allow-unimpl=false --batch=conv_dilated_rfcn
---cfg=s8s8u8 --allow-unimpl=true  --batch=conv_dilated_rfcn
---match=.*fc6.*
---cfg=u8s8u8 --allow-unimpl=false --batch=conv_ssd_300_voc0712
---cfg=s8s8u8 --allow-unimpl=true  --batch=conv_ssd_300_voc0712
+--skip-impl="ref:gemm"      # ! test jit version only
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=set_dilated-conv_1st
+--batch=set_dilated-conv
+--batch=set_dilated-conv_3d

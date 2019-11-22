@@ -28,12 +28,14 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 #include "ocl/ref_batch_normalization.hpp"
+#include "ocl/ref_binary.hpp"
 #include "ocl/ref_convolution.hpp"
 #include "ocl/ref_deconvolution.hpp"
 #include "ocl/ref_eltwise.hpp"
 #include "ocl/ref_inner_product.hpp"
 #include "ocl/ref_layer_normalization.hpp"
 #include "ocl/ref_lrn.hpp"
+#include "ocl/ref_matmul.hpp"
 #include "ocl/ref_pooling.hpp"
 #include "ocl/ref_shuffle.hpp"
 #include "ocl/ref_softmax.hpp"
@@ -72,8 +74,15 @@ status_t ocl_gpu_engine_t::init() {
 
 status_t ocl_gpu_engine_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    return safe_ptr_assign<memory_storage_t>(
-            *storage, new ocl_memory_storage_t(this, flags, size, handle));
+    auto _storage = new ocl_memory_storage_t(this);
+    if (_storage == nullptr) return status::out_of_memory;
+    status_t status = _storage->init(flags, size, handle);
+    if (status != status::success) {
+        delete _storage;
+        return status;
+    }
+    *storage = _storage;
+    return status::success;
 }
 
 status_t ocl_gpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
@@ -204,6 +213,10 @@ static const pd_create_f ocl_impl_list[] = {
         /*layer normalization */
         INSTANCE(ref_layer_normalization_fwd_t),
         INSTANCE(ref_layer_normalization_bwd_t),
+        /* binary */
+        INSTANCE(ref_binary_t),
+        /* matmul */
+        INSTANCE(ref_matmul_t),
         nullptr,
 };
 

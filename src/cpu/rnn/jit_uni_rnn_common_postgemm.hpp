@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_RNN_POSTGEMM
-#define CPU_JIT_RNN_POSTGEMM
+#ifndef CPU_JIT_UNI_RNN_COMMON_POSTGEMM_HPP
+#define CPU_JIT_UNI_RNN_COMMON_POSTGEMM_HPP
 
 #include "dnnl_thread.hpp"
 
@@ -24,7 +24,7 @@
 
 #include "../jit_avx512_core_bf16cvt.hpp"
 #include "../jit_generator.hpp"
-#include "../jit_uni_eltwise.hpp"
+#include "../jit_uni_eltwise_injector.hpp"
 
 #include "rnn_pd.hpp"
 #include "rnn_utils.hpp"
@@ -36,7 +36,8 @@ namespace cpu {
 struct jit_uni_rnn_postgemm : public jit_generator {
 
     typedef void (*kernel_t)(void *param1_, void *param2_, const void *param3_,
-            void *param4_, void *param5_, void *param6_, void *param7_);
+            void *param4_, void *param5_, const void *param6_, void *param7_,
+            void *param8_);
 
     jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : rnn_(rnn)
@@ -73,14 +74,26 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
     template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
     rnn_postgemm_sig(execute) {
+        using namespace rnn_utils;
         rnn_utils::ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_gates(
                 rnn, scratch_gates_);
         rnn_utils::bias_aoc_t bias(rnn, bias_);
-        rnn_utils::ws_states_aoc<src_data_t> states_t_l(rnn, states_t_l_);
-        rnn_utils::ws_states_aoc<src_data_t> states_tm1_l(rnn, states_tm1_l_);
-        rnn_utils::ws_states_aoc<float> c_states_t_l(rnn, c_states_t_l_);
-        rnn_utils::ws_states_aoc<float> c_states_tm1_l(rnn, c_states_tm1_l_);
+        auto src_iter_ld = rnn.src_iter_ld(cell_position);
+        auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+        auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+        auto dst_ld = rnn.dst_ld(cell_position);
+        auto dst_copy_ld = rnn.dst_copy_ld(cell_position);
+        rnn_utils::ws_states_aoc<src_data_t> states_t_l(
+                rnn, states_t_l_, dst_ld);
+        rnn_utils::ws_states_aoc<src_data_t> states_t_l_copy(
+                rnn, states_t_l_copy_, dst_copy_ld);
+        rnn_utils::ws_states_aoc<const src_data_t> states_tm1_l(
+                rnn, states_tm1_l_, src_iter_ld);
+        rnn_utils::ws_states_aoc<float> c_states_t_l(
+                rnn, c_states_t_l_, dst_iter_c_ld);
+        rnn_utils::ws_states_aoc<const float> c_states_tm1_l(
+                rnn, c_states_tm1_l_, src_iter_c_ld);
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_cell(
                 rnn, scratch_cell_);
         utils::array_offset_calculator<src_data_t, 2> ws_Wh_b(
@@ -93,31 +106,35 @@ struct jit_uni_rnn_postgemm : public jit_generator {
             void *param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
             const void *param3_ = &bias(0, 0); // RNN, LSTM, GRU
             void *param4_ = &states_t_l(i, 0); // RNN, LSTM, GRU
-            void *param5_, *param6_, *param7_;
+            void *param5_ = states_t_l_copy_
+                    ? &states_t_l_copy(i, 0)
+                    : states_t_l_copy_; // RNN, LSTM, GRU
+            const void *param6_;
+            void *param7_, *param8_;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
-                    param5_ = &c_states_tm1_l(i, 0);
-                    param6_ = &c_states_t_l(i, 0);
-                    param7_ = nullptr;
+                    param6_ = &c_states_tm1_l(i, 0);
+                    param7_ = &c_states_t_l(i, 0);
+                    param8_ = nullptr;
                     break;
                 case alg_kind::lbr_gru:
-                    param5_ = &states_tm1_l(i, 0);
-                    param6_ = &scratch_cell(i, 0, 0);
-                    param7_ = &ws_Wh_b(i, 0);
+                    param6_ = &states_tm1_l(i, 0);
+                    param7_ = &scratch_cell(i, 0, 0);
+                    param8_ = &ws_Wh_b(i, 0);
                     break;
                 case alg_kind::vanilla_gru:
-                    param5_ = &states_tm1_l(i, 0);
-                    param6_ = nullptr;
+                    param6_ = &states_tm1_l(i, 0);
                     param7_ = nullptr;
+                    param8_ = nullptr;
                     break;
                 default:
-                    param5_ = nullptr;
                     param6_ = nullptr;
                     param7_ = nullptr;
+                    param8_ = nullptr;
                     break;
             }
             kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
-                    param7_);
+                    param7_, param8_);
         });
     }
 
@@ -217,29 +234,37 @@ protected:
     }
 
     // quantize from float to u8
+    // Assumption: write_only = true assumes that the quantized value
+    // to write is in src
     template <typename Vmm>
-    void q_d(Xbyak::Address dst, Vmm src, int in_len) {
+    void q_d(Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
         Vmm qd_vmm(qd_reg_idx);
-        uni_vpxor(qd_vmm, qd_vmm, qd_vmm);
-        uni_vmulps(src, src, dscale_off_addr); // apply scale
-        uni_vaddps(src, src, dshift_off_addr); // apply shift
-        uni_vcvtps2dq(src, src); // convert to int32
-        uni_vpackssdw(src, src, qd_vmm); // convert from s32 to s16
-        uni_vpackuswb(
-                src, src, qd_vmm); // convert from s16 to u8 with saturation
+        if (!write_only) {
+            uni_vpxor(qd_vmm, qd_vmm, qd_vmm);
+            uni_vmulps(src, src, dscale_off_addr); // apply scale
+            uni_vaddps(src, src, dshift_off_addr); // apply shift
+            uni_vcvtps2dq(src, src); // convert to int32
+            uni_vpackssdw(src, src, qd_vmm); // convert from s32 to s16
+            // convert from s16 to u8 with saturation
+            uni_vpackuswb(src, src, qd_vmm);
+        }
         // Note that the results are interleaved by 128 bit chunks, so we need to merge them together
         switch (in_len) {
             case 64: { // Intel AVX-512
-                Xbyak::Zmm srcz(src.getIdx()), tmpz(qd_vmm.getIdx());
-                uni_vmovups(tmpz, zmm_perm_mask_addr);
-                vpermd(srcz, tmpz, srcz);
+                if (!write_only) {
+                    Xbyak::Zmm srcz(src.getIdx()), tmpz(qd_vmm.getIdx());
+                    uni_vmovups(tmpz, zmm_perm_mask_addr);
+                    vpermd(srcz, tmpz, srcz);
+                }
                 uni_vmovups(dst, Xbyak::Xmm(src.getIdx()));
                 break;
             }
             case 32: { // Intel AVX
-                Xbyak::Ymm srcy(src.getIdx()), tmpy(qd_vmm.getIdx());
-                uni_vmovups(tmpy, ymm_perm_mask_addr);
-                vpermd(srcy, tmpy, srcy);
+                if (!write_only) {
+                    Xbyak::Ymm srcy(src.getIdx()), tmpy(qd_vmm.getIdx());
+                    uni_vmovups(tmpy, ymm_perm_mask_addr);
+                    vpermd(srcy, tmpy, srcy);
+                }
                 uni_vmovsd(dst, Xbyak::Xmm(src.getIdx()));
                 break;
             }
@@ -297,14 +322,20 @@ protected:
     }
 
     // downconvert from float to bf16
+    // Assumption: write_only = true assumes that we want to
+    // immediately rewrite the downconverted result that is still in
+    // bf16_dq_reg_idx
     template <typename Vmm>
-    void bf16_dc(Xbyak::Address dst, Vmm src, int in_len) {
+    void bf16_dc(
+            Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
         Xbyak::Zmm srcz(src.getIdx());
         Xbyak::Ymm bf16_reg_dc(bf16_dq_reg_idx);
-        if (bf16_emu_)
-            bf16_emu_->vcvtneps2bf16(bf16_reg_dc, srcz);
-        else
-            vcvtneps2bf16(bf16_reg_dc, srcz);
+        if (!write_only) {
+            if (bf16_emu_)
+                bf16_emu_->vcvtneps2bf16(bf16_reg_dc, srcz);
+            else
+                vcvtneps2bf16(bf16_reg_dc, srcz);
+        }
         switch (in_len) {
             case 64: uni_vmovups(dst, bf16_reg_dc); break;
             case 4: pextrw(dst, Xbyak::Xmm(bf16_reg_dc.getIdx()), 0x0); break;
@@ -313,8 +344,15 @@ protected:
     }
 
     // handles quantization/conversion and write to memory
+    // Assumption: write_only = true assumes that
+    // 1. to_src was already called with the same source and with
+    // write_only = false.
+    // 2. the src register and the temporary registers for
+    // quantization/downconvert were not overritten in between the two
+    // calls
     template <data_type_t src_data_t, typename Vmm>
-    void to_src(Xbyak::Address dst, Vmm src, int in_len) {
+    void to_src(
+            Xbyak::Address dst, Vmm src, int in_len, bool write_only = false) {
         switch (src_data_t) {
             case data_type::f32:
                 if (in_len == (int)src.getBit() / 8)
@@ -324,8 +362,8 @@ protected:
                 else
                     assert(!"unsupported");
                 break;
-            case data_type::bf16: bf16_dc(dst, src, in_len); break;
-            case data_type::u8: q_d(dst, src, in_len); break;
+            case data_type::bf16: bf16_dc(dst, src, in_len, write_only); break;
+            case data_type::u8: q_d(dst, src, in_len, write_only); break;
             default: assert(!"unsupported");
         }
     }

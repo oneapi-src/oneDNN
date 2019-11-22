@@ -1,5 +1,15 @@
-# f32
---reset --cfg=f32
---dir=FWD_B  --batch=conv_3d
---dir=BWD_D  --batch=conv_3d
---dir=BWD_WB --batch=conv_3d
+# f32 3-D Convolutions
+--reset --cfg=f32_full
+--mb=2
+--skip-impl="ref:gemm"      # ! test jit version only
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=shapes_3d
+--batch=set_conv_3d
+
+# i8 3-D Convolution
+--reset --allow-unimpl=true
+--skip-impl="ref:gemm" # ! test jit version only
+--mb=2
+--cfg=u8s8s8,s8s8s32,u8s8s8
+--batch=shapes_3d
+--batch=set_conv_3d

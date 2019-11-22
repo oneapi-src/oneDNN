@@ -157,6 +157,11 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
                                     desc()->src_desc.data_type,
                                     desc()->weights_desc.data_type,
                                     desc()->dst_desc.data_type)
+                            || (utils::everyone_is(data_type::bf16,
+                                        desc()->src_desc.data_type,
+                                        desc()->weights_desc.data_type)
+                                    && utils::one_of(desc()->dst_desc.data_type,
+                                            data_type::f32, data_type::bf16))
                             || desc()->dst_desc.data_type == data_type::u8);
             if (ok) {
                 CHECK(init_convolution());
@@ -185,9 +190,8 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
         primitive_desc_t *conv_pd_;
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
-
     ref_deconvolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+
     ~ref_deconvolution_fwd_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -248,12 +252,16 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
         }
 
         status_t init() {
-            using namespace data_type;
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
-                    && utils::everyone_is(data_type::f32,
-                            desc()->diff_src_desc.data_type,
-                            desc()->weights_desc.data_type,
-                            desc()->diff_dst_desc.data_type)
+                    && (utils::everyone_is(data_type::f32,
+                                desc()->diff_src_desc.data_type,
+                                desc()->weights_desc.data_type,
+                                desc()->diff_dst_desc.data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    desc()->weights_desc.data_type,
+                                    desc()->diff_dst_desc.data_type))
+                    && utils::one_of(desc()->diff_src_desc.data_type,
+                            data_type::bf16, data_type::f32)
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->has_default_values();
 
@@ -282,9 +290,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
         primitive_desc_t *conv_pd_;
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
-
     ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+
     ~ref_deconvolution_bwd_data_t() { conv_p_->release(); }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -349,13 +356,18 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
         status_t init() {
             using namespace format_tag;
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
-                    && utils::everyone_is(data_type::f32,
-                            desc()->src_desc.data_type,
-                            desc()->diff_weights_desc.data_type,
-                            desc()->diff_dst_desc.data_type)
+                    && (utils::everyone_is(data_type::f32,
+                                desc()->src_desc.data_type,
+                                desc()->diff_weights_desc.data_type,
+                                desc()->diff_dst_desc.data_type)
+                            || utils::everyone_is(data_type::bf16,
+                                    desc()->diff_dst_desc.data_type,
+                                    desc()->src_desc.data_type))
                     && utils::one_of(
                             desc()->alg_kind, alg_kind::deconvolution_direct)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && utils::one_of(desc()->diff_weights_desc.data_type,
+                            data_type::bf16, data_type::f32);
             if (ok) {
                 CHECK(init_convolution());
                 if (diff_weights_md_.format_kind == format_kind::any) {
@@ -383,8 +395,6 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
         primitive_desc_t *conv_pd_;
     };
-
-    typedef typename prec_traits<data_type::f32>::type data_t;
 
     ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
@@ -450,13 +460,22 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
         kernel_ctx.define_int("OC", pd()->OC() / pd()->G());
         kernel_ctx.define_int("NDIMS", pd()->desc()->src_desc.ndims);
 
-        compute_engine->create_kernel(
-                &bias_kernel, "ref_deconv_backward_bias", kernel_ctx);
-        if (!bias_kernel) return status::runtime_error;
-
         gws[0] = pd()->OC() * pd()->G();
         gws[1] = 1;
         gws[2] = 1;
+
+        dst_data_type = pd()->diff_dst_md()->data_type;
+        bias_data_type = pd()->with_bias() ? pd()->diff_weights_md(1)->data_type
+                                           : data_type::undef;
+        accum_data_type = pd()->desc()->accum_data_type;
+
+        def_data_type(kernel_ctx, dst_data_type, "DST");
+        def_data_type(kernel_ctx, bias_data_type, "BIA");
+        def_data_type(kernel_ctx, accum_data_type, "ACC");
+
+        compute_engine->create_kernel(
+                &bias_kernel, "ref_deconv_backward_bias", kernel_ctx);
+        if (!bias_kernel) return status::runtime_error;
 
         return status::success;
     }
@@ -466,6 +485,9 @@ private:
     primitive_t *conv_p_ = nullptr;
     compute::kernel_t bias_kernel;
     size_t gws[3];
+    data_type_t dst_data_type = data_type::undef;
+    data_type_t bias_data_type = data_type::undef;
+    data_type_t accum_data_type = data_type::undef;
 };
 
 } // namespace ocl

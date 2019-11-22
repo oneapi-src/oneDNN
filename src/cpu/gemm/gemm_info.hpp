@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef BLAS_STRUCTURE_HPP
-#define BLAS_STRUCTURE_HPP
+#ifndef GEMM_INFO_HPP
+#define GEMM_INFO_HPP
 
 #include <cstdint>
 #include <memory>
@@ -41,8 +41,6 @@ enum { no_sum = 0, do_sum = 1 };
 enum { no_trans = 0, do_trans = 1, packed = 2 };
 enum { no_beta0 = 0, do_beta0 = 1 };
 enum { no_alpha1 = 0, do_alpha1 = 1 };
-enum { no_col_offset = 0, do_col_offset = 1 };
-enum { no_row_offset = 0, do_row_offset = 1 };
 
 template <typename a_type, typename b_type, typename c_type>
 struct gemm_info_t {
@@ -125,4 +123,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // BLAS_STRUCTURE_HPP
+#endif // GEMM_INFO_HPP

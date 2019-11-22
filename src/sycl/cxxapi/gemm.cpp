@@ -89,8 +89,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
 
 #ifndef DNNL_SYCL_DPCPP
     if (memory_api_kind == memory_api_kind_t::usm)
-        error::wrap_c_api(
-                status::runtime_error, "USM interface is not supported.");
+        error::wrap_c_api(dnnl::impl::status::runtime_error,
+                "USM interface is not supported.");
 #endif
 
     using a_t = typename prec_traits<a_type>::type;
@@ -114,8 +114,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     engine_kind_t eng_kind;
     if (dev.is_cpu() || dev.is_host()) {
         eng_kind = engine_kind::cpu;
-        error::wrap_c_api(
-                status::unimplemented, "SYCL CPU GEMM not implemented");
+        error::wrap_c_api(dnnl::impl::status::unimplemented,
+                "SYCL CPU GEMM not implemented");
     } else {
         assert(dev.is_gpu());
         eng_kind = engine_kind::gpu;
@@ -161,11 +161,11 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     dnnl_memory_desc_t a_desc, b_desc, c_desc;
 
     status = create_gemm_memory_desc(&a_desc, &op_desc, 0, a_type);
-    assert(status == status::success);
+    assert(status == dnnl::impl::status::success);
     status = create_gemm_memory_desc(&b_desc, &op_desc, 1, b_type);
-    assert(status == status::success);
+    assert(status == dnnl::impl::status::success);
     status = create_gemm_memory_desc(&c_desc, &op_desc, 2, c_type);
-    assert(status == status::success);
+    assert(status == dnnl::impl::status::success);
 
     std::unique_ptr<primitive_desc_t> pd;
     primitive_attr_t attr;

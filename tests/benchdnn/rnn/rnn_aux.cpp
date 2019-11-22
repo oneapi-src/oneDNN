@@ -134,14 +134,13 @@ int str2desc(desc_t *desc, const char *str) {
      *
      * implicit rules:
      *  - default values:
-     *      l = 1, t = 1, mb = 2, S="wip"
+     *      l = 1, t = 1, mb = 2
      *  - if slc/dlc/dic is undefined => slc/dlc/dic = sic
      */
 
     d.n_layer = 1;
     d.n_iter = 1;
     d.mb = 2;
-    d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -201,7 +200,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     s << " "
       << "l" << p.n_layer << "t" << p.n_iter << "mb" << p.mb << "sic" << p.sic
-      << "slc" << p.slc << "dic" << p.dic << "dlc" << p.dlc << "n" << p.name;
+      << "slc" << p.slc << "dic" << p.dic << "dlc" << p.dlc;
+
+    if (p.name) s << "n" << p.name;
 
     return s;
 }
@@ -491,7 +492,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, n, c, fp, dt, diff, rel_diff);
                             break;
-                        default: assert("unknown data kind"); return FAIL;
+                        default: assert(!"unknown data kind"); return FAIL;
                     }
                 }
             }

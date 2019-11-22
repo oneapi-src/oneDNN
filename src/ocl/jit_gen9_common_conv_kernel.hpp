@@ -27,15 +27,16 @@ namespace ocl {
 
 struct jit_gen9_common_conv_fwd_kernel {
 
-    jit_gen9_common_conv_fwd_kernel(jit_conv_conf_t ajcp) : jcp(ajcp) {};
+    jit_gen9_common_conv_fwd_kernel(const jit_conv_conf_t &ajcp) : jcp(ajcp) {}
 
-    ~jit_gen9_common_conv_fwd_kernel() {};
+    ~jit_gen9_common_conv_fwd_kernel() {}
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_t &src_md,
             const memory_desc_t &weights_md, const memory_desc_t &dst_md,
             const memory_desc_t &bias_md, const primitive_attr_t &attr) {
         using namespace dnnl::impl::format_tag;
+        using namespace data_type;
 
         const memory_desc_wrapper src_mdw(&src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
@@ -49,8 +50,7 @@ struct jit_gen9_common_conv_fwd_kernel {
         jcp.weights_data_type = cd.weights_desc.data_type;
         jcp.dst_data_type = cd.dst_desc.data_type;
         jcp.acc_data_type = cd.accum_data_type;
-        jcp.bias_data_type
-                = jcp.with_bias ? cd.bias_desc.data_type : data_type::f32;
+        jcp.bias_data_type = jcp.with_bias ? cd.bias_desc.data_type : f32;
 
         const bool is_1stconv = jcp.ic_without_padding == 3;
         const bool is_depthwise = jcp.with_groups
@@ -74,15 +74,12 @@ struct jit_gen9_common_conv_fwd_kernel {
         const bool is_16oc = jcp.oc % 16 == 0;
         const bool use_16mb_unroll = !(jcp.mb == 1 || jcp.mb % 16 != 0)
                 && !is_1stconv && ((is_16ic && is_16oc) || is_dw_16g)
-                && IMPLICATION(
-                        src_mdw.data_type() == data_type::f16, jcp.mb % 32 == 0)
-                && IMPLICATION(src_mdw.data_type() == data_type::f16
-                                && jcp.is_depthwise,
+                && IMPLICATION(src_mdw.data_type() == f16, jcp.mb % 32 == 0)
+                && IMPLICATION(src_mdw.data_type() == f16 && jcp.is_depthwise,
                         jcp.ngroups % 32 == 0);
 
         const bool is_32oc = true
-                && IMPLICATION(src_mdw.data_type() == data_type::f16,
-                        jcp.oc % 32 == 0);
+                && IMPLICATION(src_mdw.data_type() == f16, jcp.oc % 32 == 0);
 
         jcp.mb_block = 1;
         jcp.oc_block = 1;
@@ -106,85 +103,40 @@ struct jit_gen9_common_conv_fwd_kernel {
         switch (jcp.ver) {
             case ver_16mb16c:
                 jcp.mb_block = 16;
-                if (src_mdw.data_type() == dnnl_f32
-                        || src_mdw.data_type() == dnnl_f16) {
-                    if (src_mdw.data_type() == dnnl_f16 && jcp.mb % 32 != 0) {
-                        jcp.mb_block
-                                = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
-                                ? 16
-                                : 1;
-                        jcp.oc_block = 16;
-                        jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
-                        jcp.ow_block = 8;
-                        jcp.oh_block = 1;
-                        jcp.sub_group_size = 16;
-                        jcp.lws_d[0] = 16;
-                        jcp.lws_d[1] = 1;
-                        jcp.lws_d[2] = 1;
-                        jcp.gws_d[0] = jcp.ngroups * jcp.oc;
-                        jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
-                                * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
-                        jcp.gws_d[2] = jcp.mb;
-                    } else {
-                        jcp.oc_block = 16;
-                        jcp.ic_block = 16;
-                        jcp.sub_group_size = 16;
-                        jcp.lws_d[0] = 16;
-                        jcp.lws_d[1] = 1;
-                        jcp.lws_d[2] = 1;
-                        jcp.gws_d[0] = jcp.oc * jcp.ngroups;
-                        jcp.gws_d[1] = jcp.oh * jcp.ow * jcp.od;
-                        jcp.gws_d[2] = (src_mdw.data_type() == dnnl_f16
-                                               && !jcp.is_depthwise)
-                                ? jcp.mb / (jcp.mb_block * 2)
-                                : jcp.mb / (jcp.mb_block * 1);
-                    }
+                if (src_mdw.data_type() == f16 && jcp.mb % 32 != 0) {
+                    jcp.mb_block = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
+                            ? 16
+                            : 1;
+                    jcp.oc_block = 16;
+                    jcp.ic_block = (jcp.ver == ver_1stconv) ? 1 : 16;
+                    jcp.ow_block = 8;
+                    jcp.oh_block = 1;
+                    jcp.sub_group_size = 16;
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ngroups * jcp.oc;
+                    jcp.gws_d[1] = utils::div_up(jcp.oh, jcp.oh_block)
+                            * utils::div_up(jcp.ow, jcp.ow_block) * jcp.od;
+                    jcp.gws_d[2] = jcp.mb;
                 } else {
                     jcp.oc_block = 16;
                     jcp.ic_block = 16;
-                    jcp.mb_block = 32;
-                    jcp.sub_group_size = 8;
-
-                    if (jcp.kw == 1) {
-                        jcp.slm_ic = 2;
-                    } else {
-                        jcp.slm_ic = 1;
-                    }
-
-                    if (jcp.oc == 64) {
-                        jcp.lws_d[0] = 2 * 8;
-                        jcp.lws_d[1] = 8;
-                    } else if (jcp.oc % 128 == 0) {
-                        jcp.lws_d[0] = 4 * 8;
-                        jcp.lws_d[1] = 4;
-                    } else {
-                        jcp.lws_d[0] = utils::max_div(jcp.oc, 4) * 8;
-                        jcp.lws_d[1] = utils::max_div(jcp.ow, 4);
-                    }
-
+                    jcp.sub_group_size = 16;
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
                     jcp.lws_d[2] = 1;
-                    jcp.gws_d[0] = (jcp.oc / jcp.oc_block) * 8;
-                    jcp.gws_d[1] = jcp.oh * utils::rnd_up(jcp.ow, jcp.lws_d[1]);
-                    jcp.gws_d[2] = jcp.mb / (jcp.mb_block * 1);
+                    jcp.gws_d[0] = jcp.oc * jcp.ngroups;
+                    jcp.gws_d[1] = jcp.oh * jcp.ow * jcp.od;
+                    jcp.gws_d[2]
+                            = (src_mdw.data_type() == f16 && !jcp.is_depthwise)
+                            ? jcp.mb / (jcp.mb_block * 2)
+                            : jcp.mb / (jcp.mb_block * 1);
                 }
-
-                jcp.wht_slm_size = jcp.slm_ic * jcp.ic_block
-                        * (jcp.lws_d[0] / 8) * jcp.oc_block * jcp.kw;
-                if (jcp.kw == 1)
-                    jcp.src_slm_size = jcp.slm_ic * jcp.ic_block
-                            * (jcp.lws_d[1] + jcp.kw - 1) * jcp.mb_block;
-                else
-                    jcp.src_slm_size = jcp.slm_ic * jcp.ic_block
-                            * (jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw)
-                            * jcp.mb_block;
 
 #ifdef DEBUG_PRINT
                 printf("LWS = %ld\n",
                         jcp.lws_d[0] * jcp.lws_d[2] * jcp.lws_d[1]);
-                fflush(0);
-                printf("USE SLM %ld KB\n",
-                        utils::div_up(
-                                jcp.wht_slm_size + jcp.src_slm_size, 1024));
                 fflush(0);
                 printf("LWS GWS: (%ld %ld %ld) (%ld %ld %ld)\n", jcp.lws_d[0],
                         jcp.lws_d[1], jcp.lws_d[2], jcp.gws_d[0], jcp.gws_d[1],
@@ -193,7 +145,7 @@ struct jit_gen9_common_conv_fwd_kernel {
 
                 break;
             case ver_1stconv:
-                if (src_mdw.data_type() == dnnl_f16) {
+                if (src_mdw.data_type() == f16) {
                     jcp.mb_block = jcp.mb % 16 == 0 ? 16 : 1;
                     jcp.oc_block = 16;
                     jcp.ic_block = 16;
@@ -245,7 +197,7 @@ struct jit_gen9_common_conv_fwd_kernel {
                 }
             case ver_8ow16c:
                 switch (src_mdw.data_type()) {
-                    case data_type::f32:
+                    case f32:
                         jcp.mb_block
                                 = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
                                 ? 16
@@ -285,7 +237,7 @@ struct jit_gen9_common_conv_fwd_kernel {
                                     = jcp.mb * (jcp.oc / jcp.ocb) * jcp.ngroups;
                         }
                         break;
-                    case data_type::f16:
+                    case f16:
                         jcp.mb_block
                                 = (jcp.ver == ver_1stconv && jcp.mb % 16 == 0)
                                 ? 16
@@ -346,7 +298,7 @@ struct jit_gen9_common_conv_fwd_kernel {
                         : utils::pick(jcp.ndims - 3, Owi16o, Ohwi16o, Odhwi16o);
                 break;
             case ver_16mb16c:
-                if (utils::one_of(src_mdw.data_type(), dnnl_f16)) {
+                if (utils::one_of(src_mdw.data_type(), f16)) {
                     if (jcp.mb % 32 == 0) {
                         src_tag = utils::pick(jcp.ndims - 3, NCw16n16c,
                                 NChw16n16c, NCdhw16n16c);
@@ -487,13 +439,11 @@ struct jit_gen9_common_conv_fwd_kernel {
         else
             kernel_ctx.define_int(
                     "SRC_SP_GROUP", jcp.stride_w * (jcp.lws_d[1] - 1) + jcp.kw);
-        kernel_ctx.define_int("SLM_IC", jcp.slm_ic);
 
         const int use_fast_path = 1 && jcp.scale_idx_mult == 0
                 && jcp.ngroups == 1 && !jcp.with_bias;
         kernel_ctx.define_int("USE_FAST_PATH", use_fast_path);
         kernel_ctx.define_int("SCALE_IDX_MULT", jcp.scale_idx_mult);
-        kernel_ctx.define_int("RMODE", jcp.rmode);
 
         kernel_ctx.set_data_type(jcp.src_data_type);
 
@@ -522,15 +472,17 @@ struct jit_gen9_common_conv_fwd_kernel {
 
 struct jit_gen9_common_conv_bwd_data_kernel {
 
-    jit_gen9_common_conv_bwd_data_kernel(jit_conv_conf_t ajcp) : jcp(ajcp) {};
+    jit_gen9_common_conv_bwd_data_kernel(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
-    ~jit_gen9_common_conv_bwd_data_kernel() {};
+    ~jit_gen9_common_conv_bwd_data_kernel() {}
 
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
             const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
             const memory_desc_t &bias_md, const primitive_attr_t &attr) {
         using namespace dnnl::impl::format_tag;
+        using namespace data_type;
 
         const memory_desc_wrapper src_mdw(&diff_src_md);
         const memory_desc_wrapper weights_mdw(&weights_md);
@@ -544,8 +496,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jcp.weights_data_type = cd.weights_desc.data_type;
         jcp.dst_data_type = cd.diff_dst_desc.data_type;
         jcp.acc_data_type = cd.accum_data_type;
-        jcp.bias_data_type
-                = jcp.with_bias ? cd.bias_desc.data_type : data_type::f32;
+        jcp.bias_data_type = jcp.with_bias ? cd.bias_desc.data_type : f32;
 
         const bool is_1stconv = jcp.ic_without_padding == 3;
         const bool is_depthwise = jcp.with_groups
@@ -738,8 +689,8 @@ struct jit_gen9_common_conv_bwd_data_kernel {
 
 struct jit_gen9_common_conv_bwd_weights_kernel {
 
-    jit_gen9_common_conv_bwd_weights_kernel(jit_conv_conf_t ajcp)
-        : jcp(ajcp) {};
+    jit_gen9_common_conv_bwd_weights_kernel(const jit_conv_conf_t &ajcp)
+        : jcp(ajcp) {}
 
     ~jit_gen9_common_conv_bwd_weights_kernel() {};
 
@@ -749,6 +700,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
             const memory_desc_t &diff_bias_md, const memory_desc_t &diff_dst_md,
             const primitive_attr_t &attr) {
         using namespace dnnl::impl::format_tag;
+        using namespace data_type;
 
         const memory_desc_wrapper src_mdw(&src_md);
         const memory_desc_wrapper weights_mdw(&diff_weights_md);
@@ -762,8 +714,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         jcp.weights_data_type = cd.diff_weights_desc.data_type;
         jcp.dst_data_type = cd.diff_dst_desc.data_type;
         jcp.acc_data_type = cd.accum_data_type;
-        jcp.bias_data_type
-                = jcp.with_bias ? cd.diff_bias_desc.data_type : data_type::f32;
+        jcp.bias_data_type = jcp.with_bias ? cd.diff_bias_desc.data_type : f32;
 
         const bool is_1stconv = jcp.ic_without_padding == 3;
         const bool is_depthwise = jcp.with_groups
@@ -1004,6 +955,27 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         }
 
         return status::success;
+    }
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_conv_conf_t &jcp) {
+        if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
+                || jcp.ver == ver_1stconv) {
+            size_t wht_size = jcp.ngroups * jcp.nchunk * jcp.oc * jcp.ic
+                    * jcp.kh * jcp.kw * jcp.kd * sizeof(float);
+            scratchpad.book(
+                    memory_tracking::names::key_conv_wei_reduction, wht_size);
+
+            size_t bia_size = jcp.ngroups * jcp.nchunk * jcp.oc * sizeof(float);
+            scratchpad.book(
+                    memory_tracking::names::key_conv_bia_reduction, bia_size);
+        }
+        if (jcp.ver == ver_8ow16c) {
+            size_t tails_size = 2 * 16 * (2 * jcp.l_pad + jcp.iw + jcp.kw + 8)
+                    * sizeof(float);
+
+            scratchpad.book(memory_tracking::names::key_conv_tails, tails_size);
+        }
     }
 
     jit_conv_conf_t jcp;

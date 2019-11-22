@@ -142,9 +142,9 @@ inline int digits_dt(dnnl_data_type_t dt) {
 
 template <dnnl_data_type_t dt>
 inline float saturate(float val) {
-    return MAX2(dnnl::impl::nstl::numeric_limits<
+    return MAX2((float)dnnl::impl::nstl::numeric_limits<
                         typename prec_traits<dt>::type>::lowest(),
-            MIN2(dnnl::impl::nstl::numeric_limits<
+            MIN2((float)dnnl::impl::nstl::numeric_limits<
                          typename prec_traits<dt>::type>::max(),
                     mxcsr_round(val)));
 }
@@ -197,6 +197,7 @@ inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
 }
 
 struct dnn_mem_t;
+struct attr_bundle_t;
 
 struct args_t {
     args_t &set(int arg, const dnn_mem_t &mem);
@@ -215,5 +216,13 @@ dnnl_status_t execute_and_wait(
         dnnl_primitive_t prim, dnnl_stream_t stream, const args_t &args);
 
 int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
+
+void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
+        int64_t scale_cnt, const float *scales, dnnl_engine_t engine);
+void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
+        const attr_bundle_t &attr_bundle, dnnl_engine_t engine);
+
+void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
+        const attr_t &attr, int arg, dnnl_engine_t engine);
 
 #endif

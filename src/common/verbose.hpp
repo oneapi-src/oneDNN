@@ -32,7 +32,7 @@ struct verbose_t {
     int level;
 };
 
-const verbose_t *dnnl_verbose();
+int get_verbose();
 double get_msec();
 const char *get_isa_info();
 
@@ -52,6 +52,7 @@ void init_info(gemm_pd_t *s, char *buffer);
 void init_info(inner_product_pd_t *s, char *buffer);
 void init_info(layer_normalization_pd_t *s, char *buffer);
 void init_info(lrn_pd_t *s, char *buffer);
+void init_info(matmul_pd_t *s, char *buffer);
 void init_info(pooling_pd_t *s, char *buffer);
 void init_info(reorder_pd_t *s, char *buffer);
 void init_info(rnn_pd_t *s, char *buffer);

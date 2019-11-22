@@ -1,0 +1,9 @@
+# Dilated Int8
+--reset
+--mb=2
+--dir=FWD_D
+--cfg=u8s8u8 --allow-unimpl=false --batch=shapes_dilated_rfcn
+--cfg=s8s8u8 --allow-unimpl=true  --batch=shapes_dilated_rfcn
+--match=.*fc6.*
+--cfg=u8s8u8 --allow-unimpl=false --batch=shapes_ssd_300_voc0712
+--cfg=s8s8u8 --allow-unimpl=true  --batch=shapes_ssd_300_voc0712

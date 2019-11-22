@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_SSE41_1x1_CONV_KERNEL_F32_HPP
-#define JIT_SSE41_1x1_CONV_KERNEL_F32_HPP
+#ifndef JIT_SSE41_1X1_CONV_KERNEL_F32_HPP
+#define JIT_SSE41_1X1_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 #include "memory.hpp"
 
 namespace dnnl {
@@ -29,7 +29,7 @@ namespace cpu {
 
 struct jit_sse41_1x1_conv_kernel_f32 : public jit_generator {
     jit_sse41_1x1_conv_kernel_f32(
-            jit_1x1_conv_conf_t ajcp, const primitive_attr_t &attr)
+            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
             eltwise_injector_ = new jit_uni_eltwise_injector_f32<sse41>(
