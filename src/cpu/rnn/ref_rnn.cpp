@@ -654,7 +654,8 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                 }
             });
     if (rnn.skip_dst_iter_copy()) {
-        parallel_nd(1, rnn.mb, [&](int it, int b) {
+        parallel_nd(rnn.mb, [&](int b) {
+            const int it = rnn.n_iter - 1;
             int dir = 0;
             if (rnn.exec_dir != r2l) {
                 const auto *ss = dst_iter_
