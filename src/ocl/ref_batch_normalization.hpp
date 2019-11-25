@@ -26,8 +26,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_bnorm_common_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {

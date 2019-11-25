@@ -26,13 +26,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *gen9_common_conv_fwd_data_f32_kernel;
-extern const char *gen9_common_conv_bwd_data_kernel;
-extern const char *gen9_common_conv_bwd_wht_f32_kernel;
-extern const char *gen9_common_conv_fwd_data_f16_kernel;
-
-extern const char *gen9_common_conv_dw_fwd_data_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {

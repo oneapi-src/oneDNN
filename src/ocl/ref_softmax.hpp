@@ -25,8 +25,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_softmax_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {

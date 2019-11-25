@@ -24,8 +24,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ref_convolution_kernel.hpp"
 
-extern const char *ref_convolution_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {

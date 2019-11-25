@@ -27,8 +27,6 @@
 #include "ocl/ocl_sum_pd.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *simple_sum_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {

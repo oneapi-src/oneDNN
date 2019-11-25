@@ -41,8 +41,6 @@
 // TODO just to debug
 #define WS_NAN_FILLING 0
 
-extern const char *ref_rnn_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
