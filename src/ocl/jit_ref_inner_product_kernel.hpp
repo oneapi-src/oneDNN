@@ -26,12 +26,12 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-struct jit_ref_inner_product_fwd_kernel {
+struct jit_ref_inner_product_kernel {
 
-    jit_ref_inner_product_fwd_kernel(const jit_inner_product_conf_t &ajip)
+    jit_ref_inner_product_kernel(const jit_inner_product_conf_t &ajip)
         : jip(ajip) {}
 
-    ~jit_ref_inner_product_fwd_kernel() {}
+    ~jit_ref_inner_product_kernel() {}
 
     static status_t init_conf(jit_inner_product_conf_t &jip,
             const inner_product_pd_t *pd, jit_offsets &jit_off) {
