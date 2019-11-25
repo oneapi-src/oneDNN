@@ -157,6 +157,10 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
     rnn_postgemm_sig(execute_bwd) {
         using namespace rnn_utils;
+        auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+        auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+        auto src_iter_ld = rnn.src_iter_ld(cell_position);
+
         rnn_utils::ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_gates(
                 rnn, scratch_gates_);
@@ -166,12 +170,16 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 rnn, diff_states_tp1_l_);
         rnn_utils::ws_diff_states_aoc<acc_data_t> diff_states_t_lp1(
                 rnn, diff_states_t_lp1_);
-        auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
-        auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
         rnn_utils::ws_states_aoc<float> c_states_t_l(
                 rnn, c_states_t_l_, dst_iter_c_ld);
         rnn_utils::ws_states_aoc<const float> c_states_tm1_l(
                 rnn, c_states_tm1_l_, src_iter_c_ld);
+
+        ws_states_aoc<const src_data_t> states_tm1_l(
+                rnn, states_tm1_l_, src_iter_ld);
+        ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
+        utils::array_offset_calculator<src_data_t, 2> ws_grid(
+                ws_grid_, rnn.mb, rnn.dic);
 
         // Todo: add parallelization on dic for the batch 1 case
         // Assumption: the kernel runs a loop on dic elements
@@ -190,6 +198,15 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param8_ = &c_states_t_l(i, 0);
                     break;
                 case alg_kind::lbr_gru:
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
+                    param3_ = &diff_states_t_lp1(rnn.n_states, i, 0);
+                    param4_ = &diff_states_tp1_l(0, i, 0);
+                    param5_ = &diff_states_t_l(0, i, 0);
+                    param6_ = &states_tm1_l(i, 0);
+                    param7_ = &scratch_cell(i, 0, 0);
+                    param8_ = &ws_grid(i, 0);
+                    break;
                 case alg_kind::vanilla_gru:
                 default:
                     assert(!"unsupported");
