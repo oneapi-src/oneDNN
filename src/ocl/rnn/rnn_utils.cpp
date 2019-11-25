@@ -122,11 +122,8 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.parts_bias[1] = 0;
 
     // Decide if to merge gemm across iterations
-    // It's currently used only for FWD
-    // TODO: investigate/fix BWD issue
-
-    rnn.merge_gemm_layer = rnn.is_fwd;
-    rnn.merge_gemm_iter = false;
+    rnn.merge_gemm_layer = true;
+    rnn.merge_gemm_iter = !rnn.is_fwd;
 
     // Decide to copy bias
     rnn.copy_bias = rnn.is_int8;
