@@ -39,7 +39,7 @@
 
 #include "ocl/ocl_types.h"
 
-#if POOLING_FWD == 1
+#if IS_FWD == 1
 #if SUB_GROUP_SIZE != 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
@@ -248,7 +248,7 @@ ref_pooling_fwd(__global DATA_T *src, __global int *ws, __global DATA_T *dst) {
 #endif
 }
 #endif
-#if POOLING_BWD == 1
+#if IS_BWD == 1
 #if SUB_GROUP_SIZE != 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif

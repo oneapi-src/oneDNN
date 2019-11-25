@@ -389,7 +389,6 @@ struct jit_gen9_common_conv_fwd_kernel {
     static status_t init_const_def(
             compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp) {
         kernel_ctx.define_int("IS_DW", jcp.is_depthwise);
-        kernel_ctx.define_int("FWD_DATA", 1);
         kernel_ctx.define_int("G", jcp.ngroups);
         kernel_ctx.define_int("MB", jcp.mb);
         kernel_ctx.define_int("IC", jcp.ic);

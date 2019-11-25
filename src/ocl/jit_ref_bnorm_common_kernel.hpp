@@ -120,9 +120,9 @@ struct jit_ref_bnorm_common_kernel {
         kernel_ctx.define_int("MB_BLOCK", jbn.mb_block);
 
         if (jbn.is_forward)
-            kernel_ctx.define_int("BNORM_FWD", 1);
+            kernel_ctx.define_int("IS_FWD", 1);
         else if (jbn.is_backward)
-            kernel_ctx.define_int("BNORM_BWD", 1);
+            kernel_ctx.define_int("IS_BWD", 1);
 
         kernel_ctx.define_int("WITH_RELU", jbn.with_relu);
         kernel_ctx.define_int("SAVE_STATS", jbn.save_stats);

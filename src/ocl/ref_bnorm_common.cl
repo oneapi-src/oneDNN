@@ -25,7 +25,7 @@
 
 #include "ocl/ocl_types.h"
 
-#if BNORM_FWD == 1
+#if IS_FWD == 1
 
 #if USE_16MB_UNROLL == 1
 
@@ -294,7 +294,7 @@ ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
 }
 #endif
 
-#if BNORM_BWD == 1
+#if IS_BWD == 1
 
 #if USE_16MB_UNROLL == 1
 __attribute__((reqd_work_group_size(1, 1, 16))) // attr:no-format

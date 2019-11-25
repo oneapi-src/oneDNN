@@ -95,7 +95,7 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
         kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        kernel_ctx.define_int("LRN_FWD", 1);
+        kernel_ctx.define_int("IS_FWD", 1);
 
         if (desc->prop_kind == prop_kind::forward_training)
             kernel_ctx.define_int("IS_TRAINING", 1);
@@ -223,7 +223,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 
         kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        kernel_ctx.define_int("LRN_BWD", 1);
+        kernel_ctx.define_int("IS_BWD", 1);
 
         switch (desc->alg_kind) {
             case lrn_across_channels:

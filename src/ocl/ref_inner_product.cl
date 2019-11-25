@@ -19,7 +19,7 @@
 #include "ocl/ocl_post_ops.h"
 #endif
 
-#if INNER_PRODUCT_FWD == 1
+#if IS_FWD == 1
 
 __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
         __global WEI_DATA_T *wht, __global BIA_DATA_T *bias,
@@ -66,7 +66,7 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
 }
 #endif
 
-#if INNER_PRODUCT_BWD_DATA == 1
+#if IS_BWD_D == 1
 __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
         __global WEI_DATA_T *wht, __global DST_DATA_T *diff_dst) {
 
@@ -90,7 +90,7 @@ __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
 }
 #endif
 
-#if INNER_PRODUCT_BWD_WEIGHTS == 1
+#if IS_BWD_W == 1
 __kernel void ref_inner_product_bwd_weights(__global SRC_DATA_T *src,
         __global WEI_DATA_T *diff_wht, __global BIA_DATA_T *diff_bias,
         __global DST_DATA_T *diff_dst) {

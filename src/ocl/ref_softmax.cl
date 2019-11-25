@@ -51,7 +51,7 @@
 #error unsupported softmax dimension
 #endif
 
-#if FWD_KERNEL
+#if IS_FWD
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 
@@ -137,6 +137,7 @@ ref_softmax_fwd_generic(__global DATA_T *src, __global DATA_T *dst) {
 
 #endif
 
+#if IS_BWD
 __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
         __global DATA_T *diff_src, __global DATA_T *diff_dst) {
     const int dim[] = {
@@ -166,3 +167,4 @@ __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
 #endif
     }
 }
+#endif

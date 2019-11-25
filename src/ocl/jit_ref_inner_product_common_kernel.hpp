@@ -120,11 +120,11 @@ struct jit_ref_inner_product_fwd_kernel {
         if (jip.has_spatial) kernel_ctx.define_int("HAS_SPATIAL", 1);
 
         if (jip.is_forward)
-            kernel_ctx.define_int("INNER_PRODUCT_FWD", 1);
+            kernel_ctx.define_int("IS_FWD", 1);
         else if (jip.is_backward_data)
-            kernel_ctx.define_int("INNER_PRODUCT_BWD_DATA", 1);
+            kernel_ctx.define_int("IS_BWD_D", 1);
         else if (jip.is_backward_weights)
-            kernel_ctx.define_int("INNER_PRODUCT_BWD_WEIGHTS", 1);
+            kernel_ctx.define_int("IS_BWD_W", 1);
 
         if (with_eltwise) { def_postops(kernel_ctx, alg); }
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);

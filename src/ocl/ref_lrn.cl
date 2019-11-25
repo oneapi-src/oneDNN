@@ -22,7 +22,7 @@
 #define DST_W_STRIDE DST_S3
 #define DST_H_STRIDE DST_S2
 
-#if LRN_FWD == 1
+#if IS_FWD == 1
 __kernel void ref_lrn_fwd(__global const DATA_T *src,
 #if IS_TRAINING == 1
         __global DEF_ACC_DATA_T *ws,
@@ -90,7 +90,7 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
 }
 #endif
 
-#if LRN_BWD == 1
+#if IS_BWD == 1
 __kernel void ref_lrn_bwd(__global const DATA_T *src,
         __global const DATA_T *diff_dst, __global DEF_ACC_DATA_T *ws,
         __global DATA_T *diff_src) {

@@ -149,9 +149,9 @@ struct jit_ref_pooling_fwd_kernel {
         kernel_ctx.define_int("USE_16C_UNROLL", jpp.use_16c_unroll);
         kernel_ctx.define_int("IS_TRAINING", jpp.is_training);
         if (jpp.is_backward)
-            kernel_ctx.define_int("POOLING_BWD", 1);
+            kernel_ctx.define_int("IS_BWD", 1);
         else
-            kernel_ctx.define_int("POOLING_FWD", 1);
+            kernel_ctx.define_int("IS_FWD", 1);
         switch (jpp.alg) {
             case pooling_max: kernel_ctx.define_int("POOLING_MAX", 1); break;
             case pooling_avg_exclude_padding:
