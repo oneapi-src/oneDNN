@@ -21,7 +21,12 @@
 
 #if INNER_PRODUCT_FWD == 1
 
+<<<<<<< HEAD
+__kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
+=======
+KERNEL_ATTR
 __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
+>>>>>>> 2e514301c... ocl: align kernel names
         __global WEI_DATA_T *wht, __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float sum_scale, float output_scale) {
@@ -67,7 +72,12 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
 #endif
 
 #if INNER_PRODUCT_BWD_DATA == 1
+<<<<<<< HEAD
+__kernel void ref_inner_product_bwd_data_kernel(__global SRC_DATA_T *diff_src,
+=======
+KERNEL_ATTR
 __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
+>>>>>>> 2e514301c... ocl: align kernel names
         __global WEI_DATA_T *wht, __global DST_DATA_T *diff_dst) {
 
     const int mb = get_global_id(0) / IC_TOTAL;
@@ -91,7 +101,12 @@ __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
 #endif
 
 #if INNER_PRODUCT_BWD_WEIGHTS == 1
+<<<<<<< HEAD
+__kernel void ref_inner_product_bwd_weights_kernel(__global SRC_DATA_T *src,
+=======
+KERNEL_ATTR
 __kernel void ref_inner_product_bwd_weights(__global SRC_DATA_T *src,
+>>>>>>> 2e514301c... ocl: align kernel names
         __global WEI_DATA_T *diff_wht, __global BIA_DATA_T *diff_bias,
         __global DST_DATA_T *diff_dst) {
 

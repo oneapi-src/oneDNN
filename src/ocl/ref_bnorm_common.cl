@@ -141,7 +141,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(LWS_1))) // attr:no-format
 #endif
 __kernel void
-ref_bnorm_fwd_kernel(__global DATA_T *src, __global float *mean,
+ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global int *ws, float eps) {
 
@@ -399,7 +399,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(LWS_1))) // attr:no-format
 #endif
 __kernel void
-ref_bnorm_bwd_kernel(__global DATA_T *src, __global float *mean,
+ref_bnorm_bwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *diff_dst,
         __global float *scaleshift, __global int *ws, __global DATA_T *diff_src,
         __global float *diff_scaleshift, float eps) {

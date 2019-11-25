@@ -127,7 +127,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "ref_convolution_fwd_kernel", kernel_ctx);
+                &kernel_, "ref_convolution_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -186,7 +186,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "ref_convolution_bwd_data_kernel", kernel_ctx);
+                &kernel_, "ref_convolution_bwd_data", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -246,7 +246,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "ref_convolution_bwd_weights_kernel", kernel_ctx);
+                &kernel_, "ref_convolution_bwd_weights", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

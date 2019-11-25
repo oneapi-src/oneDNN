@@ -285,7 +285,7 @@ SRC_DATA_T maybe_q(INPUT_DATA_T f, float shift, float scale, int quantize) {
         return TO_SRC(f);
 }
 
-__kernel void ref_rnn_copy_init_layer_kernel(
+__kernel void ref_rnn_copy_init_layer(
         __global char *ws, __global char *src_base, int lr, int rl) {
 
 #if IS_FWD
@@ -350,7 +350,7 @@ __kernel void ref_rnn_copy_init_layer_kernel(
 #endif
 }
 
-__kernel void ref_rnn_copy_init_iter_kernel(
+__kernel void ref_rnn_copy_init_iter(
         __global char *ws, __global char *src_base, __global char *src_c_base
 #if IS_FWD
         ,
@@ -407,7 +407,7 @@ DST_DATA_T maybe_dq_l(SRC_DATA_T s, float shift, float scale, int dequantize) {
         return TO_DST(s);
 }
 
-__kernel void ref_rnn_copy_res_layer_kernel(
+__kernel void ref_rnn_copy_res_layer(
         __global char *ws, __global char *dst_base, int lr, int rl
 #if IS_FWD
         ,
@@ -468,7 +468,7 @@ OUTPUT_DATA_T maybe_dq_i(
         return TO_OUTPUT(s);
 }
 
-__kernel void ref_rnn_copy_res_iter_kernel(
+__kernel void ref_rnn_copy_res_iter(
         __global char *ws, __global char *dst_base, __global char *dst_c_base
 #if IS_FWD
         ,
@@ -519,7 +519,7 @@ __kernel void ref_rnn_copy_res_iter_kernel(
 #endif
 }
 
-__kernel void ref_rnn_ws_set_kernel(
+__kernel void ref_rnn_ws_set(
         __global char *ws, OFFTYPE ws_offset, float val, int ws_part) {
 
     if (ws_part == WS_C_STATES || ws_part == WS_DIFF_STATES
@@ -538,7 +538,7 @@ __kernel void ref_rnn_ws_set_kernel(
 
 // useful for debug
 #if DEBUGPRINT
-__kernel void ref_rnn_ws_print_kernel(const __global char *ws) {
+__kernel void ref_rnn_ws_print(const __global char *ws) {
     {
         __global ACC_DATA_T *wt = (__global ACC_DATA_T *)(ws + WS_GATES_OFFSET);
         printf("ws_gates: off %d\n", WS_GATES_OFFSET);
@@ -628,10 +628,9 @@ __kernel void ref_rnn_ws_print_kernel(const __global char *ws) {
 }
 #endif
 
-__kernel void ref_rnn_bias_prepare_kernel(__global char *ws,
-        __global float *scales, __global char *wei_layer,
-        __global char *wei_iter, __global float *bias, float data_shift,
-        float data_scale) {
+__kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
+        __global char *wei_layer, __global char *wei_iter, __global float *bias,
+        float data_shift, float data_scale) {
 #if COPY_BIAS
 
     const int dic = get_global_id(0);
@@ -689,7 +688,7 @@ float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
 }
 
 // for int8 LSTM
-__kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
+__kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
         __global char *ws, __global float *scales, __global float *bias_base,
         float alpha, float data_shift, float data_scale,
         __global float *tm_scales, float tm_cscale) {
@@ -738,7 +737,7 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
 
 #else
 
-__kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
+__kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
         __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
         __global float *tm_scales, float tm_cscale) {
 
@@ -805,7 +804,7 @@ __kernel void ref_rnn_elemwise_fwd_kernel(int dir, int lay, int iter,
 }
 #endif
 
-__kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
+__kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global char *ws, __global PRECISE_DATA_T *bias_base, float alpha,
         __global float *tm_scales, float tm_cscale) {
 
@@ -884,7 +883,7 @@ __kernel void ref_rnn_elemwise_bwd_kernel(int dir, int lay, int iter,
 #endif
 }
 
-__kernel void ref_rnn_gates_reduction_kernel(int dir, int lay, int iter,
+__kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
         __global PRECISE_DATA_T *diff_bias_base, __global char *ws) {
 #if !IS_FWD
     const int i = get_global_id(0); // n_gates

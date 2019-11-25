@@ -29,9 +29,8 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_bwd_data_kernel(__global DATA_T *diff_src,
-        __global DATA_T *wei, __global DATA_T *diff_dst,
-        __global DATA_T *bias) {
+gen9_common_conv_bwd_data(__global DATA_T *diff_src, __global DATA_T *wei,
+        __global DATA_T *diff_dst, __global DATA_T *bias) {
 
 #if VER_16MB16C == 1
     const int mb_unroll = 16;

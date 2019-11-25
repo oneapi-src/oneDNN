@@ -71,7 +71,7 @@
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
 #endif
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
-wei_reorder_kernel(__global DT_IN *input, __global DT_IN *scales,
+wei_reorder(__global DT_IN *input, __global DT_IN *scales,
         __global DT_OUT *output, float alpha, float beta) {
 
     __global char *temp = (__global char *)(output + COMP_DST_OFFSET_EL);

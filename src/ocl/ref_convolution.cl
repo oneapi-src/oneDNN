@@ -19,7 +19,7 @@
 #include "ocl/ocl_post_ops.h"
 #endif
 
-__kernel void ref_convolution_fwd_kernel(
+__kernel void ref_convolution_fwd(
         const __global SRC_DATA_T *src, const __global WEI_DATA_T *wei,
         const __global BIA_DATA_T *bias, __global DST_DATA_T *dst,
         float eltwise_alpha, float eltwise_beta, float sum_scale
@@ -84,7 +84,7 @@ __kernel void ref_convolution_fwd_kernel(
     dst[DST_OFF(n, g * OC + oc, od, oh, ow)] = TO_DST(tmp);
 }
 
-__kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
+__kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
         const __global BIA_DATA_T *bias) {
     const int n = get_global_id(0);
@@ -123,7 +123,7 @@ __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);
 }
 
-__kernel void ref_convolution_bwd_weights_kernel(const __global SRC_DATA_T *src,
+__kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
         __global WEI_DATA_T *diff_wei, __global BIA_DATA_T *diff_bias,
         const __global DST_DATA_T *diff_dst) {
     const int g = get_global_id(0);

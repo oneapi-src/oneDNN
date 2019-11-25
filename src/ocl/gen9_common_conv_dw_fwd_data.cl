@@ -34,10 +34,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_dw_fwd_kernel(const __global DATA_T *src,
-        const __global DATA_T *wei, const __global DATA_T *bias,
-        __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale) {
+gen9_common_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
+        const __global DATA_T *bias, __global DATA_T *dst, float eltwise_alpha,
+        float eltwise_beta, float sum_scale) {
 
 #ifdef VER_8OW16C
     const int osp = get_global_id(1);

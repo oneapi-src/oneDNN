@@ -164,8 +164,8 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
                     pd()->with_eltwise(), pd()->eltwise_alg_kind());
             if (status != status::success) return status;
 
-            compute_engine->create_kernel(&compute_kernel_[beta0],
-                    "gen9_gemm_compute_kernel", kernel_ctx);
+            compute_engine->create_kernel(
+                    &compute_kernel_[beta0], "gen9_gemm_compute", kernel_ctx);
             if (!compute_kernel_[beta0]) return status::runtime_error;
         }
 
@@ -180,8 +180,8 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
                             acc_type>::init_const_def(kernel_ctx, true, trans);
             if (status != status::success) return status;
 
-            compute_engine->create_kernel(&copy_kernel_[outer][trans],
-                    "gen9_gemm_copy_kernel", kernel_ctx);
+            compute_engine->create_kernel(
+                    &copy_kernel_[outer][trans], "gen9_gemm_copy", kernel_ctx);
             if (!copy_kernel_[outer][trans]) return status::runtime_error;
         }
 
@@ -192,7 +192,7 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &beta_kernel_, "gen9_gemm_beta_kernel", kernel_ctx);
+                &beta_kernel_, "gen9_gemm_beta", kernel_ctx);
         if (!beta_kernel_) return status::runtime_error;
 
         return status::success;
@@ -202,12 +202,8 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
         const char *kernel_name = nullptr;
 
         switch (c_type) {
-            case data_type::f32:
-                kernel_name = "gen9_gemm_nocopy_f32_kernel";
-                break;
-            case data_type::f16:
-                kernel_name = "gen9_gemm_nocopy_f16_kernel";
-                break;
+            case data_type::f32: kernel_name = "gen9_gemm_nocopy_f32"; break;
+            case data_type::f16: kernel_name = "gen9_gemm_nocopy_f16"; break;
             default: return status::unimplemented;
         }
 

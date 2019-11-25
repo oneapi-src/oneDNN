@@ -72,8 +72,7 @@ struct simple_sum_t : public primitive_impl_t {
 
         jit_simple_sum_kernel::init_const_def(kernel_ctx, pd()->jss_);
 
-        compute_engine->create_kernel(
-                &kernel_, "simple_sum_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "simple_sum", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

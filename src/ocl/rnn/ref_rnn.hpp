@@ -387,18 +387,18 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 kernel_ctx, pd()->jrnn_, pd()->jit_off_);
 
         std::vector<const char *> kernel_names
-                = { "ref_rnn_bias_prepare_kernel",
-                      "ref_rnn_copy_init_layer_kernel",
-                      "ref_rnn_copy_init_iter_kernel",
-                      "ref_rnn_copy_res_layer_kernel",
-                      "ref_rnn_copy_res_iter_kernel",
-                      "ref_rnn_ws_set_kernel",
-                      "ref_rnn_elemwise_fwd_kernel",
-                      "ref_rnn_elemwise_bwd_kernel",
-                      "ref_rnn_gates_reduction_kernel"
+                = { "ref_rnn_bias_prepare",
+                      "ref_rnn_copy_init_layer",
+                      "ref_rnn_copy_init_iter",
+                      "ref_rnn_copy_res_layer",
+                      "ref_rnn_copy_res_iter",
+                      "ref_rnn_ws_set",
+                      "ref_rnn_elemwise_fwd",
+                      "ref_rnn_elemwise_bwd",
+                      "ref_rnn_gates_reduction"
 #if DEBUGPRINT
                       ,
-                      "ref_rnn_ws_print_kernel"
+                      "ref_rnn_ws_print"
 #endif
                   };
 

@@ -31,9 +31,8 @@ __attribute__((reqd_work_group_size(SUB_GROUP_SIZE, 1, 1))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_reduce_bwd_weights_kernel(__global float *diff_wei,
-        __global float *wht_work, __global float *diff_bias,
-        __global float *bias_work) {
+gen9_reduce_bwd_weights(__global float *diff_wei, __global float *wht_work,
+        __global float *diff_bias, __global float *bias_work) {
 
     const uint g_ic_oc = get_global_id(0);
 
@@ -156,7 +155,7 @@ gen9_reduce_bwd_weights_kernel(__global float *diff_wei,
 
 __attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
 __kernel void
-gen9_load_tails_bwd_weights_kernel(__global float *src, __global float *tails) {
+gen9_load_tails_bwd_weights(__global float *src, __global float *tails) {
 
     for (int j = 0; j < PW; j++)
         for (int i = 0; i < 16; i++) {
@@ -197,8 +196,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_bwd_weights_kernel(
-        __global float *src, __global float *diff_wei,
+gen9_common_conv_bwd_weights(__global float *src, __global float *diff_wei,
         __global float *diff_bias, __global float *diff_dst
 #if VER_8OW16C == 1 && (IC % 16 == 0 || IS_DW)
         ,

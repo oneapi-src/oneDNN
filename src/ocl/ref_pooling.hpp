@@ -101,8 +101,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
         jit_ref_pooling_fwd_kernel::init_const_def(
                 kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_pooling_fwd_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "ref_pooling_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -177,8 +176,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
         jit_ref_pooling_fwd_kernel::init_const_def(
                 kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_pooling_bwd_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "ref_pooling_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

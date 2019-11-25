@@ -309,8 +309,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
             kernel_ctx.define_int("WITH_SUM", pd()->with_sum());
 
             compute_engine->create_kernel(&post_process_kernel_,
-                    "gemm_x8s8s32x_inner_product_post_process_kernel",
-                    kernel_ctx);
+                    "gemm_x8s8s32x_inner_product_post_process", kernel_ctx);
             if (!post_process_kernel_) return status::runtime_error;
         }
 

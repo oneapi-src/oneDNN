@@ -80,8 +80,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                 kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "wei_reorder_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "wei_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         if (pd()->jrp_.do_reorder) {

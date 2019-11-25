@@ -144,7 +144,7 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                 pd()->eltwise_alg_kind());
 
         compute_engine->create_kernel(
-                &kernel_, "ref_inner_product_fwd_kernel", kernel_ctx);
+                &kernel_, "ref_inner_product_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -210,7 +210,7 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
                 pd()->jit_off_, false, false, dnnl_alg_kind_undef);
 
         compute_engine->create_kernel(
-                &kernel_, "ref_inner_product_bwd_data_kernel", kernel_ctx);
+                &kernel_, "ref_inner_product_bwd_data", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -273,7 +273,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
                 pd()->jit_off_, false, false, dnnl_alg_kind_undef);
 
         compute_engine->create_kernel(
-                &kernel_, "ref_inner_product_bwd_weights_kernel", kernel_ctx);
+                &kernel_, "ref_inner_product_bwd_weights", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
