@@ -96,6 +96,13 @@ if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
             PROPERTIES COMPILE_FLAGS "/O1")
 endif()
 
+# Higher optimization levels cause access violation in _CxxThrowException.
+if(WIN32 AND DNNL_SYCL_DPCPP)
+    set_source_files_properties(
+            test_iface_runtime_dims.cpp
+            PROPERTIES COMPILE_FLAGS "-O1")
+endif()
+
 # Tests that don't support '--engine' parameter
 set_source_files_properties(test_cross_engine_reorder.cpp
         PROPERTIES NO_ENGINE_PARAM true)
