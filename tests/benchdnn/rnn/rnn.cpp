@@ -176,7 +176,7 @@ int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
 
     dt_conf_t c = p.cfg[kind];
-    if (c.dt == dnnl_u8) return fill_memory(p, kind, mem_dt, mem_fp);
+    if (c.dt == dnnl_s8) return fill_memory(p, kind, mem_dt, mem_fp);
 
     auto dims = mem_fp.md_.dims;
     auto L = dims[0];
