@@ -340,8 +340,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     const char *skind = rnn_data_kind2str(kind);
 
     diff_norm_t diff_norm;
-    r->errors = 0;
-    r->total = nelems;
+    size_t errors = 0;
+    r->total += nelems;
 
 //#define BENCHDNN_RNN_PRINT_STATISTICS
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS
@@ -408,8 +408,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
 
             if (!ok) {
-                r->errors++;
-                if (r->errors < 10 || verbose >= 10) {
+                errors++;
+                if (errors < 10 || verbose >= 10) {
                     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
                             oc = 0, b = 0;
                     switch (kind) {
@@ -570,11 +570,11 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         if ((diff_norm.rel_diff(norm_t::L1) > rel_eps)
                 || (diff_norm.rel_diff(norm_t::L2) > rel_eps)
                 || (diff_norm.rel_diff(norm_t::L8) > rel_eps))
-            r->errors++;
+            errors++;
     }
 
-    if (final_compare || r->errors) {
-        const int vl = r->errors ? 0 : 2;
+    if (final_compare || errors) {
+        const int vl = errors ? 0 : 2;
         print(vl,
                 "@@@ [%s] %sdiff: l0(``%g``) "
                 "l1:(%g,%g,%g,``%g``) "
@@ -590,7 +590,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 diff_norm.rel_diff(norm_t::L8));
     }
 
-    if (r->errors) r->state = FAILED;
+    r->errors += errors;
+    if (errors != 0) r->state = FAILED;
 
     if (final_compare && r->state == UNTESTED) r->state = PASSED; /* optimism */
 
@@ -601,7 +602,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             mean_fp / nelems, var_fp / nelems);
 #endif
 
-    return r->state == FAILED ? FAIL : OK;
+    return errors != 0 ? FAIL : OK;
 }
 
 int compare_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,

@@ -33,12 +33,11 @@
 
 #define CALL_DNNL_RNN 1
 
-#define COMPARE_DAT(a, lay) \
+#define COMPARE_DAT(rc, a, lay) \
     do { \
         dnn_mem_t CONCAT2(a, _dt_plain)(CONCAT2(a, _dt), fp, lay, engine_tgt); \
-        SAFE_CLEAN(compare_dat(p, a, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), \
-                           r, true), \
-                WARN, cleanup); \
+        rc |= compare_dat( \
+                p, a, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), r, true); \
     } while (0)
 
 // Using hidden attr API for testing RNN
@@ -701,10 +700,12 @@ int doit(const prb_t &p, res_t *r) {
                     dst_last_layer_fp, dst_last_iteration_fp,
                     dst_c_last_iteration_fp);
 
-            COMPARE_DAT(dst_last_layer, dnnl_tnc);
-            COMPARE_DAT(dst_last_iteration, dnnl_ldnc);
+            int compare_status = OK;
+            COMPARE_DAT(compare_status, dst_last_layer, dnnl_tnc);
+            COMPARE_DAT(compare_status, dst_last_iteration, dnnl_ldnc);
             if (p.alg == VANILLA_LSTM)
-                COMPARE_DAT(dst_c_last_iteration, dnnl_ldnc);
+                COMPARE_DAT(compare_status, dst_c_last_iteration, dnnl_ldnc);
+            SAFE_CLEAN(compare_status, WARN, cleanup);
         }
     }
 
@@ -752,21 +753,29 @@ int doit(const prb_t &p, res_t *r) {
                     dst_diff_weights_input_fp, dst_diff_weights_states_fp,
                     dst_diff_bias_fp);
 
-            COMPARE_DAT(dst_last_layer, dnnl_tnc);
-            COMPARE_DAT(dst_last_iteration, dnnl_ldnc);
-
+            int compare_fwd_status = OK;
+            COMPARE_DAT(compare_fwd_status, dst_last_layer, dnnl_tnc);
+            COMPARE_DAT(compare_fwd_status, dst_last_iteration, dnnl_ldnc);
             if (p.alg == VANILLA_LSTM)
-                COMPARE_DAT(dst_c_last_iteration, dnnl_ldnc);
+                COMPARE_DAT(
+                        compare_fwd_status, dst_c_last_iteration, dnnl_ldnc);
+            SAFE_CLEAN(compare_fwd_status, WARN, cleanup);
 
-            COMPARE_DAT(dst_diff_input, dnnl_tnc);
-            COMPARE_DAT(dst_diff_states, dnnl_ldnc);
-
+            int compare_bwd_data_status = OK;
+            COMPARE_DAT(compare_bwd_data_status, dst_diff_input, dnnl_tnc);
+            COMPARE_DAT(compare_bwd_data_status, dst_diff_states, dnnl_ldnc);
             if (p.alg == VANILLA_LSTM)
-                COMPARE_DAT(dst_diff_c_states, dnnl_ldnc);
+                COMPARE_DAT(
+                        compare_bwd_data_status, dst_diff_c_states, dnnl_ldnc);
+            SAFE_CLEAN(compare_bwd_data_status, WARN, cleanup);
 
-            COMPARE_DAT(dst_diff_weights_input, dnnl_ldigo);
-            COMPARE_DAT(dst_diff_weights_states, dnnl_ldigo);
-            COMPARE_DAT(dst_diff_bias, dnnl_ldgo);
+            int compare_bwd_weights_status = OK;
+            COMPARE_DAT(compare_bwd_weights_status, dst_diff_weights_input,
+                    dnnl_ldigo);
+            COMPARE_DAT(compare_bwd_weights_status, dst_diff_weights_states,
+                    dnnl_ldigo);
+            COMPARE_DAT(compare_bwd_weights_status, dst_diff_bias, dnnl_ldgo);
+            SAFE_CLEAN(compare_bwd_weights_status, WARN, cleanup);
         }
     }
 
