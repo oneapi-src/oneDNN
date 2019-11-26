@@ -199,7 +199,7 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
         CHECK(dnnl_memory_get_data_handle(mem, &ptr));
         if (ptr) {
             for (size_t i = 0; i < bytes; ++i) {
-                ((char *)handle)[i] = ((char *)ptr)[i];
+                ((char *)ptr)[i] = ((char *)handle)[i];
             }
         }
         return;
