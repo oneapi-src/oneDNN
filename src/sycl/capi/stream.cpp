@@ -32,7 +32,8 @@ status_t dnnl_stream_create_sycl(
             && engine->kind() == engine_kind::gpu;
     if (!args_ok) return status::invalid_arguments;
 
-    auto *sycl_engine = utils::downcast<sycl::sycl_engine_base_t *>(engine);
+    auto *sycl_engine
+            = utils::downcast<dnnl::impl::sycl::sycl_engine_base_t *>(engine);
     auto &sycl_queue = *static_cast<cl::sycl::queue *>(queue);
     return sycl_engine->create_stream(stream, sycl_queue);
 }
@@ -43,7 +44,8 @@ status_t dnnl_stream_get_sycl_queue(stream_t *stream, void **queue) {
 
     if (!args_ok) return status::invalid_arguments;
 
-    auto sycl_stream = utils::downcast<sycl::sycl_stream_t *>(stream);
+    auto sycl_stream
+            = utils::downcast<dnnl::impl::sycl::sycl_stream_t *>(stream);
     auto &sycl_queue = sycl_stream->queue();
     *queue = static_cast<void *>(&sycl_queue);
     return status::success;
