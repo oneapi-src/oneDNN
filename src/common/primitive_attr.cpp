@@ -102,8 +102,6 @@ bool primitive_attr_t::has_default_values(
                     rnn_data_qparams_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
                     rnn_weights_qparams_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_tparams),
-                    rnn_tparams_.has_default_values())
             && this->defined(defined_mask);
 }
 
