@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_inference_int8_matmul.cpp
-/// > Annotated version: @ref cpu_inference_int8_matmul_cpp
+/// @example inference_int8_matmul.cpp
+/// > Annotated version: @ref inference_int8_matmul_cpp
 ///
-/// @page cpu_inference_int8_matmul_cpp_short
+/// @page inference_int8_matmul_cpp_short
 /// C++ API example demonstrating how one can use
 /// [MatMul](@ref dev_guide_matmul) fused with ReLU in INT8 inference.
 ///
@@ -32,8 +32,8 @@
 ///   - Run-time tensor shapes: #DNNL_RUNTIME_DIM_VAL
 /// - Weights pre-packing: use #dnnl::memory::format_tag::any
 ///
-/// @page cpu_inference_int8_matmul_cpp MatMul Tutorial: INT8 Inference
-/// @copydetails cpu_inference_int8_matmul_cpp_short
+/// @page inference_int8_matmul_cpp MatMul Tutorial: INT8 Inference
+/// @copydetails inference_int8_matmul_cpp_short
 ///
 /// Assumptions:
 /// 1. The shape of the weights (matrix \f$B(K, N)\f$) is known in advance, the
@@ -51,7 +51,7 @@
 /// The format tag #dnnl::memory::format_tag::any doesn't work for memory
 /// descriptors that have one or more unknown dimensions and/or strides.
 ///
-/// @include cpu_inference_int8_matmul.cpp
+/// @include inference_int8_matmul.cpp
 
 #include <cassert>
 #include <cctype>

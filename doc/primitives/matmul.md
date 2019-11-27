@@ -139,8 +139,8 @@ argument with index set to
 
 ## Tutorials
 
-| Engine | Name                               | Comments
-| :--    | :--                                | :--
-| CPU    | @ref cpu_sgemm_and_matmul_cpp      | @copydetails cpu_sgemm_and_matmul_cpp_short
-| CPU    | @ref cpu_inference_int8_matmul_cpp | @copydetails cpu_inference_int8_matmul_cpp_short
-| CPU    | @ref cpu_matmul_quantization_cpp   | @copydetails cpu_matmul_quantization_cpp_short
+| Engine  | Name                               | Comments
+| :--     | :--                                | :--
+| CPU     | @ref cpu_sgemm_and_matmul_cpp      | @copydetails cpu_sgemm_and_matmul_cpp_short
+| CPU/GPU | @ref inference_int8_matmul_cpp     | @copydetails inference_int8_matmul_cpp_short
+| CPU     | @ref cpu_matmul_quantization_cpp   | @copydetails cpu_matmul_quantization_cpp_short
