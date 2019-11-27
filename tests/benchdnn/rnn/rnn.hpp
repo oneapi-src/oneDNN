@@ -274,6 +274,7 @@ struct prb_t : public desc_t {
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
+    bool is_int8() const { return cfg[input].dt == dnnl_u8; }
 
     const dt_conf_t *cfg;
     dnnl_prop_kind_t prop;

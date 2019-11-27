@@ -75,30 +75,27 @@ void copy_init_fwd(const prb_t &p, float *ws_, const float *src_layer_,
 
     int64_t lay_dest = (lay_dir == bottom2top) ? 0 : p.n_layer + 1;
     int64_t it_dest = (iter_dir == left2right) ? 0 : p.n_iter + 1;
-    bool is_int8 = p.cfg[input].dt == dnnl_u8;
 
     // Copy input
     for (int64_t it = 0; it < p.n_iter; it++) {
         copy(p.mb, p.slc, p.slc, p.wc, &src_layer(it, 0),
                 &ws(lay_dest, dir_val, it + 1, H, 0));
+        if (p.is_int8())
+            data_q10n(p.mb, p.slc, p.wc, &ws(lay_dest, dir_val, it + 1, H, 0),
+                    p.data_scale, p.data_shift);
     }
 
     // Copy states
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
         copy(p.mb, p.sic, p.sic, p.wc, &firstit_states(lay, dir_val, 0),
                 &ws(lay + 1, dir_val, it_dest, H, 0));
-        if (p.cfg[states].dt == dnnl_f32 && is_int8) {
-            // quantize to s8
-            scale(p.mb, p.sic, p.wc, &ws(lay + 1, dir_val, it_dest, H, 0),
-                    p.data_scale);
-            shift(p.mb, p.sic, p.wc, &ws(lay + 1, dir_val, it_dest, H, 0),
-                    p.data_shift, true);
-        }
+        if (p.is_int8())
+            data_q10n(p.mb, p.sic, p.wc, &ws(lay + 1, dir_val, it_dest, H, 0),
+                    p.data_scale, p.data_shift);
 
-        if (p.alg == VANILLA_LSTM) {
+        if (p.alg == VANILLA_LSTM)
             copy(p.mb, p.dic, p.dic, p.wc, &firstit_c_states(lay, dir_val, 0),
                     &ws(lay + 1, dir_val, it_dest, C, 0));
-        }
     }
 }
 
@@ -122,11 +119,9 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
                     it, nb, action == action_concat ? p.dlc : 0);
             copy(1, p.dlc, p.wc, lastlay_c, from, to, action);
 
-            if (p.cfg[dst_last_layer].dt != dnnl_u8) {
-                // dequantize to f32
-                shift(1, p.dlc, lastlay_c, to, - p.data_shift);
-                scale(1, p.dlc, lastlay_c, to, 1. / p.data_scale);
-            }
+            if (p.is_int8() && p.cfg[dst_last_layer].dt != dnnl_u8)
+                data_deq10n(
+                        1, p.dlc, lastlay_c, to, p.data_scale, p.data_shift);
         }
     }
 
@@ -139,16 +134,13 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
                     &ws(lay + 1, dir_val, it_source, C, 0, 0),
                     &lastit_c_states(lay, dir_val, 0, 0));
         }
+
         copy(p.mb, p.dic, p.wc, p.dic,
                 &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, 0, 0));
-        if (p.cfg[dst_last_iteration].dt != dnnl_u8) {
-            // dequantize to f32
-            shift(p.mb, p.dic, p.dic, &lastit_states(lay, dir_val, 0, 0),
-                    - p.data_shift);
-            scale(p.mb, p.dic, p.dic, &lastit_states(lay, dir_val, 0, 0),
-                    1. / p.data_scale);
-        }
+        if (p.is_int8() && p.cfg[dst_last_iteration].dt != dnnl_u8)
+            data_deq10n(p.mb, p.dic, p.dic, &lastit_states(lay, dir_val, 0, 0),
+                    p.data_scale, p.data_shift);
     }
 }
 
@@ -192,7 +184,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
     bool is_concat = p.direction == dnnl_bidirectional_concat;
 
     float *bias_with_compensation = nullptr;
-    if (p.cfg[input].dt == dnnl_u8) {
+    if (p.is_int8()) {
         bias_with_compensation = new float[p.n_layer * p.n_dir()
                 * (p.n_gates() + is_lbr) * p.dic];
         prepare_bias(p, bias_with_compensation, bias_, weights_layer_,

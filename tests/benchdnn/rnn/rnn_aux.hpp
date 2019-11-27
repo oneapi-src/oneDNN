@@ -74,10 +74,10 @@ float x_m_square(float x);
 
 void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst,
         const float *src_, float *dst_, rnn_action_t action = action_copy);
-void shift(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float shift,
-        bool round = false);
-void scale(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_, float scale,
-        bool round = false);
+void data_q10n(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_,
+        float data_scale, float data_shift);
+void data_deq10n(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_,
+        float data_scale, float data_shift);
 void gates_reduction(const prb_t &p, const float *b_gates_, float *diff_bias_);
 
 int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
