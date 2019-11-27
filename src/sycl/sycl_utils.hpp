@@ -23,6 +23,22 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
+// Intel(R) oneAPI DPC++ Compiler uses reversed global work-item IDs starting
+// from 10-24-2019.
+// ComputeCpp version >= 1.1.6 uses reversed global work-item IDs.
+#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20191024)
+#define DNNL_SYCL_REVERSE_RANGE 1
+#elif defined(DNNL_SYCL_COMPUTECPP) \
+        && (COMPUTECPP_VERSION_MAJOR > 1 \
+                || (COMPUTECPP_VERSION_MAJOR == 1 \
+                        && (COMPUTECPP_VERSION_MINOR > 1 \
+                                || (COMPUTECPP_VERSION_MINOR == 1 \
+                                        && COMPUTECPP_VERSION_PATCH >= 6))))
+#define DNNL_SYCL_REVERSE_RANGE 1
+#else
+#define DNNL_SYCL_REVERSE_RANGE 0
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace sycl {
@@ -31,7 +47,7 @@ using buffer_u8_t = cl::sycl::buffer<uint8_t, 1>;
 
 inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
     auto *global_range = range.global_range();
-#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20191024)
+#if DNNL_SYCL_REVERSE_RANGE
     auto sycl_global_range = cl::sycl::range<3>(
             global_range[2], global_range[1], global_range[0]);
 #else
@@ -54,7 +70,7 @@ inline cl::sycl::nd_range<3> to_sycl_nd_range(
                 sycl_global_range, cl::sycl::range<3>(1, 1, 1));
     }
 
-#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20191024)
+#if DNNL_SYCL_REVERSE_RANGE
     auto sycl_local_range = cl::sycl::range<3>(
             local_range[2], local_range[1], local_range[0]);
 #else
@@ -67,5 +83,7 @@ inline cl::sycl::nd_range<3> to_sycl_nd_range(
 } // namespace sycl
 } // namespace impl
 } // namespace dnnl
+
+#undef DNNL_SYCL_REVERSE_RANGE
 
 #endif
