@@ -147,13 +147,14 @@ void prepare_input(memory &A_u8_mem, memory &scale_f32_mem, memory &zp_A_mem,
     write_to_dnnl_memory(scales_f32.data(), scale_f32_mem);
 }
 
-void sanity_check(memory &C_u8_mem, const memory &zp_C_mem) {
-    int32_t zp_C = zp_C_mem.get_desc().dims()[0];
+void sanity_check(memory &C_u8_mem, memory &zp_C_mem) {
     int64_t M = C_u8_mem.get_desc().dims()[0];
     int64_t N = C_u8_mem.get_desc().dims()[1];
-
+    int32_t zp_C = 0;
     std::vector<uint8_t> C_u8(M * N);
+
     read_from_dnnl_memory(C_u8.data(), C_u8_mem);
+    read_from_dnnl_memory(&zp_C, zp_C_mem);
 
     // simple check: C_u8 >= zp_C
     for (int64_t i = 0; i < M * N; ++i)
