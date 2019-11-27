@@ -125,11 +125,8 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
         kernel_ctx.set_data_type(desc->data_desc.data_type);
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
 
-        for (int i = 0; i < 3; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "BLOCK_%d", i);
-            kernel_ctx.define_int(tempstr, pd()->block[i]);
-        }
+        for (int i = 0; i < 3; i++)
+            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
@@ -210,11 +207,8 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
 
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 
-        for (int i = 0; i < 3; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "BLOCK_%d", i);
-            kernel_ctx.define_int(tempstr, pd()->block[i]);
-        }
+        for (int i = 0; i < 3; i++)
+            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_bwd_generic", kernel_ctx);

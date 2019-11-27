@@ -189,17 +189,13 @@ struct jit_simple_reorder_kernel {
         kernel_ctx.define_int("LWS_2", jrp.lws_d[2]);
 
         for (int i = 0; i < 3; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "BLOCK_%d", i);
-            kernel_ctx.define_int(tempstr, jrp.block[i]);
+            kernel_ctx.define_int(utils::format("BLOCK_%d", i), jrp.block[i]);
         }
 
         for (int i = 0; i < 6; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "D%d_BLOCK", i);
-            kernel_ctx.define_int(tempstr, jrp.dim_block[i]);
-            snprintf(tempstr, 32, "D%d_NBLOCKS", i);
-            kernel_ctx.define_int(tempstr,
+            kernel_ctx.define_int(
+                    utils::format("D%d_BLOCK", i), jrp.dim_block[i]);
+            kernel_ctx.define_int(utils::format("D%d_NBLOCKS", i),
                     nstl::max(1,
                             jrp.dst_md_info.padded_dims[i] / jrp.dim_block[i]));
         }

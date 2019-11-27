@@ -427,6 +427,34 @@ inline derived_type downcast(base_type *base) {
     return static_cast<derived_type>(base);
 }
 
+template <typename T,
+        typename std::enable_if<!std::is_same<typename std::decay<T>::type,
+                std::string>::value>::type * = nullptr>
+auto format_cvt_impl(T &&t) -> decltype(std::forward<T>(t)) {
+    return std::forward<T>(t);
+}
+
+template <typename T,
+        typename std::enable_if<std::is_same<typename std::decay<T>::type,
+                std::string>::value>::type * = nullptr>
+const char *format_cvt_impl(T &&t) {
+    return std::forward<T>(t).c_str();
+}
+
+template <typename... Args>
+std::string format_impl(const char *fmt, Args... args) {
+    size_t sz = snprintf(nullptr, 0, fmt, args...);
+    std::string buf(sz + 1, '\0');
+    snprintf(&buf[0], sz + 1, fmt, args...);
+    buf.resize(sz);
+    return buf;
+}
+
+template <typename... Args>
+std::string format(const char *fmt, Args &&... args) {
+    return format_impl(fmt, format_cvt_impl(std::forward<Args>(args))...);
+}
+
 } // namespace utils
 
 int32_t fetch_and_add(int32_t *dst, int32_t val);

@@ -115,25 +115,12 @@ struct jit_rnn_reorder_kernel {
         const auto &out_dims = output_md.padded_dims();
 
         kernel_ctx.define_int("PAD_FILL_ZERO", jrp.has_padding);
-        {
-            char tempstr[32];
-            for (int d = 0; d < input_md.ndims(); ++d) {
-                snprintf(tempstr, 32, " SRC_D%d", d);
-                kernel_ctx.define_int(tempstr, in_dims[d]);
-            }
-            for (int d = input_md.ndims(); d < 6; ++d) {
-                snprintf(tempstr, 32, " SRC_D%d", d);
-                kernel_ctx.define_int(tempstr, 1);
-            }
-            for (int d = 0; d < output_md.ndims(); ++d) {
-                snprintf(tempstr, 32, " DST_D%d", d);
-                kernel_ctx.define_int(tempstr, out_dims[d]);
-            }
-            for (int d = output_md.ndims(); d < 6; ++d) {
-                snprintf(tempstr, 32, " DST_D%d", d);
-                kernel_ctx.define_int(tempstr, 1);
-            }
-        }
+        for (int d = 0; d < 6; ++d)
+            kernel_ctx.define_int(utils::format("SRC_D%d", d),
+                    (d < input_md.ndims()) ? in_dims[d] : 1);
+        for (int d = 0; d < 6; ++d)
+            kernel_ctx.define_int(utils::format("DST_D%d", d),
+                    (d < output_md.ndims()) ? out_dims[d] : 1);
         kernel_ctx.define_int("MASK", jrp.mask);
         return status::success;
     }

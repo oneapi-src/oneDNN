@@ -455,40 +455,24 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
 
 inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
         const memory_desc_wrapper &md, const char *str) {
-    char tempstr[32];
-
     dim_t block_dims[DNNL_MAX_NDIMS];
     dim_t strides_compat[2][DNNL_MAX_NDIMS];
 
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
 
-    for (int d = 0; d < md.ndims(); ++d) {
+    for (int d = 0; d < 6; ++d) {
         const int block = block_dims[d];
 
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, block);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, strides_compat[0][d]);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, strides_compat[1][d]);
-    }
-    for (int d = md.ndims(); d < 6; ++d) {
-
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, 1);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
+        kernel_ctx.define_int(
+                utils::format("%s_B%d", str, d), (d < md.ndims()) ? block : 1);
+        kernel_ctx.define_int(utils::format("%s_S%d", str, d),
+                (d < md.ndims()) ? strides_compat[0][d] : 0);
+        kernel_ctx.define_int(utils::format("%s_SB%d", str, d),
+                (d < md.ndims()) ? strides_compat[1][d] : 0);
     }
 
-    snprintf(tempstr, 32, "%s_OFFSET_PAD", str);
-    kernel_ctx.define_int(tempstr, md.md_->offset0);
+    kernel_ctx.define_int(utils::format("%s_OFFSET_PAD", str), md.md_->offset0);
 }
 
 inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
@@ -512,33 +496,15 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
 inline void def_offsets(const int offs[4][MAX_NDIMS],
         compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
 
-    for (int d = 0; d < ndims; d++) {
-        char tempstr[32];
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[0][d]);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[1][d]);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[2][d]);
-
-        snprintf(tempstr, 32, "%s_D%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[3][d]);
-    }
-    for (int d = ndims; d < 6; ++d) {
-        char tempstr[32];
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, 1);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
-
-        snprintf(tempstr, 32, "%s_D%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
+    for (int d = 0; d < 6; d++) {
+        kernel_ctx.define_int(
+                utils::format("%s_B%d", str, d), (d < ndims) ? offs[0][d] : 1);
+        kernel_ctx.define_int(
+                utils::format("%s_S%d", str, d), (d < ndims) ? offs[1][d] : 0);
+        kernel_ctx.define_int(
+                utils::format("%s_SB%d", str, d), (d < ndims) ? offs[2][d] : 0);
+        kernel_ctx.define_int(
+                utils::format("%s_D%d", str, d), (d < ndims) ? offs[3][d] : 0);
     }
 }
 
@@ -563,37 +529,30 @@ inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
 
 inline void def_data_type(
         compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
-    char tempstr[64];
     switch (dt) {
         case data_type::bf16:
-            snprintf(tempstr, sizeof(tempstr),
-                    "-D%s_DATA_T=ushort -D%s_DT_BF16", str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=ushort -D%s_DT_BF16", str, str));
             break;
         case data_type::f16:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=half -D%s_DT_F16",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=half -D%s_DT_F16", str, str));
             break;
         case data_type::f32:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=float -D%s_DT_F32",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=float -D%s_DT_F32", str, str));
             break;
         case data_type::s8:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=char -D%s_DT_S8",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=char -D%s_DT_S8", str, str));
             break;
         case data_type::u8:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=uchar -D%s_DT_U8",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=uchar -D%s_DT_U8", str, str));
             break;
         case data_type::s32:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=int -D%s_DT_S32",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
             break;
         default: assert(!"unsupported data type"); break;
     }
@@ -601,37 +560,27 @@ inline void def_data_type(
 
 inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
         const jit_memory_desc_info_t &jit_md_info, const char *prefix) {
-    char temp[32];
-
     def_data_type(kernel_ctx, jit_md_info.data_type, prefix);
 
-    snprintf(temp, sizeof(temp), "%s_OFFSET0", prefix);
-    kernel_ctx.define_int(temp, jit_md_info.offset0);
-
-    snprintf(temp, sizeof(temp), "%s_NDIMS", prefix);
-    kernel_ctx.define_int(temp, jit_md_info.ndims);
+    kernel_ctx.define_int(
+            utils::format("%s_OFFSET0", prefix), jit_md_info.offset0);
+    kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), jit_md_info.ndims);
 
     for (int d = 0; d < 6; ++d) {
         int dim = (d < jit_md_info.ndims) ? jit_md_info.dims[d] : 0;
         int padded_dim
                 = (d < jit_md_info.ndims) ? jit_md_info.padded_dims[d] : 0;
-
-        snprintf(temp, sizeof(temp), "%s_D%d", prefix, d);
-        kernel_ctx.define_int(temp, dim);
-
-        snprintf(temp, sizeof(temp), "%s_PD%d", prefix, d);
-        kernel_ctx.define_int(temp, padded_dim);
+        kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
+        kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
 
         for (int l = 0; l < jit_md_info.nlevels + 1; ++l) {
             int block = (d < jit_md_info.ndims) ? jit_md_info.blocks[d][l] : 1;
             int stride
                     = (d < jit_md_info.ndims) ? jit_md_info.strides[d][l] : 0;
-
-            snprintf(temp, sizeof(temp), "%s_B%d_%d", prefix, d, l);
-            kernel_ctx.define_int(temp, block);
-
-            snprintf(temp, sizeof(temp), "%s_S%d_%d", prefix, d, l);
-            kernel_ctx.define_int(temp, stride);
+            kernel_ctx.define_int(
+                    utils::format("%s_B%d_%d", prefix, d, l), block);
+            kernel_ctx.define_int(
+                    utils::format("%s_S%d_%d", prefix, d, l), stride);
         }
     }
 }

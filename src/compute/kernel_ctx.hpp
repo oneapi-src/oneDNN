@@ -24,6 +24,7 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <string>
 #include <type_traits>
 
 namespace dnnl {
@@ -58,6 +59,10 @@ public:
         int_var_map_.insert({variable, value});
     }
 
+    void define_int(const std::string &variable, int64_t value) {
+        define_int(variable.c_str(), value);
+    }
+
     // TODO: should be removed, any float values should be passed in
     // kernel parameters
     void define_float(const char *variable, float value) {
@@ -65,6 +70,7 @@ public:
     }
 
     void add_option(const char *option) { option_set_.insert(option); }
+    void add_option(const std::string &option) { add_option(option.c_str()); }
 
     void set_data_type(data_type_t dt) {
         switch (dt) {
