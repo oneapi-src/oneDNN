@@ -716,7 +716,7 @@ typedef enum {
     /// Eltwise: natural logarithm
     dnnl_eltwise_log = 0xef,
     /// Eltwise: clip
-    dnnl_eltwise_clip = 0xf0,
+    dnnl_eltwise_clip = 0xff,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding

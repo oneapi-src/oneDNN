@@ -96,5 +96,6 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     POST_OP_DATA_T tmp_dd = DATA_TO_REF(diff_dst[diff_data_off]);
     POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
 
-    diff_src[diff_data_off] = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
+    diff_src[diff_data_off]
+            = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
 }
