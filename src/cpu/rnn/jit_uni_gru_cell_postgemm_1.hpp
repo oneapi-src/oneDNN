@@ -84,7 +84,7 @@ protected:
         auto addr_scratch_gates_reg = abi_param2;
         auto addr_bias_reg = abi_param3;
         auto addr_states_t_l_reg = abi_param4;
-#if _WIN32
+#ifdef _WIN32
         auto addr_states_t_l_copy_reg = r10;
         auto addr_states_tm1_l_reg = r11;
         // Here we cannot use rbp to have initial stack pointer so we
