@@ -74,6 +74,8 @@ status_t dnnl_matmul_desc_init(matmul_desc_t *matmul_desc,
     op_d.accum_data_type = types::default_accum_data_type(
             op_d.src_desc.data_type, op_d.weights_desc.data_type,
             op_d.dst_desc.data_type, prop_kind::forward);
+    if (op_d.accum_data_type == data_type::undef)
+        return status::invalid_arguments;
 
     *matmul_desc = op_d;
     return status::success;

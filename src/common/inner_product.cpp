@@ -66,6 +66,7 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
 
     id.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
+    if (id.accum_data_type == data_type::undef) return invalid_arguments;
 
     bool consistency = true && memory_desc_wrapper(weights_desc).nelems()
             && one_of(src_desc->ndims, 2, 3, 4, 5) && dst_desc->ndims == 2

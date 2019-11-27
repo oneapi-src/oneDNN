@@ -87,6 +87,7 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
 
     cd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
+    if (cd.accum_data_type == data_type::undef) return invalid_arguments;
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
     const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]

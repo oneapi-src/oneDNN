@@ -163,8 +163,7 @@ inline data_type_t default_accum_data_type(
 
     if (one_of(s8, src_dt, dst_dt) || one_of(u8, src_dt, dst_dt)) return s32;
 
-    assert(!"unimplemented use-case: no default parameters available");
-    return dst_dt;
+    return data_type::undef;
 }
 
 inline data_type_t default_accum_data_type(data_type_t src_dt,
@@ -188,8 +187,7 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
             return s32;
     }
 
-    assert(!"unimplemented use-case: no default parameters available");
-    return dst_dt;
+    return data_type::undef;
 }
 
 } // namespace types
