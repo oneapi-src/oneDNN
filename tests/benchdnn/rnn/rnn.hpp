@@ -313,16 +313,25 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
+    virtual void dump_alg(std::ostream &s) const override {
+        s << alg2str(p_->alg);
+    }
+
     virtual void dump_cfg(std::ostream &s) const override {
         s << cfg2str(p_->cfg);
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
-        s << alg2str(p_->alg) << "_" << activation2str(p_->activation) << "_"
-          << direction2str(p_->direction);
-        s << "l" << p_->n_layer << "d" << p_->n_dir() << "t" << p_->n_iter
-          << "mb" << p_->mb << "_"
-          << "slc" << p_->slc << "sic" << p_->sic << "dic" << p_->dic;
+        s << p_->n_layer << "," << p_->n_iter << "," << p_->mb << "," << p_->sic
+          << "," << p_->slc << "," << p_->dic << "," << p_->dlc;
+    }
+
+    virtual void dump_rnn_activation(std::ostream &s) const override {
+        s << activation2str(p_->activation);
+    }
+
+    virtual void dump_rnn_direction(std::ostream &s) const override {
+        s << direction2str(p_->direction);
     }
 
     virtual double ops() const override { return p_->ops; }

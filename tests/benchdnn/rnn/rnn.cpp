@@ -230,10 +230,19 @@ int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
         dnnl_primitive_desc_t rpd[2], res_t *r) {
-    const bool is_bwd = p.prop == dnnl_backward;
-    // If we are testing backward, we have to first run forward
-    // training first in order to generate a valid workspace.
-    auto fwd_prop = is_bwd ? dnnl_forward_training : dnnl_forward_inference;
+    dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
+    bool is_bwd = false;
+    switch (p.prop) {
+        case dnnl_forward: fwd_prop = dnnl_forward_inference; break;
+        case dnnl_backward:
+            // If we are testing backward, we have to run forward training first
+            // in order to generate a valid workspace.
+            fwd_prop = dnnl_forward_training;
+            is_bwd = true;
+            break;
+        default: DNN_SAFE(dnnl_invalid_arguments, CRIT);
+    }
+
     const bool is_gru_lbr = p.alg == LBR_GRU;
     // Enable testing non trivial strides in correctness mode
     int the_stride = (bench_mode == CORR) ? 1 : 0;
@@ -450,8 +459,6 @@ int doit(const prb_t &p, res_t *r) {
         return OK;
     }
 
-    const bool is_bwd = p.prop == dnnl_backward;
-
     dnn_mem_t input_dt;
     dnn_mem_t states_dt;
     dnn_mem_t c_states_dt;
@@ -547,6 +554,7 @@ int doit(const prb_t &p, res_t *r) {
     dst_c_last_iteration_dt = dnn_mem_t(dst_c_last_iteration_dt_d,
             p.cfg[dst_c_last_iteration].dt, engine_tgt);
 
+    const bool is_bwd = p.prop == dnnl_backward;
     if (is_bwd) {
         bwd_weights_input_dt = dnn_mem_t(
                 bwd_weights_input_dt_d, p.cfg[weights_input].dt, engine_tgt);

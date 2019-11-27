@@ -127,7 +127,7 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
 
     /* canonical form:
-     * lXtXmXsicXslcXdicXdlc
+     * lXtXmbXsicXslcXdicXdlcX
      *
      * where: X is number, S - string
      * note: symbol `_` is ignored

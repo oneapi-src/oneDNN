@@ -30,6 +30,7 @@ Options supported:
 
 | Syntax        | Primitives                                         | Description
 | :--           | :--                                                | :--
+| %activation%  | RNN                                                | RNN activation function
 | %alg%         | Conv, Eltwise, Lrn, Pool, Reorder, RNN             | Primitive algorithm
 | %attr%        | Bnorm, Conv, IP, Reorder                           | Primitive attributes
 | %axis%        | Concat, Shuffle, Softmax                           | Primitive axis
@@ -39,6 +40,7 @@ Options supported:
 | %desc%        | All                                                | Problem descriptor (dimensions and other options included)
 | %DESC%        | All                                                | CSV-style problem descriptor (mostly dimensions)
 | %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind
+| %direction%   | RNN                                                | RNN direction execution
 | %dt%          | Bnorm, Eltwise, Lrn, Shuffle, Softmax              | Data type (precision)
 | %sdt%/%ddt%   | Concat, Reorder, Sum                               | Src/Dst data types (precision)
 | %engine%      | All                                                | Engine kind
@@ -48,7 +50,7 @@ Options supported:
 | %group%       | Shuffle                                            | Shuffle group
 | %name%        | Bnorm, Conv, IP, Lrn, Pool, RNN                    | Problem name
 | %@ops%        | All with ops                                       | Number of ops required (padding is not taken into account)
-| %prop%        | RNN                                                | RNN properties
+| %prop%        | RNN                                                | RNN prop kind
 | %tag%         | Bnorm, Eltwise, Lnorm, Lrn, Pool, Shuffle, Softmax | Data format tag (physical memory layout)
 | %stat_tag%    | Lnorm                                              | Statistics (meand and variance) format tag (physical memory layout)
 | %stag%/%dtag% | Concat, Reorder, Sum                               | Src/Dst format tag (physical memory layout)

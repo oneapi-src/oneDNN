@@ -74,6 +74,8 @@ struct base_perf_report_t {
         HANDLE("cfg", dump_cfg(s));
         HANDLE("DESC", dump_desc_csv(s));
         HANDLE("flags", dump_flags(s));
+        HANDLE("activation", dump_rnn_activation(s));
+        HANDLE("direction", dump_rnn_direction(s));
 
         HANDLE("attr", if (attr() && !attr()->is_def()) s << *attr());
         HANDLE("axis", if (axis()) s << *axis());
@@ -145,6 +147,8 @@ struct base_perf_report_t {
     virtual void dump_cfg(std::ostream &) const { SAFE_V(FAIL); }
     virtual void dump_desc_csv(std::ostream &) const { SAFE_V(FAIL); }
     virtual void dump_flags(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_rnn_activation(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_rnn_direction(std::ostream &) const { SAFE_V(FAIL); }
 
 private:
     const char *pt_;
@@ -152,7 +156,6 @@ private:
     void dump_perf_footer() const {
         static bool footer_printed = false;
         if (!footer_printed) {
-            // TODO: improve footer to be more human-readable, not plain dump
             print(0, "Output template: %s\n", pt_);
             footer_printed = true;
         }
