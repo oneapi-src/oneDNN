@@ -694,7 +694,7 @@ void prb_t::set_tparams(float fp_min, float fp_max) {
             acc_dim = fwd_acc_dim;
         // make scaling exact by choosing powers of two.
         int64_t n_cscale = (alg == VANILLA_LSTM);
-        int64_t divisor = next_pow2(acc_dim + n_cscale);
+        int64_t divisor = next_pow2((acc_dim + n_cscale) * (is_int8() ? 2 : 1));
         float factor = (1.0f / (float)(divisor));
         for (int64_t i = 0; i < n_gates(); i++)
             linear_scales[i] = (i + 1) * factor;
