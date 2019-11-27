@@ -119,9 +119,22 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
                     it, nb, action == action_concat ? p.dlc : 0);
             copy(1, p.dlc, p.wc, lastlay_c, from, to, action);
 
-            if (p.is_int8() && p.cfg[dst_last_layer].dt != dnnl_u8)
-                data_deq10n(
-                        1, p.dlc, lastlay_c, to, p.data_scale, p.data_shift);
+            if (p.is_int8() && p.cfg[dst_last_layer].dt != dnnl_u8) {
+                float data_shift = p.data_shift;
+                bool do_deq10n = true;
+
+                if (p.direction == dnnl_bidirectional_sum) {
+                    // In `bidir_sum` case, we need to dequantize data only
+                    // after the final summation. Also, since we sum two shifted
+                    // tensors, we need to enlarge the shift by 2x.
+                    do_deq10n = action == action_sum;
+                    data_shift *= 2;
+                }
+
+                if (do_deq10n)
+                    data_deq10n(
+                            1, p.dlc, lastlay_c, to, p.data_scale, data_shift);
+            }
         }
     }
 
