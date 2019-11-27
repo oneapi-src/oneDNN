@@ -603,9 +603,15 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
     const bool dequantize
             = pd->dst_md(0)->data_type == data_type::f32 && rnn.is_int8();
+    const bool dequantize_at_copy = dequantize && rnn.exec_dir != bi_sum;
+
+    // minor optimization helper for a compiler
+    static constexpr bool rnn_u8u8_case
+            = std::is_same<dst_layer_dt, uint8_t>::value
+            && std::is_same<src_data_t, uint8_t>::value;
 
     auto copy_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
-        if (dequantize) {
+        if (dequantize_at_copy) {
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
                 dd[s] = (dst_layer_dt)(((float)ss[s] - shift) / scale);
@@ -619,8 +625,16 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     auto acc_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
         if (dequantize) {
             PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++) {
+                float val = (float)ss[s] + dd[s];
+                val = std::min(std::max(val, 0.f), 255.f);
+                dd[s] = (dst_layer_dt)((val - 2 * shift) / scale);
+            }
+        } else if (rnn_u8u8_case) { // instead of checking for rnn.is_int8()
+            PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
-                dd[s] += (dst_layer_dt)(((float)ss[s] - shift) / scale);
+                dd[s] = math::saturate<dst_layer_dt, int16_t>(
+                        (int16_t)dd[s] + (int16_t)ss[s]);
         } else {
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
