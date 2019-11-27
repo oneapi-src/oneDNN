@@ -225,6 +225,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         (*kernel_)(&arg);
     };
 
+    const data_t zero_val = 0;
     if (jpp.simple_alg) {
 
         const int neg_back_pad
@@ -255,16 +256,18 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
 
                     PRAGMA_OMP_SIMD()
                     for (auto ch_idx = 0; ch_idx < jpp.c_block; ++ch_idx)
-                        blk_ptr[ch_idx] = static_cast<data_t>(0.f);
+                        blk_ptr[ch_idx] = zero_val;
                 }
             }
         });
     } else {
-        ptrdiff_t nelems = (ptrdiff_t)jpp.mb * (ptrdiff_t)jpp.c
-                * (ptrdiff_t)jpp.id * (ptrdiff_t)jpp.ih * (ptrdiff_t)jpp.iw;
-
-        parallel_nd(nelems, [&](ptrdiff_t idx) {
-            diff_src[idx] = static_cast<data_t>(0.f);
+        const size_t chunk_size
+                = (size_t)jpp.id * jpp.ih * jpp.iw * jpp.c_block;
+        parallel_nd(jpp.mb, jpp.nb_c, [&](int n, int b_c) {
+            const size_t offset = ((size_t)n * jpp.nb_c + b_c) * chunk_size;
+            PRAGMA_OMP_SIMD()
+            for (size_t idx = 0; idx < chunk_size; ++idx)
+                diff_src[offset + idx] = zero_val;
         });
 
         for (int kd = 0; kd < jpp.kd; ++kd) {
