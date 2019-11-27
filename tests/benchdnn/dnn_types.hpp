@@ -203,6 +203,11 @@ struct attr_bundle_t {
     std::vector<float> oscale;
     std::map<int, std::vector<int>> zero_points; // arg -> arg_zero_points
 
+    // constructor to forward already constructed DNNL primitive attributes
+    attr_bundle_t(const_dnnl_primitive_attr_t dnnl_attr)
+        : dnnl_attr_((dnnl_primitive_attr_t)dnnl_attr,
+                [](dnnl_primitive_attr_t) {}) {}
+
     attr_bundle_t(const attr_t &attr) : attr(attr) { init_zero_points(); }
     int generate(int scale_mask);
 
