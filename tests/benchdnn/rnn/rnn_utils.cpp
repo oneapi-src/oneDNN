@@ -20,14 +20,15 @@
 namespace rnn {
 
 void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst,
-        const float *src_, float *dst_, rnn_action_t action) {
+        const float *src_, float *dst_, rnn_action_t action,
+        bool saturate_to_u8) {
     AOC<const float> src(src_, dimc, ld_src);
     AOC<float> dst(dst_, dimc, ld_dst);
 
     dnnl::impl::parallel_nd(dimc, [&](int64_t i) {
         for (int64_t j = 0; j < dimr; j++) {
-            dst(i, j)
-                    = action == action_sum ? dst(i, j) + src(i, j) : src(i, j);
+            dst(i, j) = (action == action_sum ? dst(i, j) : 0) + src(i, j);
+            if (saturate_to_u8) dst(i, j) = saturate<dnnl_u8>(dst(i, j));
         }
     });
 }

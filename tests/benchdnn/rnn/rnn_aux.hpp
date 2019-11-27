@@ -73,7 +73,8 @@ float one_m_square(float x);
 float x_m_square(float x);
 
 void copy(int64_t dimc, int64_t dimr, int64_t ld_src, int64_t ld_dst,
-        const float *src_, float *dst_, rnn_action_t action = action_copy);
+        const float *src_, float *dst_, rnn_action_t action = action_copy,
+        bool saturate_to_u8 = false);
 void data_q10n(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_,
         float data_scale, float data_shift);
 void data_deq10n(int64_t dimc, int64_t dimr, int64_t ld_src, float *src_,

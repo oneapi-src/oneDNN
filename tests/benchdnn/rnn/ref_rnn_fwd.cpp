@@ -117,7 +117,7 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
             auto from = &ws(p.n_layer, dir_val, it + 1, H, nb, 0);
             auto to = &lastlay_states(
                     it, nb, action == action_concat ? p.dlc : 0);
-            copy(1, p.dlc, p.wc, lastlay_c, from, to, action);
+            copy(1, p.dlc, p.wc, lastlay_c, from, to, action, p.is_int8());
 
             if (p.is_int8() && p.cfg[dst_last_layer].dt != dnnl_u8) {
                 float data_shift = p.data_shift;
