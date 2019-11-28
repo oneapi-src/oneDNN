@@ -369,13 +369,37 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 #endif
 
     /* Note: we do an eltwise comparison only when:
-       - we use skip_nonlinear
-       - we do not use skip_nonlinear and we test only one cell execution
+       - we use skip_nonlinear;
+       - we do not use skip_nonlinear and we test only one cell execution;
+       - for int8 computations the tensor is not dst_c_last_iteration;
        If the above conditions are not met, we check only norm-1,
-       norm-2 and infnorm
+       norm-2 and inf-norm.
+
+       Rough rationale for the `dst_c_last_iteration` exception in int8 case:
+       - The formula for one-step c-state is:
+         c_t = f_t * c_{t−1} + i_t * c~_t.
+         Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
+         right before the computations + the corresponding bias added).
+       - In int8 case we don't have much control over these components and
+         cannot surmount potential cancellations, if any.
+         In practice, I observed that the relative element-wise error of values
+         in `dst_c_last_iteration` was bigger (up-to 8e-5) whenever the values
+         themselves were smaller (which indirectly means the problem is exactly
+         in the cancellation). Unfortunately, this even happened with only one
+         layer and one time stamp.
+       - So, for now the solution is to use l1- l2- and l_inf-norms to validate
+         `dst_c_last_iteration`. When we switch testing on using precise
+         integer arithmetic based on modulo operation in rnn_tparams (instead of
+         current unreliable re-scaling), this testing weakness should go away.
+       - Just an obvious side note: `dst_last_layer` and `dst_last_iteration`
+         are immediate dequantization of the corresponding u8 tensors. Hence,
+         as long as we get precise u8 intermediate results (and so far we do),
+         the f32 result should be pretty accurate -- the dequantization is just
+         two simple ops: f32 = scale * u8 + shift.
     */
     bool check_norm0
             = (p.skip_nonlinear || ((p.n_layer == 1) && (p.n_iter == 1)));
+    if (p.is_int8() && kind == dst_c_last_iteration) check_norm0 = false;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
@@ -402,8 +426,9 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
             const float diff_threshold = p.cfg[kind].eps;
 
+            // very strict error bound for int8 data type
             if (p.cfg[kind].dt == dnnl_u8)
-                ok = diff <= 1; // For int8, we allow only to be off by 1.
+                ok = diff == 0;
             else
                 ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
 

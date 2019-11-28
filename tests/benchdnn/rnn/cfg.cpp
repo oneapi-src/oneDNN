@@ -144,7 +144,7 @@ const _dt_conf_t conf_bf16 = {
 #define U8_ENTRY_F32_INEXACT \
     { \
         dnnl_f32, -int_max_exact, int_max_exact, MIN_F32, MAX_F32, MEAN_F32, \
-                STDDEV_F32, EPS_S8 \
+                STDDEV_F32, EPS_F32 \
     }
 
 const _dt_conf_t conf_u8u8u8u8 = {
