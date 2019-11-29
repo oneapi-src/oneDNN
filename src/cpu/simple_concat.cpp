@@ -62,7 +62,7 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     dims_t phys_dims;
     for (size_t i = 0; i < sizeof(phys_dims) / sizeof(phys_dims[0]); i++)
         phys_dims[i] = (i < (size_t)perm[concat_dim])
-                ? o_d.dims()[iperm[i]] / pd()->blocks_[iperm[i]]
+                ? o_d.padded_dims()[iperm[i]] / pd()->blocks_[iperm[i]]
                 : 1;
 
     if (perm[concat_dim] == 0) {

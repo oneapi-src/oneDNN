@@ -109,7 +109,7 @@ struct simple_concat_t : public primitive_impl_t {
 
             dim_t nelems = 1;
             for (int i = perm_[concat_dim()]; i < ndims; i++)
-                nelems *= data_d.dims()[iperm_[i]] / blocks_[iperm_[i]];
+                nelems *= data_d.padded_dims()[iperm_[i]] / blocks_[iperm_[i]];
             for (int i = 0; i < ndims; i++)
                 nelems *= blocks_[i];
 
