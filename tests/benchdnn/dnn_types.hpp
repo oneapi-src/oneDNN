@@ -167,6 +167,7 @@ struct attr_t {
         void to_str(char *buffer, char **end_b) const;
 
         bool is_def() const { return len == 0; }
+        int find(kind_t kind, int start = 0, int stop = -1) const;
 
         enum { capacity = 4 };
         int len;

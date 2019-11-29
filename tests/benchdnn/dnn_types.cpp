@@ -382,6 +382,15 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
     return FAIL; /* unreachable */
 }
 
+int attr_t::post_ops_t::find(
+        attr_t::post_ops_t::kind_t kind, int start, int stop) const {
+    if (stop == -1) stop = len;
+    stop = MIN2(stop, len);
+    for (int idx = start; idx < stop; ++idx)
+        if (entry[idx].kind == kind) return idx;
+    return -1;
+}
+
 bool attr_t::is_def() const {
     return oscale.is_def() && zero_points.is_def() && post_ops.is_def();
 }
