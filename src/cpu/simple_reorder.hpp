@@ -73,8 +73,8 @@ struct conv_s8s8 {};
     auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO); \
     const auto &scratchpad = ctx.get_scratchpad_grantor(); \
     MAYBE_UNUSED(scratchpad); \
-    const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM); \
-    const auto output_d = ctx.memory_mdw(DNNL_ARG_TO); \
+    const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd->src_md()); \
+    const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd->dst_md()); \
     const float alpha = pd->alpha(); \
     MAYBE_UNUSED(alpha); \
     const float beta = pd->beta(); \
@@ -1242,8 +1242,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DEFINE_ZERO_POINT_VALUE(i0, DNNL_ARG_FROM);
         DEFINE_ZERO_POINT_VALUE(o0, DNNL_ARG_TO);
 
-        const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM);
-        const auto output_d = ctx.memory_mdw(DNNL_ARG_TO);
+        const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd()->src_md());
+        const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd()->dst_md());
 
         const size_t nelems = input_d.nelems();
 

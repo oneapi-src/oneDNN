@@ -97,9 +97,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     DEFINE_SCALES_BUFFER(scales);
 
-    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
-    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
-    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
+    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
     const auto &dst_bd = dst_d.blocking_desc();
 

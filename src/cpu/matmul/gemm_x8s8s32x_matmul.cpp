@@ -119,9 +119,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     }
     const float dst_zero_point_f32 = (float)dst_zero_point;
 
-    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
-    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
-    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
+    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
     acc_data_t *acc = pd()->dst_is_acc_
             ? (acc_data_t *)dst

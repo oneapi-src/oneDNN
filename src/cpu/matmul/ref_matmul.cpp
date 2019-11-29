@@ -44,10 +44,10 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
-    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
-    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
-    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
-    const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS);
+    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+    const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
 
     const bool batched = pd()->batched();
     const bool non_default_attrs = !pd()->attr()->has_default_values();
