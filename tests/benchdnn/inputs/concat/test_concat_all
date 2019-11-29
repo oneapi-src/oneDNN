@@ -25,5 +25,15 @@
 6x8x3x4:6x1x3x4:6x0x3x4:6x3x3x4
 6x0x3x4:6x3x3x4:6x5x3x4:6x5x3x4
 
+# sizes are not multiple of blocks + (non-blocking) axis
+--sdt=f32,s32,s8
+--ddt=f32,s32,s8
+--dtag=undef,nhwc,nChw16c
+--axis=2
+--stag=nChw16c:nChw16c
+6x5x3x4:6x5x3x4
+6x25x3x4:6x25x3x4
+6x23x0x4:6x23x3x4
+
 # bf16
 --batch=test_concat_bfloat16
