@@ -9,6 +9,16 @@
 --dtag=nchw,nhwc,nChw8c,nChw16c
 2x64x3x3
 
+--attr=post_ops='sum:0.5'
+--stag=nchw,nhwc,nChw16c
+--dtag=nchw,nhwc,nChw16c
+2x64x1x1
+
+--attr=oscale=per_dim_1:0.;post_ops='sum:0.25'
+--stag=nchw,nhwc,nChw16c
+--dtag=nchw,nhwc,nChw16c
+2x64x1x1
+
 --attr=oscale=per_dim_0:0.
 --stag=oihw,hwio
 --dtag=oihw,hwio
