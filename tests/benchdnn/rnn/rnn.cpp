@@ -41,7 +41,7 @@ mkldnn_primitive_attr_t create_mkldnn_rnn_attr(const prb_t *p) {
     DNN_SAFE_V(mkldnn_primitive_attr_create(&mkldnn_attr));
     if (p->scale_policy == PER_OC) {
         DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_weights_qparams(
-                mkldnn_attr, p->dic * p->n_gates(), 0x3, p->wei_oc_scales));
+                mkldnn_attr, p->dic * p->n_gates(), 0x18, p->wei_oc_scales));
     } else if (p->scale_policy == COMMON && p->wei_scale != 1.) {
         DNN_SAFE_V(mkldnn_primitive_attr_set_rnn_weights_qparams(
                 mkldnn_attr, 1, 0, &p->wei_scale));

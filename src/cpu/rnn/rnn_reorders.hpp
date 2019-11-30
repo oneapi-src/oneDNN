@@ -118,7 +118,8 @@ struct rnn_weights_reorder_t : public cpu_primitive_t {
             if (itag == format_tag::undef) return status::invalid_arguments;
 
             const int mask = attr->rnn_weights_qparams_.mask_;
-            if (!utils::one_of(mask, 0, 3)) return status::unimplemented;
+            if (!utils::one_of(mask, 0, 24))
+                return status::unimplemented;
 
             auto _pd = new pd_t(engine, attr, src_engine, src_md, dst_engine,
                     dst_md);
