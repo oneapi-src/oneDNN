@@ -42,7 +42,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
         else if (p.scale_policy == policy_t::COMMON)
             scale = p.wei_scale;
         scale *= p.data_scale;
-        return g / scale;
+        return g * (1.f / scale);
     };
 
     auto maybe_q_d = [&](float h) {
