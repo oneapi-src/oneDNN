@@ -64,6 +64,7 @@ Data manipulation:
  * @ref dev_guide_profilers
  * @ref dev_guide_inspecting_jit
  * @ref performance_profiling_cpp
+ * @ref dev_guide_cpu_dispatcher_control
 
 # Advanced topics
 

@@ -1978,6 +1978,43 @@ typedef struct {
 #define DNNL_JIT_PROFILE_LINUX_PERF \
     (DNNL_JIT_PROFILE_LINUX_JITDUMP | DNNL_JIT_PROFILE_LINUX_PERFMAP)
 
+/// CPU instruction set flags
+typedef enum {
+    /// Any ISA (no restrictions)
+    dnnl_cpu_isa_all = 0x0,
+
+    /// Intel(R) SSE4.1.
+    dnnl_cpu_isa_sse41 = 0x1,
+
+    /// Intel(R) Advanced Vector Extensions.
+    dnnl_cpu_isa_avx = 0x3,
+
+    /// Intel(R) Advanced Vector Extensions 2.
+    dnnl_cpu_isa_avx2 = 0x7,
+
+    /// Intel(R) Advanced Vector Extensions 512 subset for Intel(R) Xeon
+    /// Phi(TM) Processors x200 Series.
+    dnnl_cpu_isa_avx512_mic = 0xf,
+
+    /// Intel(R) Advanced Vector Extensions 512 subset for Intel(R) Xeon
+    /// Phi(TM) Processors 7235, 7285, 7295 Series.
+    dnnl_cpu_isa_avx512_mic_4ops = 0x1f,
+
+    /// Intel(R) Advanced Vector Extensions 512 for Intel(R) Xeon(R) Processor
+    /// Scalable Family and Intel(R) Core(TM) processor family.
+    dnnl_cpu_isa_avx512_core = 0x27,
+
+    /// Intel(R) Advanced Vector Extensions 512 with Intel(R) DL Boost Support
+    /// for Intel(R) Xeon(R) Processor Scalable Family and Intel(R) Core(TM)
+    /// processor family.
+    dnnl_cpu_isa_avx512_core_vnni = 0x67,
+
+    /// Intel(R) Advanced Vector Extensions 512 with Intel(R) DL Boost and
+    /// Bfloat16 Support for Intel(R) Xeon(R) Processor Scalable Family and
+    /// Intel(R) Core(TM) processor family.
+    dnnl_cpu_isa_avx512_core_bf16 = 0xe7,
+} dnnl_cpu_isa_t;
+
 /// @} dnnl_api_service
 
 /// @} dnnl_api

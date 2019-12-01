@@ -9409,6 +9409,34 @@ inline status set_jit_profiling_jitdumpdir(const std::string &dir) {
     return static_cast<status>(dnnl_set_jit_profiling_jitdumpdir(dir.c_str()));
 }
 
+/// @copydoc dnnl_cpu_isa_t
+enum class cpu_isa {
+    /// @copydoc dnnl_cpu_isa_all
+    all = dnnl_cpu_isa_all,
+    /// @copydoc dnnl_cpu_isa_sse41
+    sse41 = dnnl_cpu_isa_sse41,
+    /// @copydoc dnnl_cpu_isa_avx
+    avx = dnnl_cpu_isa_avx,
+    /// @copydoc dnnl_cpu_isa_avx2
+    avx2 = dnnl_cpu_isa_avx2,
+    /// @copydoc dnnl_cpu_isa_avx512_mic
+    avx512_mic = dnnl_cpu_isa_avx512_mic,
+    /// @copydoc dnnl_cpu_isa_avx512_mic_4ops
+    avx512_mic_4ops = dnnl_cpu_isa_avx512_mic_4ops,
+    /// @copydoc dnnl_cpu_isa_avx512_core
+    avx512_core = dnnl_cpu_isa_avx512_core,
+    /// @copydoc dnnl_cpu_isa_avx512_core_vnni
+    avx512_core_vnni = dnnl_cpu_isa_avx512_core_vnni,
+    /// @copydoc dnnl_cpu_isa_avx512_core_bf16
+    avx512_core_bf16 = dnnl_cpu_isa_avx512_core_bf16,
+};
+
+/// @copydoc dnnl_set_max_cpu_isa()
+inline status set_max_cpu_isa(cpu_isa isa) {
+    return static_cast<status>(
+            dnnl_set_max_cpu_isa(static_cast<dnnl_cpu_isa_t>(isa)));
+}
+
 /// @} dnnl_api_service
 
 /// @addtogroup dnnl_api_blas BLAS functions

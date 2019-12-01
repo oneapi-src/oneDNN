@@ -2943,7 +2943,7 @@ const dnnl_version_t DNNL_API *dnnl_version();
 /// @note
 ///     This setting overrides DNNL_JIT_PROFILE environment variable.
 ///
-/// See also @ref dev_guide_profilers
+/// @sa @ref dev_guide_profilers
 ///
 /// @param flags Profiling flags that can contain the following bits:
 ///     - @ref DNNL_JIT_PROFILE_VTUNE -- integration with VTune (on by default)
@@ -2965,11 +2965,11 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_flags(unsigned flags);
 /// Sets JIT dump output path. Only applicable to Linux and is only
 /// used when profiling flags have DNNL_JIT_PROFILE_LINUX_PERF bit set.
 ///
-/// After the first jit kernel is generated, the jitdump output will be placed
+/// After the first JIT kernel is generated, the jitdump output will be placed
 /// into temporary directory created using the mkdtemp template
 /// 'dir/.debug/jit/dnnl.XXXXXX'.
 ///
-/// See also @ref dev_guide_profilers
+/// @sa @ref dev_guide_profilers
 ///
 /// @note
 ///     This setting overrides JITDUMPDIR environment variable.  If
@@ -2983,9 +2983,39 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_flags(unsigned flags);
 ///
 /// @param dir JIT dump output path.
 /// @returns #dnnl_success/#dnnl::status::success if the
-///     output directory was set correctly.
+///     output directory was set correctly and an error status otherwise.
 /// @returns #dnnl_unimplemented/#dnnl::status::unimplemented on Windows.
 dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
+
+/// Sets the maximal ISA DNNL can dispatch to on the CPU. See
+/// #dnnl_cpu_isa_t and #dnnl::cpu_isa for the list of the values accepted by
+/// the C and C++ API functions respectively.
+///
+/// This function has effect only before the first JIT kernel is generated and
+/// will return an error afterwards.
+///
+/// This function overrides the DNNL_MAX_CPU_ISA environment variable. The
+/// environment variable can be set to the desired maximal ISA name in upper
+/// case and with dnnl_cpu_isa prefix removed. For example:
+/// `DNNL_MAX_CPU_ISA=AVX2`.
+///
+/// @note
+///     The ISAs are only partially ordered:
+///         - SSE41 < AVX < AVX2,
+///         - AVX2 < AVX512_MIC < AVX512_MIC_4OPS,
+///         - AVX2 < AVX512_CORE < AVX512_CORE_VNNI < AVX512_CORE_BF16.
+///
+/// @sa @ref dev_guide_cpu_dispatcher_control for more details
+///
+/// @param isa Maximal ISA DNNL should dispatch to. Pass
+///     #dnnl_cpu_isa_all/#dnnl::cpu_isa::all to remove ISA restrictions.
+/// @returns #dnnl_success/#dnnl::status::success on success and a
+///     #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the @p isa
+///     parameter is invalid or the ISA cannot be changed at this time.
+/// @returns #dnnl_unimplemented/#dnnl::status::unimplemented if the feature
+///     was disabled at build time (see @ref dev_guide_build_options for more
+///     details).
+dnnl_status_t DNNL_API dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa);
 
 /// @} dnnl_api_service
 
