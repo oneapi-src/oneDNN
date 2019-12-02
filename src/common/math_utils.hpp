@@ -339,6 +339,21 @@ inline U clip_bwd(T dd, T s, A alpha, A beta) {
     return dd * (alpha < s && s <= beta ? 1 : 0);
 }
 
+inline bool is_eltwise_ok(
+        data_type_t dt, alg_kind_t alg, float alpha, float beta) {
+    using namespace alg_kind;
+    using namespace utils;
+    return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
+                   eltwise_abs, eltwise_sqrt, eltwise_linear,
+                   eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                   eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
+                   eltwise_clip)
+            && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
+            && IMPLICATION(alg == eltwise_clip, beta >= alpha)
+            && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
+                    alg == eltwise_relu && alpha == 0);
+}
+
 inline bool eltwise_fwd_preserves_zero(
         alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;

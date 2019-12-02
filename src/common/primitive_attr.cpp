@@ -157,17 +157,8 @@ status_t post_ops_t::append_sum(float scale) {
 
 status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
-    using namespace dnnl::impl::alg_kind;
-    bool known_alg = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
-            eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-            eltwise_clip);
-    if (!known_alg) return invalid_arguments;
-
-    bool ok = true && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
-            && IMPLICATION(alg == eltwise_clip, beta >= alpha);
-    if (!ok) return invalid_arguments;
+    if (!math::is_eltwise_ok(data_type::undef, alg, alpha, beta))
+        return invalid_arguments;
 
     if (len_ == capacity) return out_of_memory;
 
