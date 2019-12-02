@@ -328,7 +328,6 @@ private:
         auto lda = pd()->desc()->lda;
         auto ldb = pd()->desc()->ldb;
 
-        if (pd()->with_eltwise()) return true;
         if (!utils::one_of(c_type, data_type::f32, data_type::f16))
             return false;
         if (a_type != c_type || b_type != c_type) return false;
