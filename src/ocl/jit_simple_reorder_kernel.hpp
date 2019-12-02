@@ -192,7 +192,7 @@ struct jit_simple_reorder_kernel {
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), jrp.block[i]);
         }
 
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < MAX_NDIMS; i++) {
             kernel_ctx.define_int(
                     utils::format("D%d_BLOCK", i), jrp.dim_block[i]);
             kernel_ctx.define_int(utils::format("D%d_NBLOCKS", i),

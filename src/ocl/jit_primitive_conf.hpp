@@ -355,7 +355,7 @@ struct jit_reorder_conf_t {
     size_t nelems;
     size_t gws_d[3], lws_d[3];
     int block[3];
-    int dim_block[6];
+    int dim_block[MAX_NDIMS];
     int sub_group_size;
     int scale_mask;
     size_t scales_num;
@@ -461,7 +461,7 @@ inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
 
-    for (int d = 0; d < 6; ++d) {
+    for (int d = 0; d < MAX_NDIMS; ++d) {
         const int block = block_dims[d];
 
         kernel_ctx.define_int(
@@ -496,7 +496,7 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
 inline void def_offsets(const int offs[4][MAX_NDIMS],
         compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
 
-    for (int d = 0; d < 6; d++) {
+    for (int d = 0; d < MAX_NDIMS; d++) {
         kernel_ctx.define_int(
                 utils::format("%s_B%d", str, d), (d < ndims) ? offs[0][d] : 1);
         kernel_ctx.define_int(
@@ -566,7 +566,7 @@ inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
             utils::format("%s_OFFSET0", prefix), jit_md_info.offset0);
     kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), jit_md_info.ndims);
 
-    for (int d = 0; d < 6; ++d) {
+    for (int d = 0; d < MAX_NDIMS; ++d) {
         int dim = (d < jit_md_info.ndims) ? jit_md_info.dims[d] : 0;
         int padded_dim
                 = (d < jit_md_info.ndims) ? jit_md_info.padded_dims[d] : 0;
