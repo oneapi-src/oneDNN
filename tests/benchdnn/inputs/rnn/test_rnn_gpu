@@ -33,44 +33,44 @@
 --cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small
 
 # Large tests
-#--reset
+--reset
 
 # f32 tests
-#--cfg=f32
-#--prop=FWD_D,BWD_DW
-#--mb=50
-#--batch=test_rnn_large
-#--batch=test_lstm_large
+--cfg=f32
+--prop=FWD_D,BWD_DW
+--mb=50
+--batch=test_rnn_large
+--batch=test_lstm_large
 
-#--prop=FWD_D
-#--mb=1
-#--batch=test_rnn_large
-#--batch=test_lstm_large
+--prop=FWD_D
+--mb=1
+--batch=test_rnn_large
+--batch=test_lstm_large
 
 # f16 tests
-#--cfg=f16
-#--prop=FWD_D
-#--skip-nonlinear=false
-#--mb=50
-#--alg=VANILLA_RNN
-#--activation=RELU
-#--batch=rnn_ds2
-#--direction=left2right,right2left,concat,sum
-#--batch=rnn_large
-#--batch=rnn_large_nonuniform
-#--alg=VANILLA_LSTM
-#--batch=rnn_gnmt_encoder
-#--batch=rnn_gnmt_decoder
+--cfg=f16
+--prop=FWD_D
+--skip-nonlinear=false
+--mb=50
+--alg=VANILLA_RNN
+--activation=RELU
+--batch=rnn_ds2
+--direction=left2right,right2left,concat,sum
+--batch=rnn_large
+--batch=rnn_large_nonuniform
+--alg=VANILLA_LSTM
+--batch=rnn_gnmt_encoder
+--batch=rnn_gnmt_decoder
 
 # int8 (only LSTM)
-#--reset
-#--cfg=u8u8u8u8
-#--scaling=common,per_oc
-#--prop=FWD_D
-#--alg=VANILLA_LSTM
+--reset
+--cfg=u8u8u8u8
+--scaling=common,per_oc
+--prop=FWD_D
+--alg=VANILLA_LSTM
 
-#--skip-nonlinear=true
-#--mb=50
-#--batch=test_lstm_large
-#--mb=1
-#--batch=test_lstm_large
+--skip-nonlinear=true
+--mb=50
+--batch=test_lstm_large
+--mb=1
+--batch=test_lstm_large
