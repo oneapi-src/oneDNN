@@ -5,6 +5,8 @@
 --dir=FWD_B
 --attr=post_ops='sum:0.5;relu:0.5' --batch=ip_all
 
+--batch=harness_tag
+
 # int8
 --reset
 --mb=2

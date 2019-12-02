@@ -1,0 +1,37 @@
+--reset
+--dir=FWD_D,BWD_D,BWD_WB
+# IO
+--wtag=ba,ab mb2ic640oc256
+# 1D
+--wtag=cba,abc mb2ic640iw10oc256
+# 2D
+--wtag=abcd,cdba,aBcd16b,aBcd8b,aBcd4b mb2ic640ih10oc256
+# 3D
+--wtag=abcde,cdeba,aBcde16b,aBcde8b,aBcde4b mb2ic640id2ih10iw10oc256
+
+--reset
+--dir=FWD_D,BWD_D,BWD_WB
+# IO
+--stag=ab mb2ic640oc256
+# 1D
+--stag=abc mb2ic640iw10oc256
+# 2D
+--stag=abcd,aBcd16b,aBcd8b,aBcd4b mb2ic640ih10oc256
+# 3D
+--stag=abcde,aBcde16b,aBcde8b,aBcde4b mb2ic640id2ih10iw10oc256
+
+--reset
+--allow-unimpl=true
+--dir=FWD_D,BWD_D,BWD_WB
+--wtag=ABcd16b16a mb2ic640ih10oc256
+
+--reset
+--allow-unimpl=true
+--dir=FWD_D,BWD_D,BWD_WB
+--stag=ABcd16b16a mb2ic640ih10oc256
+
+--reset
+--allow-unimpl=true
+--skip-impl="ref"
+--dir=FWD_D,BWD_D,BWD_WB
+--wtag=ABcd16b16a --stag=ABcd16b16a mb2ic640ih10oc256
