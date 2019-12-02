@@ -55,13 +55,20 @@ struct jit_ref_binary_common_kernel {
         jib.is_add = (alg == alg_kind::binary_add);
         jib.is_mul = (alg == alg_kind::binary_mul);
         jib.is_tensor_op = is_tensor_op;
+        jib.is_dense = dst_d.is_dense();
+        jib.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
 
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(pd->engine());
         jib.dispatch = compute_engine->create_dispatch(dst_d.md_);
-        for (int i = 0; i < MAX_NDIMS; ++i) {
-            jib.dispatch.define_dim(utils::format("D%d", i),
-                    nstl::min(i, ndims - 1), i < ndims ? dst_d.dims()[i] : 1);
+        if (jib.is_tensor_op && jib.is_dense && jib.is_same_md) {
+            jib.dispatch.define_dim("IDX", 0, dst_d.nelems());
+        } else {
+            for (int i = 0; i < MAX_NDIMS; ++i) {
+                jib.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1),
+                        i < ndims ? dst_d.dims()[i] : 1);
+            }
         }
 
         jib.dispatch.generate();
@@ -77,6 +84,8 @@ struct jit_ref_binary_common_kernel {
         kernel_ctx.define_int("IS_MUL", jib.is_mul);
         kernel_ctx.define_int("IS_ADD", jib.is_add);
         kernel_ctx.define_int("IS_TENSOR_OP", jib.is_tensor_op);
+        kernel_ctx.define_int("IS_DENSE", jib.is_dense);
+        kernel_ctx.define_int("IS_SAME_MD", jib.is_same_md);
         kernel_ctx.define_int("BCAST_DIM0", jib.bcast_dims[0]);
         kernel_ctx.define_int("BCAST_DIM1", jib.bcast_dims[1]);
         kernel_ctx.define_int("BCAST_DIM2", jib.bcast_dims[2]);

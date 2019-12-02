@@ -21,6 +21,23 @@
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 
+#if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD
+KERNEL_ATTR
+__kernel void ref_binary(
+        __global DATA_T *src0, __global DATA_T *src1, __global DATA_T *dst) {
+    int off = GWS_GET_IDX();
+
+    POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
+    POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[off]);
+
+#if IS_ADD
+    dst[off] = CONVERT_DATA_T(tmp_src0 + tmp_src1);
+#elif IS_MUL
+    dst[off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
+#endif
+}
+
+#else
 KERNEL_ATTR
 __kernel void ref_binary(
         __global DATA_T *src0, __global DATA_T *src1, __global DATA_T *dst) {
@@ -67,3 +84,4 @@ __kernel void ref_binary(
     dst[dst_off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
 #endif
 }
+#endif

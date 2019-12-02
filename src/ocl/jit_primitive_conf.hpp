@@ -349,6 +349,8 @@ struct jit_binary_conf_t {
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
     int bcast_dims[MAX_NDIMS];
+    bool is_dense;
+    bool is_same_md;
     jit_memory_desc_info_t src0_md_info;
     jit_memory_desc_info_t src1_md_info;
     jit_memory_desc_info_t dst_md_info;
