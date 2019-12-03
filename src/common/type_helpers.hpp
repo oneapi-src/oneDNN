@@ -490,7 +490,7 @@ inline status_t memory_desc_init_by_blocking_desc(
     const int ndims = nstl::min(DNNL_MAX_NDIMS, md.ndims); // make GCC 5 happy
     utils::array_copy(mblk.strides, blk.strides, ndims);
 
-    dims_t ou_blocks;
+    dims_t ou_blocks = {0};
     utils::array_copy(ou_blocks, md.padded_dims, ndims);
 
     int perm[DNNL_MAX_NDIMS];

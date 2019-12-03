@@ -121,13 +121,13 @@ struct simple_concat_t : public primitive_impl_t {
             const memory_desc_wrapper dst_d(dst_md());
             const int ndims = dst_d.ndims();
 
-            dims_t blocks;
+            dims_t blocks = {0};
             dst_d.compute_blocks(blocks);
 
-            strides_t strides;
+            strides_t strides = {0};
             utils::array_copy(strides, dst_d.blocking_desc().strides, ndims);
 
-            dims_t ou_blocks;
+            dims_t ou_blocks = {0};
             utils::array_copy(ou_blocks, dst_d.padded_dims(), ndims);
 
             for (int d = 0; d < ndims; d++) {

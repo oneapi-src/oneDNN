@@ -69,12 +69,12 @@ int dnnl_md2fmt_str(
     } else {
         const auto &blk = md.blocking_desc();
 
-        dims_t blocks;
+        dims_t blocks = {0};
         md.compute_blocks(blocks);
 
         char dim_chars[DNNL_MAX_NDIMS + 1];
 
-        dims_t ou_blocks;
+        dims_t ou_blocks = {0};
         utils::array_copy(ou_blocks, md.padded_dims(), md.ndims());
 
         bool plain = true;
