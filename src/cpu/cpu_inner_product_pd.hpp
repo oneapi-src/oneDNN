@@ -160,7 +160,8 @@ protected:
         auto set_default_weights = [&]() {
             CHECK(memory_desc_init_by_tag(weights_md_, get_tag(src_md_)));
             /* with batch = 1, no transpose to use the faster gemv kernels */
-            /* otherwise, we transpose the weights to improve efficiency of no-copy kernels*/
+            /* otherwise, we transpose the weights to improve efficiency of
+             * no-copy kernels */
             auto batch = src_md_.dims[0];
             if (batch > 1) transpose_md(weights_md_);
 
@@ -202,7 +203,8 @@ protected:
         auto set_default_weights = [&]() {
             CHECK(memory_desc_init_by_tag(weights_md_, get_tag(diff_src_md_)));
             /* with batch = 1, no transpose to use the faster gemv kernels */
-            /* otherwise, we transpose the weights to improve efficiency of no-copy kernels*/
+            /* otherwise, we transpose the weights to improve efficiency of
+             * no-copy kernels */
             auto batch = diff_src_md_.dims[0];
             if (batch == 1) transpose_md(weights_md_);
 
