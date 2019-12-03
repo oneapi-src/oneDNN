@@ -39,6 +39,7 @@ std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_any};
 std::vector<int64_t> mb {0};
 
 attr_t attr;
+const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%name%,%dir%,%cfg%,%attr%,%DESC%,"
@@ -56,6 +57,7 @@ void reset_parameters() {
     dtag = {dnnl_format_tag_any};
     mb = {0};
     attr = attr_t();
+    skip_impl = "";
     allow_unimpl = false;
 }
 
@@ -99,6 +101,7 @@ int bench(int argc, char **argv) {
                 || parse_tag(wtag, argv[0], "wtag")
                 || parse_tag(dtag, argv[0], "dtag") || parse_mb(mb, argv[0])
                 || parse_attr(attr, argv[0])
+                || parse_skip_impl(skip_impl, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])
