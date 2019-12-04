@@ -33,21 +33,18 @@ using namespace dnnl;
 
 /// @page getting_started_cpp Getting started
 ///
-/// This C++ API example demonstrates basics of DNNL programming
-/// model.
+/// This C++ API example demonstrates the basics of the DNNL programming model.
 ///
 /// > Example code: @ref getting_started.cpp
 ///
-/// This C++ API example demonstrates basics of DNNL programming
-/// model:
+/// This C++ API example demonstrates the basics of the DNNL programming model:
 /// - How to create DNNL memory objects.
-///   - How to get data from user's buffer into an DNNL
-///     memory object.
-///   - How tensor's logical dimensions and memory object formats relate.
+///   - How to get data from the user's buffer into a DNNL memory object.
+///   - How a tensor's logical dimensions and memory object formats relate.
 /// - How to create DNNL primitives.
 /// - How to execute the primitives.
 ///
-/// The example uses the ReLU operation and consists of the following steps:
+/// The example uses the ReLU operation and comprises the following steps:
 /// 1. Creating @ref getting_started_cpp_sub1 to execute a primitive.
 /// 2. Performing @ref getting_started_cpp_sub2.
 /// 3. @ref getting_started_cpp_sub3 (using different flavors).
@@ -56,15 +53,15 @@ using namespace dnnl;
 /// 6. @ref getting_started_cpp_sub6 (checking that the resulting image does
 ///    not contain negative values).
 ///
-/// These steps are implemented in the @ref getting_started_cpp_tutorial which
-/// in turn is called from @ref getting_started_cpp_main which is also
-/// responsible for error handling.
+/// These steps are implemented in the @ref getting_started_cpp_tutorial, which
+/// in turn is called from @ref getting_started_cpp_main (which is also
+/// responsible for error handling).
 ///
 /// @section getting_started_cpp_headers Public headers
 ///
-/// To start using DNNL we should first include @ref dnnl.hpp
+/// To start using DNNL we must first include the @ref dnnl.hpp
 /// header file in the program. We also include @ref dnnl_debug.h in
-/// example_utils.hpp that contains some debugging facilities like returning
+/// example_utils.hpp, which contains some debugging facilities like returning
 /// a string representation for common DNNL C types.
 
 // [Prologue]
@@ -77,7 +74,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// @subsection getting_started_cpp_sub1 Engine and stream
     ///
     /// All DNNL primitives and memory objects are attached to a
-    /// particular @ref dnnl::engine, which is an abstraction of an
+    /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device they are attached
     /// to and the memory objects refer to memory residing on the
@@ -85,7 +82,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// nor primitives that were created for one engine can be used on
     /// another.
     ///
-    /// To create an engine we should specify the @ref dnnl::engine::kind
+    /// To create an engine, we should specify the @ref dnnl::engine::kind
     /// and the index of the device of the given kind.
     ///
     /// @snippet getting_started.cpp Initialize engine
@@ -106,8 +103,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// In the simple cases, when a program works with one device only (e.g.
     /// only on CPU), an engine and a stream can be created once and used
     /// throughout the program. Some frameworks create singleton objects that
-    /// hold DNNL engine and stream and are use them throughout the
-    /// code.
+    /// hold DNNL engine and stream and use them throughout the code.
 
     /// @subsection getting_started_cpp_sub2 Data preparation (code outside of DNNL)
     ///
@@ -116,12 +112,12 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// popular in many frameworks.
     ///
     /// Note that even though we work with one image only, the image tensor
-    /// is still 4D. The extra 4th dimension (here N) corresponds to the
-    /// batch, and, in case of a single image, equals to 1. This is pretty
+    /// is still 4D. The extra dimension (here N) corresponds to the
+    /// batch, and, in case of a single image, is equal to 1. It is pretty
     /// typical to have the batch dimension even when working with a single
     /// image.
     ///
-    /// In DNNL all CNN primitives assume tensors have batch
+    /// In DNNL, all CNN primitives assume that tensors have the batch
     /// dimension, which is always the first logical dimension (see also @ref
     /// dev_guide_conventions).
     ///
@@ -156,26 +152,26 @@ void getting_started_tutorial(engine::kind engine_kind) {
                     image[off] = -std::cos(off / 10.f);
                 }
     // [Create user's data]
-    /// @subsection getting_started_cpp_sub3 Wrapping data into DNNL memory object
+    /// @subsection getting_started_cpp_sub3 Wrapping data into a DNNL memory object
     ///
-    /// Now, having the image ready, let's wrap it in an @ref dnnl::memory
+    /// Now, having the image ready, let's wrap it in a @ref dnnl::memory
     /// object to be able to pass the data to DNNL primitives.
     ///
-    /// Creating @ref dnnl::memory consists of 2 steps:
-    ///   1. Initializing the @ref dnnl::memory::desc struct (also referred
-    ///      as memory descriptor) that only describes the tensor data, but
+    /// Creating @ref dnnl::memory comprises two steps:
+    ///   1. Initializing the @ref dnnl::memory::desc struct (also referred to
+    ///      as a memory descriptor), which only describes the tensor data and
     ///      doesn't contain the data itself. Memory descriptors are used to
     ///      create @ref dnnl::memory objects and to initialize primitive
-    ///      descriptors (shown later in the example);
-    ///   2. Creating the @ref dnnl::memory object itself (also referred as
+    ///      descriptors (shown later in the example).
+    ///   2. Creating the @ref dnnl::memory object itself (also referred to as
     ///      a memory object), based on the memory descriptor initialized in
-    ///      step 1, an engine, and, optionally, a handle to a data. The
+    ///      step 1, an engine, and, optionally, a handle to data. The
     ///      memory object is used when a primitive is executed.
     ///
     /// Thanks to the
     /// [list initialization](https://en.cppreference.com/w/cpp/language/list_initialization)
-    /// introduced in C++11 it is possible to combine these two steps whenever a
-    /// memory descriptor is not used anywhere else but in creating an @ref
+    /// introduced in C++11, it is possible to combine these two steps whenever
+    /// a memory descriptor is not used anywhere else but in creating a @ref
     /// dnnl::memory object.
     ///
     /// However, for the sake of demonstration, we will show both steps
@@ -183,7 +179,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     /// @subsubsection getting_started_cpp_sub31 Memory descriptor
     ///
-    /// To initialize the @ref dnnl::memory::desc we need to pass:
+    /// To initialize the @ref dnnl::memory::desc, we need to pass:
     ///   1. The tensor's dimensions, **the semantic order** of which is
     ///      defined by **the primitive** that will use this memory
     ///      (descriptor). Which leads to the following:
@@ -192,7 +188,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///         the data they describe or contain.
     ///   2. The data type for the tensor (@ref dnnl::memory::data_type).
     ///   3. The memory format tag (@ref dnnl::memory::format_tag) that
-    ///      describes how the data is going to be laid out in device's
+    ///      describes how the data is going to be laid out in the device's
     ///      memory. The memory format is required for the primitive to
     ///      correctly handle the data.
     ///
@@ -225,22 +221,22 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///
     /// Now that the logical order of dimension is defined, we need to specify
     /// the memory format (the third parameter), which describes how logical
-    /// indices map to the offset in memory. This is the place where user's
+    /// indices map to the offset in memory. This is the place where the user's
     /// format NHWC comes into play. DNNL has different @ref
-    /// dnnl::memory::format_tag values that covers the most popular memory
+    /// dnnl::memory::format_tag values that cover the most popular memory
     /// formats like NCHW, NHWC, CHWN, and some others.
     ///
     /// The memory descriptor for the image is called `src_md`. The `src` part
     /// comes from the fact that the image will be a source for the ReLU
-    /// primitive (i.e. we formulate memory names from the primitive
-    /// perspective, hence we will use `dst` to name the output memory). The
-    /// `md` is an acronym for Memory Descriptor.
+    /// primitive (that is, we formulate memory names from the primitive
+    /// perspective; hence we will use `dst` to name the output memory). The
+    /// `md` is an initialism for Memory Descriptor.
 
     /// @paragraph getting_started_cpp_sub311 Alternative way to create a memory descriptor
     ///
     /// Before we continue with memory creation, let us show the alternative
     /// way to create the same memory descriptor: instead of using the
-    /// @ref dnnl::memory::format_tag we can directly specify the strides
+    /// @ref dnnl::memory::format_tag, we can directly specify the strides
     /// of each tensor dimension:
     /// @snippet getting_started.cpp Init alt_src_md
     // [Init alt_src_md]
@@ -256,7 +252,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     // [Init alt_src_md]
 
     /// Just as before, the tensor's dimensions come in the `N, C, H, W` order
-    /// as required by CNN primitives. To define the physical memory format
+    /// as required by CNN primitives. To define the physical memory format,
     /// the strides are passed as the third parameter. Note that the order of
     /// the strides corresponds to the order of the tensor's dimensions.
     /// @warning
@@ -265,8 +261,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     /// @subsubsection getting_started_cpp_sub32 Creating a memory object
     ///
-    /// Having a memory descriptor and an engine prepared let's create
-    /// an input and an output memory objects for ReLU primitive
+    /// Having a memory descriptor and an engine prepared, let's create
+    /// input and output memory objects for a ReLU primitive.
     /// @snippet getting_started.cpp Create memory objects
     // [Create memory objects]
     // src_mem contains a copy of image after write_to_dnnl_memory function
@@ -280,7 +276,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// We already have a memory buffer for the source memory object.  We pass
     /// it to the
     /// @ref dnnl::memory::memory(const desc &, const engine &, void *)
-    /// constructor that takes a buffer pointer with its last argument.
+    /// constructor that takes a buffer pointer as its last argument.
     ///
     /// Let's use a constructor that instructs the library to allocate a
     /// memory buffer for the `dst_mem` for educational purposes.
@@ -288,44 +284,44 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// The key difference between these two are:
     /// 1. The library will own the memory for `dst_mem` and will deallocate
     ///    it when `dst_mem` is destroyed. That means the memory buffer can
-    ///    only be used while `dst_mem` is alive.
-    /// 2. Library-allocated buffers have good alignment which typically
+    ///    be used only while `dst_mem` is alive.
+    /// 2. Library-allocated buffers have good alignment, which typically
     ///    results in better performance.
     ///
     /// @note
-    ///     Memory allocated outside of the library and passed to Intel
-    ///     DNNL should have good alignment for better performance.
+    ///     Memory allocated outside of the library and passed to Intel DNNL
+    ///     should have good alignment for better performance.
     ///
-    /// In subsequent section we will show how to get the buffer (pointer)
+    /// In the subsequent section we will show how to get the buffer (pointer)
     /// from the `dst_mem` memory object.
     /// @subsection getting_started_cpp_sub4 Creating a ReLU primitive
     ///
     /// Let's now create a ReLU primitive.
     ///
     /// The library implements ReLU primitive as a particular algorithm of a
-    /// more general @ref dev_guide_eltwise primitive which applies specified
+    /// more general @ref dev_guide_eltwise primitive, which applies a specified
     /// function to each and every element of the source tensor.
     ///
-    /// Just like in case of @ref dnnl::memory a user should always go
-    /// through (at least) 3 creation steps (which however, can be sometimes
+    /// Just as in the case of @ref dnnl::memory, a user should always go
+    /// through (at least) three creation steps (which however, can be sometimes
     /// combined thanks to C++11):
-    /// 1. Initialize operation descriptor (in case of this example,
+    /// 1. Initialize an operation descriptor (in this example,
     ///    @ref dnnl::eltwise_forward::desc), which defines the operation
     ///    parameters.
     /// 2. Create an operation primitive descriptor (here @ref
     ///    dnnl::eltwise_forward::primitive_desc), which is a
     ///    **lightweight** descriptor of the actual algorithm that
-    ///    **implements** given operation. User can query different
-    ///    characteristics of the chosen implementation like memory
+    ///    **implements** the given operation. The user can query different
+    ///    characteristics of the chosen implementation such as memory
     ///    consumptions and some others that will be covered in the next topic
     ///    (@ref memory_format_propagation_cpp).
     /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
     ///    executed on memory objects to compute the operation.
     ///
-    /// DNNL separates the steps 2 and 3 to allow user to inspect
-    /// details of a primitive implementation prior to creating the primitive
-    /// which may be expensive because, for example, DNNL generates
-    /// the optimized computational code on the fly.
+    /// DNNL separates steps 2 and 3 to enable the user to inspect details of a
+    /// primitive implementation prior to creating the primitive.  This may be
+    /// expensive, because, for example, DNNL generates the optimized
+    /// computational code on the fly.
     ///
     ///@note
     ///    Primitive creation might be a very expensive operation, so consider
@@ -381,7 +377,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// object (input) and a destination memory (output).
     ///
     /// A primitive is executed in a stream (the first parameter of the
-    /// `execute()` method). Depending on a stream kind an execution might be
+    /// `execute()` method). Depending on a stream kind, an execution might be
     /// blocking or non-blocking. This means that we need to call @ref
     /// dnnl::stream::wait before accessing the results.
     ///
@@ -400,9 +396,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
     // [Execute ReLU primitive]
 
     /// The @ref dev_guide_eltwise is one of the primitives that support
-    /// in-place operations, meaning the source and destination memory can
-    /// be the same. To perform in-place transformation user needs to pass
-    /// the same memory object for the both `DNNL_ARG_SRC` and
+    /// in-place operations, meaning that the source and destination memory can
+    /// be the same. To perform in-place transformation, the user must pass the
+    /// same memory object for both the `DNNL_ARG_SRC` and
     /// `DNNL_ARG_DST` tags:
     /// @snippet getting_started.cpp Execute ReLU primitive in-place
     // [Execute ReLU primitive in-place]
@@ -416,7 +412,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// @page getting_started_cpp
     /// @subsection getting_started_cpp_sub6 Obtaining the result and validation
     ///
-    /// Now that we have the computed result let's validate that it is
+    /// Now that we have the computed result, let's validate that it is
     /// actually correct. The result is stored in the `dst_mem` memory object.
     /// So we need to obtain the C++ pointer to a buffer with data via @ref
     /// dnnl::memory::get_data_handle() and cast it to the proper data type
@@ -424,9 +420,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///
     /// @warning
     ///     The @ref dnnl::memory::get_data_handle() returns a raw handle
-    ///     to the buffer which type is engine specific. For CPU engine the
-    ///     buffer is always a pointer to `void` which can safely be used.
-    ///     However, for engines other than CPU the handle might be
+    ///     to the buffer, the type of which is engine specific. For the CPU
+    ///     engine the buffer is always a pointer to `void`, which can safely
+    ///     be used. However, for engines other than CPU the handle might be
     ///     runtime-specific type, such as `cl_mem` in case of GPU/OpenCL.
     ///
     /// @snippet getting_started.cpp Check the results
@@ -464,7 +460,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 ///
 /// We now just call everything we prepared earlier.
 ///
-/// Since we are using DNNL C++ API we use exception to handle errors
+/// Because we are using the DNNL C++ API, we use exceptions to handle errors
 /// (see @ref dev_guide_c_and_cpp_apis).
 /// The DNNL C++ API throws exceptions of type @ref dnnl::error,
 /// which contains the error status (of type @ref dnnl_status_t) and a
@@ -506,7 +502,7 @@ int main(int argc, char **argv) {
 /// Users are encouraged to experiment with the code to familiarize themselves
 /// with the concepts. In particular, one of the changes that might be of
 /// interest is to spoil some of the library calls to check how error handling
-/// happens.  For instance, if we replace
+/// happens. For instance, if we replace
 ///
 /// ~~~cpp
 /// relu.execute(engine_stream, {
