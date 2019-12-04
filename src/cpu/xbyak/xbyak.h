@@ -54,6 +54,9 @@
 	@note modified new BSD license
 	http://opensource.org/licenses/BSD-3-Clause
 */
+#if !defined(XBYAK_USE_OP_NAMES) && !defined(XBYAK_NO_OP_NAMES)
+	#define XBYAK_NO_OP_NAMES
+#endif
 #ifndef XBYAK_NO_OP_NAMES
 	#if not +0 // trick to detect whether 'not' is operator or not
 		#error "use -fno-operator-names option if you want to use and(), or(), xor(), not() as function names, Or define XBYAK_NO_OP_NAMES and use and_(), or_(), xor_(), not_()."
@@ -125,6 +128,10 @@
 	#include <sys/mman.h>
 	#include <stdlib.h>
 #endif
+#if defined(__APPLE__) && defined(MAP_JIT)
+	#define XBYAK_USE_MAP_JIT
+	#include <sys/sysctl.h>
+#endif
 #if !defined(_MSC_VER) || (_MSC_VER >= 1600)
 	#include <stdint.h>
 #endif
@@ -158,7 +165,7 @@ namespace Xbyak {
 
 enum {
 	DEFAULT_MAX_CODE_SIZE = 4096,
-	VERSION = 0x5830 /* 0xABCD = A.BC(D) */
+	VERSION = 0x5850 /* 0xABCD = A.BC(D) */
 };
 
 #ifndef MIE_INTEGER_TYPE_DEFINED
@@ -370,6 +377,29 @@ struct Allocator {
 };
 
 #ifdef XBYAK_USE_MMAP_ALLOCATOR
+#ifdef XBYAK_USE_MAP_JIT
+namespace util {
+
+inline int getMacOsVersionPure()
+{
+	char buf[64];
+	size_t size = sizeof(buf);
+	int err = sysctlbyname("kern.osrelease", buf, &size, NULL, 0);
+	if (err != 0) return 0;
+	char *endp;
+	int major = strtol(buf, &endp, 10);
+	if (*endp != '.') return 0;
+	return major;
+}
+
+inline int getMacOsVersion()
+{
+	static const int version = getMacOsVersionPure();
+	return version;
+}
+
+} // util
+#endif
 class MmapAllocator : Allocator {
 	typedef XBYAK_STD_UNORDERED_MAP<uintptr_t, size_t> SizeList;
 	SizeList sizeList_;
@@ -378,7 +408,11 @@ public:
 	{
 		const size_t alignedSizeM1 = inner::ALIGN_PAGE_SIZE - 1;
 		size = (size + alignedSizeM1) & ~alignedSizeM1;
-#ifdef MAP_ANONYMOUS
+#if defined(XBYAK_USE_MAP_JIT)
+		int mode = MAP_PRIVATE | MAP_ANONYMOUS;
+		const int mojaveVersion = 18;
+		if (util::getMacOsVersion() >= mojaveVersion) mode |= MAP_JIT;
+#elif defined(MAP_ANONYMOUS)
 		const int mode = MAP_PRIVATE | MAP_ANONYMOUS;
 #elif defined(MAP_ANON)
 		const int mode = MAP_PRIVATE | MAP_ANON;
