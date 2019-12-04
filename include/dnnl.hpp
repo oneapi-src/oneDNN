@@ -242,7 +242,7 @@ struct error;
 struct memory;
 struct primitive_desc;
 
-/// @addtogroup dnnl_api_primitives
+/// @addtogroup dnnl_api_primitives Primitives
 /// Compute primitives
 /// @sa @ref dev_guide_basic_concepts
 /// @{
