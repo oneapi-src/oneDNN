@@ -56,7 +56,7 @@ bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
             && str[0] == str[1] * dims[1];
 };
 
-void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &src_iter_c_d,
@@ -83,9 +83,9 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                 weights_layer_d.data_type()))
         rnn.dt_conf = all_f32;
     else if (everyone_is(bf16, src_layer_d.data_type(), dst_layer_d.data_type(),
-                     weights_layer_d.data_type()))
+                     weights_layer_d.data_type())) {
         rnn.dt_conf = all_bf16;
-    else if (dst_layer_d.data_type() == u8) {
+    } else if (dst_layer_d.data_type() == u8) {
         if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
             rnn.dt_conf = u8u8u8u8;
         else
@@ -192,10 +192,10 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
-    auto set_pack_sizes = [&](bool merge, bool &do_pack,
-                                  size_t &weights_pack_size, int &n_parts,
-                                  int *parts, size_t *parts_pack_size,
-                                  size_t &comp_offset, int feature_size) {
+    auto set_pack_sizes
+            = [&](bool merge, bool &do_pack, size_t &weights_pack_size,
+                      int &n_parts, int *parts, size_t *parts_pack_size,
+                      size_t &comp_offset, int feature_size) -> bool {
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
@@ -226,8 +226,7 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                     break;
                 default: assert(!"Unsupported configuration");
             }
-            assert(st == dnnl_success);
-            MAYBE_UNUSED(st);
+            if (st != dnnl_success) return false;
 
             pack = pack && pack_part;
             weights_pack_size += rnn.n_layer * rnn.n_dir * parts_pack_size[p];
@@ -239,17 +238,28 @@ void rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const bool need_compensation = rnn.is_int8();
         weights_pack_size += (need_compensation ? rnn.n_layer * rnn.n_dir : 0)
                 * rnn.n_gates * rnn.dlc * sizeof(float);
+
+        return true;
     };
-    if (rnn.use_layer_packed_gemm)
-        set_pack_sizes(rnn.merge_gemm_layer, rnn.use_layer_packed_gemm,
-                rnn.weights_layer_pack_size, rnn.n_parts_weights_layer,
-                rnn.parts_weights_layer, rnn.part_weights_layer_pack_size,
-                rnn.weights_layer_comp_offset, rnn.slc);
-    if (rnn.use_iter_packed_gemm)
-        set_pack_sizes(rnn.merge_gemm_iter, rnn.use_iter_packed_gemm,
+
+    if (rnn.use_layer_packed_gemm) {
+        bool ok = set_pack_sizes(rnn.merge_gemm_layer,
+                rnn.use_layer_packed_gemm, rnn.weights_layer_pack_size,
+                rnn.n_parts_weights_layer, rnn.parts_weights_layer,
+                rnn.part_weights_layer_pack_size, rnn.weights_layer_comp_offset,
+                rnn.slc);
+        if (!ok) return false;
+    }
+
+    if (rnn.use_iter_packed_gemm) {
+        bool ok = set_pack_sizes(rnn.merge_gemm_iter, rnn.use_iter_packed_gemm,
                 rnn.weights_iter_pack_size, rnn.n_parts_weights_iter,
                 rnn.parts_weights_iter, rnn.part_weights_iter_pack_size,
                 rnn.weights_iter_comp_offset, rnn.sic);
+        if (!ok) return false;
+    }
+
+    return true;
 }
 
 void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,

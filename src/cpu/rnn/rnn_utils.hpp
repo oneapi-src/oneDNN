@@ -239,7 +239,7 @@ bool is_ldgoi(const memory_desc_wrapper &md);
 
 int get_good_ld(int dim, int sizeof_dt);
 
-void init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &src_iter_c_d,
