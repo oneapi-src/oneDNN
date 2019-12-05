@@ -93,6 +93,13 @@ DNNL detects instruction set architecture (ISA) in the runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA.
 
+> **WARNING**
+>
+> On macOS, applications that use DNNL may need to request special
+> entitlements if they use the hardened runtime. See the
+> [linking guide](https://intel.github.io/mkl-dnn/dev_guide_link.html)
+> for more details.
+
 The library is optimized for the following GPUs:
 * Intel HD Graphics
 * Intel UHD Graphics
