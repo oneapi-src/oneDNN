@@ -419,6 +419,7 @@ namespace stream_kind {
     const stream_kind_t any_stream = mkldnn_any_stream;
     const stream_kind_t eager = mkldnn_eager;
     const stream_kind_t lazy = mkldnn_lazy;
+    const stream_kind_t eager_nostore = mkldnn_eager_nostore;
 }
 using stream_t = mkldnn_stream;
 

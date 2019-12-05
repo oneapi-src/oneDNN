@@ -3310,7 +3310,8 @@ struct stream: public handle<mkldnn_stream_t> {
 
     enum kind { any = mkldnn_stream_kind_t::mkldnn_any_stream,
         eager = mkldnn_stream_kind_t::mkldnn_eager,
-        lazy = mkldnn_stream_kind_t::mkldnn_lazy };
+        lazy = mkldnn_stream_kind_t::mkldnn_lazy,
+        eager_nostore = mkldnn_stream_kind_t::mkldnn_eager_nostore };
 
     static mkldnn_stream_kind_t convert_to_c(kind akind) {
         return static_cast<mkldnn_stream_kind_t>(akind);
