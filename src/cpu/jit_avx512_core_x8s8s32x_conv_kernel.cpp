@@ -292,10 +292,8 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Zmm>::compute_ker_dw(int ur_w,
         }
     }
 
-    if (jcp.signed_input) {
-        vpxord(zmm_shifted_zero, zmm_shifted_zero, zmm_shifted_zero);
-        vpaddb(zmm_shifted_zero, zmm_shifted_zero, vmm_shift);
-    }
+    if (jcp.signed_input) vmovups(zmm_shifted_zero, vmm_shift);
+
     for (int ci = 0; ci < jcp.nb_ch_blocking; ci++) {
         const bool mask_flag = last_ic_block_flag != no_last_block
                 && ci == jcp.nb_ch_blocking - 1;
@@ -421,8 +419,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
             if (h_padded == true) {
                 /* fill padded area with shifted values */
                 Vmm inp = vmm_inp(0, nb_oc_block);
-                vpxord(inp, inp, inp);
-                vpaddb(inp, inp, vmm_shift);
+                vmovups(inp, vmm_shift);
             } else {
                 for (int jj = _start; jj < _end; jj++) {
                     int aux_input_offset = input_offset(jj, ic, ki);
@@ -448,8 +445,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                         /* fill padded area with shifted values */
                         if (jcp.signed_input) {
                             Vmm inp = vmm_inp(jj, nb_oc_block);
-                            vpxord(inp, inp, inp);
-                            vpaddb(inp, inp, vmm_shift);
+                            vmovups(inp, vmm_shift);
                         }
                     }
                 }
