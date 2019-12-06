@@ -16,10 +16,7 @@
 
 #include "ocl/ocl_types.h"
 
-#ifdef OUTPUT_DATA_T
-#if OUTPUT_DT_BF16
-#define TO_OUTPUT(x) convert_f32_to_bf16(x)
-#elif OUTPUT_DT_U8
+#if OUTPUT_DT_U8
 #define TO_OUTPUT(x) convert_uchar_sat_rte(x)
 #elif OUTPUT_DT_S8
 #define TO_OUTPUT(x) convert_char_sat_rte(x)
@@ -28,6 +25,11 @@
 #else
 #define TO_OUTPUT(x) (x)
 #endif
+
+#if OUTPUT_DT_BF16
+#define TO_INPUT(x) convert_f32_to_bf16(x)
+#else
+#define TO_INPUT(x) (x)
 #endif
 
 #if DT_F16 && !IS_FWD
@@ -277,14 +279,6 @@ float activation_bwd(float s, float alpha, float cliping) {
 #endif
 }
 
-SRC_DATA_T maybe_q(INPUT_DATA_T f, float shift, float scale, int quantize) {
-    if (quantize) {
-        float qf = f * scale + shift;
-        return TO_SRC(qf);
-    } else
-        return TO_SRC(f);
-}
-
 __kernel void ref_rnn_copy_init_layer(
         __global char *ws, __global char *src_base, int lr, int rl) {
 
@@ -370,8 +364,9 @@ __kernel void ref_rnn_copy_init_iter(
     __global SRC_DATA_T *dst = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET);
     if (s < SIC)
         dst[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_base
-                ? maybe_q(
-                        src[SRC_I_OFF(lay, dir, b, s)], shift, scale, quantize)
+                ? (quantize ? TO_SRC(
+                           src[SRC_I_OFF(lay, dir, b, s)] * scale + shift)
+                            : src[SRC_I_OFF(lay, dir, b, s)])
                 : TO_SRC(0.0f);
 #if WITH_SRC_ITER_C
     __global PRECISE_DATA_T *dst_c
@@ -400,13 +395,6 @@ __kernel void ref_rnn_copy_init_iter(
 #endif
 }
 
-DST_DATA_T maybe_dq_l(SRC_DATA_T s, float shift, float scale, int dequantize) {
-    if (dequantize) {
-        return TO_DST(((float)s - shift) / scale);
-    } else
-        return TO_DST(s);
-}
-
 __kernel void ref_rnn_copy_res_layer(
         __global char *ws, __global char *dst_base, int lr, int rl
 #if IS_FWD
@@ -424,9 +412,11 @@ __kernel void ref_rnn_copy_res_layer(
     __global DST_DATA_T *dst = (__global DST_DATA_T *)(dst_base);
     int dir = 0;
     if (lr) {
-        dst[DST_L_OFF(it, b, dir * DIC + s)]
-                = maybe_dq_l(src[OFF_WS_STATE(N_LAYER, dir, it + 1, b, s)],
-                        shift, scale, dequantize);
+        dst[DST_L_OFF(it, b, dir * DIC + s)] = dequantize
+                ? TO_DST(((float)src[OFF_WS_STATE(N_LAYER, dir, it + 1, b, s)]
+                                 - shift)
+                        / scale)
+                : src[OFF_WS_STATE(N_LAYER, dir, it + 1, b, s)];
         dir = 1;
     }
     if (rl) {
@@ -445,14 +435,19 @@ __kernel void ref_rnn_copy_res_layer(
                             src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)])
                     + convert_short(dst[DST_L_OFF(it, b, s)]));
 #else
-            dst[DST_L_OFF(it, b, s)]
-                    += src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)];
+            ACC_DATA_T temp_src = DST_TO_REF(dst[DST_L_OFF(it, b, s)]);
+            temp_src += DST_TO_REF(
+                    src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)]);
+            dst[DST_L_OFF(it, b, s)] = REF_TO_DST(temp_src);
 #endif
         }
 #else
-        dst[DST_L_OFF(it, b, dir * DIC + s)]
-                = maybe_dq_l(src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)],
-                        shift, scale, dequantize);
+        dst[DST_L_OFF(it, b, dir * DIC + s)] = dequantize
+                ? TO_DST(((float)src[OFF_WS_STATE(
+                                  N_LAYER, dir, N_ITER - it, b, s)]
+                                 - shift)
+                        / scale)
+                : src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)];
 #endif
     }
 #else // BWD
@@ -475,14 +470,6 @@ __kernel void ref_rnn_copy_res_layer(
 #endif
 }
 
-OUTPUT_DATA_T maybe_dq_i(
-        SRC_DATA_T s, float shift, float scale, int dequantize) {
-    if (dequantize) {
-        return TO_OUTPUT(((float)s - shift) / scale);
-    } else
-        return TO_OUTPUT(s);
-}
-
 __kernel void ref_rnn_copy_res_iter(
         __global char *ws, __global char *dst_base, __global char *dst_c_base
 #if IS_FWD
@@ -501,9 +488,12 @@ __kernel void ref_rnn_copy_res_iter(
     __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
 
     if (dst_base && s < DIC) {
-        dst[DST_I_OFF(lay, dir, b, s)]
-                = maybe_dq_i(src[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)],
-                        shift, scale, dequantize);
+        dst[DST_I_OFF(lay, dir, b, s)] = dequantize
+                ? TO_OUTPUT(
+                        ((float)src[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)]
+                                - shift)
+                        / scale)
+                : TO_OUTPUT(src[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)]);
     }
 #if WITH_DST_ITER_C
     __global PRECISE_DATA_T *src_c
@@ -791,15 +781,15 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
             (float)ws_gates[CELL_WS_GATES(i, 3, j)] + bias[OFF_KER_BIAS(3, j)],
             tm_scales[3]);
 
-    ws_gates[CELL_WS_GATES(i, 0, j)] = g_i;
-    ws_gates[CELL_WS_GATES(i, 1, j)] = g_f;
-    ws_gates[CELL_WS_GATES(i, 2, j)] = g_z;
-    ws_gates[CELL_WS_GATES(i, 3, j)] = g_o;
+    ws_gates[CELL_WS_GATES(i, 0, j)] = TO_INPUT(g_i);
+    ws_gates[CELL_WS_GATES(i, 1, j)] = TO_INPUT(g_f);
+    ws_gates[CELL_WS_GATES(i, 2, j)] = TO_INPUT(g_z);
+    ws_gates[CELL_WS_GATES(i, 3, j)] = TO_INPUT(g_o);
 
     float Ct = g_f * c_states_tm1_l[CELL_WS_STATE(i, j)] + g_i * g_z;
     float Ht = g_o * tanh_fwd_tm(Ct, tm_cscale);
 
-    h_states_t_l[CELL_WS_STATE(i, j)] = Ht;
+    h_states_t_l[CELL_WS_STATE(i, j)] = TO_INPUT(Ht);
     c_states_t_l[CELL_WS_STATE(i, j)] = Ct;
 
 #elif CELL_KIND == VANILLA_RNN
@@ -812,8 +802,8 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
             alpha, 0);
 #endif
 
-    ws_gates[CELL_WS_GATES(i, 0, j)] = g;
-    h_states_t_l[CELL_WS_STATE(i, j)] = g;
+    ws_gates[CELL_WS_GATES(i, 0, j)] = TO_INPUT(g);
+    h_states_t_l[CELL_WS_STATE(i, j)] = TO_INPUT(g);
 
 #else
 #error "Wrong cell kind"
