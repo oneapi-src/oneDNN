@@ -129,11 +129,22 @@ format_tag_t get_tag(memory_desc_t &md) {
     using namespace format_tag;
     auto tag = memory_desc_matches_one_of_tag(md, ab, abc, abcd,
             abcde, // NCHW derivatives
-            ba, cba, cdba, cdeba, // IO and spatial derivatives
+            ba, bca, bcda, bcdea, cba, cdba,
+            cdeba, // IO and spatial derivatives
             acb, acdb, acdeb, // NHWC derivatives
             aBcd16b, aBcde16b, aBcd8b, aBcde8b, aBcd4b,
             aBcde4b); // blocked layouts
     return tag;
+}
+
+inline bool is_ineff_lead_dim(const dim_t dim){
+    return dim % 1024 == 0; // check cache aliasing
+}
+
+/* Pick between M and K for the most efficient leading
+ * dimension to compute GeMM. */
+bool transpose_leading_dim(const dim_t M, const dim_t K) {
+    return IMPLICATION(is_ineff_lead_dim(M), is_ineff_lead_dim(K) && M <= K);
 }
 } // namespace
 
@@ -169,9 +180,8 @@ protected:
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
-            auto batch = src_md_.dims[0];
-            if (batch > 1) transpose_md(weights_md_);
-
+            if (MB() > 1 && transpose_leading_dim(OC(), IC_total()))
+                transpose_md(weights_md_);
             return status::success;
         };
 
@@ -210,8 +220,7 @@ protected:
             /* with batch = 1, no transpose to use the faster gemv kernels */
             /* otherwise, we transpose the weights to improve efficiency of
              * no-copy kernels */
-            auto batch = diff_src_md_.dims[0];
-            if (batch == 1) transpose_md(weights_md_);
+            if (MB() == 1) transpose_md(weights_md_);
 
             return status::success;
         };
@@ -249,9 +258,8 @@ protected:
         auto set_default_diff_weights = [&]() {
             INIT_MEM_BY_TAG(get_tag(src_md_), diff_weights_md_);
             // Here, we want diff_weights layout to match the fwd weights layout
-            auto batch = src_md_.dims[0];
-            if (batch > 1) transpose_md(diff_weights_md_);
-
+            if (MB() > 1 && transpose_leading_dim(OC(), MB()))
+                transpose_md(diff_weights_md_);
             return status::success;
         };
 
