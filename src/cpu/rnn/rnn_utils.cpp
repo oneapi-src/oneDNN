@@ -84,6 +84,7 @@ bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         rnn.dt_conf = all_f32;
     else if (everyone_is(bf16, src_layer_d.data_type(), dst_layer_d.data_type(),
                      weights_layer_d.data_type())) {
+        if (!mayiuse(avx512_core)) return false;
         rnn.dt_conf = all_bf16;
     } else if (dst_layer_d.data_type() == u8) {
         if (IMPLICATION(src_iter_d.md_, src_iter_d.data_type() == u8))
