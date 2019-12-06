@@ -20,7 +20,9 @@
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
+#include "jit_uni_gru_cell_postgemm_1_bwd.hpp"
 #include "jit_uni_gru_cell_postgemm_1_fwd.hpp"
+#include "jit_uni_gru_cell_postgemm_2_bwd.hpp"
 #include "jit_uni_gru_cell_postgemm_2_fwd.hpp"
 #include "jit_uni_gru_lbr_cell_postgemm_bwd.hpp"
 #include "jit_uni_gru_lbr_cell_postgemm_fwd.hpp"
@@ -169,6 +171,30 @@ struct rnn_postgemm_dispatcher {
                                         src_type, scratch_type>(rnn, pd);
                         rnn_postgemm_part2_
                                 = new jit_uni_gru_cell_postgemm_part2_fwd<sse41,
+                                        src_type, scratch_type>(rnn, pd);
+                    }
+                }
+                if (jit_bwd) {
+                    if (mayiuse(avx512_core)) {
+                        rnn_postgemm_ = new jit_uni_gru_cell_postgemm_part1_bwd<
+                                avx512_core, src_type, scratch_type>(rnn, pd);
+                        rnn_postgemm_part2_
+                                = new jit_uni_gru_cell_postgemm_part2_bwd<
+                                        avx512_core, src_type, scratch_type>(
+                                        rnn, pd);
+                    } else if (mayiuse(avx2)) {
+                        rnn_postgemm_
+                                = new jit_uni_gru_cell_postgemm_part1_bwd<avx2,
+                                        src_type, scratch_type>(rnn, pd);
+                        rnn_postgemm_part2_
+                                = new jit_uni_gru_cell_postgemm_part2_bwd<avx2,
+                                        src_type, scratch_type>(rnn, pd);
+                    } else if (mayiuse(sse41)) {
+                        rnn_postgemm_
+                                = new jit_uni_gru_cell_postgemm_part1_bwd<sse41,
+                                        src_type, scratch_type>(rnn, pd);
+                        rnn_postgemm_part2_
+                                = new jit_uni_gru_cell_postgemm_part2_bwd<sse41,
                                         src_type, scratch_type>(rnn, pd);
                     }
                 }

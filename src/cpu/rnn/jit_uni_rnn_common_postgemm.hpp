@@ -37,7 +37,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
     typedef void (*kernel_t)(void *param1_, void *param2_, const void *param3_,
             void *param4_, void *param5_, const void *param6_, void *param7_,
-            void *param8_);
+            void *param8_, void *param9_);
 
     jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : rnn_(rnn)
@@ -127,6 +127,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     : states_t_l_copy_; // RNN, LSTM, GRU
             const void *param6_;
             void *param7_, *param8_;
+            void *param9_ = nullptr;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
                     param6_ = &c_states_tm1_l(i, 0);
@@ -150,7 +151,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     break;
             }
             kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
-                    param7_, param8_);
+                    param7_, param8_, param9_);
         });
     }
 
@@ -178,13 +179,16 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         ws_states_aoc<const src_data_t> states_tm1_l(
                 rnn, states_tm1_l_, src_iter_ld);
         ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
+        utils::array_offset_calculator<scratch_data_t, 2> hG1(
+                scratch_cell_, rnn.states_nld, rnn.states_ws_ld);
         utils::array_offset_calculator<src_data_t, 2> ws_grid(
                 ws_grid_, rnn.mb, rnn.dic);
 
         // Todo: add parallelization on dic for the batch 1 case
         // Assumption: the kernel runs a loop on dic elements
         parallel_nd(rnn.mb, [&](int i) {
-            void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_;
+            void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_,
+                    *param9_;
             const void *param3_, *param6_;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
@@ -196,18 +200,34 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param6_ = &diff_states_tp1_l(1, i, 0);
                     param7_ = (float *)&c_states_tm1_l(i, 0);
                     param8_ = &c_states_t_l(i, 0);
+                    param9_ = nullptr;
                     break;
                 case alg_kind::lbr_gru:
                     param1_ = &ws_gates(i, 0, 0);
-                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
+                    param2_ = &scratch_gates(i, 0, 0);
                     param3_ = &diff_states_t_lp1(rnn.n_states, i, 0);
                     param4_ = &diff_states_tp1_l(0, i, 0);
                     param5_ = &diff_states_t_l(0, i, 0);
                     param6_ = &states_tm1_l(i, 0);
                     param7_ = &scratch_cell(i, 0, 0);
                     param8_ = &ws_grid(i, 0);
+                    param9_ = nullptr;
                     break;
                 case alg_kind::vanilla_gru:
+                    // TODO: split part 1 and part2 APIs/ABIs
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
+                    param3_ = &diff_states_t_lp1(
+                            rnn.n_states, i, 0); // not needed for part2
+                    param4_ = &diff_states_tp1_l(
+                            0, i, 0); // not needed for part2
+                    param5_ = &diff_states_t_l(0, i, 0);
+                    param6_ = &states_tm1_l(i, 0);
+                    param7_ = &hG1(i, 0); // not needed for part1
+                    param8_ = &ws_grid(i, 0); // not needed in part1
+                    param9_ = &diff_states_t_l(
+                            rnn.n_states, i, 0); // not needed for part1
+                    break;
                 default:
                     assert(!"unsupported");
                     param1_ = nullptr;
@@ -218,10 +238,11 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param6_ = nullptr;
                     param7_ = nullptr;
                     param8_ = nullptr;
+                    param9_ = nullptr;
                     break;
             }
             kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
-                    param7_, param8_);
+                    param7_, param8_, param9_);
         });
     }
 
