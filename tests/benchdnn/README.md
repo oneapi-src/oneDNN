@@ -19,6 +19,7 @@ So far it supports and uses the following drivers:
 * [pooling](doc/driver_pool.md)
 * [reorder](doc/driver_reorder.md)
 * [recurrent neural network (RNN)](doc/driver_rnn.md)
+* [resampling)](doc/driver_resampling.md)
 * [shuffle](doc/driver_shuffle.md)
 * [softmax](doc/driver_softmax.md)
 * [sum](doc/driver_sum.md)

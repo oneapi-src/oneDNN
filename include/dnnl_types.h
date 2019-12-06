@@ -678,6 +678,8 @@ typedef enum {
     dnnl_logsoftmax,
     /// A matrix multiplication primitive.
     dnnl_matmul,
+    /// A resampling primitive.
+    dnnl_resampling,
 } dnnl_primitive_kind_t;
 
 /// Kinds of algorithms.
@@ -756,6 +758,10 @@ typedef enum {
     dnnl_binary_add = 0x1fff0,
     /// Binary mul
     dnnl_binary_mul = 0x1fff1,
+    /// Nearest Neighbor Resampling Method
+    dnnl_resampling_nearest = 0x2fff0,
+    /// Linear Resampling Method
+    dnnl_resampling_linear = 0x2fff1,
 } dnnl_alg_kind_t;
 
 /// Flags for batch normalization primitive.
@@ -1490,6 +1496,34 @@ typedef struct {
 
 /// @} dnnl_api_matmul
 
+/// @addtogroup dnnl_api_resampling
+/// @{
+
+/// A descriptor of resampling operation.
+typedef struct {
+    /// The kind of primitive. Used for self-identifying the primitive
+    /// descriptor. Must be #dnnl_resampling.
+    dnnl_primitive_kind_t primitive_kind;
+    /// The kind of propagation. Possible values: #dnnl_forward_training,
+    /// #dnnl_forward_inference, #dnnl_backward_data,
+    dnnl_prop_kind_t prop_kind;
+    /// The kind of the resampling algorithm. Possible values:
+    /// #dnnl_resampling_nearest, #dnnl_resampling_linear.
+    dnnl_alg_kind_t alg_kind;
+    /// Source memory descriptor.
+    dnnl_memory_desc_t src_desc;
+    /// Source gradient memory descriptor.
+    dnnl_memory_desc_t diff_src_desc;
+    /// Destination memory descriptor.
+    dnnl_memory_desc_t dst_desc;
+    /// Destination gradient memory descriptor.
+    dnnl_memory_desc_t diff_dst_desc;
+    /// Resampling factor in each spatial dimension.
+    float factors[DNNL_MAX_NDIMS];
+} dnnl_resampling_desc_t;
+
+/// @} dnnl_api_resampling
+
 /// @} dnnl_api_primitives
 
 /// @addtogroup dnnl_api_engine
@@ -1867,6 +1901,7 @@ typedef enum {
     dnnl_query_binary_d, ///< binary descriptor
     dnnl_query_logsoftmax_d, ///< logsoftmax descriptor
     dnnl_query_matmul_d, ///< matrix multiplication (matmul) descriptor
+    dnnl_query_resampling_d, ///< resampling descriptor
 
     // memory descriptor section
     dnnl_query_some_md = 128, ///< stub

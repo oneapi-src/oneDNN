@@ -138,6 +138,8 @@ register_benchdnn_test(test_benchdnn_deconv_bf16
     cpu "-v1 --deconv --batch=inputs/deconv/test_deconv_bfloat16")
 register_benchdnn_test(test_benchdnn_matmul
     cpu "-v1 --matmul --batch=inputs/matmul/test_matmul_all")
+register_benchdnn_test(test_benchdnn_resampling
+    cpu "-v1 --resampling --batch=inputs/resampling/test_resampling_all")
 register_benchdnn_test(test_benchdnn_rnn
     cpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small")
 register_benchdnn_test(test_benchdnn_reorder

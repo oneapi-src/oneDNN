@@ -375,6 +375,17 @@ inline bool operator==(const reorder_desc_t &lhs, const reorder_desc_t &rhs) {
     return ret;
 }
 
+inline bool operator==(
+        const resampling_desc_t &lhs, const resampling_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(alg_kind) && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(diff_src_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(diff_dst_desc)
+            && COMPARE_DESC_ARRAY_MEMBERS(factors, DNNL_MAX_NDIMS);
+    return ret;
+}
+
 inline bool operator==(const rnn_desc_t &lhs, const rnn_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
             && COMPARE_DESC_MEMBERS(prop_kind)

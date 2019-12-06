@@ -27,6 +27,9 @@
 #include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
 
+#include "cpu/resampling/ref_resampling.hpp"
+#include "cpu/resampling/simple_resampling.hpp"
+
 #include "cpu/rnn/ref_rnn.hpp"
 
 #include "cpu/gemm_bf16_convolution.hpp"
@@ -407,6 +410,13 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_matmul_t<u8, s8, s32, s32>),
         INSTANCE(ref_matmul_t<u8, s8, s8, s32>),
         INSTANCE(ref_matmul_t<u8, s8, u8, s32>),
+        /* resampling */
+        INSTANCE(simple_resampling_fwd_t<f32>),
+        INSTANCE(simple_resampling_bwd_t<f32>),
+        INSTANCE(ref_resampling_fwd_t<f32>),
+        INSTANCE(ref_resampling_fwd_t<bf16>),
+        INSTANCE(ref_resampling_bwd_t<f32>),
+        INSTANCE(ref_resampling_bwd_t<bf16>),
         /* eol */
         nullptr,
 };

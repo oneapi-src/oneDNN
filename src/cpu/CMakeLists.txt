@@ -33,6 +33,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     file(GLOB FILES_REQUIRED_PREC_SQRT
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp)
     file(GLOB FILES_REQUIRED_PREC_DIV
+        ${CMAKE_CURRENT_SOURCE_DIR}/*resampling*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ref_rnn.cpp)
     if(WIN32)

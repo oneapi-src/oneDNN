@@ -81,6 +81,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_binary.cpp
                               test_logsoftmax.cpp
                               test_matmul.cpp
+                              test_resampling.cpp
                               )
 
 # Workaround for an Intel compiler bug: stack unwinding does not restore

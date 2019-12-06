@@ -55,6 +55,7 @@ void init_info(lrn_pd_t *s, char *buffer);
 void init_info(matmul_pd_t *s, char *buffer);
 void init_info(pooling_pd_t *s, char *buffer);
 void init_info(reorder_pd_t *s, char *buffer);
+void init_info(resampling_pd_t *s, char *buffer);
 void init_info(rnn_pd_t *s, char *buffer);
 void init_info(shuffle_pd_t *s, char *buffer);
 void init_info(softmax_pd_t *s, char *buffer);

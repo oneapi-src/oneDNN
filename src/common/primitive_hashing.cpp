@@ -96,6 +96,9 @@ void key_t::init_mds(const primitive_desc_t *pd) {
         case primitive_kind::reorder: {
             break;
         }
+        case primitive_kind::resampling: {
+            break;
+        }
         case primitive_kind::rnn: {
             break;
         }

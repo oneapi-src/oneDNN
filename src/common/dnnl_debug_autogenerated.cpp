@@ -407,6 +407,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_binary) return "binary";
     if (v == dnnl_logsoftmax) return "logsoftmax";
     if (v == dnnl_matmul) return "matmul";
+    if (v == dnnl_resampling) return "resampling";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }
@@ -445,6 +446,8 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_lbr_gru) return "lbr_gru";
     if (v == dnnl_binary_add) return "binary_add";
     if (v == dnnl_binary_mul) return "binary_mul";
+    if (v == dnnl_resampling_nearest) return "resampling_nearest";
+    if (v == dnnl_resampling_linear) return "resampling_linear";
     assert(!"unknown alg_kind");
     return "unknown alg_kind";
 }

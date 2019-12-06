@@ -90,6 +90,8 @@ const alg_kind_t vanilla_gru = dnnl_vanilla_gru;
 const alg_kind_t lbr_gru = dnnl_lbr_gru;
 const alg_kind_t binary_add = dnnl_binary_add;
 const alg_kind_t binary_mul = dnnl_binary_mul;
+const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
+const alg_kind_t resampling_linear = dnnl_resampling_linear;
 } // namespace alg_kind
 
 using data_type_t = dnnl_data_type_t;
@@ -493,6 +495,7 @@ const primitive_kind_t gemm = dnnl_gemm;
 const primitive_kind_t binary = dnnl_binary;
 const primitive_kind_t logsoftmax = dnnl_logsoftmax;
 const primitive_kind_t matmul = dnnl_matmul;
+const primitive_kind_t resampling = dnnl_resampling;
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;
@@ -534,6 +537,7 @@ const query_t gemm_d = dnnl_query_gemm_d;
 const query_t binary_d = dnnl_query_binary_d;
 const query_t logsoftmax_d = dnnl_query_logsoftmax_d;
 const query_t matmul_d = dnnl_query_matmul_d;
+const query_t resampling_d = dnnl_query_resampling_d;
 
 const query_t some_md = dnnl_query_some_md;
 const query_t src_md = dnnl_query_src_md;
@@ -566,6 +570,7 @@ using inner_product_desc_t = dnnl_inner_product_desc_t;
 using binary_desc_t = dnnl_binary_desc_t;
 using logsoftmax_desc_t = dnnl_logsoftmax_desc_t;
 using matmul_desc_t = dnnl_matmul_desc_t;
+using resampling_desc_t = dnnl_resampling_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;
@@ -602,6 +607,7 @@ struct op_desc_t {
         sum_desc_t sum;
         binary_desc_t binary;
         matmul_desc_t matmul;
+        resampling_desc_t resampling;
     };
 
 #define DECL_CTOR_AND_CONVERTERS(c_type) \
@@ -629,6 +635,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(sum_desc_t);
     DECL_CTOR_AND_CONVERTERS(binary_desc_t);
     DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
+    DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly
@@ -689,6 +696,7 @@ struct pooling_bwd_pd_t;
 struct pooling_fwd_pd_t;
 struct pooling_pd_t;
 struct reorder_pd_t;
+struct resampling_pd_t;
 struct rnn_bwd_pd_t;
 struct rnn_fwd_pd_t;
 struct rnn_pd_t;
