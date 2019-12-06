@@ -208,6 +208,8 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_rnn_fwd_f16_t),
         INSTANCE(ref_rnn_fwd_f32_t),
         INSTANCE(ref_rnn_bwd_f32_t),
+        INSTANCE(ref_rnn_fwd_bf16_t),
+        INSTANCE(ref_rnn_bwd_bf16_t),
         /* shuffle */
         INSTANCE(ref_shuffle_t),
         /*layer normalization */

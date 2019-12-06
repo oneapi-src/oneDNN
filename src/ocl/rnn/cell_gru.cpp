@@ -31,6 +31,8 @@ template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
 template cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
 template cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
+template cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 cell_execution_sig((
@@ -41,6 +43,8 @@ template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
 template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
+template cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
+template cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru);
 
 } // namespace ocl
 } // namespace impl

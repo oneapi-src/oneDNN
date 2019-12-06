@@ -672,6 +672,10 @@ using ref_rnn_fwd_f32_t
         = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
 using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
+using ref_rnn_fwd_bf16_t
+        = _ref_rnn_common_t<prop_kind::forward, data_type::bf16, data_type::bf16>;
+using ref_rnn_bwd_bf16_t
+        = _ref_rnn_common_t<prop_kind::backward, data_type::bf16, data_type::bf16>;
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl

@@ -760,9 +760,21 @@ cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
 template <>
 cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
 template <>
+cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
+template <>
+cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru);
+template <>
 cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
 template <>
 cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+template <>
+cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
+template <>
+cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
+template <>
+cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
+template <>
+cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution);
 template <>
 cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
 template <>
@@ -784,6 +796,10 @@ elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
 template <>
+elemwise_sig(ref_rnn_fwd_bf16_t::rnn_elemwise);
+template <>
+elemwise_sig(ref_rnn_bwd_bf16_t::rnn_elemwise);
+template <>
 elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
 template <>
 elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
@@ -792,6 +808,10 @@ elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
 template <>
+elemwise_sig(ref_rnn_fwd_bf16_t::lstm_elemwise);
+template <>
+elemwise_sig(ref_rnn_bwd_bf16_t::lstm_elemwise);
+template <>
 elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
 template <>
 elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
@@ -799,6 +819,10 @@ template <>
 elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
 template <>
 elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
+template <>
+elemwise_sig(ref_rnn_fwd_bf16_t::gru_lbr_elemwise);
+template <>
+elemwise_sig(ref_rnn_bwd_bf16_t::gru_lbr_elemwise);
 
 template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
         data_type::s8>;
@@ -808,6 +832,10 @@ template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
         data_type::f32>;
 template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
         data_type::f32>;
+template struct _ref_rnn_common_t<prop_kind::forward, data_type::bf16,
+        data_type::bf16>;
+template struct _ref_rnn_common_t<prop_kind::backward, data_type::bf16,
+        data_type::bf16>;
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl

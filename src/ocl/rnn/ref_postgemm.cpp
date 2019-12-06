@@ -47,6 +47,8 @@ template elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
 template elemwise_sig(ref_rnn_fwd_f16_t::rnn_elemwise);
 template elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
 template elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
+template elemwise_sig(ref_rnn_fwd_bf16_t::rnn_elemwise);
+template elemwise_sig(ref_rnn_bwd_bf16_t::rnn_elemwise);
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 elemwise_sig(
@@ -75,6 +77,8 @@ elemwise_sig(
 template elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
 template elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
 template elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
+template elemwise_sig(ref_rnn_fwd_bf16_t::lstm_elemwise);
+template elemwise_sig(ref_rnn_bwd_bf16_t::lstm_elemwise);
 
 template <>
 elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise) {
@@ -114,6 +118,8 @@ template elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
 template elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
+template elemwise_sig(ref_rnn_fwd_bf16_t::gru_lbr_elemwise);
+template elemwise_sig(ref_rnn_bwd_bf16_t::gru_lbr_elemwise);
 
 } // namespace ocl
 } // namespace impl
