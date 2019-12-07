@@ -28,6 +28,7 @@
 #include "jit_uni_gru_lbr_cell_postgemm_fwd.hpp"
 #include "jit_uni_lstm_cell_postgemm_bwd.hpp"
 #include "jit_uni_lstm_cell_postgemm_fwd.hpp"
+#include "jit_uni_rnn_cell_postgemm_bwd.hpp"
 #include "jit_uni_rnn_cell_postgemm_fwd.hpp"
 #include "jit_uni_rnn_common_postgemm.hpp"
 
@@ -142,6 +143,18 @@ struct rnn_postgemm_dispatcher {
                                 src_type, scratch_type>(rnn, pd);
                     else if (mayiuse(sse41))
                         rnn_postgemm_ = new jit_uni_rnn_cell_postgemm_fwd<sse41,
+                                src_type, scratch_type>(rnn, pd);
+                }
+                if (jit_bwd) {
+                    if (mayiuse(avx512_core))
+                        rnn_postgemm_
+                                = new jit_uni_rnn_cell_postgemm_bwd<avx512_core,
+                                        src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(avx2))
+                        rnn_postgemm_ = new jit_uni_rnn_cell_postgemm_bwd<avx2,
+                                src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(sse41))
+                        rnn_postgemm_ = new jit_uni_rnn_cell_postgemm_bwd<sse41,
                                 src_type, scratch_type>(rnn, pd);
                 }
                 break;

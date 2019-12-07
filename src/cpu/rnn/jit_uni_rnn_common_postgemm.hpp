@@ -228,6 +228,17 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param9_ = &diff_states_t_l(
                             rnn.n_states, i, 0); // not needed for part1
                     break;
+                case alg_kind::vanilla_rnn:
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0);
+                    param3_ = &diff_states_t_lp1(rnn.n_states, i, 0);
+                    param4_ = &diff_states_tp1_l(0, i, 0);
+                    param5_ = nullptr;
+                    param6_ = nullptr;
+                    param7_ = nullptr;
+                    param8_ = nullptr;
+                    param9_ = nullptr;
+                    break;
                 default:
                     assert(!"unsupported");
                     param1_ = nullptr;
