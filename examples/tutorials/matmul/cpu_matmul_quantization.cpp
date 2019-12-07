@@ -132,8 +132,7 @@ enum class q10n_scheme_t { DYNAMIC, STATIC };
 namespace {
 
 void init_vector(std::vector<float> &v, float min_value, float max_value) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_real_distribution<float> u(min_value, max_value);
 
     for (auto &e : v)

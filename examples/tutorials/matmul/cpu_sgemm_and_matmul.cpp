@@ -70,8 +70,7 @@ using namespace dnnl;
 namespace {
 
 void init_vector(std::vector<float> &v) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_real_distribution<float> u(-1, 1);
 
     for (auto &e : v)

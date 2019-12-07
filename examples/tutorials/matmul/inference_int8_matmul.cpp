@@ -71,16 +71,14 @@ using namespace dnnl;
 namespace {
 
 void init_vector(std::vector<float> &v) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_real_distribution<float> u(0, 1);
     for (auto &e : v)
         e = u(gen);
 }
 
 void init_vector(std::vector<uint8_t> &v) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_int_distribution<unsigned int> u(0, 255);
     for (auto &e : v)
         e = static_cast<uint8_t>(u(gen));
