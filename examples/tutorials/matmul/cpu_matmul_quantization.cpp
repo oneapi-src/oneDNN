@@ -442,7 +442,7 @@ void compare_f32_and_quantized_matmuls() {
     // than for dynamic quantization. However, we will slightly cheat on the
     // guessed q10n parameters of matrix C (see below), so we will get pretty
     // good accuracy as well.
-    const float threshold_dynamic_q10n = 2 * 1e-2f;
+    const float threshold_dynamic_q10n = 3 * 1e-2f;
     const float threshold_static_q10n = 4 * 1e-2f;
 
     // Prepare matrices
