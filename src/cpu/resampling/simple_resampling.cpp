@@ -48,7 +48,7 @@ template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::linear(const float *src, float *dst,
         dim_t stride_d, dim_t stride_h, dim_t stride_w, dim_t od, dim_t oh,
         dim_t ow) const {
-    auto iw = linear_coeffs_t(ow, pd()->FW(), pd()->IW());
+    linear_coeffs_t iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
 
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
@@ -63,8 +63,8 @@ template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::bilinear(const float *src, float *dst,
         dim_t stride_d, dim_t stride_h, dim_t stride_w, dim_t od, dim_t oh,
         dim_t ow) const {
-    auto iw = linear_coeffs_t(ow, pd()->FW(), pd()->IW()),
-         ih = linear_coeffs_t(oh, pd()->FH(), pd()->IH());
+    linear_coeffs_t ih = linear_coeffs_[pd()->OD() + oh],
+                    iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
 
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
@@ -81,9 +81,10 @@ template <impl::data_type_t data_type>
 void simple_resampling_fwd_t<data_type>::trilinear(const float *src, float *dst,
         dim_t stride_d, dim_t stride_h, dim_t stride_w, dim_t od, dim_t oh,
         dim_t ow) const {
-    auto id = linear_coeffs_t(od, pd()->FD(), pd()->ID()),
-         iw = linear_coeffs_t(ow, pd()->FW(), pd()->IW()),
-         ih = linear_coeffs_t(oh, pd()->FH(), pd()->IH());
+    linear_coeffs_t id = linear_coeffs_[od],
+                    ih = linear_coeffs_[pd()->OD() + oh],
+                    iw = linear_coeffs_[pd()->OD() + pd()->OH() + ow];
+
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
         float d = 0;
@@ -157,7 +158,7 @@ template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::linear(float *diff_src,
         const float *diff_dst, dim_t stride_d, dim_t stride_h, dim_t stride_w,
         dim_t id, dim_t ih, dim_t iw) const {
-    auto w = bwd_linear_coeffs_t(iw, pd()->FW(), pd()->IW(), pd()->OW());
+    bwd_linear_coeffs_t w = bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw];
 
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
@@ -165,7 +166,8 @@ void simple_resampling_bwd_t<data_type>::linear(float *diff_src,
         for_(int k = 0; k < 2; k++)
         for (dim_t ow = w.start[k]; ow < w.end[k]; ow++) {
             diff_src[nsp1] += diff_dst[ow * stride_w + nsp1]
-                    * linear_weight(k, ow, pd()->FW());
+                    * bwd_linear_weights_[2 * (pd()->OD() + pd()->OH() + ow)
+                            + k];
         }
     }
 }
@@ -174,8 +176,8 @@ template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::bilinear(float *diff_src,
         const float *diff_dst, dim_t stride_d, dim_t stride_h, dim_t stride_w,
         dim_t id, dim_t ih, dim_t iw) const {
-    auto h = bwd_linear_coeffs_t(ih, pd()->FH(), pd()->IH(), pd()->OH()),
-         w = bwd_linear_coeffs_t(iw, pd()->FW(), pd()->IW(), pd()->OW());
+    bwd_linear_coeffs_t h = bwd_linear_coeffs_[pd()->ID() + ih],
+                        w = bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw];
 
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
@@ -185,8 +187,9 @@ void simple_resampling_bwd_t<data_type>::bilinear(float *diff_src,
         for_(dim_t oh = h.start[j]; oh < h.end[j]; oh++)
         for (dim_t ow = w.start[k]; ow < w.end[k]; ow++) {
             diff_src[nsp1] += diff_dst[oh * stride_h + ow * stride_w + nsp1]
-                    * linear_weight(j, oh, pd()->FH())
-                    * linear_weight(k, ow, pd()->FW());
+                    * bwd_linear_weights_[2 * (pd()->OD() + oh) + j]
+                    * bwd_linear_weights_[2 * (pd()->OD() + pd()->OH() + ow)
+                            + k];
         }
     }
 }
@@ -195,9 +198,9 @@ template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::trilinear(float *diff_src,
         const float *diff_dst, dim_t stride_d, dim_t stride_h, dim_t stride_w,
         dim_t id, dim_t ih, dim_t iw) const {
-    auto d = bwd_linear_coeffs_t(id, pd()->FD(), pd()->ID(), pd()->OD()),
-         h = bwd_linear_coeffs_t(ih, pd()->FH(), pd()->IH(), pd()->OH()),
-         w = bwd_linear_coeffs_t(iw, pd()->FW(), pd()->IW(), pd()->OW());
+    bwd_linear_coeffs_t d = bwd_linear_coeffs_[id],
+                        h = bwd_linear_coeffs_[pd()->ID() + ih],
+                        w = bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw];
 
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
@@ -210,9 +213,10 @@ void simple_resampling_bwd_t<data_type>::trilinear(float *diff_src,
         for (dim_t ow = w.start[k]; ow < w.end[k]; ow++) {
             diff_src[nsp1] += diff_dst[od * stride_d + oh * stride_h
                                       + ow * stride_w + nsp1]
-                    * linear_weight(i, od, pd()->FD())
-                    * linear_weight(j, oh, pd()->FH())
-                    * linear_weight(k, ow, pd()->FW());
+                    * bwd_linear_weights_[2 * od + i]
+                    * bwd_linear_weights_[2 * (pd()->OD() + oh) + j]
+                    * bwd_linear_weights_[2 * (pd()->OD() + pd()->OH() + ow)
+                            + k];
         }
     }
 }
