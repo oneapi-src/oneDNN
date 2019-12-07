@@ -78,7 +78,8 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
     dims_t phys_dims;
     for (int i = 0; i < DNNL_MAX_NDIMS; i++) {
         if (i < perm[concat_dim])
-            phys_dims[i] = o_d.padded_dims()[iperm[i]] / pd()->blocks_[iperm[i]];
+            phys_dims[i]
+                    = o_d.padded_dims()[iperm[i]] / pd()->blocks_[iperm[i]];
         else
             phys_dims[i] = 1;
     }
