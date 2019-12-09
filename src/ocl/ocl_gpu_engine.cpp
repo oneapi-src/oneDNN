@@ -201,6 +201,9 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(jit_gen9_gemm_x8x8s32_t<s8, u8, s32>),
         INSTANCE(jit_gen9_gemm_x8x8s32_t<u8, s8, s32>),
         INSTANCE(jit_gen9_gemm_x8x8s32_t<u8, u8, s32>),
+        INSTANCE(jit_gen9_gemm_t<bf16, bf16, bf16, f32>),
+        INSTANCE(jit_gen9_gemm_t<bf16, bf16, f32>),
+        INSTANCE(jit_gen9_gemm_t<f16, f16, f32>),
         INSTANCE(jit_gen9_gemm_t<f16>),
         INSTANCE(jit_gen9_gemm_t<f32>),
         /*rnn*/
