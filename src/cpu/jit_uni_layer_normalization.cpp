@@ -139,17 +139,10 @@ void jit_uni_layer_normalization_bwd_t::execute_backward(
         dim_t N_s = 0, N_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
 
-        float *my_diff_gamma = reduce + C * ithr;
-        float *my_diff_beta = reduce + C * nthr + C * ithr;
-        for (dim_t c = 0; c < C; c++) {
-            my_diff_gamma[c] = diff_scaleshift[c];
-            my_diff_beta[c] = diff_scaleshift[C + c];
-        }
-
         for (dim_t n = N_s; n < N_e; n++) {
             (*diff_data_kernel_)(&src[n * C_padded], &diff_dst[n * C_padded],
-                    &diff_src[n * C_padded], my_diff_gamma, my_diff_beta,
-                    scaleshift, &mean[n], &variance[n]);
+                    &diff_src[n * C_padded], scaleshift, &mean[n],
+                    &variance[n]);
         }
     });
 }

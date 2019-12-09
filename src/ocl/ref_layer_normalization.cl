@@ -78,19 +78,18 @@ __kernel void ref_lnorm_fwd(__global DATA_T *src, __global float *mean,
         }
     }
 }
+#endif
 
-#else
-
-KERNEL_ATTR
-__kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
-        __global float *variance, __global DATA_T *diff_dst,
-        __global float *scaleshift, __global DATA_T *diff_src,
-        __global float *diff_scaleshift, float eps) {
+#if IS_BWD
+#if USE_SCALESHIFT
+NAMED_KERNEL_ATTR(SCALESHIFT)
+__kernel void ref_lnorm_bwd_scaleshift(__global DATA_T *src,
+        __global float *mean, __global float *variance,
+        __global DATA_T *diff_dst, __global float *diff_scaleshift, float eps) {
 
     int c = GWS_GET_C();
     int x[6] = {0};
 
-    float gamma = USE_SCALESHIFT ? scaleshift[c] : 1.0f;
     float diff_gamma = 0;
     float diff_beta = 0;
 
@@ -116,38 +115,58 @@ __kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
             }
         }
     }
+    diff_scaleshift[c] = diff_gamma;
+    diff_scaleshift[C + c] = diff_beta;
+}
+#endif
 
-    if (USE_SCALESHIFT) {
-        diff_scaleshift[c] = diff_gamma;
-        diff_scaleshift[C + c] = diff_beta;
+KERNEL_ATTR
+__kernel void ref_lnorm_bwd(__global DATA_T *src, __global float *mean,
+        __global float *variance, __global DATA_T *diff_dst,
+        __global float *scaleshift, __global DATA_T *diff_src, float eps) {
+
+    int x[6] = {0};
+    x[0] = GWS_GET_X0();
+    x[1] = GWS_GET_X1();
+    x[2] = GWS_GET_X2();
+    x[3] = GWS_GET_X3();
+
+    int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+
+    float inv_sqrt_variance = 1.0f / sqrt(variance[s_off] + eps);
+    float dd_gamma = 0;
+    float dd_gamma_x = 0;
+
+    if (CALCULATE_STATS) {
+        for (int c = 0; c < C; ++c) {
+            float gamma = USE_SCALESHIFT ? scaleshift[c] : 1.0f;
+
+            x[NDIMS - 1] = c;
+            int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+            int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+
+            float dd = DST_TO_REF(diff_dst[dst_off]);
+            dd_gamma += dd * gamma;
+            dd_gamma_x += dd * gamma * (SRC_TO_REF(src[src_off]) - mean[s_off]);
+        }
+        dd_gamma_x *= inv_sqrt_variance;
     }
 
-    for (x[0] = 0; x[0] < max(1, STAT_D0); ++x[0]) {
-        for (x[1] = 0; x[1] < max(1, STAT_D1); ++x[1]) {
-            for (x[2] = 0; x[2] < max(1, STAT_D2); ++x[2]) {
-                for (x[3] = 0; x[3] < max(1, STAT_D3); ++x[3]) {
-                    x[NDIMS - 1] = 0;
-                    int s_off = STAT_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+    for (int c = 0; c < C; ++c) {
+        float gamma = USE_SCALESHIFT ? scaleshift[c] : 1.0f;
 
-                    x[NDIMS - 1] = c;
-                    int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
-                    int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+        x[NDIMS - 1] = c;
+        int src_off = SRC_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
+        int dst_off = DST_OFF(x[0], x[1], x[2], x[3], x[4], x[5]);
 
-                    float inv_sqrt_variance
-                            = 1.0f / sqrt(variance[s_off] + eps);
-
-                    float v_diff_src = DST_TO_REF(diff_dst[dst_off]);
-
-                    if (CALCULATE_STATS) {
-                        v_diff_src -= diff_beta / C
-                                + (SRC_TO_REF(src[src_off]) - mean[s_off])
-                                        * diff_gamma * inv_sqrt_variance / C;
-                    }
-                    v_diff_src *= gamma * inv_sqrt_variance;
-                    diff_src[src_off] = TO_SRC(v_diff_src);
-                }
-            }
+        float v_diff_src = DST_TO_REF(diff_dst[dst_off]) * gamma;
+        if (CALCULATE_STATS) {
+            v_diff_src -= dd_gamma / C
+                    + (SRC_TO_REF(src[src_off]) - mean[s_off]) * dd_gamma_x
+                            * inv_sqrt_variance / C;
         }
+        v_diff_src *= inv_sqrt_variance;
+        diff_src[src_off] = TO_SRC(v_diff_src);
     }
 }
 

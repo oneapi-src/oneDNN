@@ -160,41 +160,60 @@ void ref_layer_normalization_bwd_t<d_type>::execute_backward(
     const bool use_scaleshift = pd()->use_scaleshift();
     const bool calculate_diff_stats = !pd()->use_global_stats();
 
-    parallel_nd(C, [&](dim_t c) {
-        float gamma = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
-        float diff_gamma = float(0);
-        float diff_beta = float(0);
+    if (diff_scaleshift) {
+        parallel_nd(C, [&](dim_t c) {
+            float diff_gamma = float(0);
+            float diff_beta = float(0);
 
-        for (dim_t n = 0; n < N; ++n) {
-            const size_t src_off = src_d.off_l(n * C + c),
-                         diff_dst_off = diff_dst_d.off_l(n * C + c),
-                         s_off = stat_d.off_l(n);
-            float inv_sqrt_variance
-                    = static_cast<float>(1.0f / sqrtf(variance[s_off] + eps));
-            data_t dd = maybe_up_convert(diff_dst[diff_dst_off]);
-            diff_gamma += (maybe_up_convert(src[src_off]) - mean[s_off]) * dd
-                    * inv_sqrt_variance;
-            diff_beta += dd;
-        }
+            for (dim_t n = 0; n < N; ++n) {
+                const size_t src_off = src_d.off_l(n * C + c),
+                             diff_dst_off = diff_dst_d.off_l(n * C + c),
+                             s_off = stat_d.off_l(n);
+                float inv_sqrt_variance = static_cast<float>(
+                        1.0f / sqrtf(variance[s_off] + eps));
+                data_t dd = maybe_up_convert(diff_dst[diff_dst_off]);
+                diff_gamma += (maybe_up_convert(src[src_off]) - mean[s_off])
+                        * dd * inv_sqrt_variance;
+                diff_beta += dd;
+            }
 
-        if (diff_scaleshift) {
             diff_scaleshift[diff_scaleshift_d.off(0, c)] = diff_gamma;
             diff_scaleshift[diff_scaleshift_d.off(1, c)] = diff_beta;
+        });
+    }
+
+    parallel_nd(N, [&](dim_t n) {
+        const size_t s_off = stat_d.off_l(n);
+        float inv_sqrt_variance
+                = static_cast<float>(1.0f / sqrtf(variance[s_off] + eps));
+        float dd_gamma = float(0), dd_gamma_x = float(0);
+        if (calculate_diff_stats) {
+            for (dim_t c = 0; c < C; ++c) {
+                float gamma = use_scaleshift
+                        ? scaleshift[scaleshift_d.off(0, c)]
+                        : 1;
+                const size_t src_off = src_d.off_l(n * C + c),
+                             diff_dst_off = diff_dst_d.off_l(n * C + c);
+                data_t dd = maybe_up_convert(diff_dst[diff_dst_off]);
+                dd_gamma += dd * gamma;
+                dd_gamma_x += dd * gamma
+                        * (maybe_up_convert(src[src_off]) - mean[s_off]);
+            }
+            dd_gamma_x *= inv_sqrt_variance;
         }
 
-        for (dim_t n = 0; n < N; ++n) {
+        for (dim_t c = 0; c < C; ++c) {
+            float gamma
+                    = use_scaleshift ? scaleshift[scaleshift_d.off(0, c)] : 1;
             const size_t src_off = src_d.off_l(n * C + c),
                          diff_src_off = diff_src_d.off_l(n * C + c),
-                         diff_dst_off = diff_dst_d.off_l(n * C + c),
-                         s_off = stat_d.off_l(n);
-            float inv_sqrt_variance
-                    = static_cast<float>(1.0f / sqrtf(variance[s_off] + eps));
-            float v_diff_src = maybe_up_convert(diff_dst[diff_dst_off]);
+                         diff_dst_off = diff_dst_d.off_l(n * C + c);
+            float v_diff_src = maybe_up_convert(diff_dst[diff_dst_off]) * gamma;
             if (calculate_diff_stats)
-                v_diff_src -= diff_beta / C
+                v_diff_src -= dd_gamma / C
                         + (maybe_up_convert(src[src_off]) - mean[s_off])
-                                * diff_gamma * inv_sqrt_variance / C;
-            v_diff_src *= gamma * inv_sqrt_variance;
+                                * dd_gamma_x * inv_sqrt_variance / C;
+            v_diff_src *= inv_sqrt_variance;
             diff_src[diff_src_off] = v_diff_src;
         }
     });

@@ -449,31 +449,37 @@ public:
     }
     ~diff_data_kernel_t() {}
     void operator()(const float *src, const float *diff_dst, float *diff_src,
-            float *diff_gamma, const float *diff_beta, const float *ss,
-            const float *mean, const float *var) {
+            const float *ss, const float *mean, const float *var) {
         if (ker_) {
             ker_args args;
             args.src = src;
             args.diff_dst = diff_dst;
             args.diff_src = diff_src;
-            args.diff_gamma = diff_gamma;
-            args.diff_beta = diff_beta;
             args.ss = ss;
             args.mean = mean;
-            float inv_sqrtvar = 1. / sqrtf(*var + eps_);
+            float inv_sqrtvar = 1.f / sqrtf(*var + eps_);
             args.inv_sqrtvar = &inv_sqrtvar;
             ker_(&args);
         } else {
-            float inv_sqrtvar = 1. / sqrtf(*var + eps_);
+            float inv_sqrtvar = 1.f / sqrtf(*var + eps_);
+            float dd_gamma = 0, dd_gamma_x = 0;
+            if (calculate_diff_stats_) {
+                PRAGMA_OMP_SIMD(reduction(+ : dd_gamma, dd_gamma_x))
+                for (dim_t c = 0; c < C_; c++) {
+                    float gamma = use_scaleshift_ ? ss[c] : 1;
+                    dd_gamma += diff_dst[c] * gamma;
+                    dd_gamma_x += diff_dst[c] * gamma * (src[c] - *mean);
+                }
+                dd_gamma_x *= inv_sqrtvar;
+            }
             PRAGMA_OMP_SIMD()
             for (dim_t c = 0; c < C_; c++) {
                 float gamma = use_scaleshift_ ? ss[c] : 1;
-                float v_diff_src = diff_dst[c];
+                float v_diff_src = diff_dst[c] * gamma;
                 if (calculate_diff_stats_)
-                    v_diff_src -= diff_beta[c] / C_
-                            + (src[c] - *mean) * diff_gamma[c] * inv_sqrtvar
-                                    / C_;
-                v_diff_src *= gamma * inv_sqrtvar;
+                    v_diff_src -= dd_gamma / C_
+                            + (src[c] - *mean) * dd_gamma_x * inv_sqrtvar / C_;
+                v_diff_src *= inv_sqrtvar;
                 diff_src[c] = v_diff_src;
             }
         }
@@ -490,8 +496,6 @@ private:
         const float *src;
         const float *diff_dst;
         float *diff_src;
-        const float *diff_gamma;
-        const float *diff_beta;
         const float *ss;
         const float *mean;
         const float *inv_sqrtvar;
@@ -526,8 +530,6 @@ private:
         mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
         mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
         mov(reg_diff_src, ptr[reg_param + PARAM_OFF(diff_src)]);
-        mov(reg_diff_gamma, ptr[reg_param + PARAM_OFF(diff_gamma)]);
-        mov(reg_diff_beta, ptr[reg_param + PARAM_OFF(diff_beta)]);
         mov(reg_gamma, ptr[reg_param + PARAM_OFF(ss)]);
 
         if (calculate_diff_stats_) {
@@ -546,31 +548,71 @@ private:
         uni_vbroadcastss(ymm_C, xmm_tmp);
 
         const int C_vecs = C_ / simd_w_;
-        auto op = [=](int nelems, size_t offt) {
+
+        auto compute_dd_gammas = [=](int nelems, size_t offt) {
+            Ymm ymm_ddst = ymm_dsrc;
+            load(ymm_ddst, reg_diff_dst, nelems, offt);
+            if (use_scaleshift_) {
+                load(ymm_gamma, reg_gamma, nelems, offt);
+                vmulps(ymm_ddst, ymm_ddst, ymm_gamma);
+            }
+            load(ymm_src, reg_src, nelems, offt);
+            vaddps(ymm_dd_gamma, ymm_dd_gamma, ymm_ddst);
+            vsubps(ymm_src, ymm_src, ymm_mean);
+            vfmadd231ps(ymm_dd_gamma_x, ymm_ddst, ymm_src);
+        };
+
+        auto reduce = [=](Ymm ymm_vec) {
+            vextractf128(xmm_tmp, ymm_vec, 1);
+            Xmm xmm_vec = Xmm(ymm_vec.getIdx());
+            vaddps(xmm_vec, xmm_tmp, xmm_vec);
+            vhaddps(xmm_vec, xmm_vec, xmm_vec);
+            vhaddps(xmm_vec, xmm_vec, xmm_vec);
+        };
+
+        auto compute_diff_src = [=](int nelems, size_t offt) {
             load(ymm_dsrc, reg_diff_dst, nelems, offt);
-            if (use_scaleshift_) load(ymm_gamma, reg_gamma, nelems, offt);
-            if (calculate_diff_stats_) {
-                load(ymm_dbeta, reg_diff_beta, nelems, offt);
-                load(ymm_dgamma, reg_diff_gamma, nelems, offt);
-                load(ymm_src, reg_src, nelems, offt);
+            if (use_scaleshift_) {
+                load(ymm_gamma, reg_gamma, nelems, offt);
+                vmulps(ymm_dsrc, ymm_dsrc, ymm_gamma);
             }
             if (calculate_diff_stats_) {
+                load(ymm_src, reg_src, nelems, offt);
                 vsubps(ymm_src, ymm_src, ymm_mean);
                 vmulps(ymm_src, ymm_src, ymm_inv_sqrtvar);
-                vfmadd213ps(ymm_src, ymm_dgamma, ymm_dbeta);
+                vfmadd213ps(ymm_src, ymm_dd_gamma_x, ymm_dd_gamma);
                 vdivps(ymm_src, ymm_src, ymm_C);
                 vsubps(ymm_dsrc, ymm_dsrc, ymm_src);
             }
-            if (use_scaleshift_) vmulps(ymm_dsrc, ymm_dsrc, ymm_gamma);
             vmulps(ymm_dsrc, ymm_dsrc, ymm_inv_sqrtvar);
             store(ymm_dsrc, reg_diff_src, nelems, offt);
         };
 
+        if (calculate_diff_stats_) {
+            vpxor(ymm_dd_gamma, ymm_dd_gamma, ymm_dd_gamma);
+            vpxor(ymm_dd_gamma_x, ymm_dd_gamma_x, ymm_dd_gamma_x);
+
+            for (int i = 0; i < C_vecs; i++)
+                compute_dd_gammas(simd_w_, i * simd_w_ * sizeof(float));
+
+            reduce(ymm_dd_gamma);
+            reduce(ymm_dd_gamma_x);
+
+            for (int i = utils::rnd_dn(C_, simd_w_); i < C_; i++)
+                compute_dd_gammas(1, i * sizeof(float));
+
+            vmulps(ymm_dd_gamma_x, ymm_dd_gamma_x, ymm_inv_sqrtvar);
+            Xmm xmm_dd_gamma = Xmm(ymm_dd_gamma.getIdx());
+            vbroadcastss(ymm_dd_gamma, xmm_dd_gamma);
+            Xmm xmm_dd_gamma_x = Xmm(ymm_dd_gamma_x.getIdx());
+            vbroadcastss(ymm_dd_gamma_x, xmm_dd_gamma_x);
+        }
+
         for (int i = 0; i < C_vecs; i++)
-            op(simd_w_, i * simd_w_ * sizeof(float));
+            compute_diff_src(simd_w_, i * simd_w_ * sizeof(float));
 
         for (int i = utils::rnd_dn(C_, simd_w_); i < C_; i++)
-            op(1, i * sizeof(float));
+            compute_diff_src(1, i * sizeof(float));
 
         postamble();
 
@@ -583,8 +625,8 @@ private:
     Xbyak::Reg64 reg_diff_dst = rbx;
     Xbyak::Reg64 reg_gamma = r11;
     Xbyak::Reg64 reg_tmp = r10;
-    Xbyak::Reg64 reg_diff_gamma = r9;
-    Xbyak::Reg64 reg_diff_beta = r8;
+    Xbyak::Reg64 reg_dd_gamma = r9;
+    Xbyak::Reg64 reg_dd_gamma_x = r8;
 
     Xbyak::Xmm xmm_tmp = Xbyak::Xmm(7);
 
@@ -592,8 +634,8 @@ private:
     Xbyak::Ymm ymm_gamma = Xbyak::Ymm(9);
     Xbyak::Ymm ymm_inv_sqrtvar = Xbyak::Ymm(10);
     Xbyak::Ymm ymm_dsrc = Xbyak::Ymm(11);
-    Xbyak::Ymm ymm_dgamma = Xbyak::Ymm(12);
-    Xbyak::Ymm ymm_dbeta = Xbyak::Ymm(13);
+    Xbyak::Ymm ymm_dd_gamma_x = Xbyak::Ymm(12);
+    Xbyak::Ymm ymm_dd_gamma = Xbyak::Ymm(13);
     Xbyak::Ymm ymm_src = Xbyak::Ymm(14);
     Xbyak::Ymm ymm_mean = Xbyak::Ymm(15);
 };

@@ -330,6 +330,7 @@ struct jit_lnorm_conf_t {
     bool save_stats;
     float eps;
 
+    compute::dispatch_t dispatch_scaleshift;
     compute::dispatch_t dispatch;
 };
 

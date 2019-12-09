@@ -46,7 +46,9 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 
     bool runtime_dims_or_strides
             = memory_desc_wrapper(data_desc).has_runtime_dims_or_strides()
-            || memory_desc_wrapper(stat_desc).has_runtime_dims_or_strides();
+            || (stat_desc
+                    && memory_desc_wrapper(stat_desc)
+                               .has_runtime_dims_or_strides());
     if (one_of(prop_kind, backward_data, backward))
         runtime_dims_or_strides = runtime_dims_or_strides
                 || memory_desc_wrapper(diff_data_desc)

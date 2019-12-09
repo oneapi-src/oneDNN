@@ -48,18 +48,31 @@ struct jit_ref_layer_normalization_kernel_t {
 
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        jln.dispatch_scaleshift = compute_engine->create_dispatch();
         jln.dispatch = compute_engine->create_dispatch(
                 pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
+        auto &dims = (pd->is_fwd() ? src_mdw : dst_mdw).dims();
         if (pd->is_fwd()) {
-            auto &dims = src_mdw.dims();
             for (int i = 0; i < 4; i++) {
-                int md_hint_idx = nstl::max(i, ndims - 1);
+                int md_hint_idx = nstl::min(i, ndims - 1);
                 int dim = (i < ndims - 1) ? dims[i] : 1;
                 jln.dispatch.define_dim(
                         utils::format("X%d", i), md_hint_idx, dim);
             }
         } else {
-            jln.dispatch.define_dim("C", pd->norm_axis());
+            jln.dispatch_scaleshift.define_dim("C", pd->norm_axis());
+
+            for (int i = 0; i < 4; i++) {
+                int md_hint_idx = nstl::min(i, ndims - 1);
+                int dim = (i < ndims - 1) ? dims[i] : 1;
+                jln.dispatch.define_dim(
+                        utils::format("X%d", i), md_hint_idx, dim);
+            }
+        }
+
+        if (!pd->is_fwd()) {
+            jln.dispatch_scaleshift.set_kernel_attr_suffix("SCALESHIFT");
+            jln.dispatch_scaleshift.generate();
         }
 
         jln.dispatch.generate();
@@ -82,12 +95,14 @@ struct jit_ref_layer_normalization_kernel_t {
         kernel_ctx.define_int("CALCULATE_STATS", jln.calculate_stats);
         kernel_ctx.define_int("SAVE_STATS", jln.save_stats);
         kernel_ctx.define_int("IS_FWD", jln.is_fwd);
+        kernel_ctx.define_int("IS_BWD", !jln.is_fwd);
 
         def_memory_desc_info(kernel_ctx, jln.src_md_info, "SRC");
         def_memory_desc_info(kernel_ctx, jln.dst_md_info, "DST");
         def_memory_desc_info(kernel_ctx, jln.stat_md_info, "STAT");
 
         def_dispatch(kernel_ctx, jln.dispatch);
+        if (!jln.is_fwd) def_dispatch(kernel_ctx, jln.dispatch_scaleshift);
 
         return status::success;
     }
