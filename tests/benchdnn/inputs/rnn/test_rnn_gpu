@@ -23,15 +23,14 @@
 --alg=VANILLA_RNN  --activation=RELU,TANH,LOGISTIC --batch=rnn_small
 --alg=VANILLA_LSTM --activation=TANH               --batch=rnn_small
 
-# FIXME: tentatively disable int8 RNN testing on GPU
 # LSTM int8
-# --alg=VANILLA_LSTM
-# --direction=left2right
-# --activation=TANH
-# --prop=FWD_D
-#
-# --cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small
-# --cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small
+--alg=VANILLA_LSTM
+--direction=left2right
+--activation=TANH
+--prop=FWD_D
+
+--cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small
+--cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small
 
 # Large tests
 --reset
@@ -63,16 +62,15 @@
 --batch=rnn_gnmt_encoder
 --batch=rnn_gnmt_decoder
 
-# FIXME: tentatively disable int8 RNN testing on GPU
 # int8 (only LSTM)
-# --reset
-# --cfg=u8u8u8u8
-# --scaling=common,per_oc
-# --prop=FWD_D
-# --alg=VANILLA_LSTM
-#
-# --skip-nonlinear=true
-# --mb=50
-# --batch=test_lstm_large
-# --mb=1
-# --batch=test_lstm_large
+--reset
+--cfg=u8u8u8u8
+--scaling=common,per_oc
+--prop=FWD_D
+--alg=VANILLA_LSTM
+
+--skip-nonlinear=true
+--mb=50
+--batch=test_lstm_large
+--mb=1
+--batch=test_lstm_large
