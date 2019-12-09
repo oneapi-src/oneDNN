@@ -431,9 +431,24 @@ __kernel void ref_rnn_copy_res_layer(
     }
     if (rl) {
 #if DIRECTION_KIND == SUM
-        dst[DST_L_OFF(it, b, s)] += maybe_dq_l(
-                src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)], shift,
-                scale, dequantize);
+        if (dequantize) {
+            float val
+                    = (float)src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)]
+                    + dst[DST_L_OFF(it, b, s)];
+            val = min(max(val, 0.f), 255.f);
+            dst[DST_L_OFF(it, b, s)] = TO_DST((val - 2 * shift) / scale);
+
+        } else {
+#if defined(SRC_DT_U8) && defined(DST_DT_U8)
+            dst[DST_L_OFF(it, b, s)] = convert_uchar_sat(
+                    convert_short(
+                            src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)])
+                    + convert_short(dst[DST_L_OFF(it, b, s)]));
+#else
+            dst[DST_L_OFF(it, b, s)]
+                    += src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)];
+#endif
+        }
 #else
         dst[DST_L_OFF(it, b, dir * DIC + s)]
                 = maybe_dq_l(src[OFF_WS_STATE(N_LAYER, dir, N_ITER - it, b, s)],
@@ -617,12 +632,14 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
         printf("[lay,dir]\n");
         for_(int j = 0; j < N_LAYER; j++)
         for_(int dir = 0; dir < N_DIR; dir++)
-        printf("[%d,%d] : ", j, dir);
-        for_(int nb = 0; nb < N_BIAS; nb++)
-        for (int dic = 0; dic < DIC; dic++) {
-            printf(" %f", *(wt + OFF_WS_BIAS(j, dir, nb, dic)));
+        {
+            printf("[%d,%d] : ", j, dir);
+            for_(int nb = 0; nb < N_BIAS; nb++)
+            for (int dic = 0; dic < DIC; dic++) {
+                printf(" %f", *(wt + OFF_WS_BIAS(j, dir, nb, dic)));
+            }
+            printf("\n");
         }
-        printf("\n");
     }
 #endif
 }
@@ -642,7 +659,7 @@ __kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
 
     const float wei_scale
 #if WEI_QPARAM_MASK
-            = scales[nbias * dic];
+            = scales[nbias * DIC + dic];
 #else
             = scales[0];
 #endif
@@ -684,7 +701,7 @@ float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
 #else
     float wei_scale = scales[0];
 #endif
-    return (float)(s) * (1.f / (wei_scale * data_scale));
+    return (float)(s) / (wei_scale * data_scale);
 }
 
 // for int8 LSTM

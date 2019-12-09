@@ -57,22 +57,22 @@
 #endif
 
 #define CONVERT_IN_TO_OUT(x) CONVERT_F32_TO_OUT(x)
-#define REORDER(_out, _in, _a, _b) \
-    do { \
-        _out = CONVERT_IN_TO_OUT(_in); \
-    } while (0)
+#define QZ_B0(v, scale) CONVERT_F32_TO_OUT(v *scale)
 
+#define REORDER(_out, _in, _s) \
+    do { \
+        _out = QZ_B0(_in, _s); \
+    } while (0)
 // About compensation
 #define COMP_DT float
 #define COMP_DST_OFFSET_EL (DST_D0 * DST_S0)
 #define COMP_OFF(i0, i1, i2, i3) \
     ((((i0) * (DST_D1) + (i1)) * (DST_D3) + (i2)) * (DST_D4) + (i3))
 
-#define QZ_B0(v, scale) CONVERT_F32_TO_OUT(v *scale)
 
 KERNEL_ATTR
 __kernel void wei_reorder(__global DT_IN *input, __global DT_IN *scales,
-        __global DT_OUT *output, float alpha, float beta) {
+        __global DT_OUT *output) {
 
     __global char *temp = (__global char *)(output + COMP_DST_OFFSET_EL);
     __global COMP_DT *comp
@@ -86,18 +86,20 @@ __kernel void wei_reorder(__global DT_IN *input, __global DT_IN *scales,
     const int d3 = GWS_GET_D3();
     const int d4 = GWS_GET_D4();
 
+#if MASK
+    float s = scales[d3 * SRC_D4 + d4];
+#else
+    float s = scales[0];
+#endif
+
     int reduction = 0;
     for (int d2 = 0; d2 < SRC_D2; ++d2) {
         const int in_off = IN_OFF(d0, d1, d2, d3, d4, 0);
         const int out_off = OUT_OFF(d0, d1, d2, d3, d4, 0);
-        REORDER(output[out_off], input[in_off], alpha, beta);
+
+        REORDER(output[out_off], input[in_off], s);
 
         // calculate compensation
-#if MASK
-        float s = scales[d3 * d4];
-#else
-        float s = scales[0];
-#endif
         reduction += convert_int(QZ_B0(input[in_off], s));
     }
     comp[COMP_OFF(d0, d1, d3, d4)] = convert_float(reduction);

@@ -295,9 +295,9 @@ struct jit_ref_rnn_kernel {
 
         kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
 
-        DPRINT("\njit_ref_rnn_fwd_kernel: kernel options:\n%s\n\n",
-                kernel_ctx.options());
-
+#if DEBUGPRINT
+        kernel_ctx.print_options();
+#endif
         return status::success;
     }
     jit_rnn_conf_t jrnn;
