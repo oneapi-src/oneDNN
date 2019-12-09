@@ -10,7 +10,7 @@
 --attr=oscale=common:2.25;post_ops='sum'        m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
 --attr=post_ops='relu'                          m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
 --attr=oscale=per_oc:2.25;post_ops='relu'       m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
---attr=post_ops='sum;relu'                      m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
+--attr=oscale=common:1.25;post_ops='sum:2;relu' m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
 --attr=post_ops='sum;linear:2:-1'               m1n1k1 m10n1k30 m1n20k30 m10n20k1 m1n1k30 m1n20k1 m10n1k1 m10n20k30
 
 # test any

@@ -51,7 +51,10 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
 
     const bool batched = pd()->batched();
     const bool non_default_attrs = !pd()->attr()->has_default_values();
-    const bool do_sum = pd()->attr()->post_ops_.contain(primitive_kind::sum, 0);
+    const bool do_sum = pd()->attr()->post_ops_.contain(primitive_kind::sum, 0)
+            && pd()->attr()->post_ops_.entry_[0].sum.scale != 0.f;
+    const float sum_scale
+            = do_sum ? pd()->attr()->post_ops_.entry_[0].sum.scale : 0.f;
 
     const dim_t MB = batched ? dst_d.dims()[0] : 1;
     const dim_t M = dst_d.dims()[batched + 0];
@@ -104,7 +107,7 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             float res = acc;
             if (bias) res += get_bias(mb, m, n);
             res *= scales[scale_stride * n];
-            if (do_sum) res += dst_value;
+            if (do_sum) res = sum_scale * dst_value + res;
             if (eltwise_ker_) res = eltwise_ker_->compute_scalar(res);
             res += (float)dst_zero_point;
             if (dst_type == data_type::f32)
