@@ -86,7 +86,7 @@ protected:
         auto addr_scratch_cell_reg = r12;
         // auto addr_ws_grid_reg = rsi; // not needed
         auto addr_dhG1_reg = rsi;
-        auto base_args = rsp + get_size_of_abi_save_regs() + 40;
+        auto base_args = get_stack_params_address();
         mov(addr_diff_states_t_l_reg, ptr[base_args]);
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
         mov(addr_scratch_cell_reg, ptr[base_args + 16]);
@@ -98,7 +98,7 @@ protected:
         auto addr_scratch_cell_reg = r10;
         // auto addr_ws_grid_reg = r11; // not needed
         auto addr_dhG1_reg = r11;
-        auto base_args = rsp + get_size_of_abi_save_regs() + 8;
+        auto base_args = get_stack_params_address();
         mov(addr_scratch_cell_reg, ptr[base_args]);
         // mov(addr_ws_grid_reg, ptr[base_args + 8]);
         mov(addr_dhG1_reg, ptr[base_args + 16]);

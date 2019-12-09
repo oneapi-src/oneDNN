@@ -99,7 +99,7 @@ protected:
         // Here we cannot use rbp to have initial stack pointer so we
         // use rsp and offset it with the size of pushed registers in
         // preamble
-        auto base_args = rsp + get_size_of_abi_save_regs() + 40;
+        auto base_args = get_stack_params_address();
         mov(addr_states_t_l_copy_reg, ptr[base_args]);
         mov(addr_c_states_tm1_l_reg, ptr[base_args + 8]);
         mov(addr_c_states_t_l_reg, ptr[base_args + 16]);
@@ -107,7 +107,7 @@ protected:
         auto addr_states_t_l_copy_reg = abi_param5;
         auto addr_c_states_tm1_l_reg = abi_param6;
         auto addr_c_states_t_l_reg = r10;
-        auto base_args = rsp + get_size_of_abi_save_regs() + 8;
+        auto base_args = get_stack_params_address();
         mov(addr_c_states_t_l_reg, ptr[base_args]);
 #endif
 

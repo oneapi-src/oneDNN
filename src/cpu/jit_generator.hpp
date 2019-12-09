@@ -185,6 +185,26 @@ public:
         }
     }
 
+    // This function returns the address on the stack of the fist argument
+    // that is not passed by register
+    // By default it assumes to be called after the prologue
+    // Note: that we cannot use RBP inside as we override it in preamble
+    // for address computation in EVEX instructions
+    inline const Xbyak::RegExp get_stack_params_address(
+            bool after_prolog = true) {
+        int saved_regs_size = after_prolog ? get_size_of_abi_save_regs() : 0;
+#ifdef _WIN32
+        // Using stack layout described in MS ABI
+        // (https://docs.microsoft.com/en-us/cpp/build/stack-usage?view=vs-2019)
+        // here, the return address and the first 4 parameters are allocated on the stack
+        int first_params_and_return_addr_size = 40;
+#else
+        // In System V ABI, only the return address is stacked before the arguments
+        int first_params_and_return_addr_size = 8;
+#endif
+        return rsp + saved_regs_size + first_params_and_return_addr_size;
+    }
+
     void mic_prefetcht0(Xbyak::Address a) {
         if (mayiuse(avx512_mic)) prefetcht0(a);
     }

@@ -83,7 +83,7 @@ protected:
 #ifdef _WIN32
         auto addr_diff_states_t_l_reg = r10;
         auto addr_states_tm1_l_reg = r11;
-        auto base_args = rsp + get_size_of_abi_save_regs() + 40;
+        auto base_args = get_stack_params_address();
         mov(addr_diff_states_t_l_reg, ptr[base_args]);
         mov(addr_states_tm1_l_reg, ptr[base_args + 8]);
 #else
