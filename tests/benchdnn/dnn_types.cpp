@@ -343,7 +343,7 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                     if (*s == ':') {
                         char *end;
                         e.sum.scale = strtof(++s, &end);
-                        if (e.sum.scale <= 0 || end == s) return FAIL;
+                        if (end == s) return FAIL;
                         s = end;
                     } else {
                         e.sum.scale = 1.f;
