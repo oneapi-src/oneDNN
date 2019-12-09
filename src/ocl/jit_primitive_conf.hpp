@@ -311,6 +311,7 @@ struct jit_bnorm_conf_t {
 struct jit_lnorm_conf_t {
     data_type_t data_type;
 
+    bool is_fwd;
     int ndims;
     int norm_axis;
 

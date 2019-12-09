@@ -379,8 +379,6 @@ protected:
 
             float ref_diff_gamma = float(0);
             float ref_diff_beta = float(0);
-            auto gamma = use_weights ? weights_data[weights_mdw.off_l(c)] : 1;
-
             for (memory::dim n = 0; n < nelems / C; n++) {
                 size_t stat_off = stat_mdw.off_l(n);
                 const float sqrt_variance
@@ -407,20 +405,44 @@ protected:
                 if (norm_max < 1e-2) norm_max = float(1);
                 ASSERT_NEAR((diff_beta - ref_diff_beta) / norm_max, 0., eps);
             }
+        });
 
-            for (memory::dim n = 0; n < nelems / C; n++) {
-                size_t stat_off = stat_mdw.off_l(n);
-                const float sqrt_variance
-                        = 1.0f / sqrt(variance_data[stat_off] + p.epsilon);
+        dnnl::impl::parallel_nd(nelems / C, [&](memory::dim n) {
+            if (is_current_test_failed()) return;
+
+            size_t stat_off = stat_mdw.off_l(n);
+            const float sqrt_variance
+                    = 1.0f / sqrt(variance_data[stat_off] + p.epsilon);
+
+            float ref_dd_gamma = float(0);
+            float ref_dd_gamma_x = float(0);
+            if (calculate_diff_stats) {
+                for (memory::dim c = 0; c < C; c++) {
+                    auto gamma = use_weights
+                            ? weights_data[weights_mdw.off_l(c)]
+                            : 1;
+                    ref_dd_gamma += diff_dst_data[diff_dst_mdw.off_l(n * C + c)]
+                            * gamma;
+                    ref_dd_gamma_x
+                            += diff_dst_data[diff_dst_mdw.off_l(n * C + c)]
+                            * gamma
+                            * (src_data[src_mdw.off_l(n * C + c)]
+                                    - mean_data[stat_off]);
+                }
+                ref_dd_gamma_x *= sqrt_variance;
+            }
+            for (memory::dim c = 0; c < C; c++) {
+                auto gamma
+                        = use_weights ? weights_data[weights_mdw.off_l(c)] : 1;
                 float ref_diff_src
-                        = diff_dst_data[diff_dst_mdw.off_l(n * C + c)];
+                        = diff_dst_data[diff_dst_mdw.off_l(n * C + c)] * gamma;
                 if (calculate_diff_stats) {
-                    ref_diff_src -= ref_diff_beta / C
+                    ref_diff_src -= ref_dd_gamma / C
                             + (src_data[src_mdw.off_l(n * C + c)]
                                       - mean_data[stat_off])
-                                    * ref_diff_gamma * sqrt_variance / C;
+                                    * ref_dd_gamma_x * sqrt_variance / C;
                 }
-                ref_diff_src *= gamma * sqrt_variance;
+                ref_diff_src *= sqrt_variance;
                 float out_diff_src
                         = diff_src_data[diff_src_mdw.off_l(n * C + c)];
                 float norm_max = std::max(

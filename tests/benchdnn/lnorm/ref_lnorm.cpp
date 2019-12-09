@@ -45,38 +45,52 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
         const dnn_mem_t &ss, dnn_mem_t &d_src, dnn_mem_t &d_ss) {
 
-    dnnl::impl::parallel_nd(p->c, [&](int64_t c) {
-        float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
-        float d_gamma = 0;
-        float d_beta = 0;
+    if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
+        dnnl::impl::parallel_nd(p->c, [&](int64_t c) {
+            float d_gamma = 0;
+            float d_beta = 0;
 
-        for (int64_t n = 0; n < p->n; ++n) {
-            float smean = ((float *)mean)[n];
-            float svar = ((float *)var)[n];
-            float rcp_denom = 1.f / sqrtf(svar + p->eps);
-            auto off = n * p->c + c;
-            float dd = ((float *)d_dst)[off];
-            d_gamma += dd * (((float *)src)[off] - smean) * rcp_denom;
-            d_beta += dd;
-        }
-
-        if ((p->flags & USE_SCALESHIFT) && (p->dir & FLAG_WEI)) {
-            ((float *)d_ss)[c] = d_gamma;
-            ((float *)d_ss)[p->c + c] = d_beta;
-        }
-
-        for (int64_t n = 0; n < p->n; ++n) {
-            float smean = ((float *)mean)[n];
-            float svar = ((float *)var)[n];
-            float rcp_denom = 1.f / sqrtf(svar + p->eps);
-            auto off = n * p->c + c;
-            float ds = ((float *)d_dst)[off];
-            if (!(p->flags & GLOB_STATS)) {
-                const float x = ((float *)src)[off] - smean;
-                ds -= (d_beta + x * d_gamma * rcp_denom) / p->c;
+            for (int64_t n = 0; n < p->n; ++n) {
+                float smean = ((float *)mean)[n];
+                float svar = ((float *)var)[n];
+                float rcp_denom = 1.f / sqrtf(svar + p->eps);
+                auto off = n * p->c + c;
+                float dd = ((float *)d_dst)[off];
+                d_gamma += dd * (((float *)src)[off] - smean) * rcp_denom;
+                d_beta += dd;
             }
 
-            ((float *)d_src)[off] = rcp_denom * ds * gamma;
+            ((float *)d_ss)[c] = d_gamma;
+            ((float *)d_ss)[p->c + c] = d_beta;
+        });
+    }
+
+    dnnl::impl::parallel_nd(p->n, [&](int64_t n) {
+        float smean = ((float *)mean)[n];
+        float svar = ((float *)var)[n];
+        float rcp_denom = 1.f / sqrtf(svar + p->eps);
+        float dd_gamma = 0, dd_gamma_x = 0;
+        if (!(p->flags & GLOB_STATS)) {
+            for (int64_t c = 0; c < p->c; ++c) {
+                auto off = n * p->c + c;
+                float ds = ((float *)d_dst)[off];
+                const float x = ((float *)src)[off] - smean;
+                float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+                dd_gamma += gamma * ds;
+                dd_gamma_x += gamma * ds * x;
+            }
+            dd_gamma_x *= rcp_denom;
+        }
+        for (int64_t c = 0; c < p->c; ++c) {
+            float gamma = p->flags & USE_SCALESHIFT ? ((float *)ss)[c] : 1;
+            auto off = n * p->c + c;
+            float ds = ((float *)d_dst)[off] * gamma;
+            if (!(p->flags & GLOB_STATS)) {
+                const float x = ((float *)src)[off] - smean;
+                ds -= (dd_gamma + x * dd_gamma_x * rcp_denom) / p->c;
+            }
+
+            ((float *)d_src)[off] = rcp_denom * ds;
         }
     });
 }

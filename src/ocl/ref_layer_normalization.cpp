@@ -70,6 +70,21 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
 
     const auto &jln = pd()->jln_;
 
+    if (jln.use_scaleshift) {
+        compute::kernel_arg_list_t arg_list;
+        arg_list.set(0, src);
+        arg_list.set(1, mean);
+        arg_list.set(2, variance);
+        arg_list.set(3, diff_dst);
+        arg_list.set(4, diff_scaleshift);
+        arg_list.set(5, jln.eps);
+
+        auto nd_range_scaleshift = compute::nd_range_t({jln.norm_axis}, {1});
+        status_t status = compute_stream->parallel_for(
+                nd_range_scaleshift, kernel_scaleshift_, arg_list);
+        if (status != status::success) return status;
+    }
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, mean);
@@ -77,8 +92,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     arg_list.set(3, diff_dst);
     arg_list.set(4, scaleshift);
     arg_list.set(5, diff_src);
-    arg_list.set(6, diff_scaleshift);
-    arg_list.set(7, jln.eps);
+    arg_list.set(6, jln.eps);
 
     auto nd_range_kernel = compute::nd_range_t(jln.gws_d);
     status_t status
