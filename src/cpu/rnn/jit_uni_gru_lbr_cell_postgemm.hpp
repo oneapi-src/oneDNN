@@ -259,7 +259,7 @@ protected:
 
             // states_t_l = states_tm1_l * G0 + (1 - G0) * G2
             uni_vmovss(tmp1s_vmm, one_addr);
-            uni_vsubss(tmp1s_vmm, tmp1_vmm, G0s);
+            uni_vsubss(tmp1s_vmm, tmp1s_vmm, G0s);
             to_scratch<src_data_t>(
                     tmp2s_vmm, ptr[addr_states_tm1_l_reg], scratch_dt_size);
             uni_vmulss(G0s, G0s, tmp2s_vmm);
