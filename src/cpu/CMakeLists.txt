@@ -48,14 +48,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
             PROPERTIES COMPILE_FLAGS "-prec-div")
     endif()
 endif()
-if(CMAKE_GENERATOR MATCHES "Visual Studio")
+
+if(MSVC)
     file(GLOB FILES_REQUIRED_BIGOBJ
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp)
-	if(WIN32)
-		set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
-			PROPERTIES COMPILE_FLAGS "/bigobj")
-	endif()
+    set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
+        PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
 
 set(OBJ_LIB ${LIB_NAME}_cpu)
