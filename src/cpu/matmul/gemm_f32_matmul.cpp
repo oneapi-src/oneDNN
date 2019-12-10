@@ -47,6 +47,27 @@ status_t gemm_f32_matmul_t::pd_t::init() {
         return ok;
     };
 
+    auto can_use_gemm = [&]() -> bool { return mayiuse(sse41); };
+
+    bool ok = src_md()->data_type == src_type
+            && weights_md()->data_type == weights_type
+            && desc()->accum_data_type == acc_type
+            && dst_md()->data_type == dst_type && can_use_gemm() && batch() == 1
+            && check_bias()
+            && attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::oscale_runtime
+                    | primitive_attr_t::skip_mask_t::post_ops);
+    if (!ok) return status::unimplemented;
+
+    status_t status = check_and_configure_attributes();
+    if (status != status::success) return status;
+
+    if (!set_default_formats()) return status::unimplemented;
+
+    return status::success;
+}
+
+status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     auto check_attr_oscale = [&]() -> bool {
         const auto &oscale = attr()->output_scales_;
         return oscale.mask_ == 0
@@ -57,10 +78,7 @@ status_t gemm_f32_matmul_t::pd_t::init() {
         using namespace primitive_kind;
         const auto &p = attr()->post_ops_;
         auto check_sum = [&](int idx) -> bool {
-            // Implementation scales after applying beta * dst, hence this only
-            // works if output scale = 1.
-            return p.contain(sum, idx) && attr()->output_scales_.mask_ == 0
-                    && attr()->output_scales_.scales_[0] == 1.f;
+            return p.contain(sum, idx) && gemm_applies_output_scales_;
         };
         switch (p.len_) {
             case 0: return true;
@@ -70,23 +88,35 @@ status_t gemm_f32_matmul_t::pd_t::init() {
         }
     };
 
-    auto can_use_gemm = [&]() -> bool {
-        return IMPLICATION(src_type == f32, mayiuse(sse41))
-                && IMPLICATION(utils::one_of(src_type, s8, bf16),
-                        mayiuse(avx512_core));
-    };
+    // check basic attributes
+    if (!check_attr_oscale()) return status::unimplemented;
 
-    bool ok = src_md()->data_type == src_type
-            && weights_md()->data_type == weights_type
-            && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && can_use_gemm() && batch() == 1
-            && check_bias()
-            && attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops)
-            && check_attr_oscale() && check_attr_post_ops()
-            && set_default_formats();
-    return ok ? status::success : status::unimplemented;
+    // set state
+    pp_attr_ = *attr();
+    gemm_applies_output_scales_
+            = attr()->output_scales_.mask_ == 0 && !with_bias();
+    if (gemm_applies_output_scales_) pp_attr_.output_scales_.set(1.f);
+
+    // check post-ops
+    if (check_attr_post_ops()) {
+        auto &p = pp_attr_.post_ops_;
+        const int sum_idx = 0;
+        if (p.len_ > 0 && p.contain(primitive_kind::sum, sum_idx)) {
+            // set state
+            gemm_beta_ = p.entry_[sum_idx].sum.scale;
+            // drop sum from pp_attributes, as it will be applied by gemm
+            for (int i = 0; i < p.len_ - 1; ++i)
+                p.entry_[i] = p.entry_[i + 1];
+            p.len_ -= 1;
+        }
+    } else {
+        return status::unimplemented;
+    }
+
+    // set state
+    has_postops_in_matmul_ = with_bias() || !pp_attr_.has_default_values();
+
+    return status::success;
 }
 
 status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
@@ -131,29 +161,24 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
         const int ldc = (int)dst_bd.strides[batched + 0];
 
-        int sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
-        const float alpha = 1;
-        const float beta = sum_idx >= 0
-                ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
-                : 0;
+        const float alpha = pd()->gemm_applies_output_scales_ ? scales[0] : 1.f;
+        const float beta = pd()->gemm_beta_;
 
         status_t status = extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32,
                 &alpha, weights, &ldb, src, &lda, &beta, dst, &ldc, nullptr,
                 false);
-        assert(status == status::success);
         if (status != status::success) return status;
     }
 
-    const bool postops_in_matmul = pd()->with_bias()
-            || pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0
-            || !pd()->attr()->output_scales_.has_default_values();
-
-    if (postops_in_matmul) {
+    if (pd()->has_postops_in_matmul_) {
         const bool force_sequential = pp_kernel_->sequential_kernel();
+        const float *pp_scales = pd()->gemm_applies_output_scales_
+                ? pd()->pp_attr_.output_scales_.scales_
+                : scales;
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, dst, bias, scales, start, end, (size_t)N);
+            (*pp_kernel_)(dst, dst, bias, pp_scales, start, end, (size_t)N);
         });
     }
 

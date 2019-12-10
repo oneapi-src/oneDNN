@@ -38,11 +38,27 @@ struct gemm_f32_matmul_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("gemm:any", gemm_f32_matmul_t);
 
         status_t init();
+
+        // indicates if output scales from attributes are applied
+        // by gemm (alpha parameter) or post-op kernel (pp_kernel_)
+        bool gemm_applies_output_scales_ = false;
+
+        // sum post-op scaling factor that is fused into gemm
+        float gemm_beta_ = 0.f;
+
+        // indicates if a special post-op kernel should be invoked after gemm
+        bool has_postops_in_matmul_ = false;
+
+        primitive_attr_t pp_attr_; // an attribute for pp_kernel_
+
+    private:
+        status_t check_and_configure_attributes();
     };
 
     gemm_f32_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(), pd()->attr(),
-                pd()->desc()->bias_desc.data_type, true));
+        if (pd()->has_postops_in_matmul_)
+            pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(),
+                    &pd()->pp_attr_, pd()->desc()->bias_desc.data_type, false));
     }
 
     static constexpr data_type_t src_type = data_type::f32;
