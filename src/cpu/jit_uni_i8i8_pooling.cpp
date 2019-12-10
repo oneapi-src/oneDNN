@@ -432,18 +432,19 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(
                 lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
 
                 if (!jpp.safe_c_tail) {
+                    Xmm xreg_dst = Xmm(vreg_dst(jj).getIdx());
+
                     cmp(reg_ptr_maskmovdqu_dst, reg_dst_safe_access);
                     ja(store_data_safely, T_NEAR);
 
                     // Store low half by mask (bytes 0...15)
-                    maskmovdqu(vreg_dst(jj), xreg_mask_lo);
+                    vmaskmovdqu(xreg_dst, xreg_mask_lo);
 
                     // Do we need to store high half (bytes 16...31) ?
                     if (msk & ~low_mask) {
-                        vextracti128(
-                                Xmm(vreg_dst(jj).getIdx()), vreg_dst(jj), 1);
+                        vextracti128(xreg_dst, vreg_dst(jj), 1);
                         add(reg_ptr_maskmovdqu_dst, c_block / 2);
-                        maskmovdqu(vreg_dst(jj), xreg_mask_hi);
+                        vmaskmovdqu(xreg_dst, xreg_mask_hi);
                     }
                     jmp(done, T_NEAR);
                 }
@@ -457,18 +458,19 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_max_op(
                     vpalignr(vreg_tail, vreg_tail, vreg_zeros, 32 - shift);
                 }
 
+                Xmm xreg_tail = Xmm(vreg_tail.getIdx());
                 // Do we need to store low half (bytes 0...15) ?
                 if (msk & ~low_mask) {
                     sub(reg_ptr_maskmovdqu_dst, shift);
-                    maskmovdqu(vreg_tail, xreg_mask_2_lo);
+                    vmaskmovdqu(xreg_tail, xreg_mask_2_lo);
                     add(reg_ptr_maskmovdqu_dst, c_block / 2);
                 } else {
                     add(reg_ptr_maskmovdqu_dst, (c_block / 2) - shift);
                 }
 
                 // Store high half by mask (bytes 16..31)
-                vextracti128(Xmm(vreg_tail.getIdx()), vreg_tail, 1);
-                maskmovdqu(vreg_tail, xreg_mask_2_hi);
+                vextracti128(xreg_tail, vreg_tail, 1);
+                vmaskmovdqu(xreg_tail, xreg_mask_2_hi);
 
                 L(done);
             } break;
@@ -530,13 +532,20 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
         // Conversion s32 -> s8/u8
         s32_to_i8(is_signed, vr_dst);
 
+        // early-out for non-masked cases
+        if (!is_masked) {
+            vmovlps(ptr[reg_ptr_dst_i8 + offset], Xmm(vr_dst.getIdx()));
+            return;
+        }
         // store 8 bytes
         lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
 
         // Need to use mmx 8-bytes operation to avoid memory violations.
         // NOTICE: it was discovered that SSE/AVX instruction maskmovdqu/vmaskmovdqu
         //         with low 8-bytes mask throws exception if high 8-bytes belongs write-protected page.
-        movdq2q(mmx_dst_i8, vr_dst);
+        // NOTE: use indirect move via gpr to avoid transition penalty
+        vmovq(reg_tmp, Xmm(vr_dst.getIdx()));
+        movq(mmx_dst_i8, reg_tmp);
 
         // mmx_full_msk - mask for all 8 bytes in zero-tail case
         // mmx_mask(ll) - ll-th mask of tail in non-zero-tail case
@@ -946,7 +955,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_tmp_reg() {
         case pooling_avg_include_padding:
         case pooling_avg_exclude_padding:
             mov(reg_tmp, ptr[reg_param + offsetof(call_params_t, idivider)]);
-            movq(xmm_tmp, reg_tmp);
+            vmovq(xmm_tmp, reg_tmp);
             vpbroadcastd(vreg_tmp, xmm_tmp);
             break;
         case pooling_max:
@@ -963,7 +972,7 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_tmp_reg() {
                 default: assert(!"unsupported src data_type");
             }
 
-            movq(xmm_tmp, reg_tmp);
+            vmovq(xmm_tmp, reg_tmp);
             if (jpp.src_dt == s32)
                 vpbroadcastd(vreg_tmp, xmm_tmp);
             else
