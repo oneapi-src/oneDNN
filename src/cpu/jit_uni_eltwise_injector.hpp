@@ -140,7 +140,6 @@ private:
     void elu_prepare_table();
     void soft_relu_prepare_table();
     void abs_prepare_table();
-    void sqrt_prepare_table();
     void linear_prepare_table();
     void log_prepare_table();
 };

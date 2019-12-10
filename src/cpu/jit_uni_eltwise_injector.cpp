@@ -403,10 +403,7 @@ void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector(const Vmm &vmm_src) {
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector(
         const Vmm &vmm_src) {
-    compute_cmp_mask(vmm_src, table_val(0), _cmp_gt_os);
-    h->uni_vsqrtps(vmm_aux1, vmm_src);
-    h->uni_vmovups(vmm_src, table_val(0));
-    blend_with_mask(vmm_src, vmm_aux1);
+    h->uni_vsqrtps(vmm_src, vmm_src);
 }
 
 template <cpu_isa_t isa>
@@ -918,12 +915,6 @@ void jit_uni_eltwise_injector_f32<isa>::abs_prepare_table() {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::sqrt_prepare_table() {
-    for (size_t d = 0; d < vlen / sizeof(float); ++d)
-        h->dd(0);
-}
-
-template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::linear_prepare_table() {
     for (size_t d = 0; d < vlen / sizeof(float); ++d)
         h->dd(float2int(alpha_));
@@ -1025,10 +1016,10 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
             case eltwise_gelu: elu_prepare_table(); break;
             case eltwise_soft_relu: soft_relu_prepare_table(); break;
             case eltwise_abs: abs_prepare_table(); break;
-            case eltwise_sqrt: sqrt_prepare_table(); break;
             case eltwise_clip:
             case eltwise_linear: linear_prepare_table(); break;
             case eltwise_log: log_prepare_table(); break;
+            case eltwise_sqrt:
             case eltwise_square: break;
             default: assert(!"unsupported eltwise algorithm");
         }
