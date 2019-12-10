@@ -69,7 +69,6 @@
 #define COMP_OFF(i0, i1, i2, i3) \
     ((((i0) * (DST_D1) + (i1)) * (DST_D3) + (i2)) * (DST_D4) + (i3))
 
-
 KERNEL_ATTR
 __kernel void wei_reorder(__global DT_IN *input, __global DT_IN *scales,
         __global DT_OUT *output) {
