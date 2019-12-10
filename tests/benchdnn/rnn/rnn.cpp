@@ -457,9 +457,10 @@ inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
         init_status = dnnl_primitive_desc_create(
                 &(rpd[i]), &(rd[i]), dnnl_attr, engine_tgt, NULL);
-        if (init_status == dnnl_unimplemented)
+        if (init_status == dnnl_unimplemented) {
+            dnnl_primitive_attr_destroy(dnnl_attr);
             return r->state = UNIMPLEMENTED, OK;
-        else
+        } else
             SAFE(init_status, WARN);
 
         const char *impl_str = query_impl_info(rpd[i]);
