@@ -90,6 +90,7 @@ Eltwise operations that support only alpha:
 Eltwise operations that support both alpha and beta:
   - `clip`
   - `linear`
+  - `pow`
 
 
 ## Examples:

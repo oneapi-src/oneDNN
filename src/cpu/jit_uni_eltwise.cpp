@@ -667,7 +667,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                 eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                eltwise_clip));
+                eltwise_clip, eltwise_pow));
 
         preamble();
 
@@ -801,17 +801,18 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
     using namespace alg_kind;
     using namespace data_type;
 
+    const auto alg = desc()->alg_kind;
     // relu supports bf16, f32, s32 and s8
-    bool relu_ok = true && desc()->alg_kind == eltwise_relu
+    bool relu_ok = true && alg == eltwise_relu
             && utils::one_of(d_type, bf16, f32, s32, s8);
 
     // others supports bf16 and f32
     bool non_relu_ok = true
-            && utils::one_of(desc()->alg_kind, eltwise_tanh, eltwise_elu,
-                    eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+            && utils::one_of(alg, eltwise_tanh, eltwise_elu, eltwise_square,
+                    eltwise_abs, eltwise_sqrt, eltwise_linear,
                     eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                     eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                    eltwise_clip)
+                    eltwise_clip, eltwise_pow)
             && utils::one_of(d_type, bf16, f32);
 
     bool ok = true && mayiuse(isa) && is_fwd()

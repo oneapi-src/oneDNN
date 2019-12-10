@@ -84,11 +84,13 @@ bool check_extreme_values(const float &a, const float &b, alg_t alg) {
     switch (alg) {
         case alg_t::SQRT:
         case alg_t::LOG:
+        case alg_t::POW:
             if (isnan(a) && isnan(b)) return true;
             if (isinf(a) && isinf(b) && std::signbit(a) == std::signbit(b))
                 return true;
         default: break;
     }
+    return false;
 }
 
 static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {

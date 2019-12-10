@@ -175,6 +175,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         } else {
             diff_norm.update(fp, dt);
             ok = (fabs(fp) > 1e-5 ? rel_diff : diff) <= get_eps(p, kind);
+            if (!ok && has_eltwise)
+                ok = eltwise::check_extreme_values(
+                        fp, dt, p->attr.post_ops.entry[eltwise_idx].kind);
             in += 1;
             in_ok += ok;
         }

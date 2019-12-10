@@ -312,6 +312,7 @@ attr_t::post_ops_t::kind_t attr_t::post_ops_t::str2kind(const char *str) {
     CASE(SWISH);
     CASE(LOG);
     CASE(CLIP);
+    CASE(POW);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return KIND_TOTAL;
@@ -336,6 +337,7 @@ const char *attr_t::post_ops_t::kind2str(attr_t::post_ops_t::kind_t kind) {
     CASE(SWISH, "swish");
     CASE(LOG, "log");
     CASE(CLIP, "clip");
+    CASE(POW, "pow");
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return "unknown attr::post_ops::kind";
@@ -360,6 +362,7 @@ dnnl_alg_kind_t attr_t::post_ops_t::kind2dnnl_kind(
     CASE(SWISH, dnnl_eltwise_swish);
     CASE(LOG, dnnl_eltwise_log);
     CASE(CLIP, dnnl_eltwise_clip);
+    CASE(POW, dnnl_eltwise_pow);
 #undef CASE
     assert(!"unknown attr::post_ops::kind");
     return dnnl_alg_kind_undef;
@@ -557,6 +560,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
             case pk::SWISH:
             case pk::LOG:
             case pk::CLIP:
+            case pk::POW:
                 s << kind2str(e.kind);
                 if (e.eltwise.scale != 1.f)
                     s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"
@@ -705,6 +709,7 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
                 case attr_t::post_ops_t::SWISH:
                 case attr_t::post_ops_t::LOG:
                 case attr_t::post_ops_t::CLIP:
+                case attr_t::post_ops_t::POW:
                     DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops,
                             e.eltwise.scale, e.eltwise.alg, e.eltwise.alpha,
                             e.eltwise.beta));
@@ -769,6 +774,7 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
         case pk::SWISH: return scale * swish_fwd(src, alpha);
         case pk::LOG: return scale * log_fwd(src);
         case pk::CLIP: return scale * clip_fwd(src, alpha, beta);
+        case pk::POW: return scale * pow_fwd(src, alpha, beta);
         default: assert(!"unknown attr::post_ops::kind");
     };
     return NAN;
@@ -795,6 +801,7 @@ float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         case pk::SWISH: return swish_bwd(d_dst, src, alpha);
         case pk::LOG: return log_bwd(d_dst, src);
         case pk::CLIP: return clip_bwd(d_dst, src, alpha, beta);
+        case pk::POW: return pow_bwd(d_dst, src, alpha, beta);
         default: assert(!"unknown attr::post_ops::kind");
     }
     return NAN;

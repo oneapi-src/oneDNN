@@ -40,6 +40,7 @@ The following operations are supported:
 | linear       | #dnnl_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
 | log          | #dnnl_eltwise_log          | \f$ f(x) = \log_{e}{x} \f$
 | logistic     | #dnnl_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
+| pow          | #dnnl_eltwise_pow          | \f$ f(x) = \alpha x^{\beta} \f$
 | relu         | #dnnl_eltwise_relu         | \f$ f(x) = \begin{cases}
                                                             x & \text{if}\ x > 0 \\
                                                             \alpha x & \text{if}\ x \leq 0

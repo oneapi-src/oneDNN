@@ -48,7 +48,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                             eltwise_tanh, eltwise_elu, eltwise_square,
                             eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
                             eltwise_exp, eltwise_gelu, eltwise_swish,
-                            eltwise_log, eltwise_clip)
+                            eltwise_log, eltwise_clip, eltwise_pow)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::bf16,
                             data_type::s32, data_type::s8)
@@ -120,7 +120,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                             eltwise_tanh, eltwise_elu, eltwise_square,
                             eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
                             eltwise_exp, eltwise_gelu, eltwise_swish,
-                            eltwise_log, eltwise_clip)
+                            eltwise_log, eltwise_clip, eltwise_pow)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
                     && set_default_formats_common()

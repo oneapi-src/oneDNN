@@ -167,6 +167,18 @@ POST_OP_DATA_T clip_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s,
     return dd * (alpha < s && s <= beta ? 1 : 0);
 }
 
+POST_OP_DATA_T pow_fwd(
+        POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+    return alpha * pow(s, beta);
+}
+POST_OP_DATA_T pow_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s,
+        POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
+    if (beta == 0) return 0;
+
+    float v = pow_fwd(s, alpha * beta, beta - 1);
+    return dd * v;
+}
+
 POST_OP_DATA_T fwd_eltwise(
         POST_OP_DATA_T x, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
 #ifdef ALG_KIND
@@ -186,6 +198,7 @@ POST_OP_DATA_T fwd_eltwise(
         case SWISH: return swish_fwd(x, alpha_); break;
         case LOG: return log_fwd(x); break;
         case CLIP: return clip_fwd(x, alpha_, beta_); break;
+        case POW: return pow_fwd(x, alpha_, beta_); break;
         default: return x; break;
     }
 #else
@@ -212,6 +225,7 @@ POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
         case SWISH: return swish_bwd(x, y, alpha_); break;
         case LOG: return log_bwd(x, y); break;
         case CLIP: return clip_bwd(x, y, alpha_, beta_); break;
+        case POW: return pow_bwd(x, y, alpha_, beta_); break;
         default: return x; break;
     }
 #else

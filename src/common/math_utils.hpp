@@ -339,6 +339,21 @@ inline U clip_bwd(T dd, T s, A alpha, A beta) {
     return dd * (alpha < s && s <= beta ? 1 : 0);
 }
 
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U pow_fwd(T s, A alpha, A beta) {
+    return (U)(alpha * ::powf((float)s, beta));
+}
+
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U pow_bwd(T dd, T s, A alpha, A beta) {
+    if (beta == 0) return 0;
+
+    float v = pow_fwd(s, alpha * beta, beta - 1);
+    return (U)(dd * v);
+}
+
 inline bool is_eltwise_ok(
         data_type_t dt, alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;
@@ -347,7 +362,7 @@ inline bool is_eltwise_ok(
                    eltwise_abs, eltwise_sqrt, eltwise_linear,
                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                    eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                   eltwise_clip)
+                   eltwise_clip, eltwise_pow)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
@@ -362,7 +377,8 @@ inline bool eltwise_fwd_preserves_zero(
                    eltwise_abs, eltwise_sqrt, eltwise_swish,
                    eltwise_bounded_relu, eltwise_gelu)
             || (alg == eltwise_clip && alpha <= 0 && beta >= 0)
-            || (alg == eltwise_linear && beta == 0);
+            || (alg == eltwise_linear && beta == 0)
+            || (alg == eltwise_pow && beta > 0);
 }
 
 inline float get_bias(const char *bias, size_t offset, data_type_t data_type) {

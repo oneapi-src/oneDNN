@@ -52,7 +52,7 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                 eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                eltwise_clip));
+                eltwise_clip, eltwise_pow));
     }
 
     jit_uni_eltwise_injector_f32(jit_generator *host,
@@ -90,10 +90,13 @@ private:
         _op_floor = jit_generator::_op_floor
     };
 
+    static constexpr bool has_avx512() {
+        return utils::one_of(isa, avx512_common, avx512_core);
+    }
+
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
     static constexpr size_t preserved_vecs_max = 5;
-    static constexpr size_t vecs_count
-            = utils::one_of(isa, avx512_common, avx512_core) ? 32 : 16;
+    static constexpr size_t vecs_count = has_avx512() ? 32 : 16;
 
     size_t vecs_to_preserve = 0;
     size_t preserved_vecs_count = 0;
@@ -135,6 +138,7 @@ private:
     void swish_compute_vector(const Vmm &vmm_src);
     void log_compute_vector(const Vmm &vmm_src);
     void clip_compute_vector(const Vmm &vmm_src);
+    void pow_compute_vector(const Vmm &vmm_src);
 
     void relu_prepare_table();
     void elu_prepare_table();

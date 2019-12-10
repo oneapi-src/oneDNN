@@ -160,6 +160,7 @@ struct attr_t {
             SWISH,
             LOG,
             CLIP,
+            POW,
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);

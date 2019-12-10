@@ -37,7 +37,8 @@ the end to specify fewer dimensions.
 
 ## Floating point arguments
 Some operations support `alpha` argument such as `BRELU`, `CLIP`, `ELU`,
-`LINEAR` and `RELU`. `CLIP` and `LINEAR` also support `beta` argument.
+`LINEAR`, `POW` and `RELU`. `CLIP`, `LINEAR` and `POW` also support `beta`
+argument.
 
 The `alpha` and `beta` parameters should meet algorithm requirements, otherwise
 the problem will be silently skipped. For instance:
