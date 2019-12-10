@@ -110,12 +110,15 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             if (do_sum) res = sum_scale * dst_value + res;
             if (eltwise_ker_) res = eltwise_ker_->compute_scalar(res);
             res += (float)dst_zero_point;
-            if (dst_type == data_type::f32)
+            if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
                 dst_value = res;
             else
                 dst_value = saturate<dst_data_t>(out_round<int32_t>(res));
         } else {
-            dst_value = saturate<dst_data_t>(acc);
+            if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
+                dst_value = (dst_data_t)acc;
+            else
+                dst_value = saturate<dst_data_t>(acc);
         }
     });
 
@@ -124,6 +127,8 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
 
 using namespace data_type;
 template struct ref_matmul_t<f32, f32, f32, f32>;
+template struct ref_matmul_t<bf16, bf16, f32, f32>;
+template struct ref_matmul_t<bf16, bf16, bf16, f32>;
 template struct ref_matmul_t<s8, s8, f32, s32>;
 template struct ref_matmul_t<s8, s8, s32, s32>;
 template struct ref_matmul_t<s8, s8, s8, s32>;

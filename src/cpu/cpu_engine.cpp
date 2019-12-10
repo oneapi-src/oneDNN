@@ -411,6 +411,8 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>),
         INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>),
         INSTANCE(ref_matmul_t<f32>),
+        INSTANCE(ref_matmul_t<bf16, bf16, f32, f32>),
+        INSTANCE(ref_matmul_t<bf16, bf16, bf16, f32>),
         INSTANCE(ref_matmul_t<s8, s8, f32, s32>),
         INSTANCE(ref_matmul_t<s8, s8, s32, s32>),
         INSTANCE(ref_matmul_t<s8, s8, s8, s32>),

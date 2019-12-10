@@ -19,6 +19,7 @@
 
 #include <assert.h>
 
+#include "bfloat16.hpp"
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -48,6 +49,7 @@ struct ref_matmul_t : public primitive_impl_t {
                     && weights_md()->data_type == weights_type
                     && desc()->accum_data_type == acc_type
                     && dst_md()->data_type == dst_type
+                    && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
                     && IMPLICATION(
                             acc_type == s32, attr()->zero_points_.common())
                     && IMPLICATION(acc_type != s32,
