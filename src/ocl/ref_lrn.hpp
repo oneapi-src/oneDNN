@@ -68,8 +68,9 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
             dispatch = compute_engine->create_dispatch(&data_md_);
             dispatch.define_dim("MB", 0, MB());
             dispatch.define_dim("IC", 1, C());
-            dispatch.define_dim("IH", 2, H());
-            dispatch.define_dim("IW", 3, W());
+            dispatch.define_dim("IH", nstl::min(data_md_.ndims - 1, 2), H());
+            dispatch.define_dim("IW", nstl::min(data_md_.ndims - 1, 3), W());
+            dispatch.define_dim("ID", nstl::min(data_md_.ndims - 1, 4), D());
             dispatch.generate();
 
             return status::success;
@@ -119,9 +120,10 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         kernel_ctx.define_int("IC", pd()->C());
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
+        kernel_ctx.define_int("ID", pd()->D());
 
-        const uint32_t round_norm_size = (desc->local_size / 2) * 2 + 1;
-        uint32_t num_elements = round_norm_size * round_norm_size;
+        const uint32_t round_norm_size = desc->local_size;
+        uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
         if (desc->alg_kind == lrn_across_channels) {
             num_elements = round_norm_size;
         }
@@ -130,7 +132,8 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
         kernel_ctx.define_float("NUM_ELEMENTS_DIV", num_element_div);
         kernel_ctx.define_int("PADDING", padding);
-        kernel_ctx.define_int("LOCAL_SIZE", desc->local_size);
+        kernel_ctx.define_int(
+                "LOCAL_SIZE", desc->local_size - 1 + desc->local_size % 2);
         kernel_ctx.define_float("LRN_ALPHA", desc->lrn_alpha);
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
@@ -195,8 +198,9 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
             dispatch = compute_engine->create_dispatch(&diff_data_md_);
             dispatch.define_dim("MB", 0, MB());
             dispatch.define_dim("IC", 1, C());
-            dispatch.define_dim("IH", 2, H());
-            dispatch.define_dim("IW", 3, W());
+            dispatch.define_dim("IH", nstl::min(data_md_.ndims - 1, 2), H());
+            dispatch.define_dim("IW", nstl::min(data_md_.ndims - 1, 3), W());
+            dispatch.define_dim("ID", nstl::min(data_md_.ndims - 1, 4), D());
             dispatch.generate();
 
             return status::success;
@@ -243,9 +247,10 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         kernel_ctx.define_int("IC", pd()->C());
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
+        kernel_ctx.define_int("ID", pd()->D());
 
-        const uint32_t round_norm_size = (desc->local_size / 2) * 2 + 1;
-        uint32_t num_elements = round_norm_size * round_norm_size;
+        const uint32_t round_norm_size = desc->local_size;
+        uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
         if (desc->alg_kind == lrn_across_channels) {
             num_elements = round_norm_size;
         }
@@ -254,7 +259,8 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 
         kernel_ctx.define_float("NUM_ELEMENTS_DIV", num_element_div);
         kernel_ctx.define_int("PADDING", padding);
-        kernel_ctx.define_int("LOCAL_SIZE", desc->local_size);
+        kernel_ctx.define_int(
+                "LOCAL_SIZE", desc->local_size - 1 + desc->local_size % 2);
         kernel_ctx.define_float("LRN_ALPHA", desc->lrn_alpha);
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
