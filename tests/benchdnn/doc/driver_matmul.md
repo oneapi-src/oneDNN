@@ -51,7 +51,7 @@ file:
 Run single precision matrix multiplication with all sizes provided at run-time:
 ``` sh
     ./benchdnn --matmul \
-               --runtim_m=true --runtime_n=true --runtime_k=true \
+               --runtime_m=true --runtime_n=true --runtime_k=true \
                m10n20k30
 ```
 
