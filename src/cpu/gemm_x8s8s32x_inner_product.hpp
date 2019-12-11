@@ -56,7 +56,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                             | primitive_attr_t::skip_mask_t::post_ops)
-                    && post_ops_ok() && set_default_params() == status::success
+                    && output_scales_mask_ok() && post_ops_ok()
+                    && set_default_params() == status::success
                     && dense_gemm_consitency_check(
                             src_md(), weights_md(), dst_md());
             if (!ok) return status::unimplemented;
@@ -72,6 +73,11 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
         bool dst_is_acc_;
 
     protected:
+        bool output_scales_mask_ok() const {
+            const auto &mask = attr()->output_scales_.mask_;
+            return mask == 0 || mask == 1 << 1;
+        }
+
         bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
             auto is_eltwise
