@@ -125,9 +125,40 @@ a separate stream per thread.
 
 You need to set C and C++ compilers to point to the DPC++ compilers.
 
+## Linux
 ~~~sh
+# Set DPC++ environment variables
+# <..>/setvars.sh
+
+# Set C and C++ compilers
 export CC=path/to/c/dpcpp/compiler
 export CXX=path/to/cpp/dpcpp/compiler
 
-cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP -DDPCPPROOT=/path/to/dpcpp ..
+mkdir build
+cd build
+cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
+cmake --build .
+~~~
+
+## Windows
+
+@note
+    Currently, building on Windows has a few limitations:
+    - Only the Clang compiler with GNU-like command-line is supported
+      (`clang.exe` and `clang++.exe`).
+    - Only the Ninja generator is supported.
+    - CMake version must be 3.15 or newer.
+
+~~~bat
+:: Set DPC++ environment variables
+:: <..>\setvars.bat
+
+:: Set C and C++ compilers (must have GNU-like command-line interface)
+set CC=path/to/c/dpcpp/compiler
+set CXX=path/to/cpp/dpcpp/compiler
+
+mkdir build
+cd build
+cmake -G Ninja -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
+cmake --build .
 ~~~
