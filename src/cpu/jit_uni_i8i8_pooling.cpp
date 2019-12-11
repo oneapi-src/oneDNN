@@ -27,6 +27,17 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+static inline dim_t get_offset(
+        const memory_desc_wrapper &mdw, int n, int c, int d, int h, int w) {
+    switch (mdw.ndims()) {
+        case 3: return mdw.blk_off(n, c, w);
+        case 4: return mdw.blk_off(n, c, h, w);
+        case 5: return mdw.blk_off(n, c, d, h, w);
+        default: assert(!"Invalid tensor dimension in pooling");
+    }
+    return 0;
+}
+
 using namespace Xbyak;
 
 using namespace dnnl::impl::utils;
@@ -41,8 +52,9 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     struct call_params_t {
         const char *src_i8;
         const char *dst_i8;
-        size_t kw_range;
+        size_t kd_range;
         size_t kh_range;
+        size_t kw_range;
         float idivider;
         const char *src_safe_access;
         const char *dst_safe_access;
@@ -62,20 +74,25 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator {
     Reg64 reg_ptr_dst_i8 = r9;
     Reg64 reg_ptr_maskmovdqu_dst = rdi; // store destination - must be rdi
 
-    Reg64 ki = r10;
-    Reg64 kj = r11;
-    Reg64 reg_kw = r12;
+    Reg64 reg_kd_index
+            = rdi; // shared with reg_ptr_maskmovdqu_dst; only used before store
+    Reg64 reg_kh_index = r11;
+    Reg64 reg_kw_index = r10;
+    Reg64 reg_kd = r14;
     Reg64 reg_kh = r13;
-    Reg64 c_iter = r14;
+    Reg64 reg_kw = r12;
+    Reg64 c_iter = r15; // shared with reg_mask; only used after mask init
 
+    Reg64 aux_reg_src_d
+            = rdx; // shared with reg_tmp; loaded before each accum loop, unused during store
     Reg64 aux_reg_src_h = rax;
     Reg64 aux_reg_src_w = rbx;
 
-    Reg64 reg_tmp = rdx;
+    Reg64 reg_tmp = rdx; // only used during mask init and store
     Reg64 reg_src_safe_access = rbp;
     Reg64 reg_dst_safe_access = rsi;
 
-    Reg64 reg_mask = r15;
+    Reg64 reg_mask = r15; // only used during mask init
 
     Opmask k_cmp_mask = Opmask(7);
 
@@ -684,36 +701,45 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx512_core>::compute_max_op(const int jj) {
 template <cpu_isa_t isa>
 void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_max_step(
         int ur_c, int c_tail) {
-    Label l_kw, l_kh;
+    Label l_kd, l_kh, l_kw;
 
+    int ih = jpp.ih;
     int iw = jpp.iw;
     int c = jpp.c;
 
     for (int jj = 0; jj < ur_c; jj++)
         vmovups(vreg_dst(jj), vreg_tmp);
 
-    mov(aux_reg_src_h, reg_ptr_src_i8);
-
-    xor_(kj, kj);
-    L(l_kh);
+    mov(aux_reg_src_d, reg_ptr_src_i8);
+    xor_(reg_kd_index, reg_kd_index);
+    L(l_kd);
     {
-        mov(aux_reg_src_w, aux_reg_src_h);
-        xor_(ki, ki);
-        L(l_kw);
+        mov(aux_reg_src_h, aux_reg_src_d);
+        xor_(reg_kh_index, reg_kh_index);
+        L(l_kh);
         {
-            for (int jj = 0; jj < ur_c; jj++) {
-                load_src(jj, 0, c_tail);
-                compute_max_op(jj);
+            mov(aux_reg_src_w, aux_reg_src_h);
+            xor_(reg_kw_index, reg_kw_index);
+            L(l_kw);
+            {
+                for (int jj = 0; jj < ur_c; jj++) {
+                    load_src(jj, 0, c_tail);
+                    compute_max_op(jj);
+                }
+                add(aux_reg_src_w, c * sizeof_src_dt());
+                inc(reg_kw_index);
+                cmp(reg_kw_index, reg_kw);
+                jl(l_kw, T_NEAR);
             }
-            add(aux_reg_src_w, c * sizeof_src_dt());
-            inc(ki);
-            cmp(ki, reg_kw);
-            jl(l_kw, T_NEAR);
+            add(aux_reg_src_h, iw * c * sizeof_src_dt());
+            inc(reg_kh_index);
+            cmp(reg_kh_index, reg_kh);
+            jl(l_kh, T_NEAR);
         }
-        add(aux_reg_src_h, iw * c * sizeof_src_dt());
-        inc(kj);
-        cmp(kj, reg_kh);
-        jl(l_kh, T_NEAR);
+        add(aux_reg_src_d, ih * iw * c * sizeof_src_dt());
+        inc(reg_kd_index);
+        cmp(reg_kd_index, reg_kd);
+        jl(l_kd, T_NEAR);
     }
 
     for (int jj = 0; jj < ur_c; jj++)
@@ -725,8 +751,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         int ur_c, int c_tail) {
     using namespace data_type;
 
-    Label l_kw, l_kh;
+    Label l_kd, l_kh, l_kw;
 
+    int ih = jpp.ih;
     int iw = jpp.iw;
     int c = jpp.c;
 
@@ -744,35 +771,43 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_avg_step(
         }
     }
 
-    mov(aux_reg_src_h, reg_ptr_src_i8);
-
-    xor_(kj, kj);
-    L(l_kh);
+    mov(aux_reg_src_d, reg_ptr_src_i8);
+    xor_(reg_kd_index, reg_kd_index);
+    L(l_kd);
     {
-        mov(aux_reg_src_w, aux_reg_src_h);
-        xor_(ki, ki);
-        L(l_kw);
+        mov(aux_reg_src_h, aux_reg_src_d);
+        xor_(reg_kh_index, reg_kh_index);
+        L(l_kh);
         {
-            for (int jj = 0; jj < ur_c; jj++) {
-                for (int ll = 0; ll < num_ll; ll++) {
-                    bool masked = jj == ur_c - 1 && c_tail;
-                    size_t msk = jpp.tail[ll];
-                    if (!(masked && !msk)) {
-                        load_src(jj, ll, c_tail);
-                        vpaddd(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll),
-                                vreg_src_s32(jj, ll));
+            mov(aux_reg_src_w, aux_reg_src_h);
+            xor_(reg_kw_index, reg_kw_index);
+            L(l_kw);
+            {
+                for (int jj = 0; jj < ur_c; jj++) {
+                    for (int ll = 0; ll < num_ll; ll++) {
+                        bool masked = jj == ur_c - 1 && c_tail;
+                        size_t msk = jpp.tail[ll];
+                        if (!(masked && !msk)) {
+                            load_src(jj, ll, c_tail);
+                            vpaddd(vreg_dst_s32(jj, ll), vreg_dst_s32(jj, ll),
+                                    vreg_src_s32(jj, ll));
+                        }
                     }
                 }
+                add(aux_reg_src_w, c * sizeof_src_dt());
+                inc(reg_kw_index);
+                cmp(reg_kw_index, reg_kw);
+                jl(l_kw, T_NEAR);
             }
-            add(aux_reg_src_w, c * sizeof_src_dt());
-            inc(ki);
-            cmp(ki, reg_kw);
-            jl(l_kw, T_NEAR);
+            add(aux_reg_src_h, iw * c * sizeof_src_dt());
+            inc(reg_kh_index);
+            cmp(reg_kh_index, reg_kh);
+            jl(l_kh, T_NEAR);
         }
-        add(aux_reg_src_h, iw * c * sizeof_src_dt());
-        inc(kj);
-        cmp(kj, reg_kh);
-        jl(l_kh, T_NEAR);
+        add(aux_reg_src_d, ih * iw * c * sizeof_src_dt());
+        inc(reg_kd_index);
+        cmp(reg_kd_index, reg_kd);
+        jl(l_kd, T_NEAR);
     }
 
     for (int jj = 0; jj < ur_c; jj++) {
@@ -996,8 +1031,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
     mov(reg, ptr[reg_param + offsetof(call_params_t, field)])
     READ_PARAM(reg_ptr_src_i8, src_i8);
     READ_PARAM(reg_ptr_dst_i8, dst_i8);
-    READ_PARAM(reg_kw, kw_range);
+    READ_PARAM(reg_kd, kd_range);
     READ_PARAM(reg_kh, kh_range);
+    READ_PARAM(reg_kw, kw_range);
     READ_PARAM(reg_src_safe_access, src_safe_access);
     READ_PARAM(reg_dst_safe_access, dst_safe_access);
 
@@ -1024,27 +1060,42 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     const memory_desc_wrapper src_d(ppd->src_md());
     const memory_desc_wrapper dst_d(ppd->dst_md());
 
+    const int ndims = src_d.ndims();
+    const bool is_1d = ndims == 3;
+    const bool is_3d = ndims == 5;
+
     jpp.mb = src_d.dims()[0];
     jpp.c = src_d.dims()[1];
-    jpp.ih = src_d.dims()[2];
-    jpp.iw = src_d.dims()[3];
-    jpp.oh = dst_d.dims()[2];
-    jpp.ow = dst_d.dims()[3];
 
-    jpp.stride_h = pd.strides[0];
-    jpp.stride_w = pd.strides[1];
-    jpp.kh = pd.kernel[0];
-    jpp.kw = pd.kernel[1];
+    jpp.id = is_3d ? src_d.dims()[ndims - 3] : 1;
+    jpp.ih = is_1d ? 1 : src_d.dims()[ndims - 2];
+    jpp.iw = src_d.dims()[ndims - 1];
 
-    jpp.t_pad = pd.padding[0][0];
-    jpp.l_pad = pd.padding[0][1];
+    jpp.od = is_3d ? dst_d.dims()[ndims - 3] : 1;
+    jpp.oh = is_1d ? 1 : dst_d.dims()[ndims - 2];
+    jpp.ow = dst_d.dims()[ndims - 1];
 
-    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1
-            - (jpp.iw + jpp.l_pad - 1);
+    jpp.stride_d = is_3d ? pd.strides[ndims - 5] : 1;
+    jpp.stride_h = is_1d ? 1 : pd.strides[ndims - 4];
+    jpp.stride_w = pd.strides[ndims - 3];
+
+    jpp.kd = is_3d ? pd.kernel[ndims - 5] : 1;
+    jpp.kh = is_1d ? 1 : pd.kernel[ndims - 4];
+    jpp.kw = pd.kernel[ndims - 3];
+
+    jpp.f_pad = is_3d ? pd.padding[0][ndims - 5] : 0;
+    jpp.t_pad = is_1d ? 0 : pd.padding[0][ndims - 4];
+    jpp.l_pad = pd.padding[0][ndims - 3];
+
+    int back_pad = (jpp.od - 1) * jpp.stride_d + jpp.kd - 1
+            - (jpp.id + jpp.f_pad - 1);
     int bottom_pad = (jpp.oh - 1) * jpp.stride_h + jpp.kh - 1
             - (jpp.ih + jpp.t_pad - 1);
+    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1
+            - (jpp.iw + jpp.l_pad - 1);
 
-    if (jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw || bottom_pad >= jpp.kh
+    if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
+            || back_pad >= jpp.kd || bottom_pad >= jpp.kh
             || right_pad >= jpp.kw)
         return status::unimplemented;
 
@@ -1062,7 +1113,8 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
      * size, otherwise load/store will always spill outside the memory
      * boundary.*/
     bool safe_load_n_store = IMPLICATION(isa == avx2,
-            jpp.mb * jpp.c * nstl::min(jpp.ih, jpp.oh)
+            jpp.mb * jpp.c * nstl::min(jpp.id, jpp.od)
+                            * nstl::min(jpp.ih, jpp.oh)
                             * nstl::min(jpp.iw, jpp.ow)
                     >= simd_w);
     if (!safe_load_n_store) return status::unimplemented;
@@ -1144,33 +1196,43 @@ void jit_uni_i8i8_pooling_fwd_t<isa>::execute_forward(
             reinterpret_cast<ptrdiff_t>(dst_i8 + dst_d.size() - 1)
             - (cpu_isa_traits<isa>::vlen - 1));
 
-    parallel_nd(jpp.mb, jpp.oh, jpp.ow, [&](int n, int oh, int ow) {
-        const int ih = nstl::max(oh * jpp.stride_h - jpp.t_pad, 0);
-        const int iw = nstl::max(ow * jpp.stride_w - jpp.l_pad, 0);
+    parallel_nd(
+            jpp.mb, jpp.od, jpp.oh, jpp.ow, [&](int n, int od, int oh, int ow) {
+                const int id = nstl::max(od * jpp.stride_d - jpp.f_pad, 0);
+                const int ih = nstl::max(oh * jpp.stride_h - jpp.t_pad, 0);
+                const int iw = nstl::max(ow * jpp.stride_w - jpp.l_pad, 0);
 
-        const int kh_start = nstl::max(0, jpp.t_pad - oh * jpp.stride_h);
-        const int kh_end
-                = nstl::min(jpp.kh, jpp.ih + jpp.t_pad - oh * jpp.stride_h);
-        const int kw_start = nstl::max(0, jpp.l_pad - ow * jpp.stride_w);
-        const int kw_end
-                = nstl::min(jpp.kw, jpp.iw + jpp.l_pad - ow * jpp.stride_w);
+                const int kd_start
+                        = nstl::max(0, jpp.f_pad - od * jpp.stride_d);
+                const int kd_end = nstl::min(
+                        jpp.kd, jpp.id + jpp.f_pad - od * jpp.stride_d);
+                const int kh_start
+                        = nstl::max(0, jpp.t_pad - oh * jpp.stride_h);
+                const int kh_end = nstl::min(
+                        jpp.kh, jpp.ih + jpp.t_pad - oh * jpp.stride_h);
+                const int kw_start
+                        = nstl::max(0, jpp.l_pad - ow * jpp.stride_w);
+                const int kw_end = nstl::min(
+                        jpp.kw, jpp.iw + jpp.l_pad - ow * jpp.stride_w);
 
-        auto p = typename jit_uni_i8i8_pooling_fwd_ker_t<isa>::call_params_t();
-        p.src_i8
-                = &src_i8[src_d.blk_off(n, 0, ih, iw) * src_d.data_type_size()];
-        p.dst_i8
-                = &dst_i8[dst_d.blk_off(n, 0, oh, ow) * dst_d.data_type_size()];
-        p.kw_range = (size_t)(kw_end - kw_start);
-        p.kh_range = (size_t)(kh_end - kh_start);
-        p.idivider = 1.0f
-                / ((jpp.alg == pooling_avg_exclude_padding)
-                                ? p.kh_range * p.kw_range
-                                : jpp.kw * jpp.kh);
-        p.src_safe_access = src_safe_access;
-        p.dst_safe_access = dst_safe_access;
+                auto p = typename jit_uni_i8i8_pooling_fwd_ker_t<
+                        isa>::call_params_t();
+                p.src_i8 = &src_i8[get_offset(src_d, n, 0, id, ih, iw)
+                        * src_d.data_type_size()];
+                p.dst_i8 = &dst_i8[get_offset(dst_d, n, 0, od, oh, ow)
+                        * dst_d.data_type_size()];
+                p.kd_range = (size_t)(kd_end - kd_start);
+                p.kh_range = (size_t)(kh_end - kh_start);
+                p.kw_range = (size_t)(kw_end - kw_start);
+                p.idivider = 1.0f
+                        / ((jpp.alg == pooling_avg_exclude_padding)
+                                        ? p.kd_range * p.kh_range * p.kw_range
+                                        : jpp.kd * jpp.kh * jpp.kw);
+                p.src_safe_access = src_safe_access;
+                p.dst_safe_access = dst_safe_access;
 
-        ker_->ker_(&p);
-    });
+                ker_->ker_(&p);
+            });
 }
 
 // Explicit instantiation only for supported <isa> values.

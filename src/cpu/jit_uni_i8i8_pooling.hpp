@@ -18,6 +18,7 @@
 #define CPU_JIT_UNI_I8I8_POOLING_HPP
 
 #include "c_types_map.hpp"
+#include "type_helpers.hpp"
 
 #include "cpu_pooling_pd.hpp"
 
@@ -40,7 +41,7 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_impl_t {
                 jit_uni_i8i8_pooling_fwd_t);
 
         status_t init() {
-            bool ok = true && mayiuse(isa) && ndims() == 4
+            bool ok = true && mayiuse(isa) && utils::one_of(ndims(), 3, 4, 5)
                     && set_default_params() == status::success
                     && desc()->prop_kind == prop_kind::forward_inference
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
@@ -50,8 +51,14 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_impl_t {
                             data_type::s8, data_type::u8)
                     && src_md()->data_type == dst_md()->data_type
                     && attr()->has_default_values()
-                    && memory_desc_matches_tag(*src_md(), format_tag::nhwc)
-                    && memory_desc_matches_tag(*dst_md(), format_tag::nhwc);
+                    && memory_desc_matches_one_of_tag(*src_md(),
+                               format_tag::nwc, format_tag::nhwc,
+                               format_tag::ndhwc)
+                            != format_tag::undef
+                    && memory_desc_matches_one_of_tag(*dst_md(),
+                               format_tag::nwc, format_tag::nhwc,
+                               format_tag::ndhwc)
+                            != format_tag::undef;
             if (!ok) return status::unimplemented;
 
             return jit_conf();
