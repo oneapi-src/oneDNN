@@ -26,20 +26,19 @@
 #include "ref_resampling.hpp"
 #include "resampling_utils.hpp"
 
-#define DECLARE_DATA_OFFSET \
-    auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c, \
-                               int d, int h, int w) { \
-        if (data_d.ndims() == 5) \
-            return data_d.off(n, c, d, h, w); \
-        else if (data_d.ndims() == 4) \
-            return data_d.off(n, c, h, w); \
-        else \
-            return data_d.off(n, c, w); \
-    }
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
+
+static inline dim_t get_offset(
+        const memory_desc_wrapper &data_d, int n, int c, int d, int h, int w) {
+    if (data_d.ndims() == 5)
+        return data_d.off(n, c, d, h, w);
+    else if (data_d.ndims() == 4)
+        return data_d.off(n, c, h, w);
+    else
+        return data_d.off(n, c, w);
+}
 
 using namespace resampling_utils;
 
@@ -68,8 +67,6 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
     const float FH = pd()->FH();
     const float FW = pd()->FW();
 
-    DECLARE_DATA_OFFSET;
-
     auto lin_interp = [&](float c0, float c1, float w) {
         return c0 * w + c1 * (1 - w);
     };
@@ -89,8 +86,8 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                 if (alg == alg_kind::resampling_nearest) {
                     dim_t id = nearest_idx(od, FD), ih = nearest_idx(oh, FH),
                           iw = nearest_idx(ow, FW);
-                    dst[data_offset(dst_d, mb, ch, od, oh, ow)]
-                            = src[data_offset(src_d, mb, ch, id, ih, iw)];
+                    dst[get_offset(dst_d, mb, ch, od, oh, ow)]
+                            = src[get_offset(src_d, mb, ch, id, ih, iw)];
                 } else if (alg == alg_kind::resampling_linear) {
                     // Trilinear interpolation (linear interpolation on a 3D spatial
                     // tensor) can be expressed as linear interpolation along
@@ -103,20 +100,20 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                     // -          -    -
                     // -          -  -
                     //C000--C00--C100
-                    auto id = linear_coeffs_t(od, FD, ID),
-                         iw = linear_coeffs_t(ow, FW, IW),
-                         ih = linear_coeffs_t(oh, FH, IH);
-                    // accessor for source values on a cubic lattice
-                    auto c_off = [&](int i, int j, int k) {
-                        return data_offset(
-                                src_d, mb, ch, id.idx[i], ih.idx[j], iw.idx[k]);
-                    };
-                    dst[data_offset(dst_d, mb, ch, od, oh, ow)] = trilin_interp(
-                            src[c_off(0, 0, 0)], src[c_off(0, 1, 0)],
-                            src[c_off(1, 0, 0)], src[c_off(1, 1, 0)],
-                            src[c_off(0, 0, 1)], src[c_off(0, 1, 1)],
-                            src[c_off(1, 0, 1)], src[c_off(1, 1, 1)], id.wei[0],
-                            ih.wei[0], iw.wei[0]);
+                    auto id = linear_coeffs_t(od, FD, ID);
+                    auto iw = linear_coeffs_t(ow, FW, IW);
+                    auto ih = linear_coeffs_t(oh, FH, IH);
+                    dim_t src_l[8] = {0};
+                    for_(int i = 0; i < 2; i++)
+                    for_(int j = 0; j < 2; j++)
+                    for (int k = 0; k < 2; k++) {
+                        src_l[4 * i + 2 * j + k] = src[get_offset(src_d, mb, ch,
+                                id.idx[i], ih.idx[j], iw.idx[k])];
+                    }
+                    dst[get_offset(dst_d, mb, ch, od, oh, ow)]
+                            = trilin_interp(src_l[0], src_l[1], src_l[2],
+                                    src_l[3], src_l[4], src_l[5], src_l[6],
+                                    src_l[7], id.wei[0], ih.wei[0], iw.wei[0]);
                 }
             });
 }
@@ -149,11 +146,9 @@ void ref_resampling_bwd_t<data_type>::execute_backward(
     const float FH = pd()->FH();
     const float FW = pd()->FW();
 
-    DECLARE_DATA_OFFSET;
-
     parallel_nd(MB, C, ID, IH, IW,
             [&](dim_t mb, dim_t ch, dim_t id, dim_t ih, dim_t iw) {
-                diff_src[data_offset(diff_src_d, mb, ch, id, ih, iw)] = 0.f;
+                diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)] = 0.f;
             });
     parallel_nd(MB, C, [&](dim_t mb, dim_t ch) {
         for_(int od = 0; od < OD; ++od)
@@ -162,25 +157,21 @@ void ref_resampling_bwd_t<data_type>::execute_backward(
             if (alg == alg_kind::resampling_nearest) {
                 dim_t id = nearest_idx(od, FD), ih = nearest_idx(oh, FH),
                       iw = nearest_idx(ow, FW);
-                diff_src[data_offset(diff_src_d, mb, ch, id, ih, iw)]
-                        += diff_dst[data_offset(
-                                diff_dst_d, mb, ch, od, oh, ow)];
+                diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)]
+                        += diff_dst[get_offset(diff_dst_d, mb, ch, od, oh, ow)];
             } else if (alg == alg_kind::resampling_linear) {
-                auto id = linear_coeffs_t(od, FD, ID),
-                     iw = linear_coeffs_t(ow, FW, IW),
-                     ih = linear_coeffs_t(oh, FH, IH);
+                auto id = linear_coeffs_t(od, FD, ID);
+                auto iw = linear_coeffs_t(ow, FW, IW);
+                auto ih = linear_coeffs_t(oh, FH, IH);
                 // accessor for source values on a cubic lattice
-                auto c_off = [&](int i, int j, int k) {
-                    return data_offset(diff_src_d, mb, ch, id.idx[i], ih.idx[j],
-                            iw.idx[k]);
-                };
                 data_t dd
-                        = diff_dst[data_offset(diff_dst_d, mb, ch, od, oh, ow)];
+                        = diff_dst[get_offset(diff_dst_d, mb, ch, od, oh, ow)];
                 for_(int i = 0; i < 2; i++)
                 for_(int j = 0; j < 2; j++)
                 for (int k = 0; k < 2; k++) {
-                    diff_src[c_off(i, j, k)]
-                            += dd * id.wei[i] * ih.wei[j] * iw.wei[k];
+                    auto off = get_offset(diff_src_d, mb, ch, id.idx[i],
+                            ih.idx[j], iw.idx[k]);
+                    diff_src[off] += dd * id.wei[i] * ih.wei[j] * iw.wei[k];
                 }
             }
         }
