@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 using namespace data_type;
 
@@ -223,6 +224,7 @@ using namespace data_type;
 template struct gemm_bf16_matmul_t<data_type::f32>;
 template struct gemm_bf16_matmul_t<data_type::bf16>;
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

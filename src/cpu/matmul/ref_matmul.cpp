@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type,
         data_type_t acc_type>
@@ -138,6 +139,7 @@ template struct ref_matmul_t<u8, s8, s32, s32>;
 template struct ref_matmul_t<u8, s8, s8, s32>;
 template struct ref_matmul_t<u8, s8, u8, s32>;
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

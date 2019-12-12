@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 using namespace data_type;
 
@@ -185,6 +186,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

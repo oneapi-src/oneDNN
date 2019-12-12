@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 using namespace data_type;
 
@@ -233,6 +234,7 @@ template struct gemm_x8s8s32x_matmul_t<u8, s8, s32>;
 template struct gemm_x8s8s32x_matmul_t<u8, s8, s8>;
 template struct gemm_x8s8s32x_matmul_t<u8, s8, u8>;
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

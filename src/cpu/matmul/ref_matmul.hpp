@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 template <impl::data_type_t src_type, impl::data_type_t weights_type = src_type,
         impl::data_type_t dst_type = src_type,
@@ -113,6 +114,7 @@ private:
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
 };
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

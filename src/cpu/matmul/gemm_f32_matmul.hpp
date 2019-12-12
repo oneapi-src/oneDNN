@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 struct gemm_f32_matmul_t : public primitive_impl_t {
     struct pd_t : public cpu_matmul_pd_t {
@@ -83,6 +84,7 @@ private:
     std::unique_ptr<pp_kernel_t> pp_kernel_;
 };
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
