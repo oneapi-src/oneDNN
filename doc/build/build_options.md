@@ -116,14 +116,14 @@ cmake -DDNNL_GPU_RUNTIME=OCL -DOPENCLROOT=/path/to/opencl/sdk ..
 ~~~
 
 ## DPC++ (experimental)
-DPC++ runtime requires the DPC++ compiler. You can explicitly specify the path
+DPC++ runtime requires the oneAPI DPC++ Compiler. You can explicitly specify the path
 to the DPC++ installation using `-DDPCPPROOT` CMake option.
 
 Intel DNNL has a limitation for DPC++ runtime, which makes primitive
 submission into stream not thread-safe. This issue can be workarounded by using
 a separate stream per thread.
 
-You need to set C and C++ compilers to point to the DPC++ compilers.
+You need to set C and C++ compilers to point to oneAPI DPC++ Compilers.
 
 ## Linux
 ~~~sh
