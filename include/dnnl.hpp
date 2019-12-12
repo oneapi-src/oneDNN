@@ -1985,6 +1985,7 @@ struct memory : public handle<dnnl_memory_t> {
         gOidhw4o = dnnl_gOidhw4o,
         gOIdhw8i16o2i = dnnl_gOIdhw8i16o2i,
         gOIdhw4i16o4i = dnnl_gOIdhw4i16o4i,
+        gOIdhw2i8o4i = dnnl_gOIdhw2i8o4i,
         gOIdhw8i8o = dnnl_gOIdhw8i8o,
         gOIdhw8o8i = dnnl_gOIdhw8o8i,
     };

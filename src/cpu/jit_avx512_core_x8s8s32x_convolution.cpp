@@ -478,7 +478,7 @@ void jit_avx512_core_x8s8s32x_convolution_fwd_t<src_type,
                         owb, jcp.nb_ow, od_s, jcp.od, oh_s, jcp.oh);
                 break;
             case loop_nhwcg:
-                nd_iterator_init(start, n, jcp.mb, oh_s, jcp.oh, od_s, jcp.od,
+                nd_iterator_init(start, n, jcp.mb, od_s, jcp.od, oh_s, jcp.oh,
                         owb, jcp.nb_ow, occ, oc_chunks, g, nb_groups);
                 break;
             default: assert(!"unsupported loop order");

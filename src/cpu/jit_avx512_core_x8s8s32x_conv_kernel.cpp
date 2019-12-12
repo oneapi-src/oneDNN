@@ -933,9 +933,11 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     const memory_desc_wrapper bias_d(&bias_md);
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
-    int ndims = src_d.ndims();
-    bool is_1d = ndims == 3;
-    bool is_3d = ndims == 5;
+    const int ndims = src_d.ndims();
+    const bool is_1d = ndims == 3;
+    const bool is_2d = ndims == 4;
+    const bool is_3d = ndims == 5;
+    assert(is_1d || is_2d || is_3d);
 
     if (!(mayiuse(avx512_core)
                 && one_of(src_d.data_type(), data_type::u8, data_type::s8)
@@ -1009,12 +1011,15 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             /* For non grouped convolutions, pad channels by 16 if needed */
             jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
             jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
-        } else if (!is_1d && !is_3d && jcp.ngroups != 1
-                && jcp.ic % jcp.ic_block != 0) {
+        } else if (jcp.ngroups != 1
+                && ((jcp.ic % jcp.ic_block != 0)
+                        || (jcp.oc % jcp.oc_block != 0))) {
             /* For grouped convolutions, DNNL doesn't support padding.
-               Use Ymm when channels per group is multiple of 8,
-               Xmm when channels per group is multiple of 4 */
-            jcp.ic_block = jcp.ic % 8 == 0 ? 8 : 4;
+               When channels per group is not multiple of 16:
+                - Use Ymm when channels per group is multiple of 8,
+                - Use Xmm when channels per group is multiple of 4,
+                - Otherwise return unimplemented. */
+            jcp.ic_block = (jcp.ic % 8 == 0) && (jcp.oc % 8 == 0) ? 8 : 4;
             jcp.oc_block = jcp.ic_block;
         }
         if (jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0)
@@ -1030,9 +1035,9 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ver = mayiuse(avx512_core_vnni) ? ver_vnni : ver_avx512_core;
     jcp.is_fast_depthwise = true && jcp.is_depthwise && jcp.ver == ver_vnni
-            && jcp.ngroups % jcp.ch_block == 0; // for groups not multiple of 16
-    // would require byte masking
-    // for load from src
+            && jcp.ngroups % jcp.ch_block == 0; /* groups not multiple of
+    ch_block (= 16) would require byte masking for load from src */
+
     jcp.is_resrc_depthwise = jcp.is_depthwise && jcp.stride_w < jcp.kw
             && jcp.kw < 4 && jcp.dilate_w == 0;
     if (jcp.is_depthwise) {
@@ -1052,14 +1057,18 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 wei_tag = with_groups ? jcp.is_depthwise ? Goiw16g : gOIw4i16o4i
                                       : OIw4i16o4i;
             } else {
+                assert(is_2d);
                 wei_tag = with_groups
                         ? jcp.is_depthwise ? Goihw16g : gOIhw4i16o4i
                         : OIhw4i16o4i;
             }
-        } else if (with_groups && jcp.ic_block == 8) {
-            wei_tag = gOIhw2i8o4i;
-        } else
-            wei_tag = gOIhw4o4i;
+        } else if (jcp.ic_block == 8) {
+            assert(with_groups);
+            wei_tag = is_3d ? gOIdhw2i8o4i : is_2d ? gOIhw2i8o4i : gOIw2i8o4i;
+        } else {
+            assert(with_groups && jcp.ic_block == 4);
+            wei_tag = is_3d ? gOIdhw4o4i : is_2d ? gOIhw4o4i : gOIw4o4i;
+        }
 
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
@@ -1224,8 +1233,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     }
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
-    bool args_ok = true && jcp.oc % jcp.oc_block == 0 && jcp.l_pad <= jcp.ur_w
-            && IMPLICATION(!jcp.is_1stconv, jcp.ic % jcp.ic_block == 0);
+    bool args_ok = true && jcp.oc % jcp.oc_block == 0 && jcp.l_pad <= jcp.ur_w;
     if (!args_ok) return status::unimplemented;
 
     int r_pad_no_tail = nstl::max(0,

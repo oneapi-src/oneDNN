@@ -791,7 +791,9 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const int ndims = src_d.ndims();
     const bool is_1d = ndims == 3;
+    const bool is_2d = ndims == 4;
     const bool is_3d = ndims == 5;
+    assert(is_1d || is_2d || is_3d);
 
     if (!(mayiuse(avx2)
                 && one_of(src_d.data_type(), data_type::u8, data_type::s8)
@@ -855,12 +857,14 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             /* For non grouped convolutions, pad channels by 8 if needed */
             jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
             jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
-        } else if (!is_1d && jcp.ngroups != 1 && jcp.ic % jcp.ic_block != 0) {
+        } else if (jcp.ngroups != 1
+                && ((jcp.ic % jcp.ic_block != 0)
+                        || (jcp.oc % jcp.oc_block != 0))) {
             /* For grouped convolutions, DNNL doesn't support padding.
-             * Use Ymm when channels per group is multiple of 8,
-             * Xmm when channels per group is multiple of 4 */
-            jcp.ic_block = jcp.ic % 8 == 0 ? 8 : 4;
-            jcp.oc_block = jcp.ic_block;
+             * When channels per group is not multiple of 8:
+             * - Use Xmm when channels per group is multiple of 4.
+             * - Otherwise return unimplemented */
+            jcp.oc_block = jcp.ic_block = 4;
         }
         if (jcp.ic % jcp.ic_block != 0 || jcp.oc % jcp.oc_block != 0)
             return status::unimplemented;
@@ -892,9 +896,10 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                 wei_tag = with_groups ? jcp.is_depthwise ? Goihw8g : gOIhw2i8o4i
                                       : OIhw2i8o4i;
             }
-        } else
-            wei_tag = gOIhw4o4i;
-
+        } else {
+            assert(with_groups && jcp.ic_block == 4);
+            wei_tag = is_2d ? gOIhw4o4i : gOIw4o4i;
+        }
         memory_desc_t want_wei_md = weights_md;
         memory_desc_init_by_tag(want_wei_md, wei_tag);
 

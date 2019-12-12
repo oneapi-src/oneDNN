@@ -69,7 +69,8 @@
 --dtag=Goihw16g,Goihw8g 512x1x1x3x3
 
 --stag=oidhw,dhwio --dtag=OIdhw4i16o4i --oflag=conv_s8s8  32x32x3x3x3
---stag=goidhw --dtag=gOIdhw4i16o4i --oflag=gconv_s8s8  16x32x32x3x3x3
+--stag=goidhw --dtag=gOIdhw4i16o4i,gOIdhw2i8o4i,gOIdhw4o4i
+--oflag=gconv_s8s8  16x32x32x3x3x3
 
 # f16
 --reset

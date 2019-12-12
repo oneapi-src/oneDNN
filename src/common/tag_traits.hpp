@@ -236,6 +236,7 @@ DECL_TRAITS(aBcdef16b, _B, _16b, 6);
 DECL_TRAITS(aBCdef16b16c, _BC, _16b16c, 6);
 DECL_TRAITS(aBCdef16c16b, _BC, _16c16b, 6);
 DECL_TRAITS(aBCdef4c16b4c, _BC, _4c16b4c, 6);
+DECL_TRAITS(aBCdef2c8b4c, _BC, _2c8b4c, 6);
 DECL_TRAITS(aBCdef8b8c, _BC, _8b8c, 6);
 DECL_TRAITS(aBCdef8c16b2c, _BC, _8c16b2c, 6);
 DECL_TRAITS(aCBdef8b16c2b, _BC, _8b16c2b, 6);

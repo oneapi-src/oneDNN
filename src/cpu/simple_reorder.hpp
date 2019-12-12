@@ -198,7 +198,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                                   format_tag::OIw2i8o4i))
                         || (tag_i == format_tag::goiw
                                 && utils::one_of(tag_o, format_tag::gOIw4i16o4i,
-                                        format_tag::gOIw2i8o4i))
+                                        format_tag::gOIw2i8o4i,
+                                        format_tag::gOIw4o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::hwio, format_tag::oihw)
                                 && utils::one_of(tag_o, format_tag::OIhw4i16o4i,
@@ -213,8 +214,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                         format_tag::gOIhw2i8o4i,
                                         format_tag::gOIhw4i16o4i))
                         || (utils::one_of(tag_i, format_tag::goidhw)
-                                && (utils::one_of(
-                                        tag_o, format_tag::gOIdhw4i16o4i))),
+                                && (utils::one_of(tag_o,
+                                        format_tag::gOIdhw4i16o4i,
+                                        format_tag::gOIdhw2i8o4i,
+                                        format_tag::gOIdhw4o4i))),
                 spec::conv_s8s8>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -248,9 +251,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         static constexpr bool w_groups = !utils::one_of(tag_o, OIw4i16o4i,
                 OIhw4i16o4i, OIdhw4i16o4i, OIw2i8o4i, OIhw2i8o4i);
 
-        constexpr int is_1d = utils::one_of(
-                tag_o, gOIw4i16o4i, OIw4i16o4i, gOIw2i8o4i, OIw2i8o4i);
-        constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i);
+        constexpr int is_1d = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i,
+                gOIw2i8o4i, OIw2i8o4i, gOIw4o4i);
+        constexpr int is_3d = utils::one_of(
+                tag_o, gOIdhw4i16o4i, OIdhw4i16o4i, gOIdhw2i8o4i, gOIdhw4o4i);
         constexpr int blksize = tag_traits<tag_o>::inner_blks == ib::_4b4c
                 ? 4
                 : (tag_traits<tag_o>::inner_blks == ib::_2c8b4c
