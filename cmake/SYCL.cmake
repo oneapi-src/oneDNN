@@ -36,7 +36,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
 # create any conflicts with SYCL headers.
 if(WIN32 AND DNNL_SYCL_DPCPP)
     include_directories(${SYCL_INCLUDE_DIRS})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter ${OpenCL_INCLUDE_DIRS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter \"${OpenCL_INCLUDE_DIRS}\"")
 else()
     include_directories(${SYCL_INCLUDE_DIRS} ${OpenCL_INCLUDE_DIRS})
 endif()
