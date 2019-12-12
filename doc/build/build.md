@@ -80,6 +80,52 @@ cmake --build . --target DOC
 cmake --build . --target INSTALL
 ~~~
 
+### DPC++ Support
+
+DPC++ runtime requires the oneAPI DPC++ Compiler. You can explicitly specify the path
+to the DPC++ installation using `-DDPCPPROOT` CMake option.
+
+C and C++ compilers need to be set to point to oneAPI DPC++ Compilers.
+
+#### Linux
+
+~~~sh
+# Set DPC++ environment variables
+# <..>/setvars.sh
+
+# Set C and C++ compilers
+export CC=<C compiler>
+export CXX=<DPC++ compiler>
+
+mkdir build
+cd build
+cmake -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
+cmake --build .
+~~~
+
+#### Windows
+
+@note
+    Currently, building on Windows has a few limitations:
+    - Only the Clang compiler with GNU-like command-line is supported
+      (`clang.exe` and `clang++.exe`).
+    - Only the Ninja generator is supported.
+    - CMake version must be 3.15 or newer.
+
+~~~bat
+:: Set DPC++ environment variables
+:: <..>\setvars.bat
+
+:: Set C and C++ compilers (must have GNU-like command-line interface)
+set CC=<C compiler>
+set CXX=<DPC++ compiler>
+
+mkdir build
+cd build
+cmake -G Ninja -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
+cmake --build .
+~~~
+
 ## Validate the Build
 
 Run unit tests:
