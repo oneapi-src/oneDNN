@@ -68,7 +68,7 @@ int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
         if (mask & (1 << d)) uniq_scales *= p->reorder.dims[d];
 
     attr_bundle.oscale.resize(uniq_scales, p->attr.oscale.scale);
-    if (uniq_scales > 1) attr_bundle.oscale[uniq_scales - 1] += 1.1f;
+    if (uniq_scales > 1) attr_bundle.oscale[uniq_scales - 1] /= 2.f;
 
     return attr_bundle.generate(mask);
 }
