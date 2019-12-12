@@ -6,8 +6,10 @@
 --cfg=bf16
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
+--tag=ncw,nwc,nCw8c,nCw16c         --batch=pool_1d_all
 --tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_2d_all
 --tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=pool_3d_all
 --alg=MAX,AVG_P
+--tag=ncw,nwc,nCw8c,nCw16c         --batch=pool_ker_in_pad_1d
 --tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_ker_in_pad_2d
 --tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=pool_ker_in_pad_3d
