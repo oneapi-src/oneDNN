@@ -56,7 +56,6 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(
         arg.oh = oh == 0;
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow * jpp.kw;
-        arg.kw_padding = 0;
         arg.ker_area_h = (float)(jpp.kh
                 - nstl::max(0, oh * jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih)
                 - nstl::max(0, jpp.t_pad - oh * jpp.stride_h));
@@ -100,7 +99,6 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(
         arg.kh_padding_shift
                 = i_t_overflow * jpp.kw + d_t_overflow * jpp.kw * jpp.kh;
         arg.kd_padding_shift = (i_t_overflow + i_b_overflow) * jpp.kw;
-        arg.kw_padding = 0;
         arg.ker_area_h = (float)(jpp.kh
                                  - nstl::max(0,
                                          oh * jpp.stride_h - jpp.t_pad + jpp.kh
@@ -157,7 +155,6 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         arg.oh = (oh == 0);
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow * jpp.kw;
-        arg.kw_padding = 0;
         arg.ker_area_h = (float)(jpp.kh
                 - nstl::max(0, oh * jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih)
                 - nstl::max(0, jpp.t_pad - oh * jpp.stride_h));
@@ -214,7 +211,6 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         arg.kh_padding_shift = i_t_overflow * jpp.kw
                 + d_t_overflow * jpp.kw * jpp.kh + kd * jpp.kw * jpp.kh;
         arg.kd_padding_shift = (i_t_overflow + i_b_overflow) * jpp.kw;
-        arg.kw_padding = 0;
         arg.ker_area_h = (float)(jpp.kh
                                  - nstl::max(0,
                                          oh * jpp.stride_h - jpp.t_pad + jpp.kh
