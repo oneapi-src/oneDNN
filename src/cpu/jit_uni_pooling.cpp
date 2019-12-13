@@ -45,6 +45,7 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(
         const int i_b_overflow
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
+        assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
 
         arg.src = (const void *)&src[src_d.blk_off(n, b_c, ih)];
         arg.dst = (const void *)&dst[dst_d.blk_off(n, b_c, oh)];
@@ -144,6 +145,8 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         const int i_b_overflow
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
+        assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
+        assert(pd()->ndims() != 3 || utils::everyone_is(0, ih, oh));
 
         arg.src = &diff_src[diff_src_d.blk_off(n, b_c, ih)];
         arg.dst = &diff_dst[diff_dst_d.blk_off(n, b_c, oh)];

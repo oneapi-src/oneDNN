@@ -64,21 +64,21 @@ status_t jit_uni_pool_kernel<isa>::init_conf(
     if (jpp.c > src_d.padded_dims()[1]) return status::unimplemented;
 
     jpp.id = (ndims == 5) ? src_d.dims()[2] : 1;
-    jpp.ih = src_d.dims()[ndims - 2];
+    jpp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jpp.iw = src_d.dims()[ndims - 1];
     jpp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
-    jpp.oh = dst_d.dims()[ndims - 2];
+    jpp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jpp.ow = dst_d.dims()[ndims - 1];
 
     jpp.stride_d = (ndims == 5) ? pd.strides[0] : 1;
-    jpp.stride_h = pd.strides[ndims - 4];
+    jpp.stride_h = (ndims == 3) ? 1 : pd.strides[ndims - 4];
     jpp.stride_w = pd.strides[ndims - 3];
     jpp.kd = (ndims == 5) ? pd.kernel[0] : 1;
-    jpp.kh = pd.kernel[ndims - 4];
+    jpp.kh = (ndims == 3) ? 1 : pd.kernel[ndims - 4];
     jpp.kw = pd.kernel[ndims - 3];
 
     jpp.f_pad = (ndims == 5) ? pd.padding[0][0] : 0;
-    jpp.t_pad = pd.padding[0][ndims - 4];
+    jpp.t_pad = (ndims == 3) ? 0 : pd.padding[0][ndims - 4];
     jpp.l_pad = pd.padding[0][ndims - 3];
 
     int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1
