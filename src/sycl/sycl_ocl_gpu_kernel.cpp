@@ -26,19 +26,19 @@ namespace impl {
 namespace sycl {
 
 static void set_scalar_arg(
-        cl::sycl::handler &cgh, int index, size_t size, void *value) {
+        cl::sycl::handler &cgh, int index, size_t size, const void *value) {
     switch (size) {
         case sizeof(uint8_t):
-            cgh.set_arg(index, *static_cast<uint8_t *>(value));
+            cgh.set_arg(index, *static_cast<const uint8_t *>(value));
             break;
         case sizeof(uint16_t):
-            cgh.set_arg(index, *static_cast<uint16_t *>(value));
+            cgh.set_arg(index, *static_cast<const uint16_t *>(value));
             break;
         case sizeof(uint32_t):
-            cgh.set_arg(index, *static_cast<uint32_t *>(value));
+            cgh.set_arg(index, *static_cast<const uint32_t *>(value));
             break;
         case sizeof(uint64_t):
-            cgh.set_arg(index, *static_cast<uint64_t *>(value));
+            cgh.set_arg(index, *static_cast<const uint64_t *>(value));
             break;
         default:
             assert(!"Please add another case");
@@ -98,11 +98,14 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                 } else {
                     cgh.set_arg((int)i, nullptr);
                 }
+            } else if (arg.is_local()) {
+                auto acc = cl::sycl::accessor<uint8_t, 1,
+                        cl::sycl::access::mode::read_write,
+                        cl::sycl::access::target::local>(
+                        cl::sycl::range<1>(arg.size()), cgh);
+                cgh.set_arg((int)i, acc);
             } else {
-                // XXX: workaround for bug in the SYCL library:
-                // set_arg() does not work with constant scalars
-                set_scalar_arg(cgh, (int)i, arg.size(),
-                        const_cast<void *>(arg.value()));
+                set_scalar_arg(cgh, (int)i, arg.size(), arg.value());
             }
         }
         if (range.local_range()) {
