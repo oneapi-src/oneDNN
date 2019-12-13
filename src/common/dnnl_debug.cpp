@@ -41,6 +41,12 @@ const char *dnnl_runtime2str(unsigned runtime) {
         case DNNL_RUNTIME_OMP: return "OpenMP";
         case DNNL_RUNTIME_TBB: return "TBB";
         case DNNL_RUNTIME_OCL: return "OpenCL";
+#ifdef DNNL_SYCL_DPCPP
+        case DNNL_RUNTIME_SYCL: return "DPC++";
+#endif
+#ifdef DNNL_SYCL_COMPUTECPP
+        case DNNL_RUNTIME_SYCL: return "SYCL";
+#endif
         default: return "unknown";
     }
 }

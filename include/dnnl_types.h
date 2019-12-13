@@ -1985,10 +1985,10 @@ typedef const struct dnnl_stream *const_dnnl_stream_t;
 /// OpenCL runtime
 #define DNNL_RUNTIME_OCL 256u
 
-// SYCL runtime
+/// SYCL runtime
 #define DNNL_RUNTIME_SYCL 512u
 
-// DPC++ runtime
+/// DPC++ runtime
 #define DNNL_RUNTIME_DPCPP DNNL_RUNTIME_SYCL
 
 /// Structure containing version information as per [Semantic

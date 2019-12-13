@@ -50,6 +50,10 @@
 #include "ocl/verbose.hpp"
 #endif
 
+#if DNNL_WITH_SYCL
+#include "sycl/verbose.hpp"
+#endif
+
 /* DNNL CPU ISA info */
 #define ISA_ANY "Intel 64"
 #define SSE41 "Intel SSE4.1"
@@ -90,6 +94,9 @@ int get_verbose() {
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         ocl::print_verbose_header();
+#endif
+#if DNNL_WITH_SYCL
+        sycl::print_verbose_header();
 #endif
         version_printed = true;
     }
