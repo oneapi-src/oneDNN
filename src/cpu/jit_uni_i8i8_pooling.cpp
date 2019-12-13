@@ -1087,12 +1087,12 @@ status_t jit_uni_i8i8_pooling_fwd_ker_t<isa>::init_conf(
     jpp.t_pad = is_1d ? 0 : pd.padding[0][ndims - 4];
     jpp.l_pad = pd.padding[0][ndims - 3];
 
-    int back_pad = (jpp.od - 1) * jpp.stride_d + jpp.kd - 1
-            - (jpp.id + jpp.f_pad - 1);
-    int bottom_pad = (jpp.oh - 1) * jpp.stride_h + jpp.kh - 1
-            - (jpp.ih + jpp.t_pad - 1);
-    int right_pad = (jpp.ow - 1) * jpp.stride_w + jpp.kw - 1
-            - (jpp.iw + jpp.l_pad - 1);
+    int back_pad = calculate_end_padding(
+            jpp.f_pad, jpp.od, jpp.id, jpp.stride_d, jpp.kd);
+    int bottom_pad = calculate_end_padding(
+            jpp.t_pad, jpp.oh, jpp.ih, jpp.stride_h, jpp.kh);
+    int right_pad = calculate_end_padding(
+            jpp.l_pad, jpp.ow, jpp.iw, jpp.stride_w, jpp.kw);
 
     if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
             || back_pad >= jpp.kd || bottom_pad >= jpp.kh
