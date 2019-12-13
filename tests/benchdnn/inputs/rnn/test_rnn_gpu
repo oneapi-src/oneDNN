@@ -14,8 +14,8 @@
 --prop=FWD_D,BWD_DW
 --alg=VANILLA_LSTM --batch=rnn_small
 
-# f16
---cfg=f16
+# f16,bf16
+--cfg=f16,bf16
 --prop=FWD_D
 --direction=left2right
 
@@ -44,6 +44,13 @@
 
 --prop=FWD_D
 --mb=1
+--batch=test_rnn_large
+--batch=test_lstm_large
+
+# bf16 tests
+--cfg=bf16
+--prop=FWD_D
+--mb=50
 --batch=test_rnn_large
 --batch=test_lstm_large
 
