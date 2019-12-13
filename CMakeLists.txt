@@ -42,6 +42,17 @@ if(POLICY CMP0066)
     cmake_policy(SET CMP0066 NEW)
 endif()
 
+# Use <PackageName>_ROOT env. variable as a prefix
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+
+if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+    message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...")
+endif()
+
 set(PROJECT_NAME "DNNL")
 set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
 set(PROJECT_VERSION "1.1.3")
