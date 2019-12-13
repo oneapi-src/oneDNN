@@ -49,7 +49,8 @@ endif()
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
-    set(CMAKE_BUILD_TYPE "Release")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...")
 endif()
 
 set(PROJECT_NAME "DNNL")
