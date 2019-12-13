@@ -6,7 +6,7 @@ DNNL supports the following build-time options.
 | Option                      | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
 | DNNL_LIBRARY_TYPE           | **SHARED**, STATIC                  | Defines the resulting library type
-| DNNL_CPU_RUNTIME            | **OMP**, TBB                        | Defines the threading runtime for CPU engines
+| DNNL_CPU_RUNTIME            | **OMP**, TBB, SEQ                   | Defines the threading runtime for CPU engines
 | DNNL_GPU_RUNTIME            | **NONE**, OCL                       | Defines the offload runtime for GPU engines
 | DNNL_BUILD_EXAMPLES         | **ON**, OFF                         | Controls building the examples
 | DNNL_BUILD_TESTS            | **ON**, OFF                         | Controls building the tests
@@ -62,9 +62,9 @@ run-time to, for example, test SSE4.1 code on an AVX2-capable processor. The
 feature. See @ref dev_guide_cpu_dispatcher_control for more information.
 
 ### Runtimes
-CPU engine can use OpenMP or TBB threading runtime. OpenMP threading
-is the default build mode. This behavior is controlled by the `DNNL_CPU_RUNTIME`
-CMake option.
+CPU engine can use OpenMP, TBB or sequential threading runtimes. OpenMP
+threading is the default build mode. This behavior is controlled by the
+`DNNL_CPU_RUNTIME` CMake option.
 
 #### OpenMP
 DNNL uses OpenMP runtime library provided by the compiler.
