@@ -100,7 +100,7 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
     } while (0)
 #else
 #define MAYBE_REPORT_OCL_ERROR(s)
-#define OCL_CHECK_V(x) x
+#define OCL_CHECK_V(x) (void)(x)
 #endif
 
 #define OCL_CHECK(x) \

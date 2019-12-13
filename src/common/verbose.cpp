@@ -46,6 +46,10 @@
 #include "softmax_pd.hpp"
 #include "sum_pd.hpp"
 
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "ocl/verbose.hpp"
+#endif
+
 /* DNNL CPU ISA info */
 #define ISA_ANY "Intel 64"
 #define SSE41 "Intel SSE4.1"
@@ -84,6 +88,9 @@ int get_verbose() {
         printf("dnnl_verbose,info,cpu,isa:%s\n", get_isa_info());
         printf("dnnl_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        ocl::print_verbose_header();
+#endif
         version_printed = true;
     }
 #endif

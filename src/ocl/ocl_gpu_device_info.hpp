@@ -64,9 +64,22 @@ public:
         CHECK(init_extensions());
         CHECK(init_attributes());
 
+        // Device name
+        size_t size_name {0};
+        cl_int err = clGetDeviceInfo(
+                device_, CL_DEVICE_NAME, 0, nullptr, &size_name);
+        OCL_CHECK(err);
+
+        std::string dev_name;
+        dev_name.resize(size_name);
+        err = clGetDeviceInfo(
+                device_, CL_DEVICE_NAME, size_name, &dev_name[0], &size_name);
+        OCL_CHECK(err);
+        set_name(dev_name);
+
         // OpenCL runtime version
         size_t size_driver_version {0};
-        cl_int err = clGetDeviceInfo(
+        err = clGetDeviceInfo(
                 device_, CL_DRIVER_VERSION, 0, nullptr, &size_driver_version);
         OCL_CHECK(err);
         std::string driver_version;
@@ -76,12 +89,14 @@ public:
         OCL_CHECK(err);
 
         driver_version[size_driver_version - 1] = '\0';
-        if (runtime_version_.set_from_string(&driver_version[0])
+        compute::runtime_version_t runtime_version;
+        if (runtime_version.set_from_string(&driver_version[0])
                 != status::success) {
-            runtime_version_.major = 0;
-            runtime_version_.minor = 0;
-            runtime_version_.build = 0;
+            runtime_version.major = 0;
+            runtime_version.minor = 0;
+            runtime_version.build = 0;
         }
+        set_runtime_version(runtime_version);
 
         return status::success;
     }
@@ -95,25 +110,9 @@ public:
     virtual int eu_count() const override { return eu_count_; }
     virtual int hw_threads() const override { return hw_threads_; }
 
-    virtual const compute::runtime_version_t &runtime_version() const override {
-        return runtime_version_;
-    }
-
 private:
     status_t init_arch() {
-        // Device name
-        size_t size_name {0};
-        cl_int err = clGetDeviceInfo(
-                device_, CL_DEVICE_NAME, 0, nullptr, &size_name);
-        OCL_CHECK(err);
-
-        std::string dev_name;
-        dev_name.resize(size_name);
-        err = clGetDeviceInfo(
-                device_, CL_DEVICE_NAME, size_name, &dev_name[0], &size_name);
-        OCL_CHECK(err);
-
-        if (dev_name.find("Gen9") != std::string::npos)
+        if (name().find("Gen9") != std::string::npos)
             gpu_arch_ = gpu_arch_t::gen9;
         else
             gpu_arch_ = gpu_arch_t::unknown;
@@ -177,8 +176,6 @@ private:
     // architecture.
     uint64_t extensions_ = 0;
     gpu_arch_t gpu_arch_ = gpu_arch_t::unknown;
-
-    compute::runtime_version_t runtime_version_;
 };
 
 } // namespace ocl
