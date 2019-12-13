@@ -25,6 +25,8 @@
 
 #include "cpu_matmul_pd.hpp"
 
+#include "gemm_based_common.hpp"
+
 #include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
 
@@ -41,31 +43,18 @@ struct gemm_bf16_matmul_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("gemm:any", gemm_bf16_matmul_t);
 
         status_t init();
-
-        // indicates if an auxiliary array for intermediate computations is not
-        // required
-        bool dst_is_acc_;
-
-        // indicates if output scales from attributes are applied
-        // by gemm (alpha parameter) or post-op kernel (pp_kernel_)
-        bool gemm_applies_output_scales_ = false;
-
-        // sum post-op scaling factor that is fused into gemm
-        float gemm_beta_ = 0.f;
-
-        // indicates if a special post-op kernel should be invoked after gemm
-        bool has_postops_in_matmul_ = false;
-
-        primitive_attr_t pp_attr_; // an attribute for pp_kernel_
+        const gemm_based::params_t &params() const { return params_; }
 
     private:
         status_t check_and_configure_attributes();
+        gemm_based::params_t params_;
     };
 
     gemm_bf16_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
-        if (pd()->has_postops_in_matmul_)
+        if (pd()->params().has_pp_kernel_)
             pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(),
-                    &pd()->pp_attr_, pd()->desc()->bias_desc.data_type, false));
+                    &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
+                    false));
     }
 
     static constexpr data_type_t src_type = data_type::bf16;

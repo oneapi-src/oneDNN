@@ -108,6 +108,15 @@ struct matmul_pd_t : public primitive_desc_t {
     dim_t N() const { return dst_md_.dims[batched() + 1]; }
     dim_t K() const { return src_md_.dims[batched() + 1]; }
 
+    bool is_bias_1xN() const {
+        if (!with_bias()) return false;
+
+        const auto &bia_md = *weights_md(1);
+        return bia_md.dims[0] == 1
+                && IMPLICATION(batched(), bia_md.dims[1] == 1)
+                && bia_md.dims[batched() + 1] == dst_md()->dims[batched() + 1];
+    }
+
 protected:
     matmul_desc_t desc_;
 

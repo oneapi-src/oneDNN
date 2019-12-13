@@ -39,15 +39,9 @@ using namespace data_type;
 template <impl::data_type_t dst_type>
 status_t gemm_bf16_matmul_t<dst_type>::pd_t::init() {
     auto check_bias = [&]() -> bool {
-        if (!with_bias()) return true;
-
-        const auto &bia_md = *weights_md(1);
-        bool ok = utils::one_of(bia_md.data_type, f32, bf16)
-                && bia_md.dims[0] == 1
-                && IMPLICATION(batched(), bia_md.dims[1] == 1)
-                && bia_md.dims[batched() + 1] == dst_md()->dims[batched() + 1];
-
-        return ok;
+        return !with_bias()
+                || (utils::one_of(weights_md(1)->data_type, f32, bf16)
+                        && is_bias_1xN());
     };
 
     auto can_use_gemm = [&]() -> bool { return mayiuse(avx512_core); };
@@ -63,19 +57,14 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init() {
     if (!ok) return status::unimplemented;
 
     // set state
-    dst_is_acc_ = dst_type == data_type::f32;
+    params_.dst_is_acc_ = dst_type == data_type::f32;
 
     status_t status = check_and_configure_attributes();
     if (status != status::success) return status;
 
     if (!set_default_formats()) return status::unimplemented;
 
-    if (!dst_is_acc_
-            && !utils::one_of(DNNL_RUNTIME_DIM_VAL, batch(), M(), N())) {
-        auto scratchpad = scratchpad_registry().registrar();
-        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
-                sizeof(acc_data_t) * batch() * M() * N());
-    }
+    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t));
 
     return status::success;
 }
@@ -92,7 +81,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
         using namespace primitive_kind;
         const auto &p = attr()->post_ops_;
         auto check_sum = [&](int idx) -> bool {
-            return p.contain(sum, idx) && gemm_applies_output_scales_;
+            return p.contain(sum, idx) && params_.gemm_applies_output_scales_;
         };
         switch (p.len_) {
             case 0: return true;
@@ -106,31 +95,32 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
     if (!check_attr_oscale()) return status::unimplemented;
 
     // set state
-    pp_attr_ = *attr();
-    gemm_applies_output_scales_
+    params_.pp_attr_ = *attr();
+    params_.gemm_applies_output_scales_
             = attr()->output_scales_.mask_ == 0 && !with_bias();
-    if (gemm_applies_output_scales_) pp_attr_.output_scales_.set(1.f);
+    if (params_.gemm_applies_output_scales_)
+        params_.pp_attr_.output_scales_.set(1.f);
 
     // check post-ops
     if (check_attr_post_ops()) {
-        auto &p = pp_attr_.post_ops_;
+        auto &po = params_.pp_attr_.post_ops_;
         const int sum_idx = 0;
-        bool with_sum = p.len_ > 0 && p.contain(primitive_kind::sum, sum_idx);
-        if (with_sum && dst_is_acc_) {
+        bool with_sum = po.len_ > 0 && po.contain(primitive_kind::sum, sum_idx);
+        if (with_sum && params_.dst_is_acc_) {
             // set state
-            gemm_beta_ = p.entry_[sum_idx].sum.scale;
+            params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
             // drop sum from pp_attributes, as it will be applied by gemm
-            for (int i = 0; i < p.len_ - 1; ++i)
-                p.entry_[i] = p.entry_[i + 1];
-            p.len_ -= 1;
+            for (int i = 0; i < po.len_ - 1; ++i)
+                po.entry_[i] = po.entry_[i + 1];
+            po.len_ -= 1;
         }
     } else {
         return status::unimplemented;
     }
 
     // set state
-    has_postops_in_matmul_
-            = !dst_is_acc_ || with_bias() || !pp_attr_.has_default_values();
+    params_.has_pp_kernel_ = !params_.dst_is_acc_ || with_bias()
+            || !params_.pp_attr_.has_default_values();
 
     return status::success;
 }
@@ -145,7 +135,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
 
     DEFINE_SCALES_BUFFER(scales);
 
-    acc_data_t *acc = pd()->dst_is_acc_
+    const gemm_based::params_t &params = pd()->params();
+
+    acc_data_t *acc = params.dst_is_acc_
             ? (acc_data_t *)dst
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     memory_tracking::names::key_matmul_dst_in_acc_dt);
@@ -192,8 +184,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
         const int ldc = (int)dst_bd.strides[batched + 0];
 
-        const float alpha = pd()->gemm_applies_output_scales_ ? scales[0] : 1.f;
-        const float beta = pd()->gemm_beta_;
+        const float alpha = params.get_gemm_alpha(scales);
+        const float beta = params.gemm_beta_;
 
         status_t status = gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32,
                 &K_s32, &alpha, weights, &ldb, src, &lda, &beta, acc, &ldc);
@@ -203,11 +195,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         }
     }
 
-    if (pd()->has_postops_in_matmul_) {
+    if (params.has_pp_kernel_) {
         const bool force_sequential = pp_kernel_->sequential_kernel();
-        const float *pp_scales = pd()->gemm_applies_output_scales_
-                ? pd()->pp_attr_.output_scales_.scales_
-                : scales;
+        const float *pp_scales = params.get_post_processing_scales(scales);
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);

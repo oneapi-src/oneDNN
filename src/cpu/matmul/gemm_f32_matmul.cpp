@@ -38,27 +38,21 @@ using namespace data_type;
 
 status_t gemm_f32_matmul_t::pd_t::init() {
     auto check_bias = [&]() -> bool {
-        if (!with_bias()) return true;
-
-        const auto &bia_md = *weights_md(1);
-        bool ok = bia_md.data_type == f32 && bia_md.dims[0] == 1
-                && IMPLICATION(batched(), bia_md.dims[1] == 1)
-                && bia_md.dims[batched() + 1] == dst_md()->dims[batched() + 1];
-
-        return ok;
+        return !with_bias()
+                || (weights_md(1)->data_type == f32 && is_bias_1xN());
     };
-
-    auto can_use_gemm = [&]() -> bool { return mayiuse(sse41); };
 
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && can_use_gemm() && batch() == 1
-            && check_bias()
+            && dst_md()->data_type == dst_type && batch() == 1 && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);
     if (!ok) return status::unimplemented;
+
+    // set state
+    params_.dst_is_acc_ = true;
 
     status_t status = check_and_configure_attributes();
     if (status != status::success) return status;
@@ -79,7 +73,7 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
         using namespace primitive_kind;
         const auto &p = attr()->post_ops_;
         auto check_sum = [&](int idx) -> bool {
-            return p.contain(sum, idx) && gemm_applies_output_scales_;
+            return p.contain(sum, idx) && params_.gemm_applies_output_scales_;
         };
         switch (p.len_) {
             case 0: return true;
@@ -93,29 +87,31 @@ status_t gemm_f32_matmul_t::pd_t::check_and_configure_attributes() {
     if (!check_attr_oscale()) return status::unimplemented;
 
     // set state
-    pp_attr_ = *attr();
-    gemm_applies_output_scales_
+    params_.pp_attr_ = *attr();
+    params_.gemm_applies_output_scales_
             = attr()->output_scales_.mask_ == 0 && !with_bias();
-    if (gemm_applies_output_scales_) pp_attr_.output_scales_.set(1.f);
+    if (params_.gemm_applies_output_scales_)
+        params_.pp_attr_.output_scales_.set(1.f);
 
     // check post-ops
     if (check_attr_post_ops()) {
-        auto &p = pp_attr_.post_ops_;
+        auto &po = params_.pp_attr_.post_ops_;
         const int sum_idx = 0;
-        if (p.len_ > 0 && p.contain(primitive_kind::sum, sum_idx)) {
+        if (po.len_ > 0 && po.contain(primitive_kind::sum, sum_idx)) {
             // set state
-            gemm_beta_ = p.entry_[sum_idx].sum.scale;
+            params_.gemm_beta_ = po.entry_[sum_idx].sum.scale;
             // drop sum from pp_attributes, as it will be applied by gemm
-            for (int i = 0; i < p.len_ - 1; ++i)
-                p.entry_[i] = p.entry_[i + 1];
-            p.len_ -= 1;
+            for (int i = 0; i < po.len_ - 1; ++i)
+                po.entry_[i] = po.entry_[i + 1];
+            po.len_ -= 1;
         }
     } else {
         return status::unimplemented;
     }
 
     // set state
-    has_postops_in_matmul_ = with_bias() || !pp_attr_.has_default_values();
+    params_.has_pp_kernel_
+            = with_bias() || !params_.pp_attr_.has_default_values();
 
     return status::success;
 }
@@ -131,6 +127,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+
+    const gemm_based::params_t &params = pd()->params();
 
     const auto &dst_bd = dst_d.blocking_desc();
 
@@ -162,8 +160,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
         const int ldc = (int)dst_bd.strides[batched + 0];
 
-        const float alpha = pd()->gemm_applies_output_scales_ ? scales[0] : 1.f;
-        const float beta = pd()->gemm_beta_;
+        const float alpha = params.get_gemm_alpha(scales);
+        const float beta = params.gemm_beta_;
 
         status_t status = extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32,
                 &alpha, weights, &ldb, src, &lda, &beta, dst, &ldc, nullptr,
@@ -171,11 +169,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
         if (status != status::success) return status;
     }
 
-    if (pd()->has_postops_in_matmul_) {
+    if (params.has_pp_kernel_) {
         const bool force_sequential = pp_kernel_->sequential_kernel();
-        const float *pp_scales = pd()->gemm_applies_output_scales_
-                ? pd()->pp_attr_.output_scales_.scales_
-                : scales;
+        const float *pp_scales = params.get_post_processing_scales(scales);
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);
