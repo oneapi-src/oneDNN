@@ -34,6 +34,17 @@
         str_len -= l; \
     } while (0)
 
+const char *dnnl_runtime2str(unsigned runtime) {
+    switch (runtime) {
+        case DNNL_RUNTIME_NONE: return "none";
+        case DNNL_RUNTIME_SEQ: return "sequential";
+        case DNNL_RUNTIME_OMP: return "OpenMP";
+        case DNNL_RUNTIME_TBB: return "TBB";
+        case DNNL_RUNTIME_OCL: return "OpenCL";
+        default: return "unknown";
+    }
+}
+
 int dnnl_md2fmt_str(
         char *str, size_t str_len, const dnnl_memory_desc_t *mdesc) {
     using namespace dnnl::impl;

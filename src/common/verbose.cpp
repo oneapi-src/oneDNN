@@ -20,6 +20,7 @@
 #endif
 
 #include "dnnl.h"
+#include "dnnl_debug.h"
 #include "dnnl_version.h"
 
 #include "c_types_map.hpp"
@@ -78,7 +79,11 @@ int get_verbose() {
         printf("dnnl_verbose,info,DNNL v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
-        printf("dnnl_verbose,info,Detected ISA is %s\n", get_isa_info());
+        printf("dnnl_verbose,info,cpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->cpu_runtime));
+        printf("dnnl_verbose,info,cpu,isa:%s\n", get_isa_info());
+        printf("dnnl_verbose,info,gpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->gpu_runtime));
         version_printed = true;
     }
 #endif
@@ -970,7 +975,8 @@ dnnl_status_t dnnl_set_verbose(int level) {
 }
 
 const dnnl_version_t *dnnl_version() {
-    static dnnl_version_t ver = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR,
-            DNNL_VERSION_PATCH, DNNL_VERSION_HASH};
+    static dnnl_version_t ver
+            = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR, DNNL_VERSION_PATCH,
+                    DNNL_VERSION_HASH, DNNL_CPU_RUNTIME, DNNL_GPU_RUNTIME};
     return &ver;
 }

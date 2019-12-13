@@ -1949,6 +1949,21 @@ typedef const struct dnnl_stream *const_dnnl_stream_t;
 /// @addtogroup dnnl_api_service
 /// @{
 
+/// No runtime (disabled)
+#define DNNL_RUNTIME_NONE 0u
+
+/// Sequential runtime (CPU only)
+#define DNNL_RUNTIME_SEQ 1u
+
+/// OpenMP runtime (CPU only)
+#define DNNL_RUNTIME_OMP 2u
+
+/// TBB runtime (CPU only)
+#define DNNL_RUNTIME_TBB 4u
+
+/// OpenCL runtime
+#define DNNL_RUNTIME_OCL 256u
+
 /// Structure containing version information as per [Semantic
 /// Versioning](https://semver.org)
 typedef struct {
@@ -1956,6 +1971,8 @@ typedef struct {
     int minor; ///< Minor version
     int patch; ///< Patch version
     const char *hash; ///< Git hash of the sources (may be absent)
+    unsigned cpu_runtime; ///< CPU runtime
+    unsigned gpu_runtime; ///< GPU runtime
 } dnnl_version_t;
 
 /// Disable profiling completely
