@@ -48,7 +48,7 @@ const char *perf_template_csv
         = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%,"
           "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
 const char *perf_template_def
-        = "perf,%engine%,%name%,%desc%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
+        = "perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
           "%0time%,%0Gflops%";
 const char *perf_template = perf_template_def;
 

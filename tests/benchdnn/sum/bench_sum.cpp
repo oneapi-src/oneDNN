@@ -39,7 +39,7 @@ dims_t dims;
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";
-const char *perf_template_def = "perf,%engine%,%desc%,%-time%,%0time%";
+const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {

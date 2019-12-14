@@ -53,7 +53,7 @@ const char *perf_template_csv
         = "perf,%engine%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
           "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template_def
-        = "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+        = "perf,%engine%,%prb%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {
