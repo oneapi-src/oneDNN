@@ -116,6 +116,7 @@ struct desc_t {
     const char *name;
 };
 int str2desc(desc_t *desc, const char *str);
+std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 enum rnn_data_kind_t {
     input,
@@ -320,6 +321,10 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_cfg(std::ostream &s) const override {
         s << cfg2str(p_->cfg);
+    }
+
+    virtual void dump_desc(std::ostream &s) const override {
+        s << static_cast<const desc_t &>(*p_);
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {

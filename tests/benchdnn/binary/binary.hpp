@@ -87,9 +87,12 @@ struct perf_report_t : public base_perf_report_t {
         s << alg2str(p_->alg);
     }
 
+    virtual void dump_desc(std::ostream &s) const override { s << p_->sdims; }
+
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->sdims;
     }
+
     virtual const std::vector<dnnl_data_type_t> *sdt() const override {
         return &p_->sdt;
     }

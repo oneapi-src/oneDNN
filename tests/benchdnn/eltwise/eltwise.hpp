@@ -69,6 +69,8 @@ struct perf_report_t : public base_perf_report_t {
         s << attr_t::post_ops_t::kind2str(p_->alg);
     }
 
+    virtual void dump_desc(std::ostream &s) const override { s << p_->dims; }
+
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->dims;
     }

@@ -43,6 +43,7 @@ Options supported:
 | %@bw%         | Ops based                                          | Bytes per second (modifier extended)
 | %cfg%         | Conv, IP, Matmul, Pool, RNN                        | Config, describes data types and filling rules
 | %@clocks%     | All                                                | Time in clocks (modifier extended)
+| %desc%        | All                                                | String style problem descriptor
 | %DESC%        | All                                                | CSV-style problem descriptor (mostly dimensions)
 | %ddt%         | Binary, Concat, Reorder, Sum                       | Destination data types (precision)
 | %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind

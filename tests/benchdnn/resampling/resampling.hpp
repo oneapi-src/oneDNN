@@ -76,7 +76,9 @@ struct perf_report_t : public base_perf_report_t {
         s << alg2str(p_->alg);
     }
 
-    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
+    virtual void dump_desc(std::ostream &s) const override {
+        s << static_cast<const desc_t &>(*p_);
+    }
 
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->mb << ','
@@ -88,6 +90,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual const char *name() const override { return p_->name; }
     virtual const dir_t *dir() const override { return &p_->dir; }
+    virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
     virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
 
 private:
