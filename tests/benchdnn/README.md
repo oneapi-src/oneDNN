@@ -91,6 +91,7 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 | od, oh, ow    | Output depth, height and width
 | kd, kh, kw    | Kernel (filter, weights) depth, height and width
 | sd, sh, sw    | Convolution stride over depth, height and width
+| dd, dh, dw    | Convolution dilation by depth, height and width
 | pd, ph, pw    | Convolution front, top and left padding
 | mb            | Minibatch (amount of images processed at once)
 | g             | Groups (a way to reduce the amount of computations, see Alexnet topology)

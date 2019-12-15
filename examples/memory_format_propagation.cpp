@@ -147,7 +147,7 @@ void memory_format_propagation_tutorial(engine::kind engine_kind) {
     /// Next, we pass the memory descriptors to primitive descriptors
     /// constructors.
     ///
-    // @snippet memory_format_propagation.cpp Create convolution and pooling primitive descriptors
+    /// @snippet memory_format_propagation.cpp Create convolution and pooling primitive descriptors
     // [Create convolution and pooling primitive descriptors]
     auto conv_pd = convolution_forward::primitive_desc(
             {prop_kind::forward_inference, algorithm::convolution_auto,

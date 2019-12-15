@@ -22,7 +22,7 @@ where *conv-knobs* are:
             Winograd-based convolution. `AUTO` will pick one of `DIRECT` or
             `WINO` automatically, library-based decision.
  - `--attr="attr_str"` -- primitive attributes. The default is `""` (no
-            attributes). Refer to knobs_attr.md for details.
+            attributes). Refer to [attributes](knobs_attr.md) for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.

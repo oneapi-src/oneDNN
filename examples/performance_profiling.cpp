@@ -74,6 +74,7 @@
 /// user's source data entering DNNL with the NCHW format.
 /// @page performance_profiling_cpp
 /// @snippet performance_profiling.cpp Set dimensions
+/// @note Here the library allocates memory.
 /// @page performance_profiling_cpp
 /// @snippet performance_profiling.cpp Create memory objects
 /// @page performance_profiling_cpp
@@ -188,7 +189,7 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
     // create convolution primitive
     auto conv = convolution_forward(conv_pd);
     // [Create conv_primitive]
-    // @page performance_profiling_cpp
+    /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Add to stream
     // [Add to stream]
     // execute convolution by adding it to the stream s
@@ -522,7 +523,6 @@ void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
 
     // [Create memory objects]
     // create DNNL memory objects for user's tensors (in nchw and oihw formats)
-    // @note here the library allocates memory
     auto user_src = memory({{BATCH, IC, IH, IW}, memory::data_type::f32,
                                    memory::format_tag::nchw},
             eng);
