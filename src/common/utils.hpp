@@ -32,10 +32,13 @@
 #endif
 
 #define MSAN_ENABLED 0
+#define ATTR_NO_MSAN
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
 #undef MSAN_ENABLED
 #define MSAN_ENABLED 1
+#undef ATTR_NO_MSAN
+#define ATTR_NO_MSAN __attribute__((no_sanitize("memory")))
 #include <sanitizer/msan_interface.h>
 #endif
 #endif

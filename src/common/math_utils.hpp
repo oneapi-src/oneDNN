@@ -33,7 +33,7 @@ namespace impl {
 namespace math {
 
 /** rounds @p f to an integer according to the mxcsr register */
-inline int mxcsr_round(float f) {
+inline int mxcsr_round(float f) ATTR_NO_MSAN {
 #if defined(DNNL_X86_64)
     return _mm_cvtss_si32(_mm_load_ss(&f));
 #else
