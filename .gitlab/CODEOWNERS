@@ -1,17 +1,21 @@
 # Default
-* @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin
+* @dnnl-team/arch
 
 # Documentation
-*.md @fitchbe @ltsai1 @karturov @tprimak @vpirogov
-/doc/ @fitchbe @ltsai1 @karturov @tprimak @vpirogov
+*.md  @dnnl-team/doc @dnnl-team/mgmt
+/doc/ @dnnl-team/doc @dnnl-team/mgmt
 
 # CPU-specific optimizations
-/src/cpu/ @alokbaks @akalinin @akharito @rjoursle @sputta @nshustro @msotoflo @kwiersch
-/src/cpu/rnn/ @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin
-/src/cpu/gemm/ @petercad @lhuot @mmeterel @aaraujom @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin
- 
+/src/cpu/ @dnnl-team/cpu
+
+# CPU RNN
+/src/cpu/rnn/ @dnnl-team/arch
+
+# CPU BLAS
+/src/cpu/gemm/ @dnnl-team/blas @dnnl-team/arch
+
 # GPU-specific optimizations
-/src/ocl/ @antonand @echeresh @pevsikov @shelleyg @skazakov @hsadia @igorsafo
+/src/ocl/ @dnnl-team/gpu
 
 # Tests
-/tests/benchdnn/inputs/ @rsdubtso @emfomenk @mgouicem @dsamoylo @irinasok @dzarukin @alokbaks @akalinin @akharito @rjoursle @sputta @nshustro @msotoflo @kwiersch @antonand @echeresh @pevsikov @shelleyg @skazakov @hsadia @igorsafo
+/tests/benchdnn/inputs/ @dnnl-team/arch @dnnl-team/cpu @dnnl-team/gpu
