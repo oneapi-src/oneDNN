@@ -196,10 +196,12 @@ public:
 #ifdef _WIN32
         // Using stack layout described in MS ABI
         // (https://docs.microsoft.com/en-us/cpp/build/stack-usage?view=vs-2019)
-        // here, the return address and the first 4 parameters are allocated on the stack
+        // here, the return address and the first 4 parameters are allocated
+        // on the stack
         int first_params_and_return_addr_size = 40;
 #else
-        // In System V ABI, only the return address is stacked before the arguments
+        // In System V ABI, only the return address is stacked
+        // before the arguments
         int first_params_and_return_addr_size = 8;
 #endif
         return rsp + saved_regs_size + first_params_and_return_addr_size;
@@ -904,17 +906,20 @@ public:
 
     /**
     * load_bytes is the utility function to facilitate loading of
-    * load_size (0 <= load_size <= 16) many contiguous bytes in the Xmm register 
-    * from the memory referenced by ptr[reg + offset] address.
+    * load_size (0 <= load_size <= 16) many contiguous bytes in the Xmm
+    * register from the memory referenced by ptr[reg + offset] address.
     *
-    * Functionally, invocation of load_bytes is equivalent to the following loop:
+    * Functionally, invocation of load_bytes is equivalent to
+    * the following loop:
     *
     * for (int idx = 0; idx < load_size; ++idx)
     *     vpinsrb(xmm, xmm, ptr[reg + offset + idx], idx);
     *
     * TODO: Implement this routine for every ISA.
-    * TODO: Add an option for unsafe_load wherein one could read outside the provided
-    * memory buffer so as to minimize the total number of read memory instructions.
+    * TODO: Add an option to zero-out unloaded bytes in the Xmm register.
+    * TODO: Add an option for unsafe_load wherein one could read outside the
+    * provided memory buffer so as to minimize the total number of read
+    * memory instructions.
     */
     template <typename Vmm>
     void load_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
@@ -927,73 +932,69 @@ public:
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
-        // Ensure data fits completely inside the Xmm register.
+        // Ensure data fits completely inside the Xmm register
         assert(load_size >= 0 && load_size <= 16);
 
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
+
+        // TODO: Support this routine for every isa
         assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
-        constexpr int WORD_SIZE = sizeof(int16_t);
 
-        // addr_i denotes the memory referenced by ptr[reg + offset + (i bytes)]
-        const auto addr_0 = ptr[reg + offset];
-        const auto addr_2 = ptr[reg + offset + WORD_SIZE];
-        const auto addr_4 = ptr[reg + offset + 2 * WORD_SIZE];
-        const auto addr_6 = ptr[reg + offset + 3 * WORD_SIZE];
-
-        const auto addr_8 = ptr[reg + offset + 4 * WORD_SIZE];
-        const auto addr_10 = ptr[reg + offset + 5 * WORD_SIZE];
-        const auto addr_12 = ptr[reg + offset + 6 * WORD_SIZE];
-        const auto addr_14 = ptr[reg + offset + 7 * WORD_SIZE];
+        // addr(i) denotes the memory pointed by ptr[reg + offset + (i bytes)]
+        const auto addr = [&](int bytes_offset) {
+            return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
+        };
 
         if (load_size == 16)
-            vmovdqu(xmm, addr_0);
+            vmovdqu(xmm, addr(0));
         else if (load_size >= 8)
-            vmovq(xmm, addr_0);
+            vpinsrq(xmm, xmm, addr(0), 0);
 
         switch (load_size) {
             case 0: break;
-            case 1: vpinsrb(xmm, xmm, addr_0, 0); break;
-            case 2: vpinsrw(xmm, xmm, addr_0, 0); break;
+            case 1: vpinsrb(xmm, xmm, addr(0), 0); break;
+            case 2: vpinsrw(xmm, xmm, addr(0), 0); break;
             case 3:
-                vpinsrw(xmm, xmm, addr_0, 0);
-                vpinsrb(xmm, xmm, addr_2, 2);
+                vpinsrw(xmm, xmm, addr(0), 0);
+                vpinsrb(xmm, xmm, addr(2), 2);
                 break;
-            case 4: vpinsrd(xmm, xmm, addr_0, 0); break;
+            case 4: vpinsrd(xmm, xmm, addr(0), 0); break;
             case 5:
-                vpinsrd(xmm, xmm, addr_0, 0);
-                vpinsrb(xmm, xmm, addr_4, 4);
+                vpinsrd(xmm, xmm, addr(0), 0);
+                vpinsrb(xmm, xmm, addr(4), 4);
                 break;
             case 6:
-                vpinsrd(xmm, xmm, addr_0, 0);
-                vpinsrw(xmm, xmm, addr_4, 2);
+                vpinsrd(xmm, xmm, addr(0), 0);
+                vpinsrw(xmm, xmm, addr(4), 2);
                 break;
             case 7:
-                vpinsrd(xmm, xmm, addr_0, 0);
-                vpinsrw(xmm, xmm, addr_4, 2);
-                vpinsrb(xmm, xmm, addr_6, 6);
+                vpinsrd(xmm, xmm, addr(0), 0);
+                vpinsrw(xmm, xmm, addr(4), 2);
+                vpinsrb(xmm, xmm, addr(6), 6);
                 break;
             case 8: break;
-            case 9: vpinsrb(xmm, xmm, addr_8, 8); break;
-            case 10: vpinsrw(xmm, xmm, addr_8, 4); break;
+            case 9: vpinsrb(xmm, xmm, addr(8), 8); break;
+            case 10: vpinsrw(xmm, xmm, addr(8), 4); break;
             case 11:
-                vpinsrw(xmm, xmm, addr_8, 4);
-                vpinsrb(xmm, xmm, addr_10, 10);
+                vpinsrw(xmm, xmm, addr(8), 4);
+                vpinsrb(xmm, xmm, addr(10), 10);
                 break;
-            case 12: vpinsrd(xmm, xmm, addr_8, 2); break;
+            case 12: vpinsrd(xmm, xmm, addr(8), 2); break;
             case 13:
-                vpinsrd(xmm, xmm, addr_8, 2);
-                vpinsrb(xmm, xmm, addr_12, 12);
+                vpinsrd(xmm, xmm, addr(8), 2);
+                vpinsrb(xmm, xmm, addr(12), 12);
                 break;
             case 14:
-                vpinsrd(xmm, xmm, addr_8, 2);
-                vpinsrw(xmm, xmm, addr_12, 6);
+                vpinsrd(xmm, xmm, addr(8), 2);
+                vpinsrw(xmm, xmm, addr(12), 6);
                 break;
             case 15:
-                vpinsrd(xmm, xmm, addr_8, 2);
-                vpinsrw(xmm, xmm, addr_12, 6);
-                vpinsrb(xmm, xmm, addr_14, 14);
+                vpinsrd(xmm, xmm, addr(8), 2);
+                vpinsrw(xmm, xmm, addr(12), 6);
+                vpinsrb(xmm, xmm, addr(14), 14);
                 break;
             case 16: break;
             default: assert(!"improper load size");
@@ -1002,17 +1003,19 @@ public:
 
     /**
     * store_bytes is the utility function to facilitate storing of
-    * store_size (0 <= store_size <= 16) many contiguous bytes in the Xmm register 
-    * to the memory referenced by ptr[reg + offset] address.
+    * store_size (0 <= store_size <= 16) many contiguous bytes in the Xmm
+    * register to the memory referenced by ptr[reg + offset] address.
     *
-    * Functionally, invocation of store_bytes is equivalent to the following loop:
+    * Functionally, invocation of store_bytes is equivalent
+    * to the following loop:
     *
     * for (int idx = 0; idx < store_size; ++idx)
     *     vpextrb(ptr[reg + offset + idx], xmm, idx);
     *
     * TODO: Implement this routine for every ISA.
-    * TODO: Add an option for unsafe_store wherein one could store extra dwords past the provided
-    * memory buffer so as to minimize the total number of write memory instructions.
+    * TODO: Add an option for unsafe_store wherein one could store extra dwords
+    * past the provided memory buffer so as to minimize the total number of
+    * write memory instructions.
     */
     template <typename Vmm>
     void store_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
@@ -1025,72 +1028,69 @@ public:
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
-        // Ensure data fits completely inside the Xmm register.
+        // Ensure data fits completely inside the Xmm register
         assert(store_size >= 0 && store_size <= 16);
 
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
+
+        // TODO: Support this routine for every isa
         assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
         auto xmm = Xbyak::Xmm(vmm.getIdx());
-        constexpr int WORD_SIZE = sizeof(int16_t);
 
-        // addr_i denotes the memory referenced by ptr[reg + offset + (i bytes)]
-        const auto addr_0 = ptr[reg + offset];
-        const auto addr_2 = ptr[reg + offset + WORD_SIZE];
-        const auto addr_4 = ptr[reg + offset + 2 * WORD_SIZE];
-        const auto addr_6 = ptr[reg + offset + 3 * WORD_SIZE];
-        const auto addr_8 = ptr[reg + offset + 4 * WORD_SIZE];
-        const auto addr_10 = ptr[reg + offset + 5 * WORD_SIZE];
-        const auto addr_12 = ptr[reg + offset + 6 * WORD_SIZE];
-        const auto addr_14 = ptr[reg + offset + 7 * WORD_SIZE];
+        // addr(i) denotes the memory pointed by ptr[reg + offset + (i bytes)]
+        const auto addr = [&](int bytes_offset) {
+            return ptr[reg + offset + bytes_offset * sizeof(int8_t)];
+        };
 
         if (store_size == 16)
-            vmovdqu(addr_0, xmm);
+            vmovdqu(addr(0), xmm);
         else if (store_size >= 8)
-            vmovq(addr_0, xmm);
+            vpextrq(addr(0), xmm, 0);
 
         switch (store_size) {
             case 0: break;
-            case 1: vpextrb(addr_0, xmm, 0); break;
-            case 2: vpextrw(addr_0, xmm, 0); break;
+            case 1: vpextrb(addr(0), xmm, 0); break;
+            case 2: vpextrw(addr(0), xmm, 0); break;
             case 3:
-                vpextrw(addr_0, xmm, 0);
-                vpextrb(addr_2, xmm, 2);
+                vpextrw(addr(0), xmm, 0);
+                vpextrb(addr(2), xmm, 2);
                 break;
-            case 4: vpextrd(addr_0, xmm, 0); break;
+            case 4: vpextrd(addr(0), xmm, 0); break;
             case 5:
-                vpextrd(addr_0, xmm, 0);
-                vpextrb(addr_4, xmm, 4);
+                vpextrd(addr(0), xmm, 0);
+                vpextrb(addr(4), xmm, 4);
                 break;
             case 6:
-                vpextrd(addr_0, xmm, 0);
-                vpextrw(addr_4, xmm, 2);
+                vpextrd(addr(0), xmm, 0);
+                vpextrw(addr(4), xmm, 2);
                 break;
             case 7:
-                vpextrd(addr_0, xmm, 0);
-                vpextrw(addr_4, xmm, 2);
-                vpextrb(addr_6, xmm, 6);
+                vpextrd(addr(0), xmm, 0);
+                vpextrw(addr(4), xmm, 2);
+                vpextrb(addr(6), xmm, 6);
                 break;
             case 8: break;
-            case 9: vpextrb(addr_8, xmm, 8); break;
-            case 10: vpextrw(addr_8, xmm, 4); break;
+            case 9: vpextrb(addr(8), xmm, 8); break;
+            case 10: vpextrw(addr(8), xmm, 4); break;
             case 11:
-                vpextrw(addr_8, xmm, 4);
-                vpextrb(addr_10, xmm, 10);
+                vpextrw(addr(8), xmm, 4);
+                vpextrb(addr(10), xmm, 10);
                 break;
-            case 12: vpextrd(addr_8, xmm, 2); break;
+            case 12: vpextrd(addr(8), xmm, 2); break;
             case 13:
-                vpextrd(addr_8, xmm, 2);
-                vpextrb(addr_12, xmm, 12);
+                vpextrd(addr(8), xmm, 2);
+                vpextrb(addr(12), xmm, 12);
                 break;
             case 14:
-                vpextrd(addr_8, xmm, 2);
-                vpextrw(addr_12, xmm, 6);
+                vpextrd(addr(8), xmm, 2);
+                vpextrw(addr(12), xmm, 6);
                 break;
             case 15:
-                vpextrd(addr_8, xmm, 2);
-                vpextrw(addr_12, xmm, 6);
-                vpextrb(addr_14, xmm, 14);
+                vpextrd(addr(8), xmm, 2);
+                vpextrw(addr(12), xmm, 6);
+                vpextrb(addr(14), xmm, 14);
                 break;
             case 16: break;
             default: assert(!"improper store size");
@@ -1098,12 +1098,13 @@ public:
     }
 
     /**
-    * load_bytes_to_dword_extension is the utility function to facilitate loading of
-    * load_size (0 <= load_size <= 16) many contiguous bytes in the Xmm register 
-    * from the memory referenced by ptr[reg + offset] address and then do signed/zero
-    * of those to double words.
+    * load_bytes_to_dword_extension is the utility function to facilitate
+    * loading of load_size (0 <= load_size <= 16) many contiguous bytes in
+    * the Xmm register from the memory referenced by ptr[reg + offset]
+    * address and then do signed/zero extension of those to double words.
     *
-    * Functionally, invocation of load_bytes_to_dword_extension is equivalent to the following:
+    * Functionally, invocation of load_bytes_to_dword_extension is equivalent
+    * to the following:
     *
     * for (int idx = 0; idx < load_size; ++idx)
     *     vpinsrb(xmm, xmm, ptr[reg + offset + idx], idx);
@@ -1123,25 +1124,29 @@ public:
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
         static_assert(
                 is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
-        assert(IMPLICATION(is_xmm, load_size <= 4));
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
+        // Ensure extended double words fit inside Ymm (32 * load_size <= 256)
         assert(load_size >= 0 && load_size <= 8);
+        // For Xmm register, load capacity is halved (32 * load_size <= 128)
+        assert(IMPLICATION(is_xmm, load_size <= 4));
 
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
-        assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
-        const auto xmm = Xbyak::Xmm(vmm.getIdx());
-        const auto ymm = Xbyak::Ymm(vmm.getIdx());
+        // TODO: Support this routine for every isa
+        assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
         // For load_size == 8/4, do load/extension in one go
         if (load_size == 8) {
+            const auto ymm = Xbyak::Ymm(vmm.getIdx());
             if (is_signed)
                 vpmovsxbd(ymm, ptr[reg + offset]);
             else
                 vpmovzxbd(ymm, ptr[reg + offset]);
         } else if (load_size == 4) {
+            const auto xmm = Xbyak::Xmm(vmm.getIdx());
             if (is_signed)
                 vpmovsxbd(xmm, ptr[reg + offset]);
             else
@@ -1156,7 +1161,7 @@ public:
     }
 
     /** store_dwords is a generalized version of vmovups
-     * assembly instruction. The data in memory (referenced via ptr[reg + offset])
+     * assembly instruction. The data in memory (pointed by ptr[reg + offset])
      * is assumed to be contiguous and of store_size many dword are written.
      *
      * Valid values for the store_size variable are:
@@ -1167,8 +1172,11 @@ public:
      * invocation of this routine.
      *
      * TODO: Implement this routine for every ISA.
-     * TODO: Add an option for unsafe_store wherein one could write extra dwords past the provided
-     * memory buffer so as to minimize the total number of write memory instructions.
+     * TODO: Add an option for unsafe_store wherein one could write extra dwords
+     * past the provided memory buffer so as to minimize the total number of
+     * write memory instructions.
+     * TODO: Merge this routine with store_bytes when the latter is generalized
+     * to handle Ymm registers as well.
      */
     template <typename Vmm>
     void store_dwords(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
@@ -1178,57 +1186,60 @@ public:
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
         static_assert(
                 is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
-        assert(IMPLICATION(is_xmm, store_size <= 4));
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
+        // Ensure double words fit inside Ymm (32 * store_size <= 256)
         assert(store_size >= 0 && store_size <= 8);
+        // For Xmm register, store capacity is halved (32 * store_size <= 128)
+        assert(IMPLICATION(is_xmm, store_size <= 4));
 
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
+
+        // TODO: Support this routine for every isa
         assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
         const auto ymm = Xbyak::Ymm(vmm.getIdx());
         const auto xmm = Xbyak::Xmm(vmm.getIdx());
 
-        constexpr int DWORD_SIZE = sizeof(int32_t);
-        // addr_i denotes the memory referenced by ptr[reg + offset + (i dwords)]
-        const auto addr_0 = ptr[reg + offset];
-        const auto addr_2 = ptr[reg + offset + 2 * DWORD_SIZE];
-        const auto addr_4 = ptr[reg + offset + 4 * DWORD_SIZE];
-        const auto addr_6 = ptr[reg + offset + 6 * DWORD_SIZE];
+        // addr(i) denotes the memory pointed by ptr[reg + offset + (i dwords)]
+        const auto addr = [&](int dwords_offset) {
+            return ptr[reg + offset + dwords_offset * sizeof(int32_t)];
+        };
 
         switch (store_size) {
             case 0: break;
-            case 1: vpextrd(addr_0, xmm, 0); break;
-            case 2: vpextrq(addr_0, xmm, 0); break;
+            case 1: vpextrd(addr(0), xmm, 0); break;
+            case 2: vpextrq(addr(0), xmm, 0); break;
             case 3:
-                vpextrq(addr_0, xmm, 0);
-                vpextrd(addr_2, xmm, 2);
+                vpextrq(addr(0), xmm, 0);
+                vpextrd(addr(2), xmm, 2);
                 break;
-            case 4: vmovdqu(addr_0, xmm); break;
+            case 4: vmovdqu(addr(0), xmm); break;
             case 5:
-                vmovdqu(addr_0, xmm);
+                vmovdqu(addr(0), xmm);
                 vextracti128(xmm, ymm, 1);
-                vpextrd(addr_4, xmm, 0);
+                vpextrd(addr(4), xmm, 0);
                 break;
             case 6:
-                vmovdqu(addr_0, xmm);
+                vmovdqu(addr(0), xmm);
                 vextracti128(xmm, ymm, 1);
-                vpextrq(addr_4, xmm, 0);
+                vpextrq(addr(4), xmm, 0);
                 break;
             case 7:
-                vmovdqu(addr_0, xmm);
+                vmovdqu(addr(0), xmm);
                 vextracti128(xmm, ymm, 1);
-                vpextrq(addr_4, xmm, 0);
-                vpextrd(addr_6, xmm, 2);
+                vpextrq(addr(4), xmm, 0);
+                vpextrd(addr(6), xmm, 2);
                 break;
-            case 8: vmovdqu(addr_0, ymm); break;
+            case 8: vmovdqu(addr(0), ymm); break;
             default: assert(!"improper store size");
         }
     }
 
     /** load_dwords is a generalized version of vmovups
-     * assembly instruction. The data in memory (referenced via ptr[reg + offset])
+     * assembly instruction. The data in memory (pointed by ptr[reg + offset])
      * is assumed to be contiguous and of load_size many dword are read.
      *
      * Valid values for the load_size variable are:
@@ -1236,8 +1247,11 @@ public:
      * [0..8] for YMM version of the function.
      *
      * TODO: Implement this routine for every ISA.
-     * TODO: Add an option for unsafe_load wherein one could read outside the provided
-     * memory buffer so as to minimize the total number of read memory instructions.
+     * TODO: Add an option for unsafe_load wherein one could read outside the
+     * provided memory buffer so as to minimize the total number of read
+     * memory instructions.
+     * TODO: Merge this routine with load_bytes when the latter is generalized
+     * to handle Ymm registers as well.
      */
     template <typename Vmm>
     void load_dwords(const Vmm &vmm, const Xbyak::Reg64 &reg, int64_t offset,
@@ -1247,58 +1261,61 @@ public:
         constexpr bool is_ymm = std::is_same<Vmm, Xbyak::Ymm>::value;
         static_assert(
                 is_xmm || is_ymm, "only Xmm or Ymm registers are allowed");
-        assert(IMPLICATION(is_xmm, load_size <= 4));
         MAYBE_UNUSED(is_xmm);
         MAYBE_UNUSED(is_ymm);
 
+        // Ensure double words fit inside Ymm (32 * load_size <= 256)
         assert(load_size >= 0 && load_size <= 8);
+        // For Xmm register, load capacity is halved (32 * load_size <= 128)
+        assert(IMPLICATION(is_xmm, load_size <= 4));
 
+        // Ensure offset is at most 4 bytes to be encoded in the instruction
         assert(offset >= INT_MIN && offset <= INT_MAX);
+
+        // TODO: Support this routine for every isa
         assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
         const auto ymm = Xbyak::Ymm(vmm.getIdx());
         const auto xmm = Xbyak::Xmm(vmm.getIdx());
 
-        constexpr int DWORD_SIZE = sizeof(int32_t);
-        // addr_i denotes the memory referenced by ptr[reg + offset + (i dwords)]
-        const auto addr_0 = ptr[reg + offset];
-        const auto addr_2 = ptr[reg + offset + 2 * DWORD_SIZE];
-        const auto addr_4 = ptr[reg + offset + 4 * DWORD_SIZE];
-        const auto addr_6 = ptr[reg + offset + 6 * DWORD_SIZE];
+        // addr(i) denotes the memory pointed by ptr[reg + offset + (i dwords)]
+        const auto addr = [&](int dwords_offset) {
+            return ptr[reg + offset + dwords_offset * sizeof(int32_t)];
+        };
 
         switch (load_size) {
             case 0: break;
-            case 1: vpinsrd(xmm, xmm, addr_0, 0); break;
-            case 2: vpinsrq(xmm, xmm, addr_0, 0); break;
+            case 1: vpinsrd(xmm, xmm, addr(0), 0); break;
+            case 2: vpinsrq(xmm, xmm, addr(0), 0); break;
             case 3:
-                vpinsrq(xmm, xmm, addr_0, 0);
-                vpinsrd(xmm, xmm, addr_2, 2);
+                vpinsrq(xmm, xmm, addr(0), 0);
+                vpinsrd(xmm, xmm, addr(2), 2);
                 break;
-            case 4: vmovdqu(xmm, addr_0); break;
+            case 4: vmovdqu(xmm, addr(0)); break;
             case 5:
-                vpinsrd(xmm, xmm, addr_4, 0);
+                vpinsrd(xmm, xmm, addr(4), 0);
                 vperm2i128(ymm, ymm, ymm, 1);
-                vinserti128(ymm, ymm, addr_0, 0);
+                vinserti128(ymm, ymm, addr(0), 0);
                 break;
             case 6:
-                vpinsrq(xmm, xmm, addr_4, 0);
+                vpinsrq(xmm, xmm, addr(4), 0);
                 vperm2i128(ymm, ymm, ymm, 1);
-                vinserti128(ymm, ymm, addr_0, 0);
+                vinserti128(ymm, ymm, addr(0), 0);
                 break;
             case 7:
-                vpinsrq(xmm, xmm, addr_4, 0);
-                vpinsrd(xmm, xmm, addr_6, 2);
+                vpinsrq(xmm, xmm, addr(4), 0);
+                vpinsrd(xmm, xmm, addr(6), 2);
                 vperm2i128(ymm, ymm, ymm, 1);
-                vinserti128(ymm, ymm, addr_0, 0);
+                vinserti128(ymm, ymm, addr(0), 0);
                 break;
-            case 8: vmovdqu(ymm, addr_0); break;
+            case 8: vmovdqu(ymm, addr(0)); break;
             default: assert(!"improper load size");
         }
     }
 
     /* A utility function to store data of type type_out from vmm register
-     * into the memory. Moreover store_size many chunks are written to the memory
-     * beginning with ptr[reg + offset] address.
+     * into the memory. Moreover store_size many chunks are written to the
+     * memory beginning with ptr[reg + offset] address.
      *
      * Note: Content of Vmm register is not guaranteed to be preserved after the
      * invocation of this routine.
@@ -1310,7 +1327,6 @@ public:
     void store_data(data_type_t type_out, const Vmm &vmm,
             const Xbyak::Reg64 &reg, int64_t offset, int store_size) {
 
-        assert(offset >= INT_MIN && offset <= INT_MAX);
         assert(mayiuse(avx2) && "routine is not supported for the current isa");
         auto ymm = Xbyak::Ymm(vmm.getIdx());
 
@@ -1344,7 +1360,6 @@ public:
     void load_data(data_type_t type_in, const Vmm &vmm, const Xbyak::Reg64 &reg,
             int64_t offset, int load_size) {
 
-        assert(offset >= INT_MIN && offset <= INT_MAX);
         assert(mayiuse(avx2) && "routine is not supported for the current isa");
 
         switch (type_in) {
