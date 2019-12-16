@@ -1698,6 +1698,8 @@ struct memory : public handle<dnnl_memory_t> {
         abcdef = dnnl_abcdef,
         /// plain 6D tensor
         acbdef = dnnl_acbdef,
+        /// plain 6D tensor
+        defcab = dnnl_defcab,
 
         /// 1D tensor; an alias for #dnnl::memory::format_tag::a
         x = a,
@@ -1767,6 +1769,8 @@ struct memory : public handle<dnnl_memory_t> {
         goidhw = abcdef,
         /// 6D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::abcdef
         giodhw = acbdef,
+        /// 6D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::defcab
+        dhwigo = defcab,
 
         /// 3D RNN data tensor in the format (seq_length, batch, input channels).
         tnc = abc,

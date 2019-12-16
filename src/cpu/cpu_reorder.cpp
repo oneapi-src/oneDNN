@@ -434,6 +434,7 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
     }},
     {{f32, s8, 5}, {
         REG_SR(f32, any, s8, hwigo, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, any, s8, dhwio, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goihw, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, hwigo, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goihw, s8, gOIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
@@ -454,6 +455,7 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
         nullptr,
     }},
     {{f32, s8, 6}, {
+        REG_SR(f32, any, s8, dhwigo, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goidhw, s8, gOIdhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goidhw, s8, gOIdhw4o4i, fmt_order::keep, spec::conv_s8s8),
@@ -486,6 +488,7 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
     }},
     {{s8, s8, 5}, {
         REG_SR(s8, any, s8, hwigo, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, any, s8, dhwio, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goihw, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, hwigo, s8, gOIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goihw, s8, gOIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
@@ -506,6 +509,7 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
         nullptr,
     }},
     {{s8, s8, 6}, {
+        REG_SR(s8, any, s8, dhwigo, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goidhw, s8, gOIdhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goidhw, s8, gOIdhw4o4i, fmt_order::keep, spec::conv_s8s8),
