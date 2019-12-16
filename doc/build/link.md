@@ -7,8 +7,8 @@ and one or several libraries depending on how DNNL was built.
 
 ## Header Files
 
-| File                     | Description
-| :---                     | :---
+| File                   | Description
+| :---                   | :---
 | include/dnnl.h         | C header
 | include/dnnl.hpp       | C++ header
 | include/dnnl_types.h   | Auxiliary C header
@@ -19,24 +19,24 @@ and one or several libraries depending on how DNNL was built.
 
 ### Linux
 
-| File                  | Description
-| :---                  | :---
+| File                | Description
+| :---                | :---
 | lib/libdnnl.so      | DNNL dynamic library
 | lib/libdnnl.a       | DNNL static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ### macOS
 
-| File                     | Description
-| :---                     | :---
+| File                   | Description
+| :---                   | :---
 | lib/libdnnl.dylib      | DNNL dynamic library
 | lib/libdnnl.a          | DNNL static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ### Windows
 
-| File              | Description
-| :---              | :---
-| bin\libdnnl.dll | DNNL dynamic library
-| lib\libdnnl.lib | DNNL import library
+| File         | Description
+| :---         | :---
+| bin\dnnl.dll | DNNL dynamic library
+| lib\dnnl.lib | DNNL import or full static library (the latter if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ## Linking to DNNL
 
