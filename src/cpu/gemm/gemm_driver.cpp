@@ -893,6 +893,7 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
         const dim_t lda, const dim_t ldb, const dim_t ldc) {
     // Constants definition
     static const dim_t BAD_LD_MULT = 256;
+    static const dim_t VERYBAD_LD_MULT = 1024;
     static const dim_t M_TRANSB_PER_THR = 28;
     static const dim_t N_TRANSB_PER_THR = 28;
     static const dim_t K_TRANSB_PER_THR = 1;
@@ -900,20 +901,35 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
     static const dim_t K_NOTRANSB_PER_THR = 1;
     static const double FORCE_NOCOPY_THRESH = 0.00196;
 
-    // Crude threshold to nocopy kernels if copy overhead is significant.
-    if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH) { return true; }
+    bool is_NT_case = transa == no_trans && transb == do_trans;
 
-    // Do not use no copy kernels on "bad" leading dimensions, which are
-    // multiples of 256 if M or N is too small, then skip this leading
-    // dimension check (no-copy is still helpful there).
-    // For LSTM use cases, seems that for N=16 no-copy is still beneficial
-    // with bad leading dimension when K is not too large and A non
-    // transpose and M != 4096
-    if (m >= 32
-            && (n > 16 || (n == 16 && (k >= 6400 || transa == 0 || m == 4096)))
-            && (lda % BAD_LD_MULT == 0 || ldb % BAD_LD_MULT == 0
-                    || ldc % BAD_LD_MULT == 0))
-        return false;
+    bool is_lda_bad = lda % BAD_LD_MULT == 0;
+    bool is_ldb_bad = ldb % BAD_LD_MULT == 0;
+    bool is_ldc_bad = ldc % BAD_LD_MULT == 0;
+    bool is_ld_bad = is_lda_bad || is_ldb_bad || is_ldc_bad;
+
+    bool is_lda_verybad = lda % VERYBAD_LD_MULT == 0;
+
+    // Crude threshold to nocopy kernels if copy overhead is significant.
+    if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH
+            && !(is_lda_verybad && is_NT_case)) {
+        return true;
+    }
+
+    // Copy strategy usually performs better than nocopy on "bad" leading
+    // dimensions.
+    if (is_ld_bad) {
+        bool use_copy_based = false;
+
+        if (m >= 32 && n > 16) use_copy_based = true;
+
+        // Nocopy outperforms copy-based in certain conditions.
+        if (m >= 32 && n == 16
+                && (k >= 6400 || transa == do_trans || m == 4096))
+            use_copy_based = true;
+
+        if (use_copy_based) return false;
+    }
 
     if (m <= 378 && n <= 378 && k >= nthr * 378) return false;
 
