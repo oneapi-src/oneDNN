@@ -196,11 +196,9 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool canonical = s.flags() & std::ios_base::fixed;
-
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
-    const bool print_d = is_3d(&d);
+    const bool print_d = canonical || is_3d(&d);
     const bool half_form = (d.ih == d.iw && d.kh == d.kw && d.oh == d.ow
                                    && d.sh == d.sw && d.ph == d.pw)
             && !print_d;
@@ -232,10 +230,11 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.alg != MAX) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.tag != dnnl_nchw)
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.alg != MAX) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 

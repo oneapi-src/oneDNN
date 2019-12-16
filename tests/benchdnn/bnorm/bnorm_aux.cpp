@@ -135,7 +135,7 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    if (d.mb != 2) s << "mb" << d.mb;
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
 
@@ -143,7 +143,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (d.ndims >= 4) s << "ih" << d.ih;
     if (d.ndims >= 3) s << "iw" << d.iw;
 
-    if (d.eps != 1.f / 16) s << "eps" << d.eps;
+    if (canonical || d.eps != 1.f / 16) s << "eps" << d.eps;
 
     if (d.name) s << "n" << d.name;
 
@@ -153,14 +153,17 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.flags != (flags_t)0) s << "--flags=" << flags2str(p.flags) << " ";
-    if (p.check_alg != ALG_AUTO)
+    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (canonical || p.tag != dnnl_nchw)
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.flags != (flags_t)0)
+        s << "--flags=" << flags2str(p.flags) << " ";
+    if (canonical || p.check_alg != ALG_AUTO)
         s << "--check-alg=" << check_alg2str(p.check_alg) << " ";
-    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
-    if (p.inplace != true) s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (canonical || p.inplace != true)
+        s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << static_cast<const desc_t &>(p);
 

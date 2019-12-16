@@ -585,7 +585,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 }
 
 std::ostream &dump_global_params(std::ostream &s) {
-    if (engine_tgt_kind != dnnl_cpu)
+    if (canonical || engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
 
     s << "--" << driver_name << " ";

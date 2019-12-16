@@ -132,7 +132,7 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    if (d.mb != 2) s << "mb" << d.mb;
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
 
@@ -140,10 +140,10 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (d.ndims >= 4) s << "ih" << d.ih;
     if (d.ndims >= 3) s << "iw" << d.iw;
 
-    if (d.ls != 5) s << "ls" << d.ls;
-    if (d.alpha != 1.f / 8192) s << "alpha" << d.alpha;
-    if (d.beta != 0.75f) s << "beta" << d.beta;
-    if (d.k != 1) s << "k" << d.k;
+    if (canonical || d.ls != 5) s << "ls" << d.ls;
+    if (canonical || d.alpha != 1.f / 8192) s << "alpha" << d.alpha;
+    if (canonical || d.beta != 0.75f) s << "beta" << d.beta;
+    if (canonical || d.k != 1) s << "k" << d.k;
 
     if (d.name) s << "n" << d.name;
 
@@ -153,10 +153,11 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (canonical || p.tag != dnnl_nchw)
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 

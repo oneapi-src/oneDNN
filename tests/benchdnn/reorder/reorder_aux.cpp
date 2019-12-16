@@ -61,11 +61,12 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     s << "--stag=" << fmt_tag2str(p.reorder.tag_in) << " ";
     s << "--dtag=" << fmt_tag2str(p.reorder.tag_out) << " ";
 
-    if (p.alg != ALG_REF) s << "--alg=" << alg2str(p.alg) << " ";
-    if (p.oflag != FLAG_NONE) s << "--oflag=" << flag2str(p.oflag) << " ";
-    if (p.runtime_dim_mask != 0)
+    if (canonical || p.alg != ALG_REF) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.oflag != FLAG_NONE)
+        s << "--oflag=" << flag2str(p.oflag) << " ";
+    if (canonical || p.runtime_dim_mask != 0)
         s << "--runtime-dim-mask=" << p.runtime_dim_mask << " ";
-    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << p.reorder.dims;
 

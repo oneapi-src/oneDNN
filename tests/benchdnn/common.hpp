@@ -95,6 +95,7 @@ enum { CRIT = 1, WARN = 2 };
     } while (0)
 
 extern int verbose;
+extern bool canonical;
 
 #define print(v, fmt, ...) \
     do { \

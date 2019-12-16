@@ -124,7 +124,7 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    if (d.mb != 2) s << "mb" << d.mb;
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
 
@@ -142,15 +142,15 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.stag != dnnl_format_tag_any)
+    if (canonical || p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.stag != dnnl_format_tag_any)
         s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (p.wtag != dnnl_format_tag_any)
+    if (canonical || p.wtag != dnnl_format_tag_any)
         s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (p.dtag != dnnl_format_tag_any)
+    if (canonical || p.dtag != dnnl_format_tag_any)
         s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
-    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
 

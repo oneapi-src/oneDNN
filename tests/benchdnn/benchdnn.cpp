@@ -47,6 +47,7 @@
 #include "sum/sum.hpp"
 
 int verbose {0};
+bool canonical {false};
 bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
 const char *driver_name = "";

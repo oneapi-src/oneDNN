@@ -138,8 +138,6 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool canonical = s.flags() & std::ios_base::fixed;
-
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
@@ -159,10 +157,11 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.alg != nearest) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (canonical || p.tag != dnnl_nchw)
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.alg != nearest) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 

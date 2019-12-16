@@ -201,7 +201,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     s << "--prop=" << prop2str(p.prop) << " ";
     s << "--alg=" << alg2str(p.alg) << " ";
     s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
-    if (p.alg == VANILLA_RNN)
+    if (canonical || p.alg == VANILLA_RNN)
         s << "--activation=" << activation2str(p.activation) << " ";
 
     s << "--direction=" << direction2str(p.direction) << " ";
