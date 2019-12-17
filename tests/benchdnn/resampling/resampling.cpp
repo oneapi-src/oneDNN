@@ -171,6 +171,7 @@ int init_pd(const prb_t *p, dnnl_primitive_desc_t &rpd, res_t *r) {
 
     dnnl_status_t init_status = dnnl_success;
     init_status = dnnl_primitive_desc_create(&rpd, &pd, NULL, engine_tgt, hint);
+    dnnl_primitive_desc_destroy(hint);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
