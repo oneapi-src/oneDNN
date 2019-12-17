@@ -575,6 +575,13 @@ inline std::string to_string(dnnl_engine_kind_t engine_kind) {
 }
 
 // testing all available C++ primitive descriptor constructors
+struct allows_attr_t {
+    bool oscale;
+    bool po_sum;
+    bool po_eltwise;
+    bool zp;
+};
+
 using engine = dnnl::engine;
 // forward
 template <typename op_desc_t, typename pd_t>
@@ -625,6 +632,18 @@ void test_fwd_pd_attr_po_eltwise(
 }
 
 template <typename op_desc_t, typename pd_t>
+void test_fwd_pd_attr_zp(
+        const op_desc_t &op_desc, const engine &eng, bool supports_zero_point) {
+    dnnl::primitive_attr attr_zp;
+    attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
+    pd_t new_pd {};
+    if (supports_zero_point)
+        EXPECT_NO_THROW(new_pd = pd_t(op_desc, attr_zp, eng));
+    else
+        EXPECT_ANY_THROW(new_pd = pd_t(op_desc, attr_zp, eng));
+}
+
+template <typename op_desc_t, typename pd_t>
 void test_fwd_pd_allow_empty(const pd_t &pd) {
     bool allow_empty = true;
     pd_t new_pd {};
@@ -634,8 +653,8 @@ void test_fwd_pd_allow_empty(const pd_t &pd) {
 
 // Note: requires a valid primitive descriptor!
 template <typename op_desc_t, typename pd_t>
-void test_fwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
-        bool supports_oscale, bool supports_po_sum, bool supports_po_eltwise) {
+void test_fwd_pd_constructors(
+        const op_desc_t &op_desc, const pd_t &pd, const allows_attr_t &aa) {
     auto test_pd = pd_t();
     auto eng = pd.get_engine();
     // ctor from C pd, should not throw
@@ -643,12 +662,13 @@ void test_fwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
     // ctor w/ empty attr, should not throw
     test_fwd_pd_attr<op_desc_t, pd_t>(op_desc, eng);
     // ctor w/ attr + output scales, depends on pd support
-    test_fwd_pd_attr_oscale<op_desc_t, pd_t>(op_desc, eng, supports_oscale);
+    test_fwd_pd_attr_oscale<op_desc_t, pd_t>(op_desc, eng, aa.oscale);
     // ctor w/ attr + post op sum, depends on pd support
-    test_fwd_pd_attr_po_sum<op_desc_t, pd_t>(op_desc, eng, supports_po_sum);
+    test_fwd_pd_attr_po_sum<op_desc_t, pd_t>(op_desc, eng, aa.po_sum);
     // ctor w/ attr + post op eltwise, depends on pd support
-    test_fwd_pd_attr_po_eltwise<op_desc_t, pd_t>(
-            op_desc, eng, supports_po_eltwise);
+    test_fwd_pd_attr_po_eltwise<op_desc_t, pd_t>(op_desc, eng, aa.po_eltwise);
+    // ctor w/ attr + zero points, depends on pd support
+    test_fwd_pd_attr_zp<op_desc_t, pd_t>(op_desc, eng, aa.zp);
     // check allow empty, should not throw
     test_fwd_pd_allow_empty<op_desc_t, pd_t>(test_pd);
 }
@@ -703,6 +723,18 @@ void test_bwd_pd_attr_po_eltwise(const op_desc_t &op_desc, const engine &eng,
 }
 
 template <typename op_desc_t, typename pd_t, typename hint_pd_t>
+void test_bwd_pd_attr_zp(const op_desc_t &op_desc, const engine &eng,
+        const hint_pd_t &hint, bool supports_zero_point) {
+    dnnl::primitive_attr attr_zp;
+    attr_zp.set_zero_points(DNNL_ARG_SRC, 0, {1});
+    pd_t new_pd {};
+    if (supports_zero_point)
+        EXPECT_NO_THROW(new_pd = pd_t(op_desc, attr_zp, eng, hint));
+    else
+        EXPECT_ANY_THROW(new_pd = pd_t(op_desc, attr_zp, eng, hint));
+}
+
+template <typename op_desc_t, typename pd_t, typename hint_pd_t>
 void test_bwd_pd_allow_empty(const pd_t &pd, const hint_pd_t &hint) {
     bool allow_empty = true;
     pd_t new_pd {};
@@ -714,8 +746,7 @@ void test_bwd_pd_allow_empty(const pd_t &pd, const hint_pd_t &hint) {
 // Note: requires a valid primitive descriptor!
 template <typename op_desc_t, typename pd_t, typename hint_pd_t>
 void test_bwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
-        const hint_pd_t &hint, bool supports_oscale, bool supports_po_sum,
-        bool supports_po_eltwise) {
+        const hint_pd_t &hint, const allows_attr_t &aa) {
     auto test_pd = pd_t();
     auto hint_pd = hint;
     auto eng = pd.get_engine();
@@ -724,14 +755,14 @@ void test_bwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
     // ctor w/ empty attr, should not throw
     test_bwd_pd_attr<op_desc_t, pd_t>(op_desc, eng, hint_pd);
     // ctor w/ attr + output scales, depends on pd support
-    test_bwd_pd_attr_oscale<op_desc_t, pd_t>(
-            op_desc, eng, hint_pd, supports_oscale);
+    test_bwd_pd_attr_oscale<op_desc_t, pd_t>(op_desc, eng, hint_pd, aa.oscale);
     // ctor w/ attr + post op sum, depends on pd support
-    test_bwd_pd_attr_po_sum<op_desc_t, pd_t>(
-            op_desc, eng, hint_pd, supports_po_sum);
+    test_bwd_pd_attr_po_sum<op_desc_t, pd_t>(op_desc, eng, hint_pd, aa.po_sum);
     // ctor w/ attr + post op eltwise, depends on pd support
     test_bwd_pd_attr_po_eltwise<op_desc_t, pd_t>(
-            op_desc, eng, hint_pd, supports_po_eltwise);
+            op_desc, eng, hint_pd, aa.po_eltwise);
+    // ctor w/ attr + zero points, depends on pd support
+    test_bwd_pd_attr_zp<op_desc_t, pd_t>(op_desc, eng, hint_pd, aa.zp);
     // check allow empty, should not throw
     test_bwd_pd_allow_empty<op_desc_t, pd_t>(test_pd, hint_pd);
 }
