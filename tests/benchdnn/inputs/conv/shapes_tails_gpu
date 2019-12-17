@@ -24,10 +24,9 @@ ic20oc31_ih13oh13kh1ph0_n"tails_conv_1x1:13"
 ic23oc35_ih13oh13kh1ph0_n"tails_conv_1x1:15"
 
 # 3d conv common
-ic64oc33_ih13oh13kh3ph1_id13od11kd3pd0_n"tails_conv_3d:2"
+ic64oc33_id13od11kd3pd0_ih13oh13kh3ph1_iw13ow13kw3pw1_n"tails_conv_3d:2"
 
-ic17oc16_ih13oh12kh3ph0_id13od11kd3pd0_n"tails_conv_3d:3"
-
+ic17oc16_id13od11kd3pd0_ih13oh12kh3ph0_iw13ow12kw3pw0_n"tails_conv_3d:3"
 
 # 1d conv
 ic25oc24_iw13ow12kw3pw0_n"tails_conv_1d:4"

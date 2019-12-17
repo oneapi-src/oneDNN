@@ -53,17 +53,8 @@ struct desc_t {
     bool has_groups;
 
     const char *name;
+    int ndims;
 };
-
-inline bool is_problem_3d(const desc_t *p) {
-    const auto id_p = p->id + p->pd;
-    return id_p > 1 || p->kd > 1 || p->od > 1;
-}
-
-inline bool is_problem_1d(const desc_t *p) {
-    const auto ih_p = p->ih + p->ph;
-    return !is_problem_3d(p) && ih_p == 1 && p->kh == 1 && p->oh == 1;
-}
 
 int str2desc(desc_t *desc, const char *str, bool is_deconv);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);

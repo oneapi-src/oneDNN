@@ -60,8 +60,6 @@ inline int transpose_data_wei(
 
 inline int init_pd(const prb_t *p, dnnl_deconvolution_desc_t &cd,
         dnnl_primitive_desc_t &dpd, res_t *r) {
-    int ndims = is_problem_3d(p) ? 5 : is_problem_1d(p) ? 3 : 4;
-
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
     dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
@@ -75,26 +73,24 @@ inline int init_pd(const prb_t *p, dnnl_deconvolution_desc_t &cd,
     dnnl_dims_t dst_2d_dims = {p->mb, p->oc, p->oh, p->ow};
     dnnl_dims_t dst_3d_dims = {p->mb, p->oc, p->od, p->oh, p->ow};
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, ndims,
-                     is_problem_3d(p)
-                             ? src_3d_dims
-                             : is_problem_1d(p) ? src_1d_dims : src_2d_dims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
+                     p->ndims == 5 ? src_3d_dims
+                                   : p->ndims == 3 ? src_1d_dims : src_2d_dims,
                      p->cfg[SRC].dt, p->stag),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, ndims + p->has_groups,
-                     is_problem_3d(p)
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
+                     p->ndims == 5
                              ? &wei_3d_dims[!p->has_groups]
-                             : is_problem_1d(p) ? &wei_1d_dims[!p->has_groups]
-                                                : &wei_2d_dims[!p->has_groups],
+                             : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
+                                             : &wei_2d_dims[!p->has_groups],
                      p->cfg[WEI].dt, p->wtag),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, ndims,
-                     is_problem_3d(p)
-                             ? dst_3d_dims
-                             : is_problem_1d(p) ? dst_1d_dims : dst_2d_dims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
+                     p->ndims == 5 ? dst_3d_dims
+                                   : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
                      p->cfg[DST].dt, p->dtag),
             WARN);
 
@@ -111,10 +107,10 @@ inline int init_pd(const prb_t *p, dnnl_deconvolution_desc_t &cd,
             bph(p->oh, p->ih, p->kh, p->sh, p->ph, p->dh),
             bph(p->ow, p->iw, p->kw, p->sw, p->pw, p->dw)};
 
-    dnnl_dim_t *strides = strides_nd + (5 - ndims);
-    dnnl_dim_t *dilates = dilates_nd + (5 - ndims);
-    dnnl_dim_t *padding = padding_nd + (5 - ndims);
-    dnnl_dim_t *padding_r = padding_r_nd + (5 - ndims);
+    dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
+    dnnl_dim_t *dilates = dilates_nd + (5 - p->ndims);
+    dnnl_dim_t *padding = padding_nd + (5 - p->ndims);
+    dnnl_dim_t *padding_r = padding_r_nd + (5 - p->ndims);
 
     dnnl_alg_kind_t alg = dnnl_deconvolution_direct;
     if (p->alg == WINO) alg = dnnl_deconvolution_winograd;
