@@ -41,7 +41,7 @@ struct desc_t {
     int64_t id, ih, iw;
     int64_t od, oh, ow;
     const char *name;
-    int64_t ndims;
+    int ndims;
 };
 
 int str2desc(desc_t *desc, const char *str);

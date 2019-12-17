@@ -42,7 +42,7 @@ struct desc_t {
     int64_t ls;
     float alpha, beta, k;
     const char *name;
-    int64_t ndims;
+    int ndims;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
