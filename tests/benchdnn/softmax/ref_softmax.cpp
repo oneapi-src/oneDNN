@@ -78,21 +78,25 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
     dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
                 float part_deriv_sum = 0.;
+                int64_t ou_in_offset = ou * axis_size * inner_size + in;
 
                 for (int64_t as = 0; as < axis_size; ++as) {
-                    int64_t idx = ou * axis_size * inner_size + as * inner_size
-                            + in;
-                    part_deriv_sum += dst_ptr[idx] * d_dst_ptr[idx];
+                    int64_t idx = ou_in_offset + as * inner_size;
+                    if (p->alg == SOFTMAX) {
+                        part_deriv_sum += d_dst_ptr[idx] * dst_ptr[idx];
+                    } else if (p->alg == LOGSOFTMAX) {
+                        part_deriv_sum += d_dst_ptr[idx];
+                    }
                 }
 
                 for (int64_t as = 0; as < axis_size; ++as) {
-                    int64_t idx = ou * axis_size * inner_size + as * inner_size
-                            + in;
+                    int64_t idx = ou_in_offset + as * inner_size;
                     if (p->alg == SOFTMAX) {
                         d_src_ptr[idx] = dst_ptr[idx]
                                 * (d_dst_ptr[idx] - part_deriv_sum);
                     } else if (p->alg == LOGSOFTMAX) {
-                        d_src_ptr[idx] = d_dst_ptr[idx] - part_deriv_sum;
+                        d_src_ptr[idx] = d_dst_ptr[idx]
+                                - expf(dst_ptr[idx]) * part_deriv_sum;
                     }
                 }
             });

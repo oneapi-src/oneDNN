@@ -153,14 +153,19 @@ __kernel void ref_softmax_bwd_generic(__global DATA_T *dst,
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
         DEF_ACC_DATA_T g_temp = TO_DEF_ACC_DATA_T(diff_dst[idx]);
+#if LOGSOFTMAX
+        sbr += g_temp;
+#else
         DEF_ACC_DATA_T y_temp = TO_DEF_ACC_DATA_T(dst[idx]);
         sbr += g_temp * y_temp;
+#endif
     }
 
     for (int i = 0; i < SOFTMAX_AXIS; ++i) {
         size_t idx = DATA_OFF(dim[0], dim[1], dim[2], dim[3], dim[4], i);
 #if LOGSOFTMAX
-        diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(diff_dst[idx]) - sbr);
+        diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(diff_dst[idx])
+                - exp(TO_DEF_ACC_DATA_T(dst[idx])) * sbr);
 #else
         DEF_ACC_DATA_T inner_data = TO_DEF_ACC_DATA_T(diff_dst[idx]) - sbr;
         diff_src[idx] = TO_DATA_T(TO_DEF_ACC_DATA_T(dst[idx]) * inner_data);
