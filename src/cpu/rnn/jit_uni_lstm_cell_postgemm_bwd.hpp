@@ -132,7 +132,7 @@ protected:
         {
             Vmm dG0(dG0_idx), dG1(dG1_idx), dG2(dG2_idx), dG3(dG3_idx),
                     tanhCt(tanhCt_idx), dHt(dHt_idx), dCt(dCt_idx),
-                    tmp1(tmp1_idx), G0(G0_idx), G1(G1_idx);
+                    tmp1(tmp1_idx), tmp2(tmp2_idx), G0(G0_idx), G1(G1_idx);
 
             // TODO: if w_gates are bfloat, we have to convert them to float
             // datatypes summary:
@@ -154,7 +154,8 @@ protected:
 
             // compute dCt
             uni_vmovups(tmp1, one_vmm);
-            uni_vfnmadd231ps(tmp1, tanhCt, tanhCt);
+            uni_vmovups(tmp2, tanhCt);
+            uni_vfnmadd231ps(tmp1, tmp2, tmp2);
             uni_vmulps(tmp1, tmp1, dHt);
             to_float<scratch_data_t>(dG3, wg_addr(3), vlen);
             uni_vmulps(tmp1, tmp1, dG3);
@@ -166,28 +167,32 @@ protected:
             to_float<src_data_t>(G0, wg_addr(0), vlen);
             to_float<src_data_t>(dG2, wg_addr(2), vlen);
             uni_vmovups(dG0, G0);
-            uni_vfnmadd231ps(dG0, dG0, dG0);
+            uni_vmovups(tmp1, G0);
+            uni_vfnmadd231ps(dG0, tmp1, tmp1);
             uni_vmulps(dG0, dG0, dCt);
             uni_vmulps(dG0, dG0, dG2);
 
             // compute dG1
             to_float<src_data_t>(G1, wg_addr(1), vlen);
             uni_vmovups(dG1, G1);
-            uni_vfnmadd231ps(dG1, dG1, dG1);
+            uni_vmovups(tmp1, G1);
+            uni_vfnmadd231ps(dG1, tmp1, tmp1);
             uni_vmulps(dG1, dG1, dCt);
             uni_vmovups(tmp1, ptr[addr_c_states_tm1_l_reg]);
             uni_vmulps(dG1, dG1, tmp1);
 
             // compute dG2
             uni_vmovups(tmp1, one_vmm);
-            uni_vfnmadd231ps(tmp1, dG2, dG2);
+            uni_vmovups(tmp2, dG2);
+            uni_vfnmadd231ps(tmp1, tmp2, tmp2);
             uni_vmulps(G0, G0, dCt);
             uni_vmulps(tmp1, tmp1, G0);
             uni_vmovups(dG2, tmp1);
 
             // compute dG3
             to_float<src_data_t>(dG3, wg_addr(3), vlen);
-            uni_vfnmadd231ps(dG3, dG3, dG3);
+            uni_vmovups(tmp1, dG3);
+            uni_vfnmadd231ps(dG3, tmp1, tmp1);
             uni_vmulps(dG3, dG3, dHt);
             uni_vmulps(dG3, dG3, tanhCt);
 
