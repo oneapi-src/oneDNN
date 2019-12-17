@@ -45,6 +45,7 @@ public:
             delete eltwise_injector_;
             delete ref_eltwise_;
         }
+        delete bf16_emu_;
     }
 
     typedef typename prec_traits<acc_type>::type acc_data_t;
