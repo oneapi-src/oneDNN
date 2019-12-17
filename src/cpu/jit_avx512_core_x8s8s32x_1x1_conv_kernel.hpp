@@ -28,9 +28,10 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_x8s8s32x_1x1_conv_fwd_ker_t)
-    jit_avx512_core_x8s8s32x_1x1_conv_kernel(
+template <typename Vmm>
+struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_x8s8s32x_1x1_conv_fwd_ker_t)
+    _jit_avx512_core_x8s8s32x_1x1_conv_kernel(
             const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
@@ -41,22 +42,9 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
         jit_ker = (void (*)(jit_1x1_conv_call_s *))this->getCode();
     }
 
-    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() { delete eltwise_injector_; }
-
-    static bool post_ops_ok(
-            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
-
-    static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, const memory_desc_wrapper &bias_d,
-            const primitive_attr_t &attr, int nthreads, bool reduce_src);
-
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
+    ~_jit_avx512_core_x8s8s32x_1x1_conv_kernel() { delete eltwise_injector_; }
 
     bool maybe_eltwise(int position);
-
     jit_1x1_conv_conf_t jcp;
     const primitive_attr_t &attr_;
     void (*jit_ker)(jit_1x1_conv_call_s *);
@@ -64,43 +52,37 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel : public jit_generator {
 private:
     jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
 
-    using reg64_t = const Xbyak::Reg64;
-    using zmm_t = const Xbyak::Zmm;
-    using mask_t = const Xbyak::Opmask;
+    const Xbyak::Reg64 reg_last_load = r8;
+    const Xbyak::Reg64 reg_bcast_data = r8;
+    const Xbyak::Reg64 reg_ptr_scales = r8;
+    const Xbyak::Reg64 reg_output_data = r9;
+    const Xbyak::Reg64 reg_load_data = r10;
+    const Xbyak::Reg64 reg_ptr_sum_scale = r10;
+    const Xbyak::Reg64 reg_reduce_loop_work = r11;
+    const Xbyak::Reg64 reg_bias_data = r12;
+    const Xbyak::Reg64 reg_comp_data = r12;
+    const Xbyak::Reg64 reg_scratch = r13;
+    const Xbyak::Reg64 aux_reg_bcast_data = r14;
+    const Xbyak::Reg64 aux_reg_load_data = r15;
+    const Xbyak::Reg64 imm_addr64 = r15;
+    const Xbyak::Reg64 reg_reduce_pos_flag = rax;
+    const Xbyak::Reg64 aux1_reg_bcast_data = rbx;
+    const Xbyak::Reg64 reg_bcast_loop_work = rbx;
+    const Xbyak::Reg64 bcast_loop_iter = rdx; // Note: Fix me
+    const Xbyak::Reg64 reg_load_loop_work = rsi;
+    const Xbyak::Reg64 aux_reg_output_data = abi_not_param1;
+    const Xbyak::Reg64 reduce_loop_iter = abi_param1;
 
-    reg64_t reg_bcast_data = r8;
-    reg64_t reg_ptr_scales = r8;
-    reg64_t reg_output_data = r9;
-    reg64_t reg_load_data = r10;
-    reg64_t reg_ptr_sum_scale = r10;
-    reg64_t reg_reduce_loop_work = r11;
-    reg64_t reg_bias_data = r12;
-    reg64_t reg_comp_data = r12;
-    reg64_t reg_scratch = r13;
-    reg64_t aux_reg_bcast_data = r14;
-    reg64_t aux_reg_load_data = r15;
-    reg64_t imm_addr64 = r15;
-    reg64_t reg_reduce_pos_flag = rax;
-    reg64_t aux1_reg_bcast_data = rbx;
-    reg64_t reg_bcast_loop_work = rbx;
-    reg64_t bcast_loop_iter = rdx; // Note: Fix me
-    reg64_t reg_load_loop_work = rsi;
-    reg64_t aux_reg_output_data = abi_not_param1;
-    reg64_t reduce_loop_iter = abi_param1;
+    const Xbyak::Opmask ktail_mask = k6;
+    const Xbyak::Opmask vmask = k7;
 
-    reg64_t reg_last_load = r8;
-    mask_t ktail_mask = k6;
-
-    mask_t vmask = k7;
-
-    Xbyak::Zmm zmm_tmp = Xbyak::Zmm(28);
-    Xbyak::Zmm zmm_one = Xbyak::Zmm(29);
-    Xbyak::Zmm zmm_zero = Xbyak::Zmm(30);
-    Xbyak::Zmm zmm_bcast = Xbyak::Zmm(31);
-    Xbyak::Zmm zmm_shift = Xbyak::Zmm(30);
-
-    Xbyak::Zmm zmm_bias_alpha = Xbyak::Zmm(31);
-    Xbyak::Xmm xmm_bias_alpha = Xbyak::Xmm(31);
+    const Vmm vmm_tmp = Vmm(28);
+    const Vmm vmm_one = Vmm(29);
+    const Vmm vmm_zero = Vmm(30);
+    const Vmm vmm_shift = Vmm(30);
+    const Vmm vmm_bcast = Vmm(31);
+    const Vmm vmm_bias_alpha = Vmm(31);
+    const Xbyak::Xmm xmm_bias_alpha = Xbyak::Xmm(31);
 
     int bcast_loop_work_off = 0;
     int reg_bias_data_off = 8;
@@ -114,8 +96,60 @@ private:
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);
 
     void generate();
-    void cvt2ps(data_type_t type_in, zmm_t zmm_in, const Xbyak::Operand &op,
+    void cvt2ps(data_type_t type_in, const Vmm vmm_in, const Xbyak::Operand &op,
             bool mask_flag);
+};
+
+struct jit_avx512_core_x8s8s32x_1x1_conv_kernel {
+    jit_avx512_core_x8s8s32x_1x1_conv_kernel(
+            const jit_1x1_conv_conf_t &ajcp, const primitive_attr_t &attr)
+        : jit_ker(nullptr)
+        , zmm_kernel_(nullptr)
+        , ymm_kernel_(nullptr)
+        , xmm_kernel_(nullptr) {
+        int ch_block = ajcp.ic_block;
+        switch (ch_block) {
+            case 16:
+                zmm_kernel_ = new _jit_avx512_core_x8s8s32x_1x1_conv_kernel<
+                        Xbyak::Zmm>(ajcp, attr);
+                jit_ker = zmm_kernel_->jit_ker;
+                return;
+            case 8:
+                ymm_kernel_ = new _jit_avx512_core_x8s8s32x_1x1_conv_kernel<
+                        Xbyak::Ymm>(ajcp, attr);
+                jit_ker = ymm_kernel_->jit_ker;
+                return;
+            case 4:
+                xmm_kernel_ = new _jit_avx512_core_x8s8s32x_1x1_conv_kernel<
+                        Xbyak::Xmm>(ajcp, attr);
+                jit_ker = xmm_kernel_->jit_ker;
+                return;
+            default: assert(!"invalid channel blocking");
+        }
+    }
+
+    ~jit_avx512_core_x8s8s32x_1x1_conv_kernel() {
+        delete xmm_kernel_;
+        delete ymm_kernel_;
+        delete zmm_kernel_;
+    }
+
+    static bool post_ops_ok(
+            jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
+
+    static status_t init_conf(jit_1x1_conv_conf_t &jcp,
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &weights_md, memory_desc_t &dst_md,
+            memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads,
+            bool reduce_src);
+
+    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
+            const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
+
+    void (*jit_ker)(jit_1x1_conv_call_s *);
+    _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Zmm> *zmm_kernel_;
+    _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Ymm> *ymm_kernel_;
+    _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Xmm> *xmm_kernel_;
 };
 
 } // namespace cpu

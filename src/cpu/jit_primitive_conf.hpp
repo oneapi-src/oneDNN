@@ -416,10 +416,10 @@ struct jit_1x1_conv_conf_t {
 
     int mb;
     int ngroups, ic, oc, oc_without_padding, ic_without_padding;
-    int iw, ih, ow, oh;
-    int l_pad, t_pad;
-    int kh, kw;
-    int stride_h, stride_w;
+    int id, ih, iw, od, oh, ow;
+    int f_pad, t_pad, l_pad;
+    int kd, kh, kw;
+    int stride_d, stride_h, stride_w;
     format_tag_t src_tag, wei_tag, dst_tag; // temporary workaround
     bool with_bias;
     bool with_sum;

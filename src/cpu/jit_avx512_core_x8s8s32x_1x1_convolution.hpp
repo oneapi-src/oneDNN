@@ -62,18 +62,16 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
                             | primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory()
                     && set_default_formats_common(
-                            dat_tag(), format_tag::any, dat_tag())
-                    && set_or_check_wei_format();
-            if (!ok) return status::unimplemented;
+                            dat_tag(), format_tag::any, dat_tag());
 
+            if (!ok) return status::unimplemented;
             const convolution_desc_t *conv_d = desc();
             const memory_desc_t *src_d = src_md();
             rtus_prepare(this, conv_d, src_d, dst_md());
 
             status_t status
                     = jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(jcp_,
-                            *conv_d, *src_d, *weights_md(), *dst_md(),
-                            with_bias() ? *weights_md(1) : types::zero_md(),
+                            *desc(), src_md_, weights_md_, dst_md_, bias_md_,
                             *attr(), dnnl_get_max_threads(), rtus_.reduce_src_);
             if (status != status::success) return status;
 
@@ -90,35 +88,11 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        format_tag_t dat_tag() const { return format_tag::nhwc; }
-
-        bool set_or_check_wei_format() {
-            using namespace format_tag;
-
-            const bool is_src_s8 = src_md_.data_type == data_type::s8;
-            format_tag_t wei_tag = with_groups() ? gOIhw4i16o4i : OIhw4i16o4i;
-
-            memory_desc_t want_wei_md = weights_md_;
-            memory_desc_init_by_tag(want_wei_md, wei_tag);
-            if (is_src_s8) {
-                want_wei_md.extra.flags = 0
-                        | memory_extra_flags::compensation_conv_s8s8
-                        | memory_extra_flags::scale_adjust;
-                want_wei_md.extra.compensation_mask
-                        = (1 << 0) + (with_groups() ? (1 << 1) : 0);
-                want_wei_md.extra.scale_adjust
-                        = mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
-            }
-
-            if (weights_md_.format_kind == format_kind::any) {
-                weights_md_ = want_wei_md;
-                return true;
-            }
-
-            return weights_md_ == want_wei_md;
+        format_tag_t dat_tag() const {
+            return utils::pick(src_md_.ndims - 3, format_tag::nwc,
+                    format_tag::nhwc, format_tag::ndhwc);
         }
     };
-
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
