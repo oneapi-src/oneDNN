@@ -8,7 +8,7 @@
                                                       m10n20k30
 --attr=oscale=common:1.25;post_ops='sum'              m10n20k30
 --attr=oscale=per_oc:1.25;post_ops='relu'             m10n20k30
---attr=post_ops='sum;linear:3:-1'                     m10n1k30
+--attr=post_ops='sum:2;linear:3:-1'                   m10n1k30
 
 
 # test any

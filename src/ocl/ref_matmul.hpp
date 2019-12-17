@@ -121,6 +121,12 @@ struct ref_matmul_t : public primitive_impl_t {
                     : 0.0f;
         }
 
+        float sum_scale() const {
+            using namespace primitive_kind;
+            const auto &p = attr()->post_ops_;
+            return p.contain(sum, 0) ? p.entry_[0].sum.scale : 0.f;
+        }
+
         alg_kind_t eltwise_alg_kind() const {
             return with_eltwise(0) || with_eltwise(1)
                     ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.alg

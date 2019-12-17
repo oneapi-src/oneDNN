@@ -88,6 +88,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto sum_scale = pd()->sum_scale();
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
@@ -117,6 +118,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(24, c_stride_n);
     arg_list.set(25, eltwise_alpha);
     arg_list.set(26, eltwise_beta);
+    arg_list.set(27, sum_scale);
 
     size_t gws[3] = {1, (size_t)N, (size_t)MB};
     auto nd_range = compute::nd_range_t(gws);
