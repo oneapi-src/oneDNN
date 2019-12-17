@@ -76,8 +76,8 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
         // test all pd ctors
-        test_fwd_pd_constructors<op_desc_t, pd_t>(
-                pd, supports_oscale, supports_po_sum, supports_po_eltwise);
+        test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, supports_oscale,
+                supports_po_sum, supports_po_eltwise);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
 
         // default primitive ctor
@@ -159,8 +159,9 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, eng, *pd_fwd_hint));
         // test all pd ctors
-        test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(pd, *pd_fwd_hint,
-                supports_oscale, supports_po_sum, supports_po_eltwise);
+        test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(op_desc, pd,
+                *pd_fwd_hint, supports_oscale, supports_po_sum,
+                supports_po_eltwise);
 
         // default primitive ctor
         auto logsoftmax = logsoftmax_backward();
