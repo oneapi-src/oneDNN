@@ -719,6 +719,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                                 bufferB, 0.0f, bufferC + Um, ldc_buf,
                                 a_row_sum_eff, b_col_sum, (c_type *)NULL,
                                 offset_type::none, arg);
+                        msan_unpoison_matrix(bufferC + Um, sizeUM, sizeN,
+                                ldc_buf, sizeof(c_type));
 
                         /* Finish the block adding the necessary alpha, beta
                          * and offsets.

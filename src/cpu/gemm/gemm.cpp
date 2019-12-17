@@ -39,19 +39,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-void msan_unpoison_matrix(void *C, int M, int N, int LDC, size_t typesize) {
-    assert(C != nullptr && M > 0 && N > 0 && LDC >= M && typesize);
-    if (msan_enabled) {
-        size_t col_size = M * typesize;
-        size_t col_stride = LDC * typesize;
-        uint8_t *col = (uint8_t *)C;
-        for (int j = 0; j < N; j++) {
-            msan_unpoison(col, col_size);
-            col += col_stride;
-        }
-    }
-}
-
 dnnl_status_t check_gemm_input(const char *transa, const char *transb,
         const int *M, const int *N, const int *K, const void *A, const int *lda,
         const void *B, const int *ldb, const void *C, const int *ldc,

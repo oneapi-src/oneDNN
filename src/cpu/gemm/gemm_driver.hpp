@@ -25,6 +25,20 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+inline void msan_unpoison_matrix(
+        void *C, int M, int N, int LDC, size_t typesize) {
+    assert(C != nullptr && M > 0 && N > 0 && LDC >= M && typesize);
+    if (msan_enabled) {
+        size_t col_size = M * typesize;
+        size_t col_stride = LDC * typesize;
+        uint8_t *col = (uint8_t *)C;
+        for (int j = 0; j < N; j++) {
+            msan_unpoison(col, col_size);
+            col += col_stride;
+        }
+    }
+}
+
 template <typename a_type, typename b_type, typename c_type>
 dnnl_status_t gemm_driver(const char *transA, const char *transB,
         const char *offsetC, const int *m, const int *n, const int *k,
