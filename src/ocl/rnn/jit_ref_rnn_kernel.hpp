@@ -80,6 +80,7 @@ struct jit_ref_rnn_kernel {
         jrnn.n_layer = rnn.n_layer;
         jrnn.n_dir = rnn.n_dir;
         jrnn.n_iter = rnn.n_iter;
+        jrnn.n_iter_scratch_gates = rnn.n_iter_scratch_gates;
         jrnn.n_gates = rnn.n_gates;
         jrnn.n_bias = rnn.n_bias;
         jrnn.n_states = rnn.n_states;
@@ -103,6 +104,7 @@ struct jit_ref_rnn_kernel {
         jrnn.is_lbr = rnn.is_lbr;
         jrnn.copy_bias = rnn.copy_bias;
         jrnn.is_int8 = rnn.is_int8;
+        jrnn.is_training = rnn.is_training;
 
         jrnn.states_ws_ld = rnn.states_ws_ld;
         jrnn.gates_ws_ld = rnn.gates_ws_ld;
@@ -158,7 +160,8 @@ struct jit_ref_rnn_kernel {
         rnn_utils::set_offsets(rnn, jrnn.ws_gates_offset, jrnn.ws_states_offset,
                 jrnn.ws_c_state_offset, jrnn.ws_diff_states_offset,
                 jrnn.ws_grid_comp_offset, jrnn.ws_cell_comp_offset,
-                jrnn.ws_bias_offset, jrnn.scratchpad_size, jrnn.workspace_size);
+                jrnn.ws_bias_offset, jrnn.scratch_gates_offset,
+                jrnn.scratchpad_size, jrnn.workspace_size);
 
         jrnn.cell_kind = rnn_pd->cell_kind();
         jrnn.activation_kind = rnn_pd->activation_kind();
@@ -174,6 +177,7 @@ struct jit_ref_rnn_kernel {
             const jit_rnn_conf_t &jrnn, const jit_rnn_offsets &jit_off) {
 
         kernel_ctx.define_int("IS_FWD", jrnn.is_fwd);
+        kernel_ctx.define_int("IS_TRAINING", jrnn.is_training);
         kernel_ctx.define_int("WITH_BIAS", jrnn.with_bias);
         kernel_ctx.define_int("WITH_SRC_ITER", jrnn.with_src_iter);
         kernel_ctx.define_int("WITH_SRC_ITER_C", jrnn.with_src_iter_c);
@@ -209,6 +213,8 @@ struct jit_ref_rnn_kernel {
         kernel_ctx.define_int("N_DIR", jrnn.n_dir);
         kernel_ctx.define_int("N_LAYER", jrnn.n_layer);
         kernel_ctx.define_int("N_ITER", jrnn.n_iter);
+        kernel_ctx.define_int(
+                "N_ITER_SCRATCH_GATES", jrnn.n_iter_scratch_gates);
         kernel_ctx.define_int("N_GATES", jrnn.n_gates);
         kernel_ctx.define_int("N_BIAS", jrnn.n_bias);
         kernel_ctx.define_int("N_STATES", jrnn.n_states);
@@ -272,6 +278,8 @@ struct jit_ref_rnn_kernel {
         kernel_ctx.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
         kernel_ctx.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
         kernel_ctx.define_int("WS_BIAS_OFFSET", jrnn.ws_bias_offset);
+        kernel_ctx.define_int(
+                "SCRATCH_GATES_OFFSET", jrnn.scratch_gates_offset);
         kernel_ctx.define_int("STATES_WS_LD", jrnn.states_ws_ld);
         kernel_ctx.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
 

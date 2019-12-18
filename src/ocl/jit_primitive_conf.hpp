@@ -226,6 +226,7 @@ struct jit_rnn_conf_t {
     bool copy_bias;
     bool is_int8;
     bool is_testmode;
+    bool is_training;
     data_type_t src_dt;
     data_type_t wei_dt;
     data_type_t bia_dt;
@@ -238,6 +239,7 @@ struct jit_rnn_conf_t {
     int n_layer;
     int n_dir;
     int n_iter;
+    int n_iter_scratch_gates;
     int n_gates;
     int n_bias;
     int n_states;
@@ -280,6 +282,7 @@ struct jit_rnn_conf_t {
     size_t ws_h_state_offset;
     size_t ws_c_state_offset;
     size_t ws_bias_offset;
+    size_t scratch_gates_offset;
     size_t scratchpad_size;
     size_t workspace_size;
 };

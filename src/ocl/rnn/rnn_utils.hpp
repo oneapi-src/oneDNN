@@ -31,6 +31,7 @@
 #define elemwise_sig(f) \
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
             int wic, int batch, const memory_storage_t &workspace, \
+            const memory_storage_t &scratch_gates, \
             const memory_storage_t &scales, const memory_storage_t &bias, \
             const memory_storage_t &tm_scales) const
 
@@ -41,6 +42,7 @@
             size_t *weights_input, int n_parts_weights_layer, \
             size_t *weights_states, int n_parts_weights_iter, \
             const memory_storage_t &bias, const memory_storage_t &workspace, \
+            const memory_storage_t &scratch_gates, \
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
@@ -54,6 +56,7 @@
             int n_parts_weights_layer, size_t *weights_states, \
             int n_parts_weights_iter, const memory_storage_t &bias, \
             const memory_storage_t &workspace, \
+            const memory_storage_t &scratch_gates, \
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
@@ -144,6 +147,10 @@ struct rnn_conf_t {
     int ws_gates_elsz, ws_states_elsz, ws_c_states_elsz, ws_diff_states_elsz,
             ws_cell_comp_elsz, ws_grid_comp_elsz, ws_bias_elsz;
 
+    size_t scratch_gates_size;
+    int n_iter_scratch_gates;
+    int scratch_gates_elsz;
+
     data_type_t acc_data_type;
     int acc_data_type_elsz;
     data_type_t precise_data_type;
@@ -172,7 +179,8 @@ void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
         size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
-        size_t &scratchpad_size, size_t &workspace_size);
+        size_t &scratch_gates_offset, size_t &scratchpad_size,
+        size_t &workspace_size);
 void get_scratchpad_and_workspace_sizes(
         const rnn_conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
 status_t set_expected_desc(

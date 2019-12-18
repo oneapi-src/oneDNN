@@ -224,7 +224,6 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 
     int precise_elsz = rnn.precise_data_type == data_type::f16 ? sizeof(cl_half)
                                                                : sizeof(float);
-
     rnn.ws_states_size = (size_t)(rnn.n_layer + 1) * rnn.n_dir
             * (rnn.n_iter + 1) * rnn.mb * rnn.states_ws_ld * rnn.ws_states_elsz;
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
@@ -252,6 +251,14 @@ void rnn_utils::set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_bias_elsz = precise_elsz;
     rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic
             * rnn.ws_bias_elsz;
+
+    rnn.scratch_gates_elsz
+            = rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(float);
+    rnn.n_iter_scratch_gates
+            = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
+    rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
+            * rnn.gates_ws_ld * rnn.scratch_gates_elsz;
+    ;
 }
 
 int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
@@ -265,7 +272,8 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
         size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
-        size_t &scratchpad_size, size_t &workspace_size) {
+        size_t &scratch_gates_offset, size_t &scratchpad_size,
+        size_t &workspace_size) {
     const size_t page_size = 4096; // 2097152;
     size_t current_offset;
     // Mandatory workspaces: go to workspace if use_workspace, scratchpad
@@ -302,6 +310,10 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     // otherwise, all goes to scratchpad and continue incrementing offset
     current_offset = rnn.use_workspace ? 0 : current_offset;
 
+    current_offset = utils::rnd_up(current_offset, page_size);
+    scratch_gates_offset = current_offset;
+    current_offset += rnn.scratch_gates_size;
+
     if (rnn.copy_bias) {
         current_offset = utils::rnd_up(current_offset, page_size);
         ws_bias_offset = current_offset;
@@ -314,10 +326,11 @@ void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
             ws_diff_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
-            ws_bias_offset;
+            ws_bias_offset, sratch_gates_offset;
     set_offsets(rnn, ws_gates_offset, ws_states_offset, ws_diff_states_offset,
             ws_c_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
-            ws_bias_offset, scratchpad_size, workspace_size);
+            ws_bias_offset, sratch_gates_offset, scratchpad_size,
+            workspace_size);
 }
 
 status_t rnn_utils::set_good_strides(

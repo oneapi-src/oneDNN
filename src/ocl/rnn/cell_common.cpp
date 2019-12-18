@@ -34,6 +34,11 @@ cell_execution_sig(
     using wei_t = typename prec_traits<weights_type>::type;
     const rnn_conf_t &rnn = this->pd()->rnn_conf_;
 
+    cl_ulong offset_gates = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)
+            ? (cl_ulong)(OFF2(iter, n_iter, 0, rnn.gates_nld * rnn.gates_ws_ld)
+                    * rnn.acc_data_type_elsz)
+            : 0;
+
     if (aprop == prop_kind::forward) {
 
         // offsets for gemm by bytes
@@ -45,26 +50,24 @@ cell_execution_sig(
                 + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
                           batch * rnn.states_ws_ld)
                         * sizeof(src_t));
-        cl_ulong offset_gates = (cl_ulong)(ws_gates_offset_
-                + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                          batch * rnn.gates_ws_ld)
-                        * rnn.acc_data_type_elsz);
 
         if (!rnn.merge_gemm_layer)
             gemm_primitive(ctx, w_input,
                     OFF3(lay, n_layer, dir, n_dir, 0,
                             rnn.weights_layer_nld * rnn.weights_layer_ld)
                             * sizeof(wei_t),
-                    workspace, offset_input, workspace, offset_gates,
-                    gemm_layer);
+                    workspace, offset_input, scratch_gates, offset_gates,
+                    gemm_layer_fwd);
+
         gemm_primitive(ctx, w_state,
                 OFF3(lay, n_layer, dir, n_dir, 0,
                         rnn.weights_iter_nld * rnn.weights_iter_ld)
                         * sizeof(wei_t),
-                workspace, offset_states, workspace, offset_gates, gemm_iter);
+                workspace, offset_states, scratch_gates, offset_gates,
+                gemm_iter_fwd);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
-                scales, bias, tm_scales);
+                scratch_gates, scales, bias, tm_scales);
 
     } else { // backward
 
@@ -74,44 +77,31 @@ cell_execution_sig(
                 weights_states, n_layer, n_dir, n_parts_weights_iter);
 
         (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
-                scales, bias, tm_scales);
+                scratch_gates, scales, bias, tm_scales);
 
         cl_ulong offset_w_state
                 = (cl_ulong)(off_weights_st(lay, dir, 0)) * sizeof(wei_t);
         cl_ulong offset_w_input
                 = (cl_ulong)(off_weights_i(lay, dir, 0)) * sizeof(wei_t);
 
-        gemm_primitive(ctx, w_state, offset_w_state, workspace,
-                ws_gates_offset_
-                        + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                  batch * rnn.gates_ws_ld)
-                                * rnn.acc_data_type_elsz,
-                workspace,
+        gemm_primitive(ctx, w_state, offset_w_state, scratch_gates,
+                offset_gates, workspace,
                 ws_diff_states_offset_
                         + OFF5(lay, n_layer + 1, dir, n_dir, 0, n_states + 1,
                                   iter, n_iter + 1, 0,
                                   rnn.states_nld * rnn.states_ws_ld)
                                 * sizeof(src_t),
-                gemm_iter);
+                gemm_iter_bwd);
         if (!rnn.merge_gemm_layer) {
-            gemm_primitive(ctx, w_input, offset_w_input, workspace,
-                    ws_gates_offset_
-                            + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                      batch * rnn.gates_ws_ld)
-                                    * rnn.acc_data_type_elsz,
-                    workspace,
+            gemm_primitive(ctx, w_input, offset_w_input, scratch_gates,
+                    offset_gates, workspace,
                     ws_diff_states_offset_
                             + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
                                       n_states + 1, iter, n_iter + 1, 0,
                                       rnn.states_nld * rnn.states_ws_ld)
                                     * sizeof(src_t),
-                    gemm_layer);
-            gemm_primitive(ctx, workspace,
-                    ws_gates_offset_
-                            + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                      batch * rnn.gates_ws_ld)
-                                    * rnn.acc_data_type_elsz,
-                    workspace,
+                    gemm_layer_bwd);
+            gemm_primitive(ctx, scratch_gates, offset_gates, workspace,
                     ws_states_offset_
                             + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1,
                                       n_iter + 1, 0, batch * rnn.states_ws_ld)
@@ -124,12 +114,7 @@ cell_execution_sig(
                     gemm_diff_wei_layer);
         }
         if (!rnn.merge_gemm_iter)
-            gemm_primitive(ctx, workspace,
-                    ws_gates_offset_
-                            + OFF4(lay, n_layer, dir, n_dir, iter, n_iter, 0,
-                                      batch * rnn.gates_ws_ld)
-                                    * rnn.acc_data_type_elsz,
-                    workspace,
+            gemm_primitive(ctx, scratch_gates, offset_gates, workspace,
                     ws_states_offset_
                             + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter,
                                       n_iter + 1, 0, batch * rnn.states_ws_ld)
@@ -141,8 +126,8 @@ cell_execution_sig(
                             * sizeof(wei_t),
                     gemm_diff_wei_iter);
 
-        gates_reduction(
-                ctx, dir, lay, iter, n_gates, dic, batch, workspace, diff_bias);
+        gates_reduction(ctx, dir, lay, iter, n_gates, dic, batch, scratch_gates,
+                diff_bias);
     }
 }
 template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);

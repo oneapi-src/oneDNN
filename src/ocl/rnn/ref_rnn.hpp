@@ -46,8 +46,10 @@ namespace impl {
 namespace ocl {
 
 enum gemm_kind_t {
-    gemm_iter,
-    gemm_layer,
+    gemm_iter_fwd,
+    gemm_layer_fwd,
+    gemm_iter_bwd,
+    gemm_layer_bwd,
     gemm_diff_wei_iter,
     gemm_diff_wei_layer
 };
@@ -276,14 +278,14 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 case prop_kind::forward:
                     gemm_ok = true
                             && utils::everyone_is(status::success,
-                                    create_gemm_pd(&gemm_layer_pd_,
+                                    create_gemm_pd(&gemm_layer_fwd_pd_,
                                             n_gates * dic, layer_merged_size,
                                             slc, rnn_conf_.weights_layer_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.gates_ws_ld, weights_type,
                                             src_type, rnn_conf_.acc_data_type,
                                             false, 0.0),
-                                    create_gemm_pd(&gemm_iter_pd_,
+                                    create_gemm_pd(&gemm_iter_fwd_pd_,
                                             n_gates * dic, batch, sic,
                                             rnn_conf_.weights_iter_ld,
                                             rnn_conf_.states_ws_ld,
@@ -294,14 +296,14 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 case prop_kind::backward:
                     gemm_ok = true
                             && utils::everyone_is(status::success,
-                                    create_gemm_pd(&gemm_iter_pd_, sic, batch,
-                                            n_gates * dic,
+                                    create_gemm_pd(&gemm_iter_bwd_pd_, sic,
+                                            batch, n_gates * dic,
                                             rnn_conf_.weights_iter_ld,
                                             rnn_conf_.gates_ws_ld,
                                             rnn_conf_.states_ws_ld,
                                             weights_type, src_type, src_type,
                                             false, 0.0f),
-                                    create_gemm_pd(&gemm_layer_pd_, slc,
+                                    create_gemm_pd(&gemm_layer_bwd_pd_, slc,
                                             layer_merged_size, n_gates * dic,
                                             rnn_conf_.weights_layer_ld,
                                             rnn_conf_.gates_ws_ld,
@@ -338,8 +340,10 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         jit_rnn_offsets jit_off_;
         rnn_utils::rnn_conf_t rnn_conf_;
 
-        primitive_desc_t *gemm_iter_pd_ = nullptr;
-        primitive_desc_t *gemm_layer_pd_ = nullptr;
+        primitive_desc_t *gemm_iter_fwd_pd_ = nullptr;
+        primitive_desc_t *gemm_layer_fwd_pd_ = nullptr;
+        primitive_desc_t *gemm_iter_bwd_pd_ = nullptr;
+        primitive_desc_t *gemm_layer_bwd_pd_ = nullptr;
         primitive_desc_t *gemm_diff_wei_layer_pd_ = nullptr;
         primitive_desc_t *gemm_diff_wei_iter_pd_ = nullptr;
 
@@ -348,17 +352,25 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, scratchpad_sz, 4096);
+            scratchpad.book(key_rnn_gates, rnn_conf_.scratch_gates_size, 4096);
         }
 
         void copy_from(const pd_t &other) {
             jrnn_ = other.jrnn_;
             jit_off_ = other.jit_off_;
             rnn_conf_ = other.rnn_conf_;
-            gemm_layer_pd_ = other.gemm_layer_pd_
-                    ? other.gemm_layer_pd_->clone()
+            gemm_layer_fwd_pd_ = other.gemm_layer_fwd_pd_
+                    ? other.gemm_layer_fwd_pd_->clone()
                     : nullptr;
-            gemm_iter_pd_ = other.gemm_iter_pd_ ? other.gemm_iter_pd_->clone()
-                                                : nullptr;
+            gemm_iter_fwd_pd_ = other.gemm_iter_fwd_pd_
+                    ? other.gemm_iter_fwd_pd_->clone()
+                    : nullptr;
+            gemm_layer_bwd_pd_ = other.gemm_layer_bwd_pd_
+                    ? other.gemm_layer_bwd_pd_->clone()
+                    : nullptr;
+            gemm_iter_bwd_pd_ = other.gemm_iter_bwd_pd_
+                    ? other.gemm_iter_bwd_pd_->clone()
+                    : nullptr;
             gemm_diff_wei_layer_pd_ = other.gemm_diff_wei_layer_pd_
                     ? other.gemm_diff_wei_layer_pd_->clone()
                     : nullptr;
@@ -368,8 +380,10 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         }
 
         void clear() {
-            delete gemm_layer_pd_;
-            delete gemm_iter_pd_;
+            delete gemm_layer_fwd_pd_;
+            delete gemm_iter_fwd_pd_;
+            delete gemm_layer_bwd_pd_;
+            delete gemm_iter_bwd_pd_;
             delete gemm_diff_wei_layer_pd_;
             delete gemm_diff_wei_iter_pd_;
         }
@@ -455,18 +469,18 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             case prop_kind::forward:
                 gemm_ok = true
                         && utils::everyone_is(status::success,
-                                pd()->gemm_layer_pd_->create_primitive(
-                                        &gemm_layer_),
-                                pd()->gemm_iter_pd_->create_primitive(
-                                        &gemm_iter_));
+                                pd()->gemm_layer_fwd_pd_->create_primitive(
+                                        &gemm_layer_fwd_),
+                                pd()->gemm_iter_fwd_pd_->create_primitive(
+                                        &gemm_iter_fwd_));
                 break;
             case prop_kind::backward:
                 gemm_ok = true
                         && utils::everyone_is(status::success,
-                                pd()->gemm_iter_pd_->create_primitive(
-                                        &gemm_iter_),
-                                pd()->gemm_layer_pd_->create_primitive(
-                                        &gemm_layer_),
+                                pd()->gemm_iter_bwd_pd_->create_primitive(
+                                        &gemm_iter_bwd_),
+                                pd()->gemm_layer_bwd_pd_->create_primitive(
+                                        &gemm_layer_bwd_),
                                 pd()->gemm_diff_wei_layer_pd_->create_primitive(
                                         &gemm_diff_wei_layer_),
                                 pd()->gemm_diff_wei_iter_pd_->create_primitive(
@@ -533,7 +547,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         rnn_utils::set_offsets(pd()->rnn_conf_, ws_gates_offset_,
                 ws_states_offset_, ws_c_states_offset_, ws_diff_states_offset_,
                 ws_grid_comp_offset_, ws_cell_comp_offset_, ws_bias_offset_,
-                scratchpad_size, workspace_size);
+                scratch_gates_offset_, scratchpad_size, workspace_size);
 
         int max_nparts = (pd()->cell_kind() == alg_kind::vanilla_gru) ? 2 : 1;
         int offset_wei_sz = pd()->L() * pd()->D() * max_nparts;
@@ -549,8 +563,10 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         free(offset_wei_input_);
         free(offset_wei_state_);
 
-        delete gemm_iter_;
-        delete gemm_layer_;
+        delete gemm_iter_fwd_;
+        delete gemm_layer_fwd_;
+        delete gemm_iter_bwd_;
+        delete gemm_layer_bwd_;
         delete gemm_diff_wei_layer_;
         delete gemm_diff_wei_iter_;
     }
@@ -632,8 +648,10 @@ private:
     compute::kernel_t gates_reduction_kernel_;
 
     /* GEMM primitives */
-    primitive_t *gemm_layer_ = nullptr;
-    primitive_t *gemm_iter_ = nullptr;
+    primitive_t *gemm_layer_fwd_ = nullptr;
+    primitive_t *gemm_iter_fwd_ = nullptr;
+    primitive_t *gemm_layer_bwd_ = nullptr;
+    primitive_t *gemm_iter_bwd_ = nullptr;
     primitive_t *gemm_diff_wei_layer_ = nullptr;
     primitive_t *gemm_diff_wei_iter_ = nullptr;
 
@@ -647,6 +665,7 @@ private:
     cl_ulong ws_grid_comp_offset_;
     cl_ulong ws_cell_comp_offset_;
     cl_ulong ws_bias_offset_;
+    cl_ulong scratch_gates_offset_;
 
     size_t *offset_wei_input_;
     size_t *offset_wei_state_;
