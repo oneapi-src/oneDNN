@@ -16,9 +16,9 @@
 
 #include "cpu_engine.hpp"
 
-#include "cpu/jit_uni_binary.hpp"
-#include "cpu/jit_uni_i8i8_binary.hpp"
-#include "cpu/ref_binary.hpp"
+#include "cpu/binary/jit_uni_binary.hpp"
+#include "cpu/binary/jit_uni_i8i8_binary.hpp"
+#include "cpu/binary/ref_binary.hpp"
 
 namespace dnnl {
 namespace impl {
