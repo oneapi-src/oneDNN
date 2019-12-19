@@ -138,16 +138,26 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
+    const bool square_form = (d.ih == d.iw) && (d.oh == d.ow);
+    const bool cubic_form = square_form && (d.id == d.ih) && (d.od == d.oh);
+
+    const bool print_d = d.ndims == 5;
+    const bool print_h
+            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
+    const bool print_w
+            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
-    if (d.ndims >= 5) s << "id" << d.id;
-    if (d.ndims >= 4) s << "ih" << d.ih;
-    if (d.ndims >= 3) s << "iw" << d.iw;
 
-    if (d.ndims >= 5) s << "od" << d.od;
-    if (d.ndims >= 4) s << "oh" << d.oh;
-    if (d.ndims >= 3) s << "ow" << d.ow;
+    if (print_d) s << "id" << d.id;
+    if (print_h) s << "ih" << d.ih;
+    if (print_w) s << "iw" << d.iw;
+
+    if (print_d) s << "od" << d.od;
+    if (print_h) s << "oh" << d.oh;
+    if (print_w) s << "ow" << d.ow;
 
     if (d.name) s << "n" << d.name;
 
