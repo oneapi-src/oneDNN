@@ -44,53 +44,51 @@ struct reduce_to_unit_stride_t {
 template <typename conv_pd_t>
 inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
         const memory_desc_t *&src_d, const memory_desc_t *dst_d) {
-    using namespace dnnl::impl::utils;
-    const bool is_bwd_data
-            = self->desc()->prop_kind == prop_kind::backward_data;
-
     const int ndims = src_d->ndims;
-    const auto dat_tag = ndims == 3
-            ? memory_desc_wrapper(dst_d).matches_one_of_tag(
-                    format_tag::nCw8c, format_tag::nCw16c)
-            : memory_desc_wrapper(dst_d).matches_one_of_tag(
-                    format_tag::nChw8c, format_tag::nChw16c);
 
-    bool rtus_applicable = true
-            && utils::pick(ndims - 3,
-                    (conv_d->strides[0] != 1
-                            && !one_of(conv_d->src_desc.data_type,
-                                    data_type::s32)),
-                    (conv_d->strides[0] != 1 || conv_d->strides[1] != 1))
-            && dat_tag != format_tag::undef;
+    bool rtus_applicable = utils::one_of(ndims, 3, 4);
+    if (ndims == 3)
+        rtus_applicable = rtus_applicable && conv_d->strides[0] != 1
+                && conv_d->src_desc.data_type != data_type::s32;
+    else
+        rtus_applicable = rtus_applicable
+                && (conv_d->strides[0] != 1 || conv_d->strides[1] != 1);
     for (int d = 2; d < ndims; ++d) {
         /* TODO: relax these conditions (by improving reducer) */
         rtus_applicable = rtus_applicable && conv_d->padding[0][d - 2] == 0
                 && dst_d->dims[d] * conv_d->strides[d - 2] == src_d->dims[d];
     }
+    if (!rtus_applicable) return;
 
-    if (rtus_applicable) {
-        self->rtus_.reduce_src_ = true;
-        conv_d = &(self->rtus_.conv_d_ = *conv_d);
-        self->rtus_.conv_d_.strides[0] = 1;
-        if (ndims == 4) self->rtus_.conv_d_.strides[1] = 1;
-        utils::array_set(self->rtus_.conv_d_.padding[0], 0, 2);
-        if (ndims == 4) utils::array_set(self->rtus_.conv_d_.padding[1], 0, 2);
-        const int ic = src_d->dims[1];
-        if (is_bwd_data) {
-            data_type_t data_type = self->rtus_.conv_d_.diff_src_desc.data_type;
-            src_d = &(self->rtus_.conv_d_.diff_src_desc = *dst_d);
-            self->rtus_.conv_d_.diff_src_desc.dims[1] = ic;
-            self->rtus_.conv_d_.diff_src_desc.data_type = data_type;
-            memory_desc_wrapper::compute_blocking(
-                    self->rtus_.conv_d_.diff_src_desc, dat_tag);
-        } else {
-            data_type_t data_type = self->rtus_.conv_d_.src_desc.data_type;
-            src_d = &(self->rtus_.conv_d_.src_desc = *dst_d);
-            self->rtus_.conv_d_.src_desc.dims[1] = ic;
-            self->rtus_.conv_d_.src_desc.data_type = data_type;
-            memory_desc_wrapper::compute_blocking(
-                    self->rtus_.conv_d_.src_desc, dat_tag);
-        }
+    const auto dat_tag = ndims == 3
+            ? memory_desc_wrapper(dst_d).matches_one_of_tag(
+                    format_tag::nCw8c, format_tag::nCw16c)
+            : memory_desc_wrapper(dst_d).matches_one_of_tag(
+                    format_tag::nChw8c, format_tag::nChw16c);
+    if (dat_tag == format_tag::undef) return;
+
+    // rtus is applicable, configure it.
+    self->rtus_.reduce_src_ = true;
+    conv_d = &(self->rtus_.conv_d_ = *conv_d);
+    self->rtus_.conv_d_.strides[0] = 1;
+    if (ndims == 4) self->rtus_.conv_d_.strides[1] = 1;
+    utils::array_set(self->rtus_.conv_d_.padding[0], 0, 2);
+    if (ndims == 4) utils::array_set(self->rtus_.conv_d_.padding[1], 0, 2);
+    const int ic = src_d->dims[1];
+    if (self->desc()->prop_kind == prop_kind::backward_data) {
+        data_type_t data_type = self->rtus_.conv_d_.diff_src_desc.data_type;
+        src_d = &(self->rtus_.conv_d_.diff_src_desc = *dst_d);
+        self->rtus_.conv_d_.diff_src_desc.dims[1] = ic;
+        self->rtus_.conv_d_.diff_src_desc.data_type = data_type;
+        memory_desc_wrapper::compute_blocking(
+                self->rtus_.conv_d_.diff_src_desc, dat_tag);
+    } else {
+        data_type_t data_type = self->rtus_.conv_d_.src_desc.data_type;
+        src_d = &(self->rtus_.conv_d_.src_desc = *dst_d);
+        self->rtus_.conv_d_.src_desc.dims[1] = ic;
+        self->rtus_.conv_d_.src_desc.data_type = data_type;
+        memory_desc_wrapper::compute_blocking(
+                self->rtus_.conv_d_.src_desc, dat_tag);
     }
 }
 
