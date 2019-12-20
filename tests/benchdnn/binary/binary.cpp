@@ -127,7 +127,7 @@ int fill_src(
     const int f_min = dt == dnnl_u8 ? 0 : -range / 2;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const int gen = ((97 * i) - 17 * input_idx + 101) % (range + 1);
+        const float gen = ((97 * i) - 5 * input_idx + 101) % (range + 1);
         const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
                 ? (f_min + gen) / range
                 : (f_min + gen) * (1.0f + 4.0f / range);
