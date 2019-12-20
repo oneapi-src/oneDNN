@@ -177,6 +177,12 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
     };
 
     status_t init() override {
+        const char *kernel_name = nullptr;
+        if (pd()->jcp_.is_depthwise)
+            kernel_name = "gen9_common_conv_dw_bwd_data";
+        else
+            kernel_name = "gen9_common_conv_bwd_data";
+
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
@@ -185,8 +191,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
                 kernel_ctx, pd()->jcp_);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "gen9_common_conv_bwd_data", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

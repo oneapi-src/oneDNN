@@ -530,6 +530,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jcp.od_block = 1;
         jcp.oh_block = 1;
         jcp.ow_block = 1;
+        jcp.icb = 1;
         if (use_16mb_unroll)
             jcp.ver = ver_16mb16c;
         else if (jcp.mb % 16 != 0 && ((is_16oc && is_16ic) || is_dw_16g))
@@ -548,12 +549,28 @@ struct jit_gen9_common_conv_bwd_data_kernel {
                 jcp.ih_block = 1;
                 jcp.iw_block = 1;
                 jcp.sub_group_size = 16;
-                jcp.lws_d[0] = 1;
-                jcp.lws_d[1] = 16;
-                jcp.lws_d[2] = 1;
-                jcp.gws_d[0] = jcp.ih * jcp.iw * jcp.id;
-                jcp.gws_d[1] = jcp.ic * jcp.ngroups;
-                jcp.gws_d[2] = jcp.mb / 16;
+                if (jcp.is_depthwise) {
+                    jcp.icb = jcp.ngroups;
+                    jcp.lws_d[0] = 1;
+                    jcp.lws_d[1] = 16;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ih * jcp.iw * jcp.id;
+                    jcp.gws_d[1] = jcp.ic * jcp.ngroups;
+                    jcp.gws_d[2] = jcp.mb / 16;
+                } else {
+                    jcp.icb = 64;
+                    while (jcp.icb > 16) {
+                        if (jcp.ic % jcp.icb == 0) break;
+                        jcp.icb /= 2;
+                    }
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.icb;
+                    jcp.gws_d[1] = jcp.ih * jcp.iw * jcp.id;
+                    jcp.gws_d[2]
+                            = jcp.mb / 16 * (jcp.ic / jcp.icb) * jcp.ngroups;
+                }
                 break;
             case ver_8ow16c:
                 jcp.mb_block = 1;
@@ -563,13 +580,29 @@ struct jit_gen9_common_conv_bwd_data_kernel {
                 jcp.ih_block = 1;
                 jcp.iw_block = nstl::max(8, utils::max_div(jcp.iw, 16));
                 jcp.sub_group_size = 16;
-                jcp.lws_d[0] = 1;
-                jcp.lws_d[1] = 16;
-                jcp.lws_d[2] = 1;
-                jcp.gws_d[0]
-                        = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block) * jcp.id;
-                jcp.gws_d[1] = jcp.ic * jcp.ngroups;
-                jcp.gws_d[2] = jcp.mb;
+                if (jcp.is_depthwise) {
+                    jcp.icb = jcp.ngroups;
+                    jcp.lws_d[0] = 1;
+                    jcp.lws_d[1] = 16;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block)
+                            * jcp.id;
+                    jcp.gws_d[1] = jcp.ic * jcp.ngroups;
+                    jcp.gws_d[2] = jcp.mb;
+                } else {
+                    jcp.icb = 64;
+                    while (jcp.icb > 16) {
+                        if (jcp.ic % jcp.icb == 0) break;
+                        jcp.icb /= 2;
+                    }
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.icb;
+                    jcp.gws_d[1] = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block)
+                            * jcp.id;
+                    jcp.gws_d[2] = jcp.mb * (jcp.ic / jcp.icb) * jcp.ngroups;
+                }
                 break;
             default: status = status::unimplemented;
         }
@@ -641,6 +674,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         kernel_ctx.define_int("G", jcp.ngroups);
         kernel_ctx.define_int("MB", jcp.mb);
         kernel_ctx.define_int("IC", jcp.ic);
+        kernel_ctx.define_int("ICB", jcp.icb);
         kernel_ctx.define_int("ID", jcp.id);
         kernel_ctx.define_int("IH", jcp.ih);
         kernel_ctx.define_int("IW", jcp.iw);
