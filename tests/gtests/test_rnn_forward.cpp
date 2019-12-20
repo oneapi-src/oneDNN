@@ -246,15 +246,17 @@ protected:
 
         // Assumption: b is a plain layout
         auto init_tensor = [&](memory a, memory b) {
-            auto b_ptr = map_memory<float>(b);
             auto desc = a.get_desc();
             auto b_dims = desc.data.dims;
             auto b_ndims = desc.data.ndims;
             auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
                     std::multiplies<float>());
             const dnnl::impl::memory_desc_wrapper mdw(desc.data);
-            for (size_t i = 0; i < n_elems; i++)
-                b_ptr[i] = i;
+            {
+                auto b_ptr = map_memory<float>(b);
+                for (size_t i = 0; i < n_elems; i++)
+                    b_ptr[i] = i;
+            }
             reorder(b, a).execute(strm, b, a);
             strm.wait();
         };
