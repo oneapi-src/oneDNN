@@ -46,8 +46,8 @@ public:
     get_reorder_implementation_list() const override;
     virtual const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override;
-    virtual const primitive_desc_create_f *
-    get_implementation_list() const override;
+    virtual const primitive_desc_create_f *get_implementation_list(
+            const op_desc_t *desc) const override;
 };
 
 class cpu_engine_factory_t : public engine_factory_t {

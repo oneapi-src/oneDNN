@@ -90,8 +90,9 @@ public:
         return ocl_gpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
-    virtual const primitive_desc_create_f *
-    get_implementation_list() const override {
+    virtual const primitive_desc_create_f *get_implementation_list(
+            const op_desc_t *desc) const override {
+        UNUSED(desc);
         return ocl_gpu_engine_impl_list_t::get_implementation_list();
     }
 

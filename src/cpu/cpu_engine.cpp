@@ -447,7 +447,9 @@ static const pd_create_f cpu_impl_list[] = {
 #undef INSTANCE
 } // namespace
 
-const pd_create_f *cpu_engine_t::get_implementation_list() const {
+const pd_create_f *cpu_engine_t::get_implementation_list(
+        const op_desc_t *desc) const {
+    UNUSED(desc);
     return cpu_impl_list;
 }
 

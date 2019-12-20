@@ -115,9 +115,10 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     virtual const sum_primitive_desc_create_f *
     get_sum_implementation_list() const = 0;
 
-    /** return the list of implementations. engine guarantees to return a
-     * NULL-terminated list */
-    virtual const primitive_desc_create_f *get_implementation_list() const = 0;
+    /** return the list of implementations for a given descriptor.
+     * engine guarantees to return a NULL-terminated list */
+    virtual const primitive_desc_create_f *get_implementation_list(
+            const dnnl::impl::op_desc_t *desc) const = 0;
 
     template <typename F>
     dnnl::impl::status_t get_primitive(dnnl::impl::primitive_t **primitive,
