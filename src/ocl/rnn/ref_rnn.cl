@@ -14,175 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl/ocl_types.h"
-
-#if OUTPUT_DT_U8
-#define TO_OUTPUT(x) convert_uchar_sat_rte(x)
-#elif OUTPUT_DT_S8
-#define TO_OUTPUT(x) convert_char_sat_rte(x)
-#elif OUTPUT_DT_S32
-#define TO_OUTPUT(x) convert_int_sat_rte(x)
-#else
-#define TO_OUTPUT(x) (x)
-#endif
-
-#if OUTPUT_DT_BF16
-#define TO_INPUT(x) convert_f32_to_bf16(x)
-#else
-#define TO_INPUT(x) (x)
-#endif
-
-#if DT_F16 && !IS_FWD
-#error "FP16 is not supported for BWD"
-#endif
-
-#define OFFTYPE ulong
-
-#define OFF6(i0, D0, i1, D1, i2, D2, i3, D3, i4, D4, i5, D5) \
-    ((((((i0) * (D1) + (i1)) * (D2) + (i2)) * (D3) + (i3)) * (D4) + (i4)) \
-                    * (D5) \
-            + (i5))
-#define OFF5(i0, D0, i1, D1, i2, D2, i3, D3, i4, D4) \
-    (((((i0) * (D1) + (i1)) * (D2) + (i2)) * (D3) + (i3)) * (D4) + (i4))
-#define OFF4(i0, D0, i1, D1, i2, D2, i3, D3) \
-    ((((i0) * (D1) + (i1)) * (D2) + (i2)) * (D3) + (i3))
-#define OFF3(i0, D0, i1, D1, i2, D2) (((i0) * (D1) + (i1)) * (D2) + (i2))
-#define OFF2(i0, D0, i1, D1) ((i0) * (D1) + (i1))
-
-// used for the both H- and C-states
-#define OFF_WS_STATE(i0, i1, i2, i3, i4) \
-    OFF5((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_ITER + 1, (i3), BATCH, (i4), \
-            STATES_WS_LD)
-
-#define OFF_WS_DIFF_STATES(i0, i1, i2, i3, i4, i5) \
-    OFF6((i0), N_LAYER + 1, (i1), N_DIR, (i2), N_STATES + 1, (i3), N_ITER + 1, \
-            (i4), BATCH, (i5), STATES_WS_LD)
-
-// cannot be presented by OFF6 due to leading dimension across two dims
-#define OFF_WS_GATES(i0, i1, i2, i3, i4, i5) \
-    (i0) * N_DIR *N_ITER *BATCH *GATES_WS_LD + (i1)*N_ITER *BATCH *GATES_WS_LD \
-            + (i2)*BATCH *GATES_WS_LD + (i3)*GATES_WS_LD + (i4)*DIC + (i5)
-
-#if N_ITER_SCRATCH_GATES == 1
-// if no merge gemm, scratch_gates contain data for single cell,
-// so we ignore iter dim
-#define OFF_SCRATCH_GATES(i0, i1, i2, i3) (i1) * GATES_WS_LD + (i2)*DIC + (i3)
-#else
-#define OFF_SCRATCH_GATES(i0, i1, i2, i3) \
-    (i0) * BATCH *GATES_WS_LD + (i1)*GATES_WS_LD + (i2)*DIC + (i3)
-#endif
-
-#define OFF_WS_BIAS(i0, i1, i2, i3) \
-    OFF4((i0), N_LAYER, (i1), N_DIR, (i2), N_BIAS, (i3), DIC)
-
-// for cell - shorter forms
-
-#define CELL_WS_GATES(i3, i4, i5) OFF_WS_GATES(0, 0, 0, i3, i4, i5)
-#define CELL_SCRATCH_GATES(i1, i2, i3) OFF_SCRATCH_GATES(0, i1, i2, i3)
-#define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
-#define CELL_WS_DIFF_STATES(i2, i4, i5) OFF_WS_DIFF_STATES(0, 0, i2, 0, i4, i5)
-
-#define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DIC)
-
-#define SRC_L_OFF(x0, x1, x2) \
-    (((x0) % SRC_L_B0) * SRC_L_SB0 + ((x0) / SRC_L_B0) * SRC_L_S0 \
-            + ((x1) % SRC_L_B1) * SRC_L_SB1 + ((x1) / SRC_L_B1) * SRC_L_S1 \
-            + ((x2) % SRC_L_B2) * SRC_L_SB2 + ((x2) / SRC_L_B2) * SRC_L_S2)
-#define SRC_I_OFF(x0, x1, x2, x3) \
-    (((x0) % SRC_I_B0) * SRC_I_SB0 + ((x0) / SRC_I_B0) * SRC_I_S0 \
-            + ((x1) % SRC_I_B1) * SRC_I_SB1 + ((x1) / SRC_I_B1) * SRC_I_S1 \
-            + ((x2) % SRC_I_B2) * SRC_I_SB2 + ((x2) / SRC_I_B2) * SRC_I_S2 \
-            + ((x3) % SRC_I_B3) * SRC_I_SB3 + ((x3) / SRC_I_B3) * SRC_I_S3)
-#define SRC_I_C_OFF(x0, x1, x2, x3) \
-    (((x0) % SRC_I_C_B0) * SRC_I_C_SB0 + ((x0) / SRC_I_C_B0) * SRC_I_C_S0 \
-            + ((x1) % SRC_I_C_B1) * SRC_I_C_SB1 \
-            + ((x1) / SRC_I_C_B1) * SRC_I_C_S1 \
-            + ((x2) % SRC_I_C_B2) * SRC_I_C_SB2 \
-            + ((x2) / SRC_I_C_B2) * SRC_I_C_S2 \
-            + ((x3) % SRC_I_C_B3) * SRC_I_C_SB3 \
-            + ((x3) / SRC_I_C_B3) * SRC_I_C_S3)
-#define DST_L_OFF(x0, x1, x2) \
-    (((x0) % DST_L_B0) * DST_L_SB0 + ((x0) / DST_L_B0) * DST_L_S0 \
-            + ((x1) % DST_L_B1) * DST_L_SB1 + ((x1) / DST_L_B1) * DST_L_S1 \
-            + ((x2) % DST_L_B2) * DST_L_SB2 + ((x2) / DST_L_B2) * DST_L_S2)
-#define DST_I_OFF(x0, x1, x2, x3) \
-    (((x0) % DST_I_B0) * DST_I_SB0 + ((x0) / DST_I_B0) * DST_I_S0 \
-            + ((x1) % DST_I_B1) * DST_I_SB1 + ((x1) / DST_I_B1) * DST_I_S1 \
-            + ((x2) % DST_I_B2) * DST_I_SB2 + ((x2) / DST_I_B2) * DST_I_S2 \
-            + ((x3) % DST_I_B3) * DST_I_SB3 + ((x3) / DST_I_B3) * DST_I_S3)
-#define DST_I_C_OFF(x0, x1, x2, x3) \
-    (((x0) % DST_I_C_B0) * DST_I_C_SB0 + ((x0) / DST_I_C_B0) * DST_I_C_S0 \
-            + ((x1) % DST_I_C_B1) * DST_I_C_SB1 \
-            + ((x1) / DST_I_C_B1) * DST_I_C_S1 \
-            + ((x2) % DST_I_C_B2) * DST_I_C_SB2 \
-            + ((x2) / DST_I_C_B2) * DST_I_C_S2 \
-            + ((x3) % DST_I_C_B3) * DST_I_C_SB3 \
-            + ((x3) / DST_I_C_B3) * DST_I_C_S3)
-#define BIAS_OFF(x0, x1, x2, x3) \
-    (((x0) % BIAS_B0) * BIAS_SB0 + ((x0) / BIAS_B0) * BIAS_S0 \
-            + ((x1) % BIAS_B1) * BIAS_SB1 + ((x1) / BIAS_B1) * BIAS_S1 \
-            + ((x2) % BIAS_B2) * BIAS_SB2 + ((x2) / BIAS_B2) * BIAS_S2 \
-            + ((x3) % BIAS_B3) * BIAS_SB3 + ((x3) / BIAS_B3) * BIAS_S3)
-
-#define DIFF_SRC_L_OFF(x0, x1, x2) \
-    (((x0) % DIFF_SRC_L_B0) * DIFF_SRC_L_SB0 \
-            + ((x0) / DIFF_SRC_L_B0) * DIFF_SRC_L_S0 \
-            + ((x1) % DIFF_SRC_L_B1) * DIFF_SRC_L_SB1 \
-            + ((x1) / DIFF_SRC_L_B1) * DIFF_SRC_L_S1 \
-            + ((x2) % DIFF_SRC_L_B2) * DIFF_SRC_L_SB2 \
-            + ((x2) / DIFF_SRC_L_B2) * DIFF_SRC_L_S2)
-#define DIFF_DST_L_OFF(x0, x1, x2) \
-    (((x0) % DIFF_DST_L_B0) * DIFF_DST_L_SB0 \
-            + ((x0) / DIFF_DST_L_B0) * DIFF_DST_L_S0 \
-            + ((x1) % DIFF_DST_L_B1) * DIFF_DST_L_SB1 \
-            + ((x1) / DIFF_DST_L_B1) * DIFF_DST_L_S1 \
-            + ((x2) % DIFF_DST_L_B2) * DIFF_DST_L_SB2 \
-            + ((x2) / DIFF_DST_L_B2) * DIFF_DST_L_S2)
-#define DIFF_SRC_I_OFF(x0, x1, x2, x3) \
-    (((x0) % DIFF_SRC_I_B0) * DIFF_SRC_I_SB0 \
-            + ((x0) / DIFF_SRC_I_B0) * DIFF_SRC_I_S0 \
-            + ((x1) % DIFF_SRC_I_B1) * DIFF_SRC_I_SB1 \
-            + ((x1) / DIFF_SRC_I_B1) * DIFF_SRC_I_S1 \
-            + ((x2) % DIFF_SRC_I_B2) * DIFF_SRC_I_SB2 \
-            + ((x2) / DIFF_SRC_I_B2) * DIFF_SRC_I_S2 \
-            + ((x3) % DIFF_SRC_I_B3) * DIFF_SRC_I_SB3 \
-            + ((x3) / DIFF_SRC_I_B3) * DIFF_SRC_I_S3)
-#define DIFF_DST_I_OFF(x0, x1, x2, x3) \
-    (((x0) % DIFF_DST_I_B0) * DIFF_DST_I_SB0 \
-            + ((x0) / DIFF_DST_I_B0) * DIFF_DST_I_S0 \
-            + ((x1) % DIFF_DST_I_B1) * DIFF_DST_I_SB1 \
-            + ((x1) / DIFF_DST_I_B1) * DIFF_DST_I_S1 \
-            + ((x2) % DIFF_DST_I_B2) * DIFF_DST_I_SB2 \
-            + ((x2) / DIFF_DST_I_B2) * DIFF_DST_I_S2 \
-            + ((x3) % DIFF_DST_I_B3) * DIFF_DST_I_SB3 \
-            + ((x3) / DIFF_DST_I_B3) * DIFF_DST_I_S3)
-#define DIFF_SRC_I_C_OFF(x0, x1, x2, x3) \
-    (((x0) % DIFF_SRC_I_C_B0) * DIFF_SRC_I_C_SB0 \
-            + ((x0) / DIFF_SRC_I_C_B0) * DIFF_SRC_I_C_S0 \
-            + ((x1) % DIFF_SRC_I_C_B1) * DIFF_SRC_I_C_SB1 \
-            + ((x1) / DIFF_SRC_I_C_B1) * DIFF_SRC_I_C_S1 \
-            + ((x2) % DIFF_SRC_I_C_B2) * DIFF_SRC_I_C_SB2 \
-            + ((x2) / DIFF_SRC_I_C_B2) * DIFF_SRC_I_C_S2 \
-            + ((x3) % DIFF_SRC_I_C_B3) * DIFF_SRC_I_C_SB3 \
-            + ((x3) / DIFF_SRC_I_C_B3) * DIFF_SRC_I_C_S3)
-#define DIFF_DST_I_C_OFF(x0, x1, x2, x3) \
-    (((x0) % DIFF_DST_I_C_B0) * DIFF_DST_I_C_SB0 \
-            + ((x0) / DIFF_DST_I_C_B0) * DIFF_DST_I_C_S0 \
-            + ((x1) % DIFF_DST_I_C_B1) * DIFF_DST_I_C_SB1 \
-            + ((x1) / DIFF_DST_I_C_B1) * DIFF_DST_I_C_S1 \
-            + ((x2) % DIFF_DST_I_C_B2) * DIFF_DST_I_C_SB2 \
-            + ((x2) / DIFF_DST_I_C_B2) * DIFF_DST_I_C_S2 \
-            + ((x3) % DIFF_DST_I_C_B3) * DIFF_DST_I_C_SB3 \
-            + ((x3) / DIFF_DST_I_C_B3) * DIFF_DST_I_C_S3)
-#define DIFF_BIAS_OFF(x0, x1, x2, x3) \
-    (((x0) % DIFF_BIAS_B0) * DIFF_BIAS_SB0 \
-            + ((x0) / DIFF_BIAS_B0) * DIFF_BIAS_S0 \
-            + ((x1) % DIFF_BIAS_B1) * DIFF_BIAS_SB1 \
-            + ((x1) / DIFF_BIAS_B1) * DIFF_BIAS_S1 \
-            + ((x2) % DIFF_BIAS_B2) * DIFF_BIAS_SB2 \
-            + ((x2) / DIFF_BIAS_B2) * DIFF_BIAS_S2 \
-            + ((x3) % DIFF_BIAS_B3) * DIFF_BIAS_SB3 \
-            + ((x3) / DIFF_BIAS_B3) * DIFF_BIAS_S3)
+#include "ocl/rnn/rnn_types.h"
 
 float one_m_square(float a) {
     return 1.0f - a * a;
@@ -297,10 +129,10 @@ __kernel void ref_rnn_copy_init_layer(
     const int it = get_global_id(2);
     const int b = get_global_id(1);
     const int c = get_global_id(0);
-    __global SRC_DATA_T *dst;
-    __global SRC_DATA_T *dst_base
-            = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET);
-    __global SRC_DATA_T *src = (__global SRC_DATA_T *)src_base
+    __global WS_STATE_DATA_T *dst;
+    __global WS_STATE_DATA_T *dst_base
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
+    __global WS_STATE_DATA_T *src = (__global WS_STATE_DATA_T *)src_base
             + SRC_L_OFF(it, 0, 0) + b * SLC + c;
 
     if (lr) {
@@ -317,33 +149,33 @@ __kernel void ref_rnn_copy_init_layer(
     const int it = get_global_id(1);
     const int b = get_global_id(0);
 
-    __global PRECISE_DATA_T *dst
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *dst
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
 
 #if DIRECTION_KIND == CONCAT
-    __global SRC_DATA_T *src
-            = (__global SRC_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
+    __global DIFF_DATA_T *src
+            = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
     for (int s = 0; s < DIC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
         dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_STATES, N_ITER - it - 1, b, s)]
                 = src[DIC + s];
     }
 #elif DIRECTION_KIND == SUM
-    __global SRC_DATA_T *src
-            = (__global SRC_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
+    __global DIFF_DATA_T *src
+            = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
     for (int s = 0; s < DIC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
         dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_STATES, N_ITER - it - 1, b, s)]
                 = src[s];
     }
 #elif DIRECTION_KIND == L2R
-    __global SRC_DATA_T *src
-            = (__global SRC_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
+    __global DIFF_DATA_T *src
+            = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
     for (int s = 0; s < DIC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
     }
 #elif DIRECTION_KIND == R2L
-    __global SRC_DATA_T *src = (__global SRC_DATA_T *)src_base
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
             + DIFF_DST_L_OFF(N_ITER - it - 1, b, 0);
     for (int s = 0; s < DIC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
@@ -369,35 +201,36 @@ __kernel void ref_rnn_copy_init_iter(
 
 #if IS_FWD
     __global INPUT_DATA_T *src = (__global INPUT_DATA_T *)(src_base);
-    __global PRECISE_DATA_T *src_c = (__global PRECISE_DATA_T *)(src_c_base);
+    __global WS_STATE_DATA_T *dst
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
 
-    __global SRC_DATA_T *dst = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET);
     if (s < SIC)
         dst[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_base
-                ? (quantize ? TO_SRC(
+                ? (quantize ? TO_WS_STATE(
                            src[SRC_I_OFF(lay, dir, b, s)] * scale + shift)
                             : src[SRC_I_OFF(lay, dir, b, s)])
-                : TO_SRC(0.0f);
+                : TO_WS_STATE(0.0f);
 #if WITH_SRC_ITER_C
-    __global PRECISE_DATA_T *dst_c
-            = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET);
+    __global AUX_DATA_T *src_c = (__global AUX_DATA_T *)(src_c_base);
+    __global AUX_DATA_T *dst_c
+            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
     if (s < DIC)
         dst_c[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_c_base
                 ? src_c[SRC_I_C_OFF(lay, dir, b, s)]
-                : TO_SRC(0.0f);
+                : TO_WS_STATE(0.0f);
 #endif
 
 #else // BWD
 
-    __global INPUT_DATA_T *src = (__global INPUT_DATA_T *)(src_base);
-    __global PRECISE_DATA_T *src_c = (__global PRECISE_DATA_T *)(src_c_base);
+    __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)(src_base);
+    __global DIFF_DATA_T *dst
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
 
-    __global PRECISE_DATA_T *dst
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
     if (s < DIC)
         dst[OFF_WS_DIFF_STATES(lay, dir, 0, N_ITER, b, s)]
                 = src_base ? src[DIFF_DST_I_OFF(lay, dir, b, s)] : 0.0f;
 #if WITH_DST_ITER_C
+    __global DIFF_DATA_T *src_c = (__global DIFF_DATA_T *)(src_c_base);
     if (s < DIC)
         dst[OFF_WS_DIFF_STATES(lay, dir, 1, N_ITER, b, s)]
                 = src_c_base ? src_c[DIFF_DST_I_C_OFF(lay, dir, b, s)] : 0.0f;
@@ -418,7 +251,8 @@ __kernel void ref_rnn_copy_res_layer(
     const int s = get_global_id(0);
 
 #if IS_FWD
-    __global SRC_DATA_T *src = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET);
+    __global WS_STATE_DATA_T *src
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
     __global DST_DATA_T *dst = (__global DST_DATA_T *)(dst_base);
     int dir = 0;
     if (lr) {
@@ -437,7 +271,6 @@ __kernel void ref_rnn_copy_res_layer(
                     + dst[DST_L_OFF(it, b, s)];
             val = min(max(val, 0.f), 255.f);
             dst[DST_L_OFF(it, b, s)] = TO_DST((val - 2 * shift) / scale);
-
         } else {
 #if defined(SRC_DT_U8) && defined(DST_DT_U8)
             dst[DST_L_OFF(it, b, s)] = convert_uchar_sat(
@@ -462,9 +295,9 @@ __kernel void ref_rnn_copy_res_layer(
     }
 #else // BWD
 
-    __global PRECISE_DATA_T *src
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
-    __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
+    __global DIFF_DATA_T *src
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
     int dir = 0;
 
 #if DIRECTION_KIND == R2L
@@ -472,7 +305,7 @@ __kernel void ref_rnn_copy_res_layer(
 #else
     const int iter = it;
 #endif
-    PRECISE_DATA_T res = src[OFF_WS_DIFF_STATES(0, 0, N_STATES, it, b, s)];
+    DIFF_DATA_T res = src[OFF_WS_DIFF_STATES(0, 0, N_STATES, it, b, s)];
 #if N_DIR > 1
     res += src[OFF_WS_DIFF_STATES(0, 1, N_STATES, N_ITER - 1 - it, b, s)];
 #endif
@@ -494,7 +327,8 @@ __kernel void ref_rnn_copy_res_iter(
     const int dir = get_global_id(2) % N_DIR;
 
 #if IS_FWD
-    __global SRC_DATA_T *src = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET);
+    __global WS_STATE_DATA_T *src
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
     __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
 
     if (dst_base && s < DIC) {
@@ -506,9 +340,9 @@ __kernel void ref_rnn_copy_res_iter(
                 : TO_OUTPUT(src[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)]);
     }
 #if WITH_DST_ITER_C
-    __global PRECISE_DATA_T *src_c
-            = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET);
-    __global PRECISE_DATA_T *dst_c = (__global PRECISE_DATA_T *)(dst_c_base);
+    __global AUX_DATA_T *src_c
+            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
+    __global AUX_DATA_T *dst_c = (__global AUX_DATA_T *)(dst_c_base);
     if (dst_c_base && s < DIC) {
         dst_c[DST_I_C_OFF(lay, dir, b, s)]
                 = src_c[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)];
@@ -517,10 +351,10 @@ __kernel void ref_rnn_copy_res_iter(
 
 #else // BWD
 
-    __global PRECISE_DATA_T *src
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
-    __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
-    __global PRECISE_DATA_T *dst_c = (__global PRECISE_DATA_T *)(dst_c_base);
+    __global DIFF_DATA_T *src
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(dst_base);
+    __global DIFF_DATA_T *dst_c = (__global DIFF_DATA_T *)(dst_c_base);
     if (dst_base && s < SIC) {
         dst[DIFF_SRC_I_OFF(lay, dir, b, s)]
                 = src[OFF_WS_DIFF_STATES(lay, dir, 0, 0, b, s)];
@@ -539,15 +373,15 @@ __kernel void ref_rnn_ws_set(
 
     if (ws_part == WS_C_STATES || ws_part == WS_DIFF_STATES
             || ws_part == WS_BIAS) {
-        __global PRECISE_DATA_T *dst
-                = (__global PRECISE_DATA_T *)(ws + ws_offset);
+        __global DIFF_DATA_T *dst = (__global DIFF_DATA_T *)(ws + ws_offset);
         dst[get_global_id(0)] = CONVERT_DATA_T(val);
     } else if (ws_part == WS_GATES) {
         __global ACC_DATA_T *dst = (__global ACC_DATA_T *)(ws + ws_offset);
         dst[get_global_id(0)] = TO_ACC(val);
     } else { // ws_part == WS_STATES
-        __global SRC_DATA_T *dst = (__global SRC_DATA_T *)(ws + ws_offset);
-        dst[get_global_id(0)] = TO_SRC(val);
+        __global WS_STATE_DATA_T *dst
+                = (__global WS_STATE_DATA_T *)(ws + ws_offset);
+        dst[get_global_id(0)] = TO_WS_STATE(val);
     }
 }
 
@@ -566,14 +400,14 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
             for_(int g = 0; g < N_GATES; g++)
             for (int s = 0; s < DIC; s++) {
                 printf(" %f",
-                        TO_DATA_T(*(wt + OFF_WS_GATES(j, dir, i, b, g, s))));
+                        SRC_TO_REF(*(wt + OFF_WS_GATES(j, dir, i, b, g, s))));
             }
             printf("\n");
         }
     }
     {
-        __global SRC_DATA_T *wt
-                = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET);
+        __global WS_STATE_DATA_T *wt
+                = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
         printf("ws_states (H): off %d\n", WS_STATES_OFFSET);
         printf("[lay,dir,iter]\n");
         for_(int j = 0; j < N_LAYER + 1; j++)
@@ -582,15 +416,16 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
             printf("[%d,%d,%d] : ", j, dir, i);
             for_(int b = 0; b < BATCH; b++)
             for (int s = 0; s < WIC; s++) {
-                printf(" %f", TO_DATA_T(*(wt + OFF_WS_STATE(j, dir, i, b, s))));
+                printf(" %f",
+                        SRC_TO_REF(*(wt + OFF_WS_STATE(j, dir, i, b, s))));
             }
             printf("\n");
         }
     }
 #if IS_FWD
     {
-        __global PRECISE_DATA_T *wt
-                = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET);
+        __global AUX_DATA_T *wt
+                = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
         printf("ws_states (C): off %d\n", WS_C_STATE_OFFSET);
         printf("[lay,dir,iter]\n");
         for_(int j = 0; j < N_LAYER + 1; j++)
@@ -607,8 +442,8 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
 #endif
 #if !IS_FWD
     {
-        __global PRECISE_DATA_T *wt
-                = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+        __global DIFF_DATA_T *wt
+                = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
         printf("ws_diff_states: off %d\n", WS_DIFF_STATES_OFFSET);
         printf("[lay,dir,state,iter]\n");
         for_(int j = 0; j < N_LAYER + 1; j++)
@@ -626,8 +461,7 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
 #endif
 #if COPY_BIAS
     {
-        __global PRECISE_DATA_T *wt
-                = (__global PRECISE_DATA_T *)(ws + WS_BIAS_OFFSET);
+        __global AUX_DATA_T *wt = (__global AUX_DATA_T *)(ws + WS_BIAS_OFFSET);
         printf("ws_bias: off %d\n", WS_BIAS_OFFSET);
         printf("[lay,dir]\n");
         for_(int j = 0; j < N_LAYER; j++)
@@ -689,9 +523,9 @@ __kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
 
 #if IS_INT8 && CELL_KIND == VANILLA_LSTM
 
-SRC_DATA_T q_d(float f, float data_scale, float data_shift) {
+WS_STATE_DATA_T q_d(float f, float data_scale, float data_shift) {
     float qf = f * data_scale + data_shift;
-    return TO_SRC(qf);
+    return TO_WS_STATE(qf);
 }
 
 float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
@@ -724,8 +558,8 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
     __global ACC_DATA_T *scratch_gates = (__global ACC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_GATES(iter, 0, 0, 0);
 
-    __global SRC_DATA_T *h_states_t_l
-            = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET)
+    __global WS_STATE_DATA_T *h_states_t_l
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
     __global float *c_states_t_l = (__global float *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
@@ -758,28 +592,27 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 
 __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
         __global char *ws, __global char *scr_gates,
-        __global PRECISE_DATA_T *bias_base, float alpha,
-        __global float *tm_scales, float tm_cscale) {
+        __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+        float tm_cscale) {
 
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dic
 
-    const __global PRECISE_DATA_T *c_states_tm1_l
-            = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET)
+    const __global AUX_DATA_T *c_states_tm1_l
+            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
-    const __global PRECISE_DATA_T *bias = bias_base + BIAS_OFF(lay, dir, 0, 0);
+    const __global AUX_DATA_T *bias = bias_base + BIAS_OFF(lay, dir, 0, 0);
 
-    __global PRECISE_DATA_T *ws_gates
-            = (__global PRECISE_DATA_T *)(ws + WS_GATES_OFFSET)
+    __global AUX_DATA_T *ws_gates
+            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
-    __global PRECISE_DATA_T *scratch_gates
-            = (__global PRECISE_DATA_T *)(scr_gates)
+    __global AUX_DATA_T *scratch_gates = (__global AUX_DATA_T *)(scr_gates)
             + OFF_SCRATCH_GATES(iter, 0, 0, 0);
-    __global SRC_DATA_T *h_states_t_l
-            = (__global SRC_DATA_T *)(ws + WS_STATES_OFFSET)
+    __global WS_STATE_DATA_T *h_states_t_l
+            = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
-    __global PRECISE_DATA_T *c_states_t_l
-            = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET)
+    __global AUX_DATA_T *c_states_t_l
+            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
 
 #if CELL_KIND == VANILLA_LSTM
@@ -801,10 +634,10 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
                     tm_scales[3]);
 
 #if IS_TRAINING
-    ws_gates[CELL_WS_GATES(i, 0, j)] = TO_INPUT(g_i);
-    ws_gates[CELL_WS_GATES(i, 1, j)] = TO_INPUT(g_f);
-    ws_gates[CELL_WS_GATES(i, 2, j)] = TO_INPUT(g_z);
-    ws_gates[CELL_WS_GATES(i, 3, j)] = TO_INPUT(g_o);
+    ws_gates[CELL_WS_GATES(i, 0, j)] = g_i;
+    ws_gates[CELL_WS_GATES(i, 1, j)] = g_f;
+    ws_gates[CELL_WS_GATES(i, 2, j)] = g_z;
+    ws_gates[CELL_WS_GATES(i, 3, j)] = g_o;
 #endif
 
     float Ct = g_f * c_states_tm1_l[CELL_WS_STATE(i, j)] + g_i * g_z;
@@ -823,7 +656,9 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
             alpha, 0);
 #endif
 
-    ws_gates[CELL_WS_GATES(i, 0, j)] = TO_INPUT(g);
+#if IS_TRAINING
+    ws_gates[CELL_WS_GATES(i, 0, j)] = g;
+#endif
     h_states_t_l[CELL_WS_STATE(i, j)] = TO_INPUT(g);
 
 #else
@@ -834,35 +669,34 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
 
 __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         __global char *ws, __global char *scr_gates,
-        __global PRECISE_DATA_T *bias_base, float alpha,
-        __global float *tm_scales, float tm_cscale) {
+        __global AUX_DATA_T *bias_base, float alpha, __global float *tm_scales,
+        float tm_cscale) {
 
     const int i = get_global_id(1); // batch
     const int j = get_global_id(0); // dic
 
 #if CELL_KIND == VANILLA_LSTM
 
-    __global PRECISE_DATA_T *ws_gates
-            = (__global PRECISE_DATA_T *)(ws + WS_GATES_OFFSET)
+    __global AUX_DATA_T *ws_gates
+            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, 0, 0, 0);
-    __global PRECISE_DATA_T *scratch_gates
-            = (__global PRECISE_DATA_T *)(scr_gates)
+    __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_GATES(iter, 0, 0, 0);
 
-    __global PRECISE_DATA_T *c_states_t_l
-            = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET)
+    __global AUX_DATA_T *c_states_t_l
+            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter + 1, 0, 0);
-    __global PRECISE_DATA_T *c_states_tm1_l
-            = (__global PRECISE_DATA_T *)(ws + WS_C_STATE_OFFSET)
+    __global AUX_DATA_T *c_states_tm1_l
+            = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
             + OFF_WS_STATE(lay + 1, dir, iter, 0, 0);
-    __global PRECISE_DATA_T *diff_states_t_l
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
+    __global DIFF_DATA_T *diff_states_t_l
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
             + OFF_WS_DIFF_STATES(lay, dir, 0, iter, 0, 0);
-    __global PRECISE_DATA_T *diff_states_tp1_l
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
+    __global DIFF_DATA_T *diff_states_tp1_l
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
             + OFF_WS_DIFF_STATES(lay, dir, 0, iter + 1, 0, 0);
-    __global PRECISE_DATA_T *diff_states_t_lp1
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
+    __global DIFF_DATA_T *diff_states_t_lp1
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET)
             + OFF_WS_DIFF_STATES(lay + 1, dir, 0, iter, 0, 0);
 
     float Ct = c_states_t_l[CELL_WS_STATE(i, j)];
@@ -876,45 +710,43 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
             + one_m_square(tanhCt) * ws_gates[CELL_WS_GATES(i, 3, j)] * dHt;
 
     float dG1 = (float)c_states_tm1_l[CELL_WS_STATE(i, j)] * dCt
-            * x_m_square((float)ws_gates[CELL_WS_GATES(i, 1, j)]);
-    float dG0 = (float)ws_gates[CELL_WS_GATES(i, 2, j)] * dCt
-            * x_m_square((float)ws_gates[CELL_WS_GATES(i, 0, j)]);
-    float dG3 = tanhCt * dHt
-            * x_m_square((float)ws_gates[CELL_WS_GATES(i, 3, j)]);
+            * x_m_square(ws_gates[CELL_WS_GATES(i, 1, j)]);
+    float dG0 = ws_gates[CELL_WS_GATES(i, 2, j)] * dCt
+            * x_m_square(ws_gates[CELL_WS_GATES(i, 0, j)]);
+    float dG3 = tanhCt * dHt * x_m_square(ws_gates[CELL_WS_GATES(i, 3, j)]);
     float dG2 = ws_gates[CELL_WS_GATES(i, 0, j)] * dCt
-            * one_m_square((float)ws_gates[CELL_WS_GATES(i, 2, j)]);
+            * one_m_square(ws_gates[CELL_WS_GATES(i, 2, j)]);
 
     diff_states_t_l[CELL_WS_DIFF_STATES(1, i, j)]
             = dCt * ws_gates[CELL_WS_GATES(i, 1, j)];
 
-    scratch_gates[CELL_SCRATCH_GATES(i, 0, j)] = dG0;
-    scratch_gates[CELL_SCRATCH_GATES(i, 1, j)] = dG1;
-    scratch_gates[CELL_SCRATCH_GATES(i, 2, j)] = dG2;
-    scratch_gates[CELL_SCRATCH_GATES(i, 3, j)] = dG3;
+    scratch_gates[CELL_SCRATCH_GATES(i, 0, j)] = TO_INPUT(dG0);
+    scratch_gates[CELL_SCRATCH_GATES(i, 1, j)] = TO_INPUT(dG1);
+    scratch_gates[CELL_SCRATCH_GATES(i, 2, j)] = TO_INPUT(dG2);
+    scratch_gates[CELL_SCRATCH_GATES(i, 3, j)] = TO_INPUT(dG3);
 
 #elif CELL_KIND == VANILLA_RNN
 
-    __global PRECISE_DATA_T *ws_gates
-            = (__global PRECISE_DATA_T *)(ws + WS_GATES_OFFSET)
+    __global AUX_DATA_T *ws_gates
+            = (__global AUX_DATA_T *)(ws + WS_GATES_OFFSET)
             + OFF_WS_GATES(lay, dir, iter, i, 0, j);
-    __global PRECISE_DATA_T *scratch_gates
-            = (__global PRECISE_DATA_T *)(scr_gates)
+    __global SRC_DATA_T *scratch_gates = (__global SRC_DATA_T *)(scr_gates)
             + OFF_SCRATCH_GATES(iter, i, 0, j);
 
-    __global PRECISE_DATA_T *ws_diff_states
-            = (__global PRECISE_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
-    __global PRECISE_DATA_T *diff_states_t_lp1 = ws_diff_states
+    __global DIFF_DATA_T *ws_diff_states
+            = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
+    __global DIFF_DATA_T *diff_states_t_lp1 = ws_diff_states
             + OFF_WS_DIFF_STATES(lay + 1, dir, N_STATES, iter, i, j);
-    __global PRECISE_DATA_T *diff_states_tp1_l
+    __global DIFF_DATA_T *diff_states_tp1_l
             = ws_diff_states + OFF_WS_DIFF_STATES(lay, dir, 0, iter + 1, i, j);
 
     const float dH = (float)diff_states_t_lp1[0] + diff_states_tp1_l[0];
 
     float g = ws_gates[0];
 #if IS_TESTMODE
-    scratch_gates[0] = dH * activation_bwd(g, tm_scales[0], 0.);
+    scratch_gates[0] = TO_INPUT(dH * activation_bwd(g, tm_scales[0], 0.));
 #else
-    scratch_gates[0] = dH * activation_bwd(g, alpha, 0.);
+    scratch_gates[0] = TO_INPUT(dH * activation_bwd(g, alpha, 0.));
 #endif
 
 #else
@@ -923,18 +755,19 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
 }
 
 __kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
-        __global PRECISE_DATA_T *diff_bias_base, __global char *scratch_gates) {
+        __global DIFF_DATA_T *diff_bias_base, __global char *scratch_gates) {
 #if !IS_FWD
     const int i = get_global_id(0); // n_gates
     const int k = get_global_id(1); // dic
 
-    __global PRECISE_DATA_T *diff_bias
+    __global DIFF_DATA_T *diff_bias
             = diff_bias_base + DIFF_BIAS_OFF(lay, dir, 0, 0);
-    __global PRECISE_DATA_T *gates = (__global PRECISE_DATA_T *)(scratch_gates)
+    __global SRC_DATA_T *gates = (__global SRC_DATA_T *)(scratch_gates)
             + OFF_SCRATCH_GATES(iter, 0, 0, 0);
 
     for (int j = 0; j < BATCH; j++) {
-        diff_bias[i * DIC + k] += gates[j * GATES_WS_LD + i * DIC + k];
+        diff_bias[i * DIC + k]
+                += SRC_TO_REF(gates[j * SCRATCH_GATES_LD + i * DIC + k]);
     }
 #endif
 }

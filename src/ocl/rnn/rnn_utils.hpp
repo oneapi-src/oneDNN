@@ -127,7 +127,7 @@ struct rnn_conf_t {
     int diff_weights_layer_ld, diff_weights_layer_nld;
     int weights_iter_ld, weights_iter_nld;
     int diff_weights_iter_ld, diff_weights_iter_nld;
-    int states_nld, states_ws_ld;
+    int states_nld, states_ws_ld, diff_states_ws_ld;
     int weights_iter_compensation_size, weights_layer_compensation_size;
     bool is_fwd, is_training, is_lbr, is_int8, is_testmode;
     bool use_workspace;
@@ -144,19 +144,20 @@ struct rnn_conf_t {
             use_iter_packed_gemm;
 
     // Element size of each workspace part in bytes
-    int ws_gates_elsz, ws_states_elsz, ws_c_states_elsz, ws_diff_states_elsz,
-            ws_cell_comp_elsz, ws_grid_comp_elsz, ws_bias_elsz;
+    int ws_gates_elsz, ws_states_elsz, ws_cell_comp_elsz, ws_c_states_elsz,
+            ws_grid_comp_elsz, ws_bias_elsz;
 
     size_t scratch_gates_size;
     int n_iter_scratch_gates;
-    int scratch_gates_elsz;
+    int scratch_gates_elsz, scratch_gates_ld;
 
     data_type_t acc_data_type;
     int acc_data_type_elsz;
-    data_type_t precise_data_type;
+    data_type_t aux_data_type;
     data_type_t input_data_type;
     data_type_t output_data_type;
     data_type_t dst_data_type;
+    data_type_t diff_data_type;
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);

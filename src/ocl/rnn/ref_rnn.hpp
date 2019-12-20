@@ -247,7 +247,6 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 gemm_desc.b_type = b_dt;
                 gemm_desc.c_type = c_dt;
                 gemm_desc.acc_type = c_dt;
-
                 gemm_desc.ao = 0;
                 gemm_desc.bo = 0;
                 gemm_desc.offsetc = offsetc::fixed;
@@ -299,33 +298,37 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                                     create_gemm_pd(&gemm_iter_bwd_pd_, sic,
                                             batch, n_gates * dic,
                                             rnn_conf_.weights_iter_ld,
-                                            rnn_conf_.gates_ws_ld,
-                                            rnn_conf_.states_ws_ld,
-                                            weights_type, src_type, src_type,
-                                            false, 0.0f),
+                                            rnn_conf_.scratch_gates_ld,
+                                            rnn_conf_.diff_states_ws_ld,
+                                            weights_type, src_type,
+                                            rnn_conf_.acc_data_type, false,
+                                            0.0f),
                                     create_gemm_pd(&gemm_layer_bwd_pd_, slc,
                                             layer_merged_size, n_gates * dic,
                                             rnn_conf_.weights_layer_ld,
-                                            rnn_conf_.gates_ws_ld,
-                                            rnn_conf_.states_ws_ld,
-                                            weights_type, src_type, src_type,
-                                            false, 0.0f),
+                                            rnn_conf_.scratch_gates_ld,
+                                            rnn_conf_.diff_states_ws_ld,
+                                            weights_type, src_type,
+                                            rnn_conf_.acc_data_type, false,
+                                            0.0f),
                                     create_gemm_pd(&gemm_diff_wei_layer_pd_,
                                             n_gates * dic, slc,
                                             layer_merged_size,
-                                            rnn_conf_.gates_ws_ld,
+                                            rnn_conf_.scratch_gates_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.diff_weights_layer_ld,
-                                            src_type, src_type, weights_type,
-                                            true, 1.0f),
+                                            weights_type, src_type,
+                                            rnn_conf_.acc_data_type, true,
+                                            1.0f),
                                     create_gemm_pd(&gemm_diff_wei_iter_pd_,
                                             n_gates * dic, sic,
                                             iter_merged_size,
-                                            rnn_conf_.gates_ws_ld,
+                                            rnn_conf_.scratch_gates_ld,
                                             rnn_conf_.states_ws_ld,
                                             rnn_conf_.diff_weights_iter_ld,
-                                            src_type, src_type, weights_type,
-                                            true, 1.0f));
+                                            weights_type, src_type,
+                                            rnn_conf_.acc_data_type, true,
+                                            1.0f));
                     break;
                 default:
                     assert(!"unknown prop_kind");

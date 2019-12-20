@@ -29,6 +29,7 @@
 
  */
 #include "ocl/rnn/ref_rnn.hpp"
+
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "dnnl_traits.hpp"
@@ -155,6 +156,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
                     ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
             weights->memory_storage()->get_data_handle(&mem_storage_weights);
+
             gemm_mem_A.reset(new memory_t(engine(), &scratchpad_gates_md,
                     memory_flags_t::use_runtime_ptr, nullptr));
             gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
@@ -256,46 +258,45 @@ grid_execution_sig(
                         weights_input, n_layer, n_dir, n_parts_weights_layer);
                 cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0))
                         * sizeof(wei_t);
+                cl_ulong offset_ws_states = ws_states_offset_
+                        + OFF4(lay, n_layer + 1, dir, n_dir, 1, n_iter + 1, 0,
+                                  batch * pd()->rnn_conf_.states_ws_ld)
+                                * sizeof(src_t);
+                cl_ulong offset_workspace_layer = ws_diff_states_offset_
+                        + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
+                                  n_states + 1, 0, n_iter + 1, 0,
+                                  pd()->rnn_conf_.states_nld
+                                          * pd()->rnn_conf_.diff_states_ws_ld)
+                                * sizeof(float);
+                cl_ulong offset_weights_layer
+                        = OFF3(lay, n_layer, dir, n_dir, 0,
+                                  pd()->rnn_conf_.diff_weights_layer_nld
+                                          * pd()->rnn_conf_
+                                                    .diff_weights_layer_ld)
+                        * sizeof(float);
 
                 gemm_primitive(ctx, w_input, offset_w_input, scratch_gates, 0,
-                        workspace,
-                        ws_diff_states_offset_
-                                + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
-                                          n_states + 1, 0, n_iter + 1, 0,
-                                          pd()->rnn_conf_.states_nld
-                                                  * pd()->rnn_conf_
-                                                            .states_ws_ld)
-                                        * sizeof(src_t),
-                        gemm_layer_bwd);
+                        workspace, offset_workspace_layer, gemm_layer_bwd);
                 gemm_primitive(ctx, scratch_gates, 0, workspace,
-                        ws_states_offset_
-                                + OFF4(lay, n_layer + 1, dir, n_dir, 1,
-                                          n_iter + 1, 0,
-                                          batch * pd()->rnn_conf_.states_ws_ld)
-                                        * sizeof(src_t),
-                        diff_weights_layer,
-                        OFF3(lay, n_layer, dir, n_dir, 0,
-                                pd()->rnn_conf_.diff_weights_layer_nld
-                                        * pd()->rnn_conf_.diff_weights_layer_ld)
-                                * sizeof(wei_t),
-                        gemm_diff_wei_layer);
+                        offset_ws_states, diff_weights_layer,
+                        offset_weights_layer, gemm_diff_wei_layer);
             }
 
             if (aprop == prop_kind::backward
                     && pd()->rnn_conf_.merge_gemm_iter) {
-
+                cl_ulong offset_workspace_iter = ws_states_offset_
+                        + OFF4(lay + 1, n_layer + 1, dir, n_dir, 0, n_iter + 1,
+                                  0, batch * pd()->rnn_conf_.states_ws_ld)
+                                * sizeof(src_t);
+                cl_ulong offset_weights_iter
+                        = OFF3(lay, n_layer, dir, n_dir, 0,
+                                  pd()->rnn_conf_.diff_weights_iter_nld
+                                          * pd()->rnn_conf_
+                                                    .diff_weights_iter_ld)
+                        * sizeof(float);
                 gemm_primitive(ctx, scratch_gates, 0, workspace,
-                        ws_states_offset_
-                                + OFF4(lay + 1, n_layer + 1, dir, n_dir, 0,
-                                          n_iter + 1, 0,
-                                          batch * pd()->rnn_conf_.states_ws_ld)
-                                        * sizeof(src_t),
-                        diff_weights_iter,
-                        OFF3(lay, n_layer, dir, n_dir, 0,
-                                pd()->rnn_conf_.diff_weights_iter_nld
-                                        * pd()->rnn_conf_.diff_weights_iter_ld)
-                                * sizeof(wei_t),
-                        gemm_diff_wei_iter);
+                        offset_workspace_iter, diff_weights_iter,
+                        offset_weights_iter, gemm_diff_wei_iter);
             }
         }
     }

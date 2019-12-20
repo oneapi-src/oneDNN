@@ -232,9 +232,10 @@ struct jit_rnn_conf_t {
     data_type_t bia_dt;
     data_type_t dst_dt;
     data_type_t acc_dt;
-    data_type_t precise_dt;
+    data_type_t aux_dt;
     data_type_t input_dt;
     data_type_t output_dt;
+    data_type_t diff_dt;
 
     int n_layer;
     int n_dir;
@@ -270,7 +271,7 @@ struct jit_rnn_conf_t {
     int diff_dst_iter_ndims;
     int diff_dst_iter_c_ndims;
     int diff_bias_ndims;
-    int states_ws_ld, gates_ws_ld;
+    int states_ws_ld, gates_ws_ld, diff_states_ws_ld, scratch_gates_ld;
 
     int wei_qparam_mask;
 
