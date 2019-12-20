@@ -232,8 +232,7 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
         forward();
         postamble();
 
-        ker_ = reinterpret_cast<decltype(ker_)>(
-                const_cast<uint8_t *>(this->getCode()));
+        ker_ = getCode<decltype(ker_)>();
     }
 
     jit_uni_i8i8_binary_kernel_t(const binary_pd_t *pd)

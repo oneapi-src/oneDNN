@@ -31,30 +31,37 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-namespace {
-
-typedef float data_t;
-
 using namespace Xbyak;
 
-template <cpu_isa_t isa>
-struct jit_binary_base_t : public jit_generator {
+struct binary_kernel_t {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
-        const data_t *src0, *src1, *dst;
+        const void *src0, *src1, *dst;
         size_t spat_offt_count;
     };
-    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_binary_t)
 
-    // cpu specific part
+    binary_kernel_t(int vlen) : vlen_(vlen) {}
+    virtual ~binary_kernel_t() = default;
+
+    void operator()(const call_params_t *p) {
+        assert(ker_);
+        ker_(p);
+    }
+    int vlen() const { return vlen_; }
+
+protected:
+    int vlen_ = 0;
+    void (*ker_)(const call_params_t *) = nullptr;
+};
+
+template <cpu_isa_t isa>
+struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_binary_kernel_t)
+
     using Vmm = typename cpu_isa_traits<isa>::Vmm;
     const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
-    const int vlen = cpu_isa_traits<isa>::vlen;
 
     const binary_pd_t *pd_;
-
-    void (*ker)(const call_params_t *);
-    void operator()(const call_params_t *p) { (*ker)(p); }
 
     Reg64 reg_param = abi_param1;
 
@@ -66,17 +73,20 @@ struct jit_binary_base_t : public jit_generator {
     Reg64 reg_reverse_spat_offt = r13;
     Reg64 reg_tmp = r14;
 
-    size_t unroll_regs_ = isa == avx512_common ? 8 : 4;
-    size_t simd_w_ = vlen / sizeof(data_t);
-    size_t nelems_simd_tail_;
+    size_t unroll_regs_ = isa == avx512_core ? 8 : 4;
+    size_t simd_w_ = 0;
+    size_t tail_size_ = 0;
+    size_t data_type_size_ = 0;
 
-    void compute_predefined_variables() {
+    void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
         size_t nelems = src0_d.nelems(true);
-        nelems_simd_tail_ = nelems % simd_w_;
+        simd_w_ = vlen_ / sizeof(float);
+        tail_size_ = nelems % simd_w_;
+        data_type_size_ = sizeof(float);
     }
 
-    void load_common_params() {
+    void load_kernel_params() {
 #define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_spat_offt_count, ptr[reg_param + PARAM_OFF(spat_offt_count)]);
         mov(reg_src0, ptr[reg_param + PARAM_OFF(src0)]);
@@ -106,8 +116,8 @@ struct jit_binary_base_t : public jit_generator {
             uni_vmulps(v0, v0, v1);
     }
 
-    virtual void prepare_tail_mask() {}
-    virtual void compute_dst(int unroll, bool tail = false) {}
+    virtual void prepare_isa_subkernel() = 0;
+    virtual void compute_dst(int unroll, bool tail = false) = 0;
 
     void forward() {
         Label unroll_loop, unroll_loop_tail, nelems_tail, end;
@@ -115,25 +125,26 @@ struct jit_binary_base_t : public jit_generator {
         // reverse spat_offt to dispatch between labels
         mov(reg_reverse_spat_offt, reg_spat_offt_count);
         xor_(reg_spat_offt, reg_spat_offt); // spat_offt to get addr of src/dst
+        size_t offt = simd_w_ * data_type_size_;
         L(unroll_loop);
         {
-            cmp(reg_reverse_spat_offt, unroll_regs_ * vlen);
+            cmp(reg_reverse_spat_offt, unroll_regs_ * offt);
             jl(unroll_loop_tail, T_NEAR);
 
             compute_dst(unroll_regs_);
-            sub(reg_reverse_spat_offt, unroll_regs_ * vlen);
-            add(reg_spat_offt, unroll_regs_ * vlen);
+            sub(reg_reverse_spat_offt, unroll_regs_ * offt);
+            add(reg_spat_offt, unroll_regs_ * offt);
             jmp(unroll_loop);
         }
 
         L(unroll_loop_tail);
         {
-            cmp(reg_reverse_spat_offt, vlen);
+            cmp(reg_reverse_spat_offt, offt);
             jl(nelems_tail, T_NEAR);
 
             compute_dst(1);
-            sub(reg_reverse_spat_offt, vlen);
-            add(reg_spat_offt, vlen);
+            sub(reg_reverse_spat_offt, offt);
+            add(reg_spat_offt, offt);
             jmp(unroll_loop_tail);
         }
 
@@ -148,153 +159,184 @@ struct jit_binary_base_t : public jit_generator {
         L(end);
     }
 
-    // either this stub or duplication at each jit_binary_t ctor due to methods
-    // that are participated are not defined at the moment of base ctor
-    // initialization.
     void get_code() {
         preamble();
-        compute_predefined_variables();
-        load_common_params();
-        prepare_tail_mask();
+        load_kernel_params();
+        prepare_isa_subkernel();
         forward();
         postamble();
 
-        ker = reinterpret_cast<decltype(ker)>(
-                const_cast<uint8_t *>(this->getCode()));
+        ker_ = getCode<decltype(ker_)>();
     }
 
-    jit_binary_base_t(const binary_pd_t *pd) : pd_(pd) {}
+    jit_uni_binary_kernel_t(const binary_pd_t *pd)
+        : binary_kernel_t(cpu_isa_traits<isa>::vlen), pd_(pd) {
+        init();
+    }
+    virtual ~jit_uni_binary_kernel_t() = default;
 };
 
-template <cpu_isa_t isa>
-struct jit_binary_t;
+template <cpu_isa_t isa, data_type_t src_type>
+struct jit_uni_binary_subkernel_t;
 
-template <>
-struct jit_binary_t<avx512_common> : public jit_binary_base_t<avx512_common> {
+template <data_type_t src_type>
+struct jit_uni_binary_subkernel_t<avx512_core, src_type>
+    : public jit_uni_binary_kernel_t<avx512_core> {
     Opmask tail_opmask = Opmask(1);
 
-    void prepare_tail_mask() override {
-        if (!nelems_simd_tail_) return;
+    void prepare_tail_mask() {
+        if (!tail_size_) return;
 
-        const int mask_f32 = (1 << nelems_simd_tail_) - 1;
+        const int mask_f32 = (1 << tail_size_) - 1;
 
         Reg32 regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, mask_f32);
-        kmovw(tail_opmask, regw_tmp);
+        kmovd(tail_opmask, regw_tmp);
+    }
+
+    void prepare_isa_subkernel() override { prepare_tail_mask(); }
+
+    void load(const Vmm &dst, const Address &src, data_type_t dt) {
+        switch (dt) {
+            case data_type::f32: uni_vmovups(dst, src); break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void load_tail(const Vmm &dst, const Xbyak::Opmask &opmask,
+            const Address &src, data_type_t dt) {
+        switch (dt) {
+            case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void store(const Address &dst, const Vmm &src, data_type_t dt) {
+        Ymm ymm_src = Ymm(src.getIdx());
+        switch (dt) {
+            case data_type::f32: uni_vmovups(dst, src); break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void store_tail(const Address &dst, const Xbyak::Opmask &opmask,
+            const Vmm &src, data_type_t dt) {
+        Ymm ymm_src = Ymm(src.getIdx());
+        switch (dt) {
+            case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
+            default: assert(!"unreachable");
+        }
     }
 
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
+            int offt = i * (vlen_ / 1.f);
             if (!tail) {
-                uni_vmovups(vreg_tmp_src0, src0_ptr(vlen * i));
-                uni_vmovups(vreg_tmp_src1, src1_ptr(vlen * i));
+                load(vreg_tmp_src0, src0_ptr(offt), src_type);
+                load(vreg_tmp_src1, src1_ptr(offt), src_type);
                 perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                uni_vmovups(dst_ptr(vlen * i), vreg_tmp_src0);
+                store(dst_ptr(offt), vreg_tmp_src0, src_type);
             } else {
-                uni_vmovups_tail(
-                        vreg_tmp_src0, tail_opmask, src0_ptr(vlen * i));
-                uni_vmovups_tail(
-                        vreg_tmp_src1, tail_opmask, src1_ptr(vlen * i));
+                load_tail(vreg_tmp_src0, tail_opmask, src0_ptr(offt), src_type);
+                load_tail(vreg_tmp_src1, tail_opmask, src1_ptr(offt), src_type);
                 perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                uni_vmovups_tail(dst_ptr(vlen * i), tail_opmask, vreg_tmp_src0);
+                store_tail(dst_ptr(offt), tail_opmask, vreg_tmp_src0, src_type);
             }
         }
     }
 
-    jit_binary_t(const binary_pd_t *pd) : jit_binary_base_t(pd) { get_code(); }
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
+        : jit_uni_binary_kernel_t(pd) {
+        get_code();
+    }
 };
 
-template <>
-struct jit_binary_t<avx2> : public jit_binary_base_t<avx2> {
+template <data_type_t src_type>
+struct jit_uni_binary_subkernel_t<avx2, src_type>
+    : public jit_uni_binary_kernel_t<avx2> {
     Vmm tail_vmask = Vmm(0);
 
-    void prepare_tail_mask() override {
-        if (!nelems_simd_tail_) return;
+    void prepare_tail_mask() {
+        if (!tail_size_) return;
 
         static const uint32_t mask_f32[14]
                 = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
                         0xffffffff, 0xffffffff, 0, 0, 0, 0, 0, 0, 0};
 
-        mov(reg_tmp,
-                reinterpret_cast<size_t>(&mask_f32[7 - nelems_simd_tail_]));
+        mov(reg_tmp, reinterpret_cast<size_t>(&mask_f32[7 - tail_size_]));
         vmovups(tail_vmask, ptr[reg_tmp]);
     }
+
+    void prepare_isa_subkernel() override { prepare_tail_mask(); }
 
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
+            int offt = vlen_ * i;
             if (!tail) {
-                uni_vmovups(vreg_tmp_src0, src0_ptr(vlen * i));
-                uni_vmovups(vreg_tmp_src1, src1_ptr(vlen * i));
+                uni_vmovups(vreg_tmp_src0, src0_ptr(offt));
+                uni_vmovups(vreg_tmp_src1, src1_ptr(offt));
                 perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                uni_vmovups(dst_ptr(vlen * i), vreg_tmp_src0);
+                uni_vmovups(dst_ptr(offt), vreg_tmp_src0);
             } else {
-                uni_vmovups_tail(vreg_tmp_src0, tail_vmask, src0_ptr(vlen * i));
-                uni_vmovups_tail(vreg_tmp_src1, tail_vmask, src1_ptr(vlen * i));
+                uni_vmovups_tail(vreg_tmp_src0, tail_vmask, src0_ptr(offt));
+                uni_vmovups_tail(vreg_tmp_src1, tail_vmask, src1_ptr(offt));
                 perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                uni_vmovups_tail(dst_ptr(vlen * i), tail_vmask, vreg_tmp_src0);
+                uni_vmovups_tail(dst_ptr(offt), tail_vmask, vreg_tmp_src0);
             }
         }
     }
 
-    jit_binary_t(const binary_pd_t *pd) : jit_binary_base_t(pd) { get_code(); }
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
+        : jit_uni_binary_kernel_t(pd) {
+        get_code();
+    }
 };
 
-} // namespace
+template <data_type_t src_type>
+std::unique_ptr<binary_kernel_t> create_binary_kernel(const binary_pd_t *pd) {
+    if (mayiuse(avx512_core)) {
+        using subkernel_t = jit_uni_binary_subkernel_t<avx512_core, src_type>;
+        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+    } else if (mayiuse(avx2)) {
+        using subkernel_t = jit_uni_binary_subkernel_t<avx2, src_type>;
+        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+    }
+    return nullptr;
+}
 
-template <cpu_isa_t isa>
-jit_uni_binary_t<isa>::jit_uni_binary_t(const pd_t *apd)
+template <data_type_t src_type>
+jit_uni_binary_t<src_type>::jit_uni_binary_t(const pd_t *apd)
     : primitive_impl_t(apd) {
-    binary_driver_ = new binary_impl::driver_t<isa>(pd());
+    kernel_ = create_binary_kernel<src_type>(pd());
 }
 
-template <cpu_isa_t isa>
-jit_uni_binary_t<isa>::~jit_uni_binary_t() {
-    delete binary_driver_;
-}
+template <data_type_t src_type>
+jit_uni_binary_t<src_type>::~jit_uni_binary_t() = default;
 
-template <cpu_isa_t isa>
-status_t jit_uni_binary_t<isa>::execute(const exec_ctx_t &ctx) const {
+template <data_type_t src_type>
+status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
+    using data_t = typename prec_traits<src_type>::type;
+
     const auto src0 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_1);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    // Consider moving to parallel_nd when additional support will be added.
-    // It's not used now due to need smaller granularity than nelems.
-    parallel(0, [&](const int ithr, const int nthr) {
-        binary_driver_->exec(ithr, nthr, src0, src1, dst);
-    });
+    const memory_desc_wrapper src0_d(pd()->src_md(0));
+    const dim_t nelems0 = src0_d.nelems(true);
 
-    return status::success;
-}
-
-namespace binary_impl {
-
-template <cpu_isa_t isa>
-struct driver_t : public c_compatible {
-
-    driver_t(const binary_pd_t *pd) : pd_(pd), ker_(pd_) {}
-    ~driver_t() {}
+    const int simd_w = (*kernel_).vlen() / sizeof(float);
+    const dim_t nelems0_simd = nelems0 / simd_w;
+    const dim_t nelems0_tail = nelems0 % simd_w;
+    bool has_tail = nelems0_tail > 0;
 
     // Compute strategy:
     // Compute number of full vectors, divide it equally between all threads.
     // Last one will also handle a tail if present.
-    void exec(int ithr, int nthr, const data_t *src0, const data_t *src1,
-            data_t *dst) {
-        typename jit_binary_t<isa>::call_params_t p;
-
-        const memory_desc_wrapper src0_d(pd_->src_md(0));
-        const dim_t nelems0 = src0_d.nelems(true);
-
-        const int vlen = cpu_isa_traits<isa>::vlen;
-        const int simd_w = vlen / sizeof(data_t);
-        const dim_t nelems0_simd = nelems0 / simd_w;
-        const dim_t nelems0_tail = nelems0 % simd_w;
-        bool has_tail = nelems0_tail > 0;
-
+    parallel(0, [&](const int ithr, const int nthr) {
         dim_t start = 0, end = 0;
         balance211(nelems0_simd + has_tail, nthr, ithr, start, end);
         if (start >= end) return;
@@ -312,25 +354,21 @@ struct driver_t : public c_compatible {
             }
         }
 
+        binary_kernel_t::call_params_t p;
         p.spat_offt_count = spat_offt_count;
         p.src0 = src0 + start * simd_w;
         p.src1 = src1 + start * simd_w;
         p.dst = dst + start * simd_w;
 
-        if (p.spat_offt_count != 0) ker_(&p);
-    }
+        (*kernel_)(&p);
+    });
 
-private:
-    const binary_pd_t *pd_;
+    return status::success;
+}
 
-    jit_binary_t<isa> ker_;
-};
+using namespace data_type;
 
-} // namespace binary_impl
-
-/* struct instantiation */
-template struct jit_uni_binary_t<avx2>;
-template struct jit_uni_binary_t<avx512_common>;
+template struct jit_uni_binary_t<f32>;
 
 } // namespace cpu
 } // namespace impl

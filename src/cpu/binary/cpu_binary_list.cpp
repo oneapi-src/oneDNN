@@ -32,8 +32,7 @@ using namespace dnnl::impl::data_type;
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f impl_list[] = {
         /* fp */
-        INSTANCE(jit_uni_binary_t<avx512_common>),
-        INSTANCE(jit_uni_binary_t<avx2>),
+        INSTANCE(jit_uni_binary_t<f32>),
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
         /* int */
