@@ -781,6 +781,6 @@ void simple_net() {
 
 int main(int argc, char **argv) {
     simple_net();
-    printf("Example passed\n");
+    printf("Example passed.\n");
     return 0;
 }

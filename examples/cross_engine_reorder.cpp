@@ -242,6 +242,6 @@ int main(int argc, char **argv) {
 /// Upon compiling and running the example, the output should be just:
 ///
 /// ~~~
-/// Example passes
+/// Example passed.
 /// ~~~
 ///

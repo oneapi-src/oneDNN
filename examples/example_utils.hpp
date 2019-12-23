@@ -53,11 +53,12 @@ inline int handle_example_errors(std::function<void()> example) {
                   << "\tMessage: " << e.what() << std::endl;
         exit_code = 1;
     } catch (std::exception &e) {
-        std::cout << "Error in the example: " << e.what() << std::endl;
+        std::cout << "Error in the example: " << e.what() << "." << std::endl;
         exit_code = 2;
     }
 
-    std::cout << "Example " << (exit_code ? "failed" : "passed") << std::endl;
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << "."
+              << std::endl;
     return exit_code;
 }
 
@@ -97,9 +98,9 @@ inline dnnl::engine::kind parse_engine_kind(
     }
 
     // If all above fails, the example should be ran properly
-    std::cout << "Inappropriate engine kind" << std::endl
-              << "Please run example like this" << argv[0] << " [cpu|gpu]"
-              << (extra_args ? " [extra arguments]" : "") << std::endl;
+    std::cout << "Inappropriate engine kind." << std::endl
+              << "Please run the example like this: " << argv[0] << " [cpu|gpu]"
+              << (extra_args ? " [extra arguments]" : "") << "." << std::endl;
     exit(1);
 }
 
@@ -122,7 +123,7 @@ inline void read_from_dnnl_memory(void *handle, dnnl::memory &mem) {
         cl_int ret = clEnqueueReadBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
         if (ret != CL_SUCCESS)
-            throw std::runtime_error("clEnqueueReadBuffer failed");
+            throw std::runtime_error("clEnqueueReadBuffer failed.");
     }
 #endif
 }
@@ -147,7 +148,7 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
         cl_int ret = clEnqueueWriteBuffer(
                 q, m, CL_TRUE, 0, bytes, handle, 0, NULL, NULL);
         if (ret != CL_SUCCESS)
-            throw std::runtime_error("clEnqueueWriteBuffer failed");
+            throw std::runtime_error("clEnqueueWriteBuffer failed.");
     }
 #endif
 }

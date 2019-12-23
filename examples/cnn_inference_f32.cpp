@@ -788,7 +788,8 @@ void cnn_inference_f32(int argc, char **argv) {
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch())
                        .count();
-    std::cout << "Use time " << (end - begin) / (times + 0.0) << std::endl;
+    std::cout << "Use time: " << (end - begin) / (times + 0.0)
+              << " ms per iteration." << std::endl;
 }
 
 int main(int argc, char **argv) {

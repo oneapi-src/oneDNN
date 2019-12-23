@@ -27,17 +27,17 @@
 
 #define COMPLAIN_DNNL_ERROR_AND_EXIT(what, status) \
     do { \
-        printf("[%s:%d] `%s` returns DNNL error: %s\n", __FILE__, __LINE__, \
+        printf("[%s:%d] `%s` returns DNNL error: %s.\n", __FILE__, __LINE__, \
                 what, dnnl_status2str(status)); \
-        printf("Example failed\n"); \
+        printf("Example failed.\n"); \
         exit(1); \
     } while (0)
 
 #define COMPLAIN_EXAMPLE_ERROR_AND_EXIT(complain_fmt, ...) \
     do { \
-        printf("[%s:%d] Error in the example: " complain_fmt "\n", __FILE__, \
+        printf("[%s:%d] Error in the example: " complain_fmt ".\n", __FILE__, \
                 __LINE__, __VA_ARGS__); \
-        printf("Example failed\n"); \
+        printf("Example failed.\n"); \
         exit(2); \
     } while (0)
 
@@ -68,8 +68,8 @@ static inline dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
 
     // If all above fails, the example should be run properly
     COMPLAIN_EXAMPLE_ERROR_AND_EXIT(
-            "inappropriate engine kind\n"
-            "Please run example like this: %s [cpu|gpu]",
+            "inappropriate engine kind.\n"
+            "Please run the example like this: %s [cpu|gpu].",
             argv[0]);
 }
 

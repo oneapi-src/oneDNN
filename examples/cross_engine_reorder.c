@@ -151,6 +151,6 @@ void cross_engine_reorder() {
 
 int main() {
     cross_engine_reorder();
-    printf("Example passed\n");
+    printf("Example passed.\n");
     return 0;
 }

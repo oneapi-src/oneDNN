@@ -480,11 +480,12 @@ int main(int argc, char **argv) {
                   << "\tMessage: " << e.what() << std::endl;
         exit_code = 1;
     } catch (std::string &e) {
-        std::cout << "Error in the example: " << e << std::endl;
+        std::cout << "Error in the example: " << e << "." << std::endl;
         exit_code = 2;
     }
 
-    std::cout << "Example " << (exit_code ? "failed" : "passed") << std::endl;
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << "."
+              << std::endl;
     return exit_code;
 }
 // [Main]
@@ -496,7 +497,7 @@ int main(int argc, char **argv) {
 /// Upon compiling and run the example the output should be just:
 ///
 /// ~~~
-/// Example passes
+/// Example passed.
 /// ~~~
 ///
 /// Users are encouraged to experiment with the code to familiarize themselves
@@ -523,6 +524,8 @@ int main(int argc, char **argv) {
 /// we should get the following output:
 ///
 /// ~~~
-/// DNNL error: could not execute a primitive
-/// Error status: invalid_arguments
+/// DNNL error caught:
+///         Status: invalid_arguments
+///         Message: could not execute a primitive
+/// Example failed.
 /// ~~~

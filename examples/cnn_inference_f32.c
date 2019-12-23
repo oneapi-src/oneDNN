@@ -448,6 +448,6 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
 
 int main(int argc, char **argv) {
     simple_net(parse_engine_kind(argc, argv));
-    printf("Example passed\n");
+    printf("Example passed.\n");
     return 0;
 }

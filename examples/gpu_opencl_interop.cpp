@@ -69,7 +69,7 @@ using namespace std;
         cl_int s = (x); \
         if (s != CL_SUCCESS) { \
             std::cout << "[" << __FILE__ << ":" << __LINE__ << "] '" << #x \
-                      << "' failed (status code: " << s << ")" << std::endl; \
+                      << "' failed (status code: " << s << ")." << std::endl; \
             exit(1); \
         } \
     } while (0)
@@ -247,7 +247,7 @@ void gpu_opencl_interop_tutorial() {
         float expected = (i % 2) ? 0.0f : (float)i;
         if (mem_data[i] != expected) {
             std::cout << "Expect " << expected << " but got " << mem_data[i]
-                      << std::endl;
+                      << "." << std::endl;
             throw std::logic_error("Accuracy check failed.");
         }
     }
@@ -267,6 +267,6 @@ int main(int argc, char **argv) {
 /// Upon compiling and running the example, the output should be just:
 ///
 /// ~~~
-/// Example passes
+/// Example passed.
 /// ~~~
 ///
