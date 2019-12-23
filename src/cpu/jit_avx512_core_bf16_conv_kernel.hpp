@@ -398,6 +398,9 @@ private:
     inline void compute_od_loop_common();
     void convert_src_to_vnni_format(
             int ur_w, int pad_l, int pad_r, int input_offset);
+    inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
+            int pad_r, int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset, bool is_tail = false);
 
     void generate();
 
@@ -406,9 +409,6 @@ private:
 
     void get_w_positions(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw,
             int &iw_0, int &iw_1) {
-        iw_1 = (i_ur + i_kw);
-        iw_2 = (i_ur + 1 == ur_w) ? -1 : (i_ur + 1) + i_kw;
-
         auto get_w_position = [=](int idx) {
             int iw = i_ur + idx;
             if (iw >= ur_w) return -1;

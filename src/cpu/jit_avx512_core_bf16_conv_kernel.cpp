@@ -1817,6 +1817,127 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 }
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
+        compute_ic_block_step_vpermw_expl(int ur_w, int pad_l, int pad_r,
+                int ic_block_step, int input_offset, int kernel_offset,
+                int output_offset, bool is_tail) {
+    assert(!jcp.is_1stconv); // This method does not support nchw data
+    int kw = jcp.kw;
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
+    int src_count = 0;
+    int ic_block_step_idx = input_offset / (jcp.typesize_in * ic_block_step);
+    const int max_regs = (!isa_has_bf16(jcp.isa)) ? 26 : 31;
+    int src_pl_len = kw;
+    const int diff_dst_pl_start_reg_idx = ic_block_step * (kw + src_pl_len);
+    const int diff_dst_pl_len = max_regs - diff_dst_pl_start_reg_idx;
+
+    auto get_diff_wei_reg_idx
+            = [=](int i_kw, int i_ic) { return i_kw * ic_block_step + i_ic; };
+    auto get_src_reg_idx = [=](int i_iw, int i_ic) {
+        return kw * ic_block_step + (i_iw % src_pl_len) * ic_block_step + i_ic;
+    };
+    auto get_diff_dst_reg_idx = [=](int i_ur) {
+        return diff_dst_pl_start_reg_idx + (i_ur / 2) % diff_dst_pl_len;
+    };
+
+    auto load_dst = [=](int c) {
+        int offset = jcp.typesize_in * c * 2 * oc_block + output_offset;
+
+        Opmask load_mask;
+        if (ur_w % 2 && c * 2 + 2 >= ur_w)
+            load_mask = m_0000ffff;
+        else
+            load_mask = m_ffffffff;
+
+        vmovdqu16(Zmm(get_diff_dst_reg_idx(2 * c)) | load_mask | T_z,
+                EVEX_compress_addr(reg_output, offset));
+        vpermw(Zmm(get_diff_dst_reg_idx(2 * c)), get_perm_reg(),
+                Zmm(get_diff_dst_reg_idx(2 * c)));
+    };
+    for (int i_kw = 0; i_kw < kw; i_kw++)
+        for (int i_ic = 0; i_ic < ic_block_step; i_ic++)
+            vpxord(Zmm(get_diff_wei_reg_idx(i_kw, i_ic)),
+                    Zmm(get_diff_wei_reg_idx(i_kw, i_ic)),
+                    Zmm(get_diff_wei_reg_idx(i_kw, i_ic)));
+
+    auto get_bcast_ptr = [=](int i_ur, int i_kw, int ic) {
+        int scale = 2 * jcp.typesize_in;
+        return rsp + b_ic * scale + permw_buffer_start + (i_ur + i_kw) * 64
+                + jcp.typesize_in * 2
+                * (ic_block_step_idx * ic_block_step + ic);
+    };
+
+    int src_count_last = 0;
+    for (int i_ur = 0; i_ur < ur_w; i_ur += 2) {
+        if (i_ur == 0) {
+            for (int dst_count = 0;
+                    dst_count < nstl::min(diff_dst_pl_len, div_up(ur_w, 2));
+                    dst_count++) {
+                load_dst(dst_count);
+            }
+            for (src_count = 0; src_count < src_pl_len; src_count++) {
+                int _i_ur = src_count / kw;
+                int _i_kw = src_count % kw;
+                if (check_borders(ur_w, pad_l, pad_r, _i_ur, _i_kw))
+                    for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+                        vbroadcastss(Zmm(get_src_reg_idx(src_count, i_ic)),
+                                ptr[get_bcast_ptr(_i_ur, _i_kw, i_ic)]);
+                    }
+            }
+            src_count_last = src_count;
+        } else {
+            int diff_dst_load_idx = i_ur + 2 * (diff_dst_pl_len - 1);
+            if (diff_dst_load_idx < ur_w) load_dst(diff_dst_load_idx / 2);
+            for (src_count = i_ur; src_count < i_ur + src_pl_len; src_count++) {
+                if (src_count < src_count_last) continue;
+                int _i_ur = (src_count - i_ur) / kw + i_ur;
+                int _i_kw = (src_count - i_ur) % kw;
+                if (check_borders(ur_w, pad_l, pad_r, _i_ur, _i_kw))
+                    for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+                        vbroadcastss(Zmm(get_src_reg_idx(src_count, i_ic)),
+                                ptr[get_bcast_ptr(_i_ur, _i_kw, i_ic)]);
+                    }
+            }
+            src_count_last = src_count;
+        }
+        for (int i_kw = 0; i_kw < kw; i_kw++) {
+            int i_iw = i_ur + i_kw;
+            if (check_borders(ur_w, pad_l, pad_r, i_ur, i_kw)) {
+                for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+                    if (!isa_has_bf16(jcp.isa)) {
+                        bf16_emu_->vdpbf16ps(
+                                Zmm(get_diff_wei_reg_idx(i_kw, i_ic)),
+                                Zmm(get_diff_dst_reg_idx(i_ur)),
+                                Zmm(get_src_reg_idx(i_iw, i_ic)));
+                    } else {
+                        vdpbf16ps(Zmm(get_diff_wei_reg_idx(i_kw, i_ic)),
+                                Zmm(get_diff_dst_reg_idx(i_ur)),
+                                Zmm(get_src_reg_idx(i_iw, i_ic)));
+                    }
+                }
+            }
+        }
+    }
+
+    for (int i_kw = 0; i_kw < kw; i_kw++)
+        for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+            int l_offset = jcp.typesize_out * (i_kw * ic_block + i_ic)
+                    * jcp.oc_block;
+            vaddps(Zmm(get_diff_wei_reg_idx(i_kw, i_ic)),
+                    EVEX_compress_addr(reg_kernel, l_offset + kernel_offset));
+        }
+
+    for (int i_kw = 0; i_kw < kw; i_kw++) {
+        for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+            int l_offset = jcp.typesize_out * (i_kw * ic_block + i_ic)
+                    * jcp.oc_block;
+            vmovups(EVEX_compress_addr(reg_kernel, l_offset + kernel_offset),
+                    Zmm(get_diff_wei_reg_idx(i_kw, i_ic)));
+        }
+    }
+}
+
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         compute_ic_block_step_vpermw(int ur_w, int pad_l, int pad_r,
                 int ic_block_step, int input_offset, int kernel_offset,
                 int output_offset, bool is_tail) {
@@ -1904,8 +2025,12 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         int kernel_offset, int output_offset, bool is_tail) {
 
     if (jcp.uses_permw_transposition)
-        compute_ic_block_step_vpermw(ur_w, pad_l, pad_r, ic_block_step,
-                input_offset, kernel_offset, output_offset, is_tail);
+        if (jcp.kernel_kind == expl_bcast)
+            compute_ic_block_step_vpermw_expl(ur_w, pad_l, pad_r, ic_block_step,
+                    input_offset, kernel_offset, output_offset, is_tail);
+        else
+            compute_ic_block_step_vpermw(ur_w, pad_l, pad_r, ic_block_step,
+                    input_offset, kernel_offset, output_offset, is_tail);
     else if (jcp.is_1stconv && jcp.stride_w > 1)
         compute_ic_block_step_interleave(ur_w, pad_l, pad_r, ic_block_step,
                 input_offset, kernel_offset, output_offset, is_tail);
@@ -2983,6 +3108,12 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     // TODO: tune cross point
     jcp.uses_permw_transposition = !jcp.is_1stconv && ndims == 5 && jcp.kw == 1
             && jcp.stride_w == 1 && jcp.dilate_w == 0 && jcp.ic_block_step > 4;
+
+    jcp.kernel_kind = embd_bcast;
+    if (jcp.uses_permw_transposition && jcp.kw <= 3)
+        jcp.kernel_kind = expl_bcast;
+    if (jcp.uses_permw_transposition && jcp.kernel_kind == expl_bcast)
+        jcp.ic_block_step = jcp.kw <= 3 ? 4 : (jcp.kw < 7 ? 2 : 1);
 
     if (jcp.uses_permw_transposition) {
         jcp.transpose_src = false;
