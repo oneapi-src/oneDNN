@@ -322,12 +322,10 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 private:
     Xbyak::Label dst_prm_table;
     // Used by compute_ic_block_step_{vpermw, interleave}
-    Xbyak::Opmask full_mask = Xbyak::Opmask(1);
+    Xbyak::Opmask m_ffffffff = Xbyak::Opmask(1);
     // Used by compute_ic_block_step_vpermw
-    Xbyak::Opmask low_mask = Xbyak::Opmask(2);
-    Xbyak::Opmask high_mask = Xbyak::Opmask(3);
-    Xbyak::Opmask m_ffffffff = Xbyak::Opmask(4);
-    Xbyak::Opmask m_0000ffff = Xbyak::Opmask(5);
+    Xbyak::Opmask m_0000ffff = Xbyak::Opmask(2);
+    Xbyak::Opmask m_ffff0000 = Xbyak::Opmask(3);
     // Used by compute_ic_block_step_extern (1st_conv only)
     Xbyak::Opmask everyother_mask = Xbyak::Opmask(6);
     Xbyak::Opmask everyother_shift_mask = Xbyak::Opmask(7);
@@ -337,10 +335,9 @@ private:
     Xbyak::Opmask underflow_stride_mask = Xbyak::Opmask(6);
     Xbyak::Opmask overflow_stride_mask = Xbyak::Opmask(7);
 
-    Xbyak::Zmm perm = Xbyak::Zmm(24);
-
     using reg64_t = const Xbyak::Reg64;
     enum {
+        sizeof_cacheline = 64,
         ker_code_size = 1024 * 1024,
     };
     static const int max_ur_w;
@@ -399,23 +396,82 @@ private:
     inline void compute_loop();
     inline void compute_oh_loop_common();
     inline void compute_od_loop_common();
+    void convert_src_to_vnni_format(
+            int ur_w, int pad_l, int pad_r, int input_offset);
 
     void generate();
 
     static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
+    void get_w_positions(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw,
+            int &iw_0, int &iw_1) {
+        iw_1 = (i_ur + i_kw);
+        iw_2 = (i_ur + 1 == ur_w) ? -1 : (i_ur + 1) + i_kw;
+
+        auto get_w_position = [=](int idx) {
+            int iw = i_ur + idx;
+            if (iw >= ur_w) return -1;
+            iw += i_kw;
+            if (iw - pad_l < 0 || iw > (ur_w - 1) + (jcp.kw - 1) - pad_r)
+                return -1;
+            return iw - pad_l;
+        };
+        iw_0 = get_w_position(0);
+        iw_1 = get_w_position(1);
+    };
+    bool check_borders(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw) {
+        int iw_1, iw_2;
+        get_w_positions(ur_w, pad_l, pad_r, i_ur, i_kw, iw_1, iw_2);
+
+        return (iw_1 == -1 && iw_2 == -1) ? false : true;
+    };
+    bool get_load_mask(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw,
+            Xbyak::Opmask &load_mask) {
+        int iw_1, iw_2;
+        get_w_positions(ur_w, pad_l, pad_r, i_ur, i_kw, iw_1, iw_2);
+
+        bool rt = true;
+        if (iw_1 != -1 && iw_2 != -1)
+            load_mask = m_ffffffff;
+        else if (iw_1 != -1 && iw_2 == -1)
+            load_mask = m_0000ffff;
+        else if (iw_1 == -1 && iw_2 != -1)
+            load_mask = m_ffff0000;
+        else
+            rt = false;
+
+        return rt;
+    };
+
+    ptrdiff_t get_inp_offset(
+            int pad_l, int i_ur, int i_kw, ptrdiff_t base_offset_bytes) {
+        ptrdiff_t local_offset_bytes
+                = jcp.typesize_in * (i_ur + i_kw - pad_l) * jcp.ic_block;
+        return base_offset_bytes + local_offset_bytes;
+    };
+
+    Xbyak::Zmm get_perm_reg() {
+        int idx = !(jcp.uses_permw_transposition
+                          && jcp.kernel_kind == expl_bcast)
+                ? 24
+                : ((!isa_has_bf16(jcp.isa)) ? 26 : 31);
+        return Xbyak::Zmm(idx);
+    }
     bf16_emulation_t *bf16_emu_;
 
     inline int interleave_w_reorder_size(int ur_w);
     inline int interleave_w_reorder_bytes(int ur_w);
     inline int interleave_stack_size(int ur_w, int ic_block_step);
+    inline int permw_stack_size(int ur_w) {
+        return (ur_w + jcp.kw - 1) * sizeof_cacheline;
+    }
 
     inline void setup_stack_space();
     static const int extern_ic_block_step_stack_size = 0;
-    static const int vpermw_ic_block_step_stack_size = 256;
     int ic_block_step_stack_size;
     int stack_space_needed;
+    int permw_buffer_start;
     int kd_count_offset;
     int input_d_offset;
     int output_d_offset;

@@ -1712,7 +1712,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                 mask_empty = false;
                 if (pad_r_mask == 0) mask_empty = true;
             } else {
-                mask = full_mask;
+                mask = m_ffffffff;
                 mask_empty = false;
             }
             if (i_iw == reorder_start) {
@@ -1727,7 +1727,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                 stride_mask_empty = false;
                 if (pad_r_mask_strided == 0) mask_empty = true;
             } else {
-                stride_mask = full_mask;
+                stride_mask = m_ffffffff;
                 stride_mask_empty = false;
             }
             load_src_to_stack(i_iw, i_ic, mask, mask_empty, stride_mask,
@@ -1782,6 +1782,41 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 }
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
+        convert_src_to_vnni_format(
+                int ur_w, int pad_l, int pad_r, int input_offset) {
+    Reg64 reg_trans_tmp = r11;
+    mov(EVEX_compress_addr(rsp, trans_tmp_offset), reg_trans_tmp);
+
+    mov(reg_trans_tmp, dst_prm_table);
+    vmovups(get_perm_reg(), ptr[reg_trans_tmp]);
+
+    mov(reg_trans_tmp, EVEX_compress_addr(rsp, trans_tmp_offset));
+    const int max_regs = 16;
+    for (int src_count = 0;
+            sizeof_cacheline * src_count < permw_stack_size(ur_w);
+            src_count++) {
+        int i_ur = nstl::min(src_count, ur_w - 2);
+        int i_kw = src_count - i_ur;
+        int buffer_offset = permw_buffer_start + src_count * 64;
+        auto bcast_values = Zmm(src_count % max_regs);
+        bool check = check_borders(ur_w, pad_l, pad_r, i_ur, i_kw);
+        if (check) {
+            Opmask load_mask;
+            get_load_mask(ur_w, pad_l, pad_r, i_ur, i_kw, load_mask);
+
+            ptrdiff_t inp_offset
+                    = get_inp_offset(pad_l, i_ur, i_kw, input_offset);
+            vmovdqu16(bcast_values | load_mask | T_z,
+                    ptr[reg_input + inp_offset]);
+            vpermw(bcast_values, get_perm_reg(), bcast_values);
+        } else {
+            vpxord(bcast_values, bcast_values, bcast_values);
+        }
+        vmovups(ptr[rsp + buffer_offset], bcast_values);
+    }
+}
+
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         compute_ic_block_step_vpermw(int ur_w, int pad_l, int pad_r,
                 int ic_block_step, int input_offset, int kernel_offset,
                 int output_offset, bool is_tail) {
@@ -1790,71 +1825,15 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     int ic_block = jcp.ic_block;
     int oc_block = jcp.oc_block;
 
-    int load_buf_count = 0;
-    int use_buf_count = 0;
-
     int dst_count = 0;
-    int src_count = 0;
 
-    int prv_i_offset = -1024;
-    int prv_u_offset = -1024;
+    int ic_block_step_idx = input_offset / (jcp.typesize_in * ic_block_step);
 
     int pipeline_length = (isa_has_bf16(jcp.isa))
             ? nstl::max(1, nstl::min(4, ur_w / 2))
             : 1;
 
-    Reg64 reg_trans_tmp = r11;
-
     const int dst_off_reg = (!isa_has_bf16(jcp.isa)) ? 26 : 31;
-
-    auto get_inp_offset = [=](int i_ur, int i_kw) {
-        int local_offset = i_ur + i_kw - pad_l;
-        return input_offset + jcp.typesize_in * local_offset * ic_block;
-    };
-    auto get_w_positions = [=](int i_ur, int i_kw, int &iw_1, int &iw_2) {
-        iw_1 = (i_ur + i_kw);
-        iw_2 = (i_ur + 1 == ur_w) ? -1 : (i_ur + 1) + i_kw;
-
-        iw_1 = (iw_1 - pad_l < 0 || iw_1 > (ur_w - 1) + (kw - 1) - pad_r)
-                ? -1
-                : iw_1 - pad_l;
-        iw_2 = (iw_2 - pad_l < 0 || iw_2 > (ur_w - 1) + (kw - 1) - pad_r)
-                ? -1
-                : iw_2 - pad_l;
-    };
-    auto check_borders = [=](int i_ur, int i_kw) {
-        int iw_1, iw_2;
-        get_w_positions(i_ur, i_kw, iw_1, iw_2);
-
-        return (iw_1 == -1 && iw_2 == -1) ? false : true;
-    };
-    auto get_load_mask = [=](int i_ur, int i_kw, Opmask &load_mask) {
-        int iw_1, iw_2;
-        get_w_positions(i_ur, i_kw, iw_1, iw_2);
-
-        bool rt = true;
-        if (iw_1 != -1 && iw_2 != -1)
-            load_mask = full_mask;
-        else if (iw_1 != -1 && iw_2 == -1)
-            load_mask = low_mask;
-        else if (iw_1 == -1 && iw_2 != -1)
-            load_mask = high_mask;
-        else
-            rt = false;
-
-        return rt;
-    };
-    auto load_src = [=](int i_ur, int i_kw, int buf_offset, int count) {
-        auto bcast_values = Zmm(25 + count % pipeline_length);
-
-        Opmask load_mask;
-        get_load_mask(i_ur, i_kw, load_mask);
-
-        int inp_offset = get_inp_offset(i_ur, i_kw);
-        vmovdqu16(bcast_values | load_mask | T_z, ptr[reg_input + inp_offset]);
-        vpermw(bcast_values, perm, bcast_values);
-        vmovups(EVEX_compress_addr(rsp, buf_offset), bcast_values);
-    };
     auto load_dst = [=](int c) {
         int offset = jcp.typesize_in * c * 2 * oc_block + output_offset;
 
@@ -1866,7 +1845,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 
         vmovdqu16(Zmm(dst_off_reg - c % pipeline_length) | load_mask | T_z,
                 EVEX_compress_addr(reg_output, offset));
-        vpermw(Zmm(dst_off_reg - c % pipeline_length), perm,
+        vpermw(Zmm(dst_off_reg - c % pipeline_length), get_perm_reg(),
                 Zmm(dst_off_reg - c % pipeline_length));
     };
 
@@ -1878,70 +1857,33 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                                             * jcp.oc_block
                                     + kernel_offset));
 
-    if (jcp.ndims == 5)
-        mov(EVEX_compress_addr(rsp, trans_tmp_offset), reg_trans_tmp);
-    mov(reg_trans_tmp, dst_prm_table);
-    vmovups(perm, ptr[reg_trans_tmp]);
-    if (jcp.ndims == 5)
-        mov(reg_trans_tmp, EVEX_compress_addr(rsp, trans_tmp_offset));
-
-    for (src_count = 0; src_count < pipeline_length; src_count++) {
-        int _i_ur = (src_count / kw) * 2;
-        int _i_kw = src_count % kw;
-
-        if (!check_borders(_i_ur, _i_kw)) continue;
-
-        int i_offset = get_inp_offset(_i_ur, _i_kw);
-        if (i_offset != prv_i_offset) {
-            int load_buffer_offset = (load_buf_count++ % pipeline_length)
-                    * jcp.typesize_in * 32;
-            load_src(_i_ur, _i_kw, load_buffer_offset,
-                    src_count % pipeline_length);
-            prv_i_offset = i_offset;
-        }
-    }
     for (dst_count = 0; dst_count < pipeline_length; dst_count++) {
         load_dst(dst_count);
     }
-    int use_buffer_offset = 0;
+    auto get_bcast_ptr = [=](int i_ur, int i_kw, int ic) {
+        int scale = 2 * jcp.typesize_in;
+        return rsp + b_ic * scale + permw_buffer_start + (i_ur + i_kw) * 64
+                + jcp.typesize_in * 2
+                * (ic_block_step_idx * ic_block_step + ic);
+    };
+
     for (int i_ur = 0; i_ur < ur_w; i_ur += 2) {
         for (int i_kw = 0; i_kw < kw; i_kw++) {
-            int _i_ur = (src_count / kw) * 2;
-            int _i_kw = src_count % kw;
-            src_count++;
-
-            int i_offset = get_inp_offset(_i_ur, _i_kw);
-
-            if (check_borders(i_ur, i_kw)) {
-                int u_offset = get_inp_offset(i_ur, i_kw);
-                if (prv_u_offset != u_offset) {
-                    use_buffer_offset = (use_buf_count++ % pipeline_length)
-                            * jcp.typesize_in * 32;
-                    prv_u_offset = u_offset;
-                }
+            if (check_borders(ur_w, pad_l, pad_r, i_ur, i_kw)) {
                 for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                     if (!isa_has_bf16(jcp.isa)) {
                         auto zmm_src = Zmm(28);
-                        vpbroadcastd(zmm_src,
-                                ptr[rsp + use_buffer_offset
-                                        + jcp.typesize_in * 2 * i_ic]);
+                        vpbroadcastd(
+                                zmm_src, ptr[get_bcast_ptr(i_ur, i_kw, i_ic)]);
                         bf16_emu_->vdpbf16ps(Zmm(i_kw * ic_block_step + i_ic),
                                 Zmm(dst_off_reg - dst_count % pipeline_length),
                                 zmm_src);
                     } else {
                         vdpbf16ps(Zmm(i_kw * ic_block_step + i_ic),
                                 Zmm(dst_off_reg - dst_count % pipeline_length),
-                                zword_b[rsp + use_buffer_offset
-                                        + jcp.typesize_in * 2 * i_ic]);
+                                zword_b[get_bcast_ptr(i_ur, i_kw, i_ic)]);
                     }
                 }
-            }
-            if ((_i_ur < ur_w && _i_kw < kw) && (check_borders(_i_ur, _i_kw))
-                    && (i_offset != prv_i_offset)) {
-                int load_buffer_offset = (load_buf_count++ % pipeline_length)
-                        * jcp.typesize_in * 32;
-                load_src(_i_ur, _i_kw, load_buffer_offset, src_count % 3);
-                prv_i_offset = i_offset;
             }
         }
         if (dst_count * 2 < ur_w) load_dst(dst_count);
@@ -1956,6 +1898,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         }
     }
 }
+
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         int ur_w, int pad_l, int pad_r, int ic_block_step, int input_offset,
         int kernel_offset, int output_offset, bool is_tail) {
@@ -2044,6 +1987,11 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
     mov(kj, reg_kh);
     L(kh_label);
     {
+        if (jcp.uses_permw_transposition) {
+            convert_src_to_vnni_format(ur_w, l_pad, r_pad, 0);
+            xor_(b_ic, b_ic);
+        }
+
         for (int i_b_ic = 0; i_b_ic < jcp.ic_block; i_b_ic += ic_block_step) {
             const int input_offset = (jcp.uses_permw_transposition)
                     ? jcp.typesize_in * i_b_ic
@@ -2111,6 +2059,11 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
                 = inp_icblk_stride * jcp.typesize_in * ic_block_step;
 
         xor_(b_ic, b_ic);
+        if (jcp.uses_permw_transposition) {
+            convert_src_to_vnni_format(ow, l_pad, r_pad, 0);
+            xor_(b_ic, b_ic);
+        }
+
         L(ic_block_label);
         {
             compute_ic_block_step(
@@ -2189,21 +2142,111 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
         mov(reg_kernel, aux_reg_kernel);
     }
 
-    mov(kj, reg_kh);
-    L(kh_label);
-    {
-        int inp_icblk_stride = (jcp.uses_permw_transposition)
-                ? 1
-                : (jcp.is_1stconv) ? jcp.iw * jcp.ih * jcp.id : jcp.tr_iw;
-        size_t input_offset
-                = inp_icblk_stride * jcp.typesize_in * ic_block_step;
+    bool use_kh_ic_ow_loop_order = !jcp.uses_permw_transposition;
+    if (use_kh_ic_ow_loop_order) {
+        assert(!jcp.uses_permw_transposition);
+        mov(kj, reg_kh);
+        L(kh_label);
+        {
+            int inp_icblk_stride
+                    = (jcp.is_1stconv) ? jcp.iw * jcp.ih * jcp.id : jcp.tr_iw;
+            size_t input_offset
+                    = inp_icblk_stride * jcp.typesize_in * ic_block_step;
 
-        xor_(b_ic, b_ic);
-        L(ic_block_label);
+            xor_(b_ic, b_ic);
+            L(ic_block_label);
+            {
+                if (l_pad != 0) {
+                    ur_w_trips--;
+                    compute_ic_block_step(
+                            ur_w, l_pad, 0, ic_block_step, 0, 0, 0);
+                    add(reg_input,
+                            jcp.typesize_in * (ur_w * stride_w - l_pad)
+                                    * inp_mult);
+                    add(reg_output, jcp.typesize_in * ur_w * oc_block);
+                }
+
+                if (ur_w_trips > 0) {
+                    xor_(reg_ur_w_trips, reg_ur_w_trips);
+                    L(ow_block_label);
+                    {
+                        compute_ic_block_step(
+                                ur_w, 0, 0, ic_block_step, 0, 0, 0);
+                        add(reg_input,
+                                jcp.typesize_in * ur_w * stride_w * inp_mult);
+                        add(reg_output, jcp.typesize_in * ur_w * oc_block);
+
+                        inc(reg_ur_w_trips);
+                        cmp(reg_ur_w_trips, ur_w_trips);
+                        jl(ow_block_label, T_NEAR);
+                    }
+                }
+
+                if (ur_w_tail > 0) {
+                    compute_ic_block_step(
+                            ur_w_tail, 0, r_pad, ic_block_step, 0, 0, 0, true);
+                }
+
+                sub(reg_input, jcp.typesize_in * input_comeback);
+                sub(reg_output, jcp.typesize_in * output_comeback);
+
+                safe_add(reg_input, input_offset, reg_long_offt);
+                add(reg_kernel, jcp.typesize_out * ic_block_step * oc_block);
+
+                add(b_ic, ic_block_step);
+                cmp(b_ic, jcp.ic_block);
+                jl(ic_block_label, T_NEAR);
+            }
+
+            if (jcp.is_1stconv) {
+                // Fixup reg_input to point to the correct location
+                safe_add(reg_input,
+                        jcp.typesize_in * (jcp.dilate_h + 1) * jcp.tr_iw
+                                - input_offset * (jcp.ic_block / ic_block_step),
+                        reg_long_offt);
+            } else if (jcp.dilate_h > 0) {
+                add(reg_input,
+                        jcp.typesize_in * jcp.tr_iw * jcp.dilate_h * ic_block);
+            }
+            add(reg_kernel,
+                    jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
+            dec(kj);
+            cmp(kj, 0);
+            jg(kh_label, T_NEAR);
+        }
+    } else {
+        assert(!jcp.is_1stconv);
+        Label ic_block_label_padl, ic_block_label_general, ic_block_label_tail;
+        size_t inp_icblk_stride = jcp.uses_permw_transposition ? 1 : jcp.tr_iw;
+
+        size_t input_icbstep_shift = inp_icblk_stride * jcp.typesize_in;
+
+        mov(kj, reg_kh);
+        L(kh_label);
         {
             if (l_pad != 0) {
                 ur_w_trips--;
-                compute_ic_block_step(ur_w, l_pad, 0, ic_block_step, 0, 0, 0);
+                xor_(b_ic, b_ic);
+                if (jcp.uses_permw_transposition) {
+                    convert_src_to_vnni_format(ur_w, l_pad, 0, 0);
+                }
+                L(ic_block_label_padl);
+                {
+                    compute_ic_block_step(
+                            ur_w, l_pad, 0, ic_block_step, 0, 0, 0);
+                    safe_add(reg_input, input_icbstep_shift * ic_block_step,
+                            reg_long_offt);
+                    add(reg_kernel,
+                            jcp.typesize_out * ic_block_step * oc_block);
+
+                    add(b_ic, ic_block_step);
+                    cmp(b_ic, jcp.ic_block);
+                    jl(ic_block_label_padl, T_NEAR);
+                }
+                safe_sub(reg_input, input_icbstep_shift * ic_block,
+                        reg_long_offt);
+                sub(reg_kernel, jcp.typesize_out * ic_block * oc_block);
+
                 add(reg_input,
                         jcp.typesize_in * (ur_w * stride_w - l_pad) * inp_mult);
                 add(reg_output, jcp.typesize_in * ur_w * oc_block);
@@ -2213,7 +2256,27 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
                 xor_(reg_ur_w_trips, reg_ur_w_trips);
                 L(ow_block_label);
                 {
-                    compute_ic_block_step(ur_w, 0, 0, ic_block_step, 0, 0, 0);
+                    if (jcp.uses_permw_transposition) {
+                        convert_src_to_vnni_format(ur_w, 0, 0, 0);
+                    }
+                    xor_(b_ic, b_ic);
+                    L(ic_block_label_general);
+                    {
+                        compute_ic_block_step(
+                                ur_w, 0, 0, ic_block_step, 0, 0, 0);
+                        safe_add(reg_input, input_icbstep_shift * ic_block_step,
+                                reg_long_offt);
+                        add(reg_kernel,
+                                jcp.typesize_out * ic_block_step * oc_block);
+
+                        add(b_ic, ic_block_step);
+                        cmp(b_ic, jcp.ic_block);
+                        jl(ic_block_label_general, T_NEAR);
+                    }
+                    safe_sub(reg_input, input_icbstep_shift * ic_block,
+                            reg_long_offt);
+                    sub(reg_kernel, jcp.typesize_out * ic_block * oc_block);
+
                     add(reg_input,
                             jcp.typesize_in * ur_w * stride_w * inp_mult);
                     add(reg_output, jcp.typesize_in * ur_w * oc_block);
@@ -2225,39 +2288,40 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
             }
 
             if (ur_w_tail > 0) {
-                compute_ic_block_step(
-                        ur_w_tail, 0, r_pad, ic_block_step, 0, 0, 0, true);
+                if (jcp.uses_permw_transposition) {
+                    convert_src_to_vnni_format(ur_w_tail, 0, r_pad, 0);
+                }
+                xor_(b_ic, b_ic);
+                L(ic_block_label_tail);
+                {
+                    compute_ic_block_step(
+                            ur_w_tail, 0, r_pad, ic_block_step, 0, 0, 0, true);
+                    safe_add(reg_input, input_icbstep_shift * ic_block_step,
+                            reg_long_offt);
+                    add(reg_kernel,
+                            jcp.typesize_out * ic_block_step * oc_block);
+
+                    add(b_ic, ic_block_step);
+                    cmp(b_ic, jcp.ic_block);
+                    jl(ic_block_label_tail, T_NEAR);
+                }
+                safe_sub(reg_input, input_icbstep_shift * ic_block,
+                        reg_long_offt);
+                sub(reg_kernel, jcp.typesize_out * ic_block * oc_block);
             }
 
             sub(reg_input, jcp.typesize_in * input_comeback);
             sub(reg_output, jcp.typesize_in * output_comeback);
 
-            safe_add(reg_input, input_offset, reg_long_offt);
-            add(reg_kernel, jcp.typesize_out * ic_block_step * oc_block);
-
-            add(b_ic, ic_block_step);
-            cmp(b_ic, jcp.ic_block);
-            jl(ic_block_label, T_NEAR);
-        }
-        if (jcp.uses_permw_transposition) {
             add(reg_input,
-                    jcp.typesize_in * ((jcp.dilate_h + 1) * jcp.tr_iw - 1)
-                            * ic_block);
-        } else if (jcp.is_1stconv) {
-            // Fixup reg_input to to point to the correct location
-            safe_add(reg_input,
                     jcp.typesize_in * (jcp.dilate_h + 1) * jcp.tr_iw
-                            - input_offset * (jcp.ic_block / ic_block_step),
-                    reg_long_offt);
-        } else {
-            if (jcp.dilate_h > 0)
-                add(reg_input,
-                        jcp.typesize_in * jcp.tr_iw * jcp.dilate_h * ic_block);
+                            * ic_block);
+
+            add(reg_kernel, jcp.typesize_out * jcp.kw * ic_block * oc_block);
+            dec(kj);
+            cmp(kj, 0);
+            jg(kh_label, T_NEAR);
         }
-        add(reg_kernel, jcp.typesize_out * (jcp.kw - 1) * ic_block * oc_block);
-        dec(kj);
-        cmp(kj, 0);
-        jg(kh_label, T_NEAR);
     }
     if (jcp.ndims == 5) {
         int inp_mul = jcp.is_1stconv ? 1 : ic_block;
@@ -2662,16 +2726,17 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_loop() {
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::setup_stack_space() {
 
-    if (jcp.is_1stconv && jcp.stride_w > 1) {
+    if ((jcp.is_1stconv && jcp.stride_w > 1) || jcp.uses_permw_transposition) {
         int ur_w, ur_w_tail, ur_w_trips;
         get_ur_w(ur_w, ur_w_tail, ur_w_trips);
-        ic_block_step_stack_size = interleave_stack_size(
-                nstl::max(ur_w, ur_w_tail), jcp.ic_block_step);
-    } else if (jcp.uses_permw_transposition)
-        ic_block_step_stack_size = vpermw_ic_block_step_stack_size;
-    else
+        ur_w = nstl::max(ur_w, ur_w_tail);
+        ic_block_step_stack_size = jcp.uses_permw_transposition
+                ? permw_stack_size(ur_w)
+                : interleave_stack_size(ur_w, jcp.ic_block_step);
+    } else
         ic_block_step_stack_size = extern_ic_block_step_stack_size;
 
+    permw_buffer_start = 0;
     kd_count_offset = ic_block_step_stack_size;
     input_d_offset = ic_block_step_stack_size + 8;
     output_d_offset = ic_block_step_stack_size + 16;
@@ -2691,24 +2756,14 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::generate() {
     Reg64 reg_mask_load = r11;
 
     if (jcp.uses_permw_transposition) {
-        int ilow_mask = (1 << jcp.ic_block_step) - 1;
-        int ihigh_mask = ilow_mask << 16;
-        int ifull_mask = ihigh_mask | ilow_mask;
-
-        mov(reg_mask_load.cvt32(), ifull_mask);
-        kmovd(full_mask, reg_mask_load.cvt32());
-
-        mov(reg_mask_load.cvt32(), ilow_mask);
-        kmovd(low_mask, reg_mask_load.cvt32());
-
-        mov(reg_mask_load.cvt32(), ihigh_mask);
-        kmovd(high_mask, reg_mask_load.cvt32());
-
         mov(reg_mask_load.cvt32(), 0xffffffff);
         kmovd(m_ffffffff, reg_mask_load.cvt32());
 
         mov(reg_mask_load.cvt32(), 0x0000ffff);
         kmovd(m_0000ffff, reg_mask_load.cvt32());
+
+        mov(reg_mask_load.cvt32(), 0xffff0000);
+        kmovd(m_ffff0000, reg_mask_load.cvt32());
     } else if (jcp.is_1stconv) {
         if (jcp.stride_w == 1) {
             int ieveryother_mask = 0x55555555;
@@ -2717,7 +2772,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::generate() {
             kshiftld(everyother_shift_mask, everyother_mask, 1);
         } else {
             mov(reg_mask_load.cvt32(), 0xffffffff);
-            kmovd(full_mask, reg_mask_load.cvt32());
+            kmovd(m_ffffffff, reg_mask_load.cvt32());
         }
     }
 
