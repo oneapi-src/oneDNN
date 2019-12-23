@@ -232,9 +232,9 @@ status_t memory_t::typed_zero_pad() const {
             break;
         case 2:
         case 3:
-            if (!IMPLICATION(blk.inner_nblks == 3,
-                        blk.inner_idxs[0] == blk.inner_idxs[2]))
+            if (blk.inner_nblks == 3 && blk.inner_idxs[0] != blk.inner_idxs[2])
                 break;
+            if (blksize != get_blksize(blk.inner_idxs[1])) break;
 
             if (blk.inner_idxs[0] == 0 && blk.inner_idxs[1] == 1) {
                 CASE(4, ab);
