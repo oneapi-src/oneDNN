@@ -519,5 +519,6 @@ void compare_f32_and_quantized_matmuls() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(compare_f32_and_quantized_matmuls);
+    return handle_example_errors(
+            {engine::kind::cpu}, compare_f32_and_quantized_matmuls);
 }

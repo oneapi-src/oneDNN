@@ -779,12 +779,12 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     s.wait();
 }
 
-void cnn_inference_f32(int argc, char **argv) {
+void cnn_inference_f32(engine::kind engine_kind) {
     auto begin = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch())
                          .count();
     int times = 100;
-    simple_net(parse_engine_kind(argc, argv), times);
+    simple_net(engine_kind, times);
     auto end = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch())
                        .count();
@@ -793,5 +793,6 @@ void cnn_inference_f32(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(cnn_inference_f32, argc, argv);
+    return handle_example_errors(
+            cnn_inference_f32, parse_engine_kind(argc, argv));
 }

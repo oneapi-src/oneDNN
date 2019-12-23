@@ -508,9 +508,8 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 /// * NUMA node(s):          2
 /// * RAM (DDR4): 1.45 TB
 
-void performance_profiling(int argc, char **argv) {
+void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
     // Initialize engine
-    engine::kind engine_kind = parse_engine_kind(argc, argv, 1);
     engine eng(engine_kind, 0);
 
     // Initialize stream
@@ -585,5 +584,7 @@ void performance_profiling(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(performance_profiling, argc, argv);
+    engine::kind engine_kind = parse_engine_kind(argc, argv, 1);
+    return handle_example_errors(
+            performance_profiling, engine_kind, argc, argv);
 }

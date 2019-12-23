@@ -222,6 +222,6 @@ void inference_int8_matmul(engine::kind engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(
-            inference_int8_matmul, parse_engine_kind(argc, argv));
+    engine::kind engine_kind = parse_engine_kind(argc, argv);
+    return handle_example_errors(inference_int8_matmul, engine_kind);
 }

@@ -17,6 +17,7 @@
 #ifndef EXAMPLE_UTILS_H
 #define EXAMPLE_UTILS_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,6 +72,13 @@ static inline dnnl_engine_kind_t parse_engine_kind(int argc, char **argv) {
             "inappropriate engine kind.\n"
             "Please run the example like this: %s [cpu|gpu].",
             argv[0]);
+}
+
+static inline const char *engine_kind2str_upper(dnnl_engine_kind_t kind) {
+    if (kind == dnnl_cpu) return "CPU";
+    if (kind == dnnl_gpu) return "GPU";
+    assert(!"not expected");
+    return "<Unknown engine>";
 }
 
 // Read from memory, write to handle

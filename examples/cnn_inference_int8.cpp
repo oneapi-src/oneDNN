@@ -270,10 +270,6 @@ void simple_net_int8(engine::kind engine_kind) {
     s.wait();
 }
 
-void cnn_inference_int8(int argc, char **argv) {
-    simple_net_int8(parse_engine_kind(argc, argv));
-}
-
 int main(int argc, char **argv) {
     return handle_example_errors(
             simple_net_int8, parse_engine_kind(argc, argv));

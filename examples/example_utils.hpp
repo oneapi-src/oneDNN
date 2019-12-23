@@ -18,11 +18,13 @@
 #define EXAMPLE_UTILS_HPP
 
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
 #include <stdlib.h>
 #include <string>
+#include <initializer_list>
 
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
@@ -37,9 +39,13 @@ struct example_allows_unimplemented : public std::exception {
     const char *message;
 };
 
+inline const char *engine_kind2str_upper(dnnl::engine::kind kind);
+
 // Runs example function with signature void() and catches errors.
 // Returns `0` on success, `1` or DNNL error, and `2` on example error.
-inline int handle_example_errors(std::function<void()> example) {
+inline int handle_example_errors(
+        std::initializer_list<dnnl::engine::kind> engine_kinds,
+        std::function<void()> example) {
     int exit_code = 0;
 
     try {
@@ -57,22 +63,32 @@ inline int handle_example_errors(std::function<void()> example) {
         exit_code = 2;
     }
 
-    std::cout << "Example " << (exit_code ? "failed" : "passed") << "."
-              << std::endl;
+    std::string engine_kind_str;
+    for (auto it = engine_kinds.begin(); it != engine_kinds.end(); ++it) {
+        if (it != engine_kinds.begin()) engine_kind_str += "/";
+        engine_kind_str += engine_kind2str_upper(*it);
+    }
+
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "
+              << engine_kind_str << "." << std::endl;
     return exit_code;
 }
 
-// Same as above, but for functions with signature void(int argc, char **argv).
+// Same as above, but for functions with signature
+// void(dnnl::engine::kind engine_kind, int argc, char **argv).
 inline int handle_example_errors(
-        std::function<void(int, char **)> example, int argc, char **argv) {
-    return handle_example_errors([&]() { example(argc, argv); });
+        std::function<void(dnnl::engine::kind, int, char **)> example,
+        dnnl::engine::kind engine_kind, int argc, char **argv) {
+    return handle_example_errors(
+            {engine_kind}, [&]() { example(engine_kind, argc, argv); });
 }
 
 // Same as above, but for functions with signature void(dnnl::engine::kind).
 inline int handle_example_errors(
         std::function<void(dnnl::engine::kind)> example,
         dnnl::engine::kind engine_kind) {
-    return handle_example_errors([&]() { example(engine_kind); });
+    return handle_example_errors(
+            {engine_kind}, [&]() { example(engine_kind); });
 }
 
 inline dnnl::engine::kind parse_engine_kind(
@@ -102,6 +118,13 @@ inline dnnl::engine::kind parse_engine_kind(
               << "Please run the example like this: " << argv[0] << " [cpu|gpu]"
               << (extra_args ? " [extra arguments]" : "") << "." << std::endl;
     exit(1);
+}
+
+inline const char *engine_kind2str_upper(dnnl::engine::kind kind) {
+    if (kind == dnnl::engine::kind::cpu) return "CPU";
+    if (kind == dnnl::engine::kind::gpu) return "GPU";
+    assert(!"not expected");
+    return "<Unknown engine>";
 }
 
 // Read from memory, write to handle

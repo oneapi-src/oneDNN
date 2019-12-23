@@ -471,8 +471,8 @@ void getting_started_tutorial(engine::kind engine_kind) {
 int main(int argc, char **argv) {
     int exit_code = 0;
 
+    engine::kind engine_kind = parse_engine_kind(argc, argv);
     try {
-        engine::kind engine_kind = parse_engine_kind(argc, argv);
         getting_started_tutorial(engine_kind);
     } catch (dnnl::error &e) {
         std::cout << "DNNL error caught: " << std::endl
@@ -484,8 +484,8 @@ int main(int argc, char **argv) {
         exit_code = 2;
     }
 
-    std::cout << "Example " << (exit_code ? "failed" : "passed") << "."
-              << std::endl;
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "
+              << engine_kind2str_upper(engine_kind) << "." << std::endl;
     return exit_code;
 }
 // [Main]

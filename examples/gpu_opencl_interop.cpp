@@ -257,7 +257,8 @@ void gpu_opencl_interop_tutorial() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(gpu_opencl_interop_tutorial);
+    return handle_example_errors(
+            {engine::kind::gpu}, gpu_opencl_interop_tutorial);
 }
 
 /// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API

@@ -286,5 +286,5 @@ void sgemm_and_matmul() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(sgemm_and_matmul);
+    return handle_example_errors({engine::kind::cpu}, sgemm_and_matmul);
 }

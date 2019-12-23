@@ -447,7 +447,8 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
 }
 
 int main(int argc, char **argv) {
-    simple_net(parse_engine_kind(argc, argv));
-    printf("Example passed.\n");
+    dnnl_engine_kind_t engine_kind = parse_engine_kind(argc, argv);
+    simple_net(engine_kind);
+    printf("Example passed on %s.\n", engine_kind2str_upper(engine_kind));
     return 0;
 }
