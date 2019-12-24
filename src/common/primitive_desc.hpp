@@ -34,15 +34,11 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     dnnl_primitive_desc(dnnl::impl::engine_t *engine,
             const dnnl::impl::primitive_attr_t *attr,
             dnnl::impl::primitive_kind_t kind)
-        : engine_(engine), attr_(*attr), kind_(kind) {
-        info_[0] = '\0';
-    }
+        : engine_(engine), attr_(*attr), kind_(kind) {}
 
     dnnl_primitive_desc(
             dnnl::impl::engine_t *engine, dnnl::impl::primitive_kind_t kind)
-        : engine_(engine), kind_(kind) {
-        info_[0] = '\0';
-    }
+        : engine_(engine), kind_(kind) {}
 
     virtual dnnl_primitive_desc *clone() const = 0;
     virtual ~dnnl_primitive_desc() {}
@@ -51,8 +47,10 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     dnnl::impl::engine_t *engine() const { return engine_; }
     dnnl::impl::primitive_kind_t kind() const { return kind_; }
 
-    virtual void init_info() {}
-    const char *info() const { return info_; }
+    const char *info() const {
+        if (!info_.is_initialized()) info_.init(this);
+        return info_.c_str();
+    }
 
     dnnl::impl::memory_tracking::registry_t &scratchpad_registry() {
         return scratchpad_registry_;
@@ -162,7 +160,7 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
             delete _pd;
             return unimplemented;
         }
-        _pd->init_info();
+
         _pd->init_scratchpad_md();
         *pd = _pd;
         return success;
@@ -175,7 +173,7 @@ protected:
 
     dnnl::impl::memory_desc_t scratchpad_md_;
 
-    char info_[DNNL_VERBOSE_BUF_LEN];
+    mutable dnnl::impl::pd_info_t info_;
 
     dnnl::impl::memory_tracking::registry_t scratchpad_registry_;
 

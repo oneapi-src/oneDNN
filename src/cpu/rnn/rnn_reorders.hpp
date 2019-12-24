@@ -65,7 +65,6 @@ struct rnn_data_reorder_t : public primitive_impl_t {
                 delete _pd;
                 return unimplemented;
             }
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
@@ -136,7 +135,6 @@ struct rnn_weights_reorder_s8_t : public primitive_impl_t {
                 delete _pd;
                 return unimplemented;
             }
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
@@ -330,7 +328,6 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                 return unimplemented;
             }
             _pd->itag_ = itag;
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }

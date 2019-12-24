@@ -57,7 +57,6 @@ struct convolution_pd_t : public primitive_desc_t {
     virtual const op_desc_t *op_desc() const override {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
-    virtual void init_info() override { impl::init_info(this, this->info_); }
 
     virtual status_t query(query_t what, int idx, void *result) const override {
         switch (what) {

@@ -72,8 +72,6 @@ struct gemm_pd_t : public primitive_desc_t {
         return index == 0 ? &c_md_ : &glob_zero_md;
     }
 
-    virtual void init_info() override { impl::init_info(this, this->info_); }
-
     virtual int n_inputs() const override { return 2; }
     virtual int n_outputs() const override { return 1; }
 

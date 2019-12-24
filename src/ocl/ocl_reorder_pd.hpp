@@ -43,7 +43,6 @@ struct ocl_reorder_pd_t : public reorder_pd_t {
             delete _pd; \
             return status::unimplemented; \
         } \
-        _pd->init_info(); \
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd); \
     }
