@@ -25,6 +25,8 @@
 
 #include "cpu_eltwise_pd.hpp"
 
+#include "cpu_isa_traits.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {

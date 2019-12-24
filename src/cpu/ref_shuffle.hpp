@@ -20,11 +20,13 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "cpu_shuffle_pd.hpp"
+
+#include "cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {
