@@ -63,7 +63,7 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(3, beta);
     arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
 
-    auto nd_range = compute::nd_range_t(jrp.gws_d, jrp.lws_d);
+    auto nd_range = jrp.dispatch.nd_range();
     status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

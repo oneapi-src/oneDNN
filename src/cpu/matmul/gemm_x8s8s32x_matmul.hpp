@@ -24,28 +24,35 @@
 
 #include "cpu_matmul_pd.hpp"
 
+#include "gemm_based_common.hpp"
+
 #include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
 struct gemm_x8s8s32x_matmul_t : public primitive_impl_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("gemm:any", gemm_x8s8s32x_matmul_t);
+        DECLARE_COMMON_PD_T("gemm:jit", gemm_x8s8s32x_matmul_t);
 
         status_t init();
+        const gemm_based::params_t &params() const { return params_; }
 
-        bool dst_is_acc_;
+    private:
+        gemm_based::params_t params_;
     };
 
     gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->attr(),
-                pd()->desc()->bias_desc.data_type, false));
+        if (pd()->params().has_pp_kernel_)
+            pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(),
+                    &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
+                    false));
     }
 
     static constexpr data_type_t acc_type = data_type::s32;
@@ -67,6 +74,7 @@ private:
     std::unique_ptr<pp_kernel_t> pp_kernel_;
 };
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

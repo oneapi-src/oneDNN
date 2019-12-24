@@ -72,6 +72,7 @@ Eltwise operations that support only alpha:
   - `relu`
 
 Eltwise operations that support both alpha and beta:
+  - `clip`
   - `linear`
 
 

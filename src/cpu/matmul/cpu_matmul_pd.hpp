@@ -24,11 +24,13 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 struct cpu_matmul_pd_t : public matmul_pd_t {
     using matmul_pd_t::matmul_pd_t;
 };
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -45,7 +45,7 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, ws);
     arg_list.set(2, dst);
 
-    auto nd_range = compute::nd_range_t(jpp.gws_d, jpp.lws_d);
+    auto nd_range = jpp.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -66,7 +66,7 @@ status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     arg_list.set(1, ws);
     arg_list.set(2, diff_dst);
 
-    auto nd_range = compute::nd_range_t(jpp.gws_d, jpp.lws_d);
+    auto nd_range = jpp.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

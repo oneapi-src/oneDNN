@@ -253,6 +253,8 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto &src_desc = *q_md(pfpd, dnnl_query_src_md);
     const auto &dst_desc = *q_md(pfpd, dnnl_query_dst_md);
+    SAFE(!check_md_consistency_with_tag(dst_desc, p->tag), WARN);
+
     dnn_mem_t src_dt(src_desc, p->cfg[SRC].dt, engine_tgt);
     dnn_mem_t dst_dt(dst_desc, p->cfg[DST].dt, engine_tgt);
     dnn_mem_t d_src_dt, d_dst_dt;

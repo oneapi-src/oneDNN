@@ -2,7 +2,7 @@ Eltwise {#dev_guide_eltwise}
 ============================
 
 >
-> API reference: [C](@ref c_api_eltwise), [C++](@ref cpp_api_eltwise)
+> [API Reference](@ref dnnl_api_eltwise)
 >
 
 The eltwise primitive applies an operation to every element of the tensor:
@@ -17,22 +17,40 @@ The following operations are supported:
 
 | Operation    | DNNL algorithm kind        | Formula
 | :--          | :--                        | :--
-| abs          | #dnnl_eltwise_abs          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ -x & \text{if}\ x \leq 0 \end{cases} \f$
-| bounded_relu | #dnnl_eltwise_bounded_relu | \f$ f(x) = \begin{cases} \alpha & \text{if}\ x > \alpha \\ x & \text{if}\ 0 < x \leq \alpha \\ 0 & \text{if}\ x \leq 0 \end{cases} \f$
-| elu          | #dnnl_eltwise_elu          | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha (e^x - 1) & \text{if}\ x \leq 0 \end{cases} \f$
+| abs          | #dnnl_eltwise_abs          | \f$ f(x) = \begin{cases}
+                                                            x & \text{if}\ x > 0 \\
+                                                            -x & \text{if}\ x \leq 0
+                                                         \end{cases} \f$
+| bounded_relu | #dnnl_eltwise_bounded_relu | \f$ f(x) = \begin{cases}
+                                                            \alpha & \text{if}\ x > \alpha, \alpha \geq 0 \\
+                                                            x & \text{if}\ 0 < x \leq \alpha \\
+                                                            0 & \text{if}\ x \leq 0
+                                                         \end{cases} \f$
+| clip         | #dnnl_eltwise_clip         | \f$ f(x) = \begin{cases}
+                                                            \beta & \text{if}\ x > \beta, \beta \geq \alpha \\
+                                                            x & \text{if}\ \alpha < x \leq \beta \\
+                                                            \alpha & \text{if}\ x \leq \alpha
+                                                         \end{cases} \f$
+| elu          | #dnnl_eltwise_elu          | \f$ f(x) = \begin{cases}
+                                                            x & \text{if}\ x > 0 \\
+                                                            \alpha (e^x - 1) & \text{if}\ x \leq 0
+                                                         \end{cases} \f$
 | exp          | #dnnl_eltwise_exp          | \f$ f(x) = e^x \f$
 | gelu         | #dnnl_eltwise_gelu         | \f$ f(x) = 0.5 x (1 + tanh[\sqrt{\frac{2}{\pi}} (x + 0.044715 x^3)])\f$
 | linear       | #dnnl_eltwise_linear       | \f$ f(x) = \alpha x + \beta \f$
 | log          | #dnnl_eltwise_log          | \f$ f(x) = \log_{e}{x} \f$
 | logistic     | #dnnl_eltwise_logistic     | \f$ f(x) = \frac{1}{1+e^{-x}} \f$
-| relu         | #dnnl_eltwise_relu         | \f$ f(x) = \begin{cases} x & \text{if}\ x > 0 \\ \alpha x & \text{if}\ x \leq 0 \end{cases} \f$
+| relu         | #dnnl_eltwise_relu         | \f$ f(x) = \begin{cases}
+                                                            x & \text{if}\ x > 0 \\
+                                                            \alpha x & \text{if}\ x \leq 0
+                                                         \end{cases} \f$
 | soft_relu    | #dnnl_eltwise_soft_relu    | \f$ f(x) = \log_{e}(1+e^x) \f$
 | sqrt         | #dnnl_eltwise_sqrt         | \f$ f(x) = \sqrt{x} \f$
 | square       | #dnnl_eltwise_square       | \f$ f(x) = x^2 \f$
 | swish        | #dnnl_eltwise_swish        | \f$ f(x) = \frac{x}{1+e^{-\alpha x}} \f$
 | tanh         | #dnnl_eltwise_tanh         | \f$ f(x) = \tanh{x} \f$
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 There is no difference between the #dnnl_forward_training and
 #dnnl_forward_inference propagation kinds.

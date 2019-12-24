@@ -138,6 +138,9 @@ private:
                                 pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
                                 jcp.stride_w));
     }
+    int get_blocking_size() {
+        return jcp.is_depthwise ? jcp.ch_block : jcp.oc_block;
+    }
     int get_tail_size() {
         return jcp.is_depthwise ? jcp.ngroups % jcp.ch_block
                                 : jcp.oc_without_padding % jcp.oc_block;
@@ -154,22 +157,9 @@ private:
     void kh_loop(int ur_w, int pad_l, int pad_r, ic_block_t last_ic_block_flag);
     void icb_loop(int ur_w, int pad_l, int pad_r, bool is_last_spatial_block);
     void generate();
-    void store_bytes(const Vmm &vmm, const Xbyak::Reg64 &reg, int offset,
-            int store_size);
-    void load_bytes(
-            const Vmm &vmm, const Xbyak::Reg64 &reg, int offset, int load_size);
-    void load_bytes_to_dword_extension(const Vmm &vmm, const Xbyak::Reg64 &reg,
-            int offset, bool is_signed, int load_size);
-    void load_dwords(
-            const Vmm &vmm, const Xbyak::Reg64 &reg, int offset, int load_size);
-    void store_dwords(const Vmm &vmm, const Xbyak::Reg64 &reg, int offset,
-            int store_size);
-    void load_data(data_type_t type_in, const Vmm &vmm_in,
-            const Xbyak::Reg64 &reg, int offset, bool mask_flag = false);
-    void store_data(data_type_t type_out, const Vmm &r_vmm,
-            const Xbyak::Reg64 &reg, int offset, bool mask_flag = false);
+
     void cvt2ps(data_type_t type_in, const Vmm &vmm_in, const Xbyak::Reg64 &reg,
-            int offset, bool mask_flag = false);
+            int offset, int load_size);
 };
 
 struct jit_avx2_x8s8s32x_fwd_kernel {

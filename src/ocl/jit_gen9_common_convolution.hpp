@@ -26,13 +26,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *gen9_common_conv_fwd_data_f32_kernel;
-extern const char *gen9_common_conv_bwd_data_kernel;
-extern const char *gen9_common_conv_bwd_wht_f32_kernel;
-extern const char *gen9_common_conv_fwd_data_f16_kernel;
-
-extern const char *gen9_common_conv_dw_fwd_data_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -80,9 +73,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                     && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_,
-                    *this->desc(), *this->src_md(), *this->weights_md(),
-                    *this->dst_md(), *this->weights_md(1), *this->attr());
+            status_t status
+                    = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -95,11 +87,11 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
     status_t init() override {
         const char *kernel_name = nullptr;
         if (pd()->jcp_.is_depthwise)
-            kernel_name = "gen9_common_conv_dw_fwd_kernel";
+            kernel_name = "gen9_common_conv_dw_fwd";
         else if (pd()->desc()->src_desc.data_type == data_type::f16)
-            kernel_name = "gen9_common_conv_fwd_f16_kernel";
+            kernel_name = "gen9_common_conv_fwd_f16";
         else if (pd()->desc()->src_desc.data_type == data_type::f32)
-            kernel_name = "gen9_common_conv_fwd_f32_kernel";
+            kernel_name = "gen9_common_conv_fwd_f32";
         else
             assert(!"not expected");
 
@@ -174,9 +166,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status = jit_gen9_common_conv_bwd_data_kernel::init_conf(
-                    jcp_, *this->desc(), *this->diff_src_md(),
-                    *this->weights_md(), *this->diff_dst_md(),
-                    *this->weights_md(1), *this->attr());
+                    jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -187,6 +177,12 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
     };
 
     status_t init() override {
+        const char *kernel_name = nullptr;
+        if (pd()->jcp_.is_depthwise)
+            kernel_name = "gen9_common_conv_dw_bwd_data";
+        else
+            kernel_name = "gen9_common_conv_bwd_data";
+
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
@@ -195,8 +191,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
                 kernel_ctx, pd()->jcp_);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "gen9_common_conv_bwd_data_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -248,10 +243,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status
-                    = jit_gen9_common_conv_bwd_weights_kernel::init_conf(jcp_,
-                            *this->desc(), *this->src_md(),
-                            *this->diff_weights_md(), *this->diff_weights_md(1),
-                            *this->diff_dst_md(), *this->attr());
+                    = jit_gen9_common_conv_bwd_weights_kernel::init_conf(
+                            jcp_, this);
 
             if (status != status::success) return status;
 
@@ -278,14 +271,14 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
 
         std::vector<const char *> kernel_names(3);
 
-        kernel_names[0] = "gen9_common_conv_bwd_weights_kernel";
+        kernel_names[0] = "gen9_common_conv_bwd_weights";
 
         if (pd()->jcp_.ver == ver_16mb16c || pd()->jcp_.ver == ver_8ow16c
                 || pd()->jcp_.ver == ver_1stconv) {
-            kernel_names[1] = "gen9_reduce_bwd_weights_kernel";
+            kernel_names[1] = "gen9_reduce_bwd_weights";
         }
         if (pd()->jcp_.ver == ver_8ow16c) {
-            kernel_names[2] = "gen9_load_tails_bwd_weights_kernel";
+            kernel_names[2] = "gen9_load_tails_bwd_weights";
         }
 
         std::vector<compute::kernel_t> kernels;

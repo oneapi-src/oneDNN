@@ -109,7 +109,7 @@ struct simple_concat_t : public primitive_impl_t {
 
             dim_t nelems = 1;
             for (int i = perm_[concat_dim()]; i < ndims; i++)
-                nelems *= data_d.dims()[iperm_[i]] / blocks_[iperm_[i]];
+                nelems *= data_d.padded_dims()[iperm_[i]] / blocks_[iperm_[i]];
             for (int i = 0; i < ndims; i++)
                 nelems *= blocks_[i];
 
@@ -121,12 +121,21 @@ struct simple_concat_t : public primitive_impl_t {
             const memory_desc_wrapper dst_d(dst_md());
             const int ndims = dst_d.ndims();
 
-            strides_t strides;
-            utils::array_copy(strides, dst_d.blocking_desc().strides, ndims);
-            for (int i = 0; i < ndims; i++)
-                iperm_[i] = i;
+            dims_t blocks = {0};
+            dst_d.compute_blocks(blocks);
 
-            utils::simultaneous_sort(strides, iperm_, ndims,
+            strides_t strides = {0};
+            utils::array_copy(strides, dst_d.blocking_desc().strides, ndims);
+
+            dims_t ou_blocks = {0};
+            utils::array_copy(ou_blocks, dst_d.padded_dims(), ndims);
+
+            for (int d = 0; d < ndims; d++) {
+                iperm_[d] = d;
+                ou_blocks[d] /= blocks[d];
+            }
+
+            utils::simultaneous_sort(strides, ou_blocks, iperm_, ndims,
                     [](stride_t a, stride_t b) { return b - a; });
 
             for (int i = 0; i < ndims; i++)

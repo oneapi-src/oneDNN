@@ -62,7 +62,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale
                             | primitive_attr_t::skip_mask_t::post_ops)
-                    && post_ops_ok()
+                    && output_scales_mask_ok() && post_ops_ok()
                     && memory_desc_matches_tag(*src_md(), dat_tag())
                     && memory_desc_matches_tag(*dst_md(), dat_tag())
                     && set_or_check_wei_format();
@@ -103,6 +103,11 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
             }
 
             return weights_md_ == want_wei_md;
+        }
+
+        bool output_scales_mask_ok() const {
+            const auto &mask = attr()->output_scales_.mask_;
+            return mask == 0 || mask == 1 << 1;
         }
 
         bool post_ops_ok() const {
@@ -229,6 +234,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
                             dat_tag(), wei_tag(), dat_tag())
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::oscale)
+                    && output_scales_mask_ok()
                     && memory_desc_matches_tag(*diff_src_md(), dat_tag())
                     && memory_desc_matches_tag(*diff_dst_md(), dat_tag())
                     && memory_desc_matches_tag(*weights_md(), wei_tag());
@@ -249,6 +255,10 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
 
         format_tag_t wei_tag() const {
             return with_groups() ? format_tag::hwigo : format_tag::hwio;
+        }
+        bool output_scales_mask_ok() const {
+            const auto &mask = attr()->output_scales_.mask_;
+            return mask == 0 || mask == 1 << 1;
         }
     };
 

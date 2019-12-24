@@ -18,6 +18,7 @@
 #define JIT_REF_POOLING_COMMON_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/pooling_pd.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
@@ -31,11 +32,16 @@ struct jit_ref_pooling_fwd_kernel {
 
     ~jit_ref_pooling_fwd_kernel() {}
 
-    static status_t init_conf(jit_pool_conf_t &jpp, const pooling_desc_t &pd,
-            const memory_desc_wrapper &src_d, const memory_desc_wrapper &dst_d,
+    static status_t init_conf(jit_pool_conf_t &jpp, const pooling_pd_t *_pd,
             jit_offsets &jit_off) {
         using namespace dnnl::impl::format_tag;
 
+        const memory_desc_wrapper src_d(
+                _pd->is_fwd() ? _pd->src_md() : _pd->diff_src_md());
+        const memory_desc_wrapper dst_d(
+                _pd->is_fwd() ? _pd->dst_md() : _pd->diff_dst_md());
+
+        const pooling_desc_t &pd = *_pd->desc();
         const int ndims = src_d.ndims();
         const auto &src_dims = src_d.padded_dims();
         const auto &dst_dims = dst_d.padded_dims();
@@ -72,12 +78,11 @@ struct jit_ref_pooling_fwd_kernel {
         set_offsets(src_d, jit_off.src_off);
         set_offsets(dst_d, jit_off.dst_off);
 
-        jpp.lws_d[0] = 1;
-        jpp.lws_d[1] = 1;
-        jpp.lws_d[2] = 1;
-        jpp.gws_d[0] = jpp.mb;
-        jpp.gws_d[1] = jpp.c;
-        jpp.gws_d[2] = 1;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(_pd->engine());
+        jpp.dispatch = compute_engine->create_dispatch(
+                jpp.is_backward ? src_d.md_ : dst_d.md_);
+
         jpp.sub_group_size = 1;
         jpp.use_16mb_unroll = 0;
         jpp.use_16c_unroll = 0;
@@ -98,14 +103,27 @@ struct jit_ref_pooling_fwd_kernel {
                     NCw16n16c, NChw16n16c, NCdhw16n16c);
             jpp.use_16c_unroll = 1;
             jpp.sub_group_size = 16;
-            jpp.lws_d[0] = 1;
-            jpp.lws_d[1] = 16;
-            jpp.lws_d[2] = 1;
-            jpp.gws_d[0] = jpp.is_backward ? jpp.id * jpp.ih * jpp.iw
-                                           : jpp.od * jpp.oh;
-            jpp.gws_d[1] = jpp.c;
-            jpp.gws_d[2] = jpp.use_16mb_unroll ? jpp.mb / 16 : jpp.mb;
+
+            jpp.dispatch.define_dim(
+                    "MB", 0, jpp.mb, jpp.use_16mb_unroll ? 16 : 1);
+            jpp.dispatch.define_dim("OC", 1, jpp.c);
+
+            if (!jpp.is_backward) {
+                jpp.dispatch.define_dim("OD", nstl::max(2, ndims - 3), jpp.od);
+                jpp.dispatch.define_dim("OH", nstl::max(2, ndims - 2), jpp.oh);
+            } else {
+                jpp.dispatch.define_dim("ID", nstl::max(2, ndims - 3), jpp.id);
+                jpp.dispatch.define_dim("IH", nstl::max(2, ndims - 2), jpp.ih);
+                jpp.dispatch.define_dim("IW", nstl::max(2, ndims - 1), jpp.iw);
+            }
+
+            jpp.dispatch.vectorize_dim("OC", 16);
+        } else {
+            jpp.dispatch.define_dim("MB", 0, jpp.mb);
+            jpp.dispatch.define_dim("OC", 1, jpp.c);
         }
+
+        jpp.dispatch.generate();
 
         return status::success;
     };
@@ -135,17 +153,14 @@ struct jit_ref_pooling_fwd_kernel {
         kernel_ctx.define_int("PD", jpp.f_pad);
         kernel_ctx.define_int("PH", jpp.t_pad);
         kernel_ctx.define_int("PW", jpp.l_pad);
-        kernel_ctx.define_int("LWS_0", jpp.lws_d[0]);
-        kernel_ctx.define_int("LWS_1", jpp.lws_d[1]);
-        kernel_ctx.define_int("LWS_2", jpp.lws_d[2]);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jpp.sub_group_size);
         kernel_ctx.define_int("USE_16MB_UNROLL", jpp.use_16mb_unroll);
         kernel_ctx.define_int("USE_16C_UNROLL", jpp.use_16c_unroll);
         kernel_ctx.define_int("IS_TRAINING", jpp.is_training);
         if (jpp.is_backward)
-            kernel_ctx.define_int("POOLING_BWD", 1);
+            kernel_ctx.define_int("IS_BWD", 1);
         else
-            kernel_ctx.define_int("POOLING_FWD", 1);
+            kernel_ctx.define_int("IS_FWD", 1);
         switch (jpp.alg) {
             case pooling_max: kernel_ctx.define_int("POOLING_MAX", 1); break;
             case pooling_avg_exclude_padding:
@@ -160,6 +175,8 @@ struct jit_ref_pooling_fwd_kernel {
 
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", jpp.ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", jpp.ndims);
+
+        def_dispatch(kernel_ctx, jpp.dispatch);
 
         return status::success;
     }

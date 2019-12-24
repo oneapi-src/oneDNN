@@ -36,10 +36,10 @@
         c[X] = val; \
     } while (0)
 
-kernel void gen9_gemm_scale_x8x8s32_kernel(global int *cc, global int *c,
-        char trc, long offset_c, long m, long n, long ldc, float alpha,
-        float beta, global int *co, long offset_co, int alpha_is_zero,
-        int apply_eltwise, float eltwise_alpha, float eltwise_beta) {
+kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
+        long offset_c, long m, long n, long ldc, float alpha, float beta,
+        global int *co, long offset_co, int alpha_is_zero, int apply_eltwise,
+        float eltwise_alpha, float eltwise_beta) {
 
     int idx = get_group_id(0);
     int idy = get_group_id(1);

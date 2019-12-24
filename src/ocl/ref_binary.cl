@@ -21,22 +21,35 @@
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 
+#if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD
+KERNEL_ATTR
+__kernel void ref_binary(
+        __global DATA_T *src0, __global DATA_T *src1, __global DATA_T *dst) {
+    int off = GWS_GET_IDX();
+
+    POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
+    POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[off]);
+
+#if IS_ADD
+    dst[off] = CONVERT_DATA_T(tmp_src0 + tmp_src1);
+#elif IS_MUL
+    dst[off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
+#endif
+}
+
+#else
+KERNEL_ATTR
 __kernel void ref_binary(
         __global DATA_T *src0, __global DATA_T *src1, __global DATA_T *dst) {
 
     // since gws = no. of total elems in A, id will be the logical offset
-    int id = get_global_id(0);
     int dims0[6] = {0};
-    // dimensions passed as separate values due to opencl constraints
-    // creating an array for writing shorter and manageable code
-    // done for dims_src0 and bcast_dims
-    int dims_src0[] = {DIM0, DIM1, DIM2, DIM3, DIM4, DIM5};
-
-    // calculating dims from logical offset for src0
-    for (int d = NDIMS - 1; d >= 0; --d) {
-        dims0[d] = id % dims_src0[d];
-        id /= dims_src0[d];
-    }
+    dims0[0] = GWS_GET_D0();
+    dims0[1] = GWS_GET_D1();
+    dims0[2] = GWS_GET_D2();
+    dims0[3] = GWS_GET_D3();
+    dims0[4] = GWS_GET_D4();
+    dims0[5] = GWS_GET_D5();
 
     int src0_off = SRC0_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
@@ -71,3 +84,4 @@ __kernel void ref_binary(
     dst[dst_off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
 #endif
 }
+#endif

@@ -14,6 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
+#define DT_UNDEF
+#include "ocl/ocl_types.h"
+
 #if IN_TYPE_F16 || OUT_TYPE_F16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 #endif
@@ -54,25 +57,21 @@
 #endif
 
 #define CONVERT_IN_TO_OUT(x) CONVERT_F32_TO_OUT(x)
-#define REORDER(_out, _in, _a, _b) \
-    do { \
-        _out = CONVERT_IN_TO_OUT(_in); \
-    } while (0)
+#define QZ_B0(v, scale) CONVERT_F32_TO_OUT(v *scale)
 
+#define REORDER(_out, _in, _s) \
+    do { \
+        _out = QZ_B0(_in, _s); \
+    } while (0)
 // About compensation
 #define COMP_DT float
 #define COMP_DST_OFFSET_EL (DST_D0 * DST_S0)
 #define COMP_OFF(i0, i1, i2, i3) \
     ((((i0) * (DST_D1) + (i1)) * (DST_D3) + (i2)) * (DST_D4) + (i3))
 
-#define QZ_B0(v, scale) CONVERT_F32_TO_OUT(v *scale)
-
-#if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
-#endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) __kernel void
-wei_reorder_kernel(__global DT_IN *input, __global DT_IN *scales,
-        __global DT_OUT *output, float alpha, float beta) {
+KERNEL_ATTR
+__kernel void wei_reorder(__global DT_IN *input, __global DT_IN *scales,
+        __global DT_OUT *output) {
 
     __global char *temp = (__global char *)(output + COMP_DST_OFFSET_EL);
     __global COMP_DT *comp
@@ -81,23 +80,25 @@ wei_reorder_kernel(__global DT_IN *input, __global DT_IN *scales,
 
 #if REF_REORDER
 
-    const int d0 = get_global_id(0) / DST_D1;
-    const int d1 = get_global_id(0) % DST_D1;
-    const int d3 = get_global_id(1) / DST_D4;
-    const int d4 = get_global_id(1) % DST_D4;
+    const int d0 = GWS_GET_D0();
+    const int d1 = GWS_GET_D1();
+    const int d3 = GWS_GET_D3();
+    const int d4 = GWS_GET_D4();
+
+#if MASK
+    float s = scales[d3 * SRC_D4 + d4];
+#else
+    float s = scales[0];
+#endif
 
     int reduction = 0;
     for (int d2 = 0; d2 < SRC_D2; ++d2) {
         const int in_off = IN_OFF(d0, d1, d2, d3, d4, 0);
         const int out_off = OUT_OFF(d0, d1, d2, d3, d4, 0);
-        REORDER(output[out_off], input[in_off], alpha, beta);
+
+        REORDER(output[out_off], input[in_off], s);
 
         // calculate compensation
-#if MASK
-        float s = scales[d3 * d4];
-#else
-        float s = scales[0];
-#endif
         reduction += convert_int(QZ_B0(input[in_off], s));
     }
     comp[COMP_OFF(d0, d1, d3, d4)] = convert_float(reduction);

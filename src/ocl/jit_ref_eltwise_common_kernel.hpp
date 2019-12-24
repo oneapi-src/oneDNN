@@ -18,6 +18,7 @@
 #define JIT_REF_ELTWISE_COMMON_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/eltwise_pd.hpp"
 #include "common/memory.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
@@ -32,10 +33,15 @@ struct jit_ref_eltwise_common_kernel {
 
     ~jit_ref_eltwise_common_kernel() {}
 
-    static status_t init_conf(jit_eltwise_conf_t &jel,
-            const memory_desc_wrapper &data_d,
-            const memory_desc_wrapper &diff_data_d, jit_offsets &jit_off,
-            alg_kind_t alg, bool is_forward) {
+    static status_t init_conf(jit_eltwise_conf_t &jel, const eltwise_pd_t *pd,
+            jit_offsets &jit_off) {
+
+        alg_kind_t alg = pd->desc()->alg_kind;
+        bool is_forward = utils::one_of(pd->desc()->prop_kind,
+                prop_kind::forward_training, prop_kind::forward_inference);
+        const memory_desc_wrapper data_d(pd->src_md());
+        const memory_desc_wrapper diff_data_d(
+                is_forward ? &glob_zero_md : pd->diff_src_md());
 
         const int ndims = data_d.ndims();
         jel.ndims = ndims;
@@ -48,9 +54,19 @@ struct jit_ref_eltwise_common_kernel {
         set_offsets(diff_data_d, jit_off.dst_off);
 
         const auto &dims = data_d.dims();
-        jel.gws_d[0] = utils::array_product(&dims[0], ndims);
-        jel.gws_d[1] = 1;
-        jel.gws_d[2] = 1;
+
+        int max_ndims = 6;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        jel.dispatch = compute_engine->create_dispatch(
+                is_forward ? data_d.md_ : diff_data_d.md_);
+        for (int i = 0; i < max_ndims; ++i) {
+            if (i < ndims)
+                jel.dispatch.define_dim(utils::format("D%d", i), i, dims[i]);
+            else
+                jel.dispatch.define_dim(utils::format("D%d", i), 1);
+        }
+        jel.dispatch.generate();
 
         return status::success;
     }
@@ -73,12 +89,15 @@ struct jit_ref_eltwise_common_kernel {
         kernel_ctx.define_int("GELU", alg_kind::eltwise_gelu);
         kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
         kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
+        kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
         kernel_ctx.define_int("ALG_KIND", jel.alg);
         kernel_ctx.define_int("NDIMS", jel.ndims);
 
         def_offsets(jit_off.src_off, kernel_ctx, "DATA", jel.ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA",
                 jel.is_forward ? 0 : jel.ndims);
+
+        def_dispatch(kernel_ctx, jel.dispatch);
 
         return status::success;
     }

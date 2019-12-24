@@ -19,15 +19,16 @@
 #include "ocl/ocl_post_ops.h"
 #endif
 
-#if INNER_PRODUCT_FWD == 1
+#if IS_FWD == 1
 
-__kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
+KERNEL_ATTR
+__kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
         __global WEI_DATA_T *wht, __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float sum_scale, float output_scale) {
 
-    const int mb = get_global_id(0) / OC;
-    const int oc = get_global_id(0) % OC;
+    const int mb = GWS_GET_MB();
+    const int oc = GWS_GET_OC();
 
     ACC_DATA_T d = 0;
 #if HAS_SPATIAL == 1
@@ -66,18 +67,16 @@ __kernel void ref_inner_product_fwd_kernel(__global SRC_DATA_T *src,
 }
 #endif
 
-#if INNER_PRODUCT_BWD_DATA == 1
-__kernel void ref_inner_product_bwd_data_kernel(__global SRC_DATA_T *diff_src,
+#if IS_BWD_D == 1
+KERNEL_ATTR
+__kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
         __global WEI_DATA_T *wht, __global DST_DATA_T *diff_dst) {
 
-    const int mb = get_global_id(0) / IC_TOTAL;
-    const int ic_total = get_global_id(0) % IC_TOTAL;
-    const int ic = ic_total / (KD * KH * KW);
-    const int kdhw = ic_total % (KD * KH * KW);
-    const int kd = kdhw / (KH * KW);
-    const int khw = kdhw % (KH * KW);
-    const int kh = khw / KH;
-    const int kw = khw % KH;
+    const int mb = GWS_GET_MB_IC() / IC;
+    const int ic = GWS_GET_MB_IC() % IC;
+    const int kd = GWS_GET_KD();
+    const int kh = GWS_GET_KH();
+    const int kw = GWS_GET_KW();
 
     float ds = 0.0f;
     for (int oc = 0; oc < OC; ++oc) {
@@ -90,19 +89,17 @@ __kernel void ref_inner_product_bwd_data_kernel(__global SRC_DATA_T *diff_src,
 }
 #endif
 
-#if INNER_PRODUCT_BWD_WEIGHTS == 1
-__kernel void ref_inner_product_bwd_weights_kernel(__global SRC_DATA_T *src,
+#if IS_BWD_W == 1
+KERNEL_ATTR
+__kernel void ref_inner_product_bwd_weights(__global SRC_DATA_T *src,
         __global WEI_DATA_T *diff_wht, __global BIA_DATA_T *diff_bias,
         __global DST_DATA_T *diff_dst) {
 
-    const int oc = get_global_id(0) / IC_TOTAL;
-    const int ic_total = get_global_id(0) % IC_TOTAL;
-    const int ic = ic_total / (KD * KH * KW);
-    const int kdhw = ic_total % (KD * KH * KW);
-    const int kd = kdhw / (KH * KW);
-    const int khw = kdhw % (KH * KW);
-    const int kh = khw / KH;
-    const int kw = khw % KH;
+    const int oc = GWS_GET_OC();
+    const int ic = GWS_GET_IC();
+    const int kd = GWS_GET_KD();
+    const int kh = GWS_GET_KH();
+    const int kw = GWS_GET_KW();
 
     float ds = 0.0f;
     for (int mb = 0; mb < MB; ++mb) {

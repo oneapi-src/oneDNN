@@ -158,7 +158,8 @@ mb1_ic1oc16_ih124kh3oh122n"jit_reads_past_end_of_src_buffer:2"
 --cfg=u8s8u8
 mb1_ic1oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:3"
 mb1_ic2oc16_ih16kh3oh16ph1n"jit_reads_past_end_of_src_buffer:4"
-
+mb1_ic1oc16_ih10oh10kh3ph1n"jit_reads_past_end_of_src_buffer:5"
+ 
 # Test Input-channel blocking w/stride heuristic
 --reset --dir=BWD_D
 ic32oc1_id5ih1iw1_od2oh1ow1_kd3kh1kw1_sd2sh1sw1n"ic-blocking_stride-d_test"

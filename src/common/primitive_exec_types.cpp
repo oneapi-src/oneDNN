@@ -137,7 +137,13 @@ void exec_ctx_t::unmap_memory_storage(
     MAYBE_UNUSED(status);
 }
 
-memory_desc_wrapper exec_ctx_t::memory_mdw(int arg) const {
+memory_desc_wrapper exec_ctx_t::memory_mdw(
+        int arg, const memory_desc_t *md_from_primitive_desc) const {
+    if (md_from_primitive_desc) {
+        memory_desc_wrapper mdw_from_primitive_desc(md_from_primitive_desc);
+        if (!mdw_from_primitive_desc.has_runtime_dims_or_strides())
+            return mdw_from_primitive_desc;
+    }
     if (args_.count(arg) != 1) return memory_desc_wrapper(&glob_zero_md);
     return memory_desc_wrapper(args_.at(arg).mem->md());
 }

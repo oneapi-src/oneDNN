@@ -30,8 +30,6 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto &output = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
     const auto &jrp = ker_->jrp;
-    float alpha = pd()->alpha();
-    float beta = pd()->beta();
     const bool do_reorder = jrp.do_reorder;
 
     auto ocl_reorder = [&](const memory_storage_t &in_storage,
@@ -41,10 +39,8 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
         arg_list.set(0, in_storage);
         arg_list.set(1, scales_storage);
         arg_list.set(2, out_storage);
-        arg_list.set(3, alpha);
-        arg_list.set(4, beta);
 
-        auto nd_range = compute::nd_range_t(jrp.gws_d, jrp.lws_d);
+        auto nd_range = jrp.dispatch.nd_range();
         return compute_stream->parallel_for(nd_range, kernel_, arg_list);
     };
 

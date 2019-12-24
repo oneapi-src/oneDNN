@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-__kernel void simple_sum_kernel(
+__kernel void simple_sum(
         __global float *input, __global float *output, float scale, int a) {
 
     const int c = get_global_id(0);

@@ -37,7 +37,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
     typedef void (*kernel_t)(void *param1_, void *param2_, const void *param3_,
             void *param4_, void *param5_, const void *param6_, void *param7_,
-            void *param8_);
+            void *param8_, void *param9_);
 
     jit_uni_rnn_postgemm(const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *pd)
         : rnn_(rnn)
@@ -74,6 +74,22 @@ struct jit_uni_rnn_postgemm : public jit_generator {
 
     template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
     rnn_postgemm_sig(execute) {
+        if (pd_->desc()->prop_kind == prop_kind::backward)
+            execute_bwd<src_data_t, acc_data_t, scratch_data_t>(rnn,
+                    cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+                    diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                    bias_, ws_grid_, scratch_cell_, states_t_l_copy_);
+        else
+            execute_fwd<src_data_t, acc_data_t, scratch_data_t>(rnn,
+                    cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+                    diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                    bias_, ws_grid_, scratch_cell_, states_t_l_copy_);
+    }
+
+    template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
+    rnn_postgemm_sig(execute_fwd) {
         using namespace rnn_utils;
         rnn_utils::ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_gates(
@@ -111,6 +127,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     : states_t_l_copy_; // RNN, LSTM, GRU
             const void *param6_;
             void *param7_, *param8_;
+            void *param9_ = nullptr;
             switch (pd_->cell_kind()) {
                 case alg_kind::vanilla_lstm:
                     param6_ = &c_states_tm1_l(i, 0);
@@ -134,7 +151,109 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     break;
             }
             kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
-                    param7_, param8_);
+                    param7_, param8_, param9_);
+        });
+    }
+
+    template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
+    rnn_postgemm_sig(execute_bwd) {
+        using namespace rnn_utils;
+        auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+        auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+        auto src_iter_ld = rnn.src_iter_ld(cell_position);
+
+        rnn_utils::ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
+        rnn_utils::ws_gates_aoc<scratch_data_t> scratch_gates(
+                rnn, scratch_gates_);
+        rnn_utils::ws_diff_states_aoc<acc_data_t> diff_states_t_l(
+                rnn, diff_states_t_l_);
+        rnn_utils::ws_diff_states_aoc<acc_data_t> diff_states_tp1_l(
+                rnn, diff_states_tp1_l_);
+        rnn_utils::ws_diff_states_aoc<acc_data_t> diff_states_t_lp1(
+                rnn, diff_states_t_lp1_);
+        rnn_utils::ws_states_aoc<float> c_states_t_l(
+                rnn, c_states_t_l_, dst_iter_c_ld);
+        rnn_utils::ws_states_aoc<const float> c_states_tm1_l(
+                rnn, c_states_tm1_l_, src_iter_c_ld);
+
+        ws_states_aoc<const src_data_t> states_tm1_l(
+                rnn, states_tm1_l_, src_iter_ld);
+        ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
+        utils::array_offset_calculator<scratch_data_t, 2> hG1(
+                scratch_cell_, rnn.states_nld, rnn.states_ws_ld);
+        utils::array_offset_calculator<src_data_t, 2> ws_grid(
+                ws_grid_, rnn.mb, rnn.dic);
+
+        // Todo: add parallelization on dic for the batch 1 case
+        // Assumption: the kernel runs a loop on dic elements
+        parallel_nd(rnn.mb, [&](int i) {
+            void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_,
+                    *param9_;
+            const void *param3_, *param6_;
+            switch (pd_->cell_kind()) {
+                case alg_kind::vanilla_lstm:
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
+                    param3_ = &diff_states_t_lp1(rnn.n_states, i, 0);
+                    param4_ = &diff_states_tp1_l(0, i, 0);
+                    param5_ = &diff_states_t_l(1, i, 0);
+                    param6_ = &diff_states_tp1_l(1, i, 0);
+                    param7_ = (float *)&c_states_tm1_l(i, 0);
+                    param8_ = &c_states_t_l(i, 0);
+                    param9_ = nullptr;
+                    break;
+                case alg_kind::lbr_gru:
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0);
+                    param3_ = &diff_states_t_lp1(rnn.n_states, i, 0);
+                    param4_ = &diff_states_tp1_l(0, i, 0);
+                    param5_ = &diff_states_t_l(0, i, 0);
+                    param6_ = &states_tm1_l(i, 0);
+                    param7_ = &scratch_cell(i, 0, 0);
+                    param8_ = &ws_grid(i, 0);
+                    param9_ = nullptr;
+                    break;
+                case alg_kind::vanilla_gru:
+                    // TODO: split part 1 and part2 APIs/ABIs
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
+                    param3_ = &diff_states_t_lp1(
+                            rnn.n_states, i, 0); // not needed for part2
+                    param4_ = &diff_states_tp1_l(
+                            0, i, 0); // not needed for part2
+                    param5_ = &diff_states_t_l(0, i, 0);
+                    param6_ = &states_tm1_l(i, 0);
+                    param7_ = &hG1(i, 0); // not needed for part1
+                    param8_ = &ws_grid(i, 0); // not needed in part1
+                    param9_ = &diff_states_t_l(
+                            rnn.n_states, i, 0); // not needed for part1
+                    break;
+                case alg_kind::vanilla_rnn:
+                    param1_ = &ws_gates(i, 0, 0);
+                    param2_ = &scratch_gates(i, 0, 0);
+                    param3_ = &diff_states_t_lp1(rnn.n_states, i, 0);
+                    param4_ = &diff_states_tp1_l(0, i, 0);
+                    param5_ = nullptr;
+                    param6_ = nullptr;
+                    param7_ = nullptr;
+                    param8_ = nullptr;
+                    param9_ = nullptr;
+                    break;
+                default:
+                    assert(!"unsupported");
+                    param1_ = nullptr;
+                    param2_ = nullptr;
+                    param3_ = nullptr;
+                    param4_ = nullptr;
+                    param5_ = nullptr;
+                    param6_ = nullptr;
+                    param7_ = nullptr;
+                    param8_ = nullptr;
+                    param9_ = nullptr;
+                    break;
+            }
+            kernel_(param1_, param2_, param3_, param4_, param5_, param6_,
+                    param7_, param8_, param9_);
         });
     }
 
@@ -369,7 +488,7 @@ protected:
     }
 
     template <data_type_t src_data_t, typename Vmm>
-    void to_scratch(Vmm dst, Xbyak::Address src, int in_len) {
+    void to_float(Vmm dst, Xbyak::Address src, int in_len) {
         switch (src_data_t) {
             case data_type::f32:
                 if (in_len == (int)dst.getBit() / 8)

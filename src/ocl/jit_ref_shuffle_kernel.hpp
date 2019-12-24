@@ -33,15 +33,13 @@ struct jit_ref_shuffle_kernel {
 
     ~jit_ref_shuffle_kernel() {}
 
-    static status_t init_conf(const shuffle_pd_t *pd, jit_shuffle_conf_t &jshfl,
-            jit_offsets &jit_off, const memory_desc_wrapper &src_md,
-            const memory_desc_wrapper &dst_md,
-            const memory_desc_wrapper &diff_src_md,
-            const memory_desc_wrapper &diff_dst_md) {
+    static status_t init_conf(jit_shuffle_conf_t &jshfl, const shuffle_pd_t *pd,
+            jit_offsets &jit_off) {
 
         const bool is_fwd = pd->is_fwd();
 
-        const memory_desc_wrapper &input_md = is_fwd ? src_md : diff_dst_md;
+        const memory_desc_wrapper input_md(
+                is_fwd ? pd->src_md() : pd->diff_dst_md());
         jshfl.data_type = input_md.data_type();
 
         const int axis = pd->axis();

@@ -16,7 +16,7 @@
 
 #include "ocl/ocl_types.h"
 
-__kernel void gen9_gemm_copy_kernel(long m, long n, __global SRC_DATA_T *a,
+__kernel void gen9_gemm_copy(long m, long n, __global SRC_DATA_T *a,
         long offseta, long lda, DATA_T alpha, __global DATA_T *b,
         long offsetb) {
     int idx = get_group_id(0);

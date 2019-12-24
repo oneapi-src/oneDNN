@@ -40,8 +40,6 @@ endif()
 if (NOT TBBROOT)
     if(DEFINED ENV{TBBROOT})
         set (TBBROOT $ENV{TBBROOT})
-    else()
-        message("FATAL_ERROR" "TBBROOT is unset")
     endif()
 endif()
 
@@ -74,30 +72,51 @@ if (NOT _tbb_compiler_id STREQUAL "GNU")
     unset(_tbb_gcc_ver_output)
 endif()
 
-set(_tbb_lib ${_tbb_root}/lib/${_tbb_arch_subdir} )
-file(GLOB _tbb_gcc_versions_available RELATIVE ${_tbb_lib} ${_tbb_lib}/*)
-# shall we check _tbb_gcc_versions_available is not empty?
-foreach (_tbb_gcc_version ${_tbb_gcc_versions_available})
-    string(SUBSTRING ${_tbb_gcc_version} 3 -1 _tbb_gcc_version_number)
-    if (NOT _tbb_compiler_ver VERSION_LESS _tbb_gcc_version_number)
-        set(_tbb_compiler_subdir ${_tbb_gcc_version})
+if (EXISTS "${_tbb_root}/lib/${_tbb_arch_subdir}")
+    set(_tbb_lib ${_tbb_root}/lib/${_tbb_arch_subdir})
+    set(_tbb_inc ${_tbb_root}/include)
+
+    file(GLOB _tbb_gcc_versions_available RELATIVE ${_tbb_lib} ${_tbb_lib}/*)
+    # shall we check _tbb_gcc_versions_available is not empty?
+    foreach (_tbb_gcc_version ${_tbb_gcc_versions_available})
+        string(SUBSTRING ${_tbb_gcc_version} 3 -1 _tbb_gcc_version_number)
+        if (NOT _tbb_compiler_ver VERSION_LESS _tbb_gcc_version_number)
+            set(_tbb_compiler_subdir ${_tbb_gcc_version})
+        endif()
+    endforeach()
+else()
+    if (TBBROOT)
+        set(__tbb_hint_path "${TBBROOT}")
+    else()
+        set(__tbb_hint_path "/non/existing/path")
     endif()
-endforeach()
+
+    # try to find TBB in the system
+    find_library(_tbb_lib NAMES tbb
+        HINTS "${__tbb_hint_path}"
+        PATH_SUFFIXES lib lib64)
+    find_path(_tbb_inc NAMES tbb.h
+        HINTS "${__tbb_hint_path}"
+        PATH_SUFFIXES include tbb include/tbb)
+    unset(__tbb_hint_path)
+
+    if (NOT _tbb_lib OR NOT _tbb_inc)
+        message("FATAL_ERROR" "Cannot find TBB")
+    endif()
+
+    get_filename_component(_tbb_lib "${_tbb_lib}" PATH)
+    get_filename_component(_tbb_inc "${_tbb_inc}" PATH)
+
+    set(_tbb_arch_subdir "")
+    set(_tbb_compiler_subdir "")
+endif()
 
 unset(_tbb_gcc_version_number)
 unset(_tbb_compiler_id)
 unset(_tbb_compiler_ver)
 
-
-# we need to check the version of tbb
-file(READ "${_tbb_root}/include/tbb/tbb_stddef.h" _tbb_stddef)
-string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1" TBB_INTERFACE_VERSION "${_tbb_stddef}")
-if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
-    message(FATAL_ERROR "DNNL requires TBB version 2017 or above")
-endif()
-
 # Now we check that all the needed component are present
-get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
+get_filename_component(_tbb_lib_path "${_tbb_lib}/${_tbb_compiler_subdir}" ABSOLUTE)
 
 if (TBB_FOUND)
     return()
@@ -107,19 +126,30 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
     set(_tbb_release_lib "${_tbb_lib_path}/lib${_tbb_component}.so.2")
     set(_tbb_debug_lib "${_tbb_lib_path}/lib${_tbb_component}_debug.so.2")
 
-    if (EXISTS "${_tbb_release_lib}" AND EXISTS "${_tbb_debug_lib}")
+    # DNNL change: check library existence (BUILD_MODE related only, not both)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPERCASE_CMAKE_BUILD_TYPE)
+    if (UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "DEBUG")
+        if (EXISTS "${_tbb_debug_lib}")
+            set(_lib_exists TRUE)
+        elseif (EXISTS "${_tbb_release_lib}")
+            message(FATAL_ERROR
+                "Intel TBB release library is found here: ${_tbb_release_lib}. "
+                "But the debug library (lib${_tbb_component}_debug.so.2) is missing.")
+        endif()
+    else()
+        if (EXISTS "${_tbb_release_lib}")
+            set(_lib_exists TRUE)
+        endif()
+    endif()
+
+    if (_lib_exists)
         if (NOT TARGET TBB::${_tbb_component})
             add_library(TBB::${_tbb_component} SHARED IMPORTED)
             set_target_properties(TBB::${_tbb_component} PROPERTIES
                                   IMPORTED_CONFIGURATIONS "RELEASE;DEBUG"
                                   IMPORTED_LOCATION_RELEASE     "${_tbb_release_lib}"
                                   IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
-                                  INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
-
-            # DNNL changes: set TBB_INCLUDE_DIRS to use it for include_directories()
-            if (_tbb_component STREQUAL tbb)
-                set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
-            endif()
+                                  INTERFACE_INCLUDE_DIRECTORIES "${_tbb_inc}")
 
             # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
             if (_tbb_component STREQUAL tbbmalloc_proxy)

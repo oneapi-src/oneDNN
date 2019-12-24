@@ -23,9 +23,13 @@
 #include "cpu_stream.hpp"
 #include "memory.hpp"
 
+#include "cpu/matmul/gemm_bf16_matmul.hpp"
 #include "cpu/matmul/gemm_f32_matmul.hpp"
 #include "cpu/matmul/gemm_x8s8s32x_matmul.hpp"
 #include "cpu/matmul/ref_matmul.hpp"
+
+#include "cpu/resampling/ref_resampling.hpp"
+#include "cpu/resampling/simple_resampling.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
 
@@ -37,6 +41,7 @@
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 #include "cpu/jit_avx2_1x1_convolution.hpp"
 #include "cpu/jit_avx2_convolution.hpp"
+#include "cpu/jit_avx2_x8s8s32x_1x1_convolution.hpp"
 #include "cpu/jit_avx2_x8s8s32x_convolution.hpp"
 #include "cpu/jit_avx512_common_1x1_convolution.hpp"
 #include "cpu/jit_avx512_common_convolution.hpp"
@@ -194,6 +199,14 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, s32>),
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, u8>),
         INSTANCE(jit_avx512_core_x8s8s32x_convolution_fwd_t<s8, s8>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, f32>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, s32>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, u8>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<u8, s8>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, f32>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, s32>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, u8>),
+        INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, s8>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, f32>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, s32>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<u8, u8>),
@@ -389,24 +402,35 @@ static const pd_create_f cpu_impl_list[] = {
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
         /* matmul op */
-        INSTANCE(gemm_f32_matmul_t),
-        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, f32>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s32>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, s8>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<s8, s8, u8>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, f32>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s32>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, s8>),
-        INSTANCE(gemm_x8s8s32x_matmul_t<u8, s8, u8>),
-        INSTANCE(ref_matmul_t<f32>),
-        INSTANCE(ref_matmul_t<s8, s8, f32, s32>),
-        INSTANCE(ref_matmul_t<s8, s8, s32, s32>),
-        INSTANCE(ref_matmul_t<s8, s8, s8, s32>),
-        INSTANCE(ref_matmul_t<s8, s8, u8, s32>),
-        INSTANCE(ref_matmul_t<u8, s8, f32, s32>),
-        INSTANCE(ref_matmul_t<u8, s8, s32, s32>),
-        INSTANCE(ref_matmul_t<u8, s8, s8, s32>),
-        INSTANCE(ref_matmul_t<u8, s8, u8, s32>),
+        INSTANCE(matmul::gemm_f32_matmul_t),
+        INSTANCE(matmul::gemm_bf16_matmul_t<f32>),
+        INSTANCE(matmul::gemm_bf16_matmul_t<bf16>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<s8, s8, f32>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<s8, s8, s32>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<s8, s8, s8>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<s8, s8, u8>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<u8, s8, f32>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<u8, s8, s32>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<u8, s8, s8>),
+        INSTANCE(matmul::gemm_x8s8s32x_matmul_t<u8, s8, u8>),
+        INSTANCE(matmul::ref_matmul_t<f32>),
+        INSTANCE(matmul::ref_matmul_t<bf16, bf16, f32, f32>),
+        INSTANCE(matmul::ref_matmul_t<bf16, bf16, bf16, f32>),
+        INSTANCE(matmul::ref_matmul_t<s8, s8, f32, s32>),
+        INSTANCE(matmul::ref_matmul_t<s8, s8, s32, s32>),
+        INSTANCE(matmul::ref_matmul_t<s8, s8, s8, s32>),
+        INSTANCE(matmul::ref_matmul_t<s8, s8, u8, s32>),
+        INSTANCE(matmul::ref_matmul_t<u8, s8, f32, s32>),
+        INSTANCE(matmul::ref_matmul_t<u8, s8, s32, s32>),
+        INSTANCE(matmul::ref_matmul_t<u8, s8, s8, s32>),
+        INSTANCE(matmul::ref_matmul_t<u8, s8, u8, s32>),
+        /* resampling */
+        INSTANCE(simple_resampling_fwd_t<f32>),
+        INSTANCE(simple_resampling_bwd_t<f32>),
+        INSTANCE(ref_resampling_fwd_t<f32>),
+        INSTANCE(ref_resampling_fwd_t<bf16>),
+        INSTANCE(ref_resampling_bwd_t<f32>),
+        INSTANCE(ref_resampling_bwd_t<bf16>),
         /* eol */
         nullptr,
 };

@@ -34,6 +34,17 @@
         str_len -= l; \
     } while (0)
 
+const char *dnnl_runtime2str(unsigned runtime) {
+    switch (runtime) {
+        case DNNL_RUNTIME_NONE: return "none";
+        case DNNL_RUNTIME_SEQ: return "sequential";
+        case DNNL_RUNTIME_OMP: return "OpenMP";
+        case DNNL_RUNTIME_TBB: return "TBB";
+        case DNNL_RUNTIME_OCL: return "OpenCL";
+        default: return "unknown";
+    }
+}
+
 int dnnl_md2fmt_str(
         char *str, size_t str_len, const dnnl_memory_desc_t *mdesc) {
     using namespace dnnl::impl;
@@ -69,20 +80,25 @@ int dnnl_md2fmt_str(
     } else {
         const auto &blk = md.blocking_desc();
 
-        dims_t blocks;
+        dims_t blocks = {0};
         md.compute_blocks(blocks);
 
         char dim_chars[DNNL_MAX_NDIMS + 1];
+
+        dims_t ou_blocks = {0};
+        utils::array_copy(ou_blocks, md.padded_dims(), md.ndims());
 
         bool plain = true;
         for (int d = 0; d < md.ndims(); ++d) {
             dim_chars[d] = (blocks[d] == 1 ? 'a' : 'A') + (char)d;
             if (blocks[d] != 1) plain = false;
+            ou_blocks[d] /= blocks[d];
         }
 
         dims_t strides;
         utils::array_copy(strides, blk.strides, md.ndims());
-        utils::simultaneous_sort(strides, dim_chars, md.ndims(),
+
+        utils::simultaneous_sort(strides, ou_blocks, dim_chars, md.ndims(),
                 [](dim_t a, dim_t b) { return b - a; });
 
         dim_chars[md.ndims()] = '\0';

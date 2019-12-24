@@ -192,15 +192,17 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
     parallel_nd(outer_size_, [&](int ou) {
         data_t sbr = (data_t)0;
         size_t off = ou * ou_stride;
-        for (size_t loff = off; loff < off + channels_; ++loff)
-            sbr += diff_dst[loff] * dst[loff];
-
-        for (size_t loff = off; loff < off + channels_; ++loff)
-            if (pd()->is_softmax()) {
+        if (pd()->is_softmax()) {
+            for (size_t loff = off; loff < off + channels_; ++loff)
+                sbr += diff_dst[loff] * dst[loff];
+            for (size_t loff = off; loff < off + channels_; ++loff)
                 diff_src[loff] = dst[loff] * (diff_dst[loff] - sbr);
-            } else if (pd()->is_logsoftmax()) {
-                diff_src[loff] = diff_dst[loff] - sbr;
-            }
+        } else if (pd()->is_logsoftmax()) {
+            for (size_t loff = off; loff < off + channels_; ++loff)
+                sbr += diff_dst[loff];
+            for (size_t loff = off; loff < off + channels_; ++loff)
+                diff_src[loff] = diff_dst[loff] - expf(dst[loff]) * sbr;
+        }
     });
 }
 
@@ -219,8 +221,12 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
         data_t sbr = (data_t)0;
         for (int c = 0; c < channels_; ++c) {
             auto off_diff = diff_d.off_l(ou_in_offset + c * inner_size_);
-            auto off_data = data_d.off_l(ou_in_offset + c * inner_size_);
-            sbr += diff_dst[off_diff] * dst[off_data];
+            if (pd()->is_softmax()) {
+                auto off_data = data_d.off_l(ou_in_offset + c * inner_size_);
+                sbr += diff_dst[off_diff] * dst[off_data];
+            } else if (pd()->is_logsoftmax()) {
+                sbr += diff_dst[off_diff];
+            }
         }
 
         for (int c = 0; c < channels_; ++c) {
@@ -229,7 +235,8 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
             if (pd()->is_softmax()) {
                 diff_src[off_diff] = dst[off_data] * (diff_dst[off_diff] - sbr);
             } else if (pd()->is_logsoftmax()) {
-                diff_src[off_diff] = diff_dst[off_diff] - sbr;
+                diff_src[off_diff]
+                        = diff_dst[off_diff] - expf(dst[off_data]) * sbr;
             }
         }
     });

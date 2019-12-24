@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "common/c_types_map.hpp"
+#include "common/utils.hpp"
 #include "common/z_magic.hpp"
 
 namespace dnnl {
@@ -103,6 +104,10 @@ struct runtime_version_t {
 
         return status::success;
     }
+
+    std::string str() const {
+        return utils::format("%d.%d.%d", major, minor, build);
+    }
 };
 
 struct device_info_t {
@@ -114,7 +119,22 @@ public:
 
     virtual int eu_count() const = 0;
     virtual int hw_threads() const = 0;
-    virtual const runtime_version_t &runtime_version() const = 0;
+
+    const runtime_version_t &runtime_version() const {
+        return runtime_version_;
+    }
+    const std::string &name() const { return name_; }
+
+protected:
+    void set_runtime_version(const runtime_version_t &runtime_version) {
+        runtime_version_ = runtime_version;
+    }
+
+    void set_name(const std::string &name) { name_ = name; }
+
+private:
+    runtime_version_t runtime_version_;
+    std::string name_;
 };
 
 } // namespace compute

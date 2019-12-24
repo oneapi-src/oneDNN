@@ -90,7 +90,7 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
 
     // clang-format off
     return false ? 0
-        : (f == ib::_4b4c) ? 4 * x0 + x1
+        : (f == ib::_4a4b || f == ib::_4b4c) ? 4 * x0 + x1
         : (f == ib::_4b4a || f == ib::_4c4b) ? 4 * x1 + x0
         : (f == ib::_8a8b || f == ib::_8b8c) ? 8 * x0 + x1
         : (f == ib::_8b8a || f == ib::_8c8b) ? 8 * x1 + x0
@@ -215,6 +215,7 @@ DECL_TRAITS(Abcde16a, _A, _16a, 5);
 DECL_TRAITS(ABcde16a16b, _AB, _16a16b, 5);
 DECL_TRAITS(BAcde8a16b2a, _AB, _8a16b2a, 5);
 DECL_TRAITS(ABcde4b16a4b, _AB, _4b16a4b, 5);
+DECL_TRAITS(ABcde2b8a4b, _AB, _2b8a4b, 5);
 DECL_TRAITS(aBcde16b, _B, _16b, 5);
 DECL_TRAITS(ABcde16b16a, _AB, _16b16a, 5);
 DECL_TRAITS(aBCde16b16c, _BC, _16b16c, 5);
@@ -236,6 +237,7 @@ DECL_TRAITS(aBcdef16b, _B, _16b, 6);
 DECL_TRAITS(aBCdef16b16c, _BC, _16b16c, 6);
 DECL_TRAITS(aBCdef16c16b, _BC, _16c16b, 6);
 DECL_TRAITS(aBCdef4c16b4c, _BC, _4c16b4c, 6);
+DECL_TRAITS(aBCdef2c8b4c, _BC, _2c8b4c, 6);
 DECL_TRAITS(aBCdef8b8c, _BC, _8b8c, 6);
 DECL_TRAITS(aBCdef8c16b2c, _BC, _8c16b2c, 6);
 DECL_TRAITS(aCBdef8b16c2b, _BC, _8b16c2b, 6);

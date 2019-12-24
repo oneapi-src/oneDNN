@@ -73,8 +73,8 @@ struct conv_s8s8 {};
     auto output = CTX_OUT_MEM(data_t<type_o> *, DNNL_ARG_TO); \
     const auto &scratchpad = ctx.get_scratchpad_grantor(); \
     MAYBE_UNUSED(scratchpad); \
-    const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM); \
-    const auto output_d = ctx.memory_mdw(DNNL_ARG_TO); \
+    const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd->src_md()); \
+    const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd->dst_md()); \
     const float alpha = pd->alpha(); \
     MAYBE_UNUSED(alpha); \
     const float beta = pd->beta(); \
@@ -192,29 +192,35 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
 template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
-        typename utils::enable_if<(tag_i == format_tag::oiw
-                                          && utils::one_of(tag_o,
-                                                  format_tag::OIw4i16o4i,
-                                                  format_tag::OIw2i8o4i))
+        typename utils::enable_if<
+                (tag_i == format_tag::oiw
+                        && utils::one_of(tag_o, format_tag::OIw4i16o4i,
+                                format_tag::OIw2i8o4i, format_tag::OIw4o4i))
                         || (tag_i == format_tag::goiw
                                 && utils::one_of(tag_o, format_tag::gOIw4i16o4i,
-                                        format_tag::gOIw2i8o4i))
+                                        format_tag::gOIw2i8o4i,
+                                        format_tag::gOIw4o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::hwio, format_tag::oihw)
                                 && utils::one_of(tag_o, format_tag::OIhw4i16o4i,
-                                        format_tag::OIhw2i8o4i))
+                                        format_tag::OIhw2i8o4i,
+                                        format_tag::OIhw4o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::dhwio, format_tag::oidhw)
-                                && utils::one_of(
-                                        tag_o, format_tag::OIdhw4i16o4i))
+                                && utils::one_of(tag_o,
+                                        format_tag::OIdhw4i16o4i,
+                                        format_tag::OIdhw2i8o4i,
+                                        format_tag::OIdhw4o4i))
                         || (utils::one_of(
                                     tag_i, format_tag::goihw, format_tag::hwigo)
                                 && utils::one_of(tag_o, format_tag::gOIhw4o4i,
                                         format_tag::gOIhw2i8o4i,
                                         format_tag::gOIhw4i16o4i))
                         || (utils::one_of(tag_i, format_tag::goidhw)
-                                && (utils::one_of(
-                                        tag_o, format_tag::gOIdhw4i16o4i))),
+                                && (utils::one_of(tag_o,
+                                        format_tag::gOIdhw4i16o4i,
+                                        format_tag::gOIdhw2i8o4i,
+                                        format_tag::gOIdhw4o4i))),
                 spec::conv_s8s8>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -225,8 +231,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
-        const bool w_groups = !utils::one_of(
-                tag_o, OIw4i16o4i, OIw2i8o4i, OIhw4i16o4i, OIhw2i8o4i);
+        const bool w_groups = !utils::one_of(tag_o, OIw4i16o4i, OIw2i8o4i,
+                OIw4o4i, OIhw4i16o4i, OIhw2i8o4i, OIhw4o4i, OIdhw4i16o4i,
+                OIdhw2i8o4i, OIdhw4o4i);
         const int oc = (input_d.dims()[w_groups ? 1 : 0]);
         const int g = w_groups ? input_d.dims()[0] : 1;
 
@@ -245,13 +252,17 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DECLARE_COMMON_PARAMS();
         using namespace format_tag;
 
-        static constexpr bool w_groups = !utils::one_of(tag_o, OIw4i16o4i,
-                OIhw4i16o4i, OIdhw4i16o4i, OIw2i8o4i, OIhw2i8o4i);
+        static constexpr bool w_groups = !utils::one_of(tag_o, OIw4o4i,
+                OIw4i16o4i, OIhw4i16o4i, OIdhw4i16o4i, OIhw4o4i, OIw2i8o4i,
+                OIhw2i8o4i, OIdhw2i8o4i, OIdhw4o4i);
 
-        constexpr int is_1d = utils::one_of(
-                tag_o, gOIw4i16o4i, OIw4i16o4i, gOIw2i8o4i, OIw2i8o4i);
-        constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i);
-        constexpr int blksize = tag_traits<tag_o>::inner_blks == ib::_4b4c
+        constexpr int is_1d = utils::one_of(tag_o, gOIw4i16o4i, OIw4i16o4i,
+                gOIw2i8o4i, OIw2i8o4i, gOIw4o4i, OIw4o4i);
+        constexpr int is_3d = utils::one_of(tag_o, gOIdhw4i16o4i, OIdhw4i16o4i,
+                gOIdhw2i8o4i, OIdhw2i8o4i, gOIdhw4o4i, OIdhw4o4i);
+        constexpr int blksize
+                = (tag_traits<tag_o>::inner_blks == ib::_4b4c
+                          || tag_traits<tag_o>::inner_blks == ib::_4a4b)
                 ? 4
                 : (tag_traits<tag_o>::inner_blks == ib::_2c8b4c
                           || tag_traits<tag_o>::inner_blks == ib::_2b8a4b)
@@ -1242,8 +1253,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         DEFINE_ZERO_POINT_VALUE(i0, DNNL_ARG_FROM);
         DEFINE_ZERO_POINT_VALUE(o0, DNNL_ARG_TO);
 
-        const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM);
-        const auto output_d = ctx.memory_mdw(DNNL_ARG_TO);
+        const auto input_d = ctx.memory_mdw(DNNL_ARG_FROM, pd()->src_md());
+        const auto output_d = ctx.memory_mdw(DNNL_ARG_TO, pd()->dst_md());
 
         const size_t nelems = input_d.nelems();
 

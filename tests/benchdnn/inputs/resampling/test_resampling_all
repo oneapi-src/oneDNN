@@ -1,0 +1,9 @@
+--reset
+--mb=2
+
+# f32
+--dir=FWD_D,BWD_D
+--alg=nearest,linear
+--tag=ncw,nwc                      --batch=resampling_1d
+--tag=nchw,nhwc,nChw8c,nChw16c     --batch=resampling_2d --batch=maskrcnn
+--tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=resampling_3d

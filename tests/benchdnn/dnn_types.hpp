@@ -141,6 +141,7 @@ struct attr_t {
             GELU,
             SWISH,
             LOG,
+            CLIP,
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);
@@ -166,6 +167,7 @@ struct attr_t {
         void to_str(char *buffer, char **end_b) const;
 
         bool is_def() const { return len == 0; }
+        int find(kind_t kind, int start = 0, int stop = -1) const;
 
         enum { capacity = 4 };
         int len;
@@ -201,6 +203,11 @@ struct attr_bundle_t {
     attr_t attr;
     std::vector<float> oscale;
     std::map<int, std::vector<int>> zero_points; // arg -> arg_zero_points
+
+    // constructor to forward already constructed DNNL primitive attributes
+    attr_bundle_t(const_dnnl_primitive_attr_t dnnl_attr)
+        : dnnl_attr_((dnnl_primitive_attr_t)dnnl_attr,
+                [](dnnl_primitive_attr_t) {}) {}
 
     attr_bundle_t(const attr_t &attr) : attr(attr) { init_zero_points(); }
     int generate(int scale_mask);

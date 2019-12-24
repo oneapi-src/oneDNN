@@ -31,13 +31,16 @@ struct jit_simple_sum_kernel {
 
     ~jit_simple_sum_kernel() {}
 
-    static status_t init_conf(
-            jit_simple_sum_conf_t &jss, const memory_desc_t *data_d) {
+    static status_t init_conf(jit_simple_sum_conf_t &jss, const sum_pd_t *pd) {
+        UNUSED(jss);
+        UNUSED(pd);
         return status::success;
     };
 
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_simple_sum_conf_t &jss) {
+        UNUSED(kernel_ctx);
+        UNUSED(jss);
         return status::success;
     }
 

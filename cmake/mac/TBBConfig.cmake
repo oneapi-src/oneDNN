@@ -58,13 +58,6 @@ endif()
 
 set(_tbb_compiler_subdir .)
 
-# we need to check the version of tbb
-file(READ "${_tbb_root}/include/tbb/tbb_stddef.h" _tbb_stddef)
-string(REGEX REPLACE ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1" TBB_INTERFACE_VERSION "${_tbb_stddef}")
-if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
-    message(FATAL_ERROR "DNNL requires TBB version 2017 or above")
-endif()
-
 get_filename_component(_tbb_lib_path "${_tbb_root}/lib/${_tbb_arch_subdir}/${_tbb_compiler_subdir}" ABSOLUTE)
 
 if (TBB_FOUND)
@@ -83,11 +76,6 @@ foreach (_tbb_component ${TBB_FIND_COMPONENTS})
                                   IMPORTED_LOCATION_RELEASE     "${_tbb_release_lib}"
                                   IMPORTED_LOCATION_DEBUG       "${_tbb_debug_lib}"
                                   INTERFACE_INCLUDE_DIRECTORIES "${_tbb_root}/include")
-
-            # DNNL changes: set TBB_INCLUDE_DIRS to use it for include_directories()
-            if (_tbb_component STREQUAL tbb)
-                set(TBB_INCLUDE_DIRS "${_tbb_root}/include")
-            endif()
 
             # Add internal dependencies for imported targets: TBB::tbbmalloc_proxy -> TBB::tbbmalloc
             if (_tbb_component STREQUAL tbbmalloc_proxy)

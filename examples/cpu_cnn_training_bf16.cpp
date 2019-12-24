@@ -482,5 +482,5 @@ void simple_net() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(simple_net);
+    return handle_example_errors({engine::kind::cpu}, simple_net);
 }

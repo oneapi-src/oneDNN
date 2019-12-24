@@ -39,27 +39,17 @@
 
 #include "ocl/ocl_types.h"
 
-#if POOLING_FWD == 1
-#if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
-#endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
-__kernel void
-ref_pooling_fwd_kernel(
+#if IS_FWD == 1
+KERNEL_ATTR
+__kernel void ref_pooling_fwd(
         __global DATA_T *src, __global int *ws, __global DATA_T *dst) {
 
 #if USE_16C_UNROLL == 1
-    const int mb = get_global_id(2) * MB_BLOCK;
-    const int oc = get_group_id(1) * 16;
-    const int sp = get_global_id(0);
-#if NDIMS == 5
-    const int od = sp / OH;
-    const int ohw = sp % OH;
-#else
-    const int od = 0;
-    const int ohw = sp;
-#endif
-    const int oh = ohw;
+    const int mb = GWS_GET_MB();
+    const int oc = GWS_GET_OC();
+    const int od = GWS_GET_OD();
+    const int oh = GWS_GET_OH();
+
     for (int ow = 0; ow < OW; ++ow) {
         const int id = od * SD - PD;
         const int ih = oh * SH - PH;
@@ -172,8 +162,8 @@ ref_pooling_fwd_kernel(
     }
 
 #else // USE_16C_UNROLL == 0
-    const int mb = get_global_id(0);
-    const int oc = get_global_id(1);
+    const int mb = GWS_GET_MB();
+    const int oc = GWS_GET_OC();
 
     for (int od = 0; od < OD; ++od)
         for (int oh = 0; oh < OH; ++oh)
@@ -249,29 +239,17 @@ ref_pooling_fwd_kernel(
 #endif
 }
 #endif
-#if POOLING_BWD == 1
-#if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
-#endif
-__attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
-__kernel void
-ref_pooling_bwd_kernel(__global DATA_T *diff_src, __global int *ws,
+#if IS_BWD == 1
+KERNEL_ATTR
+__kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
         __global DATA_T *diff_dst) {
 
 #if USE_16C_UNROLL == 1
-    const int mb = get_global_id(2) * MB_BLOCK;
-    const int oc = get_group_id(1) * 16;
-
-    const int sp = get_global_id(0);
-#if NDIMS == 5
-    const int id = sp / (IW * IH);
-    const int ihw = sp % (IW * IH);
-#else
-    const int id = 0;
-    const int ihw = sp;
-#endif
-    const int ih = ihw / IW;
-    const int iw = ihw % IW;
+    const int mb = GWS_GET_MB();
+    const int oc = GWS_GET_OC();
+    const int id = GWS_GET_ID();
+    const int ih = GWS_GET_IH();
+    const int iw = GWS_GET_IW();
 
     diff_src += SRC_OFF(mb, oc, id, ih, iw);
 
@@ -353,8 +331,8 @@ ref_pooling_bwd_kernel(__global DATA_T *diff_src, __global int *ws,
             AS_VECT_BLOCK_DATA_T(blockS1));
 #endif
 #else
-    const int mb = get_global_id(0);
-    const int oc = get_global_id(1);
+    const int mb = GWS_GET_MB();
+    const int oc = GWS_GET_OC();
 
     for (int id = 0; id < ID; ++id)
         for (int ih = 0; ih < IH; ++ih)

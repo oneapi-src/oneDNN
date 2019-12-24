@@ -156,7 +156,7 @@ struct jit_avx512_core_cvt_ps_to_bf16_t : public jit_generator {
                 this, one, even, selector, scratch, fp32_tmp);
 
         generate();
-        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
 
     jit_avx512_core_cvt_ps_to_bf16_t(size_t size)
@@ -167,7 +167,7 @@ struct jit_avx512_core_cvt_ps_to_bf16_t : public jit_generator {
                 this, one, even, selector, scratch, fp32_tmp);
 
         generate();
-        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
 
     ~jit_avx512_core_cvt_ps_to_bf16_t() { delete bf16_emu_; }
@@ -261,12 +261,18 @@ struct jit_avx512_core_cvt_ps_to_bf16_t : public jit_generator {
         postamble();
     }
 
-    void (*jit_ker)(bf16_support::jit_call_t *);
+    void jit_ker(bf16_support::jit_call_t *params) const {
+        jit_ker_(params);
+        msan_unpoison(params->out,
+                (size_ ? size_ : params->size) * sizeof(bfloat16_t));
+    }
 
 private:
     size_t size_;
     int tail_mask_;
     int simd_w_;
+
+    void (*jit_ker_)(bf16_support::jit_call_t *);
 
     bf16_emulation_t *bf16_emu_;
     bool is_dynamic_size_;
@@ -298,7 +304,7 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
     jit_avx512_core_cvt_bf16_to_ps_t(void)
         : size_(0), tail_mask_(0), simd_w_(16), is_dynamic_size_(true) {
         generate();
-        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
 
     jit_avx512_core_cvt_bf16_to_ps_t(size_t size)
@@ -306,7 +312,7 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
         tail_mask_ = (1 << (size_ % simd_w_)) - 1;
 
         generate();
-        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
 
     void generate() {
@@ -397,13 +403,18 @@ struct jit_avx512_core_cvt_bf16_to_ps_t : public jit_generator {
         postamble();
     }
 
-    void (*jit_ker)(bf16_support::jit_call_t *);
+    void jit_ker(bf16_support::jit_call_t *params) const {
+        jit_ker_(params);
+        msan_unpoison(
+                params->out, (size_ ? size_ : params->size) * sizeof(float));
+    }
 
 private:
     size_t size_;
     int tail_mask_;
     int simd_w_;
     bool is_dynamic_size_;
+    void (*jit_ker_)(bf16_support::jit_call_t *);
 
     Xbyak::Opmask ktail_mask = k1;
     Xbyak::Zmm zmm_cvt = Xbyak::Zmm(0);
@@ -428,7 +439,7 @@ struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
                 this, one, even, selector, scratch, fp32_tmp, fp32_tmp);
 
         generate();
-        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
 
     ~jit_avx512_core_add_cvt_ps_to_bf16_t() { delete bf16_emu_; }
@@ -496,10 +507,14 @@ struct jit_avx512_core_add_cvt_ps_to_bf16_t : public jit_generator {
         postamble();
     }
 
-    void (*jit_ker)(bf16_support::jit_call_t *);
+    void jit_ker(bf16_support::jit_call_t *params) const {
+        jit_ker_(params);
+        msan_unpoison(params->out, params->size * sizeof(bfloat16_t));
+    }
 
 private:
     int simd_w_;
+    void (*jit_ker_)(bf16_support::jit_call_t *);
 
     bf16_emulation_t *bf16_emu_;
 
@@ -534,7 +549,7 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
 
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t() : simd_w_(16) {
         generate();
-        jit_ker = (void (*)(bf16_support::jit_call_t *))getCode();
+        jit_ker_ = (void (*)(bf16_support::jit_call_t *))getCode();
     }
 
     ~jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t() {}
@@ -605,10 +620,14 @@ struct jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t : public jit_generator {
             dw(dst_prm_array[i]);
     }
 
-    void (*jit_ker)(bf16_support::jit_call_t *);
+    void jit_ker(bf16_support::jit_call_t *params) const {
+        jit_ker_(params);
+        msan_unpoison(params->out, params->size * sizeof(bfloat16_t));
+    }
 
 private:
     int simd_w_;
+    void (*jit_ker_)(bf16_support::jit_call_t *);
 
     Xbyak::Opmask ktail_mask = k2;
     Xbyak::Zmm zmm_prm = Xbyak::Zmm(31);

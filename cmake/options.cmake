@@ -42,6 +42,10 @@ option(DNNL_ENABLE_PRIMITIVE_CACHE "enables primitive cache.
     changed without prior notification in future releases" OFF)
     # disabled by default
 
+option(DNNL_ENABLE_MAX_CPU_ISA
+    "enables control of CPU ISA detected by DNNL via DNNL_MAX_CPU_ISA
+    environment variable and dnnl_set_max_cpu_isa() function" ON)
+
 # =============================
 # Building properties and scope
 # =============================

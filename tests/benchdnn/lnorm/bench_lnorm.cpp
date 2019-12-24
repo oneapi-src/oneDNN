@@ -51,9 +51,9 @@ const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%dir%,%dt%,%tag%,%stat_tag%,%flags%,%DESC%,"
-          "%-time%,%0time%";
+          "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template_def
-        = "perf,%engine%,%desc%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+        = "perf,%engine%,%desc%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {

@@ -39,6 +39,7 @@
 #include "matmul/matmul.hpp"
 #include "pool/pool.hpp"
 #include "reorder/reorder.hpp"
+#include "resampling/resampling.hpp"
 #include "rnn/rnn.hpp"
 #include "self/self.hpp"
 #include "shuffle/shuffle.hpp"
@@ -100,6 +101,8 @@ int main(int argc, char **argv) {
             prim = BINARY;
         else if (!strcmp("--matmul", argv[0]))
             prim = MATMUL;
+        else if (!strcmp("--resampling", argv[0]))
+            prim = RESAMPLING;
         else
             break;
     }
@@ -125,6 +128,7 @@ int main(int argc, char **argv) {
         case LRN: lrn::bench(argc, argv); break;
         case BINARY: binary::bench(argc, argv); break;
         case MATMUL: matmul::bench(argc, argv); break;
+        case RESAMPLING: resampling::bench(argc, argv); break;
         default: fprintf(stderr, "err: unknown driver\n");
     }
 

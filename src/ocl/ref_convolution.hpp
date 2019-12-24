@@ -24,8 +24,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ref_convolution_kernel.hpp"
 
-extern const char *ref_convolution_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -63,9 +61,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                                     && attr()->output_scales_.mask_ == 0);
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(*this->desc(), *this->src_md(),
-                    *this->weights_md(), *this->weights_md(1), *this->dst_md(),
-                    *this->attr());
+            return kernel_.init(this);
         }
         bool with_eltwise(int position) const {
             return attr()->post_ops_.contain(primitive_kind::eltwise, position);
@@ -129,7 +125,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "ref_convolution_fwd_kernel", kernel_ctx);
+                &kernel_, "ref_convolution_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -161,9 +157,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(*this->desc(), *this->diff_src_md(),
-                    *this->weights_md(), *this->weights_md(1),
-                    *this->diff_dst_md(), *this->attr());
+            return kernel_.init(this);
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -190,7 +184,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "ref_convolution_bwd_data_kernel", kernel_ctx);
+                &kernel_, "ref_convolution_bwd_data", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -223,9 +217,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(*this->desc(), *this->src_md(),
-                    *this->diff_weights_md(), *this->diff_weights_md(1),
-                    *this->diff_dst_md(), *this->attr());
+            return kernel_.init(this);
         }
 
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
@@ -252,7 +244,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "ref_convolution_bwd_weights_kernel", kernel_ctx);
+                &kernel_, "ref_convolution_bwd_weights", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

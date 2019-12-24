@@ -45,9 +45,11 @@ unsigned int flags = 0x0;
 float alpha = 0.0f;
 float beta = 0.0f;
 const char *perf_template_csv
-        = "perf,%engine%,%name%,%prop%,%DESC%,"
-          "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-const char *perf_template_def = perf_template_csv;
+        = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%,"
+          "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+const char *perf_template_def
+        = "perf,%engine%,%name%,%desc%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
+          "%0time%,%0Gflops%";
 const char *perf_template = perf_template_def;
 
 void reset_parameters() {

@@ -6,7 +6,7 @@ DNNL supports the following build-time options.
 | Option                       | Supported values (defaults in bold)  | Description
 | :---                         | :---                                 | :---
 | DNNL_LIBRARY_TYPE            | **SHARED**, STATIC                   | Defines the resulting library type
-| DNNL_CPU_RUNTIME             | **OMP**, TBB, DPCPP                  | Defines the threading runtime for CPU engines
+| DNNL_CPU_RUNTIME             | **OMP**, TBB, DPCPP, SEQ             | Defines the threading runtime for CPU engines
 | DNNL_GPU_RUNTIME             | **NONE**, OCL, DPCPP                 | Defines the offload runtime for GPU engines
 | DNNL_BUILD_EXAMPLES          | **ON**, OFF                          | Controls building the examples
 | DNNL_BUILD_TESTS             | **ON**, OFF                          | Controls building the tests
@@ -14,6 +14,7 @@ DNNL supports the following build-time options.
 | DNNL_ENABLE_CONCURRENT_EXEC  | ON, **OFF**                          | Disables sharing a common scratchpad between primitives in #dnnl::scratchpad_mode::library mode
 | DNNL_ENABLE_JIT_PROFILING    | **ON**, OFF                          | Enables integration with Intel(R) VTune(TM) Amplifier
 | DNNL_ENABLE_PRIMITIVE_CACHE  | ON, **OFF**                          | Enables primitive cache
+| DNNL_ENABLE_MAX_CPU_ISA      | **ON**, OFF                          | Enables controlling CPU dispatcher at run-time
 
 All other building options that can be found in CMake files are dedicated for
 the development/debug purposes and are subject to change without any notice.
@@ -53,10 +54,17 @@ compatible with the target instruction set. Therefore, `ARCH_OPT_FLAGS`
 should be set to an empty string (`""`) if the resulting library needs to be
 portable.
 
+### Runtime CPU dispatcher control
+DNNL JIT relies on ISA features obtained from the processor it is being run
+on.  There are situations when it is necessary to control this behavior at
+run-time to, for example, test SSE4.1 code on an AVX2-capable processor. The
+`DNNL_ENABLE_MAX_CPU_ISA` build option controls the availability of this
+feature. See @ref dev_guide_cpu_dispatcher_control for more information.
+
 ### Runtimes
-CPU engine can use OpenMP or TBB threading runtime. OpenMP threading
-is the default build mode. This behavior is controlled by the `DNNL_CPU_RUNTIME`
-CMake option.
+CPU engine can use OpenMP, TBB or sequential threading runtimes. OpenMP
+threading is the default build mode. This behavior is controlled by the
+`DNNL_CPU_RUNTIME` CMake option.
 
 #### OpenMP
 DNNL uses OpenMP runtime library provided by the compiler.
@@ -70,9 +78,14 @@ both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
 #### TBB
-To build DNNL with TBB support, set the `TBBROOT` environmental
-variable to point to the TBB installation path or pass the path directly to
-cmake:
+To build DNNL with TBB support, set `DNNL_CPU_RUNTIME` to `TBB`:
+
+~~~sh
+$ cmake -DDNNL_CPU_RUNTIME=TBB ..
+~~~
+
+Optionally, set the `TBBROOT` environmental variable to point to the TBB
+installation path or pass the path directly to CMake:
 
 ~~~sh
 $ cmake -DDNNL_CPU_RUNTIME=TBB -DTBBROOT=/opt/intel/path/tbb ..
@@ -83,11 +96,11 @@ limitations if built with Intel TBB.
 
 Functional limitations:
 * Winograd convolution algorithm is not supported for fp32 backward
-by data and backward by weights propogation.
+  by data and backward by weights propagation.
 
 ## GPU Options
 Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine
-is disabled in the default build configuration. 
+is disabled in the default build configuration.
 
 ### Runtimes
 To enable GPU support you need to specify the GPU runtime by setting

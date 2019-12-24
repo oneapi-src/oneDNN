@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-/// @example cpu_inference_int8_matmul.cpp
-/// > Annotated version: @ref cpu_inference_int8_matmul_cpp
+/// @example inference_int8_matmul.cpp
+/// > Annotated version: @ref inference_int8_matmul_cpp
 ///
-/// @page cpu_inference_int8_matmul_cpp_short
+/// @page inference_int8_matmul_cpp_short
 /// C++ API example demonstrating how one can use
 /// [MatMul](@ref dev_guide_matmul) fused with ReLU in INT8 inference.
 ///
@@ -32,8 +32,8 @@
 ///   - Run-time tensor shapes: #DNNL_RUNTIME_DIM_VAL
 /// - Weights pre-packing: use #dnnl::memory::format_tag::any
 ///
-/// @page cpu_inference_int8_matmul_cpp MatMul Tutorial: INT8 Inference
-/// @copydetails cpu_inference_int8_matmul_cpp_short
+/// @page inference_int8_matmul_cpp MatMul Tutorial: INT8 Inference
+/// @copydetails inference_int8_matmul_cpp_short
 ///
 /// Assumptions:
 /// 1. The shape of the weights (matrix \f$B(K, N)\f$) is known in advance, the
@@ -51,7 +51,7 @@
 /// The format tag #dnnl::memory::format_tag::any doesn't work for memory
 /// descriptors that have one or more unknown dimensions and/or strides.
 ///
-/// @include cpu_inference_int8_matmul.cpp
+/// @include inference_int8_matmul.cpp
 
 #include <cassert>
 #include <cctype>
@@ -71,16 +71,14 @@ using namespace dnnl;
 namespace {
 
 void init_vector(std::vector<float> &v) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_real_distribution<float> u(0, 1);
     for (auto &e : v)
         e = u(gen);
 }
 
 void init_vector(std::vector<uint8_t> &v) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_int_distribution<unsigned int> u(0, 255);
     for (auto &e : v)
         e = static_cast<uint8_t>(u(gen));
@@ -89,8 +87,6 @@ void init_vector(std::vector<uint8_t> &v) {
 } // namespace
 
 int number_of_runs = 1;
-
-engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
 
 // Create a MatMul primitive descriptor for the following op:
 // C_u8 = ReLU(scale[:] * (A_u8 - zp_A) * B_s8) + zp_C
@@ -106,7 +102,8 @@ engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
 //   dimensions are known. This matrix can be a matrix of weights in an MLP
 //   topology.
 // - The scaling values are not known at the primitive creation time.
-matmul::primitive_desc matmul_pd_create(int64_t K, int64_t N) {
+matmul::primitive_desc matmul_pd_create(
+        int64_t K, int64_t N, const engine &eng) {
     const int64_t M = DNNL_RUNTIME_DIM_VAL;
 
     memory::desc a_md({M, K}, memory::data_type::u8, {K, 1}); // M x K layout
@@ -128,9 +125,13 @@ matmul::primitive_desc matmul_pd_create(int64_t K, int64_t N) {
     return matmul::primitive_desc(matmul_d, attr, eng);
 }
 
-void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
-        const memory &B_s8_mem) {
-    std::vector<uint8_t> A_u8(M * K), C_u8(M * N);
+void prepare_input(memory &A_u8_mem, memory &scale_f32_mem, memory &zp_A_mem,
+        memory &zp_C_mem) {
+    int64_t M = A_u8_mem.get_desc().dims()[0];
+    int64_t N = scale_f32_mem.get_desc().dims()[0];
+    int64_t K = A_u8_mem.get_desc().dims()[1];
+
+    std::vector<uint8_t> A_u8(M * K);
     init_vector(A_u8);
 
     std::vector<float> scales_f32(N);
@@ -138,13 +139,45 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
 
     int32_t zp_A = 128, zp_C = 40;
 
-    memory A_u8_mem({{M, K}, memory::data_type::u8, {K, 1}}, eng, A_u8.data());
-    memory C_u8_mem({{M, N}, memory::data_type::u8, {N, 1}}, eng, C_u8.data());
+    write_to_dnnl_memory(A_u8.data(), A_u8_mem);
+    write_to_dnnl_memory(&zp_A, zp_A_mem);
+    write_to_dnnl_memory(&zp_C, zp_C_mem);
+    write_to_dnnl_memory(scales_f32.data(), scale_f32_mem);
+}
 
-    memory scale_f32_mem(
-            {{N}, memory::data_type::f32, {1}}, eng, scales_f32.data());
-    memory zp_A_mem({{1}, memory::data_type::s32, {1}}, eng, &zp_A);
-    memory zp_C_mem({{1}, memory::data_type::s32, {1}}, eng, &zp_C);
+void sanity_check(memory &C_u8_mem, memory &zp_C_mem) {
+    int64_t M = C_u8_mem.get_desc().dims()[0];
+    int64_t N = C_u8_mem.get_desc().dims()[1];
+    int32_t zp_C = 0;
+    std::vector<uint8_t> C_u8(M * N);
+
+    read_from_dnnl_memory(C_u8.data(), C_u8_mem);
+    read_from_dnnl_memory(&zp_C, zp_C_mem);
+
+    // simple check: C_u8 >= zp_C
+    for (int64_t i = 0; i < M * N; ++i)
+        if (C_u8[i] < zp_C)
+            throw std::logic_error(
+                    "Smoke check failed."
+                    "\n\tQuantized value is smaller than the zero point,"
+                    "\n\twhich should not happen since ReLU was applied.");
+}
+
+void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
+        const memory &B_s8_mem, const engine &eng) {
+    // inputs of the current layer / operation
+    memory A_u8_mem({{M, K}, memory::data_type::u8, {K, 1}}, eng);
+    memory zp_A_mem({{1}, memory::data_type::s32, {1}}, eng);
+    memory zp_C_mem({{1}, memory::data_type::s32, {1}}, eng);
+    memory scale_f32_mem({{N}, memory::data_type::f32, {1}}, eng);
+
+    // the function below fills dnnl::memory with some values
+    // these memories, typically, come from the previous layers / operations
+    // with meaningful data inside
+    prepare_input(A_u8_mem, scale_f32_mem, zp_A_mem, zp_C_mem);
+
+    // output - no initialization required
+    memory C_u8_mem({{M, N}, memory::data_type::u8, {N, 1}}, eng);
 
     stream s(eng);
     for (int run = 0; run < number_of_runs; ++run)
@@ -156,19 +189,16 @@ void infer(const matmul &matmul_p, int64_t M, int64_t N, int64_t K,
                         {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, zp_C_mem}});
     s.wait();
 
-    // simple check: C_u8 >= zp_C
-    for (int64_t i = 0; i < M * N; ++i)
-        if (C_u8[i] < zp_C)
-            throw std::logic_error(
-                    "Smoke check failed."
-                    "\n\tQuantized value is smaller than the zero point,"
-                    "\n\twhich should not happen since ReLU was applied.");
+    // a sanity check for the correctness of the output
+    sanity_check(C_u8_mem, zp_C_mem);
 }
 
-void inference_int8_matmul() {
+void inference_int8_matmul(engine::kind engine_kind) {
+    engine eng(engine_kind, 0);
+
     const int64_t K = 96;
     const int64_t N = 1000;
-    auto matmul_pd = matmul_pd_create(K, N);
+    auto matmul_pd = matmul_pd_create(K, N, eng);
 
     // Original weights stored as float in a known format
     std::vector<float> B_f32(K * N);
@@ -179,8 +209,8 @@ void inference_int8_matmul() {
     {
         stream s(eng);
         memory B_f32_mem(
-                {{K, N}, memory::data_type::f32, memory::format_tag::ab}, eng,
-                B_f32.data());
+                {{K, N}, memory::data_type::f32, memory::format_tag::ab}, eng);
+        write_to_dnnl_memory(B_f32.data(), B_f32_mem);
         reorder(B_f32_mem, B_s8_mem).execute(s, B_f32_mem, B_s8_mem);
         s.wait();
     }
@@ -188,9 +218,10 @@ void inference_int8_matmul() {
     matmul matmul_p(matmul_pd);
 
     for (int64_t M : {1, 100})
-        infer(matmul_p, M, N, K, B_s8_mem);
+        infer(matmul_p, M, N, K, B_s8_mem, eng);
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(inference_int8_matmul);
+    engine::kind engine_kind = parse_engine_kind(argc, argv);
+    return handle_example_errors(inference_int8_matmul, engine_kind);
 }

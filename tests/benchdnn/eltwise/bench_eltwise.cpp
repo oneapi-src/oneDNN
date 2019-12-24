@@ -33,7 +33,7 @@ std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
 std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
 std::vector<alg_t> alg {attr_t::post_ops_t::RELU};
-std::vector<float> scales {0, 0.25, 2};
+std::vector<float> scales {0, 0.25, -0.25};
 std::vector<float> alpha {scales};
 std::vector<float> beta {scales};
 std::vector<int64_t> mb {0};
@@ -82,16 +82,21 @@ void check_correctness() {
             case pk::SQUARE:
             case pk::SRELU:
             case pk::TANH:
-                // Skip everything except single alpha and beta value
+                // Skip everything but alpha = 0 and beta = 0
                 if (i_alpha != 0 || i_beta != 0) continue;
-            case pk::BRELU:
             case pk::ELU:
             case pk::RELU:
             case pk::SWISH:
-                // Test several alpha values but single beta
+                // Test any alpha value but beta = 0
                 if (i_beta != 0) continue;
+            case pk::BRELU:
+                // Test non-negative alpha value but beta = 0
+                if (i_alpha < 0 || i_beta != 0) continue;
+            case pk::CLIP:
+                // Test beta >= alpha values
+                if (i_beta < i_alpha) continue;
 
-            default:; // Test both alpha and beta
+            default:; // Test any alpha and beta values
         };
 
         const prb_t p(dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,

@@ -132,6 +132,11 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
         CHECK(status);
 
         compute_engine->create_kernel(&kernel_, "ref_lnorm_bwd", kernel_ctx);
+        if (pd()->jln_.use_scaleshift) {
+            compute_engine->create_kernel(&kernel_scaleshift_,
+                    "ref_lnorm_bwd_scaleshift", kernel_ctx);
+            if (!kernel_scaleshift_) return status::runtime_error;
+        }
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -145,6 +150,7 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
+    compute::kernel_t kernel_scaleshift_;
     compute::kernel_t kernel_;
 };
 

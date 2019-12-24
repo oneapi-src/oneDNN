@@ -35,15 +35,11 @@ struct jit_simple_reorder_kernel {
 
     ~jit_simple_reorder_kernel() {}
 
-    static status_t init_conf(const reorder_pd_t *pd, jit_reorder_conf_t &jrp,
-            const memory_desc_wrapper &src_md,
-            const memory_desc_wrapper &dst_md) {
+    static status_t init_conf(jit_reorder_conf_t &jrp, const reorder_pd_t *pd) {
         using namespace format_tag;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(pd->engine());
-        auto *dev_info = compute_engine->device_info();
-        const size_t eu_count = static_cast<size_t>(dev_info->eu_count());
+        const memory_desc_wrapper src_md(pd->src_md());
+        const memory_desc_wrapper dst_md(pd->dst_md());
 
         jrp.src_md_info = jit_memory_desc_info_t::create(src_md);
         jrp.dst_md_info = jit_memory_desc_info_t::create(dst_md);
@@ -65,42 +61,11 @@ struct jit_simple_reorder_kernel {
         jrp.ndims = src_md.ndims();
         jrp.nelems = utils::array_product(padded_dims, jrp.ndims);
 
-        jrp.lws_d[0] = 1;
-        jrp.lws_d[1] = 1;
-        jrp.lws_d[2] = 1;
-
-        jrp.gws_d[0] = 1;
-        jrp.gws_d[1] = 1;
-        jrp.gws_d[2] = 1;
-
-        jrp.use_ref_impl = 1;
+        jrp.use_ref_impl = true;
         jrp.with_group = 0;
         jrp.sub_group_size = 1;
 
-        jrp.block[0] = 1;
-        jrp.block[1] = 1;
-        jrp.block[2] = 1;
-
-        jrp.dim_block[0] = 1;
-        jrp.dim_block[1] = 1;
-        jrp.dim_block[2] = 1;
-        jrp.dim_block[3] = 1;
-        jrp.dim_block[4] = 1;
-        jrp.dim_block[5] = 1;
-
         if (jrp.nelems == 0) return status::success;
-
-        jrp.gws_d[0] = padded_dims[0];
-        jrp.gws_d[1] = jrp.ndims > 1 ? padded_dims[1] : 1;
-        jrp.gws_d[2] = 1;
-        // Reduce amount of work done by a single work item to increase amount
-        // of work items.
-        const auto dst_ndims = dst_md.ndims();
-        for (int d = 2; d < dst_ndims; ++d) {
-            size_t global_work = utils::array_product(jrp.gws_d, 3);
-            jrp.dim_block[d] = global_work < eu_count ? 1 : padded_dims[d];
-            jrp.gws_d[2] *= padded_dims[d] / jrp.dim_block[d];
-        }
 
         if (src_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
                     gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i)
@@ -109,13 +74,14 @@ struct jit_simple_reorder_kernel {
                         gOIhw2o8i8o2i))
             jrp.with_group = 1;
 
-        if (jrp.has_padding || jrp.scale_quant) return status;
+        bool has_padding_or_scale_quant = jrp.has_padding || jrp.scale_quant;
 
         const bool type_s8_u8
                 = utils::one_of(src_md.data_type(), dnnl_s8, dnnl_u8)
                 || utils::one_of(dst_md.data_type(), dnnl_s8, dnnl_u8);
 
-        const bool use_unroll_16a16b = true && !type_s8_u8
+        const bool use_unroll_16a16b = !has_padding_or_scale_quant
+                && !type_s8_u8
                 && (src_md.matches_one_of_tag(ABc16a16b, ABc16b16a, ABcd16a16b,
                             ABcd16b16a, ABcde16a16b, ABcde16b16a, BAc16a16b,
                             BAc16b16a, BAcd16a16b, BAcd16b16a, BAcde16b16a)
@@ -124,12 +90,13 @@ struct jit_simple_reorder_kernel {
                                 ABcde16b16a, BAc16a16b, BAc16b16a, BAcd16a16b,
                                 BAcd16b16a, BAcde16b16a));
 
-        const bool use_unroll_16b = true && !type_s8_u8
+        const bool use_unroll_16b = !has_padding_or_scale_quant && !type_s8_u8
                 && (src_md.matches_one_of_tag(aBc16b, aBcd16b, aBcde16b)
                         || dst_md.matches_one_of_tag(
                                 aBc16b, aBcd16b, aBcde16b));
 
-        const bool use_unroll_16b16c = true && !type_s8_u8
+        const bool use_unroll_16b16c = !has_padding_or_scale_quant
+                && !type_s8_u8
                 && (src_md.matches_one_of_tag(aBCd16b16c, aBCd16c16b,
                             aBCde16b16c, aBCde16c16b, aBCdef16b16c,
                             aBCdef16c16b, aCBd16b16c, aCBd16c16b, aCBde16b16c,
@@ -139,30 +106,39 @@ struct jit_simple_reorder_kernel {
                                 aBCdef16c16b, aCBd16b16c, aCBd16c16b,
                                 aCBde16b16c, aCBde16c16b, aCBdef16c16b));
 
+        dim_t blocks[6] = {1, 1, 1, 1, 1, 1};
         if (use_unroll_16a16b) {
-            jrp.use_ref_impl = 0;
-            jrp.sub_group_size = 16;
-            jrp.gws_d[0] = padded_dims[0] / 16;
-            jrp.gws_d[1] = padded_dims[1];
-            jrp.lws_d[1] = 16;
-            jrp.gws_d[2] = utils::array_product(&padded_dims[2], jrp.ndims - 2);
+            blocks[0] = 16;
         } else if (use_unroll_16b) {
-            jrp.use_ref_impl = 0;
-            jrp.sub_group_size = 16;
-            jrp.gws_d[0] = padded_dims[0];
-            jrp.gws_d[1] = padded_dims[1];
-            jrp.lws_d[1] = 16;
-            jrp.gws_d[2] = utils::array_product(&padded_dims[2], jrp.ndims - 2);
+            // No blocking.
         } else if (use_unroll_16b16c) {
-            jrp.use_ref_impl = 0;
             jrp.with_group = 1;
-            jrp.sub_group_size = 16;
-            jrp.lws_d[0] = 16;
-            jrp.gws_d[0] = padded_dims[0] * padded_dims[1];
-            jrp.block[0] = padded_dims[1];
-            jrp.gws_d[1] = padded_dims[2] / 16;
-            jrp.gws_d[2] = utils::array_product(&padded_dims[3], jrp.ndims - 3);
+            blocks[2] = 16;
         }
+
+        if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
+            jrp.use_ref_impl = false;
+            jrp.sub_group_size = 16;
+        }
+
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        jrp.dispatch = compute_engine->create_dispatch(dst_md.md_);
+        for (int i = 0; i < 6; ++i) {
+            auto dim_str = utils::format("D%d", i);
+            if (i < dst_md.ndims()) {
+                dim_t block = jrp.use_ref_impl ? (i < 2) ? 1 : 0 : blocks[i];
+                jrp.dispatch.define_dim(dim_str, i, padded_dims[i], block);
+            } else {
+                jrp.dispatch.define_dim(dim_str, 1);
+            }
+        }
+
+        if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
+            jrp.dispatch.vectorize_dim("D1", 16);
+        }
+
+        jrp.dispatch.generate();
 
         return status;
     };
@@ -171,6 +147,8 @@ struct jit_simple_reorder_kernel {
             const jit_reorder_conf_t &jrp, const memory_desc_wrapper &src_md,
             const memory_desc_wrapper &dst_md) {
         using namespace format_tag;
+
+        if (jrp.nelems == 0) return status::success;
 
         kernel_ctx.define_int("NDIMS", jrp.ndims);
         if (jrp.scale_quant) {
@@ -182,25 +160,7 @@ struct jit_simple_reorder_kernel {
             kernel_ctx.define_int("WITH_SUM_AB", 1);
         kernel_ctx.define_int("WITH_GROUP", jrp.with_group);
 
-        kernel_ctx.define_int("LWS_0", jrp.lws_d[0]);
-        kernel_ctx.define_int("LWS_1", jrp.lws_d[1]);
-        kernel_ctx.define_int("LWS_2", jrp.lws_d[2]);
-
-        for (int i = 0; i < 3; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "BLOCK_%d", i);
-            kernel_ctx.define_int(tempstr, jrp.block[i]);
-        }
-
-        for (int i = 0; i < 6; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "D%d_BLOCK", i);
-            kernel_ctx.define_int(tempstr, jrp.dim_block[i]);
-            snprintf(tempstr, 32, "D%d_NBLOCKS", i);
-            kernel_ctx.define_int(tempstr,
-                    nstl::max(1,
-                            jrp.dst_md_info.padded_dims[i] / jrp.dim_block[i]));
-        }
+        def_dispatch(kernel_ctx, jrp.dispatch);
 
         kernel_ctx.define_int("REF_REORDER", jrp.use_ref_impl);
         kernel_ctx.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);

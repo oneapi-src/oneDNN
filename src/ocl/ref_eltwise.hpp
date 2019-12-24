@@ -24,8 +24,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_eltwise_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -40,26 +38,24 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
+            using namespace alg_kind;
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
                             prop_kind::forward_training,
                             prop_kind::forward_inference)
-                    && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
-                            alg_kind::eltwise_linear,
-                            alg_kind::eltwise_bounded_relu,
-                            alg_kind::eltwise_abs, alg_kind::eltwise_tanh,
-                            alg_kind::eltwise_elu, alg_kind::eltwise_square,
-                            alg_kind::eltwise_sqrt, alg_kind::eltwise_soft_relu,
-                            alg_kind::eltwise_logistic, alg_kind::eltwise_exp,
-                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish,
-                            alg_kind::eltwise_log)
+                    && utils::one_of(desc()->alg_kind, eltwise_relu,
+                            eltwise_linear, eltwise_bounded_relu, eltwise_abs,
+                            eltwise_tanh, eltwise_elu, eltwise_square,
+                            eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
+                            eltwise_exp, eltwise_gelu, eltwise_swish,
+                            eltwise_log, eltwise_clip)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::f16, data_type::bf16,
                             data_type::s32, data_type::s8)
                     && attr()->has_default_values()
                     && IMPLICATION(utils::one_of(desc()->data_desc.data_type,
                                            data_type::s32, data_type::s8),
-                            desc()->alg_kind == alg_kind::eltwise_relu
+                            desc()->alg_kind == eltwise_relu
                                     && desc()->alpha == 0)
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
@@ -67,8 +63,8 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return jit_ref_eltwise_common_kernel::init_conf(jel_, data_md_,
-                    glob_zero_md, jit_off_, desc()->alg_kind, true);
+            return jit_ref_eltwise_common_kernel::init_conf(
+                    jel_, this, jit_off_);
         }
 
         jit_eltwise_conf_t jel_;
@@ -117,24 +113,22 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
             using namespace utils;
             assert(engine()->kind() == engine_kind::gpu);
 
+            using namespace alg_kind;
             bool ok = true && desc()->prop_kind == backward_data
-                    && utils::one_of(desc()->alg_kind, alg_kind::eltwise_relu,
-                            alg_kind::eltwise_linear,
-                            alg_kind::eltwise_bounded_relu,
-                            alg_kind::eltwise_abs, alg_kind::eltwise_tanh,
-                            alg_kind::eltwise_elu, alg_kind::eltwise_square,
-                            alg_kind::eltwise_sqrt, alg_kind::eltwise_soft_relu,
-                            alg_kind::eltwise_logistic, alg_kind::eltwise_exp,
-                            alg_kind::eltwise_gelu, alg_kind::eltwise_swish,
-                            alg_kind::eltwise_log)
+                    && utils::one_of(desc()->alg_kind, eltwise_relu,
+                            eltwise_linear, eltwise_bounded_relu, eltwise_abs,
+                            eltwise_tanh, eltwise_elu, eltwise_square,
+                            eltwise_sqrt, eltwise_soft_relu, eltwise_logistic,
+                            eltwise_exp, eltwise_gelu, eltwise_swish,
+                            eltwise_log, eltwise_clip)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
                     && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return jit_ref_eltwise_common_kernel::init_conf(jel_, data_md_,
-                    diff_data_md_, jit_off_, desc()->alg_kind, false);
+            return jit_ref_eltwise_common_kernel::init_conf(
+                    jel_, this, jit_off_);
         }
 
         jit_eltwise_conf_t jel_;

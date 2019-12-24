@@ -2,7 +2,7 @@ LogSoftmax {#dev_guide_logsoftmax}
 ============================
 
 >
-> API reference: [C](@ref c_api_logsoftmax), [C++](@ref cpp_api_logsoftmax)
+> [API Reference](@ref dnnl_api_logsoftmax)
 >
 
 The logsoftmax primitive performs softmax along a particular axis on data with
@@ -44,7 +44,7 @@ where
         src(\overline{ou}, ic, \overline{in})
 \f]
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 There is no difference between the #dnnl_forward_training
 and #dnnl_forward_inference propagation kinds.

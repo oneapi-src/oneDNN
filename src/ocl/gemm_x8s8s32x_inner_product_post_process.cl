@@ -17,10 +17,10 @@
 #include "ocl/ocl_post_ops.h"
 #include "ocl/ocl_types.h"
 
-__kernel void gemm_x8s8s32x_inner_product_post_process_kernel(
-        __global SRC_DATA_T *src, __global BIAS_DATA_T *bias,
-        __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale, __global int *scratchpad, global float *scales) {
+__kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
+        __global BIAS_DATA_T *bias, __global DST_DATA_T *dst,
+        float eltwise_alpha, float eltwise_beta, float sum_scale,
+        __global int *scratchpad, global float *scales) {
     const size_t mb = get_global_id(1);
     const size_t oc = get_global_id(2);
 

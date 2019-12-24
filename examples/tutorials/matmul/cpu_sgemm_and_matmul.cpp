@@ -70,8 +70,7 @@ using namespace dnnl;
 namespace {
 
 void init_vector(std::vector<float> &v) {
-    std::random_device rdev;
-    std::mt19937 gen(rdev());
+    std::mt19937 gen;
     std::uniform_real_distribution<float> u(-1, 1);
 
     for (auto &e : v)
@@ -287,5 +286,5 @@ void sgemm_and_matmul() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(sgemm_and_matmul);
+    return handle_example_errors({engine::kind::cpu}, sgemm_and_matmul);
 }

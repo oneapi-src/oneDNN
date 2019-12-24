@@ -27,9 +27,13 @@ namespace ocl {
 struct ref_convolution_kernel_t {
     ref_convolution_kernel_t() = default;
 
-    status_t init(const convolution_desc_t &cd, const memory_desc_t &src_md,
-            const memory_desc_t &weights_md, const memory_desc_t &bias_md,
-            const memory_desc_t &dst_md, const primitive_attr_t &attr) {
+    status_t init(const convolution_pd_t *pd) {
+
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_t &src_md = *pd->invariant_src_md();
+        const memory_desc_t &weights_md = *pd->invariant_wei_md();
+        const memory_desc_t &dst_md = *pd->invariant_dst_md();
+        const primitive_attr_t &attr = *pd->attr();
 
         set_default_conf(conf_, cd, src_md, weights_md, dst_md, attr);
 
@@ -37,10 +41,12 @@ struct ref_convolution_kernel_t {
         set_offsets(weights_md, off_.wht_off);
         set_offsets(dst_md, off_.dst_off);
 
-        int sp_dims = 1;
+        int oc_idx = (int)conf_.with_groups;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
         switch (cd.prop_kind) {
             case prop_kind::forward_training:
-            case prop_kind::forward_inference:
+            case prop_kind::forward_inference: {
                 conf_.with_bias
                         = cd.bias_desc.format_kind != format_kind::undef;
                 conf_.src_data_type = cd.src_desc.data_type;
@@ -49,13 +55,21 @@ struct ref_convolution_kernel_t {
                 conf_.acc_data_type = cd.accum_data_type;
                 conf_.bias_data_type = conf_.with_bias ? cd.bias_desc.data_type
                                                        : data_type::f32;
-                conf_.gws_d[0] = dst_md.dims[0];
-                conf_.gws_d[1] = dst_md.dims[1];
-                for (int i = 2; i < dst_md.ndims; ++i)
-                    sp_dims *= dst_md.dims[i];
-                conf_.gws_d[2] = sp_dims;
+
+                conf_.dispatch = compute_engine->create_dispatch(&dst_md);
+                conf_.dispatch.define_dim("MB", 0, conf_.mb);
+                conf_.dispatch.define_dim("G", 1, conf_.ngroups);
+                conf_.dispatch.define_dim("OC", 1, conf_.oc);
+                conf_.dispatch.define_dim(
+                        "OD", nstl::max(2, conf_.ndims - 3), conf_.od);
+                conf_.dispatch.define_dim(
+                        "OH", nstl::max(2, conf_.ndims - 2), conf_.oh);
+                conf_.dispatch.define_dim(
+                        "OW", nstl::max(2, conf_.ndims - 1), conf_.ow);
+                conf_.dispatch.generate();
                 break;
-            case prop_kind::backward_data:
+            }
+            case prop_kind::backward_data: {
                 conf_.with_bias
                         = cd.bias_desc.format_kind != format_kind::undef;
                 conf_.src_data_type = cd.diff_src_desc.data_type;
@@ -64,13 +78,21 @@ struct ref_convolution_kernel_t {
                 conf_.acc_data_type = cd.accum_data_type;
                 conf_.bias_data_type = conf_.with_bias ? cd.bias_desc.data_type
                                                        : data_type::f32;
-                conf_.gws_d[0] = src_md.dims[0];
-                conf_.gws_d[1] = src_md.dims[1];
-                for (int i = 2; i < src_md.ndims; ++i)
-                    sp_dims *= src_md.dims[i];
-                conf_.gws_d[2] = sp_dims;
+                conf_.dispatch = compute_engine->create_dispatch(&src_md);
+                conf_.dispatch.define_dim_with_nesting_level(
+                        "IC", conf_.ndims, conf_.ic);
+                conf_.dispatch.define_dim("MB", conf_.mb);
+                conf_.dispatch.define_dim("G", conf_.ngroups);
+                conf_.dispatch.define_dim(
+                        "ID", nstl::max(2, conf_.ndims - 3), conf_.id);
+                conf_.dispatch.define_dim(
+                        "IH", nstl::max(2, conf_.ndims - 2), conf_.ih);
+                conf_.dispatch.define_dim(
+                        "IW", nstl::max(2, conf_.ndims - 1), conf_.iw);
+                conf_.dispatch.generate();
                 break;
-            case prop_kind::backward_weights:
+            }
+            case prop_kind::backward_weights: {
                 conf_.with_bias
                         = cd.diff_bias_desc.format_kind != format_kind::undef;
                 conf_.src_data_type = cd.src_desc.data_type;
@@ -80,20 +102,22 @@ struct ref_convolution_kernel_t {
                 conf_.bias_data_type = conf_.with_bias
                         ? cd.diff_bias_desc.data_type
                         : data_type::f32;
-                conf_.gws_d[0] = conf_.with_groups ? weights_md.dims[0] : 1;
-                conf_.gws_d[1] = conf_.with_groups
-                        ? weights_md.dims[1] * weights_md.dims[2]
-                        : weights_md.dims[0] * weights_md.dims[1];
-                for (int i = 2 + conf_.with_groups; i < weights_md.ndims; ++i)
-                    sp_dims *= weights_md.dims[i];
-                conf_.gws_d[2] = sp_dims;
+
+                conf_.dispatch = compute_engine->create_dispatch(&weights_md);
+                conf_.dispatch.define_dim("G", 0, conf_.ngroups);
+                conf_.dispatch.define_dim("OC", oc_idx, conf_.oc);
+                conf_.dispatch.define_dim("IC", oc_idx + 1, conf_.ic);
+                conf_.dispatch.define_dim(
+                        "KD", oc_idx + nstl::max(2, conf_.ndims - 3), conf_.kd);
+                conf_.dispatch.define_dim(
+                        "KH", oc_idx + nstl::max(2, conf_.ndims - 2), conf_.kh);
+                conf_.dispatch.define_dim(
+                        "KW", oc_idx + nstl::max(2, conf_.ndims - 1), conf_.kw);
+                conf_.dispatch.generate();
                 break;
+            }
             default: break;
         }
-
-        conf_.lws_d[0] = 0;
-        conf_.lws_d[1] = 0;
-        conf_.lws_d[2] = 0;
 
         return status::success;
     }
@@ -129,11 +153,21 @@ struct ref_convolution_kernel_t {
         kernel_ctx.define_int("WITH_BIAS", conf_.with_bias);
         kernel_ctx.define_int("SUB_GROUP_SIZE", conf_.sub_group_size);
 
+        kernel_ctx.define_int("IS_FWD",
+                utils::one_of(conf_.prop_kind, prop_kind::forward_inference,
+                        prop_kind::forward_training));
+        kernel_ctx.define_int(
+                "IS_BWD_D", conf_.prop_kind == prop_kind::backward_data);
+        kernel_ctx.define_int(
+                "IS_BWD_W", conf_.prop_kind == prop_kind::backward_weights);
+
         def_offsets(off_.src_off, kernel_ctx, "SRC", conf_.ndims);
         def_offsets(off_.wht_off, kernel_ctx, "WHT",
                 conf_.ndims + conf_.with_groups);
         def_offsets(off_.bias_off, kernel_ctx, "BIA", 1);
         def_offsets(off_.dst_off, kernel_ctx, "DST", conf_.ndims);
+
+        def_dispatch(kernel_ctx, conf_.dispatch);
 
         switch (conf_.prop_kind) {
             case prop_kind::forward_training:
@@ -166,8 +200,7 @@ struct ref_convolution_kernel_t {
         return status::success;
     }
 
-    const size_t *gws() const { return conf_.gws_d; }
-    const size_t *lws() const { return conf_.lws_d; }
+    const compute::dispatch_t &dispatch() const { return conf_.dispatch; }
 
 private:
     jit_conv_conf_t conf_;

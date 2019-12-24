@@ -77,6 +77,7 @@ const alg_kind_t eltwise_logistic = dnnl_eltwise_logistic;
 const alg_kind_t eltwise_exp = dnnl_eltwise_exp;
 const alg_kind_t eltwise_gelu = dnnl_eltwise_gelu;
 const alg_kind_t eltwise_log = dnnl_eltwise_log;
+const alg_kind_t eltwise_clip = dnnl_eltwise_clip;
 const alg_kind_t pooling_max = dnnl_pooling_max;
 const alg_kind_t pooling_avg = dnnl_pooling_avg;
 const alg_kind_t pooling_avg_include_padding = dnnl_pooling_avg_include_padding;
@@ -89,6 +90,8 @@ const alg_kind_t vanilla_gru = dnnl_vanilla_gru;
 const alg_kind_t lbr_gru = dnnl_lbr_gru;
 const alg_kind_t binary_add = dnnl_binary_add;
 const alg_kind_t binary_mul = dnnl_binary_mul;
+const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
+const alg_kind_t resampling_linear = dnnl_resampling_linear;
 } // namespace alg_kind
 
 using data_type_t = dnnl_data_type_t;
@@ -215,6 +218,7 @@ const format_tag_t ABcde8b16a2b = dnnl_ABcde8b16a2b;
 const format_tag_t ABcde8a16b2a = dnnl_ABcde8a16b2a;
 const format_tag_t BAcde8a16b2a = dnnl_BAcde8a16b2a;
 const format_tag_t ABcde4b16a4b = dnnl_ABcde4b16a4b;
+const format_tag_t ABcde2b8a4b = dnnl_ABcde2b8a4b;
 const format_tag_t aBCde8b16c2b = dnnl_aBCde8b16c2b;
 const format_tag_t aCBde8b16c2b = dnnl_aCBde8b16c2b;
 const format_tag_t ABcde8b8a = dnnl_ABcde8b8a;
@@ -229,6 +233,7 @@ const format_tag_t aBcdef16b = dnnl_aBcdef16b;
 const format_tag_t aBCdef16b16c = dnnl_aBCdef16b16c;
 const format_tag_t aBCdef16c16b = dnnl_aBCdef16c16b;
 const format_tag_t aBCdef4c16b4c = dnnl_aBCdef4c16b4c;
+const format_tag_t aBCdef2c8b4c = dnnl_aBCdef2c8b4c;
 const format_tag_t aBcdef4b = dnnl_aBcdef4b;
 const format_tag_t aBCdef4c4b = dnnl_aBCdef4c4b;
 const format_tag_t aBCdef4b4c = dnnl_aBCdef4b4c;
@@ -374,6 +379,7 @@ const format_tag_t OIdhw4o4i = dnnl_OIdhw4o4i;
 const format_tag_t Oidhw4o = dnnl_Oidhw4o;
 const format_tag_t OIdhw8i16o2i = dnnl_OIdhw8i16o2i;
 const format_tag_t OIdhw4i16o4i = dnnl_OIdhw4i16o4i;
+const format_tag_t OIdhw2i8o4i = dnnl_OIdhw2i8o4i;
 const format_tag_t OIdhw8o16i2o = dnnl_OIdhw8o16i2o;
 const format_tag_t IOdhw8o16i2o = dnnl_IOdhw8o16i2o;
 const format_tag_t OIdhw8i8o = dnnl_OIdhw8i8o;
@@ -432,6 +438,7 @@ const format_tag_t gOIdhw4o4i = dnnl_gOIdhw4o4i;
 const format_tag_t gOidhw4o = dnnl_gOidhw4o;
 const format_tag_t gOIdhw8i16o2i = dnnl_gOIdhw8i16o2i;
 const format_tag_t gOIdhw4i16o4i = dnnl_gOIdhw4i16o4i;
+const format_tag_t gOIdhw2i8o4i = dnnl_gOIdhw2i8o4i;
 const format_tag_t gOIdhw8o16i2o = dnnl_gOIdhw8o16i2o;
 const format_tag_t gIOdhw8o16i2o = dnnl_gIOdhw8o16i2o;
 const format_tag_t gOIdhw8i8o = dnnl_gOIdhw8i8o;
@@ -494,6 +501,7 @@ const primitive_kind_t gemm = dnnl_gemm;
 const primitive_kind_t binary = dnnl_binary;
 const primitive_kind_t logsoftmax = dnnl_logsoftmax;
 const primitive_kind_t matmul = dnnl_matmul;
+const primitive_kind_t resampling = dnnl_resampling;
 } // namespace primitive_kind
 
 using query_t = dnnl_query_t;
@@ -535,6 +543,7 @@ const query_t gemm_d = dnnl_query_gemm_d;
 const query_t binary_d = dnnl_query_binary_d;
 const query_t logsoftmax_d = dnnl_query_logsoftmax_d;
 const query_t matmul_d = dnnl_query_matmul_d;
+const query_t resampling_d = dnnl_query_resampling_d;
 
 const query_t some_md = dnnl_query_some_md;
 const query_t src_md = dnnl_query_src_md;
@@ -567,6 +576,7 @@ using inner_product_desc_t = dnnl_inner_product_desc_t;
 using binary_desc_t = dnnl_binary_desc_t;
 using logsoftmax_desc_t = dnnl_logsoftmax_desc_t;
 using matmul_desc_t = dnnl_matmul_desc_t;
+using resampling_desc_t = dnnl_resampling_desc_t;
 
 using rnn_direction_t = dnnl_rnn_direction_t;
 using rnn_desc_t = dnnl_rnn_desc_t;
@@ -603,6 +613,7 @@ struct op_desc_t {
         sum_desc_t sum;
         binary_desc_t binary;
         matmul_desc_t matmul;
+        resampling_desc_t resampling;
     };
 
 #define DECL_CTOR_AND_CONVERTERS(c_type) \
@@ -630,6 +641,7 @@ struct op_desc_t {
     DECL_CTOR_AND_CONVERTERS(sum_desc_t);
     DECL_CTOR_AND_CONVERTERS(binary_desc_t);
     DECL_CTOR_AND_CONVERTERS(matmul_desc_t);
+    DECL_CTOR_AND_CONVERTERS(resampling_desc_t);
 
     // concat_desc_t and sum_desc_t have data members which have non-trivial
     // special member functions hence the default destructor is implicitly
@@ -692,6 +704,7 @@ struct pooling_bwd_pd_t;
 struct pooling_fwd_pd_t;
 struct pooling_pd_t;
 struct reorder_pd_t;
+struct resampling_pd_t;
 struct rnn_bwd_pd_t;
 struct rnn_fwd_pd_t;
 struct rnn_pd_t;

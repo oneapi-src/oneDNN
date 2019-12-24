@@ -471,4 +471,81 @@
             + ((x4) % DST_B4) * DST_SB4 + ((x4) / DST_B4) * DST_S4)
 #endif
 
+// clang-format off
+
+// Shortcut accessors for special cases.
+// x - product of the current and outer dimensions in gws[idx]
+// y - the current dimension
+#define GWS_OP_ZERO(x, y) 0
+#define GWS_OP_FIRST(x, y) (x)
+#define GWS_OP_MOD(x, y) ((x) % (y))
+
+#define GWS0_GET_ID0() GWS0_OP0((get_global_id(GWS0_IDX0) / GWS0_STRIDE0), (GWS0_DIM0 / GWS0_BLOCK0)) * GWS0_BLOCK0 / GWS0_VEC_SIZE0 * GWS0_VEC_SIZE0
+#define GWS0_GET_ID1() GWS0_OP1((get_global_id(GWS0_IDX1) / GWS0_STRIDE1), (GWS0_DIM1 / GWS0_BLOCK1)) * GWS0_BLOCK1 / GWS0_VEC_SIZE1 * GWS0_VEC_SIZE1
+#define GWS0_GET_ID2() GWS0_OP2((get_global_id(GWS0_IDX2) / GWS0_STRIDE2), (GWS0_DIM2 / GWS0_BLOCK2)) * GWS0_BLOCK2 / GWS0_VEC_SIZE2 * GWS0_VEC_SIZE2
+#define GWS0_GET_ID3() GWS0_OP3((get_global_id(GWS0_IDX3) / GWS0_STRIDE3), (GWS0_DIM3 / GWS0_BLOCK3)) * GWS0_BLOCK3 / GWS0_VEC_SIZE3 * GWS0_VEC_SIZE3
+#define GWS0_GET_ID4() GWS0_OP4((get_global_id(GWS0_IDX4) / GWS0_STRIDE4), (GWS0_DIM4 / GWS0_BLOCK4)) * GWS0_BLOCK4 / GWS0_VEC_SIZE4 * GWS0_VEC_SIZE4
+#define GWS0_GET_ID5() GWS0_OP5((get_global_id(GWS0_IDX5) / GWS0_STRIDE5), (GWS0_DIM5 / GWS0_BLOCK5)) * GWS0_BLOCK5 / GWS0_VEC_SIZE5 * GWS0_VEC_SIZE5
+
+#define GWS0_GET_BLOCK0() GWS0_BLOCK0
+#define GWS0_GET_BLOCK1() GWS0_BLOCK1
+#define GWS0_GET_BLOCK2() GWS0_BLOCK2
+#define GWS0_GET_BLOCK3() GWS0_BLOCK3
+#define GWS0_GET_BLOCK4() GWS0_BLOCK4
+#define GWS0_GET_BLOCK5() GWS0_BLOCK5
+
+#define GWS1_GET_ID0() GWS1_OP0((get_global_id(GWS1_IDX0) / GWS1_STRIDE0), (GWS1_DIM0 / GWS1_BLOCK0)) * GWS1_BLOCK0 / GWS1_VEC_SIZE0 * GWS1_VEC_SIZE0
+#define GWS1_GET_ID1() GWS1_OP1((get_global_id(GWS1_IDX1) / GWS1_STRIDE1), (GWS1_DIM1 / GWS1_BLOCK1)) * GWS1_BLOCK1 / GWS1_VEC_SIZE1 * GWS1_VEC_SIZE1
+#define GWS1_GET_ID2() GWS1_OP2((get_global_id(GWS1_IDX2) / GWS1_STRIDE2), (GWS1_DIM2 / GWS1_BLOCK2)) * GWS1_BLOCK2 / GWS1_VEC_SIZE2 * GWS1_VEC_SIZE2
+#define GWS1_GET_ID3() GWS1_OP3((get_global_id(GWS1_IDX3) / GWS1_STRIDE3), (GWS1_DIM3 / GWS1_BLOCK3)) * GWS1_BLOCK3 / GWS1_VEC_SIZE3 * GWS1_VEC_SIZE3
+#define GWS1_GET_ID4() GWS1_OP4((get_global_id(GWS1_IDX4) / GWS1_STRIDE4), (GWS1_DIM4 / GWS1_BLOCK4)) * GWS1_BLOCK4 / GWS1_VEC_SIZE4 * GWS1_VEC_SIZE4
+#define GWS1_GET_ID5() GWS1_OP5((get_global_id(GWS1_IDX5) / GWS1_STRIDE5), (GWS1_DIM5 / GWS1_BLOCK5)) * GWS1_BLOCK5 / GWS1_VEC_SIZE5 * GWS1_VEC_SIZE5
+
+#define GWS1_GET_BLOCK0() GWS1_BLOCK0
+#define GWS1_GET_BLOCK1() GWS1_BLOCK1
+#define GWS1_GET_BLOCK2() GWS1_BLOCK2
+#define GWS1_GET_BLOCK3() GWS1_BLOCK3
+#define GWS1_GET_BLOCK4() GWS1_BLOCK4
+#define GWS1_GET_BLOCK5() GWS1_BLOCK5
+
+#define GWS2_GET_ID0() GWS2_OP0((get_global_id(GWS2_IDX0) / GWS2_STRIDE0), (GWS2_DIM0 / GWS2_BLOCK0)) * GWS2_BLOCK0 / GWS2_VEC_SIZE0 * GWS2_VEC_SIZE0
+#define GWS2_GET_ID1() GWS2_OP1((get_global_id(GWS2_IDX1) / GWS2_STRIDE1), (GWS2_DIM1 / GWS2_BLOCK1)) * GWS2_BLOCK1 / GWS2_VEC_SIZE1 * GWS2_VEC_SIZE1
+#define GWS2_GET_ID2() GWS2_OP2((get_global_id(GWS2_IDX2) / GWS2_STRIDE2), (GWS2_DIM2 / GWS2_BLOCK2)) * GWS2_BLOCK2 / GWS2_VEC_SIZE2 * GWS2_VEC_SIZE2
+#define GWS2_GET_ID3() GWS2_OP3((get_global_id(GWS2_IDX3) / GWS2_STRIDE3), (GWS2_DIM3 / GWS2_BLOCK3)) * GWS2_BLOCK3 / GWS2_VEC_SIZE3 * GWS2_VEC_SIZE3
+#define GWS2_GET_ID4() GWS2_OP4((get_global_id(GWS2_IDX4) / GWS2_STRIDE4), (GWS2_DIM4 / GWS2_BLOCK4)) * GWS2_BLOCK4 / GWS2_VEC_SIZE4 * GWS2_VEC_SIZE4
+#define GWS2_GET_ID5() GWS2_OP5((get_global_id(GWS2_IDX5) / GWS2_STRIDE5), (GWS2_DIM5 / GWS2_BLOCK5)) * GWS2_BLOCK5 / GWS2_VEC_SIZE5 * GWS2_VEC_SIZE5
+
+#define GWS2_GET_BLOCK0() GWS2_BLOCK0
+#define GWS2_GET_BLOCK1() GWS2_BLOCK1
+#define GWS2_GET_BLOCK2() GWS2_BLOCK2
+#define GWS2_GET_BLOCK3() GWS2_BLOCK3
+#define GWS2_GET_BLOCK4() GWS2_BLOCK4
+#define GWS2_GET_BLOCK5() GWS2_BLOCK5
+
+// clang-format on
+
+// With work-group qualifier, without sub-group qualifier.
+#define KERNEL_ATTR_SG0 \
+    __attribute__((reqd_work_group_size( \
+            GWS_LWS0_DEFAULT, GWS_LWS1_DEFAULT, GWS_LWS2_DEFAULT)))
+
+// With work-group and sub-group qualifiers.
+#define KERNEL_ATTR_SG1 \
+    KERNEL_ATTR_SG0 \
+    __attribute__((intel_reqd_sub_group_size(GWS_SGS_DEFAULT)))
+
+#define KERNEL_ATTR CONCAT2(KERNEL_ATTR_SG, GWS_WITH_SG_DEFAULT)
+
+// Named kernel attributes - when source contains multiple kernels.
+#define NAMED_KERNEL_ATTR_SG0(name) \
+    __attribute__((reqd_work_group_size(CONCAT2(GWS_LWS0_, name), \
+            CONCAT2(GWS_LWS1_, name), CONCAT2(GWS_LWS2_, name))))
+
+#define NAMED_KERNEL_ATTR_SG1(name) \
+    NAMED_KERNEL_ATTR_SG0(name) \
+    __attribute__((intel_reqd_sub_group_size(CONCAT2(GWS_SGS_, name))))
+
+#define NAMED_KERNEL_ATTR(name) \
+    CONCAT2(NAMED_KERNEL_ATTR_SG, CONCAT2(GWS_WITH_SG_, name))(name)
+
 #endif

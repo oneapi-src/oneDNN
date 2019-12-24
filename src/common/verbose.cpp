@@ -20,6 +20,7 @@
 #endif
 
 #include "dnnl.h"
+#include "dnnl_debug.h"
 #include "dnnl_version.h"
 
 #include "c_types_map.hpp"
@@ -39,10 +40,15 @@
 #include "matmul_pd.hpp"
 #include "pooling_pd.hpp"
 #include "reorder_pd.hpp"
+#include "resampling_pd.hpp"
 #include "rnn_pd.hpp"
 #include "shuffle_pd.hpp"
 #include "softmax_pd.hpp"
 #include "sum_pd.hpp"
+
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+#include "ocl/verbose.hpp"
+#endif
 
 /* DNNL CPU ISA info */
 #define ISA_ANY "Intel 64"
@@ -77,7 +83,14 @@ int get_verbose() {
         printf("dnnl_verbose,info,DNNL v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
-        printf("dnnl_verbose,info,Detected ISA is %s\n", get_isa_info());
+        printf("dnnl_verbose,info,cpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->cpu_runtime));
+        printf("dnnl_verbose,info,cpu,isa:%s\n", get_isa_info());
+        printf("dnnl_verbose,info,gpu,runtime:%s\n",
+                dnnl_runtime2str(dnnl_version()->gpu_runtime));
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+        ocl::print_verbose_header();
+#endif
         version_printed = true;
     }
 #endif
@@ -843,6 +856,34 @@ static void init_info_matmul(pd_t *s, char *buffer) {
             dat_str, attr_str, aux_str, prb_str);
 }
 
+template <typename pd_t>
+static void init_info_resampling(pd_t *s, char *buffer) {
+    DECL_DAT_AUX_PRB_STRS();
+
+    { // src
+        auto md = !s->is_fwd() ? s->diff_src_md() : s->src_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, "src_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " ");
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+    { // dst
+        auto md = !s->is_fwd() ? s->diff_dst_md() : s->dst_md();
+        DPRINT(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, " dst_");
+        MD2STR(dat_str, DNNL_VERBOSE_DAT_LEN, dat_written, md);
+        DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, " ");
+        DIM2STR(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written, md);
+    }
+
+    attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
+
+    DPRINT(aux_str, DNNL_VERBOSE_AUX_LEN, aux_written, "alg:%s",
+            dnnl_alg_kind2str(s->desc()->alg_kind));
+
+    verbose_templ(buffer, s->engine(), s->kind(), s->name(),
+            s->desc()->prop_kind, dat_str, attr_str, aux_str, prb_str);
+}
+
 #undef DPRINT
 
 #else // !defined(DISABLE_VERBOSE)
@@ -866,6 +907,7 @@ DEFINE_STUB(lrn);
 DEFINE_STUB(matmul);
 DEFINE_STUB(mem);
 DEFINE_STUB(pool);
+DEFINE_STUB(resampling);
 DEFINE_STUB(rnn);
 DEFINE_STUB(shuffle);
 DEFINE_STUB(softmax);
@@ -913,6 +955,9 @@ void init_info(pooling_pd_t *s, char *b) {
 void init_info(reorder_pd_t *s, char *b) {
     init_info_mem(s, b);
 }
+void init_info(resampling_pd_t *s, char *b) {
+    init_info_resampling(s, b);
+}
 void init_info(rnn_pd_t *s, char *b) {
     init_info_rnn(s, b);
 }
@@ -937,7 +982,8 @@ dnnl_status_t dnnl_set_verbose(int level) {
 }
 
 const dnnl_version_t *dnnl_version() {
-    static dnnl_version_t ver = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR,
-            DNNL_VERSION_PATCH, DNNL_VERSION_HASH};
+    static dnnl_version_t ver
+            = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR, DNNL_VERSION_PATCH,
+                    DNNL_VERSION_HASH, DNNL_CPU_RUNTIME, DNNL_GPU_RUNTIME};
     return &ver;
 }

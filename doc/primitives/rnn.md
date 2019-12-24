@@ -2,7 +2,7 @@ RNN {#dev_guide_rnn}
 ====================
 
 >
-> API reference: [C](@ref c_api_rnn), [C++](@ref cpp_api_rnn)
+> [API Reference](@ref dnnl_api_rnn)
 >
 
 The RNN primitive computes a stack of unrolled recurrent cells, as depicted in

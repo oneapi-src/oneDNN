@@ -18,6 +18,7 @@
 #define JIT_GEN9_COMMON_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "compute/compute.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 
@@ -31,19 +32,21 @@ struct jit_gen9_common_conv_fwd_kernel {
 
     ~jit_gen9_common_conv_fwd_kernel() {}
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_t &src_md,
-            const memory_desc_t &weights_md, const memory_desc_t &dst_md,
-            const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+    static status_t init_conf(
+            jit_conv_conf_t &jcp, const convolution_pd_t *pd) {
         using namespace dnnl::impl::format_tag;
         using namespace data_type;
 
-        const memory_desc_wrapper src_mdw(&src_md);
-        const memory_desc_wrapper weights_mdw(&weights_md);
-        const memory_desc_wrapper dst_mdw(&dst_md);
-        const memory_desc_wrapper bias_mdw(&bias_md);
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_wrapper src_mdw(pd->src_md());
+        const memory_desc_wrapper weights_mdw(pd->weights_md());
+        const memory_desc_wrapper dst_mdw(pd->dst_md());
+        const memory_desc_wrapper bias_mdw(pd->weights_md(1));
 
-        set_default_conf(jcp, cd, src_md, weights_md, dst_md, attr);
+        const primitive_attr_t &attr = *pd->attr();
+
+        set_default_conf(
+                jcp, cd, *pd->src_md(), *pd->weights_md(), *pd->dst_md(), attr);
 
         jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
         jcp.src_data_type = cd.src_desc.data_type;
@@ -386,7 +389,6 @@ struct jit_gen9_common_conv_fwd_kernel {
     static status_t init_const_def(
             compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp) {
         kernel_ctx.define_int("IS_DW", jcp.is_depthwise);
-        kernel_ctx.define_int("FWD_DATA", 1);
         kernel_ctx.define_int("G", jcp.ngroups);
         kernel_ctx.define_int("MB", jcp.mb);
         kernel_ctx.define_int("IC", jcp.ic);
@@ -477,19 +479,21 @@ struct jit_gen9_common_conv_bwd_data_kernel {
 
     ~jit_gen9_common_conv_bwd_data_kernel() {}
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_t &diff_src_md,
-            const memory_desc_t &weights_md, const memory_desc_t &diff_dst_md,
-            const memory_desc_t &bias_md, const primitive_attr_t &attr) {
+    static status_t init_conf(
+            jit_conv_conf_t &jcp, const convolution_pd_t *pd) {
         using namespace dnnl::impl::format_tag;
         using namespace data_type;
 
-        const memory_desc_wrapper src_mdw(&diff_src_md);
-        const memory_desc_wrapper weights_mdw(&weights_md);
-        const memory_desc_wrapper dst_mdw(&diff_dst_md);
-        const memory_desc_wrapper bias_mdw(&bias_md);
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_wrapper src_mdw(pd->diff_src_md());
+        const memory_desc_wrapper weights_mdw(pd->weights_md());
+        const memory_desc_wrapper dst_mdw(pd->diff_dst_md());
+        const memory_desc_wrapper bias_mdw(pd->weights_md(1));
 
-        set_default_conf(jcp, cd, diff_src_md, weights_md, diff_dst_md, attr);
+        const primitive_attr_t &attr = *pd->attr();
+
+        set_default_conf(jcp, cd, *pd->diff_src_md(), *pd->weights_md(),
+                *pd->diff_dst_md(), attr);
 
         jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
         jcp.src_data_type = cd.diff_src_desc.data_type;
@@ -526,6 +530,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         jcp.od_block = 1;
         jcp.oh_block = 1;
         jcp.ow_block = 1;
+        jcp.icb = 1;
         if (use_16mb_unroll)
             jcp.ver = ver_16mb16c;
         else if (jcp.mb % 16 != 0 && ((is_16oc && is_16ic) || is_dw_16g))
@@ -544,12 +549,28 @@ struct jit_gen9_common_conv_bwd_data_kernel {
                 jcp.ih_block = 1;
                 jcp.iw_block = 1;
                 jcp.sub_group_size = 16;
-                jcp.lws_d[0] = 1;
-                jcp.lws_d[1] = 16;
-                jcp.lws_d[2] = 1;
-                jcp.gws_d[0] = jcp.ih * jcp.iw * jcp.id;
-                jcp.gws_d[1] = jcp.ic * jcp.ngroups;
-                jcp.gws_d[2] = jcp.mb / 16;
+                if (jcp.is_depthwise) {
+                    jcp.icb = jcp.ngroups;
+                    jcp.lws_d[0] = 1;
+                    jcp.lws_d[1] = 16;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ih * jcp.iw * jcp.id;
+                    jcp.gws_d[1] = jcp.ic * jcp.ngroups;
+                    jcp.gws_d[2] = jcp.mb / 16;
+                } else {
+                    jcp.icb = 64;
+                    while (jcp.icb > 16) {
+                        if (jcp.ic % jcp.icb == 0) break;
+                        jcp.icb /= 2;
+                    }
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.icb;
+                    jcp.gws_d[1] = jcp.ih * jcp.iw * jcp.id;
+                    jcp.gws_d[2]
+                            = jcp.mb / 16 * (jcp.ic / jcp.icb) * jcp.ngroups;
+                }
                 break;
             case ver_8ow16c:
                 jcp.mb_block = 1;
@@ -559,13 +580,29 @@ struct jit_gen9_common_conv_bwd_data_kernel {
                 jcp.ih_block = 1;
                 jcp.iw_block = nstl::max(8, utils::max_div(jcp.iw, 16));
                 jcp.sub_group_size = 16;
-                jcp.lws_d[0] = 1;
-                jcp.lws_d[1] = 16;
-                jcp.lws_d[2] = 1;
-                jcp.gws_d[0]
-                        = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block) * jcp.id;
-                jcp.gws_d[1] = jcp.ic * jcp.ngroups;
-                jcp.gws_d[2] = jcp.mb;
+                if (jcp.is_depthwise) {
+                    jcp.icb = jcp.ngroups;
+                    jcp.lws_d[0] = 1;
+                    jcp.lws_d[1] = 16;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block)
+                            * jcp.id;
+                    jcp.gws_d[1] = jcp.ic * jcp.ngroups;
+                    jcp.gws_d[2] = jcp.mb;
+                } else {
+                    jcp.icb = 64;
+                    while (jcp.icb > 16) {
+                        if (jcp.ic % jcp.icb == 0) break;
+                        jcp.icb /= 2;
+                    }
+                    jcp.lws_d[0] = 16;
+                    jcp.lws_d[1] = 1;
+                    jcp.lws_d[2] = 1;
+                    jcp.gws_d[0] = jcp.icb;
+                    jcp.gws_d[1] = jcp.ih * utils::div_up(jcp.iw, jcp.iw_block)
+                            * jcp.id;
+                    jcp.gws_d[2] = jcp.mb * (jcp.ic / jcp.icb) * jcp.ngroups;
+                }
                 break;
             default: status = status::unimplemented;
         }
@@ -637,6 +674,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         kernel_ctx.define_int("G", jcp.ngroups);
         kernel_ctx.define_int("MB", jcp.mb);
         kernel_ctx.define_int("IC", jcp.ic);
+        kernel_ctx.define_int("ICB", jcp.icb);
         kernel_ctx.define_int("ID", jcp.id);
         kernel_ctx.define_int("IH", jcp.ih);
         kernel_ctx.define_int("IW", jcp.iw);
@@ -694,20 +732,21 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
     ~jit_gen9_common_conv_bwd_weights_kernel() {};
 
-    static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_t &src_md,
-            const memory_desc_t &diff_weights_md,
-            const memory_desc_t &diff_bias_md, const memory_desc_t &diff_dst_md,
-            const primitive_attr_t &attr) {
+    static status_t init_conf(
+            jit_conv_conf_t &jcp, const convolution_pd_t *pd) {
         using namespace dnnl::impl::format_tag;
         using namespace data_type;
 
-        const memory_desc_wrapper src_mdw(&src_md);
-        const memory_desc_wrapper weights_mdw(&diff_weights_md);
-        const memory_desc_wrapper dst_mdw(&diff_dst_md);
-        const memory_desc_wrapper bias_mdw(&diff_bias_md);
+        const convolution_desc_t &cd = *pd->desc();
+        const memory_desc_wrapper src_mdw(pd->src_md());
+        const memory_desc_wrapper weights_mdw(pd->diff_weights_md());
+        const memory_desc_wrapper dst_mdw(pd->diff_dst_md());
+        const memory_desc_wrapper bias_mdw(pd->diff_weights_md(1));
 
-        set_default_conf(jcp, cd, src_md, diff_weights_md, diff_dst_md, attr);
+        const primitive_attr_t &attr = *pd->attr();
+
+        set_default_conf(jcp, cd, *pd->src_md(), *pd->diff_weights_md(),
+                *pd->diff_dst_md(), attr);
 
         jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
         jcp.src_data_type = cd.src_desc.data_type;

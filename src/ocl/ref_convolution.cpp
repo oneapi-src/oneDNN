@@ -49,7 +49,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     }
 
     const auto *jit_kernel = this->pd()->kernel();
-    auto nd_range = compute::nd_range_t(jit_kernel->gws());
+    auto nd_range = jit_kernel->dispatch().nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
     return status;
 }
@@ -72,7 +72,7 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(3, bias);
 
     const auto *jit_kernel = this->pd()->kernel();
-    auto nd_range = compute::nd_range_t(jit_kernel->gws());
+    auto nd_range = jit_kernel->dispatch().nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -96,7 +96,7 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights(
     arg_list.set(3, diff_dst);
 
     const auto *jit_kernel = this->pd()->kernel();
-    auto nd_range = compute::nd_range_t(jit_kernel->gws());
+    auto nd_range = jit_kernel->dispatch().nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

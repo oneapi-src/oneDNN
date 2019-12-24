@@ -145,11 +145,13 @@ struct jit_conv_conf_t {
     int od_block, oh_block, ow_block;
     int id_block, ih_block, iw_block;
     int oc_block, ic_block, nchunk;
+    int icb;
     int ocb;
     int oh_chunk, mb_chunk, mb_block, slm_ic;
     size_t wht_slm_size, src_slm_size;
     int sub_group_size;
     size_t gws_d[3], lws_d[3];
+    compute::dispatch_t dispatch;
 
     bool with_bias, with_sum, with_sum_relu, with_groups;
 
@@ -186,7 +188,7 @@ struct jit_pool_conf_t {
     alg_kind_t alg;
     bool is_training, is_backward;
     bool use_16mb_unroll, use_16c_unroll;
-    size_t gws_d[3], lws_d[3];
+    compute::dispatch_t dispatch;
     int sub_group_size;
 };
 
@@ -198,6 +200,7 @@ struct jit_inner_product_conf_t {
     int kd, kh, kw;
     bool with_bias, has_spatial;
     bool is_forward, is_backward_data, is_backward_weights;
+    compute::dispatch_t dispatch;
 
     data_type_t src_dt;
     data_type_t wei_dt;
@@ -284,7 +287,7 @@ struct jit_rnn_reorder_conf_t {
     bool use_ref_impl;
     int ndims;
     size_t nelems;
-    size_t gws_d[3], lws_d[3];
+    compute::dispatch_t dispatch;
     int block[3];
     int sub_group_size;
     int mask;
@@ -296,7 +299,8 @@ struct jit_bnorm_conf_t {
     data_type_t data_type;
 
     int ndims;
-    int mb, ic, mb_chunk, sp_chunk, mb_block;
+    int mb, ic, mb_block;
+    int reduce_stat_nblocks;
     int id, ih, iw;
     bool with_relu, use_16mb_unroll;
     bool is_forward, is_backward;
@@ -304,13 +308,17 @@ struct jit_bnorm_conf_t {
     bool fuse_norm_relu, calculate_stats, calculate_diff_stats;
     bool diff_scaleshift;
     float relu_negative_slope, eps;
-    size_t gws_d[3], lws_d[3];
+
+    compute::dispatch_t dispatch_calc_stat;
+    compute::dispatch_t dispatch_reduce_stat;
+    compute::dispatch_t dispatch;
 };
 
 /* lnorm */
 struct jit_lnorm_conf_t {
     data_type_t data_type;
 
+    bool is_fwd;
     int ndims;
     int norm_axis;
 
@@ -323,7 +331,8 @@ struct jit_lnorm_conf_t {
     bool save_stats;
     float eps;
 
-    size_t gws_d[3];
+    compute::dispatch_t dispatch_scaleshift;
+    compute::dispatch_t dispatch;
 };
 
 /* simple sum */
@@ -338,9 +347,11 @@ struct jit_binary_conf_t {
     bool is_mul;
     bool is_add;
     bool is_tensor_op;
-    size_t gws_d[3];
+    compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
     int bcast_dims[MAX_NDIMS];
+    bool is_dense;
+    bool is_same_md;
     jit_memory_desc_info_t src0_md_info;
     jit_memory_desc_info_t src1_md_info;
     jit_memory_desc_info_t dst_md_info;
@@ -353,9 +364,9 @@ struct jit_reorder_conf_t {
     bool use_ref_impl;
     int ndims;
     size_t nelems;
-    size_t gws_d[3], lws_d[3];
-    int block[3];
-    int dim_block[6];
+
+    compute::dispatch_t dispatch;
+
     int sub_group_size;
     int scale_mask;
     size_t scales_num;
@@ -370,7 +381,7 @@ struct jit_eltwise_conf_t {
     data_type_t data_type;
     alg_kind_t alg;
     bool is_forward;
-    size_t gws_d[3];
+    compute::dispatch_t dispatch;
 };
 
 /* shuffle */
@@ -455,40 +466,24 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
 
 inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
         const memory_desc_wrapper &md, const char *str) {
-    char tempstr[32];
-
     dim_t block_dims[DNNL_MAX_NDIMS];
     dim_t strides_compat[2][DNNL_MAX_NDIMS];
 
     md.compute_blocks(block_dims);
     md.compute_strides_compat(strides_compat);
 
-    for (int d = 0; d < md.ndims(); ++d) {
+    for (int d = 0; d < MAX_NDIMS; ++d) {
         const int block = block_dims[d];
 
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, block);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, strides_compat[0][d]);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, strides_compat[1][d]);
-    }
-    for (int d = md.ndims(); d < 6; ++d) {
-
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, 1);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
+        kernel_ctx.define_int(
+                utils::format("%s_B%d", str, d), (d < md.ndims()) ? block : 1);
+        kernel_ctx.define_int(utils::format("%s_S%d", str, d),
+                (d < md.ndims()) ? strides_compat[0][d] : 0);
+        kernel_ctx.define_int(utils::format("%s_SB%d", str, d),
+                (d < md.ndims()) ? strides_compat[1][d] : 0);
     }
 
-    snprintf(tempstr, 32, "%s_OFFSET_PAD", str);
-    kernel_ctx.define_int(tempstr, md.md_->offset0);
+    kernel_ctx.define_int(utils::format("%s_OFFSET_PAD", str), md.md_->offset0);
 }
 
 inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
@@ -512,33 +507,15 @@ inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
 inline void def_offsets(const int offs[4][MAX_NDIMS],
         compute::kernel_ctx_t &kernel_ctx, const char *str, const int ndims) {
 
-    for (int d = 0; d < ndims; d++) {
-        char tempstr[32];
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[0][d]);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[1][d]);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[2][d]);
-
-        snprintf(tempstr, 32, "%s_D%d", str, d);
-        kernel_ctx.define_int(tempstr, offs[3][d]);
-    }
-    for (int d = ndims; d < 6; ++d) {
-        char tempstr[32];
-        snprintf(tempstr, 32, "%s_B%d", str, d);
-        kernel_ctx.define_int(tempstr, 1);
-
-        snprintf(tempstr, 32, "%s_S%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
-
-        snprintf(tempstr, 32, "%s_SB%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
-
-        snprintf(tempstr, 32, "%s_D%d", str, d);
-        kernel_ctx.define_int(tempstr, 0);
+    for (int d = 0; d < MAX_NDIMS; d++) {
+        kernel_ctx.define_int(
+                utils::format("%s_B%d", str, d), (d < ndims) ? offs[0][d] : 1);
+        kernel_ctx.define_int(
+                utils::format("%s_S%d", str, d), (d < ndims) ? offs[1][d] : 0);
+        kernel_ctx.define_int(
+                utils::format("%s_SB%d", str, d), (d < ndims) ? offs[2][d] : 0);
+        kernel_ctx.define_int(
+                utils::format("%s_D%d", str, d), (d < ndims) ? offs[3][d] : 0);
     }
 }
 
@@ -557,42 +534,36 @@ inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
     kernel_ctx.define_int("GELU", alg_kind::eltwise_gelu);
     kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
     kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
+    kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
     kernel_ctx.define_int("ALG_KIND", alg);
 }
 
 inline void def_data_type(
         compute::kernel_ctx_t &kernel_ctx, data_type_t dt, const char *str) {
-    char tempstr[64];
     switch (dt) {
         case data_type::bf16:
-            snprintf(tempstr, sizeof(tempstr),
-                    "-D%s_DATA_T=ushort -D%s_DT_BF16", str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=ushort -D%s_DT_BF16", str, str));
             break;
         case data_type::f16:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=half -D%s_DT_F16",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=half -D%s_DT_F16", str, str));
             break;
         case data_type::f32:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=float -D%s_DT_F32",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=float -D%s_DT_F32", str, str));
             break;
         case data_type::s8:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=char -D%s_DT_S8",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=char -D%s_DT_S8", str, str));
             break;
         case data_type::u8:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=uchar -D%s_DT_U8",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=uchar -D%s_DT_U8", str, str));
             break;
         case data_type::s32:
-            snprintf(tempstr, sizeof(tempstr), "-D%s_DATA_T=int -D%s_DT_S32",
-                    str, str);
-            kernel_ctx.add_option(tempstr);
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=int -D%s_DT_S32", str, str));
             break;
         default: assert(!"unsupported data type"); break;
     }
@@ -600,39 +571,34 @@ inline void def_data_type(
 
 inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
         const jit_memory_desc_info_t &jit_md_info, const char *prefix) {
-    char temp[32];
-
     def_data_type(kernel_ctx, jit_md_info.data_type, prefix);
 
-    snprintf(temp, sizeof(temp), "%s_OFFSET0", prefix);
-    kernel_ctx.define_int(temp, jit_md_info.offset0);
+    kernel_ctx.define_int(
+            utils::format("%s_OFFSET0", prefix), jit_md_info.offset0);
+    kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), jit_md_info.ndims);
 
-    snprintf(temp, sizeof(temp), "%s_NDIMS", prefix);
-    kernel_ctx.define_int(temp, jit_md_info.ndims);
-
-    for (int d = 0; d < 6; ++d) {
+    for (int d = 0; d < MAX_NDIMS; ++d) {
         int dim = (d < jit_md_info.ndims) ? jit_md_info.dims[d] : 0;
         int padded_dim
                 = (d < jit_md_info.ndims) ? jit_md_info.padded_dims[d] : 0;
-
-        snprintf(temp, sizeof(temp), "%s_D%d", prefix, d);
-        kernel_ctx.define_int(temp, dim);
-
-        snprintf(temp, sizeof(temp), "%s_PD%d", prefix, d);
-        kernel_ctx.define_int(temp, padded_dim);
+        kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
+        kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
 
         for (int l = 0; l < jit_md_info.nlevels + 1; ++l) {
             int block = (d < jit_md_info.ndims) ? jit_md_info.blocks[d][l] : 1;
             int stride
                     = (d < jit_md_info.ndims) ? jit_md_info.strides[d][l] : 0;
-
-            snprintf(temp, sizeof(temp), "%s_B%d_%d", prefix, d, l);
-            kernel_ctx.define_int(temp, block);
-
-            snprintf(temp, sizeof(temp), "%s_S%d_%d", prefix, d, l);
-            kernel_ctx.define_int(temp, stride);
+            kernel_ctx.define_int(
+                    utils::format("%s_B%d_%d", prefix, d, l), block);
+            kernel_ctx.define_int(
+                    utils::format("%s_S%d_%d", prefix, d, l), stride);
         }
     }
+}
+
+inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,
+        const compute::dispatch_t &dispatch) {
+    dispatch.def_kernel_macros(kernel_ctx);
 }
 
 } // namespace ocl

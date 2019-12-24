@@ -203,7 +203,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
         if (host_acc[i] != (float)exp_value)
             throw std::string(
                     "Unexpected output, find a negative value after the ReLU "
-                    "execution");
+                    "execution.");
     }
     // [Check the results]
 }
@@ -221,20 +221,24 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
 /// @snippet sycl_interop.cpp Main
 // [Main]
 int main(int argc, char **argv) {
+    int exit_code = 0;
+
+    engine::kind engine_kind = parse_engine_kind(argc, argv);
     try {
-        engine::kind engine_kind = parse_engine_kind(argc, argv);
         sycl_interop_tutorial(engine_kind);
     } catch (dnnl::error &e) {
-        std::cerr << "DNNL error: " << e.what() << std::endl
-                  << "Error status: " << dnnl_status2str(e.status) << std::endl;
-        return 1;
+        std::cout << "DNNL error caught: " << std::endl
+                  << "\tStatus: " << dnnl_status2str(e.status) << std::endl
+                  << "\tMessage: " << e.what() << std::endl;
+        exit_code = 1;
     } catch (std::string &e) {
-        std::cerr << "Error in the example: " << e << std::endl;
-        return 2;
+        std::cout << "Error in the example: " << e << "." << std::endl;
+        exit_code = 2;
     }
 
-    std::cout << "Example passes" << std::endl;
-    return 0;
+    std::cout << "Example " << (exit_code ? "failed" : "passed") << " on "
+              << engine_kind2str_upper(engine_kind) << "." << std::endl;
+    return exit_code;
 }
 // [Main]
 /// <b></b>
@@ -242,7 +246,7 @@ int main(int argc, char **argv) {
 /// Upon compiling and running the example, the output should be just:
 ///
 /// ~~~
-/// Example passes
+/// Example passed.
 /// ~~~
 ///
 /// @page sycl_interop_cpp

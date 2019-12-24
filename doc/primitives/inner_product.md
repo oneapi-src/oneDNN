@@ -2,7 +2,7 @@ Inner Product {#dev_guide_inner_product}
 ========================================
 
 >
-> API reference: [C](@ref c_api_inner_product), [C++](@ref cpp_api_inner_product)
+> [API Reference](@ref dnnl_api_inner_product)
 >
 
 The inner product primitive (sometimes called fully connected) treats each
@@ -19,10 +19,10 @@ In case when the \f$src\f$ tensor has spatial dimension it is flattened to 2D.
 For example, if it is a 4D \f$N \times IC' \times IH \times IW\f$ tensor, then
 the formula above is applied with \f$IC = IC' \cdot IH \cdot IW\f$.
 
-#### Difference Between [Forward Training](#dnnl::forward_training) and [Forward Inference](#dnnl::forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
-There is no difference between the @ref dnnl::forward_training
-and @ref dnnl::forward_inference propagation kinds.
+There is no difference between the @ref dnnl::prop_kind::forward_training
+and @ref dnnl::prop_kind::forward_inference propagation kinds.
 
 ### Backward
 
@@ -99,7 +99,7 @@ The following post-ops are supported by inner product primitives:
 
 | Propagation | Type    | Operation | Description
 | :--         | :--     | :--       | :--
-| forward     | post-op | eltwise   | Applies an @ref c_api_eltwise operation to the result
+| forward     | post-op | eltwise   | Applies an @ref dnnl_api_eltwise operation to the result
 
 ## Implementation Limitations
 

@@ -52,10 +52,10 @@ struct ref_shuffle_t : public primitive_impl_t {
 
             if (ndims() == 5) {
                 dat_tag_ = memory_desc_matches_one_of_tag(
-                        *data_md(), nCdhw16c, nCdhw8c, ncdhw, ndhwc);
+                        *data_md(), nCdhw16c, nCdhw8c, nCdhw4c, ncdhw, ndhwc);
             } else if (ndims() == 4) {
                 dat_tag_ = memory_desc_matches_one_of_tag(
-                        *data_md(), nChw16c, nChw8c, nchw, nhwc);
+                        *data_md(), nChw16c, nChw8c, nChw4c, nchw, nhwc);
             } else
                 dat_tag_ = any;
 

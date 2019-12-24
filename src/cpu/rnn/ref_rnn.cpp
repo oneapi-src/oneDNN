@@ -191,14 +191,21 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             if ((aprop == prop_kind::forward) && rnn.merge_gemm_layer) {
                 const src_data_t *states_t_lm1 = &(ws_states(lay, dir, 1, 0));
                 auto src_layer_ld = rnn.states_ws_ld;
+                // If we avoid copying the last iteration, the corresponding
+                // input states appear in `dst_layer_` instead of `ws_states`,
+                // hence we cannot merge all iterations.
+                // This is not applicable for the first layer though, since
+                // all the states come from user's `src_layer_`.
+                int n_iter = rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
 
                 if ((lay == 0) && rnn.skip_src_layer_copy()) {
                     states_t_lm1 = src_layer_;
                     src_layer_ld = rnn.src_layer_ld_;
+                    n_iter = rnn.n_iter;
                 }
 
                 (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic,
-                        rnn.mb * rnn.n_iter, rnn.slc, 1.0,
+                        rnn.mb * n_iter, rnn.slc, 1.0,
                         weights_layer(lay, dir, 0), rnn.weights_layer_ld,
                         states_t_lm1, src_layer_ld, 0.0,
                         (acc_data_t *)scratch_gates_, rnn.gates_ws_ld);
@@ -222,19 +229,13 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 const float *c_states_tm1_l
                         = &(ws_c_states(lay + 1, dir, iter, 0));
 
-                // the cell_positin is used only when skip_data_copy is supported
-                // currently supported only for forward
+                // the cell_position is used only when skip_data_copy is
+                // supported currently supported only for forward
                 cell_position_t cell_position = middle_cell;
-                cell_position = (lay == rnn.n_layer - 1)
-                        ? (cell_position | last_layer)
-                        : cell_position;
-                cell_position = (iter == rnn.n_iter - 1)
-                        ? (cell_position | last_iter)
-                        : cell_position;
-                cell_position = (iter == 0) ? (cell_position | first_iter)
-                                            : cell_position;
-                cell_position = (lay == 0) ? (cell_position | first_layer)
-                                           : cell_position;
+                if (iter == 0) cell_position |= first_iter;
+                if (lay == 0) cell_position |= first_layer;
+                if (iter == rnn.n_iter - 1) cell_position |= last_iter;
+                if (lay == rnn.n_layer - 1) cell_position |= last_layer;
 
                 // The dst_* paths should be before the src_* paths as
                 // the later will override states_tm1_l and
@@ -603,9 +604,15 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
 
     const bool dequantize
             = pd->dst_md(0)->data_type == data_type::f32 && rnn.is_int8();
+    const bool dequantize_at_copy = dequantize && rnn.exec_dir != bi_sum;
+
+    // minor optimization helper for a compiler
+    static constexpr bool rnn_u8u8_case
+            = std::is_same<dst_layer_dt, uint8_t>::value
+            && std::is_same<src_data_t, uint8_t>::value;
 
     auto copy_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
-        if (dequantize) {
+        if (dequantize_at_copy) {
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
                 dd[s] = (dst_layer_dt)(((float)ss[s] - shift) / scale);
@@ -619,8 +626,16 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
     auto acc_vec = [&](dst_layer_dt *dd, const src_data_t *ss) {
         if (dequantize) {
             PRAGMA_OMP_SIMD()
+            for (int s = 0; s < rnn.dic; s++) {
+                float val = (float)ss[s] + dd[s];
+                val = std::min(std::max(val, 0.f), 255.f);
+                dd[s] = (dst_layer_dt)((val - 2 * shift) / scale);
+            }
+        } else if (rnn_u8u8_case) { // instead of checking for rnn.is_int8()
+            PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
-                dd[s] += (dst_layer_dt)(((float)ss[s] - shift) / scale);
+                dd[s] = math::saturate<dst_layer_dt, int16_t>(
+                        (int16_t)dd[s] + (int16_t)ss[s]);
         } else {
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dic; s++)
@@ -654,7 +669,8 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
                 }
             });
     if (rnn.skip_dst_iter_copy()) {
-        parallel_nd(1, rnn.mb, [&](int it, int b) {
+        parallel_nd(rnn.mb, [&](int b) {
+            const int it = rnn.n_iter - 1;
             int dir = 0;
             if (rnn.exec_dir != r2l) {
                 const auto *ss = dst_iter_

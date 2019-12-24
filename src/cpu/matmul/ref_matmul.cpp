@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type,
         data_type_t acc_type>
@@ -44,14 +45,17 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
     DEFINE_ZERO_POINT_VALUE(weights_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
-    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
-    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
-    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
-    const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS);
+    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+    const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
 
     const bool batched = pd()->batched();
     const bool non_default_attrs = !pd()->attr()->has_default_values();
-    const bool do_sum = pd()->attr()->post_ops_.contain(primitive_kind::sum, 0);
+    const bool do_sum = pd()->attr()->post_ops_.contain(primitive_kind::sum, 0)
+            && pd()->attr()->post_ops_.entry_[0].sum.scale != 0.f;
+    const float sum_scale
+            = do_sum ? pd()->attr()->post_ops_.entry_[0].sum.scale : 0.f;
 
     const dim_t MB = batched ? dst_d.dims()[0] : 1;
     const dim_t M = dst_d.dims()[batched + 0];
@@ -104,15 +108,18 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
             float res = acc;
             if (bias) res += get_bias(mb, m, n);
             res *= scales[scale_stride * n];
-            if (do_sum) res += dst_value;
+            if (do_sum) res = sum_scale * dst_value + res;
             if (eltwise_ker_) res = eltwise_ker_->compute_scalar(res);
             res += (float)dst_zero_point;
-            if (dst_type == data_type::f32)
+            if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
                 dst_value = res;
             else
                 dst_value = saturate<dst_data_t>(out_round<int32_t>(res));
         } else {
-            dst_value = saturate<dst_data_t>(acc);
+            if (utils::one_of(dst_type, data_type::f32, data_type::bf16))
+                dst_value = (dst_data_t)acc;
+            else
+                dst_value = saturate<dst_data_t>(acc);
         }
     });
 
@@ -121,6 +128,8 @@ status_t ref_matmul_t<src_type, weights_type, dst_type, acc_type>::execute_ref(
 
 using namespace data_type;
 template struct ref_matmul_t<f32, f32, f32, f32>;
+template struct ref_matmul_t<bf16, bf16, f32, f32>;
+template struct ref_matmul_t<bf16, bf16, bf16, f32>;
 template struct ref_matmul_t<s8, s8, f32, s32>;
 template struct ref_matmul_t<s8, s8, s32, s32>;
 template struct ref_matmul_t<s8, s8, s8, s32>;
@@ -130,6 +139,7 @@ template struct ref_matmul_t<u8, s8, s32, s32>;
 template struct ref_matmul_t<u8, s8, s8, s32>;
 template struct ref_matmul_t<u8, s8, u8, s32>;
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

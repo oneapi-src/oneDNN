@@ -6,3 +6,4 @@
 --batch=ip_3d
 --batch=ip_wd
 --batch=ip_maskrcnn
+--batch=shapes_non-spatial

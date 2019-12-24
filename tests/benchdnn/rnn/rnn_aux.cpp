@@ -127,7 +127,7 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
 
     /* canonical form:
-     * lXtXmXsicXslcXdicXdlc
+     * lXtXmbXsicXslcXdicXdlcX
      *
      * where: X is number, S - string
      * note: symbol `_` is ignored
@@ -340,8 +340,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     const char *skind = rnn_data_kind2str(kind);
 
     diff_norm_t diff_norm;
-    r->errors = 0;
-    r->total = nelems;
+    size_t errors = 0;
+    r->total += nelems;
 
 //#define BENCHDNN_RNN_PRINT_STATISTICS
 #ifdef BENCHDNN_RNN_PRINT_STATISTICS
@@ -369,13 +369,37 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 #endif
 
     /* Note: we do an eltwise comparison only when:
-       - we use skip_nonlinear
-       - we do not use skip_nonlinear and we test only one cell execution
+       - we use skip_nonlinear;
+       - we do not use skip_nonlinear and we test only one cell execution;
+       - for int8 computations the tensor is not dst_c_last_iteration;
        If the above conditions are not met, we check only norm-1,
-       norm-2 and infnorm
+       norm-2 and inf-norm.
+
+       Rough rationale for the `dst_c_last_iteration` exception in int8 case:
+       - The formula for one-step c-state is:
+         c_t = f_t * c_{t−1} + i_t * c~_t.
+         Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
+         right before the computations + the corresponding bias added).
+       - In int8 case we don't have much control over these components and
+         cannot surmount potential cancellations, if any.
+         In practice, I observed that the relative element-wise error of values
+         in `dst_c_last_iteration` was bigger (up-to 8e-5) whenever the values
+         themselves were smaller (which indirectly means the problem is exactly
+         in the cancellation). Unfortunately, this even happened with only one
+         layer and one time stamp.
+       - So, for now the solution is to use l1- l2- and l_inf-norms to validate
+         `dst_c_last_iteration`. When we switch testing on using precise
+         integer arithmetic based on modulo operation in rnn_tparams (instead of
+         current unreliable re-scaling), this testing weakness should go away.
+       - Just an obvious side note: `dst_last_layer` and `dst_last_iteration`
+         are immediate dequantization of the corresponding u8 tensors. Hence,
+         as long as we get precise u8 intermediate results (and so far we do),
+         the f32 result should be pretty accurate -- the dequantization is just
+         two simple ops: f32 = scale * u8 + shift.
     */
     bool check_norm0
             = (p.skip_nonlinear || ((p.n_layer == 1) && (p.n_iter == 1)));
+    if (p.is_int8() && kind == dst_c_last_iteration) check_norm0 = false;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
@@ -402,14 +426,15 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
             const float diff_threshold = p.cfg[kind].eps;
 
+            // very strict error bound for int8 data type
             if (p.cfg[kind].dt == dnnl_u8)
-                ok = diff <= 1; // For int8, we allow only to be off by 1.
+                ok = diff == 0;
             else
                 ok = (fabs(fp) > diff_threshold ? rel_diff : diff) <= rel_eps;
 
             if (!ok) {
-                r->errors++;
-                if (r->errors < 10 || verbose >= 10) {
+                errors++;
+                if (errors < 10 || verbose >= 10) {
                     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
                             oc = 0, b = 0;
                     switch (kind) {
@@ -570,11 +595,11 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         if ((diff_norm.rel_diff(norm_t::L1) > rel_eps)
                 || (diff_norm.rel_diff(norm_t::L2) > rel_eps)
                 || (diff_norm.rel_diff(norm_t::L8) > rel_eps))
-            r->errors++;
+            errors++;
     }
 
-    if (final_compare || r->errors) {
-        const int vl = r->errors ? 0 : 2;
+    if (final_compare || errors) {
+        const int vl = errors ? 0 : 2;
         BENCHDNN_PRINT(vl,
                 "@@@ [%s] %sdiff: l0(``%g``) "
                 "l1:(%g,%g,%g,``%g``) "
@@ -590,7 +615,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                 diff_norm.rel_diff(norm_t::L8));
     }
 
-    if (r->errors) r->state = FAILED;
+    r->errors += errors;
+    if (errors != 0) r->state = FAILED;
 
     if (final_compare && r->state == UNTESTED) r->state = PASSED; /* optimism */
 
@@ -601,7 +627,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             mean_fp / nelems, var_fp / nelems);
 #endif
 
-    return r->state == FAILED ? FAIL : OK;
+    return errors != 0 ? FAIL : OK;
 }
 
 int compare_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
@@ -693,7 +719,7 @@ void prb_t::set_tparams(float fp_min, float fp_max) {
             acc_dim = fwd_acc_dim;
         // make scaling exact by choosing powers of two.
         int64_t n_cscale = (alg == VANILLA_LSTM);
-        int64_t divisor = next_pow2(acc_dim + n_cscale);
+        int64_t divisor = next_pow2((acc_dim + n_cscale) * (is_int8() ? 2 : 1));
         float factor = (1.0f / (float)(divisor));
         for (int64_t i = 0; i < n_gates(); i++)
             linear_scales[i] = (i + 1) * factor;

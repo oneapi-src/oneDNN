@@ -421,8 +421,18 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector(
         const Vmm &vmm_src) {
     // compute bounded relu */
-    h->uni_vmaxps(vmm_src, vmm_src, table_val(1));
-    h->uni_vminps(vmm_src, vmm_src, table_val(0));
+    int upper_bound_off = 0, lower_bound_off = 1;
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(lower_bound_off));
+    h->uni_vminps(vmm_src, vmm_src, table_val(upper_bound_off));
+}
+
+template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector(
+        const Vmm &vmm_src) {
+    // compute clip
+    int upper_bound_off = 1, lower_bound_off = 0;
+    h->uni_vmaxps(vmm_src, vmm_src, table_val(lower_bound_off));
+    h->uni_vminps(vmm_src, vmm_src, table_val(upper_bound_off));
 }
 
 template <cpu_isa_t isa>
@@ -938,6 +948,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
         case alg_kind::eltwise_exp: return 3;
         case alg_kind::eltwise_gelu: return 5;
         case alg_kind::eltwise_log: return 5;
+        case alg_kind::eltwise_clip: return 0;
         default: assert(!"unsupported eltwise algorithm");
     }
 
@@ -971,6 +982,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
             case eltwise_exp: exp_compute_vector(Vmm(idx)); break;
             case eltwise_gelu: gelu_compute_vector(Vmm(idx)); break;
             case eltwise_log: log_compute_vector(Vmm(idx)); break;
+            case eltwise_clip: clip_compute_vector(Vmm(idx)); break;
             default: assert(!"unsupported eltwise algorithm");
         }
         if (scale_ != 1.f) {
@@ -1014,6 +1026,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
             case eltwise_soft_relu: soft_relu_prepare_table(); break;
             case eltwise_abs: abs_prepare_table(); break;
             case eltwise_sqrt: sqrt_prepare_table(); break;
+            case eltwise_clip:
             case eltwise_linear: linear_prepare_table(); break;
             case eltwise_log: log_prepare_table(); break;
             case eltwise_square: break;

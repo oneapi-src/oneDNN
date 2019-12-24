@@ -26,8 +26,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_pooling_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -87,8 +85,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            return jit_ref_pooling_fwd_kernel::init_conf(
-                    jpp_, desc_, src_md(), dst_md(), jit_off_);
+            return jit_ref_pooling_fwd_kernel::init_conf(jpp_, this, jit_off_);
         }
         jit_pool_conf_t jpp_;
         jit_offsets jit_off_;
@@ -102,8 +99,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
         jit_ref_pooling_fwd_kernel::init_const_def(
                 kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_pooling_fwd_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "ref_pooling_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -164,8 +160,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            return jit_ref_pooling_fwd_kernel::init_conf(
-                    jpp_, desc_, diff_src_md(), diff_dst_md(), jit_off_);
+            return jit_ref_pooling_fwd_kernel::init_conf(jpp_, this, jit_off_);
         }
         jit_pool_conf_t jpp_;
         jit_offsets jit_off_;
@@ -179,8 +174,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
         jit_ref_pooling_fwd_kernel::init_const_def(
                 kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
-        compute_engine->create_kernel(
-                &kernel_, "ref_pooling_bwd_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "ref_pooling_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

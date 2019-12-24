@@ -30,13 +30,14 @@ using namespace alg_kind;
 using namespace math;
 
 template <data_type_t acc_type, data_type_t dst_type>
-pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
+pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
         const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
     : ker_(nullptr)
     , eltwise_injector_(nullptr)
     , ref_eltwise_(nullptr)
     , bf16_emu_(nullptr)
     , OC_(OC)
+    , MB_(MB)
     , bias_data_type_(bias_dt)
     , bias_data_type_size_(0)
     , do_scale_(false)
@@ -51,7 +52,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
     , idx_compute_vreg_max_(31)
     , compute_vregs_per_iter_(1)
     , compute_vreg_bias_shift_(0)
-    , compute_vreg_prev_dst_shift_(0) {
+    , compute_vreg_prev_dst_shift_(0)
+    , mb_blk_kernel(false) {
     using namespace types;
     using namespace Xbyak;
 
@@ -118,46 +120,13 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC,
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
         const cpu_inner_product_fwd_pd_t *pd, bool skip_sum)
-    : pp_kernel_t(
-            pd->OC(), pd->attr(), pd->desc()->bias_desc.data_type, skip_sum) {}
+    : pp_kernel_t(pd->OC(), pd->MB(), pd->attr(),
+            pd->desc()->bias_desc.data_type, skip_sum) {}
 
 template <data_type_t acc_type, data_type_t dst_type>
-void pp_kernel_t<acc_type, dst_type>::generate() {
+void pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
     using namespace Xbyak;
     using namespace utils;
-
-    const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
-
-    preamble();
-
-#define PARAM_OFF(x) offsetof(ker_args, x)
-    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
-    mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
-    mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
-    if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
-    if (do_dst_zero_points_) {
-        // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
-        mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
-        vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
-    }
-    if (runtime_oc())
-        mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
-    else
-        mov(reg_oc, OC_);
-    mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
-    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
-    if (do_scale_ && scale_idx_mult_ == 0)
-        vbroadcastss(vreg_scale, dword[reg_scales]);
-#undef PARAM_OFF
-
-    if (do_sum_) {
-        mov(reg_tmp, float2int(sum_scale_));
-        auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
-        vmovq(xreg_sum_scale, reg_tmp);
-        vbroadcastss(vreg_sum_scale, xreg_sum_scale);
-    }
-
-    if (dst_type == data_type::u8) vxorps(vreg_zero, vreg_zero, vreg_zero);
 
     // Load accumulated value, convert to float, apply bias (if any), scaling,
     // and eltwise (if any); then convert to destination type and store
@@ -432,6 +401,190 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
         process_runtime_oc();
     }
     L(l_epilogue_end);
+}
+
+template <data_type_t acc_type, data_type_t dst_type>
+void pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
+    using namespace Xbyak;
+    using namespace utils;
+
+    auto compute = [&](size_t mb_step, bool apply_mask) {
+        auto zmm_bias = vreg_bias(0);
+        auto zmm_bias_msk = apply_mask ? zmm_bias | kreg_rem_mask : zmm_bias;
+        auto zmm_dst = vreg_dst(0);
+        auto zmm_dst_msk = apply_mask ? zmm_dst | kreg_rem_mask : zmm_dst;
+
+        switch (acc_type) {
+            case data_type::s32: vcvtdq2ps(zmm_dst_msk, ptr[reg_acc]); break;
+            case data_type::f32: vmovups(zmm_dst_msk, ptr[reg_acc]); break;
+            default: assert(!"unimplemented");
+        }
+
+        vaddps(zmm_dst, zmm_dst, zmm_bias_msk);
+
+        switch (dst_type) {
+            case data_type::f32: break;
+            case data_type::u8: vmaxps(zmm_dst, zmm_dst, vreg_zero);
+            case data_type::s8:
+            case data_type::s32: vcvtps2dq(zmm_dst, zmm_dst); break;
+            case data_type::bf16:
+                if (isa_ == avx512_core_bf16)
+                    vcvtneps2bf16(Ymm(zmm_dst.getIdx()), zmm_dst);
+                else
+                    bf16_emu_->vcvtneps2bf16(Ymm(zmm_dst.getIdx()), zmm_dst);
+                break;
+            default: assert(!"unimplemented");
+        }
+
+        switch (dst_type) {
+            case data_type::s8: vpmovsdb(ptr[reg_dst], zmm_dst_msk); break;
+            case data_type::u8: vpmovusdb(ptr[reg_dst], zmm_dst_msk); break;
+            case data_type::f32:
+            case data_type::s32: vmovups(ptr[reg_dst], zmm_dst_msk); break;
+            case data_type::bf16:
+                vmovdqu16(ptr[reg_dst],
+                        apply_mask ? Ymm(zmm_dst.getIdx()) | kreg_rem_mask
+                                   : Ymm(zmm_dst.getIdx()));
+                break;
+            default: assert(!"unimplemented");
+        }
+    };
+
+    Label mb_main_loop, end_main_loop;
+
+    bool expl_broadcast = OC_ == 1
+            && utils::one_of(bias_data_type_, data_type::s32, data_type::f32);
+    size_t mb_step = vlen / OC_;
+    size_t mb_tail = MB_ % mb_step;
+    size_t mb_oc_blk = mb_step * OC_;
+
+    auto zmm_bias = vreg_bias(0);
+
+    if (dst_type == data_type::bf16 && isa_ != avx512_core_bf16)
+        bf16_emu_->init_vcvtneps2bf16();
+
+    if (expl_broadcast) {
+        // when OC == 1 bias can be loaded directly into simd
+        switch (bias_data_type_) {
+            case data_type::s32: vpbroadcastd(zmm_bias, ptr[reg_bias]); break;
+            case data_type::f32: vbroadcastss(zmm_bias, ptr[reg_bias]); break;
+            // TODO: enable broadcast for other data types
+            default: assert(!"unimplemented");
+        }
+    } else {
+        // prepare bias data for simd computation
+        mov(reg_tmp, (1 << OC_) - 1);
+        kmovq(kreg_rem_mask, reg_tmp);
+        auto zmm_bias_msk = zmm_bias | kreg_rem_mask;
+
+        switch (bias_data_type_) {
+            case data_type::s8: vpmovsxbd(zmm_bias_msk, ptr[reg_bias]); break;
+            case data_type::u8: vpmovzxbd(zmm_bias_msk, ptr[reg_bias]); break;
+            case data_type::s32:
+            case data_type::f32: vmovups(zmm_bias_msk, ptr[reg_bias]); break;
+            case data_type::bf16:
+                vpmovzxwd(zmm_bias_msk, ptr[reg_bias]);
+                vpslld(zmm_bias_msk, zmm_bias_msk, 0x10);
+                break;
+            default: assert(!"unimplemented");
+        }
+
+        // write repeated MB*OC entries into stack
+        sub(rsp, mb_oc_blk * sizeof(uint32_t));
+        for (size_t i = 0; i < mb_step; ++i) {
+            vmovups(ptr[rsp + i * OC_ * sizeof(uint32_t)], zmm_bias_msk);
+        }
+
+        // load into simd
+        mov(reg_tmp, (1 << mb_oc_blk) - 1);
+        kmovq(kreg_rem_mask, reg_tmp);
+        vmovups(zmm_bias | kreg_rem_mask, ptr[rsp]);
+    }
+    if (utils::one_of(
+                bias_data_type_, data_type::u8, data_type::s8, data_type::s32))
+        vcvtdq2ps(zmm_bias, zmm_bias);
+
+    L(mb_main_loop);
+    {
+        cmp(reg_len, mb_oc_blk);
+        jl(end_main_loop, T_NEAR);
+
+        compute(mb_step, !expl_broadcast);
+        add(reg_dst, mb_oc_blk * sizeof(dst_data_t));
+        add(reg_acc, mb_oc_blk * sizeof(acc_data_t));
+        sub(reg_len, mb_oc_blk);
+        jmp(mb_main_loop, T_NEAR);
+    }
+    L(end_main_loop);
+
+    if (mb_tail > 0) {
+        Label mb_tail_loop, end_tail_loop;
+
+        mov(reg_tmp, (1 << (mb_tail * OC_)) - 1);
+        kmovq(kreg_rem_mask, reg_tmp);
+
+        L(mb_tail_loop);
+        {
+            cmp(reg_len, 0);
+            jle(end_tail_loop, T_NEAR);
+            compute(mb_tail, true);
+            sub(reg_len, mb_tail * OC_);
+            jmp(mb_tail_loop, T_NEAR);
+        }
+        L(end_tail_loop);
+    }
+
+    if (!expl_broadcast) add(rsp, mb_oc_blk * sizeof(uint32_t));
+}
+
+template <data_type_t acc_type, data_type_t dst_type>
+void pp_kernel_t<acc_type, dst_type>::generate() {
+    using namespace Xbyak;
+    using namespace utils;
+
+    preamble();
+
+#define PARAM_OFF(x) offsetof(ker_args, x)
+    mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
+    mov(reg_acc, ptr[reg_param + PARAM_OFF(acc)]);
+    mov(reg_bias, ptr[reg_param + PARAM_OFF(bias)]);
+    if (do_scale_) mov(reg_scales, ptr[reg_param + PARAM_OFF(scales)]);
+    if (do_dst_zero_points_) {
+        // use reg_oc as a temporary one (alas, reg_tmp = reg_param on Windows)
+        mov(reg_oc, ptr[reg_param + PARAM_OFF(dst_zero_points)]);
+        vbroadcastss(vreg_dst_zero_points, ptr[reg_oc]);
+    }
+    if (runtime_oc())
+        mov(reg_oc, ptr[reg_param + PARAM_OFF(oc)]);
+    else
+        mov(reg_oc, OC_);
+    mov(reg_len, ptr[reg_param + PARAM_OFF(len)]);
+    mov(reg_oc_offset, ptr[reg_param + PARAM_OFF(oc_offset)]);
+    if (do_scale_ && scale_idx_mult_ == 0)
+        vbroadcastss(vreg_scale, dword[reg_scales]);
+#undef PARAM_OFF
+
+    if (do_sum_) {
+        mov(reg_tmp, float2int(sum_scale_));
+        auto xreg_sum_scale = Xmm(vreg_sum_scale.getIdx());
+        vmovq(xreg_sum_scale, reg_tmp);
+        vbroadcastss(vreg_sum_scale, xreg_sum_scale);
+    }
+
+    if (dst_type == data_type::u8) vxorps(vreg_zero, vreg_zero, vreg_zero);
+
+    // at least 2 blocks of mb within vlen
+    bool dim_restrict = !runtime_oc() && !runtime_mb() && (OC_ <= vlen / 2)
+            && (MB_ >= vlen);
+    bool supported_postops
+            = do_scale_ || do_eltwise_ || do_sum_ || do_dst_zero_points_;
+
+    if (do_bias() && !supported_postops && dim_restrict) {
+        mb_blk_kernel = true;
+        compute_mb_blk();
+    } else {
+        compute_oc_channel_blk();
+    }
 
     postamble();
 

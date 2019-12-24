@@ -21,8 +21,10 @@
 #include <memory>
 #include <vector>
 
+#include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "compute/device_info.hpp"
+#include "compute/dispatch.hpp"
 #include "compute/kernel.hpp"
 #include "compute/kernel_ctx.hpp"
 
@@ -55,6 +57,10 @@ public:
             const kernel_ctx_t &kernel_ctx) const = 0;
 
     bool mayiuse(device_ext_t ext) const { return device_info_->has(ext); }
+
+    dispatch_t create_dispatch(const memory_desc_t *md = nullptr) const {
+        return dispatch_t(this, md);
+    }
 
 private:
     std::unique_ptr<device_info_t> device_info_;

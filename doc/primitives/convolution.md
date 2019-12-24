@@ -2,7 +2,7 @@ Convolution {#dev_guide_convolution}
 =====================================
 
 >
-> API reference: [C](@ref c_api_convolution), [C++](@ref cpp_api_convolution)
+> [API Reference](@ref dnnl_api_convolution)
 >
 
 The convolution primitive computes forward, backward, or weight update for a
@@ -109,7 +109,7 @@ convolution. One way to put it is to note that the weights define a
 convolution, but whether it is a direct convolution or a transposed
 convolution is determined by how the forward and backward passes are computed.
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 There is no difference between the #dnnl_forward_training
 and #dnnl_forward_inference propagation kinds.
@@ -195,7 +195,7 @@ post-ops are supported:
 | Propagation | Type      | Operation                                                    | Restrictions           | Description
 | :--         | :--       | :--                                                          | :--                    | :--
 | forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               |                        | Applies an @ref c_api_eltwise operation to the result
+| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               |                        | Applies an @ref dnnl_api_eltwise operation to the result
 | forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
 
 @note The library doesn't prevent using post-ops in training, but note that

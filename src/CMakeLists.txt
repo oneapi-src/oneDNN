@@ -59,6 +59,10 @@ elseif(UNIX AND NOT APPLE)
     list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
 endif()
 
+if(DNNL_ENABLE_MAX_CPU_ISA)
+    add_definitions(-DDNNL_ENABLE_MAX_CPU_ISA)
+endif()
+
 if(WIN32)
     add_definitions(-D_WIN)
     add_definitions(-DNOMINMAX)
@@ -69,6 +73,7 @@ if(WIN32)
 endif()
 
 add_subdirectory(common)
+add_subdirectory(compute)
 add_subdirectory(cpu)
 
 if(DNNL_GPU_RUNTIME STREQUAL "OCL")
@@ -138,30 +143,42 @@ install(CODE "execute_process(COMMAND ${CMAKE_COMMAND}
 
 # MKL-DNN compat libraries
 if (WIN32)
+    if (NOT MINGW)
+        set(prefix "")
+        set(ext "lib")
+    else()
+        set(prefix "lib")
+        if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
+            set(ext "dll.a")
+        else()
+            set(ext "a")
+        endif()
+    endif()
     add_custom_target(compat_libs ALL
         ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE_DIR:${LIB_NAME}>/dnnl.lib
-        $<TARGET_FILE_DIR:${LIB_NAME}>/mkldnn.lib
+        $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}dnnl.${ext}
+        $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn.${ext}
         DEPENDS ${LIB_NAME})
-    install(FILES $<TARGET_FILE_DIR:${LIB_NAME}>/mkldnn.lib
+    install(FILES $<TARGET_FILE_DIR:${LIB_NAME}>/${prefix}mkldnn.${ext}
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
 else()
     if(DNNL_LIBRARY_TYPE STREQUAL "SHARED")
-        set_ternary(ext APPLE "dylib" "so")
+        set_ternary(ext APPLE ".dylib" ".so")
         set(vers ".${DNNL_VERSION_MAJOR};.${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
     else()
-        set(ext "a")
+        set(ext ".a")
         set(vers "")
     endif()
     foreach(ver "" ${vers})
-        add_custom_command(OUTPUT libmkldnn.${ext}${ver}
+        set_ternary(ext_and_ver APPLE "${ver}${ext}" "${ext}${ver}")
+        add_custom_command(OUTPUT libmkldnn${ext_and_ver}
             # to make the next command work fine
-            COMMAND ${CMAKE_COMMAND} -E remove -f libmkldnn.${ext}${ver}
-            COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl.${ext}${ver} libmkldnn.${ext}${ver}
+            COMMAND ${CMAKE_COMMAND} -E remove -f libmkldnn${ext_and_ver}
+            COMMAND ${CMAKE_COMMAND} -E create_symlink libdnnl${ext_and_ver} libmkldnn${ext_and_ver}
             DEPENDS ${LIB_NAME})
         add_custom_target(compat_libs${ver} ALL
-                DEPENDS libmkldnn.${ext}${ver})
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libmkldnn.${ext}${ver}
+                DEPENDS libmkldnn${ext_and_ver})
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libmkldnn${ext_and_ver}
             DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
     endforeach()
 endif()

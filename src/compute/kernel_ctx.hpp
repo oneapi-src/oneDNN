@@ -21,10 +21,11 @@
 #ifdef DEBUG_PRINT
 #include <iostream>
 #endif
+#include <map>
+#include <set>
 #include <sstream>
+#include <string>
 #include <type_traits>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace dnnl {
 namespace impl {
@@ -58,6 +59,10 @@ public:
         int_var_map_.insert({variable, value});
     }
 
+    void define_int(const std::string &variable, int64_t value) {
+        define_int(variable.c_str(), value);
+    }
+
     // TODO: should be removed, any float values should be passed in
     // kernel parameters
     void define_float(const char *variable, float value) {
@@ -65,6 +70,18 @@ public:
     }
 
     void add_option(const char *option) { option_set_.insert(option); }
+    void add_option(const std::string &option) { add_option(option.c_str()); }
+
+    bool has_macro(const char *name) const {
+        std::string opt_start = std::string("-D") + name + "=";
+        for (auto &opt : option_set_)
+            if (opt.find(opt_start) != std::string::npos) return true;
+
+        return int_var_map_.count(name) != 0 || float_var_map_.count(name) != 0;
+    }
+    bool has_macro(const std::string &name) const {
+        return has_macro(name.c_str());
+    }
 
     void set_data_type(data_type_t dt) {
         switch (dt) {
@@ -107,9 +124,9 @@ private:
         add_option("-cl-fp32-correctly-rounded-divide-sqrt");
     }
 
-    std::unordered_map<std::string, int64_t> int_var_map_;
-    std::unordered_map<std::string, float> float_var_map_;
-    std::unordered_set<std::string> option_set_;
+    std::map<std::string, int64_t> int_var_map_;
+    std::map<std::string, float> float_var_map_;
+    std::set<std::string> option_set_;
 };
 
 template <>

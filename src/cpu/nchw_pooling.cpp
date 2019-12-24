@@ -302,6 +302,7 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
 
     auto alg = pd()->desc()->alg_kind;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
+    const bool is_2d = pd()->desc()->diff_src_desc.ndims == 4;
 
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
@@ -345,8 +346,10 @@ void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
         auto b_c = ws_d.blocking_desc().inner_nblks == 0
                 ? 1
                 : ws_d.blocking_desc().inner_blks[0];
-        auto ws_offset = is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow) + c % b_c
-                               : ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;
+        auto ws_offset = (is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow)
+                                : is_2d ? ws_d.blk_off(mb, c / b_c, oh, ow)
+                                        : ws_d.blk_off(mb, c / b_c, ow))
+                + c % b_c;
 
         const int index = ws_d.data_type() == data_type::u8
                 ? (int)ws[ws_offset]
@@ -444,6 +447,7 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
 
     auto alg = pd()->desc()->alg_kind;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
+    const bool is_2d = pd()->desc()->diff_src_desc.ndims == 4;
 
     auto diff_src = CTX_OUT_MEM(bfloat16_t *, DNNL_ARG_DIFF_SRC);
     auto diff_dst = CTX_IN_MEM(const bfloat16_t *, DNNL_ARG_DIFF_DST);
@@ -496,8 +500,10 @@ void nchw_pooling_bwd_t<data_type::bf16>::execute_backward(
         auto b_c = ws_d.blocking_desc().inner_nblks == 0
                 ? 1
                 : ws_d.blocking_desc().inner_blks[0];
-        auto ws_offset = is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow) + c % b_c
-                               : ws_d.blk_off(mb, c / b_c, oh, ow) + c % b_c;
+        auto ws_offset = (is_3d ? ws_d.blk_off(mb, c / b_c, od, oh, ow)
+                                : is_2d ? ws_d.blk_off(mb, c / b_c, oh, ow)
+                                        : ws_d.blk_off(mb, c / b_c, ow))
+                + c % b_c;
 
         const int index = ws_d.data_type() == data_type::u8
                 ? (int)ws[ws_offset]

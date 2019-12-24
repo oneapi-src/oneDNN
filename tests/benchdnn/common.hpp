@@ -127,6 +127,7 @@ enum prim_t {
     LRN,
     BINARY,
     MATMUL,
+    RESAMPLING,
     DEF = CONV,
 };
 

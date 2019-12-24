@@ -317,7 +317,7 @@ int main(int argc, char **argv) {
 /// Upon compiling and run the example the output should be just:
 ///
 /// ~~~sh
-/// Example passes
+/// Example passed.
 /// ~~~
 ///
 /// It may be interesting to check what really happens during the run. We can
@@ -326,7 +326,7 @@ int main(int argc, char **argv) {
 /// AVX2-capable processor (line breaks added for readability):
 ///
 /// ~~~sh
-/// $ DNNL_VERBOSE=1 ./memory_format_propagation
+/// $ DNNL_VERBOSE=1 ./memory-format-propagation-cpp
 /// dnnl_verbose,info,DNNL <ver> (Git Hash <hash>),Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2)
 /// dnnl_verbose,exec,reorder,jit:uni,undef,
 ///     src_f32::blocked:abcd:f0 dst_f32::blocked:aBcd8b:f0,num:1,1x256x14x14,1.03101
@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
 ///     alg:pooling_max,mb1ic256_ih14oh14kh3sh1ph1_iw14ow14kw3sw1pw1,0.322021
 /// dnnl_verbose,exec,reorder,jit:uni,
 ///     undef,src_f32::blocked:aBcd8b:f0 dst_f32::blocked:abcd:f0,num:1,1x256x14x14,0.333008
-/// Example passes
+/// Example passed.
 /// ~~~
 ///
 /// From this output we can deduce that:

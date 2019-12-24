@@ -2,11 +2,11 @@ Pooling {#dev_guide_pooling}
 ============================
 
 >
-> API reference: [C](@ref c_api_pooling), [C++](@ref cpp_api_pooling)
+> [API Reference](@ref dnnl_api_pooling)
 >
 
 The pooling primitive performs forward or backward max or average pooling
-operation on 2D or 3D spatial data.
+operation on 1D, 2D, or 3D spatial data.
 
 The pooling operation is defined by the following formulas.
 We show formulas only for 2D spatial data which are straightforward to
@@ -45,7 +45,7 @@ Average pooling supports two algorithms:
 
 > TODO: a picture would be nice here.
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 - Max pooling requires `workspace` output for the #dnnl_forward_training
   propagation kind, and doesn't require it for #dnnl_forward_inference
@@ -93,18 +93,21 @@ The pooling primitive supports the following combinations of data types:
 
 #### Source, Destination, and Their Gradients
 
-Like other CNN primitives, the pooling primitive expects data
-to be \f$N \times C \times H \times W\f$ tensor in case 2D spatial data
-and \f$N \times C \times D \times H \times W\f$ tensor in case 3D spatial data.
+Like other CNN primitives, the pooling primitive expects data to be
+an \f$N \times C \times W\f$ tensor for the 1D spatial case,
+an \f$N \times C \times H \times W\f$ tensor for the 2D spatial case, and
+an \f$N \times C \times D \times H \times W\f$ tensor for the 3D spatial case.
 
 The pooling primitive is optimized for the following memory formats:
 
-| Spatial | Logical tensor | Data type   | Implementations optimized for memory formats                               |
-| :--     | :--            | :--         | :--                                                                        |
-| 2D      | NCHW           | f32         | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*             |
-| 2D      | NCHW           | s32, s8, u8 | #dnnl_nhwc (#dnnl_acdb), *optimized^*                                      |
-| 3D      | NCDHW          | f32         | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^*         |
-| 3D      | NCDHW          | s32, s8, u8 | #dnnl_ndhwc (#dnnl_acdeb), *optimized^*                                    |
+| Spatial | Logical tensor | Data type   | Implementations optimized for memory formats                       |
+| :--     | :--            | :--         | :--                                                                |
+| 1D      | NCW            | f32         | #dnnl_ncw (#dnnl_abc), #dnnl_nwc (#dnnl_acb), *optimized^*         |
+| 1D      | NCW            | s32, s8, u8 | #dnnl_nwc (#dnnl_acb), *optimized^*                                |
+| 2D      | NCHW           | f32         | #dnnl_nchw (#dnnl_abcd), #dnnl_nhwc (#dnnl_acdb), *optimized^*     |
+| 2D      | NCHW           | s32, s8, u8 | #dnnl_nhwc (#dnnl_acdb), *optimized^*                              |
+| 3D      | NCDHW          | f32         | #dnnl_ncdhw (#dnnl_abcde), #dnnl_ndhwc (#dnnl_acdeb), *optimized^* |
+| 3D      | NCDHW          | s32, s8, u8 | #dnnl_ndhwc (#dnnl_acdeb), *optimized^*                            |
 
 Here *optimized^* means the format that
 [comes out](@ref memory_format_propagation_cpp)
@@ -112,7 +115,7 @@ of any preceding compute-intensive primitive.
 
 ### Post-ops and Attributes
 
-The pooling primitive doesn't support any post-ops or attributes.
+The pooling primitive does not support any post-ops or attributes.
 
 
 @anchor dg_pool_impl_limits

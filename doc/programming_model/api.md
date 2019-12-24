@@ -1,4 +1,4 @@
-C and C++ APIs {#dev_guide_c_and_cpp_apis}
+API {#dev_guide_c_and_cpp_apis}
 ==========================================
 
 Deep Neural Network Library (DNNL) has
@@ -9,15 +9,15 @@ if they desire. Most of the users choose **C++ API** though.
 
 The differences are shown in the table below.
 
-| Features              | **C API**                                         | **C++ API**
-| :-                    | :-                                                | :-
-| Language requirements | C99                                               | C++11 and above
-| Functional coverage   | Full                                              | Some of the features may require involving **C API**
-| Error handling        | Functions return [status](@ref dnnl_status_t)     | Functions throw [exceptions](@ref dnnl::error)
-| Verbosity             | High                                              | Medium
-| Implementation        | Completely inside the library                     | Header-based thin wrapper around **C API** with syntactic sugar mostly for convenience
-| Purpose               | Provide simple API and stable ABI to the library  | Improve usability
-| Target audience       | Experienced users, FFI                            | Most of the users and framework developers
+| Features                 | **C API**                                        | **C++ API**
+| :-                       | :-                                               | :-
+| Minimal standard version | C99                                              | C++11
+| Functional coverage      | Full                                             | May require use of the **C API**
+| Error handling           | Functions return [status](@ref dnnl_status_t)    | Functions throw [exceptions](@ref dnnl::error)
+| Verbosity                | High                                             | Medium
+| Implementation           | Completely inside the library                    | Header-based thin wrapper around the **C API**
+| Purpose                  | Provide simple API and stable ABI to the library | Improve usability
+| Target audience          | Experienced users, FFI                           | Most of the users and framework developers
 
 ## Input validation notes
 

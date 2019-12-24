@@ -511,9 +511,8 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 /// * NUMA node(s):          2
 /// * RAM (DDR4): 1.45 TB
 
-void performance_profiling(int argc, char **argv) {
+void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
     // Initialize engine
-    engine::kind engine_kind = parse_engine_kind(argc, argv, 1);
     engine eng(engine_kind, 0);
 
     // Initialize stream
@@ -560,33 +559,35 @@ void performance_profiling(int argc, char **argv) {
         std::cout << " - blocked: format propagation without fusion\n";
         std::cout << " - fused: format propagation with fusion\n";
         std::cout << " - validation: runs all implementations\n\n";
-        std::cout << "Validation will run if no parameters are specified\n\n";
+        std::cout << "Validation will run if no parameters are specified.\n\n";
 
         throw std::invalid_argument("Incorrect input arguments.");
     }
 
     if (implementation == "naive" || implementation == "validation") {
-        std::cout << "implementation: naive\n";
+        std::cout << "Implementation: naive.\n";
         // run conv + relu w/o fusing
         conv_relu_naive(user_src, user_wei, user_dst, eng, s);
-        std::cout << "conv + relu w/ nchw format completed\n";
+        std::cout << "Conv + ReLU w/ nchw format completed.\n";
     }
 
     if (implementation == "blocked" || implementation == "validation") {
-        std::cout << "implementation: blocked\n";
+        std::cout << "Implementation: blocked.\n";
         // run conv + relu w/o fusing
         conv_relu_blocked(user_src, user_wei, user_dst, eng, s);
-        std::cout << "conv + relu w/ blocked format completed\n";
+        std::cout << "Conv + ReLU w/ blocked format completed.\n";
     }
 
     if (implementation == "fused" || implementation == "validation") {
-        std::cout << "implementation: fused\n";
+        std::cout << "Implementation: fused.\n";
         // run conv + relu w/ fusing
         conv_relu_fused(user_src, user_wei, user_dst, eng, s);
-        std::cout << "conv + relu w/ fusing completed\n";
+        std::cout << "Conv + ReLU w/ fusing completed.\n";
     }
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(performance_profiling, argc, argv);
+    engine::kind engine_kind = parse_engine_kind(argc, argv, 1);
+    return handle_example_errors(
+            performance_profiling, engine_kind, argc, argv);
 }

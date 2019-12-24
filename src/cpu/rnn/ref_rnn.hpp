@@ -61,12 +61,13 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type, impl::data_type_t acc_type>
 struct _ref_rnn_common_t : public primitive_impl_t {
+    static constexpr impl::data_type_t scratch_type
+            = aprop == prop_kind::forward ? acc_type : src_type;
+
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<weights_type>::type weights_data_t;
     typedef typename prec_traits<acc_type>::type acc_data_t;
-
-    typedef typename utils::conditional<aprop == prop_kind::forward, acc_data_t,
-            src_data_t>::type scratch_data_t;
+    typedef typename prec_traits<scratch_type>::type scratch_data_t;
 
     using class_name
             = _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>;
@@ -117,14 +118,11 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     && this->with_bias();
             if (!ok) return status::unimplemented;
 
-            init_conf(rnn_, *this->desc(), this->src_md(0), this->src_md(1),
-                    this->src_md(2), this->weights_md(0), this->weights_md(1),
-                    this->dst_md(0), this->dst_md(1), this->dst_md(2));
-
-            // check that bf16 gemm is available
-            ok = ok
-                    && IMPLICATION(
-                            rnn_.dt_conf == all_bf16, mayiuse(avx512_core));
+            ok = init_conf(rnn_, *this->desc(), this->src_md(0),
+                    this->src_md(1), this->src_md(2), this->weights_md(0),
+                    this->weights_md(1), this->dst_md(0), this->dst_md(1),
+                    this->dst_md(2));
+            if (!ok) return status::unimplemented;
 
             /* check that only supported attr have been passed */
             primitive_attr_t::skip_mask_t attr_mask
@@ -225,8 +223,9 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         set_gemm_funcs(pd()->rnn_.use_layer_packed_gemm, gemm_layer_func,
                 weights_layer_assign_func);
 
-        rnn_postgemm_ = new rnn_postgemm_dispatcher<aprop, src_type, acc_type>(
-                pd()->rnn_, pd());
+        rnn_postgemm_
+                = new rnn_postgemm_dispatcher<aprop, src_type, scratch_type>(
+                        pd()->rnn_, pd());
         assert(rnn_postgemm_ != nullptr);
         switch (pd()->cell_kind()) {
             case alg_kind::vanilla_rnn:
@@ -309,7 +308,7 @@ private:
     size_t ws_grid_comp_offset_;
     size_t scratch_gates_offset_;
     size_t scratch_cell_offset_;
-    rnn_postgemm_dispatcher<aprop, src_type, acc_type> *rnn_postgemm_;
+    rnn_postgemm_dispatcher<aprop, src_type, scratch_type> *rnn_postgemm_;
 
     grid_execution_f grid_computation;
     cell_execution_f cell_func;

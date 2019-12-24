@@ -18,6 +18,14 @@ includes annotated examples.
 * [API reference](https://intel.github.io/mkl-dnn/v2/modules.html) provides
 comprehensive reference of the library API.
 
+# Documentation
+
+* [Developer guide](https://intel.github.io/mkl-dnn) explains programming
+model, supported functionality, details of primitives implementations and
+includes annotated examples.
+* [API reference](https://intel.github.io/mkl-dnn/modules.html) provides
+comprehensive reference of the library API.
+
 # Installation
 
 Binary distribution of this software is available as 
@@ -72,6 +80,13 @@ The library is optimized for the following CPUs:
 DNNL detects instruction set architecture (ISA) in the runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA.
+
+> **WARNING**
+>
+> On macOS, applications that use DNNL may need to request special
+> entitlements if they use the hardened runtime. See the
+> [linking guide](https://intel.github.io/mkl-dnn/dev_guide_link.html)
+> for more details.
 
 The library is optimized for the following GPUs:
 * Intel HD Graphics
@@ -138,9 +153,9 @@ Runtime specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP`   | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
 | `DNNL_CPU_RUNTIME=OMP`   | Clang                         | Intel OpenMP runtime (libiomp5.so)
 | `DNNL_CPU_RUNTIME=TBB`   | any                           | Threading Building Blocks (libtbb.so)
-| `DNNL_CPU_RUNTIME=DPCPP` | any                           | SYCL runtime OpenCL runtime (libSYCL.so)
+| `DNNL_CPU_RUNTIME=DPCPP` | Intel DPC++ Comipler          | SYCL runtime OpenCL runtime (libSYCL.so)
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL runtime (libOpenCL.so)
-| `DNNL_GPU_RUNTIME=DPCPP` | any                           | SYCL runtime OpenCL runtime (libSYCL.so)
+| `DNNL_GPU_RUNTIME=DPCPP` | Intel DPC++ Comipler          | Intel DPC++ runtime (libSYCL.so)
 
 #### Windows
 

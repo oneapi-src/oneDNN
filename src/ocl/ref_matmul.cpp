@@ -44,10 +44,10 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
             : c0_mem_storage_.get();
 
-    const auto a_d = ctx.memory_mdw(DNNL_ARG_SRC);
-    const auto b_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
-    const auto c_d = ctx.memory_mdw(DNNL_ARG_DST);
-    const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS);
+    const auto a_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto b_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto c_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
+    const auto bia_d = ctx.memory_mdw(DNNL_ARG_BIAS, pd()->weights_md(1));
     const bool is_batched = pd()->batched();
 
     dim_t a_stride_mb, a_stride_m, a_stride_k;
@@ -88,6 +88,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto sum_scale = pd()->sum_scale();
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
@@ -117,6 +118,7 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(24, c_stride_n);
     arg_list.set(25, eltwise_alpha);
     arg_list.set(26, eltwise_beta);
+    arg_list.set(27, sum_scale);
 
     size_t gws[3] = {1, (size_t)N, (size_t)MB};
     auto nd_range = compute::nd_range_t(gws);

@@ -61,7 +61,9 @@
 --batch=test_conv_attrs
 
 # tails
---batch=harness_conv_tails
+--reset --cfg=f32
+--dir=FWD_B,BWD_D,BWD_WB
+--batch=shapes_tails
 
 # 3D shapes
 --batch=test_conv_3d

@@ -925,7 +925,10 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t ::init_conf(
 
     const auto &oscales = attr.output_scales_;
     jcp.is_oc_scale = oscales.mask_ == 1 << 1;
-    assert(IMPLICATION(!jcp.is_oc_scale, oscales.mask_ == 0));
+
+    // only common and per-oc-channel scales are supported
+    const bool oscales_ok = one_of(oscales.mask_, 0, 1 << 1);
+    if (!oscales_ok) return status::unimplemented;
 
     /* re-create weights primitive descriptor
                                     and set weights wino_blocking */

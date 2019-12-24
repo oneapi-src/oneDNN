@@ -32,15 +32,6 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         const memory_desc_t *dst_desc, const dims_t strides,
         const dims_t dilates, const dims_t padding_l, const dims_t padding_r);
 
-memory_desc_t *conv_prop_invariant_src_d(convolution_desc_t *desc);
-memory_desc_t *conv_prop_invariant_wei_d(convolution_desc_t *desc);
-memory_desc_t *conv_prop_invariant_bia_d(convolution_desc_t *desc);
-memory_desc_t *conv_prop_invariant_dst_d(convolution_desc_t *desc);
-const memory_desc_t *conv_prop_invariant_src_d(const convolution_desc_t *desc);
-const memory_desc_t *conv_prop_invariant_wei_d(const convolution_desc_t *desc);
-const memory_desc_t *conv_prop_invariant_bia_d(const convolution_desc_t *desc);
-const memory_desc_t *conv_prop_invariant_dst_d(const convolution_desc_t *desc);
-
 struct convolution_fwd_pd_t;
 
 struct convolution_pd_t : public primitive_desc_t {
@@ -74,27 +65,41 @@ struct convolution_pd_t : public primitive_desc_t {
 
     /* common conv aux functions */
 
-    dim_t MB() const { return _src_md()->dims[0]; }
+    dim_t MB() const { return invariant_src_md()->dims[0]; }
 
-    dim_t IC() const { return _src_md()->dims[1]; }
-    dim_t OC() const { return _dst_md()->dims[1]; }
-    dim_t G() const { return with_groups() ? _wei_md()->dims[0] : 1; }
+    dim_t IC() const { return invariant_src_md()->dims[1]; }
+    dim_t OC() const { return invariant_dst_md()->dims[1]; }
+    dim_t G() const { return with_groups() ? invariant_wei_md()->dims[0] : 1; }
 
-    dim_t ID() const { return ndims() >= 5 ? _src_md()->dims[ndims() - 3] : 1; }
-    dim_t IH() const { return ndims() >= 4 ? _src_md()->dims[ndims() - 2] : 1; }
-    dim_t IW() const { return _src_md()->dims[ndims() - 1]; }
+    dim_t ID() const {
+        return ndims() >= 5 ? invariant_src_md()->dims[ndims() - 3] : 1;
+    }
+    dim_t IH() const {
+        return ndims() >= 4 ? invariant_src_md()->dims[ndims() - 2] : 1;
+    }
+    dim_t IW() const { return invariant_src_md()->dims[ndims() - 1]; }
 
-    dim_t OD() const { return ndims() >= 5 ? _dst_md()->dims[ndims() - 3] : 1; }
-    dim_t OH() const { return ndims() >= 4 ? _dst_md()->dims[ndims() - 2] : 1; }
-    dim_t OW() const { return _dst_md()->dims[ndims() - 1]; }
+    dim_t OD() const {
+        return ndims() >= 5 ? invariant_dst_md()->dims[ndims() - 3] : 1;
+    }
+    dim_t OH() const {
+        return ndims() >= 4 ? invariant_dst_md()->dims[ndims() - 2] : 1;
+    }
+    dim_t OW() const { return invariant_dst_md()->dims[ndims() - 1]; }
 
     dim_t KD() const {
-        return ndims() >= 5 ? _wei_md()->dims[ndims() + with_groups() - 3] : 1;
+        return ndims() >= 5
+                ? invariant_wei_md()->dims[ndims() + with_groups() - 3]
+                : 1;
     }
     dim_t KH() const {
-        return ndims() >= 4 ? _wei_md()->dims[ndims() + with_groups() - 2] : 1;
+        return ndims() >= 4
+                ? invariant_wei_md()->dims[ndims() + with_groups() - 2]
+                : 1;
     }
-    dim_t KW() const { return _wei_md()->dims[ndims() + with_groups() - 1]; }
+    dim_t KW() const {
+        return invariant_wei_md()->dims[ndims() + with_groups() - 1];
+    }
 
     dim_t KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
     dim_t KSH() const { return ndims() >= 4 ? desc_.strides[ndims() - 4] : 1; }
@@ -119,12 +124,17 @@ struct convolution_pd_t : public primitive_desc_t {
     dim_t padL() const { return desc_.padding[0][ndims() - 3]; }
     dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
-    int ndims() const { return _src_md()->ndims; }
+    int ndims() const { return invariant_src_md()->ndims; }
 
     bool with_bias() const {
-        return !memory_desc_wrapper(*_bia_md()).is_zero();
+        auto *bia_d = desc()->prop_kind == prop_kind::backward_weights
+                ? &desc()->diff_bias_desc
+                : &desc()->bias_desc;
+        return !memory_desc_wrapper(bia_d).is_zero();
     }
-    bool with_groups() const { return _wei_md()->ndims == ndims() + 1; }
+    bool with_groups() const {
+        return invariant_wei_md()->ndims == ndims() + 1;
+    }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
@@ -140,9 +150,25 @@ struct convolution_pd_t : public primitive_desc_t {
     }
 
     bool has_zero_dim_memory() const {
-        const auto s_d = memory_desc_wrapper(*_src_md());
-        const auto d_d = memory_desc_wrapper(*_dst_md());
+        const auto s_d = memory_desc_wrapper(*invariant_src_md());
+        const auto d_d = memory_desc_wrapper(*invariant_dst_md());
         return s_d.has_zero_dim() || d_d.has_zero_dim();
+    }
+
+    const memory_desc_t *invariant_src_md() const {
+        return desc()->prop_kind == prop_kind::backward_data ? diff_src_md()
+                                                             : src_md();
+    }
+    const memory_desc_t *invariant_wei_md(int index = 0) const {
+        return desc()->prop_kind == prop_kind::backward_weights
+                ? diff_weights_md(index)
+                : weights_md(index);
+    }
+    const memory_desc_t *invariant_bia_md() const {
+        return invariant_wei_md(1);
+    }
+    const memory_desc_t *invariant_dst_md() const {
+        return is_fwd() ? dst_md() : diff_dst_md();
     }
 
 protected:
@@ -187,30 +213,16 @@ protected:
             data_type_t bia_dt, data_type_t dst_dt, data_type_t acc_dt) const {
         bool ok = true
                 && (src_dt == data_type::undef
-                        || _src_md()->data_type == src_dt)
+                        || invariant_src_md()->data_type == src_dt)
                 && (wei_dt == data_type::undef
-                        || _wei_md()->data_type == wei_dt)
+                        || invariant_wei_md()->data_type == wei_dt)
                 && (dst_dt == data_type::undef
-                        || _dst_md()->data_type == dst_dt)
+                        || invariant_dst_md()->data_type == dst_dt)
                 && (acc_dt == data_type::undef
                         || desc_.accum_data_type == acc_dt);
         if (with_bias() && bia_dt != data_type::undef)
-            ok = ok && _bia_md()->data_type == bia_dt;
+            ok = ok && invariant_bia_md()->data_type == bia_dt;
         return ok;
-    }
-
-private:
-    const memory_desc_t *_src_md() const {
-        return conv_prop_invariant_src_d(&desc_);
-    }
-    const memory_desc_t *_wei_md() const {
-        return conv_prop_invariant_wei_d(&desc_);
-    }
-    const memory_desc_t *_bia_md() const {
-        return conv_prop_invariant_bia_d(&desc_);
-    }
-    const memory_desc_t *_dst_md() const {
-        return conv_prop_invariant_dst_d(&desc_);
     }
 };
 

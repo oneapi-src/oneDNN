@@ -459,6 +459,24 @@ size_t get_desc_hash<reorder_desc_t>(const op_desc_t *op_desc) {
 }
 
 template <>
+size_t get_desc_hash<resampling_desc_t>(const op_desc_t *op_desc) {
+    const auto *desc = reinterpret_cast<const resampling_desc_t *>(op_desc);
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc->primitive_kind));
+    seed = hash_combine(seed, static_cast<size_t>(desc->alg_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc->src_desc));
+    seed = hash_combine(seed, get_md_hash(desc->diff_src_desc));
+    seed = hash_combine(seed, get_md_hash(desc->dst_desc));
+    seed = hash_combine(seed, get_md_hash(desc->diff_dst_desc));
+    // Factors
+    seed = get_array_hash(seed, desc->factors, DNNL_MAX_NDIMS);
+    // Combined hash for resampling op desc
+    return seed;
+}
+
+template <>
 size_t get_desc_hash<rnn_desc_t>(const op_desc_t *op_desc) {
     const auto *desc = reinterpret_cast<const rnn_desc_t *>(op_desc);
     size_t seed = 0;
@@ -634,6 +652,10 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
             case primitive_kind::reorder:
                 seed = hash_combine(
                         seed, get_desc_hash<reorder_desc_t>(key.op_desc_));
+                break;
+            case primitive_kind::resampling:
+                seed = hash_combine(
+                        seed, get_desc_hash<resampling_desc_t>(key.op_desc_));
                 break;
             case primitive_kind::rnn:
                 seed = hash_combine(

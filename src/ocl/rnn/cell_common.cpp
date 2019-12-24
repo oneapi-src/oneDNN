@@ -149,6 +149,8 @@ template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
 template cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution);
 template cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
 template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+template cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
+template cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution);
 
 } // namespace ocl
 } // namespace impl

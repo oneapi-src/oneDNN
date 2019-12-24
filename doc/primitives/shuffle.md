@@ -2,7 +2,7 @@ Shuffle {#dev_guide_shuffle}
 ============================
 
 >
-> API reference: [C](@ref c_api_shuffle), [C++](@ref cpp_api_shuffle)
+> [API Reference](@ref dnnl_api_shuffle)
 >
 
 The shuffle primitive shuffles data along the shuffle axis (here is designated
@@ -36,7 +36,7 @@ where
 
 Here, \f$u \in [0, \frac{C}{G})\f$ and \f$v \in [0, G)\f$.
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
 There is no difference between the #dnnl_forward_training
 and #dnnl_forward_inference propagation kinds.

@@ -26,8 +26,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_bnorm_common_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -71,7 +69,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
             status_t status = jit_ref_bnorm_common_kernel::init_conf(
-                    jbn_, desc_, src_md(), this, jit_off_);
+                    jbn_, this, jit_off_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -92,7 +90,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
                 kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
         std::vector<const char *> kernel_names
-                = {"ref_bnorm_fwd_kernel", nullptr, nullptr, nullptr, nullptr};
+                = {"ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
         if (pd()->jbn_.use_16mb_unroll && pd()->jbn_.calculate_stats) {
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
@@ -164,7 +162,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
             }
 
             status_t status = jit_ref_bnorm_common_kernel::init_conf(
-                    jbn_, desc_, diff_src_md(), this, jit_off_);
+                    jbn_, this, jit_off_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -185,7 +183,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
         std::vector<const char *> kernel_names
-                = {"ref_bnorm_bwd_kernel", nullptr, nullptr};
+                = {"ref_bnorm_bwd", nullptr, nullptr};
 
         if (pd()->jbn_.use_16mb_unroll) {
             kernel_names[1] = "calculate_stats";

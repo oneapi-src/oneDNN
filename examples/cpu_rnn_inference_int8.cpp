@@ -239,7 +239,9 @@ void simple_net() {
     ///
     const float data_shift = 64.;
     const float data_scale = 63.;
-    const int weights_scale_mask = 3; // 11 for last two dimensions of ldigo
+    const int weights_scale_mask = 0
+            + (1 << 3) // bit, indicating the unique scales for `g` dim in `ldigo`
+            + (1 << 4); // bit, indicating the unique scales for `o` dim in `ldigo`
     //[quantize]
     std::vector<float> weights_scales(lstm_n_gates * feature_size);
     // assign halves of vector with arbitrary values
@@ -875,5 +877,5 @@ void simple_net() {
 }
 
 int main(int argc, char **argv) {
-    return handle_example_errors(simple_net);
+    return handle_example_errors({engine::kind::cpu}, simple_net);
 }

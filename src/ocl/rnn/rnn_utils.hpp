@@ -90,6 +90,7 @@ enum execution_direction_t {
 enum data_type_conf_t {
     all_f32,
     all_f16,
+    all_bf16,
     u8u8u8f32,
     f32u8f32f32,
     u8u8u8u8,

@@ -180,11 +180,15 @@ int fill_data_bwd(
     const auto nelems = mem_fp.nelems();
     const int range = 128;
 
-    // keep all values negative to have sum and sub of same sign, avoiding
-    // cancellation error.
+    // to avoid any cancellation erros it's better to have d_dst and dst of
+    // different signs (refer to ref computations).
+    // softmax := (d_dst - SUM (d_dst * dst); keep +d_dst and -dst.
+    // logsoftmax := d_dst - exp(dst) * SUM (d_dst); keep -d_dst and +dst.
+    // seed decides about the sign.
+    const float sign = seed % 2 == 0 ? 1.f : -1.f;
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((11 * i) + 37 + 19 * seed) % range;
-        const float value = -gen / range;
+        const float value = sign * gen / range;
         mem_fp.set_elem(i, value);
     });
 
@@ -255,8 +259,9 @@ int doit(const prb_t *p, res_t *r) {
         }
         dnn_mem_t &d_src_dt = !p->inplace ? placeholder_d_src_dt : d_dst_dt;
 
-        SAFE(fill_data_bwd(p, src_dt, src_fp, 0), WARN);
-        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp, 1), WARN);
+        const bool neg_sign = p->alg == SOFTMAX ? true : false;
+        SAFE(fill_data_bwd(p, src_dt, src_fp, neg_sign), WARN);
+        SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp, !neg_sign), WARN);
 
         args.set(DNNL_ARG_DST, src_dt);
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);

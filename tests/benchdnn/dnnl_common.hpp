@@ -238,4 +238,7 @@ void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
         const attr_t &attr, int arg, dnnl_engine_t engine);
 
+bool check_md_consistency_with_tag(
+        const dnnl_memory_desc_t &md, dnnl_format_tag_t tag);
+
 #endif

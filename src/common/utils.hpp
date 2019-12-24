@@ -32,10 +32,13 @@
 #endif
 
 #define MSAN_ENABLED 0
+#define ATTR_NO_MSAN
 #if defined(__has_feature)
 #if __has_feature(memory_sanitizer)
 #undef MSAN_ENABLED
 #define MSAN_ENABLED 1
+#undef ATTR_NO_MSAN
+#define ATTR_NO_MSAN __attribute__((no_sanitize("memory")))
 #include <sanitizer/msan_interface.h>
 #endif
 #endif
@@ -238,23 +241,29 @@ inline R array_product(const T *arr, size_t size) {
     return prod;
 }
 
-/** sorts an array of values using @p comparator. While sorting the array
- * of value, the function permutes an array of @p keys accordingly.
- *
- * @note The arrays of @p keys can be omitted. In this case the function
- *       sorts the array of @vals only.
+/* Sorts an array of @p vals using @p comparator. Uses @p vals_2nd_level as a
+ * second level comparing criteria in case comparator returns 0 (equal values)
+ * for @p vals elements.
+ * While sorting the array of @p vals, the function permutes an array of
+ * @p vals_2nd_level and @p keys accordingly.
  */
 template <typename T, typename U, typename F>
-inline void simultaneous_sort(T *vals, U *keys, size_t size, F comparator) {
+inline void simultaneous_sort(
+        T *vals, T *vals_2nd_level, U *keys, size_t size, F comparator) {
     if (size == 0) return;
 
     for (size_t i = 0; i < size - 1; ++i) {
         bool swapped = false;
 
         for (size_t j = 0; j < size - i - 1; j++) {
-            if (comparator(vals[j], vals[j + 1]) > 0) {
+            auto res = comparator(vals[j], vals[j + 1]);
+            if (res == 0)
+                res = comparator(vals_2nd_level[j], vals_2nd_level[j + 1]);
+
+            if (res > 0) {
                 nstl::swap(vals[j], vals[j + 1]);
-                if (keys) nstl::swap(keys[j], keys[j + 1]);
+                nstl::swap(vals_2nd_level[j], vals_2nd_level[j + 1]);
+                nstl::swap(keys[j], keys[j + 1]);
                 swapped = true;
             }
         }
@@ -419,6 +428,34 @@ template <typename derived_type, typename base_type>
 inline derived_type downcast(base_type *base) {
     assert(dynamic_cast<derived_type>(base) == base);
     return static_cast<derived_type>(base);
+}
+
+template <typename T,
+        typename std::enable_if<!std::is_same<typename std::decay<T>::type,
+                std::string>::value>::type * = nullptr>
+auto format_cvt_impl(T &&t) -> decltype(std::forward<T>(t)) {
+    return std::forward<T>(t);
+}
+
+template <typename T,
+        typename std::enable_if<std::is_same<typename std::decay<T>::type,
+                std::string>::value>::type * = nullptr>
+const char *format_cvt_impl(T &&t) {
+    return std::forward<T>(t).c_str();
+}
+
+template <typename... Args>
+std::string format_impl(const char *fmt, Args... args) {
+    size_t sz = snprintf(nullptr, 0, fmt, args...);
+    std::string buf(sz + 1, '\0');
+    snprintf(&buf[0], sz + 1, fmt, args...);
+    buf.resize(sz);
+    return buf;
+}
+
+template <typename... Args>
+std::string format(const char *fmt, Args &&... args) {
+    return format_impl(fmt, format_cvt_impl(std::forward<Args>(args))...);
 }
 
 } // namespace utils

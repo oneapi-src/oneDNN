@@ -19,8 +19,9 @@ The behavior is controlled with `DNNL_VERBOSE` environment variable or
 
 The function setting takes precedence over the environment variable.
 
-The first line of verbose information contains the build version and git hash,
-if available, as well as the supported instruction set architecture.
+The first lines of verbose information contain the build version and git hash,
+if available, as well as CPU and GPU runtimes, and the supported instruction
+set architecture.
 
 Each subsequent line of verbose information is formatted as a comma-separated list
 containing:

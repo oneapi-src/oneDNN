@@ -60,57 +60,39 @@ struct deconvolution_pd_t : public primitive_desc_t {
 
     /* common deconv aux functions (note that conv_desc_t == deconv_desc_t) */
 
-    dim_t MB() const { return conv_prop_invariant_src_d(&desc_)->dims[0]; }
+    dim_t MB() const { return invariant_src_md()->dims[0]; }
 
-    dim_t IC() const { return conv_prop_invariant_src_d(&desc_)->dims[1]; }
-    dim_t OC() const { return conv_prop_invariant_dst_d(&desc_)->dims[1]; }
-    dim_t G() const {
-        return with_groups() ? conv_prop_invariant_wei_d(&desc_)->dims[0] : 1;
-    }
+    dim_t IC() const { return invariant_src_md()->dims[1]; }
+    dim_t OC() const { return invariant_dst_md()->dims[1]; }
+    dim_t G() const { return with_groups() ? invariant_wei_md()->dims[0] : 1; }
 
     dim_t ID() const {
-        return ndims() >= 5
-                ? conv_prop_invariant_src_d(&desc_)->dims[ndims() - 3]
-                : 1;
+        return ndims() >= 5 ? invariant_src_md()->dims[ndims() - 3] : 1;
     }
     dim_t IH() const {
-        return ndims() >= 4
-                ? conv_prop_invariant_src_d(&desc_)->dims[ndims() - 2]
-                : 1;
+        return ndims() >= 4 ? invariant_src_md()->dims[ndims() - 2] : 1;
     }
-    dim_t IW() const {
-        return conv_prop_invariant_src_d(&desc_)->dims[ndims() - 1];
-    }
+    dim_t IW() const { return invariant_src_md()->dims[ndims() - 1]; }
 
     dim_t OD() const {
-        return ndims() >= 5
-                ? conv_prop_invariant_dst_d(&desc_)->dims[ndims() - 3]
-                : 1;
+        return ndims() >= 5 ? invariant_dst_md()->dims[ndims() - 3] : 1;
     }
     dim_t OH() const {
-        return ndims() >= 4
-                ? conv_prop_invariant_dst_d(&desc_)->dims[ndims() - 2]
-                : 1;
+        return ndims() >= 4 ? invariant_dst_md()->dims[ndims() - 2] : 1;
     }
-    dim_t OW() const {
-        return conv_prop_invariant_dst_d(&desc_)->dims[ndims() - 1];
-    }
+    dim_t OW() const { return invariant_dst_md()->dims[ndims() - 1]; }
 
     dim_t KD() const {
         const int w_ndims = ndims() + with_groups();
-        return ndims() >= 5
-                ? conv_prop_invariant_wei_d(&desc_)->dims[w_ndims - 3]
-                : 1;
+        return ndims() >= 5 ? invariant_wei_md()->dims[w_ndims - 3] : 1;
     }
     dim_t KH() const {
         const int w_ndims = ndims() + with_groups();
-        return ndims() >= 4
-                ? conv_prop_invariant_wei_d(&desc_)->dims[w_ndims - 2]
-                : 1;
+        return ndims() >= 4 ? invariant_wei_md()->dims[w_ndims - 2] : 1;
     }
     dim_t KW() const {
         const int w_ndims = ndims() + with_groups();
-        return conv_prop_invariant_wei_d(&desc_)->dims[w_ndims - 1];
+        return invariant_wei_md()->dims[w_ndims - 1];
     }
 
     dim_t KSD() const { return ndims() >= 5 ? desc_.strides[ndims() - 5] : 1; }
@@ -137,15 +119,17 @@ struct deconvolution_pd_t : public primitive_desc_t {
     dim_t padR() const { return desc_.padding[1][ndims() - 3]; }
 
     bool with_bias() const {
-        return !memory_desc_wrapper(*conv_prop_invariant_bia_d(&desc_))
-                        .is_zero();
+        auto *bia_d = desc()->prop_kind == prop_kind::backward_weights
+                ? &desc()->diff_bias_desc
+                : &desc()->bias_desc;
+        return !memory_desc_wrapper(bia_d).is_zero();
     }
 
     bool with_groups() const {
-        return conv_prop_invariant_wei_d(&desc_)->ndims == ndims() + 1;
+        return invariant_wei_md()->ndims == ndims() + 1;
     }
 
-    int ndims() const { return conv_prop_invariant_src_d(&desc_)->ndims; }
+    int ndims() const { return invariant_src_md()->ndims; }
 
     bool is_fwd() const {
         return utils::one_of(desc_.prop_kind, prop_kind::forward_training,
@@ -153,11 +137,28 @@ struct deconvolution_pd_t : public primitive_desc_t {
     }
 
     bool has_zero_dim_memory() const {
-        const auto s_d
-                = memory_desc_wrapper(*conv_prop_invariant_src_d(&desc_));
-        const auto d_d
-                = memory_desc_wrapper(*conv_prop_invariant_dst_d(&desc_));
+        const auto s_d = memory_desc_wrapper(*invariant_src_md());
+        const auto d_d = memory_desc_wrapper(*invariant_dst_md());
         return s_d.has_zero_dim() || d_d.has_zero_dim();
+    }
+
+    const memory_desc_t *invariant_src_md() const {
+        return desc()->prop_kind == prop_kind::backward_data ? diff_src_md()
+                                                             : src_md();
+    }
+    const memory_desc_t *invariant_wei_md(int index = 0) const {
+        return desc()->prop_kind == prop_kind::backward_weights
+                ? diff_weights_md(index)
+                : weights_md(index);
+    }
+    const memory_desc_t *invariant_bia_md() const {
+        return invariant_wei_md(1);
+    }
+    const memory_desc_t *invariant_dst_md() const {
+        return utils::one_of(desc()->prop_kind, prop_kind::forward_inference,
+                       prop_kind::forward_training)
+                ? dst_md()
+                : diff_dst_md();
     }
 
 protected:

@@ -23,8 +23,6 @@
 #include "compute/compute.hpp"
 #include "ocl/ocl_inner_product_pd.hpp"
 
-extern const char *gemm_inner_product_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {

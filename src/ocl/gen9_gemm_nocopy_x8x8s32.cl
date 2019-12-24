@@ -189,11 +189,11 @@
 #define GROUPSIZE_N (4 * UNROLL_N)
 
 __attribute__((intel_reqd_sub_group_size(GRX))) kernel void
-gen9_gemm_compute_x8x8s32_kernel(global FLOATA *a, global FLOATB *b,
-        global FLOATC *c, long offsetA, long offsetB, long offsetC, long lda,
-        long ldb, long ldc, long m, long n, long k, int beta, FLOATA ao,
-        FLOATB bo, global FLOATC *co, long offsetCO, int apply_co,
-        int apply_eltwise, float eltwise_alpha, float eltwise_beta) {
+gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
+        long offsetA, long offsetB, long offsetC, long lda, long ldb, long ldc,
+        long m, long n, long k, int beta, FLOATA ao, FLOATB bo,
+        global FLOATC *co, long offsetCO, int apply_co, int apply_eltwise,
+        float eltwise_alpha, float eltwise_beta) {
 
     long kk = (k + UNROLL_K - 1) & ~(UNROLL_K - 1);
     long i, j, l, ll;

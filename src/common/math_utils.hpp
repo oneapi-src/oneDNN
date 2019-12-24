@@ -33,7 +33,7 @@ namespace impl {
 namespace math {
 
 /** rounds @p f to an integer according to the mxcsr register */
-inline int mxcsr_round(float f) {
+inline int mxcsr_round(float f) ATTR_NO_MSAN {
 #if defined(DNNL_X86_64)
     return _mm_cvtss_si32(_mm_load_ss(&f));
 #else
@@ -262,7 +262,7 @@ inline U bounded_relu_fwd(T s, A alpha) {
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U bounded_relu_bwd(T dd, T s, A alpha) {
-    return dd * (0 < s && s < alpha ? 1 : 0);
+    return dd * (0 < s && s <= alpha ? 1 : 0);
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
@@ -326,12 +326,28 @@ inline U log_bwd(T dd, T s) {
     return (U)(dd * (1.f / (float)s));
 }
 
-inline bool eltwise_fwd_preserves_zero(alg_kind_t alg) {
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U clip_fwd(T s, A alpha, A beta) {
+    s = s > alpha ? s : (U)alpha;
+    return s > beta ? (U)beta : s;
+}
+
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U clip_bwd(T dd, T s, A alpha, A beta) {
+    return dd * (alpha < s && s <= beta ? 1 : 0);
+}
+
+inline bool eltwise_fwd_preserves_zero(
+        alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;
     using namespace utils;
     return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
-            eltwise_abs, eltwise_sqrt, eltwise_swish, eltwise_bounded_relu,
-            eltwise_gelu);
+                   eltwise_abs, eltwise_sqrt, eltwise_swish,
+                   eltwise_bounded_relu, eltwise_gelu)
+            || (alg == eltwise_clip && alpha <= 0 && beta >= 0)
+            || (alg == eltwise_linear && beta == 0);
 }
 
 inline float get_bias(const char *bias, size_t offset, data_type_t data_type) {

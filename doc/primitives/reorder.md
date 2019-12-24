@@ -2,7 +2,7 @@ Reorder {#dev_guide_reorder}
 ============================
 
 >
-> API reference: [C](@ref c_api_reorder), [C++](@ref cpp_api_reorder)
+> [API Reference](@ref dnnl_api_reorder)
 >
 
 The reorder primitive copies data between different memory formats but doesn't

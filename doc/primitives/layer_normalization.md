@@ -2,7 +2,7 @@ Layer Normalization {#dev_guide_layer_normalization}
 ====================================================
 
 >
-> API reference: [C](@ref c_api_layer_normalization), [C++](@ref cpp_api_layer_normalization)
+> [API Reference](@ref dnnl_api_layer_normalization)
 >
 
 The layer normalization primitive performs a forward or backward layer
@@ -43,7 +43,7 @@ used:
 
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
-#### Difference Between [Forward Training](#dnnl_forward_training) and [Forward Inference](#dnnl_forward_inference)
+#### Difference Between Forward Training and Forward Inference
 
  * If mean and variance are computed at run-time (i.e., #dnnl_use_global_stats
    is not set), they become outputs for the propagation kind

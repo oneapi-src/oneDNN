@@ -32,9 +32,11 @@ struct jit_rnn_reorder_kernel {
 
     ~jit_rnn_reorder_kernel() {}
 
-    static status_t init_conf(const reorder_pd_t *pd,
-            jit_rnn_reorder_conf_t &jrp, const memory_desc_wrapper &input_md,
-            const memory_desc_wrapper &output_md) {
+    static status_t init_conf(
+            jit_rnn_reorder_conf_t &jrp, const reorder_pd_t *pd) {
+
+        const memory_desc_wrapper input_md(pd->src_md());
+        const memory_desc_wrapper output_md(pd->dst_md());
 
         status_t status = status::success;
 
@@ -45,18 +47,21 @@ struct jit_rnn_reorder_kernel {
         jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
         jrp.ndims = input_md.ndims();
         jrp.nelems = utils::array_product(dims, jrp.ndims);
-        jrp.lws_d[0] = 1;
-        jrp.lws_d[1] = 1;
-        jrp.lws_d[2] = 1;
 
         jrp.use_ref_impl = 1;
         jrp.with_group = 0;
         jrp.sub_group_size = 1;
 
         // only for LDIGO
-        jrp.gws_d[0] = dims[0] * dims[1];
-        jrp.gws_d[1] = dims[3] * dims[4];
-        jrp.gws_d[2] = 1;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+
+        jrp.dispatch = compute_engine->create_dispatch(output_md.md_);
+        jrp.dispatch.define_dim("D0", 0, dims[0]);
+        jrp.dispatch.define_dim("D1", 1, dims[1]);
+        jrp.dispatch.define_dim("D3", 3, dims[3]);
+        jrp.dispatch.define_dim("D4", 4, dims[4]);
+        jrp.dispatch.generate();
 
         jrp.mask = pd->attr()->rnn_weights_qparams_.mask_;
         const auto &input_dims = input_md.dims();
@@ -76,10 +81,6 @@ struct jit_rnn_reorder_kernel {
         else if (jrp.with_sum_ab)
             kernel_ctx.define_int("WITH_SUM_AB", 1);
         kernel_ctx.define_int("WITH_GROUP", jrp.with_group);
-
-        kernel_ctx.define_int("LWS_0", jrp.lws_d[0]);
-        kernel_ctx.define_int("LWS_1", jrp.lws_d[1]);
-        kernel_ctx.define_int("LWS_2", jrp.lws_d[2]);
 
         auto input_type = input_md.data_type();
         auto output_type = output_md.data_type();
@@ -113,26 +114,14 @@ struct jit_rnn_reorder_kernel {
         const auto &out_dims = output_md.padded_dims();
 
         kernel_ctx.define_int("PAD_FILL_ZERO", jrp.has_padding);
-        {
-            char tempstr[32];
-            for (int d = 0; d < input_md.ndims(); ++d) {
-                snprintf(tempstr, 32, " SRC_D%d", d);
-                kernel_ctx.define_int(tempstr, in_dims[d]);
-            }
-            for (int d = input_md.ndims(); d < 6; ++d) {
-                snprintf(tempstr, 32, " SRC_D%d", d);
-                kernel_ctx.define_int(tempstr, 1);
-            }
-            for (int d = 0; d < output_md.ndims(); ++d) {
-                snprintf(tempstr, 32, " DST_D%d", d);
-                kernel_ctx.define_int(tempstr, out_dims[d]);
-            }
-            for (int d = output_md.ndims(); d < 6; ++d) {
-                snprintf(tempstr, 32, " DST_D%d", d);
-                kernel_ctx.define_int(tempstr, 1);
-            }
-        }
+        for (int d = 0; d < MAX_NDIMS; ++d)
+            kernel_ctx.define_int(utils::format("SRC_D%d", d),
+                    (d < input_md.ndims()) ? in_dims[d] : 1);
+        for (int d = 0; d < MAX_NDIMS; ++d)
+            kernel_ctx.define_int(utils::format("DST_D%d", d),
+                    (d < output_md.ndims()) ? out_dims[d] : 1);
         kernel_ctx.define_int("MASK", jrp.mask);
+        def_dispatch(kernel_ctx, jrp.dispatch);
         return status::success;
     }
 

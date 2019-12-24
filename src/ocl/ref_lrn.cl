@@ -16,63 +16,56 @@
 
 #include "ocl/ocl_types.h"
 
-#define SRC_W_STRIDE SRC_S3
-#define SRC_H_STRIDE SRC_S2
-
-#define DST_W_STRIDE DST_S3
-#define DST_H_STRIDE DST_S2
-
-#if LRN_FWD == 1
+#if IS_FWD == 1
+KERNEL_ATTR
 __kernel void ref_lrn_fwd(__global const DATA_T *src,
 #if IS_TRAINING == 1
         __global DEF_ACC_DATA_T *ws,
 #endif
         __global DATA_T *dst) {
-    const uint mb = get_global_id(GWS_MB);
-    const uint ic = get_global_id(GWS_IC);
-    const uint ih = get_global_id(GWS_HW) / IW;
-    const uint iw = get_global_id(GWS_HW) % IW;
+    const uint mb = GWS_GET_MB();
+    const uint ic = GWS_GET_IC();
+    const uint ih = GWS_GET_IH();
+    const uint iw = GWS_GET_IW();
+    const uint id = GWS_GET_ID();
 
-    const uint src_index = SRC_OFF(mb, ic, 0, ih, iw);
-    const uint dst_index = DST_OFF(mb, ic, 0, ih, iw);
+    const uint src_index = SRC_OFF(mb, ic, id, ih, iw);
+    const uint dst_index = DST_OFF(mb, ic, id, ih, iw);
 
     DEF_ACC_DATA_T sum = 0.0f;
 
 #if ACROSS_CHANNEL
-
     for (int j = 0; j < LOCAL_SIZE; j++) {
         const int z_idx = (j + ic - PADDING);
         bool zero = (z_idx < 0 || z_idx >= IC);
         DEF_ACC_DATA_T val = zero
                 ? 0.0f
-                : TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, 0, ih, iw)]);
+                : TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, id, ih, iw)]);
         sum += val * val;
     }
-
 #else
 
-    const int w_start = ((int)iw - PADDING);
-    const int h_start = ((int)ih - PADDING);
-    int src_offset = SRC_OFF(mb, ic, 0, h_start, w_start);
+    const int d = (int)id - PADDING;
+    const int h = (int)ih - PADDING;
+    const int w = (int)iw - PADDING;
 
-    for (int j = 0; j < LOCAL_SIZE; ++j) {
-        for (int i = 0; i < LOCAL_SIZE; ++i) {
-            int src_offset_w = w_start + i;
-            int src_offset_h = h_start + j;
-            bool zero = false;
-            zero = src_offset_w < 0 ? true : zero;
-            zero = src_offset_h < 0 ? true : zero;
-            zero = src_offset_w >= IW ? true : zero;
-            zero = src_offset_h >= IH ? true : zero;
+    const int d_start = max(d, 0);
+    const int h_start = max(h, 0);
+    const int w_start = max(w, 0);
+    const int d_end = min(d + LOCAL_SIZE, ID);
+    const int h_end = min(h + LOCAL_SIZE, IH);
+    const int w_end = min(w + LOCAL_SIZE, IW);
 
-            DEF_ACC_DATA_T val
-                    = zero ? DATA_ZERO : TO_DEF_ACC_DATA_T(src[src_offset]);
-
-            sum += val * val;
-            src_offset += SRC_W_STRIDE;
+    for (int k = d_start; k < d_end; ++k) {
+        for (int j = h_start; j < h_end; ++j) {
+            for (int i = w_start; i < w_end; ++i) {
+                DEF_ACC_DATA_T val
+                        = TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, ic, k, j, i)]);
+                sum += val * val;
+            }
         }
-        src_offset += SRC_H_STRIDE - LOCAL_SIZE * SRC_W_STRIDE;
     }
+
 #endif
 
     const DEF_ACC_DATA_T num_elements_div = NUM_ELEMENTS_DIV;
@@ -90,53 +83,52 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
 }
 #endif
 
-#if LRN_BWD == 1
+#if IS_BWD == 1
+KERNEL_ATTR
 __kernel void ref_lrn_bwd(__global const DATA_T *src,
         __global const DATA_T *diff_dst, __global DEF_ACC_DATA_T *ws,
         __global DATA_T *diff_src) {
-    const uint mb = get_global_id(GWS_MB);
-    const uint ic = get_global_id(GWS_IC);
-    const uint ih = get_global_id(GWS_HW) / IW;
-    const uint iw = get_global_id(GWS_HW) % IW;
+    const uint mb = GWS_GET_MB();
+    const uint ic = GWS_GET_IC();
+    const uint ih = GWS_GET_IH();
+    const uint iw = GWS_GET_IW();
+    const uint id = GWS_GET_ID();
 
-    const uint src_index = SRC_OFF(mb, ic, 0, ih, iw);
-    const uint dst_index = DST_OFF(mb, ic, 0, ih, iw);
+    const uint src_index = SRC_OFF(mb, ic, id, ih, iw);
+    const uint dst_index = DST_OFF(mb, ic, id, ih, iw);
     const DEF_ACC_DATA_T num_elements_div = NUM_ELEMENTS_DIV;
     DEF_ACC_DATA_T B = 0;
 
 #if ACROSS_CHANNEL
-
     for (int j = 0; j < LOCAL_SIZE; j++) {
         const int z_idx = (j + ic - PADDING);
         bool zero = (z_idx < 0 || z_idx >= IC);
         if (!zero) {
             DEF_ACC_DATA_T val
-                    = TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, 0, ih, iw)]);
-            DEF_ACC_DATA_T omega = ws[SRC_OFF(mb, z_idx, 0, ih, iw)];
+                    = TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, id, ih, iw)]);
+            DEF_ACC_DATA_T omega = ws[SRC_OFF(mb, z_idx, id, ih, iw)];
             DEF_ACC_DATA_T tmp = (DEF_ACC_DATA_T)1.0f
                     / native_powr(omega, (DEF_ACC_DATA_T)LRN_BETA + 1);
             B += tmp * val
                     * TO_DEF_ACC_DATA_T(
-                            diff_dst[DST_OFF(mb, z_idx, 0, ih, iw)]);
+                            diff_dst[DST_OFF(mb, z_idx, id, ih, iw)]);
         }
     }
 #else
 
-    const int w_start = ((int)iw - PADDING);
-    const int h_start = ((int)ih - PADDING);
-
-    for (int j = 0; j < LOCAL_SIZE; ++j) {
-        for (int i = 0; i < LOCAL_SIZE; ++i) {
-            int src_offset_w = w_start + i;
-            int src_offset_h = h_start + j;
-            bool zero = false;
-            zero = src_offset_w < 0 ? true : zero;
-            zero = src_offset_h < 0 ? true : zero;
-            zero = src_offset_w >= IW ? true : zero;
-            zero = src_offset_h >= IH ? true : zero;
-
-            if (!zero) {
-                int data_off = SRC_OFF(mb, ic, 0, src_offset_h, src_offset_w);
+    const int d = (int)id - PADDING;
+    const int h = (int)ih - PADDING;
+    const int w = (int)iw - PADDING;
+    const int d_start = max(d, 0);
+    const int h_start = max(h, 0);
+    const int w_start = max(w, 0);
+    const int d_end = min(d + LOCAL_SIZE, ID);
+    const int h_end = min(h + LOCAL_SIZE, IH);
+    const int w_end = min(w + LOCAL_SIZE, IW);
+    for (int k = d_start; k < d_end; ++k) {
+        for (int j = h_start; j < h_end; ++j) {
+            for (int i = w_start; i < w_end; ++i) {
+                int data_off = SRC_OFF(mb, ic, k, j, i);
                 DEF_ACC_DATA_T val = TO_DEF_ACC_DATA_T(src[data_off]);
                 DEF_ACC_DATA_T omega = ws[data_off];
                 DEF_ACC_DATA_T tmp = (DEF_ACC_DATA_T)1.0f

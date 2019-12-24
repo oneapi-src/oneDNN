@@ -26,8 +26,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_lrn_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -67,16 +65,18 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
                     ws_md_.data_type = data_type::f32;
             }
 
-            gws[0] = H() * W();
-            gws[1] = C();
-            gws[2] = MB();
-            ocl_utils::get_optimal_lws(gws, lws, 3);
+            dispatch = compute_engine->create_dispatch(&data_md_);
+            dispatch.define_dim("MB", 0, MB());
+            dispatch.define_dim("IC", 1, C());
+            dispatch.define_dim("IH", nstl::min(data_md_.ndims - 1, 2), H());
+            dispatch.define_dim("IW", nstl::min(data_md_.ndims - 1, 3), W());
+            dispatch.define_dim("ID", nstl::min(data_md_.ndims - 1, 4), D());
+            dispatch.generate();
 
             return status::success;
         }
 
-        size_t gws[3];
-        size_t lws[3];
+        compute::dispatch_t dispatch;
     };
 
     ref_lrn_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -95,7 +95,7 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
         kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        kernel_ctx.define_int("LRN_FWD", 1);
+        kernel_ctx.define_int("IS_FWD", 1);
 
         if (desc->prop_kind == prop_kind::forward_training)
             kernel_ctx.define_int("IS_TRAINING", 1);
@@ -120,9 +120,10 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         kernel_ctx.define_int("IC", pd()->C());
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
+        kernel_ctx.define_int("ID", pd()->D());
 
-        const uint32_t round_norm_size = (desc->local_size / 2) * 2 + 1;
-        uint32_t num_elements = round_norm_size * round_norm_size;
+        const uint32_t round_norm_size = desc->local_size;
+        uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
         if (desc->alg_kind == lrn_across_channels) {
             num_elements = round_norm_size;
         }
@@ -131,20 +132,19 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
         kernel_ctx.define_float("NUM_ELEMENTS_DIV", num_element_div);
         kernel_ctx.define_int("PADDING", padding);
-        kernel_ctx.define_int("LOCAL_SIZE", desc->local_size);
+        kernel_ctx.define_int(
+                "LOCAL_SIZE", desc->local_size - 1 + desc->local_size % 2);
         kernel_ctx.define_float("LRN_ALPHA", desc->lrn_alpha);
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
-
-        kernel_ctx.define_int("GWS_MB", 2);
-        kernel_ctx.define_int("GWS_IC", 1);
-        kernel_ctx.define_int("GWS_HW", 0);
 
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
         set_offsets(dst_d, jit_off.dst_off);
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
+
+        def_dispatch(kernel_ctx, pd()->dispatch);
 
         compute_engine->create_kernel(&kernel_, "ref_lrn_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
@@ -195,16 +195,18 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
                 ws_md_.data_type = data_type::f32;
             if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
 
-            gws[0] = H() * W();
-            gws[1] = C();
-            gws[2] = MB();
-            ocl_utils::get_optimal_lws(gws, lws, 3);
+            dispatch = compute_engine->create_dispatch(&diff_data_md_);
+            dispatch.define_dim("MB", 0, MB());
+            dispatch.define_dim("IC", 1, C());
+            dispatch.define_dim("IH", nstl::min(data_md_.ndims - 1, 2), H());
+            dispatch.define_dim("IW", nstl::min(data_md_.ndims - 1, 3), W());
+            dispatch.define_dim("ID", nstl::min(data_md_.ndims - 1, 4), D());
+            dispatch.generate();
 
             return status::success;
         }
 
-        size_t gws[3];
-        size_t lws[3];
+        compute::dispatch_t dispatch;
     };
 
     ref_lrn_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -223,7 +225,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 
         kernel_ctx.set_data_type(desc->data_desc.data_type);
 
-        kernel_ctx.define_int("LRN_BWD", 1);
+        kernel_ctx.define_int("IS_BWD", 1);
 
         switch (desc->alg_kind) {
             case lrn_across_channels:
@@ -245,9 +247,10 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         kernel_ctx.define_int("IC", pd()->C());
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
+        kernel_ctx.define_int("ID", pd()->D());
 
-        const uint32_t round_norm_size = (desc->local_size / 2) * 2 + 1;
-        uint32_t num_elements = round_norm_size * round_norm_size;
+        const uint32_t round_norm_size = desc->local_size;
+        uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
         if (desc->alg_kind == lrn_across_channels) {
             num_elements = round_norm_size;
         }
@@ -256,20 +259,19 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 
         kernel_ctx.define_float("NUM_ELEMENTS_DIV", num_element_div);
         kernel_ctx.define_int("PADDING", padding);
-        kernel_ctx.define_int("LOCAL_SIZE", desc->local_size);
+        kernel_ctx.define_int(
+                "LOCAL_SIZE", desc->local_size - 1 + desc->local_size % 2);
         kernel_ctx.define_float("LRN_ALPHA", desc->lrn_alpha);
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
-
-        kernel_ctx.define_int("GWS_MB", 2);
-        kernel_ctx.define_int("GWS_IC", 1);
-        kernel_ctx.define_int("GWS_HW", 0);
 
         jit_offsets jit_off;
         set_offsets(src_d, jit_off.src_off);
         set_offsets(diff_dst_d, jit_off.dst_off);
         def_offsets(jit_off.src_off, kernel_ctx, "SRC", ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DST", ndims);
+
+        def_dispatch(kernel_ctx, pd()->dispatch);
 
         compute_engine->create_kernel(&kernel_, "ref_lrn_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;

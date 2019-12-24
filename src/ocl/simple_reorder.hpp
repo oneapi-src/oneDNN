@@ -24,8 +24,6 @@
 #include "ocl/ocl_reorder_pd.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *simple_reorder_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -82,8 +80,7 @@ struct simple_reorder_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_simple_reorder_kernel::init_conf(
-                    this, jrp_, src_md(), dst_md());
+            status_t status = jit_simple_reorder_kernel::init_conf(jrp_, this);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -102,6 +99,9 @@ struct simple_reorder_t : public primitive_impl_t {
         auto status = jit_simple_reorder_kernel::init_const_def(
                 kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
         if (status != status::success) return status;
+
+        const auto &jrp = pd()->jrp_;
+        if (jrp.nelems == 0) return status::success;
 
         compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;

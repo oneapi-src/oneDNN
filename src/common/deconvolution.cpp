@@ -86,6 +86,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
 
     dd.accum_data_type = types::default_accum_data_type(src_desc->data_type,
             weights_desc->data_type, dst_desc->data_type, prop_kind);
+    if (dd.accum_data_type == data_type::undef) return invalid_arguments;
 
     const int g = with_groups ? weights_desc->dims[0] : 1;
     bool consistency = true && src_desc->ndims == dst_desc->ndims

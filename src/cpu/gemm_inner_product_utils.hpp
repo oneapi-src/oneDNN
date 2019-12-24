@@ -37,18 +37,23 @@ template <impl::data_type_t acc_type, impl::data_type_t dst_type>
 class pp_kernel_t : jit_generator {
 public:
     DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_x8s8s32x_inner_product_fwd_t::pp_kernel);
-    pp_kernel_t(size_t OC, const primitive_attr_t *attr, data_type_t bias_dt,
-            bool skip_sum);
+    pp_kernel_t(size_t OC, size_t MB, const primitive_attr_t *attr,
+            data_type_t bias_dt, bool skip_sum);
     pp_kernel_t(const cpu_inner_product_fwd_pd_t *pd, bool skip_sum);
     ~pp_kernel_t() {
         if (do_eltwise_) {
             delete eltwise_injector_;
             delete ref_eltwise_;
         }
+        delete bf16_emu_;
     }
 
     typedef typename prec_traits<acc_type>::type acc_data_t;
     typedef typename prec_traits<dst_type>::type dst_data_t;
+
+    // mb kernel only supports single-threaded execution where performance
+    // degradation is larger
+    bool sequential_kernel() const { return mb_blk_kernel; }
 
     void operator()(dst_data_t *dst, const acc_data_t *acc, const char *bias,
             const float *scales, size_t start, size_t end,
@@ -56,6 +61,8 @@ public:
 
 private:
     void generate();
+    void compute_oc_channel_blk();
+    void compute_mb_blk(); // vectorize across minibatch
 
     struct ker_args {
         dst_data_t *dst;
@@ -102,6 +109,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(31);
 
     size_t OC_;
+    size_t MB_;
     data_type_t bias_data_type_;
     size_t bias_data_type_size_;
     bool do_scale_;
@@ -117,9 +125,13 @@ private:
     int idx_compute_vreg_max_;
     int compute_vregs_per_iter_;
     int compute_vreg_bias_shift_, compute_vreg_prev_dst_shift_;
+    bool mb_blk_kernel;
+
+    const size_t vlen = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
     bool do_bias() const { return bias_data_type_ != data_type::undef; }
     bool runtime_oc() const { return OC_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
+    bool runtime_mb() const { return MB_ == (size_t)DNNL_RUNTIME_DIM_VAL; }
 
     Xbyak::Zmm vreg_dst(int iter) {
         int idx = idx_compute_vreg_start_ + iter * compute_vregs_per_iter_;

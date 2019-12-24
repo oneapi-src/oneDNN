@@ -77,7 +77,23 @@ struct exec_ctx_t {
     void unmap_memory_storage(
             const memory_storage_t *storage, void *mapped_ptr) const;
 
-    memory_desc_wrapper memory_mdw(int arg) const;
+    // Returns memory descriptor wrapper for the corresponding memory argument.
+    //
+    // To support sub-memory flow (when primitive descriptor was created with
+    // a sub-memory, but the primitive is executed on the original memory),
+    // it is recommended to pass the memory descriptor from the primitive
+    // descriptor. If this memory descriptor is fully defined (i.e. no reason
+    // to use memory descriptor from the input memory), exactly it will be
+    // returned.
+    //
+    // Note: fully defined memory descriptor mentioned above is a synonym to
+    //       `mdw::has_runtime_dims_or_strides() == false`.
+    //
+    // XXX: revisit this behavior in DNNL 2.0. It would be more consistent to
+    //      take memory description from the incoming argument. This will
+    //      require a sub-memory object, though...
+    memory_desc_wrapper memory_mdw(int arg,
+            const memory_desc_t *md_from_primitive_desc = nullptr) const;
 
     void set_scratchpad_grantor(
             const memory_tracking::grantor_t &scratchpad_grantor);

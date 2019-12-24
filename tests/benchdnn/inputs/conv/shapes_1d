@@ -1,8 +1,11 @@
 # 1D convolution
 g128ic128iw16oc128ow16kw3sw1pw1n"conv_dw"
 
-g1mb50ic3iw224oc64kw7sw1pw0n"conv1d:1"
+g2_ic32oc32_iw27kw2_n"1d_gconv_channel-block-16"
+g8_ic64oc64_iw9kw2_n"1d_gconv_channel-block-8"
+g6_ic24oc24_iw11kw3_n"1d_gconv_channel-block-4"
 
+g1mb50ic3iw224oc64kw7sw1pw0n"conv1d:1"
 g1mb50ic3iw224oc64ow112kw7sw2pw3n"conv1d:2"
 g1mb50ic256iw56oc512ow28kw1sw2pw0n"conv1d:3"
 g1mb50ic256iw56oc128ow28kw1sw2pw0n"conv1d:4"

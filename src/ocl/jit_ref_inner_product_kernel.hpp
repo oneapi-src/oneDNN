@@ -26,20 +26,22 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-struct jit_ref_inner_product_fwd_kernel {
+struct jit_ref_inner_product_kernel {
 
-    jit_ref_inner_product_fwd_kernel(const jit_inner_product_conf_t &ajip)
+    jit_ref_inner_product_kernel(const jit_inner_product_conf_t &ajip)
         : jip(ajip) {}
 
-    ~jit_ref_inner_product_fwd_kernel() {}
+    ~jit_ref_inner_product_kernel() {}
 
     static status_t init_conf(jit_inner_product_conf_t &jip,
-            const inner_product_pd_t *pd, const memory_desc_wrapper &src_d,
-            const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
-            jit_offsets &jit_off, data_type_t acc_data_type) {
+            const inner_product_pd_t *pd, jit_offsets &jit_off) {
 
         const inner_product_desc_t &ipd = *pd->desc();
+        const memory_desc_wrapper src_d(pd->invariant_src_md());
+        const memory_desc_wrapper weights_d(pd->invariant_wei_md());
+        const memory_desc_wrapper dst_d(pd->invariant_dst_md());
+        data_type_t acc_data_type = pd->desc()->accum_data_type;
+
         const int ndims = src_d.ndims();
 
         jip.ndims = ndims;
@@ -75,18 +77,37 @@ struct jit_ref_inner_product_fwd_kernel {
         jip.is_backward_data = ipd.prop_kind == prop_kind::backward_data;
         jip.is_backward_weights = ipd.prop_kind == prop_kind::backward_weights;
 
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
         if (jip.is_forward) {
             jip.with_bias = ipd.bias_desc.format_kind != format_kind::undef;
             jip.bia_dt
                     = jip.with_bias ? ipd.bias_desc.data_type : data_type::f32;
+            jip.dispatch = compute_engine->create_dispatch(dst_d.md_);
+            jip.dispatch.define_dim("MB", 0, jip.mb);
+            jip.dispatch.define_dim("OC", 1, jip.oc);
+            jip.dispatch.generate();
         } else if (jip.is_backward_weights) {
             jip.with_bias
                     = ipd.diff_bias_desc.format_kind != format_kind::undef;
             jip.bia_dt = jip.with_bias ? ipd.diff_bias_desc.data_type
                                        : data_type::f32;
+            jip.dispatch = compute_engine->create_dispatch(weights_d.md_);
+            jip.dispatch.define_dim("OC", 0, jip.oc);
+            jip.dispatch.define_dim("IC", 1, jip.ic);
+            jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
+            jip.dispatch.define_dim("KH", nstl::max(1, ndims - 2), jip.kh);
+            jip.dispatch.define_dim("KW", nstl::max(1, ndims - 1), jip.kw);
+            jip.dispatch.generate();
         } else {
             jip.with_bias = 0;
             jip.bia_dt = data_type::f32;
+            jip.dispatch = compute_engine->create_dispatch(src_d.md_);
+            jip.dispatch.define_dim("MB_IC", 0, jip.mb * jip.ic);
+            jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
+            jip.dispatch.define_dim("KH", nstl::max(1, ndims - 2), jip.kh);
+            jip.dispatch.define_dim("KW", nstl::max(1, ndims - 1), jip.kw);
+            jip.dispatch.generate();
         }
 
         set_offsets(src_d, jit_off.src_off);
@@ -118,11 +139,11 @@ struct jit_ref_inner_product_fwd_kernel {
         if (jip.has_spatial) kernel_ctx.define_int("HAS_SPATIAL", 1);
 
         if (jip.is_forward)
-            kernel_ctx.define_int("INNER_PRODUCT_FWD", 1);
+            kernel_ctx.define_int("IS_FWD", 1);
         else if (jip.is_backward_data)
-            kernel_ctx.define_int("INNER_PRODUCT_BWD_DATA", 1);
+            kernel_ctx.define_int("IS_BWD_D", 1);
         else if (jip.is_backward_weights)
-            kernel_ctx.define_int("INNER_PRODUCT_BWD_WEIGHTS", 1);
+            kernel_ctx.define_int("IS_BWD_W", 1);
 
         if (with_eltwise) { def_postops(kernel_ctx, alg); }
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
@@ -143,6 +164,8 @@ struct jit_ref_inner_product_fwd_kernel {
         def_data_type(kernel_ctx, jip.bia_dt, "BIA");
         def_data_type(kernel_ctx, jip.dst_dt, "DST");
         def_data_type(kernel_ctx, jip.acc_dt, "ACC");
+
+        def_dispatch(kernel_ctx, jip.dispatch);
 
         return status::success;
     }

@@ -17,6 +17,7 @@
 #ifndef JIT_REF_BINARY_COMMON_KERNEL_HPP
 #define JIT_REF_BINARY_COMMON_KERNEL_HPP
 
+#include "common/binary_pd.hpp"
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "compute/compute.hpp"
@@ -32,10 +33,15 @@ struct jit_ref_binary_common_kernel {
 
     ~jit_ref_binary_common_kernel() {}
 
-    static status_t init_conf(jit_binary_conf_t &jib,
-            const memory_desc_wrapper &src0_d,
-            const memory_desc_wrapper &src1_d, const memory_desc_wrapper &dst_d,
-            alg_kind_t alg, const dims_t &broadcast_dims, bool is_tensor_op) {
+    static status_t init_conf(jit_binary_conf_t &jib, const binary_pd_t *pd) {
+
+        const memory_desc_wrapper src0_d(pd->src_md(0));
+        const memory_desc_wrapper src1_d(pd->src_md(1));
+        const memory_desc_wrapper dst_d(pd->dst_md());
+
+        alg_kind_t alg = pd->desc()->alg_kind;
+        const dims_t &broadcast_dims = pd->broadcast_dims();
+        bool is_tensor_op = pd->is_tensor_op();
 
         const int ndims = src0_d.ndims();
         jib.src0_md_info = jit_memory_desc_info_t::create(src0_d);
@@ -43,17 +49,29 @@ struct jit_ref_binary_common_kernel {
         jib.dst_md_info = jit_memory_desc_info_t::create(dst_d);
         jib.data_type = src0_d.data_type();
         jib.ndims = ndims;
-        for (int i = 0; i < ndims; ++i) {
-            jib.dim0[i] = src0_d.dims()[i];
-            jib.bcast_dims[i] = broadcast_dims[i];
+        for (int i = 0; i < MAX_NDIMS; ++i) {
+            jib.bcast_dims[i] = i < ndims ? broadcast_dims[i] : 1;
         }
         jib.is_add = (alg == alg_kind::binary_add);
         jib.is_mul = (alg == alg_kind::binary_mul);
         jib.is_tensor_op = is_tensor_op;
+        jib.is_dense = dst_d.is_dense();
+        jib.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
 
-        jib.gws_d[0] = utils::array_product(src0_d.dims(), ndims);
-        jib.gws_d[1] = 1;
-        jib.gws_d[2] = 1;
+        auto *compute_engine
+                = utils::downcast<compute::compute_engine_t *>(pd->engine());
+        jib.dispatch = compute_engine->create_dispatch(dst_d.md_);
+        if (jib.is_tensor_op && jib.is_dense && jib.is_same_md) {
+            jib.dispatch.define_dim("IDX", 0, dst_d.nelems());
+        } else {
+            for (int i = 0; i < MAX_NDIMS; ++i) {
+                jib.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1),
+                        i < ndims ? dst_d.dims()[i] : 1);
+            }
+        }
+
+        jib.dispatch.generate();
 
         return status::success;
     }
@@ -66,12 +84,8 @@ struct jit_ref_binary_common_kernel {
         kernel_ctx.define_int("IS_MUL", jib.is_mul);
         kernel_ctx.define_int("IS_ADD", jib.is_add);
         kernel_ctx.define_int("IS_TENSOR_OP", jib.is_tensor_op);
-        kernel_ctx.define_int("DIM0", jib.dim0[0]);
-        kernel_ctx.define_int("DIM1", jib.dim0[1]);
-        kernel_ctx.define_int("DIM2", jib.dim0[2]);
-        kernel_ctx.define_int("DIM3", jib.dim0[3]);
-        kernel_ctx.define_int("DIM4", jib.dim0[4]);
-        kernel_ctx.define_int("DIM5", jib.dim0[5]);
+        kernel_ctx.define_int("IS_DENSE", jib.is_dense);
+        kernel_ctx.define_int("IS_SAME_MD", jib.is_same_md);
         kernel_ctx.define_int("BCAST_DIM0", jib.bcast_dims[0]);
         kernel_ctx.define_int("BCAST_DIM1", jib.bcast_dims[1]);
         kernel_ctx.define_int("BCAST_DIM2", jib.bcast_dims[2]);
@@ -82,6 +96,8 @@ struct jit_ref_binary_common_kernel {
         def_memory_desc_info(kernel_ctx, jib.src0_md_info, "SRC0");
         def_memory_desc_info(kernel_ctx, jib.src1_md_info, "SRC1");
         def_memory_desc_info(kernel_ctx, jib.dst_md_info, "DST");
+
+        def_dispatch(kernel_ctx, jib.dispatch);
 
         return status::success;
     }

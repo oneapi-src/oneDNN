@@ -20,11 +20,16 @@
 #include "cpu_rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
-#include "jit_uni_gru_cell_postgemm_1.hpp"
-#include "jit_uni_gru_cell_postgemm_2.hpp"
-#include "jit_uni_gru_lbr_cell_postgemm.hpp"
-#include "jit_uni_lstm_cell_postgemm.hpp"
-#include "jit_uni_rnn_cell_postgemm.hpp"
+#include "jit_uni_gru_cell_postgemm_1_bwd.hpp"
+#include "jit_uni_gru_cell_postgemm_1_fwd.hpp"
+#include "jit_uni_gru_cell_postgemm_2_bwd.hpp"
+#include "jit_uni_gru_cell_postgemm_2_fwd.hpp"
+#include "jit_uni_gru_lbr_cell_postgemm_bwd.hpp"
+#include "jit_uni_gru_lbr_cell_postgemm_fwd.hpp"
+#include "jit_uni_lstm_cell_postgemm_bwd.hpp"
+#include "jit_uni_lstm_cell_postgemm_fwd.hpp"
+#include "jit_uni_rnn_cell_postgemm_bwd.hpp"
+#include "jit_uni_rnn_cell_postgemm_fwd.hpp"
 #include "jit_uni_rnn_common_postgemm.hpp"
 
 namespace dnnl {
@@ -62,19 +67,28 @@ struct rnn_postgemm_dispatcher {
             MAYBE_UNUSED(ngates);
         }
 
-        bool jit_path = utils::one_of(pd->desc()->prop_kind,
-                                prop_kind::forward_inference,
-                                prop_kind::forward_training)
-                && utils::one_of(src_type, data_type::f32, data_type::u8,
-                        data_type::bf16)
+        bool jit_path
+                = utils::one_of(pd->desc()->prop_kind,
+                          prop_kind::forward_inference,
+                          prop_kind::forward_training, prop_kind::backward)
                 && !pd->attr()->rnn_tparams_.test_mode_;
+
+        bool jit_fwd = jit_path
+                && utils::one_of(pd->desc()->prop_kind,
+                        prop_kind::forward_inference,
+                        prop_kind::forward_training)
+                && utils::one_of(src_type, data_type::f32, data_type::u8,
+                        data_type::bf16);
+        bool jit_bwd = jit_path
+                && utils::one_of(pd->desc()->prop_kind, prop_kind::backward)
+                && utils::one_of(src_type, data_type::f32, data_type::bf16);
 
         switch (pd->cell_kind()) {
             case alg_kind::vanilla_lstm:
                 // ref path
                 postgemm_func = &class_name::lstm_postgemm;
                 // jitted path
-                if (jit_path) {
+                if (jit_fwd) {
                     if (mayiuse(avx512_core))
                         rnn_postgemm_ = new jit_uni_lstm_cell_postgemm_fwd<
                                 avx512_core, src_type, scratch_type>(rnn, pd);
@@ -84,6 +98,18 @@ struct rnn_postgemm_dispatcher {
                     else if (mayiuse(sse41))
                         rnn_postgemm_
                                 = new jit_uni_lstm_cell_postgemm_fwd<sse41,
+                                        src_type, scratch_type>(rnn, pd);
+                }
+                if (jit_bwd) {
+                    if (mayiuse(avx512_core))
+                        rnn_postgemm_ = new jit_uni_lstm_cell_postgemm_bwd<
+                                avx512_core, src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(avx2))
+                        rnn_postgemm_ = new jit_uni_lstm_cell_postgemm_bwd<avx2,
+                                src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(sse41))
+                        rnn_postgemm_
+                                = new jit_uni_lstm_cell_postgemm_bwd<sse41,
                                         src_type, scratch_type>(rnn, pd);
                 }
                 break;
@@ -107,7 +133,7 @@ struct rnn_postgemm_dispatcher {
                     default: assert(!"Unsupported activation function"); break;
                 }
                 // jitted path
-                if (jit_path) {
+                if (jit_fwd) {
                     if (mayiuse(avx512_core))
                         rnn_postgemm_
                                 = new jit_uni_rnn_cell_postgemm_fwd<avx512_core,
@@ -119,13 +145,25 @@ struct rnn_postgemm_dispatcher {
                         rnn_postgemm_ = new jit_uni_rnn_cell_postgemm_fwd<sse41,
                                 src_type, scratch_type>(rnn, pd);
                 }
+                if (jit_bwd) {
+                    if (mayiuse(avx512_core))
+                        rnn_postgemm_
+                                = new jit_uni_rnn_cell_postgemm_bwd<avx512_core,
+                                        src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(avx2))
+                        rnn_postgemm_ = new jit_uni_rnn_cell_postgemm_bwd<avx2,
+                                src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(sse41))
+                        rnn_postgemm_ = new jit_uni_rnn_cell_postgemm_bwd<sse41,
+                                src_type, scratch_type>(rnn, pd);
+                }
                 break;
             case alg_kind::vanilla_gru:
                 // ref path
                 postgemm_func = &class_name::gru_part1_postgemm;
                 postgemm_part2_func = &class_name::gru_part2_postgemm;
                 // jitted path
-                if (jit_path) {
+                if (jit_fwd) {
                     if (mayiuse(avx512_core)) {
                         rnn_postgemm_ = new jit_uni_gru_cell_postgemm_part1_fwd<
                                 avx512_core, src_type, scratch_type>(rnn, pd);
@@ -149,12 +187,36 @@ struct rnn_postgemm_dispatcher {
                                         src_type, scratch_type>(rnn, pd);
                     }
                 }
+                if (jit_bwd) {
+                    if (mayiuse(avx512_core)) {
+                        rnn_postgemm_ = new jit_uni_gru_cell_postgemm_part1_bwd<
+                                avx512_core, src_type, scratch_type>(rnn, pd);
+                        rnn_postgemm_part2_
+                                = new jit_uni_gru_cell_postgemm_part2_bwd<
+                                        avx512_core, src_type, scratch_type>(
+                                        rnn, pd);
+                    } else if (mayiuse(avx2)) {
+                        rnn_postgemm_
+                                = new jit_uni_gru_cell_postgemm_part1_bwd<avx2,
+                                        src_type, scratch_type>(rnn, pd);
+                        rnn_postgemm_part2_
+                                = new jit_uni_gru_cell_postgemm_part2_bwd<avx2,
+                                        src_type, scratch_type>(rnn, pd);
+                    } else if (mayiuse(sse41)) {
+                        rnn_postgemm_
+                                = new jit_uni_gru_cell_postgemm_part1_bwd<sse41,
+                                        src_type, scratch_type>(rnn, pd);
+                        rnn_postgemm_part2_
+                                = new jit_uni_gru_cell_postgemm_part2_bwd<sse41,
+                                        src_type, scratch_type>(rnn, pd);
+                    }
+                }
                 break;
             case alg_kind::lbr_gru:
                 // ref path
                 postgemm_func = &class_name::gru_lbr_postgemm;
                 // jitted path
-                if (jit_path) {
+                if (jit_fwd) {
                     if (mayiuse(avx512_core))
                         rnn_postgemm_ = new jit_uni_gru_lbr_cell_postgemm_fwd<
                                 avx512_core, src_type, scratch_type>(rnn, pd);
@@ -167,6 +229,19 @@ struct rnn_postgemm_dispatcher {
                                 = new jit_uni_gru_lbr_cell_postgemm_fwd<sse41,
                                         src_type, scratch_type>(rnn, pd);
                     assert(rnn_postgemm_ != nullptr);
+                }
+                if (jit_bwd) {
+                    if (mayiuse(avx512_core))
+                        rnn_postgemm_ = new jit_uni_gru_lbr_cell_postgemm_bwd<
+                                avx512_core, src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(avx2))
+                        rnn_postgemm_
+                                = new jit_uni_gru_lbr_cell_postgemm_bwd<avx2,
+                                        src_type, scratch_type>(rnn, pd);
+                    else if (mayiuse(sse41))
+                        rnn_postgemm_
+                                = new jit_uni_gru_lbr_cell_postgemm_bwd<sse41,
+                                        src_type, scratch_type>(rnn, pd);
                 }
                 break;
             default: assert(!"Unsupported algorithm kind"); break;
@@ -233,10 +308,12 @@ using rnn_postgemm_fwd_f32_t = rnn_postgemm_dispatcher<prop_kind::forward,
         data_type::f32, data_type::f32>;
 using rnn_postgemm_bwd_f32_t = rnn_postgemm_dispatcher<prop_kind::backward,
         data_type::f32, data_type::f32>;
+
 using rnn_postgemm_fwd_bf16_t = rnn_postgemm_dispatcher<prop_kind::forward,
         data_type::bf16, data_type::f32>;
 using rnn_postgemm_bwd_bf16_t = rnn_postgemm_dispatcher<prop_kind::backward,
-        data_type::bf16, data_type::f32>;
+        data_type::bf16, data_type::bf16>;
+
 using rnn_postgemm_fwd_u8_t = rnn_postgemm_dispatcher<prop_kind::forward,
         data_type::u8, data_type::s32>;
 

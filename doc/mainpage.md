@@ -29,8 +29,8 @@ on Intel CPUs and GPUs.
    * @ref dev_guide_attributes_quantization
    * @ref dev_guide_attributes_post_ops
  * @ref dev_guide_data_types
- * @ref dev_guide_c_and_cpp_apis
  * @ref cross_engine_reorder_cpp
+ * @ref dev_guide_c_and_cpp_apis
 
 # Primitives
 
@@ -49,6 +49,7 @@ Memory bandwidth limited operations:
  * [Local Response Normalization](@ref dev_guide_lrn)
  * [LogSoftmax](@ref dev_guide_logsoftmax)
  * [Pooling](@ref dev_guide_pooling)
+ * [Resampling](@ref dev_guide_resampling)
  * [Shuffle](@ref dev_guide_shuffle)
  * [Softmax](@ref dev_guide_softmax)
  * [Sum](@ref dev_guide_sum)
@@ -63,6 +64,7 @@ Data manipulation:
  * @ref dev_guide_profilers
  * @ref dev_guide_inspecting_jit
  * @ref performance_profiling_cpp
+ * @ref dev_guide_cpu_dispatcher_control
 
 # Advanced topics
 

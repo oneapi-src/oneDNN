@@ -27,8 +27,6 @@
 #include "ocl/ocl_sum_pd.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *simple_sum_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -56,7 +54,7 @@ struct simple_sum_t : public primitive_impl_t {
                 if (i_d != o_d) return status::unimplemented;
             }
 
-            return jit_simple_sum_kernel::init_conf(jss_, src_md(0));
+            return jit_simple_sum_kernel::init_conf(jss_, this);
         }
         jit_simple_sum_conf_t jss_;
     };
@@ -72,8 +70,7 @@ struct simple_sum_t : public primitive_impl_t {
 
         jit_simple_sum_kernel::init_const_def(kernel_ctx, pd()->jss_);
 
-        compute_engine->create_kernel(
-                &kernel_, "simple_sum_kernel", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, "simple_sum", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;

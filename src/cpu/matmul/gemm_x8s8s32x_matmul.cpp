@@ -33,8 +33,21 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace matmul {
 
 using namespace data_type;
+
+namespace {
+template <typename pd_t>
+bool need_post_processing(const pd_t *pd, float runtime_dst_zero_point = 0.f) {
+    return pd->with_bias() || pd->dst_md()->data_type != s32
+            || !pd->params().dst_is_acc_
+            || !pd->params().pp_attr_.has_default_values()
+            || !pd->params().pp_attr_.zero_points_.has_default_values(
+                    DNNL_ARG_DST)
+            || runtime_dst_zero_point != 0.f;
+}
+} // namespace
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
 status_t
@@ -42,15 +55,9 @@ gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init() {
     using namespace utils;
 
     auto check_bias = [&]() -> bool {
-        if (!with_bias()) return true;
-
-        const auto &bia_md = *weights_md(1);
-        bool ok = one_of(weights_md(1)->data_type, f32, s32, s8, u8)
-                && bia_md.dims[0] == 1
-                && IMPLICATION(batched(), bia_md.dims[1] == 1)
-                && bia_md.dims[batched() + 1] == dst_md()->dims[batched() + 1];
-
-        return ok;
+        return !with_bias()
+                || (utils::one_of(weights_md(1)->data_type, f32, s32, s8, u8)
+                        && is_bias_1xN());
     };
 
     auto check_attr_oscale = [&]() -> bool {
@@ -78,18 +85,27 @@ gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init() {
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::zero_points_runtime
                     | primitive_attr_t::skip_mask_t::post_ops)
-            && check_attr_oscale() && check_attr_post_ops()
-            && set_default_formats();
+            && check_attr_oscale() && check_attr_post_ops();
     if (!ok) return status::unimplemented;
 
-    bool do_sum = attr()->post_ops_.find(primitive_kind::sum) >= 0;
-    dst_is_acc_ = utils::one_of(dst_type, s32, f32) && !do_sum;
+    // set states
 
-    if (!dst_is_acc_ && !one_of(DNNL_RUNTIME_DIM_VAL, batch(), M(), N())) {
-        auto scratchpad = scratchpad_registry().registrar();
-        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
-                sizeof(acc_data_t) * batch() * M() * N());
-    }
+    // copy attributes and drop src and weights zero points
+    params_.pp_attr_ = *attr();
+    params_.pp_attr_.zero_points_.set(DNNL_ARG_SRC, 0);
+    params_.pp_attr_.zero_points_.set(DNNL_ARG_WEIGHTS, 0);
+
+    params_.gemm_applies_output_scales_ = false;
+    params_.gemm_beta_ = 0.f;
+
+    bool do_sum = params_.pp_attr_.post_ops_.find(primitive_kind::sum) >= 0;
+    params_.dst_is_acc_ = utils::one_of(dst_type, s32, f32) && !do_sum;
+
+    params_.has_pp_kernel_ = need_post_processing(this);
+
+    if (!set_default_formats()) return status::unimplemented;
+
+    gemm_based::book_acc_scratchpad(*this, params_, sizeof(acc_data_t));
 
     return status::success;
 }
@@ -119,11 +135,13 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     }
     const float dst_zero_point_f32 = (float)dst_zero_point;
 
-    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
-    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
-    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
+    const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
+    const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
+    const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
-    acc_data_t *acc = pd()->dst_is_acc_
+    const gemm_based::params_t &params = pd()->params();
+
+    acc_data_t *acc = params.dst_is_acc_
             ? (acc_data_t *)dst
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     memory_tracking::names::key_matmul_dst_in_acc_dt);
@@ -166,13 +184,13 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
         const int ldc = (int)dst_bd.strides[batched + 0];
 
-        const float onef = 1.0, zerof = 0.0;
+        const float alpha = params.get_gemm_alpha(scales);
+        const float beta = params.gemm_beta_;
         const int32_t gemm_off_c = 0;
 
         status_t status = gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32,
-                &K_s32, &onef, weights, &ldb, &gemm_off_b, src, &lda,
-                &gemm_off_a, &zerof, acc, &ldc, &gemm_off_c);
-        assert(status == status::success);
+                &K_s32, &alpha, weights, &ldb, &gemm_off_b, src, &lda,
+                &gemm_off_a, &beta, acc, &ldc, &gemm_off_c);
         if (status != status::success) {
             if (need_free_acc) free(acc);
             return status;
@@ -205,12 +223,12 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         }
     }
 
-    const bool postops_in_matmul = pd()->with_bias()
-            || !pd()->attr()->has_default_values() || !pd()->dst_is_acc_
-            || dst_type != s32 || dst_zero_point_f32 != 0.f;
+    bool postops_in_matmul = need_post_processing(pd(), dst_zero_point_f32);
+    assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
 
     if (postops_in_matmul) {
-        parallel(0, [&](int ithr, int nthr) {
+        const bool force_sequential = pp_kernel_->sequential_kernel();
+        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start {}, end {};
             balance211((size_t)(M * N), nthr, ithr, start, end);
             (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
@@ -232,6 +250,7 @@ template struct gemm_x8s8s32x_matmul_t<u8, s8, s32>;
 template struct gemm_x8s8s32x_matmul_t<u8, s8, s8>;
 template struct gemm_x8s8s32x_matmul_t<u8, s8, u8>;
 
+} // namespace matmul
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

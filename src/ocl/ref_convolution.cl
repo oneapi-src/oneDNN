@@ -19,7 +19,9 @@
 #include "ocl/ocl_post_ops.h"
 #endif
 
-__kernel void ref_convolution_fwd_kernel(
+#if IS_FWD
+KERNEL_ATTR
+__kernel void ref_convolution_fwd(
         const __global SRC_DATA_T *src, const __global WEI_DATA_T *wei,
         const __global BIA_DATA_T *bias, __global DST_DATA_T *dst,
         float eltwise_alpha, float eltwise_beta, float sum_scale
@@ -28,15 +30,12 @@ __kernel void ref_convolution_fwd_kernel(
         float scales
 #endif
 ) {
-    const int n = get_global_id(0);
-    const int goc = get_global_id(1);
-    const int oc = goc % OC;
-    const int g = goc / OC;
-    const int osp = get_global_id(2);
-    const int od = osp / (OH * OW);
-    const int ohw = osp % (OH * OW);
-    const int oh = ohw / OW;
-    const int ow = ohw % OW;
+    const int n = GWS_GET_MB();
+    const int oc = GWS_GET_OC();
+    const int g = GWS_GET_G();
+    const int od = GWS_GET_OD();
+    const int oh = GWS_GET_OH();
+    const int ow = GWS_GET_OW();
 
     ACC_DATA_T d = 0;
     for (int ic = 0; ic < IC; ++ic)
@@ -83,19 +82,19 @@ __kernel void ref_convolution_fwd_kernel(
 
     dst[DST_OFF(n, g * OC + oc, od, oh, ow)] = TO_DST(tmp);
 }
+#endif
 
-__kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
+#if IS_BWD_D
+KERNEL_ATTR
+__kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         const __global WEI_DATA_T *wei, const __global DST_DATA_T *diff_dst,
         const __global BIA_DATA_T *bias) {
-    const int n = get_global_id(0);
-    const int gic = get_global_id(1);
-    const int ic = gic % IC;
-    const int g = gic / IC;
-    const int isp = get_global_id(2);
-    const int id = isp / (IH * IW);
-    const int ihw = isp % (IH * IW);
-    const int ih = ihw / IW;
-    const int iw = ihw % IW;
+    const int n = GWS_GET_MB();
+    const int ic = GWS_GET_IC();
+    const int g = GWS_GET_G();
+    const int id = GWS_GET_ID();
+    const int ih = GWS_GET_IH();
+    const int iw = GWS_GET_IW();
 
     ACC_DATA_T d = WITH_BIAS ? BIA_TO_REF(bias[g * IC + ic]) : 0.0;
 
@@ -122,19 +121,19 @@ __kernel void ref_convolution_bwd_data_kernel(__global SRC_DATA_T *diff_src,
     }
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);
 }
+#endif
 
-__kernel void ref_convolution_bwd_weights_kernel(const __global SRC_DATA_T *src,
+#if IS_BWD_W
+KERNEL_ATTR
+__kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
         __global WEI_DATA_T *diff_wei, __global BIA_DATA_T *diff_bias,
         const __global DST_DATA_T *diff_dst) {
-    const int g = get_global_id(0);
-    const int io = get_global_id(1);
-    const int ic = io % IC;
-    const int oc = io / IC;
-    const int ksp = get_global_id(2);
-    const int kd = ksp / (KH * KW);
-    const int khw = ksp % (KH * KW);
-    const int kh = khw / KW;
-    const int kw = khw % KW;
+    const int g = GWS_GET_G();
+    const int ic = GWS_GET_IC();
+    const int oc = GWS_GET_OC();
+    const int kd = GWS_GET_KD();
+    const int kh = GWS_GET_KH();
+    const int kw = GWS_GET_KW();
 
 #if WITH_BIAS
     if (ic == 0 && kh == 0 && kw == 0 & kd == 0) {
@@ -173,3 +172,4 @@ __kernel void ref_convolution_bwd_weights_kernel(const __global SRC_DATA_T *src,
                 }
     diff_wei[WHT_OFF(g, oc, ic, kd, kh, kw)] = TO_WEI(dw);
 }
+#endif

@@ -25,8 +25,6 @@
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 
-extern const char *ref_softmax_kernel;
-
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -122,7 +120,7 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
         kernel_ctx.define_int("GROUP_SIZE", pd()->group_size);
         kernel_ctx.define_int("SUB_GROUP_SIZE", 16);
-        kernel_ctx.define_int("FWD_KERNEL", 1);
+        kernel_ctx.define_int("IS_FWD", 1);
         kernel_ctx.add_option("-cl-std=CL2.0");
         kernel_ctx.define_int("LOGSOFTMAX",
                 desc->primitive_kind == primitive_kind::logsoftmax ? 1 : 0);
@@ -130,11 +128,8 @@ struct ref_softmax_fwd_t : public primitive_impl_t {
         kernel_ctx.set_data_type(desc->data_desc.data_type);
         set_offsets(kernel_ctx, pd()->dst_md(), "DATA");
 
-        for (int i = 0; i < 3; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "BLOCK_%d", i);
-            kernel_ctx.define_int(tempstr, pd()->block[i]);
-        }
+        for (int i = 0; i < 3; i++)
+            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
@@ -209,7 +204,7 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
 
         const auto *desc = pd()->desc();
         kernel_ctx.define_int("SOFTMAX_AXIS_IDX", desc->softmax_axis);
-        kernel_ctx.define_int("FWD_KERNEL", 0);
+        kernel_ctx.define_int("IS_BWD", 1);
         kernel_ctx.define_int(
                 "SOFTMAX_AXIS", desc->data_desc.dims[desc->softmax_axis]);
         kernel_ctx.set_data_type(desc->data_desc.data_type);
@@ -218,11 +213,8 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
 
         set_offsets(kernel_ctx, *pd()->diff_src_md(), "DATA");
 
-        for (int i = 0; i < 3; i++) {
-            char tempstr[32];
-            snprintf(tempstr, 32, "BLOCK_%d", i);
-            kernel_ctx.define_int(tempstr, pd()->block[i]);
-        }
+        for (int i = 0; i < 3; i++)
+            kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
         compute_engine->create_kernel(
                 &kernel_, "ref_softmax_bwd_generic", kernel_ctx);

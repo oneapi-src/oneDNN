@@ -34,13 +34,11 @@ namespace cpu {
 #define DECLARE_READ_STRIDES(name) \
     const size_t name##_n_stride = MEM_D(name).blocking_desc().strides[0]; \
     const size_t name##_d_stride \
-            = (!is_3d) ? 0 : MEM_D(name).blocking_desc().strides[2]; \
-    const size_t name##_h_stride = (!is_3d) \
-            ? MEM_D(name).blocking_desc().strides[2] \
-            : MEM_D(name).blocking_desc().strides[3]; \
-    const size_t name##_w_stride = (!is_3d) \
-            ? MEM_D(name).blocking_desc().strides[3] \
-            : MEM_D(name).blocking_desc().strides[4];
+            = is_3d ? MEM_D(name).blocking_desc().strides[ndims - 3] : 0; \
+    const size_t name##_h_stride \
+            = is_1d ? 0 : MEM_D(name).blocking_desc().strides[ndims - 2]; \
+    const size_t name##_w_stride \
+            = MEM_D(name).blocking_desc().strides[ndims - 1];
 
 namespace nhwc_pooling {
 size_t strided_offset(const int _n, const size_t _sn, const int _d,
@@ -102,7 +100,9 @@ void nhwc_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
+    const bool is_1d = pd()->desc()->src_desc.ndims == 3;
     const bool is_3d = pd()->desc()->src_desc.ndims == 5;
+    const int ndims = pd()->ndims();
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     DECLARE_READ_STRIDES(src);
@@ -236,7 +236,9 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
+    const bool is_1d = pd()->desc()->src_desc.ndims == 3;
     const bool is_3d = pd()->desc()->src_desc.ndims == 5;
+    const int ndims = pd()->ndims();
     const data_type_t ws_dt = ws ? ws_d.data_type() : data_type::undef;
 
     DECLARE_READ_STRIDES(src);
@@ -368,7 +370,9 @@ void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
     const int OH = pd()->OH();
     const int OW = pd()->OW();
 
+    const bool is_1d = pd()->desc()->diff_src_desc.ndims == 3;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
+    const int ndims = pd()->ndims();
     auto alg = pd()->desc()->alg_kind;
 
     DECLARE_READ_STRIDES(diff_src);
@@ -508,7 +512,9 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
     const int OH = pd()->OH();
     const int OW = pd()->OW();
 
+    const bool is_1d = pd()->desc()->diff_src_desc.ndims == 3;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
+    const int ndims = pd()->ndims();
     auto alg = pd()->desc()->alg_kind;
 
     DECLARE_READ_STRIDES(diff_src);

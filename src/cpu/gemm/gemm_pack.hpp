@@ -22,6 +22,8 @@
 
 #include "cpu_isa_traits.hpp"
 
+#include "os_blas.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {

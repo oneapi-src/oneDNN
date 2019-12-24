@@ -30,11 +30,7 @@ namespace sycl {
 class sycl_device_info_t : public compute::device_info_t {
 public:
     sycl_device_info_t(const cl::sycl::device &device)
-        : device_(device)
-        , ext_(0)
-        , eu_count_(0)
-        , hw_threads_(0)
-        , runtime_version_ {0, 0, 0} {}
+        : device_(device), ext_(0), eu_count_(0), hw_threads_(0) {}
 
     virtual status_t init() override {
         // Extensions
@@ -45,6 +41,10 @@ public:
                 ext_ |= i_ext;
             }
         }
+
+        // Device name
+        auto dev_name = device_.get_info<cl::sycl::info::device::name>();
+        set_name(dev_name);
 
         // EU count
         eu_count_
@@ -57,12 +57,14 @@ public:
         // Runtime version
         auto driver_version
                 = device_.get_info<cl::sycl::info::device::driver_version>();
-        if (runtime_version_.set_from_string(driver_version.c_str())
+        compute::runtime_version_t runtime_version;
+        if (runtime_version.set_from_string(driver_version.c_str())
                 != status::success) {
-            runtime_version_.major = 0;
-            runtime_version_.minor = 0;
-            runtime_version_.build = 0;
+            runtime_version.major = 0;
+            runtime_version.minor = 0;
+            runtime_version.build = 0;
         }
+        set_runtime_version(runtime_version);
 
         return status::success;
     }
@@ -74,15 +76,10 @@ public:
     virtual int eu_count() const override { return eu_count_; }
     virtual int hw_threads() const override { return hw_threads_; }
 
-    virtual const compute::runtime_version_t &runtime_version() const override {
-        return runtime_version_;
-    }
-
 private:
     cl::sycl::device device_;
     uint64_t ext_;
     int32_t eu_count_, hw_threads_;
-    compute::runtime_version_t runtime_version_;
 };
 
 } // namespace sycl
