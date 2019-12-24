@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2019 Intel Corporation
+* Copyright 2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,38 +14,35 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-
-#include "type_helpers.hpp"
-
 #include "cpu_engine.hpp"
-#include "cpu_memory_storage.hpp"
-#include "cpu_stream.hpp"
-#include "memory.hpp"
+
+#include "cpu/ref_shuffle.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-status_t cpu_engine_t::create_memory_storage(
-        memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    auto _storage = new cpu_memory_storage_t(this);
-    if (_storage == nullptr) return status::out_of_memory;
-    status_t status = _storage->init(flags, size, handle);
-    if (status != status::success) {
-        delete _storage;
-        return status;
-    }
-    *storage = _storage;
-    return status::success;
-}
+using pd_create_f = engine_t::primitive_desc_create_f;
 
-status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
-    return safe_ptr_assign<stream_t>(*stream, new cpu_stream_t(this, flags));
+namespace {
+using namespace dnnl::impl::data_type;
+
+#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+static const pd_create_f impl_list[] = {
+        INSTANCE(ref_shuffle_t<4>), /* f32 or s32 */
+        INSTANCE(ref_shuffle_t<2>), /* bf16 */
+        INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
+        /* eol */
+        nullptr,
+};
+#undef INSTANCE
+} // namespace
+
+const pd_create_f *get_shuffle_impl_list(const shuffle_desc_t *desc) {
+    UNUSED(desc);
+    return impl_list;
 }
 
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
