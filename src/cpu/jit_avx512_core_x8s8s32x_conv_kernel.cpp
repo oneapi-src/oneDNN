@@ -71,16 +71,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::prepare_output(int ur_w) {
             vpxord(vmm, vmm, vmm);
         }
     if (jcp.signed_input) {
-        xor_(reg_scratch, reg_scratch);
-        if (jcp.is_depthwise && !jcp.is_fast_depthwise) {
-            Reg32 _t32 = reg_scratch.cvt32();
-            mov(_t32, (uint32_t)128);
-            vpbroadcastd(vmm_shift, _t32);
-        } else {
-            Reg8 _t8 = reg_scratch.cvt8();
-            mov(_t8, (int8_t)128);
-            vpbroadcastb(vmm_shift, _t8);
-        }
+        mov(reg_scratch, 128);
+        if (jcp.is_depthwise && !jcp.is_fast_depthwise)
+            vpbroadcastd(vmm_shift, reg_scratch.cvt32());
+        else
+            vpbroadcastb(vmm_shift, reg_scratch.cvt8());
     }
 }
 
@@ -207,16 +202,15 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::store_output(
     }
     if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
+    // Zero out vmm_zero register to be used in the next loop
+    if (jcp.dst_dt == data_type::u8) vpxord(vmm_zero, vmm_zero, vmm_zero);
+
     /* write out register to output_addr */
     for (int k = 0; k < nb_oc_block; k++) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
         for (int j = 0; j < ur_w; j++) {
             Vmm vmm = vmm_out(j, k);
-            if (jcp.dst_dt == data_type::u8) {
-                vpxord(vmm_zero, vmm_zero, vmm_zero);
-                vmaxps(vmm, vmm_zero, vmm);
-            }
-
+            if (jcp.dst_dt == data_type::u8) vmaxps(vmm, vmm_zero, vmm);
             if (jcp.dst_dt != data_type::f32) vcvtps2dq(vmm, vmm);
         }
 
@@ -408,7 +402,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
     for (int ki = 0; ki < kw; ki++) {
         int jj_start = get_ow_start(ki, pad_l);
         int jj_end = get_ow_end(ur_w, ki, pad_r);
-        int tail_size = jcp.ic_without_padding % 4;
+        int ic_tail_size = jcp.ic_without_padding % 4;
         int _start = (jcp.signed_input) ? 0 : jj_start;
         int _end = (jcp.signed_input) ? ur_w : jj_end;
         /* Skip the last loads of input if (ic%16)/4 < ic_block/4 */
@@ -416,7 +410,7 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                 ? div_up((jcp.ic_without_padding % ic_block), 4)
                 : ic_block / 4;
         for (int ic = 0; ic < icb; ic++) {
-            if (h_padded == true) {
+            if (h_padded) {
                 /* fill padded area with shifted values */
                 Vmm inp = vmm_inp(0, nb_oc_block);
                 vmovups(inp, vmm_shift);
@@ -425,13 +419,11 @@ void _jit_avx512_core_x8s8s32x_fwd_kernel<Vmm>::compute_ker(int ur_w, int pad_l,
                     int aux_input_offset = input_offset(jj, ic, ki);
                     if (jj >= jj_start && jj < jj_end) {
                         if (last_ic_block_flag == last_sp_block
-                                && tail_size != 0 && ic == icb - 1) {
+                                && ic_tail_size != 0 && ic == icb - 1) {
                             Xmm xmm_tmp
                                     = Xmm(vmm_inp(jj, nb_oc_block).getIdx());
-                            for (int r = 0; r < tail_size; ++r)
-                                vpinsrb(xmm_tmp, xmm_tmp,
-                                        ptr[aux_reg_inp + aux_input_offset + r],
-                                        r);
+                            load_bytes(xmm_tmp, aux_reg_inp, aux_input_offset,
+                                    ic_tail_size);
                             vpbroadcastd(vmm_inp(jj, nb_oc_block), xmm_tmp);
                         } else {
                             vpbroadcastd(vmm_inp(jj, nb_oc_block),

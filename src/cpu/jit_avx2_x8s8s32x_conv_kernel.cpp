@@ -55,19 +55,13 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::prepare_output(int ur_w) {
             vpxor(vmm, vmm, vmm);
         }
     if (jcp.signed_input) {
-        vpxor(vmm_shift, vmm_shift, vmm_shift);
         auto xmm_shift = Xbyak::Xmm(vmm_shift.getIdx());
-        if (jcp.is_depthwise) {
-            Reg32 _t32 = reg_scratch.cvt32();
-            mov(_t32, (uint32_t)128);
-            vpinsrd(xmm_shift, xmm_shift, _t32, 0);
+        mov(reg_scratch, 128);
+        vmovq(xmm_shift, reg_scratch);
+        if (jcp.is_depthwise)
             vpbroadcastd(vmm_shift, xmm_shift);
-        } else {
-            Reg _t32 = reg_scratch.cvt32();
-            mov(_t32, (int8_t)128);
-            vpinsrb(xmm_shift, xmm_shift, _t32, 0);
+        else
             vpbroadcastb(vmm_shift, xmm_shift);
-        }
     }
 }
 
@@ -178,16 +172,15 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::store_output(
     }
     if (maybe_eltwise(1)) compute_eltwise(ur_w);
 
+    // Zero out vmm_zero register to be used in the next loop
+    if (jcp.dst_dt == data_type::u8) vpxor(vmm_zero, vmm_zero, vmm_zero);
+
     /* write out register to output_addr */
     for (int k = 0; k < nb_oc_block; ++k) {
         const bool mask_flag = last_oc_block_flag && k == nb_oc_block - 1;
         for (int j = 0; j < ur_w; ++j) {
             Vmm vmm = vmm_out(j, k);
-            if (jcp.dst_dt == data_type::u8) {
-                vpxor(vmm_zero, vmm_zero, vmm_zero);
-                vmaxps(vmm, vmm_zero, vmm);
-            }
-
+            if (jcp.dst_dt == data_type::u8) vmaxps(vmm, vmm_zero, vmm);
             if (jcp.dst_dt != data_type::f32) vcvtps2dq(vmm, vmm);
         }
 

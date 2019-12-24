@@ -79,6 +79,7 @@ private:
     const Vmm vmm_tmp = Vmm(28);
     const Vmm vmm_one = Vmm(29);
     const Vmm vmm_zero = Vmm(30);
+    const Vmm vmm_prev_dst = Vmm(30);
     const Vmm vmm_shift = Vmm(30);
     const Vmm vmm_bcast = Vmm(31);
     const Vmm vmm_bias_alpha = Vmm(31);

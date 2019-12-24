@@ -196,11 +196,10 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::reduce_loop(
                 const auto ptr_scales_offset = jcp.is_oc_scale
                         * (sizeof(float) * jcp.oc_block * i_load);
                 if (mask_flag) {
+                    vpxor(ymm_zero, ymm_zero, ymm_zero);
                     cvt2ps(data_type::f32, ymm_zero, reg_ptr_scales,
                             ptr_scales_offset, get_tail_size());
                     vmulps(r, r, ymm_zero);
-                    vpxor(ymm_zero, ymm_zero, ymm_zero);
-                    vblendps(r, ymm_zero, r, ((1 << get_tail_size()) - 1));
                 } else
                     vmulps(r, r, ptr[reg_ptr_scales + ptr_scales_offset]);
             }
