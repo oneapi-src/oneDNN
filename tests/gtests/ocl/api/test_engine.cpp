@@ -23,6 +23,8 @@
 #include <string>
 #include <CL/cl.h>
 
+extern "C" bool dnnl_impl_gpu_mayiuse_ngen_kernels(dnnl_engine_t engine);
+
 namespace dnnl {
 namespace {
 
@@ -116,6 +118,50 @@ TEST_P(ocl_engine_test_t, BasicInteropC) {
                 sizeof(ref_count), &ref_count, nullptr));
         i_ref_count = int(ref_count);
         ASSERT_EQ(i_ref_count, 1);
+
+        // Check if device can be partitioned
+        cl_uint max_sub_dev;
+        TEST_OCL_CHECK(
+                clGetDeviceInfo(ocl_dev, CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
+                        sizeof(max_sub_dev), &max_sub_dev, nullptr));
+        if (max_sub_dev > 0) {
+            std::vector<cl_device_id> sub_dev(max_sub_dev);
+
+            cl_device_partition_property properties[3]
+                    = {CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                            CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE, 0};
+
+            TEST_OCL_CHECK(clCreateSubDevices(
+                    ocl_dev, properties, max_sub_dev, sub_dev.data(), nullptr));
+
+            cl_int err;
+            // Use only first sub-device to create a context (and engine).
+            cl_context sub_ctx = clCreateContext(
+                    nullptr, 1, sub_dev.data(), nullptr, nullptr, &err);
+
+            TEST_OCL_CHECK(err);
+
+            dnnl_engine_t sub_eng = nullptr;
+            DNNL_CHECK(dnnl_ocl_interop_engine_create(
+                    &sub_eng, sub_dev[0], sub_ctx));
+
+            TEST_OCL_CHECK(
+                    clGetDeviceInfo(sub_dev[0], CL_DEVICE_REFERENCE_COUNT,
+                            sizeof(ref_count), &ref_count, nullptr));
+            i_ref_count = int(ref_count);
+            ASSERT_EQ(i_ref_count, 2);
+
+            DNNL_CHECK(dnnl_engine_destroy(sub_eng));
+
+            TEST_OCL_CHECK(
+                    clGetDeviceInfo(sub_dev[0], CL_DEVICE_REFERENCE_COUNT,
+                            sizeof(ref_count), &ref_count, nullptr));
+            i_ref_count = int(ref_count);
+            ASSERT_EQ(i_ref_count, 1);
+
+            for (auto dev : sub_dev)
+                clReleaseDevice(dev);
+        }
     }
 }
 
@@ -165,8 +211,85 @@ TEST_P(ocl_engine_test_t, BasicInteropCpp) {
                                 sizeof(ref_count), &ref_count, nullptr));
                 int i_ref_count = int(ref_count);
                 ASSERT_EQ(i_ref_count, 1);
+
+                // Check if device can be partitioned
+                cl_uint max_sub_dev;
+                TEST_OCL_CHECK(clGetDeviceInfo(ocl_dev,
+                        CL_DEVICE_PARTITION_MAX_SUB_DEVICES,
+                        sizeof(max_sub_dev), &max_sub_dev, nullptr));
+
+                if (max_sub_dev > 0) {
+
+                    cl_device_partition_property properties[3] = {
+                            CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+                            CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE, 0};
+
+                    std::vector<cl_device_id> sub_dev(max_sub_dev);
+
+                    TEST_OCL_CHECK(clCreateSubDevices(ocl_dev, properties,
+                            max_sub_dev, sub_dev.data(), nullptr));
+
+                    // Use only first sub-device to create a context (and
+                    // engine).
+                    cl_int err;
+                    cl_context sub_ctx = clCreateContext(
+                            nullptr, 1, sub_dev.data(), nullptr, nullptr, &err);
+                    TEST_OCL_CHECK(err);
+                    {
+                        engine eng
+                                = ocl_interop::make_engine(sub_dev[0], sub_ctx);
+                        cl_uint ref_count;
+                        TEST_OCL_CHECK(clGetDeviceInfo(sub_dev[0],
+                                CL_DEVICE_REFERENCE_COUNT, sizeof(ref_count),
+                                &ref_count, nullptr));
+                        int i_ref_count = int(ref_count);
+                        ASSERT_EQ(i_ref_count, 2);
+                    }
+
+                    cl_uint ref_count;
+                    TEST_OCL_CHECK(clGetDeviceInfo(sub_dev[0],
+                            CL_DEVICE_REFERENCE_COUNT, sizeof(ref_count),
+                            &ref_count, nullptr));
+                    int i_ref_count = int(ref_count);
+                    ASSERT_EQ(i_ref_count, 1);
+
+                    for (auto dev : sub_dev)
+                        clReleaseDevice(dev);
+                }
             },
             p.expected_status != dnnl_success, p.expected_status);
+}
+
+TEST_P(ocl_engine_test_t, BinaryKernels) {
+    auto p = GetParam();
+    cl_device_id ocl_dev = (p.adev_kind == dev_kind::gpu)
+            ? gpu_ocl_dev
+            : (p.adev_kind == dev_kind::cpu) ? cpu_ocl_dev : nullptr;
+
+    cl_context ocl_ctx = (p.actx_kind == ctx_kind::gpu)
+            ? gpu_ocl_ctx
+            : (p.actx_kind == ctx_kind::cpu) ? cpu_ocl_ctx : nullptr;
+
+    SKIP_IF(p.adev_kind != dev_kind::null && !ocl_dev,
+            "Required OpenCL device not found.");
+    SKIP_IF(p.actx_kind != ctx_kind::null && !ocl_ctx,
+            "Required OpenCL context not found.");
+    SKIP_IF(cpu_ocl_dev == gpu_ocl_dev
+                    && (p.adev_kind == dev_kind::cpu
+                            || p.actx_kind == ctx_kind::cpu),
+            "OpenCL CPU-only device not found.");
+
+    dnnl_engine_t eng = nullptr;
+    dnnl_status_t s = dnnl_ocl_interop_engine_create(&eng, ocl_dev, ocl_ctx);
+
+    ASSERT_EQ(s, p.expected_status);
+
+//DNNL_ENABLE_MEM_DEBUG forces allocation fail, causing mayiuse to fail
+#ifndef DNNL_ENABLE_MEM_DEBUG
+    if (s == dnnl_success) {
+        ASSERT_EQ(dnnl_impl_gpu_mayiuse_ngen_kernels(eng), true);
+    }
+#endif
 }
 
 INSTANTIATE_TEST_SUITE_P(Simple, ocl_engine_test_t,

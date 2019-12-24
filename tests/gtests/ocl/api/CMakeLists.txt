@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2019-2021 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,5 +18,7 @@ set(TEST_EXE test_api_ocl)
 
 file(GLOB TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 list(APPEND TEST_SOURCES ${MAIN_SRC_GTEST})
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../../src)
 
 register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
