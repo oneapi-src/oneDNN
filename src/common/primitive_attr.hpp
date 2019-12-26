@@ -30,6 +30,8 @@
 namespace dnnl {
 namespace impl {
 
+const primitive_attr_t &default_attr();
+
 struct rnn_data_qparams_t : public c_compatible {
     rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
     bool has_default_values() const { return (scale_ == 1. && shift_ == 0.); }

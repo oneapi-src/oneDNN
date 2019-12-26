@@ -28,6 +28,11 @@ using namespace dnnl::impl::utils;
 namespace dnnl {
 namespace impl {
 
+const primitive_attr_t &default_attr() {
+    static const primitive_attr_t default_attr_instance;
+    return default_attr_instance;
+}
+
 status_t scales_t::set(dim_t count, int mask, const float *scales) {
     cleanup();
 

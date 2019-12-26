@@ -66,8 +66,7 @@ status_t dnnl_reorder_primitive_desc_create(primitive_desc_t **reorder_pd,
 
     if (!s_mdw.consistent_with(d_mdw)) return invalid_arguments;
 
-    const primitive_attr_t dummy_attr;
-    if (attr == NULL) attr = &dummy_attr;
+    if (attr == NULL) attr = &default_attr();
 
     auto e = get_reorder_engine(src_engine, dst_engine);
     for (auto r = e->get_reorder_implementation_list(); *r; ++r) {
