@@ -103,7 +103,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     /** return the list of reorder implementations. engine guarantees to return
      * a NULL-terminated list */
     virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list() const = 0;
+    get_reorder_implementation_list(const dnnl::impl::memory_desc_t *src_md,
+            const dnnl::impl::memory_desc_t *dst_md) const = 0;
 
     /** return the list of concat implementations. engine guarantees to return
      * a NULL-terminated list */

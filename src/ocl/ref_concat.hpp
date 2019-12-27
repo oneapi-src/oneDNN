@@ -61,7 +61,8 @@ struct ref_concat_t : public primitive_impl_t {
             }
 
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine_->get_reorder_implementation_list();
+                auto r_impls = engine_->get_reorder_implementation_list(
+                        src_md(i), src_image_md(i));
                 for (auto r = r_impls; *r; ++r) {
                     const primitive_attr_t attr; /* alpha == 1. */
                     reorder_pd_t *r_pd = nullptr;

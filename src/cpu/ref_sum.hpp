@@ -49,8 +49,9 @@ struct ref_sum_t : public primitive_impl_t {
             bool ok = cpu_sum_pd_t::init() == status::success;
             if (!ok) return status::unimplemented;
 
-            auto r_impls = engine_->get_reorder_implementation_list();
             for (int i = 0; i < n_; ++i) {
+                auto r_impls = engine_->get_reorder_implementation_list(
+                        src_md(i), dst_acc_md());
                 for (auto r = r_impls; *r; ++r) {
                     primitive_attr_t attr;
                     attr.output_scales_.set(scales_[i]);
@@ -67,6 +68,8 @@ struct ref_sum_t : public primitive_impl_t {
             }
 
             if (need_output_reorder()) {
+                auto r_impls = engine_->get_reorder_implementation_list(
+                        dst_acc_md(), dst_md());
                 for (auto r = r_impls; *r; ++r) {
                     primitive_attr_t attr;
                     reorder_pd_t *r_pd;

@@ -332,7 +332,10 @@ static const rpd_create_f cpu_reorder_impl_list[] = {
 };
 } // namespace
 
-const rpd_create_f *cpu_engine_t::get_reorder_implementation_list() const {
+const rpd_create_f *cpu_engine_t::get_reorder_implementation_list(
+        const memory_desc_t *src_md, const memory_desc_t *dst_md) const {
+    UNUSED(src_md);
+    UNUSED(dst_md);
     return cpu_reorder_impl_list;
 }
 

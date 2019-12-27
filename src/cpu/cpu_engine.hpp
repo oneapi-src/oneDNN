@@ -65,7 +65,8 @@ public:
     virtual const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override;
     virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list() const override;
+    get_reorder_implementation_list(const memory_desc_t *src_md,
+            const memory_desc_t *dst_md) const override;
     virtual const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override;
     virtual const primitive_desc_create_f *get_implementation_list(

@@ -37,7 +37,8 @@ public:
     static const engine_t::concat_primitive_desc_create_f *
     get_concat_implementation_list();
     static const engine_t::reorder_primitive_desc_create_f *
-    get_reorder_implementation_list();
+    get_reorder_implementation_list(
+            const memory_desc_t *src_md, const memory_desc_t *dst_md);
     static const engine_t::sum_primitive_desc_create_f *
     get_sum_implementation_list();
     static const engine_t::primitive_desc_create_f *get_implementation_list();
@@ -81,8 +82,10 @@ public:
     }
 
     virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list() const override {
-        return ocl_gpu_engine_impl_list_t::get_reorder_implementation_list();
+    get_reorder_implementation_list(const memory_desc_t *src_md,
+            const memory_desc_t *dst_md) const override {
+        return ocl_gpu_engine_impl_list_t::get_reorder_implementation_list(
+                src_md, dst_md);
     }
 
     virtual const sum_primitive_desc_create_f *
