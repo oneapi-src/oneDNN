@@ -338,6 +338,8 @@ private:
     using reg64_t = const Xbyak::Reg64;
     enum {
         sizeof_cacheline = 64,
+        full_spat_opt_working_set_size = 48 * 1024,
+        full_spat_max_working_set_size = 128 * 1024,
         ker_code_size = 1024 * 1024,
     };
     static const int max_ur_w;
@@ -396,6 +398,7 @@ private:
     inline void compute_loop();
     inline void compute_oh_loop_common();
     inline void compute_od_loop_common();
+    void compute_full_spat_loop();
     void convert_src_to_vnni_format(
             int ur_w, int pad_l, int pad_r, int input_offset);
     inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,

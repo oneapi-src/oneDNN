@@ -58,7 +58,8 @@ enum conv_kernel_kind_t { embd_bcast, expl_bcast };
 enum conv_harness_t {
     harness_2d_reduction,
     harness_3d_reduction,
-    harness_mb_reduction
+    harness_mb_reduction,
+    harness_compute_full_spatial
 };
 
 enum {
