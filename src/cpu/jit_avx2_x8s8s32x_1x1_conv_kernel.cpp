@@ -572,7 +572,7 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     int reduce_blocking_max = 0;
     jcp.load_grp_count = 1;
 
-    const int L2_size = get_cache_size(2, true) / sizeof(jcp.typesize_in);
+    const int L2_size = get_per_core_cache_size(2) / sizeof(jcp.typesize_in);
     const int L2_capacity = (L2_size * 3) / 4;
 
     int size_threshold = 28;

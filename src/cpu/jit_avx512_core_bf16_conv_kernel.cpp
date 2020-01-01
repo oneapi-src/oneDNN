@@ -810,7 +810,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ow_block = jcp.ow;
     if (is_ow_threading_available(jcp)) {
-        const int L1_part = get_cache_size(1) * 5 / 8;
+        const int L1_part = get_per_core_cache_size(1) * 5 / 8;
         int size_src_chunk = jcp.typesize_in * jcp.ic_block * jcp.ur_w;
         int size_dst_chunk = jcp.typesize_out * jcp.oc_block
                 * jcp.nb_oc_blocking * jcp.ur_w;

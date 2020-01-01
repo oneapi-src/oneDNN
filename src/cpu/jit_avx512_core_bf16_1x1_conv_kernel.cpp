@@ -881,8 +881,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
 
     jcp.load_grp_count = 1;
 
-    const int L1_capacity = get_cache_size(1, true) / jcp.typesize_in;
-    const int L2_size = get_cache_size(2, true) / jcp.typesize_in;
+    const int L1_capacity = get_per_core_cache_size(1) / jcp.typesize_in;
+    const int L2_size = get_per_core_cache_size(2) / jcp.typesize_in;
     const int L2_capacity = (L2_size * 3) / 4;
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference,

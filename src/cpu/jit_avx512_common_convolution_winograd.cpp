@@ -46,8 +46,6 @@ using namespace memory_tracking::names;
 
 namespace {
 
-unsigned int LLC_cache_size = get_cache_size(3, false);
-
 void inline load_ps(float *dest, const float *src_mem) {
 #ifdef __INTEL_COMPILER
     assert(IS_ALIGNED(reinterpret_cast<ptrdiff_t>(dest), _64byte_align));
@@ -951,7 +949,7 @@ void _jit_avx512_common_convolution_winograd_t<is_fwd>::_execute_data_W_S_G_D(
             jcp.dimK_block, jcp.dimN_reg_block, jcp.dimK_reg_block);
 
     bool V_streamout = jcp.dimN * jcp.dimK * alpha * alpha * sizeof(float)
-            > 2 * LLC_cache_size;
+            > 2 * get_per_core_cache_size(3) * jcp.nthr;
 
     const bool output_is_aligned
             = IS_ALIGNED(reinterpret_cast<ptrdiff_t>(out_ptr), _64byte_align);

@@ -34,9 +34,9 @@ namespace {
 
 using namespace dnnl::impl::utils;
 
-unsigned int L1_cache_size = get_cache_size(1, true);
-unsigned int L2_cache_size = get_cache_size(2, true);
-unsigned int LLC_data_size = get_cache_size(3, false);
+unsigned int L1_cache_size = get_per_core_cache_size(1);
+unsigned int L2_cache_size = get_per_core_cache_size(2);
+unsigned int LLC_data_size = get_per_core_cache_size(3);
 
 // the test funtion takes jcp, the candidate and the current best.
 // it  returns true if the new candidate is better
@@ -296,7 +296,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_data_kernel::gemm_loop_generate() {
                 if (output_is_aligned && jcp.dimK_nb_block == 1
                         && jcp.sched_policy == WSCHED_DATA_W_S_G_D
                         && (jcp.dimN * jcp.dimM * alpha * alpha * sizeof(float)
-                                > 2 * LLC_data_size))
+                                > 2 * LLC_data_size * jcp.nthr))
                     vmovntps(EVEX_compress_addr(reg_dstC, output_offset), zmm);
                 else
                     vmovups(EVEX_compress_addr(reg_dstC, output_offset), zmm);
@@ -961,7 +961,7 @@ void _jit_avx512_core_f32_wino_conv_4x3_data_kernel ::
         mov(ireg_output, ptr[param1 + GET_OFF(dst)]);
 
         bool streamout = jcp.dimN * jcp.dimK * alpha * alpha * sizeof(float)
-                        > 2 * LLC_data_size
+                        > 2 * LLC_data_size * jcp.nthr
                 ? true
                 : false;
 

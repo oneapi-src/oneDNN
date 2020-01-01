@@ -696,7 +696,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.load_grp_count = 1;
     jcp.use_vmovntps = false;
 
-    const int L2_size = get_cache_size(2, true) / sizeof(jcp.typesize_in);
+    const int L2_size = get_per_core_cache_size(2) / sizeof(jcp.typesize_in);
     const int L2_capacity = (L2_size * 3) / 4;
 
     int size_treshold = 28;

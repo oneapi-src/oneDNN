@@ -39,9 +39,9 @@ namespace {
 
 using namespace dnnl::impl::utils;
 
-unsigned int L1_cache_size = get_cache_size(1, true);
-unsigned int L2_cache_size = get_cache_size(2, true);
-unsigned int LLC_data_size = get_cache_size(3, false);
+unsigned L1_cache_size = get_per_core_cache_size(1);
+unsigned L2_cache_size = get_per_core_cache_size(2);
+unsigned LLC_data_size = get_per_core_cache_size(3);
 
 // the test funtion takes jcp, the candidate and the current best.
 // it  returns true if the new candidate is better
@@ -287,7 +287,7 @@ void _jit_avx512_common_conv_winograd_data_kernel_f32::gemm_loop_generate(
                     if (output_is_aligned && jcp.dimK_nb_block == 1
                             && (jcp.dimN * jcp.dimM * alpha * alpha
                                             * sizeof(float)
-                                    > 2 * LLC_data_size))
+                                    > 2 * LLC_data_size * jcp.nthr))
                         vmovntps(zword[reg_dstC + 64 * tile], zmm);
                     else
                         vmovups(zword[reg_dstC + 64 * tile], zmm);

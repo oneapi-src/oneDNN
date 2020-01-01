@@ -38,7 +38,7 @@ using namespace Xbyak;
 namespace {
 
 constexpr auto small_spatial = 14;
-unsigned int L1_cache_size = get_cache_size(1, true);
+unsigned int L1_cache_size = get_per_core_cache_size(1);
 
 inline void pick_loop_order(jit_conv_conf_t &jcp) {
     using namespace prop_kind;
@@ -1410,7 +1410,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         eff = get_thr_eff(nb_oc_blocking, res_ow_block);
         if (!is_ow_threading_applicable()) return res_ow_block;
 
-        int L2_part = (get_cache_size(2) * 7 / 8) / typesize;
+        int L2_part = (get_per_core_cache_size(2) * 7 / 8) / typesize;
         if (jcp.ver == ver_4fma) L2_part /= 2;
         int size_src_chunk = jcp.ic_block * ur_w * jcp.kh;
         int size_dst_chunk = jcp.oc_block * nb_oc_blocking * ur_w;
@@ -1586,7 +1586,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, thr_eff);
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
-    const int L2_size = get_cache_size(2, true) / typesize;
+    const int L2_size = get_per_core_cache_size(2) / typesize;
     // Source and output data needs to fit in L2,
     // leaving some space for weights and prefetching.
     int h_L2 = int(((0.6f * L2_size) / jcp.simd_w
@@ -2668,7 +2668,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             // not apply to higher dimensions.
             // TODO: Implement a more general optimization taking into account
             // the height dimension.
-            int L2_part = (get_cache_size(2) * 7 / 8) / typesize;
+            int L2_part = (get_per_core_cache_size(2) * 7 / 8) / typesize;
             int size_diff_src_chunk = jcp.ic_block * nb_ic_blocking * ur_w;
             int size_diff_dst_chunk = jcp.oc_block * ur_w;
             int size_wei_chunk

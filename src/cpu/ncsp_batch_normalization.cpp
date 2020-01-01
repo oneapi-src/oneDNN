@@ -86,7 +86,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
     const dim_t C = pd()->C();
 
     int nthr = dnnl_get_max_threads();
-    size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
+    size_t l3_size_ = get_per_core_cache_size(3) * nthr / 2;
     size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 
@@ -324,7 +324,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
     const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
     int nthr = dnnl_get_max_threads();
-    size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
+    size_t l3_size_ = get_per_core_cache_size(3) * nthr / 2;
     size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 

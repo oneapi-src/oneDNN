@@ -176,7 +176,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);
             const auto nthr = dnnl_get_max_threads();
-            auto l2_cache = get_cache_size(2, true) * nthr;
+            auto l2_cache = get_per_core_cache_size(2) * nthr;
 
             // Note: A robust fusion implementation would be to check if both
             // 1x1 conv and dw conv that are considered here for fusion are
