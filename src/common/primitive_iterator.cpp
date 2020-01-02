@@ -85,7 +85,7 @@ status_t dnnl_primitive_desc_create(primitive_desc_t **primitive_desc,
     ++it;
     if (it == it.end()) return unimplemented;
 
-    return safe_ptr_assign<primitive_desc_t>(*primitive_desc, *it);
+    return safe_ptr_assign<primitive_desc_t>(*primitive_desc, it.fetch_once());
 }
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
