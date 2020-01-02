@@ -1444,11 +1444,34 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         unsigned int ker_total_size
                 = ker_inp_size + ker_out_size + ker_wei_size;
 
-        bool embd_bcast_condition = true
+        bool embd_bcast_condition_base = true
                 && (jcp.kw == 3 && jcp.ow <= 28
                         && ker_total_size < L1_cache_size)
                 && !(jcp.kw == 3 && jcp.ow == 13 && jcp.ic >= 192)
                 && !(jcp.kw == 3 && jcp.ow == 28 && jcp.ic >= 512);
+
+        // These conditions define a set of shapes with 'ow = 1' which
+        // have a very limited optimization space for performance. Try
+        // to optimize by using a larger 'nb_oc_blocking' size.
+        bool expl_bcast_condition
+                = everyone_is(1, jcp.ngroups, jcp.mb, jcp.stride_h, jcp.ow,
+                          jcp.stride_w, jcp.id, jcp.od, jcp.kd, jcp.stride_d)
+                && jcp.iw == jcp.kw && jcp.nb_oc > 1
+                && everyone_is(0, jcp.l_pad, jcp.r_pad, jcp.dilate_w, jcp.f_pad,
+                        jcp.back_pad, jcp.dilate_d)
+                && jcp.oh >= 60 && jcp.kh >= 3;
+
+        bool embd_bcast_condition = !expl_bcast_condition
+                && (jcp.kw > 3
+                        || (jcp.stride_w == 1 && jcp.stride_h == 1
+                                && embd_bcast_condition_base)
+                        || ((jcp.stride_w != 1 || jcp.stride_h != 1)
+                                && ((jcp.mb <= 16
+                                        && (jcp.oc <= 192 || jcp.oh <= 10)
+                                        && embd_bcast_condition_base)))
+                        || (jcp.mb == 1
+                                && (jcp.ur_w >= jcp.ow || jcp.is_1stconv
+                                        || (jcp.ow <= 147 && jcp.oc <= 96))));
 
         if (jcp.mb == 1) {
             unsigned int inp_size = jcp.mb * div_up(jcp.ih, jcp.stride_h)
@@ -1487,15 +1510,8 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             }
         }
 
-        if (jcp.kw > 3
-                || (jcp.stride_w == 1 && jcp.stride_h == 1
-                        && embd_bcast_condition)
-                || ((jcp.stride_w != 1 || jcp.stride_h != 1)
-                        && ((jcp.mb <= 16 && (jcp.oc <= 192 || jcp.oh <= 10)
-                                && embd_bcast_condition)))
-                || (jcp.mb == 1
-                        && (jcp.ur_w >= jcp.ow || jcp.is_1stconv
-                                || (jcp.ow <= 147 && jcp.oc <= 96)))) {
+        const int max_nb_oc = 5;
+        if (embd_bcast_condition) {
             jcp.kernel_kind = embd_bcast;
             jcp.ur_w = nstl::min(jcp.ow, regs);
             jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
@@ -1509,17 +1525,23 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         } else {
             jcp.kernel_kind = expl_bcast;
             jcp.nb_ic_blocking = 1;
-            if (IMPLICATION(jcp.is_1stconv, jcp.mb > 1)) {
+            if (IMPLICATION(jcp.is_1stconv, jcp.mb > 1)
+                    || expl_bcast_condition) {
                 float best_thr_eff = 0.f;
                 int best_nb_oc_blocking = 1;
-                for (int i = nstl::min(jcp.nb_oc, 5); i > 0; i--) {
+                for (int i = nstl::min(jcp.nb_oc, max_nb_oc); i > 0; i--) {
                     if (jcp.nb_oc % i == 0) {
-                        float thr_eff;
-                        int ur_w = nstl::min(jcp.ow, 31 / (i + 1));
-                        get_ow_block(i, ur_w, thr_eff);
-                        if (thr_eff > 1.05f * best_thr_eff) {
+                        if (expl_bcast_condition) {
                             best_nb_oc_blocking = i;
-                            best_thr_eff = thr_eff;
+                            break;
+                        } else {
+                            float thr_eff;
+                            int ur_w = nstl::min(jcp.ow, 31 / (i + 1));
+                            get_ow_block(i, ur_w, thr_eff);
+                            if (thr_eff > 1.05f * best_thr_eff) {
+                                best_nb_oc_blocking = i;
+                                best_thr_eff = thr_eff;
+                            }
                         }
                     }
                 }
