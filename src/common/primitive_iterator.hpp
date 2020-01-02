@@ -75,6 +75,18 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         return pd_->clone();
     }
 
+    // Unlike `operator*()`, fetch_once() returns the current primitive
+    // descriptor and invalidates the underlying primitive descriptor (but
+    // saves the current position in the implementation list). Hence, the
+    // subsequent calls to `operator*()` and / or `fetch_once()` will return
+    // nullptr, until the iterator moves to the next implementation.
+    dnnl::impl::primitive_desc_t *fetch_once() {
+        if (*this == end() || pd_ == nullptr) return nullptr;
+        dnnl::impl::primitive_desc_t *return_pd = pd_;
+        pd_ = nullptr;
+        return return_pd;
+    }
+
 protected:
     int idx_;
     dnnl::impl::engine_t *engine_;
