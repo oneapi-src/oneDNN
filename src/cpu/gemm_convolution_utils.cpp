@@ -1096,6 +1096,17 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                         sizeof(float) * jcp.ngroups * jcp.oc);
         }
     }
+    // Heuristic threshold for requested scratchpad memory to avoid
+    // possible crash on memory allocation:
+    // 1Gb or size of the buffers already used for this convolution proportional
+    // to the number of threads and multiplied by a heuristic coefficient (15)
+    size_t scratchpad_limit_by_absolute_value = (size_t)1 << 30; // 1Gb
+    size_t scratchpad_limit_by_tensor_sizes = 15 * max_threads
+            * (src_d.size() + weights_d.size() + dst_d.size());
+
+    size_t scratchpad_limit = nstl::min(scratchpad_limit_by_absolute_value,
+            scratchpad_limit_by_tensor_sizes);
+    if (scratchpad.size() > scratchpad_limit) return status::unimplemented;
     return status::success;
 }
 
