@@ -25,9 +25,9 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
         __global DATA_T *dst) {
     const uint mb = GWS_GET_MB();
     const uint ic = GWS_GET_IC();
+    const uint id = GWS_GET_ID();
     const uint ih = GWS_GET_IH();
     const uint iw = GWS_GET_IW();
-    const uint id = GWS_GET_ID();
 
     const uint src_index = SRC_OFF(mb, ic, id, ih, iw);
     const uint dst_index = DST_OFF(mb, ic, id, ih, iw);
@@ -90,9 +90,9 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
         __global DATA_T *diff_src) {
     const uint mb = GWS_GET_MB();
     const uint ic = GWS_GET_IC();
+    const uint id = GWS_GET_ID();
     const uint ih = GWS_GET_IH();
     const uint iw = GWS_GET_IW();
-    const uint id = GWS_GET_ID();
 
     const uint src_index = SRC_OFF(mb, ic, id, ih, iw);
     const uint dst_index = DST_OFF(mb, ic, id, ih, iw);
