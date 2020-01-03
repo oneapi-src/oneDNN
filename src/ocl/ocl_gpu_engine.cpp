@@ -37,6 +37,7 @@
 #include "ocl/ref_lrn.hpp"
 #include "ocl/ref_matmul.hpp"
 #include "ocl/ref_pooling.hpp"
+#include "ocl/ref_resampling.hpp"
 #include "ocl/ref_shuffle.hpp"
 #include "ocl/ref_softmax.hpp"
 #include "ocl/rnn/ref_rnn.hpp"
@@ -222,6 +223,9 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_binary_t),
         /* matmul */
         INSTANCE(ref_matmul_t),
+        /*resampling*/
+        INSTANCE(ref_resampling_fwd_t),
+        INSTANCE(ref_resampling_bwd_t),
         nullptr,
 };
 
