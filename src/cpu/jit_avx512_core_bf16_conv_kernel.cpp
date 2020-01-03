@@ -201,6 +201,29 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
     const size_t shift_input_ptr
             = (size_t)jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw * inp_mul;
 
+    /* max_input_offset is explicitly used in the 1st convolution.
+     * Set its value so that accessing the double-word memory
+     * referenced by ptr[src_base + offset] is safe whenever
+     *     0 <= offset < max_input_offset
+     *
+     * Note: Since the arguments pad_l, pad_r might not exactly match
+     * with jcp.l_pad and jcp.r_pad respectively so this value needs to be
+     * computed separately for each invocation of the compute_loop.
+     */
+    size_t max_input_offset = 0;
+    if (jcp.is_1stconv) {
+        for (int ki = 0; ki < jcp.kw; ki++) {
+            int ow_fst = get_ow_start(ki, pad_l);
+            int ow_last = get_ow_end(ur_w, ki, pad_r) - 1;
+            if (ow_fst > ow_last) continue;
+            int ic_last = div_up(nstl::min(jcp.ic_block, jcp.ic), 2) - 1;
+
+            size_t input_offset = get_input_offset(ki, ic_last, ow_last, pad_l);
+            if (input_offset > max_input_offset)
+                max_input_offset = input_offset;
+        }
+    }
+
     prepare_output(ur_w);
 
     Label skip_compute_loop;
@@ -258,20 +281,43 @@ void jit_avx512_core_bf16_fwd_kernel::compute_loop(
 
                     if (jcp.is_1stconv) {
                         const bool need_single_load = (2 * ic + 1 == jcp.ic);
+                        const bool safe_overstep
+                                = (input_offset < max_input_offset);
                         const auto addr_strided = EVEX_compress_addr(
                                 aux_reg_inp, input_offset + ic_stride);
 
-                        /* For the comment below, let us define two words
+                        /* For the comment below, let us define three words
                          * x_b = ptr[addr_base] and x_s = ptr[addr_strided]
+                         * x_g = ptr[addr_base + 2]
                          *
-                         * For single load case zmm_in register is loaded as:
+                         * For single load case:
+                         * Without overstep zmm_in register is loaded as
                          *     [0, x_b, ..., 0, x_b, 0, x_b]
-                         * while for other case it is loaded as:
+                         * On the other hand, "with overstep" zmm_in register
+                         * is loaded as
+                         *     [x_g, x_b, ..., x_g, x_b, x_g, x_b]
+                         * where x_g is a garbage word.
+                         *
+                         * Note:
+                         * 1. In single load case with safe_overstep enabled,
+                         * it is implicitly assumed that the element in zmm_wei
+                         * register corresponding to the "garbage value x_g" in
+                         * zmm_in register is zero.
+                         * 2. One can have potential problem when x_g is
+                         * either Inf or NaN since it is multiplied by zero
+                         * in accumulation. But as x_g is a "valid input"
+                         * for different offset so one might assume that x_g is
+                         * neither Inf nor Nan.
+                         *
+                         * For non single load case:
+                         * zmm_in register is loaded as
                          *     [x_s, x_b, ...., x_s, x_b, x_s, x_b]
                          */
-                        if (need_single_load)
+                        if (need_single_load && !safe_overstep)
                             vpbroadcastw(
                                     zmm_in | odd_load_mask | T_z, addr_base);
+                        else if (need_single_load && safe_overstep)
+                            vpbroadcastd(zmm_in, addr_base);
                         else {
                             vpbroadcastd(zmm_in, addr_base);
                             vpbroadcastw(zmm_in | even_load_mask, addr_strided);
