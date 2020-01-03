@@ -272,6 +272,8 @@ struct registrar_t {
             size_t alignment = default_alignment)
     { registry_.book(make_key(prefix_, key), size, alignment); }
 
+    size_t size() const { return registry_.size(); }
+
 protected:
     registry_t &registry_;
     const key_t prefix_;
