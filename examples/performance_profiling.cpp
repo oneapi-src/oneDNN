@@ -514,7 +514,7 @@ void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
     stream s(eng);
     // [Set dimensions]
     // set dimensions for synthetic data and weights
-    const memory::dim BATCH = 1000;
+    const memory::dim BATCH = (engine_kind == engine::kind::cpu ? 1000 : 100);
     const memory::dim IC = 3, OC = 96;
     const memory::dim IH = 227, KH = 11, OH = 55;
     const memory::dim IW = 227, KW = 11, OW = 55;
