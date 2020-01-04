@@ -283,6 +283,11 @@ protected:
         memory weights_m(init_md(p.base.weights, true), eng);
         memory dst_m(init_md(p.base.dst, true), eng);
 
+        // Initialize memory to make sanitizers happy
+        memset(src_m.get_data_handle(), 0, src_m.get_desc().get_size());
+        memset(weights_m.get_data_handle(), 0, weights_m.get_desc().get_size());
+        memset(dst_m.get_data_handle(), 0, dst_m.get_desc().get_size());
+
         matmul_p.execute(strm,
                 {
                         {DNNL_ARG_SRC, src_m},
