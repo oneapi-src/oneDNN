@@ -64,9 +64,9 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
     const int KSH = pd()->KSH();
     const int KSW = pd()->KSW();
 
-    const int KDD = pd()->KDD();
-    const int KDH = pd()->KDH();
-    const int KDW = pd()->KDW();
+    const int KDD = pd()->KDD() + 1;
+    const int KDH = pd()->KDH() + 1;
+    const int KDW = pd()->KDW() + 1;
 
     const int padFront = pd()->padFront();
     const int padT = pd()->padT();
@@ -83,9 +83,9 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
         for_(int kd = 0; kd < KD; ++kd)
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
-            const int id = od * KSD - padFront + kd * (1 + KDD);
-            const int ih = oh * KSH - padT + kh * (1 + KDH);
-            const int iw = ow * KSW - padL + kw * (1 + KDW);
+            const int id = od * KSD - padFront + kd * KDD;
+            const int ih = oh * KSH - padT + kh * KDH;
+            const int iw = ow * KSW - padL + kw * KDW;
 
             if (id < 0 || id >= ID) continue;
             if (ih < 0 || ih >= IH) continue;
@@ -113,12 +113,97 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
         return d;
     };
 
+    // help compiler optimize the code
+    // constants for plain layouts kernel
+    const dnnl_dims_t &src_str = src_d.blocking_desc().strides;
+    const dim_t src_ic_stride = src_str[1];
+    const dim_t src_id_stride = (ndims == 5) ? src_str[2] : 0;
+    const dim_t src_ih_stride = (ndims >= 4) ? src_str[ndims - 2] : 0;
+    const dim_t src_iw_stride = (ndims >= 3) ? src_str[ndims - 1] : 0;
+    const dnnl_dims_t &weights_str = weights_d.blocking_desc().strides;
+    const int gr_shift = with_groups ? 1 : 0;
+    const dim_t weights_ic_stride = weights_str[1 + gr_shift];
+    const dim_t weights_kd_stride
+            = (ndims == 5) ? weights_str[2 + gr_shift] : 0;
+    const dim_t weights_kh_stride
+            = (ndims >= 4) ? weights_str[ndims - 2 + gr_shift] : 0;
+    const dim_t weights_kw_stride
+            = (ndims >= 3) ? weights_str[ndims - 1 + gr_shift] : 0;
+
+    auto ker_plain = [=](int g, int mb, int oc, int od, int oh, int ow) {
+        assert(3 <= ndims && ndims <= 5);
+        acc_data_t d = 0;
+        const dim_t src_loc_off = (ndims == 5)
+                ? src_d.off(mb, g * IC, 0, 0, 0)
+                : (ndims == 4) ? src_d.off(mb, g * IC, 0, 0)
+                               : (ndims == 3) ? src_d.off(mb, g * IC, 0) : 0;
+
+        const dim_t weights_loc_off = (ndims == 5)
+                ? (with_groups ? weights_d.off(g, oc, 0, 0, 0, 0)
+                               : weights_d.off(oc, 0, 0, 0, 0))
+                : (ndims == 4) ? (with_groups ? weights_d.off(g, oc, 0, 0, 0)
+                                              : weights_d.off(oc, 0, 0, 0))
+                               : (ndims == 3)
+                                ? (with_groups ? weights_d.off(g, oc, 0, 0)
+                                               : weights_d.off(oc, 0, 0))
+                                : 0;
+
+        const src_data_t *__restrict src_loc = src + src_loc_off;
+        const wei_data_t *__restrict weights_loc = weights + weights_loc_off;
+
+        if (IC > KW) {
+            for_(dim_t kd = 0; kd < KD; ++kd)
+            for_(dim_t kh = 0; kh < KH; ++kh)
+            for (dim_t kw = 0; kw < KW; ++kw) {
+                const dim_t id = od * KSD - padFront + kd * KDD;
+                const dim_t ih = oh * KSH - padT + kh * KDH;
+                const dim_t iw = ow * KSW - padL + kw * KDW;
+                if (id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0
+                        || iw >= IW)
+                    continue;
+                for (int ic = 0; ic < IC; ++ic) {
+                    const dim_t src_off = ic + id * src_id_stride
+                            + ih * src_ih_stride + iw * src_iw_stride;
+                    const dim_t weights_off = ic * weights_ic_stride
+                            + kd * weights_kd_stride + kh * weights_kh_stride
+                            + kw;
+                    d += (acc_data_t)src_loc[src_off]
+                            * weights_loc[weights_off];
+                }
+            }
+        } else {
+            for_(dim_t ic = 0; ic < IC; ++ic)
+            for_(dim_t kd = 0; kd < KD; ++kd)
+            for_(dim_t kh = 0; kh < KH; ++kh)
+            for (dim_t kw = 0; kw < KW; ++kw) {
+                const dim_t id = od * KSD - padFront + kd * KDD;
+                const dim_t ih = oh * KSH - padT + kh * KDH;
+                const dim_t iw = ow * KSW - padL + kw * KDW;
+                if (id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0
+                        || iw >= IW)
+                    continue;
+                const dim_t src_off = ic + id * src_id_stride
+                        + ih * src_ih_stride + iw * src_iw_stride;
+                const dim_t weights_off = ic * weights_ic_stride
+                        + kd * weights_kd_stride + kh * weights_kh_stride + kw;
+                d += (acc_data_t)src_loc[src_off] * weights_loc[weights_off];
+            }
+        }
+        return d;
+    };
+
     parallel_nd(G, MB, OC, OD, OH, OW,
             [&](int g, int mb, int oc, int od, int oh, int ow) {
                 float a = bias ? get_bias(bias, bias_d.off(g * OC + oc),
                                   pd()->desc()->bias_desc.data_type)
                                : 0;
-                a += ker(g, mb, oc, od, oh, ow);
+
+                if (src_d.is_plain() && weights_d.is_plain()
+                        && src_ic_stride == 1 && weights_kw_stride == 1)
+                    a += ker_plain(g, mb, oc, od, oh, ow);
+                else
+                    a += ker(g, mb, oc, od, oh, ow);
+
                 if (with_relu && a < 0) a = a * nslope;
                 if (ndims == 5)
                     dst[dst_d.off(mb, g * OC + oc, od, oh, ow)]
@@ -169,9 +254,9 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     const int KSH = pd()->KSH();
     const int KSW = pd()->KSW();
 
-    const int KDD = pd()->KDD();
-    const int KDH = pd()->KDH();
-    const int KDW = pd()->KDW();
+    const int KDD = pd()->KDD() + 1;
+    const int KDH = pd()->KDH() + 1;
+    const int KDW = pd()->KDW() + 1;
 
     const int padFront = pd()->padFront();
     const int padT = pd()->padT();
@@ -185,12 +270,12 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
         for_(int kd = 0; kd < KD; ++kd)
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
-            if (iw + padL < kw * (1 + KDW) || ih + padT < kh * (1 + KDH)
-                    || id + padFront < kd * (1 + KDD))
+            if (iw + padL < kw * KDW || ih + padT < kh * KDH
+                    || id + padFront < kd * KDD)
                 continue;
-            int ow = iw - kw * (1 + KDW) + padL;
-            int oh = ih - kh * (1 + KDH) + padT;
-            int od = id - kd * (1 + KDD) + padFront;
+            int ow = iw - kw * KDW + padL;
+            int oh = ih - kh * KDH + padT;
+            int od = id - kd * KDD + padFront;
             if (ow % KSW != 0 || oh % KSH != 0 || od % KSD != 0) continue;
 
             ow /= KSW;
@@ -226,6 +311,95 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
         return d;
     };
 
+    // help compiler optimize the code
+    // constants for plain layouts kernel
+    const dnnl_dims_t &diff_dst_str = diff_dst_d.blocking_desc().strides;
+    const dim_t diff_dst_oc_stride = diff_dst_str[1];
+    const dim_t diff_dst_ow_stride = diff_dst_str[ndims - 1];
+    const dim_t diff_dst_oh_stride = (ndims >= 4) ? diff_dst_str[ndims - 2] : 0;
+    const dim_t diff_dst_od_stride = (ndims >= 5) ? diff_dst_str[ndims - 3] : 0;
+
+    const dnnl_dims_t &weights_str = weights_d.blocking_desc().strides;
+    const int gr_shift = with_groups ? 1 : 0;
+    const dim_t weights_oc_stride = weights_str[0 + gr_shift];
+    const dim_t weights_kw_stride = weights_str[ndims - 1 + gr_shift];
+    const dim_t weights_kh_stride
+            = (ndims >= 4) ? weights_str[ndims - 2 + gr_shift] : 0;
+    const dim_t weights_kd_stride
+            = (ndims >= 4) ? weights_str[ndims - 3 + gr_shift] : 0;
+
+    auto ker_plain = [=](int g, int mb, int ic, int id, int ih, int iw) {
+        assert(3 <= ndims && ndims <= 5);
+        acc_data_t d = 0;
+        const dim_t diff_dst_loc_off = (ndims == 5)
+                ? diff_dst_d.off(mb, g * OC, 0, 0, 0)
+                : (ndims == 4)
+                        ? diff_dst_d.off(mb, g * OC, 0, 0)
+                        : (ndims == 3) ? diff_dst_d.off(mb, g * OC, 0) : 0;
+        const dim_t weights_loc_off = (ndims == 5)
+                ? with_groups ? weights_d.off(g, 0, ic, 0, 0, 0)
+                              : weights_d.off(0, ic, 0, 0, 0)
+                : (ndims == 4) ? with_groups ? weights_d.off(g, 0, ic, 0, 0)
+                                             : weights_d.off(0, ic, 0, 0)
+                               : (ndims == 3) ? with_groups
+                                        ? weights_d.off(g, 0, ic, 0)
+                                        : weights_d.off(0, ic, 0)
+                                              : 0;
+
+        const diff_dst_data_t *__restrict diff_dst_loc
+                = diff_dst + diff_dst_loc_off;
+        const wei_data_t *__restrict weights_loc = weights + weights_loc_off;
+
+        if (OC > KW) {
+            for_(dim_t kd = 0; kd < KD; ++kd)
+            for_(dim_t kh = 0; kh < KH; ++kh)
+            for (dim_t kw = 0; kw < KW; ++kw) {
+                dim_t ow = iw - kw * KDW + padL;
+                dim_t oh = ih - kh * KDH + padT;
+                dim_t od = id - kd * KDD + padFront;
+                if (ow < 0 || oh < 0 || od < 0 || ow % KSW != 0 || oh % KSH != 0
+                        || od % KSD != 0)
+                    continue;
+                ow /= KSW;
+                oh /= KSH;
+                od /= KSD;
+                if (od >= OD || oh >= OH || ow >= OW) continue;
+                for (dim_t oc = 0; oc < OC; ++oc) {
+                    const dim_t diff_dst_off = oc + od * diff_dst_od_stride
+                            + oh * diff_dst_oh_stride + ow * diff_dst_ow_stride;
+                    const dim_t weights_off = oc * weights_oc_stride
+                            + kd * weights_kd_stride + kh * weights_kh_stride
+                            + kw;
+                    d += (acc_data_t)diff_dst_loc[diff_dst_off]
+                            * weights_loc[weights_off];
+                }
+            }
+        } else {
+            for_(dim_t oc = 0; oc < OC; ++oc)
+            for_(dim_t kd = 0; kd < KD; ++kd)
+            for_(dim_t kh = 0; kh < KH; ++kh)
+            for (dim_t kw = 0; kw < KW; ++kw) {
+                dim_t ow = iw - kw * KDW + padL;
+                dim_t oh = ih - kh * KDH + padT;
+                dim_t od = id - kd * KDD + padFront;
+                if (ow < 0 || oh < 0 || od < 0 || ow % KSW != 0 || oh % KSH != 0
+                        || od % KSD != 0)
+                    continue;
+                ow /= KSW;
+                oh /= KSH;
+                od /= KSD;
+                if (od >= OD || oh >= OH || ow >= OW) continue;
+                const dim_t diff_dst_off = oc + od * diff_dst_od_stride
+                        + oh * diff_dst_oh_stride + ow * diff_dst_ow_stride;
+                const dim_t weights_off = oc * weights_oc_stride
+                        + kd * weights_kd_stride + kh * weights_kh_stride + kw;
+                d += (acc_data_t)diff_dst_loc[diff_dst_off]
+                        * weights_loc[weights_off];
+            }
+        }
+        return d;
+    };
+
     parallel_nd(G, MB, IC, ID, IH, IW,
             [&](int g, int mb, int ic, int id, int ih, int iw) {
                 auto ds_idx = (ndims == 5)
@@ -235,7 +409,12 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                 float a = bias ? get_bias(bias, bias_d.off(g * IC + ic),
                                   pd()->desc()->bias_desc.data_type)
                                : 0;
-                a += ker(g, mb, ic, id, ih, iw);
+
+                if (diff_dst_d.is_plain() && weights_d.is_plain()
+                        && diff_dst_oc_stride == 1 && weights_kw_stride == 1)
+                    a += ker_plain(g, mb, ic, id, ih, iw);
+                else
+                    a += ker(g, mb, ic, id, ih, iw);
                 diff_src[ds_idx] = saturate<diff_src_data_t>(a);
             });
 }
@@ -275,9 +454,9 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
     const int KSH = pd()->KSH();
     const int KSW = pd()->KSW();
 
-    const int KDD = pd()->KDD();
-    const int KDH = pd()->KDH();
-    const int KDW = pd()->KDW();
+    const int KDD = pd()->KDD() + 1;
+    const int KDH = pd()->KDH() + 1;
+    const int KDW = pd()->KDW() + 1;
 
     const int padFront = pd()->padFront();
     const int padT = pd()->padT();
@@ -291,17 +470,16 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
         for_(int od = 0; od < OD; ++od)
         for_(int oh = 0; oh < OH; ++oh)
         for (int ow = 0; ow < OW; ++ow) {
-            if (ow * KSW + kw * (1 + KDW) < padL
-                    || oh * KSH + kh * (1 + KDH) < padT
-                    || od * KSD + kd * (1 + KDD) < padFront
-                    || ow * KSW + kw * (1 + KDW) >= IW + padL
-                    || oh * KSH + kh * (1 + KDH) >= IH + padT
-                    || od * KSD + kd * (1 + KDD) >= ID + padFront)
+            if (ow * KSW + kw * KDW < padL || oh * KSH + kh * KDH < padT
+                    || od * KSD + kd * KDD < padFront
+                    || ow * KSW + kw * KDW >= IW + padL
+                    || oh * KSH + kh * KDH >= IH + padT
+                    || od * KSD + kd * KDD >= ID + padFront)
                 continue;
 
-            int id = od * KSD - padFront + kd * (1 + KDD);
-            int ih = oh * KSH - padT + kh * (1 + KDH);
-            int iw = ow * KSW - padL + kw * (1 + KDW);
+            int id = od * KSD - padFront + kd * KDD;
+            int ih = oh * KSH - padT + kh * KDH;
+            int iw = ow * KSW - padL + kw * KDW;
             if (ndims == 5)
                 d += (acc_data_t)diff_dst[diff_dst_d.off(
                              mb, g * OC + oc, od, oh, ow)]
@@ -315,6 +493,58 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
                         * src[src_d.off(mb, g * IC + ic, iw)];
             else
                 assert(false);
+        }
+    };
+
+    auto ker_plain = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh,
+                             int kw) {
+        assert(3 <= ndims && ndims <= 5);
+        // help compiler optimize the code
+        // constants for plain layouts kernel
+        const dnnl_dims_t &diff_dst_str = diff_dst_d.blocking_desc().strides;
+        const dim_t diff_dst_mb_stride = diff_dst_str[0];
+        const dim_t diff_dst_ow_stride = diff_dst_str[ndims - 1];
+        const dim_t diff_dst_oh_stride
+                = (ndims >= 4) ? diff_dst_str[ndims - 2] : 0;
+        const dim_t diff_dst_od_stride
+                = (ndims >= 5) ? diff_dst_str[ndims - 3] : 0;
+        const dnnl_dims_t &src_str = src_d.blocking_desc().strides;
+        const dim_t src_mb_stride = src_str[0];
+        const dim_t src_iw_stride = src_str[ndims - 1];
+        const dim_t src_ih_stride = (ndims >= 4) ? src_str[ndims - 2] : 0;
+        const dim_t src_id_stride = (ndims >= 5) ? src_str[ndims - 3] : 0;
+
+        const dim_t diff_dst_loc_off = (ndims == 5)
+                ? diff_dst_d.off(0, g * OC + oc, 0, 0, 0)
+                : (ndims == 4)
+                        ? diff_dst_d.off(0, g * OC + oc, 0, 0)
+                        : (ndims == 3) ? diff_dst_d.off(0, g * OC + oc, 0) : 0;
+
+        const dim_t src_loc_off = (ndims == 5)
+                ? src_d.off(0, g * IC + ic, 0, 0, 0)
+                : (ndims == 4)
+                        ? src_d.off(0, g * IC + ic, 0, 0)
+                        : (ndims == 3) ? src_d.off(0, g * IC + ic, 0) : 0;
+
+        const diff_dst_data_t *__restrict diff_dst_loc
+                = diff_dst + diff_dst_loc_off;
+        const src_data_t *__restrict src_loc = src + src_loc_off;
+
+        for_(dim_t mb = 0; mb < MB; ++mb)
+        for_(dim_t od = 0; od < OD; ++od)
+        for_(dim_t oh = 0; oh < OH; ++oh)
+        for (dim_t ow = 0; ow < OW; ++ow) {
+            const dim_t id = od * KSD - padFront + kd * KDD;
+            const dim_t ih = oh * KSH - padT + kh * KDH;
+            const dim_t iw = ow * KSW - padL + kw * KDW;
+            if (id < 0 || id >= ID || ih < 0 || ih >= IH || iw < 0 || iw >= IW)
+                continue;
+            const dim_t diff_dst_off = mb * diff_dst_mb_stride
+                    + od * diff_dst_od_stride + oh * diff_dst_oh_stride
+                    + ow * diff_dst_ow_stride;
+            const dim_t src_off = mb * src_mb_stride + id * src_id_stride
+                    + ih * src_ih_stride + iw * src_iw_stride;
+            d += (acc_data_t)diff_dst_loc[diff_dst_off] * src_loc[src_off];
         }
     };
 
@@ -350,7 +580,10 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
         for_(int kh = 0; kh < KH; ++kh)
         for (int kw = 0; kw < KW; ++kw) {
             acc_data_t dw = 0;
-            ker(dw, g, oc, ic, kd, kh, kw);
+            if (diff_dst_d.is_plain() && src_d.is_plain())
+                ker_plain(dw, g, oc, ic, kd, kh, kw);
+            else
+                ker(dw, g, oc, ic, kd, kh, kw);
 
             if (ndims == 5) {
                 auto idx = with_groups
