@@ -181,8 +181,12 @@ private:
         auto output = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
-        const auto &dims = input_d.dims();
+        if (input_d.has_zero_dim()) {
+            assert(output_d.has_zero_dim());
+            return status::success;
+        }
 
+        const auto &dims = input_d.dims();
         const int L = dims[0];
         const int D = dims[1];
         const int I = dims[2];
