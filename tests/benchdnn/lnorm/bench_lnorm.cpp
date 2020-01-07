@@ -40,7 +40,7 @@ dims_t dims;
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
 std::vector<dnnl_format_tag_t> tag {dnnl_tnc};
-std::vector<dnnl_format_tag_t> stat_tag {dnnl_tn};
+std::vector<dnnl_format_tag_t> stat_tag {dnnl_format_tag_any};
 std::vector<flags_t> flags {0};
 std::vector<bool> inplace {true};
 
@@ -60,7 +60,7 @@ void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
     tag = {dnnl_tnc};
-    stat_tag = {dnnl_tn};
+    stat_tag = {dnnl_format_tag_any};
     flags = {0};
     inplace = {true};
     attr = attr_t();

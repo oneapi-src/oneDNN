@@ -732,7 +732,7 @@ dnnl_format_tag_t get_default_tag(int ndims) {
         case 4: return dnnl_abcd;
         case 5: return dnnl_abcde;
         case 6: return dnnl_abcdef;
-        default: assert(!"unknown kind");
+        default: assert(!"unsupported ndims");
     }
     return dnnl_format_tag_undef;
 }

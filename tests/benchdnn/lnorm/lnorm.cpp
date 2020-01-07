@@ -374,8 +374,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
-        dnnl_primitive_desc_t &lpd, res_t *r) {
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &lpd, res_t *r) {
+    dnnl_layer_normalization_desc_t ld;
     dnnl_memory_desc_t data_d, stat_d;
 
     const int ndims = (int)p->dims.size();
@@ -385,18 +385,21 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
                      &data_d, ndims, data_dims, p->dt, p->tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &stat_d, ndims - 1, data_dims, dnnl_f32, p->stat_tag),
-            WARN);
+    const dnnl_memory_desc_t *stat_d_ptr = NULL;
+    if (p->stat_tag != dnnl_format_tag_undef) {
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(
+                         &stat_d, ndims - 1, data_dims, dnnl_f32, p->stat_tag),
+                WARN);
+        stat_d_ptr = &stat_d;
+    }
 
     auto flags = (dnnl_normalization_flags_t)p->flags;
     if (p->dir & FLAG_FWD) {
         auto prop = p->dir & FLAG_INF ? dnnl_forward_inference
                                       : dnnl_forward_training;
         DNN_SAFE(dnnl_layer_normalization_forward_desc_init(
-                         &ld, prop, &data_d, &stat_d, p->eps, flags),
+                         &ld, prop, &data_d, stat_d_ptr, p->eps, flags),
                 WARN);
-
     } else {
         dnnl_memory_desc_t diff_data_d;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims, data_dims,
@@ -404,16 +407,16 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
                 WARN);
         auto prop = p->dir & FLAG_WEI ? dnnl_backward : dnnl_backward_data;
         DNN_SAFE(dnnl_layer_normalization_backward_desc_init(&ld, prop,
-                         &diff_data_d, &data_d, &stat_d, p->eps, flags),
+                         &diff_data_d, &data_d, stat_d_ptr, p->eps, flags),
                 WARN);
     }
 
     dnnl_primitive_desc_t hint_fwd_pd = NULL;
     if (p->dir & FLAG_BWD) {
         dnnl_layer_normalization_desc_t ld_fwd;
-        DNN_SAFE(
-                dnnl_layer_normalization_forward_desc_init(&ld_fwd,
-                        dnnl_forward_training, &data_d, &stat_d, p->eps, flags),
+        DNN_SAFE(dnnl_layer_normalization_forward_desc_init(&ld_fwd,
+                         dnnl_forward_training, &data_d, stat_d_ptr, p->eps,
+                         flags),
                 WARN);
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
                 &hint_fwd_pd, &ld_fwd, NULL, engine_tgt, NULL);
@@ -458,16 +461,19 @@ static int init_pd(const prb_t *p, dnnl_layer_normalization_desc_t &ld,
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_layer_normalization_desc_t ld;
     dnnl_primitive_desc_t lpd;
     dnnl_primitive_t b;
 
-    SAFE(init_pd(p, ld, lpd, r), WARN);
+    SAFE(init_pd(p, lpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
+    const auto q = [=](dnnl_query_t query, int index = 0) {
+        return *dnnl_primitive_desc_query_md(lpd, query, index);
+    };
+
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(ld.data_desc.ndims);
-    const auto &data_desc = ld.data_desc;
+    const auto &data_desc = q(dnnl_query_src_md, 0);
+    const auto tag = get_default_tag(data_desc.ndims);
 
     dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_desc, engine_tgt);
@@ -482,15 +488,20 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t placeholder_d_src_dt;
     dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
-    const int stat_ndims = ld.data_desc.ndims - 1;
-    const auto stat_tag = get_default_tag(stat_ndims);
-    const auto &stat_desc = ld.stat_desc;
-    dnn_mem_t mean_fp(stat_desc, fp, stat_tag, engine_tgt),
-            mean_dt(stat_desc, engine_tgt);
-    dnn_mem_t var_fp(stat_desc, fp, stat_tag, engine_tgt),
-            var_dt(stat_desc, engine_tgt);
+    // On inference w/o global stats the layer norm doesn't require stat
+    // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
+    const auto stat_tag = get_default_tag(data_desc.ndims - 1);
+    dnn_mem_t mean_fp(
+            data_desc.ndims - 1, data_desc.dims, fp, stat_tag, engine_tgt);
+    dnn_mem_t var_fp(
+            data_desc.ndims - 1, data_desc.dims, fp, stat_tag, engine_tgt);
 
-    const dnnl_dims_t dims2d = {2, ld.data_desc.dims[ld.data_desc.ndims - 1]};
+    const bool is_stat_src = (p->flags & GLOB_STATS) || (p->dir & FLAG_BWD);
+    const auto stat_query = is_stat_src ? dnnl_query_src_md : dnnl_query_dst_md;
+    dnn_mem_t mean_dt(q(stat_query, 1), engine_tgt);
+    dnn_mem_t var_dt(q(stat_query, 2), engine_tgt);
+
+    const dnnl_dims_t dims2d = {2, data_desc.dims[data_desc.ndims - 1]};
     dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
             ss_dt(ss_fp.md_, engine_tgt);
     dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
@@ -508,7 +519,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(src_dt.reorder(src_fp), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
