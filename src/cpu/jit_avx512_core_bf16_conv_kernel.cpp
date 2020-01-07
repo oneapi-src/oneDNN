@@ -77,6 +77,13 @@ inline bool is_iw_threading_available(const jit_conv_conf_t &jcp) {
 inline bool is_iw_threading_on(const jit_conv_conf_t &jcp) {
     return (jcp.nb_iw > 1);
 }
+inline bool is_1stconv(const jit_conv_conf_t &jcp) {
+    const bool no_big_offt = nstl::max<size_t>(jcp.ic, jcp.oc)
+                    * nstl::max(jcp.typesize_in, jcp.typesize_out) * jcp.id
+                    * jcp.ih * jcp.iw
+            < INT_MAX;
+    return jcp.ic < 16 && jcp.ngroups == 1 && no_big_offt;
+}
 } // namespace
 
 void jit_avx512_core_bf16_fwd_kernel::prepare_output(int ur_w) {
@@ -671,12 +678,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             || ext_kd <= jcp.f_pad || ext_kd <= jcp.back_pad;
     if (kernel_outside_src) return status::unimplemented;
 
-    const bool no_big_offt = nstl::max<size_t>(jcp.ic, jcp.oc)
-                    * nstl::max(jcp.typesize_in, jcp.typesize_out) * jcp.id
-                    * jcp.ih * jcp.iw
-            < INT_MAX;
-
-    jcp.is_1stconv = jcp.ic < 16 && jcp.ngroups == 1 && no_big_offt;
+    jcp.is_1stconv = is_1stconv(jcp);
 
     const int regs = isa_has_bf16(jcp.isa) ? 31 /* expl_bcast case */ : 26;
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
