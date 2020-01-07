@@ -36,8 +36,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data, backward)
             && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr)
-            && (flags & ~(dnnl_use_global_stats | dnnl_use_scaleshift)) == 0
-            && IMPLICATION(flags & dnnl_use_global_stats, stat_desc != nullptr);
+            && (flags & ~(dnnl_use_global_stats | dnnl_use_scaleshift)) == 0;
     if (!args_ok) return invalid_arguments;
 
     auto ld = layer_normalization_desc_t();
@@ -52,19 +51,10 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
 
     if (stat_desc)
         ld.stat_desc = *stat_desc;
-    else {
-        int stat_ndims = data_desc->ndims - 1;
-        dims_t stat_dims = {0}, stat_strides = {0};
-        array_copy(stat_dims, data_desc->dims, stat_ndims);
-        auto data_strides = data_desc->format_desc.blocking.strides;
-        for (int i = 0; i < stat_ndims; i++)
-            stat_strides[i]
-                    = data_strides[i] > data_strides[data_desc->ndims - 1]
-                    ? data_strides[i]
-                    : data_strides[i] / data_strides[data_desc->ndims - 1];
-        dnnl_memory_desc_init_by_strides(&ld.stat_desc, stat_ndims, stat_dims,
-                data_type::f32, stat_strides);
-    }
+    else
+        CHECK(dnnl_memory_desc_init_by_tag(&ld.stat_desc,
+                ld.data_desc.ndims - 1, ld.data_desc.dims, data_type::f32,
+                format_tag::any));
 
     int ndims = data_desc->ndims;
     dims_t scaleshift_dims = {2, data_desc->dims[ndims - 1]};

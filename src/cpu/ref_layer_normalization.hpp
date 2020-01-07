@@ -49,7 +49,8 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
                     && stat_md()->data_type == f32
                     && IMPLICATION(
                             use_scaleshift(), weights_md()->data_type == f32)
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
             return status::success;
