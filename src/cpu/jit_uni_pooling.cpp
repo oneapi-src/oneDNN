@@ -162,13 +162,14 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         (*kernel_)(&arg);
     };
 
+    const data_t zero_val = 0;
     parallel_nd(jpp.mb, jpp.nb_c, [&](int n, int b_c) {
         auto src_diff_base_ptr = &diff_src[diff_src_d.blk_off(n, b_c, 0)];
         auto block_size = (ptrdiff_t)jpp.ih * (ptrdiff_t)jpp.iw
                 * (ptrdiff_t)jpp.c_block;
 
         for (ptrdiff_t idx = 0; idx != block_size; ++idx) {
-            src_diff_base_ptr[idx] = 0.0;
+            src_diff_base_ptr[idx] = zero_val;
         }
 
         for (int oh = 0; oh < jpp.oh; ++oh) {
