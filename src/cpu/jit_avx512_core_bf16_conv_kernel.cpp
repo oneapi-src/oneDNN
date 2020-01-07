@@ -2465,12 +2465,13 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
-    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto src_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    auto dst_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     auto wei_tag = with_groups
             ? pick(ndims - 3, gOIw16i16o, gOIhw16i16o, gOIdhw16i16o)
             : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
-    jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
-    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dat_tag);
+    jcp.src_tag = src_d.matches_one_of_tag(src_tag);
+    jcp.dst_tag = diff_dst_d.matches_one_of_tag(dst_tag);
     jcp.wei_tag = diff_weights_d.matches_one_of_tag(wei_tag);
 
     /* conditions on bias memory */
@@ -2500,7 +2501,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         }
     }
 
-    ok = true && jcp.src_tag == dat_tag && jcp.dst_tag == dat_tag
+    ok = true && jcp.src_tag == src_tag && jcp.dst_tag == dst_tag
             && jcp.wei_tag == wei_tag;
     if (!ok) return status::unimplemented;
     jcp.wei_dt = diff_weights_d.data_type();
