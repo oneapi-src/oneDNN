@@ -23,6 +23,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 
 #include "jit_uni_binary.hpp"
@@ -62,6 +63,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     const AddressFrame &vmmword = (isa == avx2) ? yword : zword;
 
     const binary_pd_t *pd_;
+    bool is_bf16_;
 
     Reg64 reg_param = abi_param1;
 
@@ -81,9 +83,11 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
         size_t nelems = src0_d.nelems(true);
+        is_bf16_ = src0_d.data_type() == data_type::bf16;
+        // it's float due to for bfloat16 we still load 16 elements, not 32.
         simd_w_ = vlen_ / sizeof(float);
         tail_size_ = nelems % simd_w_;
-        data_type_size_ = sizeof(float);
+        data_type_size_ = is_bf16_ ? sizeof(bfloat16_t) : sizeof(float);
     }
 
     void load_kernel_params() {
@@ -180,15 +184,14 @@ template <cpu_isa_t isa, data_type_t src_type>
 struct jit_uni_binary_subkernel_t;
 
 template <data_type_t src_type>
-struct jit_uni_binary_subkernel_t<avx512_core, src_type>
-    : public jit_uni_binary_kernel_t<avx512_core> {
+struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
+    : public jit_uni_binary_kernel_t<avx512_core_bf16> {
     Opmask tail_opmask = Opmask(1);
 
     void prepare_tail_mask() {
         if (!tail_size_) return;
 
         const int mask_f32 = (1 << tail_size_) - 1;
-
         Reg32 regw_tmp = reg_tmp.cvt32();
         mov(regw_tmp, mask_f32);
         kmovd(tail_opmask, regw_tmp);
@@ -199,6 +202,10 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
     void load(const Vmm &dst, const Address &src, data_type_t dt) {
         switch (dt) {
             case data_type::f32: uni_vmovups(dst, src); break;
+            case data_type::bf16:
+                vpmovzxwd(dst, src);
+                vpslld(dst, dst, 0x10);
+                break;
             default: assert(!"unreachable");
         }
     }
@@ -207,6 +214,10 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
             const Address &src, data_type_t dt) {
         switch (dt) {
             case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
+            case data_type::bf16:
+                vpmovzxwd(dst | opmask, src);
+                vpslld(dst, dst, 0x10);
+                break;
             default: assert(!"unreachable");
         }
     }
@@ -215,6 +226,10 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         Ymm ymm_src = Ymm(src.getIdx());
         switch (dt) {
             case data_type::f32: uni_vmovups(dst, src); break;
+            case data_type::bf16:
+                vcvtneps2bf16(ymm_src, src);
+                vmovdqu16(dst, ymm_src);
+                break;
             default: assert(!"unreachable");
         }
     }
@@ -224,6 +239,10 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         Ymm ymm_src = Ymm(src.getIdx());
         switch (dt) {
             case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
+            case data_type::bf16:
+                vcvtneps2bf16(ymm_src, src);
+                vmovdqu16(dst | opmask, ymm_src);
+                break;
             default: assert(!"unreachable");
         }
     }
@@ -232,7 +251,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
-            int offt = i * (vlen_ / 1.f);
+            int offt = vlen_ * i;
             if (!tail) {
                 load(vreg_tmp_src0, src0_ptr(offt), src_type);
                 load(vreg_tmp_src1, src1_ptr(offt), src_type);
@@ -251,6 +270,117 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         : jit_uni_binary_kernel_t(pd) {
         get_code();
     }
+};
+
+template <data_type_t src_type>
+struct jit_uni_binary_subkernel_t<avx512_core, src_type>
+    : public jit_uni_binary_kernel_t<avx512_core> {
+    Opmask tail_opmask = Opmask(1);
+
+    // FP32->BF16 emulation
+    bf16_emulation_t *bf16_emu_ {nullptr};
+    Reg64 reg_bf16_tmp = reg_tmp;
+    Zmm bf16_emu_reserved_1 = Zmm(28);
+    Zmm bf16_emu_reserved_2 = Zmm(29);
+    Zmm bf16_emu_reserved_3 = Zmm(30);
+    Zmm bf16_emu_reserved_4 = Zmm(31);
+
+    void prepare_tail_mask() {
+        if (!tail_size_) return;
+
+        const int mask_f32 = (1 << tail_size_) - 1;
+
+        Reg32 regw_tmp = reg_tmp.cvt32();
+        mov(regw_tmp, mask_f32);
+        kmovd(tail_opmask, regw_tmp);
+    }
+
+    void prepare_bf16_emulator() {
+        if (is_bf16_) { // init emulation of bfloat16 operations
+            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserved_1,
+                    bf16_emu_reserved_2, bf16_emu_reserved_3, reg_bf16_tmp,
+                    bf16_emu_reserved_4, bf16_emu_reserved_4);
+            bf16_emu_->init_vcvtneps2bf16();
+        }
+    }
+
+    void prepare_isa_subkernel() override {
+        prepare_tail_mask();
+        prepare_bf16_emulator();
+    }
+
+    void load(const Vmm &dst, const Address &src, data_type_t dt) {
+        switch (dt) {
+            case data_type::f32: uni_vmovups(dst, src); break;
+            case data_type::bf16:
+                vpmovzxwd(dst, src);
+                vpslld(dst, dst, 0x10);
+                break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void load_tail(const Vmm &dst, const Xbyak::Opmask &opmask,
+            const Address &src, data_type_t dt) {
+        switch (dt) {
+            case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
+            case data_type::bf16:
+                vpmovzxwd(dst | opmask, src);
+                vpslld(dst, dst, 0x10);
+                break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void store(const Address &dst, const Vmm &src, data_type_t dt) {
+        Ymm ymm_src = Ymm(src.getIdx());
+        switch (dt) {
+            case data_type::f32: uni_vmovups(dst, src); break;
+            case data_type::bf16:
+                bf16_emu_->vcvtneps2bf16(ymm_src, src);
+                vmovdqu16(dst, ymm_src);
+                break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void store_tail(const Address &dst, const Xbyak::Opmask &opmask,
+            const Vmm &src, data_type_t dt) {
+        Ymm ymm_src = Ymm(src.getIdx());
+        switch (dt) {
+            case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
+            case data_type::bf16:
+                bf16_emu_->vcvtneps2bf16(ymm_src, src);
+                vmovdqu16(dst | opmask, ymm_src);
+                break;
+            default: assert(!"unreachable");
+        }
+    }
+
+    void compute_dst(int unroll, bool tail = false) override {
+        for (int i = 0; i < unroll; i++) {
+            Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
+            Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
+            int offt = i * (vlen_ / (is_bf16_ ? 2.f : 1.f));
+            if (!tail) {
+                load(vreg_tmp_src0, src0_ptr(offt), src_type);
+                load(vreg_tmp_src1, src1_ptr(offt), src_type);
+                perform_op(vreg_tmp_src0, vreg_tmp_src1);
+                store(dst_ptr(offt), vreg_tmp_src0, src_type);
+            } else {
+                load_tail(vreg_tmp_src0, tail_opmask, src0_ptr(offt), src_type);
+                load_tail(vreg_tmp_src1, tail_opmask, src1_ptr(offt), src_type);
+                perform_op(vreg_tmp_src0, vreg_tmp_src1);
+                store_tail(dst_ptr(offt), tail_opmask, vreg_tmp_src0, src_type);
+            }
+        }
+    }
+
+    jit_uni_binary_subkernel_t(const binary_pd_t *pd)
+        : jit_uni_binary_kernel_t(pd) {
+        get_code();
+    }
+    virtual ~jit_uni_binary_subkernel_t() { delete bf16_emu_; }
 };
 
 template <data_type_t src_type>
@@ -298,7 +428,11 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
 
 template <data_type_t src_type>
 std::unique_ptr<binary_kernel_t> create_binary_kernel(const binary_pd_t *pd) {
-    if (mayiuse(avx512_core)) {
+    if (mayiuse(avx512_core_bf16)) {
+        using subkernel_t
+                = jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>;
+        return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
+    } else if (mayiuse(avx512_core)) {
         using subkernel_t = jit_uni_binary_subkernel_t<avx512_core, src_type>;
         return std::unique_ptr<subkernel_t> {new subkernel_t(pd)};
     } else if (mayiuse(avx2)) {
@@ -369,6 +503,7 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
 using namespace data_type;
 
 template struct jit_uni_binary_t<f32>;
+template struct jit_uni_binary_t<bf16>;
 
 } // namespace cpu
 } // namespace impl

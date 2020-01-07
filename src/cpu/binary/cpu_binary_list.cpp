@@ -33,6 +33,7 @@ using namespace dnnl::impl::data_type;
 static const pd_create_f impl_list[] = {
         /* fp */
         INSTANCE(jit_uni_binary_t<f32>),
+        INSTANCE(jit_uni_binary_t<bf16>),
         INSTANCE(ref_binary_t<f32>),
         INSTANCE(ref_binary_t<bf16>),
         /* int */

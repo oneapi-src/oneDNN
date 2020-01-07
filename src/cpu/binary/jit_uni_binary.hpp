@@ -43,6 +43,7 @@ struct jit_uni_binary_t : public primitive_impl_t {
         status_t init() {
             using namespace data_type;
             bool ok = mayiuse(avx2)
+                    && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
                     && utils::everyone_is(src_type, src_md(0)->data_type,
                             src_md(1)->data_type)
                     && set_default_params() == status::success
