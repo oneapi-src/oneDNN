@@ -136,10 +136,13 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
                 ws_md_ = *hint_fwd_pd_->workspace_md();
             }
 
+            calculate_channel_block_size();
             init_scratchpad();
 
             return status::success;
         }
+
+        dim_t channel_block_size_;
 
     private:
         void init_scratchpad() {
@@ -149,11 +152,27 @@ struct nchw_pooling_bwd_t : public primitive_impl_t {
                 size_t src_sz_ = ID() * IH() * IW();
                 size_t nthrs = dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
-                        key_pool_src_bf16cvt, sizeof(float) * src_sz_ * nthrs);
-                scratchpad.book(
-                        key_pool_dst_bf16cvt, sizeof(float) * dst_sz_ * nthrs);
+
+                scratchpad.book(key_pool_src_bf16cvt,
+                        sizeof(float) * src_sz_ * nthrs * channel_block_size_);
+                scratchpad.book(key_pool_dst_bf16cvt,
+                        sizeof(float) * dst_sz_ * nthrs * channel_block_size_);
             }
+        }
+
+        void calculate_channel_block_size() {
+            // calculate channels block size at which the data fits into half
+            // of L1, it allows to improve performance for problems with small
+            // spatial
+            dim_t dst_sz_ = OD() * OH() * OW();
+            dim_t src_sz_ = ID() * IH() * IW();
+            dim_t nthrs = dnnl_get_max_threads();
+            dim_t C_per_thr = nstl::min(MB() * C() / nthrs, C());
+            const dim_t max_block_size = get_cache_size(1, true) / 2;
+            dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16
+            channel_block_size_ = nstl::max(
+                    nstl::min(C_per_thr, max_block_size / data_size_per_ch),
+                    (dim_t)1);
         }
     };
 
