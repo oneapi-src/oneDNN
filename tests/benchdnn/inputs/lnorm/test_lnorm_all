@@ -1,4 +1,11 @@
 --reset
---dir=FWD_D,BWD_D  --inplace=true,false  --flags=     --batch=lnorm_all
---dir=FWD_D,BWD_DW --inplace=true        --flags=GS,S --batch=lnorm_all
 
+--inplace=true,false
+--dir=FWD_D
+--flags=,S,G,GS  --batch=lnorm_all
+
+--dir=BWD_D
+--flags=,G       --batch=lnorm_all
+
+--dir=BWD_DW
+--flags=S,GS     --batch=lnorm_all

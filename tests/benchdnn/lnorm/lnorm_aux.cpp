@@ -60,7 +60,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (p.tag != dnnl_tnc) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.stat_tag != dnnl_tn)
+    if (p.stat_tag != dnnl_format_tag_any)
         s << "--stat_tag=" << fmt_tag2str(p.stat_tag) << " ";
     if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
     if (p.flags != (flags_t)0) s << "--flags=" << flags2str(p.flags) << " ";
