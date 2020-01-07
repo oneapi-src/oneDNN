@@ -98,6 +98,29 @@ protected:
     memory_desc_t stat_md_;
     memory_desc_t scaleshift_md_;
 
+    bool set_default_stat_md_format(const memory_desc_t &data_md) {
+        if (stat_md_.format_kind != format_kind::any) return true;
+
+        // data memory desc in non-blocked memory format is unsupported
+        if (data_md.format_kind != format_kind::blocked) return false;
+
+        // if the normalization axis is blocked, fallback to plain format
+        bool is_norm_dim_blocked = false;
+        for (int d = 0; d < data_md.format_desc.blocking.inner_nblks; ++d)
+            is_norm_dim_blocked |= data_md.format_desc.blocking.inner_idxs[d]
+                    == ndims() - 1;
+        if (is_norm_dim_blocked)
+            return memory_desc_init_by_strides(stat_md_, nullptr)
+                    == status::success;
+
+        // the default memory format for stat is derived from data_md by
+        // dropping the normalization dimension and keeping the physical order
+        // of other dimensions (preserving the blocked structure if any)
+        return memory_desc_init_by_blocking_desc(
+                       stat_md_, data_md.format_desc.blocking)
+                == status::success;
+    }
+
 private:
     const memory_desc_t &data_desc() const { return desc_.data_desc; }
 };
@@ -162,6 +185,11 @@ struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     }
     virtual int n_outputs() const override {
         return 1 + 2 * (!stats_are_src()) * is_training();
+    }
+
+protected:
+    bool set_default_formats_common() {
+        return set_default_stat_md_format(data_md_);
     }
 };
 
@@ -236,11 +264,11 @@ protected:
     memory_desc_t diff_scaleshift_md_;
 
     bool set_default_formats_common() {
-        if (diff_data_md_.format_kind != format_kind::any) return true;
-
-        return memory_desc_init_by_md_and_dt(
-                       diff_data_md_, data_md_, diff_data_md_.data_type)
-                == status::success;
+        return IMPLICATION(diff_data_md_.format_kind == format_kind::any,
+                       memory_desc_init_by_md_and_dt(
+                               diff_data_md_, data_md_, diff_data_md_.data_type)
+                               == status::success)
+                && set_default_stat_md_format(diff_data_md_);
     }
 };
 

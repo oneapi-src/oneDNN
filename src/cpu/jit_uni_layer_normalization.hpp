@@ -87,7 +87,8 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_impl_t {
                     && src_d.is_blocking_desc()
                     && src_d.blocking_desc().strides[ndims() - 1]
                             == 1 //plain format, last logical dim is last physical
-                    && attr()->has_default_values();
+                    && attr()->has_default_values()
+                    && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
             CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
