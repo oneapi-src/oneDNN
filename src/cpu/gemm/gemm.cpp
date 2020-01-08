@@ -99,7 +99,6 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
         CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
         cblas_sgemm(CblasColMajor, Cblas_trA, Cblas_trB, *M, *N, *K, *alpha, A,
                 *lda, B, *ldb, *beta, C, *ldc);
-
         if (bias) {
             // Add bias if necessary (bias is applied to columns of C)
             int incx = 1, incy = 1;
@@ -108,25 +107,21 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
                 cblas_saxpy(*M, 1.0, bias, incx, C + offset, incy);
             });
         }
-        status = dnnl_success;
-    } else
-#endif
-    {
-        if (mayiuse(sse41)) {
-            float *dummy_ao = NULL;
-            float *dummy_bo = NULL;
-
-            status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K,
-                    alpha, A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc,
-                    bias, force_jit_nocopy_gemm);
-        } else {
-            status = ref_gemm<float>(transa, transb, M, N, K, alpha, A, lda, B,
-                    ldb, beta, C, ldc, bias);
-        }
-    }
-
-    if (status == dnnl_success)
         msan_unpoison_matrix(C, *M, *N, *ldc, sizeof(*C));
+        return dnnl_success;
+    }
+#endif
+
+    if (mayiuse(sse41)) {
+        float *dummy_ao = NULL;
+        float *dummy_bo = NULL;
+        status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
+                A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
+                force_jit_nocopy_gemm);
+    } else {
+        status = ref_gemm<float>(transa, transb, M, N, K, alpha, A, lda, B, ldb,
+                beta, C, ldc, bias);
+    }
     return status;
 }
 
@@ -159,6 +154,7 @@ dnnl_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
             : (OCisC ? CblasColOffset : CblasFixOffset);
     cblas_gemm_s8u8s32(CblasColMajor, Cblas_trA, Cblas_trB, Cblas_offsetc, *M,
             *N, *K, *alpha, A, *LDA, ao_s8, B, *LDB, bo_s8, *beta, C, *LDC, co);
+    msan_unpoison_matrix(C, *M, *N, *LDC, sizeof(*C));
     return dnnl_success;
 #else
     return dnnl_unimplemented;
@@ -188,8 +184,6 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co);
 
-    if (status == dnnl_success)
-        msan_unpoison_matrix(C, *M, *N, *LDC, sizeof(*C));
     return status;
 }
 
@@ -220,8 +214,6 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
         status = ref_gemm_s8x8s32(transa, transb, offsetc, M, N, K, alpha, A,
                 LDA, ao, B, LDB, bo, beta, C, LDC, co);
 
-    if (status == dnnl_success)
-        msan_unpoison_matrix(C, *M, *N, *LDC, sizeof(*C));
     return status;
 }
 

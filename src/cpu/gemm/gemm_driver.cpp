@@ -732,6 +732,8 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                         gemm_kernel(sizeUM, sizeN, sizeK, alpha, bufferA_eff,
                                 bufferB, beta_eff, c_block, ldc, a_row_sum_eff,
                                 b_col_sum, co + co_stride, offsetc_eff, arg);
+                        msan_unpoison_matrix(
+                                c_block, sizeUM, sizeN, ldc, sizeof(c_type));
                     }
                 }
                 a_block_copied = 1;
