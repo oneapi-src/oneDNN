@@ -2508,10 +2508,18 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     jcp.ic_block_step = jcp.kw <= 3 ? 8 : (jcp.kw < 7 ? 4 : 2);
+    // code path with src/diff_dst transformation to vnni-friendly format by
+    // permw instructions inside jit kernel is disabled based on performance
+    // measurements for resnet50 v1.5 problems
+    // TODO: investigate performance of jcp.uses_permw_transposition = true
+    // code path and correct cross point
+    jcp.uses_permw_transposition = false;
+#if 0
     jcp.uses_permw_transposition
             = (jcp.stride_w != 1 || jcp.dilate_w != 0 || jcp.ic_block_step <= 4)
             ? false
             : true;
+#endif
     const int tr_round = 4;
     // TODO: try to optimize required memory size
     int tr_pad
@@ -2651,24 +2659,17 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
          *      kernel: temporal workspace 1 write
          *      reduction: 1 read from workspace and 1 write to the diff_wei
          *    - but experiments showed 8 works better than 5 or 6... */
+        const dim_t spatial_size_threshold = 28 * 28;
+        auto get_src_coef = [=]() {
+            return (j.oh * j.ow < spatial_size_threshold) ? 4 : 1;
+        };
+        auto get_wei_coef = [=]() {
+            return (j.oh * j.ow < spatial_size_threshold) ? 1 : 24;
+        };
 
-        const dim_t src_type_size = 2;
-        const dim_t wei_type_size = 4;
-        const dim_t balance_threshold = 16;
-
-        dim_t src_size
-                = (dim_t)j.mb * j.ic * j.id * j.ih * j.iw * src_type_size;
-        dim_t wei_size
-                = (dim_t)j.oc * j.ic * j.kd * j.kh * j.kw * wei_type_size;
-
-        dim_t r2 = nstl::min(balance_threshold,
-                nstl::max(div_up(src_size, wei_size), (dim_t)1));
-        dim_t r1 = nstl::min(balance_threshold,
-                nstl::max(div_up(wei_size, src_size), (dim_t)1));
-
-        const dim_t src_coef = (src_size <= wei_size) ? r2 : r1;
+        const dim_t src_coef = get_src_coef();
         const dim_t dst_coef = 1;
-        const dim_t wei_coef = (src_size <= wei_size) ? r1 : r2;
+        const dim_t wei_coef = get_wei_coef();
 
         dim_t src_v = src_coef * div_up(j.mb, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_ic, nthr_ic_b)
@@ -2687,7 +2688,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
     dim_t best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
     /* step 1: find the best thread distribution with lowest memory cost */
-    const int nthr_mb_max = nstl::min(nthr, j.mb * j.od);
+    // TODO: support reduction by depth and height dimensions
+    const int nthr_mb_max = nstl::min(nthr, j.mb);
     for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
         const int nthr_par = nthr / nthr_mb;
         const int nthr_oc_b_max = nstl::min(nthr_par, j.nb_oc);
