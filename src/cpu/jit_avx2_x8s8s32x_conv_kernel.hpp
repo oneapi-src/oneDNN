@@ -200,6 +200,9 @@ struct jit_avx2_x8s8s32x_fwd_kernel {
     void (*jit_ker)(jit_conv_call_s *);
     _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Ymm> *ymm_kernel_;
     _jit_avx2_x8s8s32x_fwd_kernel<Xbyak::Xmm> *xmm_kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx2_x8s8s32x_fwd_kernel);
 };
 
 } // namespace cpu
