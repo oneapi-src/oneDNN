@@ -319,7 +319,7 @@ private:
 
 struct jit_avx512_common_conv_bwd_data_kernel_f32 {
 
-    jit_avx512_common_conv_bwd_data_kernel_f32(jit_conv_conf_t ajcp)
+    jit_avx512_common_conv_bwd_data_kernel_f32(const jit_conv_conf_t &ajcp)
         : jit_ker(nullptr), zmm_kernel_(nullptr), xmm_kernel_(nullptr) {
         switch (ajcp.ic_block) {
             case 16:
