@@ -53,7 +53,7 @@ struct i8i8_binary_kernel_t {
 
 protected:
     int vlen_ = 0;
-    void (*ker_)(const call_params_t *);
+    void (*ker_)(const call_params_t *) = nullptr;
 };
 
 template <cpu_isa_t isa>
