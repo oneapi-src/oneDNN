@@ -28,8 +28,8 @@
 
 namespace binary {
 
-static int init_pd(const prb_t *p, dnnl_binary_desc_t &bd,
-        dnnl_primitive_desc_t &bpd, res_t *r) {
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
+    dnnl_binary_desc_t bd;
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
 
@@ -143,11 +143,10 @@ int fill_src(
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_binary_desc_t bd;
     dnnl_primitive_desc_t bpd;
     dnnl_primitive_t bo;
 
-    SAFE(init_pd(p, bd, bpd, r), WARN);
+    SAFE(init_pd(p, bpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     DNN_SAFE(dnnl_primitive_create(&bo, bpd), WARN);
