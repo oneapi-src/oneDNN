@@ -255,15 +255,47 @@ struct rnn_postgemm_dispatcher {
         delete rnn_postgemm_part2_;
     }
 
+    rnn_postgemm_sig(unpoison) {
+        // XXX (rsdubtso): This is a big hammer that unpoinsons everything
+        // that a postgemm may touch to avoid writing per-cell-kind
+        // versions of unpoisoning code. This must be removed alongside with
+        // the big unpoison_outputs() hammer in common/primitive.cpp.
+
+        size_t states_nelems = rnn.states_nld * rnn.states_ws_ld;
+        size_t gates_nelems = rnn.gates_nld * rnn.gates_ws_ld;
+
+        if (utils::one_of(pd_->desc()->prop_kind, prop_kind::forward_inference,
+                    prop_kind::forward_training)) {
+            msan_unpoison(states_t_l_, sizeof(*states_t_l_) * states_nelems);
+            msan_unpoison(states_t_l_copy_,
+                    sizeof(*states_t_l_copy_) * states_nelems);
+            if (rnn.is_training)
+                msan_unpoison(ws_gates_, sizeof(*ws_gates_) * gates_nelems);
+        } else {
+            msan_unpoison(diff_states_t_l_,
+                    sizeof(*diff_states_t_l_) * (rnn.n_states + 1)
+                            * (rnn.n_iter + 1) * rnn.states_nld
+                            * rnn.states_ws_ld);
+            msan_unpoison(
+                    scratch_gates_, sizeof(*scratch_gates_) * gates_nelems);
+            msan_unpoison(
+                    scratch_cell_, sizeof(*scratch_cell_) * states_nelems);
+        }
+    }
+
     // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute) {
-        if (rnn_postgemm_)
+        if (rnn_postgemm_) {
             rnn_postgemm_->execute(rnn, cell_position, ws_gates_,
                     scratch_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
                     c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
                     diff_states_tp1_l_, bias_, ws_grid_, scratch_cell_,
                     states_t_l_copy_);
-        else
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+                    diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                    bias_, ws_grid_, scratch_cell_, states_t_l_copy_);
+        } else
             (this->*postgemm_func)(rnn, cell_position, ws_gates_,
                     scratch_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
                     c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
@@ -273,13 +305,17 @@ struct rnn_postgemm_dispatcher {
 
     // template <typename src_data_t, typename acc_data_t>
     rnn_postgemm_sig(execute_part2) {
-        if (rnn_postgemm_part2_)
+        if (rnn_postgemm_part2_) {
             rnn_postgemm_part2_->execute(rnn, cell_position, ws_gates_,
                     scratch_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
                     c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
                     diff_states_tp1_l_, bias_, ws_grid_, scratch_cell_,
                     states_t_l_copy_);
-        else
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, states_t_l_,
+                    c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
+                    diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+                    bias_, ws_grid_, scratch_cell_, states_t_l_copy_);
+        } else
             (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
                     scratch_gates_, states_t_l_, c_states_t_l_, states_tm1_l_,
                     c_states_tm1_l_, diff_states_t_l_, diff_states_t_lp1_,
