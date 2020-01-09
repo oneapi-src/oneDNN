@@ -96,6 +96,7 @@ struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
                 else
                     execute_forward_2d(ctx);
                 break;
+            case 5: execute_forward_3d(ctx); break;
             default: return status::unimplemented;
         }
         return status::success;
@@ -104,6 +105,7 @@ struct jit_avx2_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
 private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
+    void execute_forward_3d(const exec_ctx_t &ctx) const;
     void execute_forward_2d_dw(const exec_ctx_t &ctx) const;
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_impl_t::pd());

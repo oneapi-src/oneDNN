@@ -70,7 +70,9 @@ private:
     const Xbyak::Reg64 aux_reg_inp = r11;
     const Xbyak::Reg64 reg_ptr_sum_scale = r11;
     const Xbyak::Reg64 aux_reg_ker = r12;
+    const Xbyak::Reg64 aux_reg_inp_d = r13;
     const Xbyak::Reg64 reg_compensation = r14;
+    const Xbyak::Reg64 aux_reg_ker_d = r15;
 
     /* counter regs */
     const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
@@ -79,6 +81,7 @@ private:
     const Xbyak::Reg64 reg_oc_blocks = rsi;
     const Xbyak::Reg64 reg_owb = aux_reg_ker;
     const Xbyak::Reg64 reg_scratch = reg_compensation;
+    const Xbyak::Reg64 reg_ki = reg_compensation;
     const Xbyak::Reg64 reg_kj = reg_ptr_scales;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
