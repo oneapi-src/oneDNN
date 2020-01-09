@@ -21,6 +21,7 @@
 #include "common/type_helpers.hpp"
 
 #include "ocl/jit_gen9_common_convolution.hpp"
+#include "ocl/ocl_memory_storage.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 
@@ -93,8 +94,6 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
 
     const auto &jcp = ker_->jcp;
 
-    std::unique_ptr<memory_storage_t> wht_work;
-    std::unique_ptr<memory_storage_t> bias_work;
     std::unique_ptr<memory_storage_t> tails;
 
     if (jcp.ver == ver_8ow16c) {
@@ -108,40 +107,26 @@ status_t jit_gen9_common_convolution_bwd_weights_t::execute_backward_weights(
         if (status != status::success) return status;
     }
 
+    const float zero = 0;
+    memory_desc_wrapper wei_mdw(pd()->diff_weights_md());
+    CHECK(compute_stream->fill(
+            diff_weights, &zero, sizeof(zero), wei_mdw.size()));
+    if (jcp.with_bias) {
+        memory_desc_wrapper bia_mdw(pd()->diff_weights_md(1));
+        CHECK(compute_stream->fill(
+                diff_bias, &zero, sizeof(zero), bia_mdw.size()));
+    }
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
-    if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
-            || jcp.ver == ver_1stconv) {
-        wht_work = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_conv_wei_reduction);
-        bias_work = ctx.get_scratchpad_grantor().get_memory_storage(
-                key_conv_bia_reduction);
-
-        arg_list.set(1, *wht_work);
-        arg_list.set(2, *bias_work);
-    } else {
-        arg_list.set(1, diff_weights);
-        arg_list.set(2, diff_bias);
-    }
+    arg_list.set(1, diff_weights);
+    arg_list.set(2, diff_bias);
     arg_list.set(3, diff_dst);
     if (jcp.ver == ver_8ow16c) { arg_list.set(4, *tails); }
 
     status_t status = compute_stream->parallel_for(
             compute::nd_range_t(jcp.gws_d, jcp.lws_d), kernel_, arg_list);
     if (status != status::success) return status;
-
-    if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
-            || jcp.ver == ver_1stconv) {
-        compute::kernel_arg_list_t arg_list;
-        arg_list.set(0, diff_weights);
-        arg_list.set(1, *wht_work);
-        arg_list.set(2, diff_bias);
-        arg_list.set(3, *bias_work);
-        status_t status = compute_stream->parallel_for(
-                compute::nd_range_t(2, jcp.gws_d, jcp.lws_d), reduce_kernel_,
-                arg_list);
-        if (status != status::success) return status;
-    }
 
     return status::success;
 }

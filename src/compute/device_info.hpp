@@ -29,9 +29,10 @@ namespace impl {
 namespace compute {
 
 enum class device_ext_t : int64_t {
-    khr_fp16 = 1 << 0,
-    intel_subgroups = 1 << 1,
-    intel_subgroups_short = 1 << 2,
+    intel_subgroups = 1 << 0,
+    intel_subgroups_short = 1 << 1,
+    khr_fp16 = 1 << 2,
+    khr_int64_base_atomics = 1 << 3,
     last
 };
 
@@ -39,9 +40,10 @@ static inline const char *ext2cl_str(compute::device_ext_t ext) {
 #define CASE(x) \
     case compute::device_ext_t::x: return STRINGIFY(CONCAT2(cl_, x));
     switch (ext) {
-        CASE(khr_fp16);
         CASE(intel_subgroups);
         CASE(intel_subgroups_short);
+        CASE(khr_fp16);
+        CASE(khr_int64_base_atomics);
         default: return nullptr;
     }
 #undef CASE

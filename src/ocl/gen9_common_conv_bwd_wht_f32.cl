@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
+
 #if ID > 1
 #define CASE_3D 1
 #else
@@ -24,134 +26,20 @@
 #define HAS_PAD_H (PH != 0 || PH_R != 0)
 #define HAS_PAD_W (PW != 0 || PW_R != 0)
 
-#if BWD_WEIGHTS == 1
-
-__attribute__((reqd_work_group_size(SUB_GROUP_SIZE, 1, 1))) // attr:no-format
-#if VER_16MB16C == 1 || VER_8OW16C == 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
-#endif
-__kernel void
-gen9_reduce_bwd_weights(__global float *diff_wei, __global float *wht_work,
-        __global float *diff_bias, __global float *bias_work) {
-
-    const uint g_ic_oc = get_global_id(0);
-
-#if IS_DW
-    const uint g = 0;
-    const uint oc = get_group_id(0);
-#else
-    const uint g = g_ic_oc / (OC * (IC / IC_BLOCK));
-    const uint io = g_ic_oc % (OC * (IC / IC_BLOCK));
-
-    const uint oc = (io % OC) / OC_BLOCK;
-#endif
-
-    const uint ksp = get_global_id(1);
-#if CASE_3D
-    const uint kd = ksp / (KW * KH);
-    const uint khw = ksp % (KW * KH);
-#else
-    const uint khw = ksp;
-    const uint kd = 0;
-#endif
-    const uint kh = khw / KW;
-    const uint kw = khw % KW;
-    const uint local_x = get_local_id(0);
-#if IC == 3
-    const uint ic = 0;
-    diff_wei += oc * KD * KH * KW * IC * OC_BLOCK + g * IC * OC * KD * KH * KW
-            + kd * KH * KW * IC * OC_BLOCK + kh * KW * IC * OC_BLOCK
-            + kw * IC * OC_BLOCK;
-    wht_work += oc * KD * KH * KW * IC * OC_BLOCK + g * IC * OC * KD * KH * KW
-            + kd * KH * KW * IC * OC_BLOCK + kh * KW * IC * OC_BLOCK
-            + kw * IC * OC_BLOCK;
-#elif IS_DW
-    const uint ic = oc;
-    diff_wei += oc * KD * KH * KW * IC * OC_BLOCK + g * IC * OC * KD * KH * KW
-            + kd * KH * KW * IC * OC_BLOCK + kh * KW * IC * OC_BLOCK
-            + kw * IC * OC_BLOCK;
-    wht_work += oc * KD * KH * KW * IC * OC_BLOCK + g * IC * OC * KD * KH * KW
-            + kd * KH * KW * IC * OC_BLOCK + kh * KW * IC * OC_BLOCK
-            + kw * IC * OC_BLOCK;
-
-#else
-    const uint ic = io / OC;
-    diff_wei += ic * OC * KD * KH * KW * IC_BLOCK
-            + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
-            + kd * KH * KW * OC_BLOCK * IC_BLOCK + kh * KW * OC_BLOCK * IC_BLOCK
-            + kw * IC_BLOCK * OC_BLOCK + g * IC * OC * KD * KH * KW;
-    wht_work += ic * OC * KD * KH * KW * IC_BLOCK
-            + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
-            + kd * KH * KW * OC_BLOCK * IC_BLOCK + kh * KW * IC_BLOCK * OC_BLOCK
-            + kw * IC_BLOCK * OC_BLOCK + g * IC * OC * KD * KH * KW;
-#endif
-
-#if WITH_BIAS == 1
-    diff_bias += g * OC + oc * OC_BLOCK + local_x;
-    bias_work += g * OC + oc * OC_BLOCK + local_x;
-    if ((ic == 0 || IS_DW) && kh == 0 && kw == 0 && kd == 0)
-        diff_bias[0] = 0.0f;
-#endif
-
-#if IC == 3
-    float C0 = 0.0f, C1 = 0.0f, C2 = 0.0f;
-#elif IS_DW
-    float blockC00 = 0.0f;
-#else
-    float8 blockC00 = 0.0f;
-    float8 blockC01 = 0.0f;
-#endif
-
-    for (uint i = 0; i < NCHUNK; i++) {
-#if IC == 3
-        float blockA0 = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&wht_work[0])));
-        float blockA1 = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&wht_work[OC_BLOCK])));
-        float blockA2 = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&wht_work[2 * OC_BLOCK])));
-
-        C0 += blockA0;
-        C1 += blockA1;
-        C2 += blockA2;
-
-#elif IS_DW
-        float blockA0 = as_float(intel_sub_group_block_read(
-                (const __global uint *)(&wht_work[0])));
-        blockC00 += blockA0;
-#else
-        float8 blockA0 = as_float8(intel_sub_group_block_read8(
-                (const __global uint *)(&wht_work[0])));
-        float8 blockA1 = as_float8(intel_sub_group_block_read8(
-                (const __global uint *)(&wht_work[8 * OC_BLOCK])));
-        blockC00 += blockA0;
-        blockC01 += blockA1;
-#endif
-
-#if WITH_BIAS == 1
-        if ((ic == 0 || IS_DW) && kh == 0 && kw == 0 && kd == 0)
-            diff_bias[0] += bias_work[i * G * OC];
-#endif
-        wht_work += G * OC * IC * KD * KH * KW;
-    }
-#if IC == 3
-    intel_sub_group_block_write(
-            (__global unsigned int *)(&diff_wei[0]), as_uint(C0));
-    intel_sub_group_block_write(
-            (__global unsigned int *)(&diff_wei[OC_BLOCK]), as_uint(C1));
-    intel_sub_group_block_write(
-            (__global unsigned int *)(&diff_wei[2 * OC_BLOCK]), as_uint(C2));
-#elif IS_DW
-    intel_sub_group_block_write(
-            (__global unsigned int *)(&diff_wei[0]), as_uint(blockC00));
-#else
-    intel_sub_group_block_write8(
-            (__global unsigned int *)(&diff_wei[0]), as_uint8(blockC00));
-    intel_sub_group_block_write8(
-            (__global unsigned int *)(&diff_wei[8 * OC_BLOCK]),
-            as_uint8(blockC01));
-#endif
+inline void atomic_add_global(
+        volatile __global atomic_float *source, float operand) {
+    float old_val = atomic_load_explicit(
+            source, memory_order_relaxed, memory_scope_device);
+    bool success = false;
+    do {
+        float new_val = old_val + operand;
+        success = atomic_compare_exchange_strong_explicit(source, &old_val,
+                new_val, memory_order_acq_rel, memory_order_relaxed,
+                memory_scope_device);
+    } while (!success);
 }
+
+#if BWD_WEIGHTS == 1
 
 __attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
 __kernel void
@@ -196,8 +84,9 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_bwd_weights(__global float *src, __global float *diff_wei,
-        __global float *diff_bias, __global float *diff_dst
+gen9_common_conv_bwd_weights(
+        __global float *src, volatile __global atomic_float *diff_wei,
+        volatile __global atomic_float *diff_bias, __global float *diff_dst
 #if VER_8OW16C == 1 && (IC % 16 == 0 || IS_DW)
         ,
         __global float *tails
@@ -248,7 +137,7 @@ gen9_common_conv_bwd_weights(__global float *src, __global float *diff_wei,
             + g * OC * OD * OH * OW * MB_BLOCK;
 
 #if WITH_BIAS == 1
-    diff_bias += g * OC + oc * OC_BLOCK + local_x + chunk * OC * G;
+    diff_bias += g * OC + oc * OC_BLOCK + local_x;
     float bias_loc = 0.0f;
 #endif
 
@@ -395,26 +284,24 @@ gen9_common_conv_bwd_weights(__global float *src, __global float *diff_wei,
 #endif
 
 #if WITH_BIAS == 1
-    if (do_bias) diff_bias[0] = bias_loc;
+    if (do_bias) atomic_add_global(diff_bias, bias_loc);
+
 #endif
 
 #if IS_DW
     diff_wei += oc * KD * KH * KW * OC_BLOCK + kd * KH * KW * OC_BLOCK
-            + kh * KW * OC_BLOCK + kw * OC_BLOCK
-            + chunk * OC * IC * G * KD * KH * KW;
-    intel_sub_group_block_write(
-            (__global unsigned int *)(&diff_wei[0]), as_uint(blockC00));
+            + kh * KW * OC_BLOCK + kw * OC_BLOCK;
+    atomic_add_global(diff_wei + local_x, blockC00);
 #else
     diff_wei += ic * OC * KD * KH * KW * IC_BLOCK
             + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
             + kd * KH * KW * IC_BLOCK * OC_BLOCK + kh * KW * IC_BLOCK * OC_BLOCK
-            + kw * IC_BLOCK * OC_BLOCK + chunk * OC * IC * G * KD * KH * KW
-            + g * OC * IC * KD * KH * KW;
-    intel_sub_group_block_write8(
-            (__global unsigned int *)(&diff_wei[0]), as_uint8(blockC00));
-    intel_sub_group_block_write8(
-            (__global unsigned int *)(&diff_wei[8 * OC_BLOCK]),
-            as_uint8(blockC01));
+            + kw * IC_BLOCK * OC_BLOCK + g * OC * IC * KD * KH * KW;
+    for (int i = 0; i < 8; i++)
+        atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
+
+    for (int i = 0; i < 8; i++)
+        atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + local_x, blockC01[i]);
 #endif
 
 #endif
@@ -464,7 +351,7 @@ gen9_common_conv_bwd_weights(__global float *src, __global float *diff_wei,
     int src_bound = MB * IC * G * ID * IH * IW - SW * 16 * 8;
 
 #if WITH_BIAS == 1
-    diff_bias += g * OC + oc * OC_BLOCK + local_x + mb_chunk * OC * G;
+    diff_bias += g * OC + oc * OC_BLOCK + local_x;
     float bias_loc = 0.0f;
 #endif
 
@@ -652,36 +539,29 @@ gen9_common_conv_bwd_weights(__global float *src, __global float *diff_wei,
     } while (omb < mb_end);
 
 #if WITH_BIAS == 1
-    if (do_bias) diff_bias[0] = bias_loc;
+    if (do_bias) atomic_add_global(diff_bias, bias_loc);
 #endif
 
 #if IC == 3
     diff_wei += oc * KD * KH * KW * IC * OC_BLOCK + g * OC * IC * KD * KH * KW
             + kd * KH * KW * IC * OC_BLOCK + kh * KW * IC * OC_BLOCK
-            + kw * IC * OC_BLOCK + mb_chunk * G * OC * IC * KD * KH * KW;
-    intel_sub_group_block_write(
-            (__global uint *)(&diff_wei[0]), as_uint(blockC00[0]));
-    intel_sub_group_block_write(
-            (__global uint *)(&diff_wei[OC_BLOCK]), as_uint(blockC00[1]));
-    intel_sub_group_block_write(
-            (__global uint *)(&diff_wei[2 * OC_BLOCK]), as_uint(blockC00[2]));
+            + kw * IC * OC_BLOCK;
+    for (int i = 0; i < 3; i++)
+        atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
 #elif IS_DW
     diff_wei += oc * KD * KH * KW * OC_BLOCK + kd * KH * KW * OC_BLOCK
-            + kh * KW * OC_BLOCK + kw * OC_BLOCK
-            + mb_chunk * G * OC * IC * KD * KH * KW;
-    intel_sub_group_block_write(
-            (__global unsigned int *)(&diff_wei[0]), as_uint(blockC00));
+            + kh * KW * OC_BLOCK + kw * OC_BLOCK;
+    atomic_add_global(diff_wei + local_x, blockC00);
 #else
     diff_wei += ic * OC * KD * KH * KW * IC_BLOCK
             + oc * KD * KH * KW * IC_BLOCK * OC_BLOCK
             + kd * KH * KW * IC_BLOCK * OC_BLOCK + kh * KW * IC_BLOCK * OC_BLOCK
-            + kw * IC_BLOCK * OC_BLOCK + g * OC * IC * KD * KH * KW
-            + mb_chunk * G * OC * IC * KD * KH * KW;
-    intel_sub_group_block_write8(
-            (__global unsigned int *)(&diff_wei[0]), as_uint8(blockC00));
-    intel_sub_group_block_write8(
-            (__global unsigned int *)(&diff_wei[8 * OC_BLOCK]),
-            as_uint8(blockC01));
+            + kw * IC_BLOCK * OC_BLOCK + g * OC * IC * KD * KH * KW;
+    for (int i = 0; i < 8; i++)
+        atomic_add_global(diff_wei + i * OC_BLOCK + local_x, blockC00[i]);
+
+    for (int i = 0; i < 8; i++)
+        atomic_add_global(diff_wei + (8 + i) * OC_BLOCK + local_x, blockC01[i]);
 #endif
 #endif
 }

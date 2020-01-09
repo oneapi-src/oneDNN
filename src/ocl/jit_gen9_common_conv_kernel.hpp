@@ -986,6 +986,8 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         kernel_ctx.define_int("LWS_1", jcp.lws_d[1]);
         kernel_ctx.define_int("LWS_2", jcp.lws_d[2]);
 
+        kernel_ctx.add_option("-cl-std=CL2.0");
+
         switch (jcp.ver) {
             case ver_16mb16c: kernel_ctx.define_int("VER_16MB16C", 1); break;
             case ver_1stconv:
@@ -998,17 +1000,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp) {
-        if (jcp.ver == ver_16mb16c || jcp.ver == ver_8ow16c
-                || jcp.ver == ver_1stconv) {
-            size_t wht_size = jcp.ngroups * jcp.nchunk * jcp.oc * jcp.ic
-                    * jcp.kh * jcp.kw * jcp.kd * sizeof(float);
-            scratchpad.book(
-                    memory_tracking::names::key_conv_wei_reduction, wht_size);
-
-            size_t bia_size = jcp.ngroups * jcp.nchunk * jcp.oc * sizeof(float);
-            scratchpad.book(
-                    memory_tracking::names::key_conv_bia_reduction, bia_size);
-        }
         if (jcp.ver == ver_8ow16c) {
             size_t tails_size = 2 * 16 * (2 * jcp.l_pad + jcp.iw + jcp.kw + 8)
                     * sizeof(float);
