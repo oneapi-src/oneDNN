@@ -67,6 +67,69 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
     }
 }
 
+int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+    // TODO: enable for all cpu_kind when supported
+    if (engine_tgt_kind != dnnl_cpu) return OK;
+
+    // In the main test, we fill buffers with f32 and reorder to s8
+    // with quantization.
+
+    // The endgoal is to check that the reorder
+    // f32_plain_nonquantized --reorder--> s8_packed_quantized
+    // gives the same output as the sequence
+    // f32_plain --quant--> s8_plain_quantized --reorder--> s8_packed_quantized
+
+    // Here,
+    // 1. we quantize the f32 plain memory to s8 plain memory,
+    // 2. we reorder the s8 plain to s8 packed (queried from rnn primitive desc)
+    // 3. we check that the two memory are bitwise identical.
+
+    // Note: the two s8 packed memories need to have the same
+    // alignment as packed buffer is aligned internally and the offset
+    // is kept in the metadata.
+    // Works fine with dnn_mem_t as it is align to 2MB large page boundary
+    dnn_mem_t mem_s8_src(mem_fp.md_, dnnl_s8, engine_tgt);
+    dnn_mem_t mem_s8_dst(mem_dt.md_, dnnl_s8, engine_tgt);
+
+    /* 1. compute f32_plain --quant--> s8_plain_quantized */
+    /* Do fixed partitioning to have same filling for any number of threads */
+    auto nelems = mem_fp.nelems();
+    const int64_t n_chunks = 16;
+    const int64_t chunk_size = div_up(nelems, n_chunks);
+    dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
+        int64_t idx_start = idx_chunk * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            const float current_scale = p.scale_policy == policy_t::PER_OC
+                    ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                    : p.wei_scale;
+            float val_f32 = mem_fp.get_elem(idx);
+            //int8_t val_s8 = saturate<dnnl_s8>(val_f32);
+            int8_t val_s8 = saturate<dnnl_s8>(val_f32 * current_scale);
+            mem_s8_src.set_elem(idx, val_s8);
+        }
+    });
+
+    /* 2. compute s8_plain_quantized --reorder--> s8_packed_quantized */
+    mem_s8_dst.reorder(mem_s8_src);
+
+    /* 3. we check that the two memory are bitwise identical. */
+    auto sz = mem_dt.size();
+    uint8_t *s8_dst_handle = (uint8_t *)mem_s8_dst;
+    uint8_t *mem_dt_handle = (uint8_t *)mem_dt;
+
+    // check that both have the same size
+    assert(mem_dt.size() == mem_s8_dst.size());
+    // check that both have the same alignment modulo align_data in gemm_pack_storage.hpp
+    assert((uint64_t)s8_dst_handle % 0x1000
+            == (uint64_t)mem_dt_handle % 0x1000);
+    for (size_t i = 0; i < sz; ++i) {
+        if (s8_dst_handle[i] != mem_dt_handle[i]) { return FAIL; }
+    }
+
+    return OK;
+}
+
 int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, dnnl_data_type_t dt, float mean, float stddev,
         float min, float max, const_dnnl_primitive_attr_t attr = nullptr) {
@@ -127,6 +190,8 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     });
 
     mem_dt.reorder(mem_fp, {reorder_attr});
+    if ((reorder_attr != nullptr) && (dt == dnnl_s8))
+        if (check_s8s8_reorder(p, mem_dt, mem_fp) != OK) return FAIL;
 
     // Bullet 4.a holds: quantize weights for int8 benchdnn reference RNN
     if (p.is_int8() && (kind == weights_input || kind == weights_states)) {

@@ -358,6 +358,8 @@ static const impl_list_map_t regular_impl_list_map {
 
     // s8 ->
     {{s8, data_type::undef, 0}, {
+       rnn_weights_reorder_s8_t<s8>::pd_t::create,
+
        REG_FAST_DIRECT_COPY_COMMA(s8, f32)
        REG_FAST_DIRECT_COPY_COMMA(s8, s32)
        REG_FAST_DIRECT_COPY_COMMA(s8, s8)
