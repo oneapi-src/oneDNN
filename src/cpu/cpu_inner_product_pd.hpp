@@ -137,7 +137,7 @@ format_tag_t get_tag(memory_desc_t &md) {
     return tag;
 }
 
-inline bool is_ineff_lead_dim(const dim_t dim){
+inline bool is_ineff_lead_dim(const dim_t dim) {
     return dim % 1024 == 0; // check cache aliasing
 }
 
