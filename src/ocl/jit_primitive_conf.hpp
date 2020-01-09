@@ -134,7 +134,8 @@ struct jit_conv_conf_t {
 
     int ndims;
     int mb;
-    int ngroups, ic, oc, oc_without_padding, ic_without_padding;
+    int ngroups, ic, oc;
+    int ngroups_without_padding, oc_without_padding, ic_without_padding;
     int id, ih, iw, od, oh, ow;
     int f_pad, l_pad, t_pad;
     int back_pad, r_pad, b_pad;
@@ -145,9 +146,10 @@ struct jit_conv_conf_t {
     int od_block, oh_block, ow_block;
     int id_block, ih_block, iw_block;
     int oc_block, ic_block, nchunk;
+    int odb, ohb, owb;
     int icb;
     int ocb;
-    int oh_chunk, mb_chunk, mb_block, slm_ic;
+    int osp_chunk, mb_chunk, mb_block, slm_ic;
     size_t wht_slm_size, src_slm_size;
     int sub_group_size;
     size_t gws_d[3], lws_d[3];
