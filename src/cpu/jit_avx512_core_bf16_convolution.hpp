@@ -206,15 +206,14 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
                                     data_type::f32, data_type::undef,
                                     data_type::bf16, data_type::undef))
                     && IMPLICATION(with_bias(),
-                            utils::one_of(diff_weights_md(1)->data_type,
+                            utils::one_of(diff_bias_md_.data_type,
                                     data_type::f32, data_type::bf16))
-                    && attr()->has_default_values() && !has_zero_dim_memory()
-                    && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
-                    init_conf(jcp_, *desc(), *src_md(), *diff_weights_md(0),
-                            *diff_weights_md(1), *diff_dst_md());
+                    init_conf(jcp_, *desc(), src_md_, diff_weights_md_,
+                            diff_bias_md_, diff_dst_md_);
             if (status != status::success) return status;
 
             init_balancers();
@@ -231,18 +230,6 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t
 
         jit_conv_conf_t jcp_;
         typename cpu_reducer_t<data_type::f32>::conf_t reducer_bia_conf_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    OIw16i16o, gOIw16i16o, OIhw16i16o, gOIhw16i16o, OIdhw16i16o,
-                    gOIdhw16i16o);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
 
     private:
         void init_balancers() {

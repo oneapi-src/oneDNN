@@ -167,6 +167,8 @@ struct jit_conv_conf_t {
     float wei_adj_scale;
 
     bool uses_permw_transposition;
+    bool transpose_src;
+    bool transpose_dst;
     int ic_block_step;
 
     cpu_isa_t isa;

@@ -310,10 +310,9 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
             jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_md,
-            const memory_desc_wrapper &diff_weights_md,
-            const memory_desc_wrapper &diff_bias_md,
-            const memory_desc_wrapper &diff_dst_md);
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
+            memory_desc_t &diff_dst_md);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
@@ -327,6 +326,8 @@ private:
     Xbyak::Opmask high_mask = Xbyak::Opmask(3);
     Xbyak::Opmask m_ffffffff = Xbyak::Opmask(4);
     Xbyak::Opmask m_0000ffff = Xbyak::Opmask(5);
+    Xbyak::Opmask everyother_mask = Xbyak::Opmask(6);
+    Xbyak::Opmask everyother_shift_mask = Xbyak::Opmask(7);
 
     Xbyak::Zmm perm = Xbyak::Zmm(24);
 

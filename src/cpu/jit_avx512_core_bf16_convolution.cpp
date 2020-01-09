@@ -635,10 +635,8 @@ jit_avx512_core_bf16_convolution_bwd_weights_t ::
 
     kernel_ = new jit_avx512_core_bf16_conv_bwd_weights_kernel_f32(j);
 
-    if (!j.uses_permw_transposition) {
-        trans_kernel_ = create_trans_src(&j);
-        trans_dst_kernel_ = create_trans_dst(&j);
-    }
+    if (j.transpose_src) { trans_kernel_ = create_trans_src(&j); }
+    if (j.transpose_dst) { trans_dst_kernel_ = create_trans_dst(&j); }
 
     if (nthr_mb_ > 1) acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
 
@@ -689,14 +687,20 @@ struct jit_avx512_core_bf16_convolution_bwd_weights_t ::thread_info_t {
             diff_bias = self->pd()->wants_padded_bias()
                     ? scratchpad.template get<float>(key_conv_padded_bias)
                     : CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
-        if (!jcp.uses_permw_transposition) {
+
+        if (jcp.transpose_src) {
             tr_src = scratchpad.template get<src_data_t>(key_conv_tr_src);
-            tr_diff_dst = scratchpad.template get<diff_dst_data_t>(
-                    key_conv_tr_diff_dst);
 
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
             tr_src_bctx = scratchpad.template get<simple_barrier::ctx_t>(
                     key_conv_tr_src_bctx);
+#endif //!defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+        }
+        if (jcp.transpose_dst) {
+            tr_diff_dst = scratchpad.template get<diff_dst_data_t>(
+                    key_conv_tr_diff_dst);
+
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
             tr_diff_dst_bctx = scratchpad.template get<simple_barrier::ctx_t>(
                     key_conv_tr_diff_dst_bctx);
 #endif //!defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
@@ -818,7 +822,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                 ? &ti->tr_src[tr_src_off_3d(ti->ithr_mb, _ic, d, j)]
                 : &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, j)];
 
-        assert(jcp.ic_block == 16);
+        assert(jcp.ic_block == 16 || jcp.is_1stconv);
         const int src_stride = jcp.iw * jcp.ic_block;
         const int tr_src_stride = jcp.tr_iw * jcp.ic_block;
 
@@ -900,7 +904,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
                 ? &ti->tr_diff_dst[tr_diff_dst_off_3d(img, oc, d, j)]
                 : &ti->tr_diff_dst[tr_diff_dst_off(img, oc, j)];
 
-        assert(jcp.ic_block == 16);
+        assert(jcp.ic_block == 16 || jcp.is_1stconv);
         const int diff_dst_stride = jcp.ow * jcp.oc_block;
         const int tr_diff_dst_stride = jcp.tr_ow * jcp.oc_block;
 
@@ -924,15 +928,17 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
     for (int img = ti->img_start; img < ti->img_end; ++img) {
         auto p = jit_conv_call_s();
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
-        if (!jcp.uses_permw_transposition) {
-            // TODO: try to call local transpositions just before jit kernel
-            /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
-            using simple_barrier::barrier;
+        using simple_barrier::barrier;
+        // TODO: try to call local transpositions just before jit kernel
+        /* tr_src[nb_ic][ih][16][~iw~] <- src[nb_ic][ih][iw][16] */
+        if (jcp.transpose_src) {
             if (nthr_oc_b_ > 1)
                 barrier(&ti->tr_src_bctx[ti->ithr_but_oc], nthr_oc_b_);
             uker_trans(img);
             if (nthr_oc_b_ > 1)
                 barrier(&ti->tr_src_bctx[ti->ithr_but_oc], nthr_oc_b_);
+        }
+        if (jcp.transpose_dst) {
             if (nthr_ic_b_ > 1)
                 barrier(&ti->tr_diff_dst_bctx[ti->ithr_but_ic], nthr_ic_b_);
             diff_dst_trans(img);
@@ -945,32 +951,45 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
             const int _oc = g * jcp.nb_oc + oc_b;
             const int _ic = g * jcp.nb_ic + ic_b;
-            if (!jcp.uses_permw_transposition) {
+            if (jcp.transpose_src) {
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
                 if (jcp.ndims == 5) {
                     p.src = &ti->tr_src[tr_src_off_3d(ti->ithr_mb, _ic, 0, 0)];
+                } else {
+                    p.src = &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, 0)];
+                }
+#else
+                uker_trans(img, g, ic_b);
+                if (jcp.ndims == 5) {
+                    p.src = &ti->tr_src[tr_src_off_3d(ti->ithr_mb, _ic, 0, 0)];
+                } else {
+                    p.src = &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, 0)];
+                }
+#endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+            } else {
+                p.src = &ti->src[src_d.blk_off(img, _ic)];
+            }
+
+            if (jcp.transpose_dst) {
+#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+                if (jcp.ndims == 5) {
                     p.dst = &ti->tr_diff_dst[tr_diff_dst_off_3d(
                             ti->ithr_mb, _oc, 0, 0)];
                 } else {
-                    p.src = &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, 0)];
                     p.dst = &ti->tr_diff_dst[tr_diff_dst_off(
                             ti->ithr_mb, _oc, 0)];
                 }
 #else
-                uker_trans(img, g, ic_b);
                 diff_dst_trans(img, g, oc_b);
                 if (jcp.ndims == 5) {
-                    p.src = &ti->tr_src[tr_src_off_3d(ti->ithr_mb, _ic, 0, 0)];
                     p.dst = &ti->tr_diff_dst[tr_diff_dst_off_3d(
                             ti->ithr_mb, _oc, 0, 0)];
                 } else {
-                    p.src = &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, 0)];
                     p.dst = &ti->tr_diff_dst[tr_diff_dst_off(
                             ti->ithr_mb, _oc, 0)];
                 }
 #endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
             } else {
-                p.src = &ti->src[src_d.blk_off(img, _ic)];
                 p.dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
             }
             p.filt = diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b);
@@ -1144,7 +1163,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::prepare_scratchpad_data(
         const size_t b_wei_size = (wei_size + bia_size) * num_wei_buffers;
         utils::array_set(wei_bia_reduction, 0.f, b_wei_size);
     }
-    if (!jcp.uses_permw_transposition) {
+    if (jcp.transpose_src) {
         // XXX: See the comment about tr_iw and guarding elements in
         // jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf()
 #if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
@@ -1170,7 +1189,8 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t::prepare_scratchpad_data(
             for (int i = 0; i < tr_src_bctx_size; ++i)
                 simple_barrier::ctx_init(&tr_src_bctx[i]);
         }
-
+    }
+    if (jcp.transpose_dst) {
         if (jcp.nthr_ic_b > 1) {
             const int tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
             auto tr_diff_dst_bctx
