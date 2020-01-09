@@ -998,16 +998,6 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         return status::success;
     }
 
-    static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
-            const jit_conv_conf_t &jcp) {
-        if (jcp.ver == ver_8ow16c) {
-            size_t tails_size = 2 * 16 * (2 * jcp.l_pad + jcp.iw + jcp.kw + 8)
-                    * sizeof(float);
-
-            scratchpad.book(memory_tracking::names::key_conv_tails, tails_size);
-        }
-    }
-
     jit_conv_conf_t jcp;
 };
 

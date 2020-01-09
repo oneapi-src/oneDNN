@@ -41,57 +41,14 @@ inline void atomic_add_global(
 
 #if BWD_WEIGHTS == 1
 
-__attribute__((reqd_work_group_size(1, 1, 1))) // attr:no-format
-__kernel void
-gen9_load_tails_bwd_weights(__global float *src, __global float *tails) {
-
-    for (int j = 0; j < PW; j++)
-        for (int i = 0; i < 16; i++) {
-            tails[0] = 0.0f;
-            tails++;
-        }
-    for (int j = 0; j < IW; j++)
-        for (int i = 0; i < 16; i++) {
-            tails[0] = src[j * 16 + i];
-            tails++;
-        }
-    for (int j = 0; j < PW + KW; j++)
-        for (int i = 0; i < 16; i++) {
-            tails[0] = 0.0f;
-            tails++;
-        }
-
-    src += (MB * IC * G * ID * IH * IW - 16 * IW);
-    for (int j = 0; j < PW; j++)
-        for (int i = 0; i < 16; i++) {
-            tails[0] = 0.0f;
-            tails++;
-        }
-    for (int j = 0; j < IW; j++)
-        for (int i = 0; i < 16; i++) {
-            tails[0] = src[j * 16 + i];
-            tails++;
-        }
-    for (int j = 0; j < PW + KW + 8; j++)
-        for (int i = 0; i < 16; i++) {
-            tails[0] = 0.0f;
-            tails++;
-        }
-}
-
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #if VER_16MB16C == 1 || VER_8OW16C == 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_bwd_weights(
-        __global float *src, volatile __global atomic_float *diff_wei,
-        volatile __global atomic_float *diff_bias, __global float *diff_dst
-#if VER_8OW16C == 1 && (IC % 16 == 0 || IS_DW)
-        ,
-        __global float *tails
-#endif
-) {
+gen9_common_conv_bwd_weights(__global float *src,
+        volatile __global atomic_float *diff_wei,
+        volatile __global atomic_float *diff_bias, __global float *diff_dst) {
 
 #if VER_16MB16C == 1
     const uint g_ic_oc = get_global_id(0);
@@ -347,9 +304,6 @@ gen9_common_conv_bwd_weights(
     diff_dst += oc * OD * OH * OW * OC_BLOCK * MB_BLOCK
             + g * OC * OD * OH * OW * MB_BLOCK;
 
-    int dst_bound = MB * OC * G * OD * OH * OW - 16 * 8;
-    int src_bound = MB * IC * G * ID * IH * IW - SW * 16 * 8;
-
 #if WITH_BIAS == 1
     diff_bias += g * OC + oc * OC_BLOCK + local_x;
     float bias_loc = 0.0f;
@@ -364,17 +318,10 @@ gen9_common_conv_bwd_weights(
     float8 blockC01 = 0.0f;
 #endif
 
-    int dst_ptr
-            = oc * OD * OH * OW * OC_BLOCK * MB_BLOCK + g * OC * OD * OH * OW;
-    int src_ptr
-            = ic * ID * IH * IW * IC_BLOCK * MB_BLOCK + g * IC * ID * IH * IW;
-
     int omb = mb;
     do {
         const __global float *diff_dst1
                 = diff_dst + omb * OC * G * OD * OH * OW;
-        int dst_ptr1 = dst_ptr + omb * OC * G * OD * OH * OW;
-        int src_ptr1 = src_ptr + omb * IC * G * ID * IH * IW;
 
         for (int od = 0; od < OD; od++)
             for (int oh = 0; oh < OH; oh++) {
@@ -425,23 +372,9 @@ gen9_common_conv_bwd_weights(
                     const int ih = oh * SH - PH + kh * (1 + DH);
                     const int iw = ow * SW - PW + kw * (1 + DW);
                     __global float *src1;
-                    int src_ptr2 = src_ptr1 + id * IH * IW * IC_BLOCK
-                            + ih * IW * IC_BLOCK + iw * IC_BLOCK;
 
-#if IC % 16 == 0 || IS_DW
-                    if (src_ptr2 > src_bound) {
-                        src1 = tails + IC_BLOCK * (2 * PW + KW + IW)
-                                + (iw + PW) * IC_BLOCK;
-                    } else if (src_ptr2 < 0) {
-                        src1 = tails + kw * (1 + DW) * IC_BLOCK;
-                    } else {
-                        src1 = src + id * IH * IW * IC_BLOCK
-                                + ih * IW * IC_BLOCK + iw * IC_BLOCK;
-                    }
-#else
                     src1 = src + id * IH * IW * IC_BLOCK + ih * IW * IC_BLOCK
                             + iw * IC_BLOCK;
-#endif
 
 #define TRANSPOSE_8(_block, _row, _col) \
     { \
@@ -483,16 +416,15 @@ gen9_common_conv_bwd_weights(
                         blockA = 0.0f;
                     }
 #else
-#if SW == 1
-                    blockA = as_float8(intel_sub_group_block_read8(
-                            (const __global uint *)(src1)));
-#else
                     for (int i = 0; i < OW_BLOCK; i++) {
-                        blockA[i] = as_float(
-                                intel_sub_group_block_read((const __global uint
-                                                *)(&src1[i * IC_BLOCK * SW])));
+                        if (iw + i < 0 || iw + i * SW >= IW) {
+                            blockA[i] = 0;
+                        } else {
+                            blockA[i] = as_float(intel_sub_group_block_read((
+                                    const __global uint
+                                            *)(&src1[i * IC_BLOCK * SW])));
+                        }
                     }
-#endif
 #if HAS_PAD_W || KW != 1
                     if (iw < 0 || iw + (OW_BLOCK)*SW >= IW) {
                         for (int i = 0; i < OW_BLOCK; i++) {
