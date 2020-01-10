@@ -103,7 +103,7 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                     auto id = linear_coeffs_t(od, FD, ID);
                     auto iw = linear_coeffs_t(ow, FW, IW);
                     auto ih = linear_coeffs_t(oh, FH, IH);
-                    dim_t src_l[8] = {0};
+                    data_t src_l[8] = {0};
                     for_(int i = 0; i < 2; i++)
                     for_(int j = 0; j < 2; j++)
                     for (int k = 0; k < 2; k++) {
