@@ -75,8 +75,8 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
         return lin_interp(
                 lin_interp(c00, c10, w0), lin_interp(c01, c11, w0), w1);
     };
-    auto trilin_interp = [&](float c000, float c010, float c100, float c110,
-                                 float c001, float c011, float c101, float c111,
+    auto trilin_interp = [&](float c000, float c001, float c010, float c011,
+                                 float c100, float c101, float c110, float c111,
                                  float w0, float w1, float w2) {
         return lin_interp(bilin_interp(c000, c010, c100, c110, w0, w1),
                 bilin_interp(c001, c011, c101, c111, w0, w1), w2);
