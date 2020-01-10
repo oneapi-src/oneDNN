@@ -407,8 +407,8 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
 
     int ch_block_all = jcp.ch_block * jcp.ic_block * jcp.oc_block;
     int shift_kernel_ptr = jcp.typesize_in * jcp.kw * ch_block_all;
-    int shift_input_ptr = jcp.typesize_in * (jcp.dilate_h + 1) * jcp.iw
-            * jcp.ic_without_padding * jcp.ngroups;
+    int shift_input_ptr
+            = jcp.typesize_in * jcp.iw * jcp.ic_without_padding * jcp.ngroups;
 
     if (jcp.ndims == 5) {
         mov(aux_reg_ker_d, reg_ker);
@@ -481,7 +481,7 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         compute_ker(ur_w, pad_l, pad_r, last_ic_block_flag, false);
 
         add(aux_reg_ker, shift_kernel_ptr);
-        add(aux_reg_inp, shift_input_ptr);
+        add(aux_reg_inp, shift_input_ptr * (jcp.dilate_h + 1));
         dec(reg_kj);
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
