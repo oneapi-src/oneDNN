@@ -28,6 +28,7 @@
 #include "norm.hpp"
 
 #include "conv/conv_common.hpp"
+#include "eltwise/eltwise.hpp"
 
 namespace conv {
 
@@ -115,6 +116,16 @@ inline void get_result(const prb_t *p, const data_kind_t kind, res_t *r,
     if (r->errors) r->state = FAILED;
 }
 
+static inline int eltwise_index(const prb_t *p) {
+    using pk = attr_t::post_ops_t::kind_t;
+    const auto &po = p->attr.post_ops;
+    for (int i = 0; i < po.len; ++i) {
+        auto k = po.entry[i].kind;
+        if (k != pk::SUM && k < pk::KIND_TOTAL) return i;
+    }
+    return -1;
+}
+
 inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     const bool dont_complain
@@ -127,6 +138,9 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     int in = 0, below = 0, above = 0;
     int in_ok = 0, below_ok = 0, above_ok = 0;
     int non_zero = 0;
+
+    const int eltwise_idx = eltwise_index(p);
+    const bool has_eltwise = eltwise_idx >= 0;
 
     diff_norm_t diff_norm;
 
@@ -145,11 +159,17 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
         if (fp < p->cfg[kind].min) {
             diff_norm.update(p->cfg[kind].min, dt);
             ok = dt == p->cfg[kind].min;
+            if (!ok && has_eltwise)
+                ok = eltwise::check_extreme_values(
+                        fp, dt, p->attr.post_ops.entry[eltwise_idx].kind);
             below += 1;
             below_ok += ok;
         } else if (fp > p->cfg[kind].max) {
             diff_norm.update(p->cfg[kind].max, dt);
             ok = dt == p->cfg[kind].max;
+            if (!ok && has_eltwise)
+                ok = eltwise::check_extreme_values(
+                        fp, dt, p->attr.post_ops.entry[eltwise_idx].kind);
             above += 1;
             above_ok += ok;
         } else {
