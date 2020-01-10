@@ -22,7 +22,7 @@
 --stag=nCw4c:nc        2x23x5:1x23 3x16x6:3x16
 --stag=nCw4c:x         2x23x5:2 3x16x6:1
 
---stag=x:x             256:256 127:1
+--stag=x:x             1024:1024 127:1
 
 # NCF
 --stag=nc:nc           1000x60:1000x60
