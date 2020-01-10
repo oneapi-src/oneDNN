@@ -118,6 +118,7 @@ public:
 
     virtual int eu_count() const = 0;
     virtual int hw_threads() const = 0;
+    virtual size_t llc_cache_size() const = 0;
 
     const runtime_version_t &runtime_version() const {
         return runtime_version_;
