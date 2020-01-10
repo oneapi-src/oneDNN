@@ -158,35 +158,15 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             in += 1;
             in_ok += ok;
         }
-        if (!ok) {
-            r->errors++;
-            if ((!dont_complain && r->errors < 10) || verbose >= 10) {
-                int64_t mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
-                switch (kind) {
-                    case SRC:
-                        inv_src_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w);
-                        break;
-                    case WEI:
-                        inv_wei_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w);
-                        break;
-                    case BIA: inv_bia_off_f(p, i, mb_or_g, g_or_oc); break;
-                    case DST:
-                        inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w);
-                        break;
-                }
-                print(0,
-                        "[%4ld][%s%s]"
-                        "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT
-                        "] "
-                        "fp:%8g fp0:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                        (long)i, final_compare ? "" : "REORDER ", skind,
-                        mb_or_g, g_or_oc, c, d, h, w, fp, fp0, dt, diff,
-                        rel_diff);
-            }
-        }
 
-        /* for debug purposes only: dump the output */
-        if (final_compare && verbose >= 50 && i < 30) {
+        r->errors += !ok;
+
+        bool dump
+                = (!ok && ((!dont_complain && r->errors < 10) || verbose >= 10))
+                || (final_compare
+                        && ((verbose >= 50 && i < 30) || (verbose >= 99)));
+
+        if (dump) {
             int64_t mb_or_g = 0, g_or_oc = 0, c = 0, d = 0, h = 0, w = 0;
             switch (kind) {
                 case SRC:
@@ -200,13 +180,13 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
                     inv_dst_off_f(p, i, mb_or_g, g_or_oc, c, d, h, w);
                     break;
             }
-
             print(0,
-                    "[%4ld][%s]"
+                    "[%4ld][%s%s]"
                     "[" IFMT "," IFMT "," IFMT "," IFMT "," IFMT "," IFMT
                     "] "
-                    "fp:%8g fp0:%8g dt:%8g\n",
-                    (long)i, skind, mb_or_g, g_or_oc, c, d, h, w, fp, fp0, dt);
+                    "fp:% 12.6g fp0:% 12.6g dt:% 12.6g diff:%8g rdiff:%8g\n",
+                    (long)i, final_compare ? "" : "REORDER ", skind, mb_or_g,
+                    g_or_oc, c, d, h, w, fp, fp0, dt, diff, rel_diff);
         }
 
         non_zero += fp != 0;
