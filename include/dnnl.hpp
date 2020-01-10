@@ -2419,7 +2419,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         dnnl_scratchpad_mode_t result;
         error::wrap_c_api(
                 dnnl_primitive_attr_get_scratchpad_mode(get(), &result),
-                "could not get primitive scratchpad mode attribute");
+                "could not get scratchpad mode primitive attribute");
         return scratchpad_mode(result);
     }
 
@@ -2429,7 +2429,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_scratchpad_mode(scratchpad_mode mode) {
         error::wrap_c_api(dnnl_primitive_attr_set_scratchpad_mode(
                                   get(), dnnl::convert_to_c(mode)),
-                "could not set primitive scratchpad mode attribute");
+                "could not set scratchpad mode primitive attribute");
     }
 
     /// Returns output scaling factors correspondence mask and values.
@@ -2447,7 +2447,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         const float *c_scales;
         error::wrap_c_api(dnnl_primitive_attr_get_output_scales(
                                   get(), &count, &c_mask, &c_scales),
-                "could not get primitive output scales attribute");
+                "could not get output scales primitive attribute");
         scales.resize(count);
 
         mask = c_mask;
@@ -2501,7 +2501,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_output_scales(
                         get(), (dnnl_dim_t)scales.size(), mask, scales.data()),
-                "could not set primitive output scales attribute");
+                "could not set output scales primitive attribute");
     }
 
     /// Returns scaling factors correspondence mask and values for a given
@@ -2521,7 +2521,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         const float *c_scales;
         error::wrap_c_api(dnnl_primitive_attr_get_scales(
                                   get(), arg, &count, &c_mask, &c_scales),
-                "could not get scales");
+                "could not get scales primitive attributes");
         scales.resize(count);
 
         mask = c_mask;
@@ -2549,7 +2549,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_scales(get(), arg,
                         (dnnl_dim_t)scales.size(), mask, scales.data()),
-                "could not set scales");
+                "could not set scales primitive attribute");
     }
 
     /// Returns zero points correspondence mask and values.
@@ -2569,7 +2569,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         const int32_t *c_zero_points;
         error::wrap_c_api(dnnl_primitive_attr_get_zero_points(
                                   get(), arg, &count, &c_mask, &c_zero_points),
-                "could not get primitive zero points attribute");
+                "could not get zero points primitive attribute");
         zero_points.resize(count);
 
         mask = c_mask;
@@ -2602,7 +2602,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg,
                                   (dnnl_dim_t)zero_points.size(), mask,
                                   zero_points.data()),
-                "could not set primitive zero points attribute");
+                "could not set zero points primitive attribute");
     }
 
     /// Returns post-ops previously set via set_post_ops().
@@ -2612,7 +2612,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
         post_ops result;
         const_dnnl_post_ops_t c_result;
         error::wrap_c_api(dnnl_primitive_attr_get_post_ops(get(), &c_result),
-                "could not get primitive post-ops attribute");
+                "could not get post-ops primitive attribute");
         result.reset(const_cast<dnnl_post_ops_t>(c_result), true);
         return result;
     }
@@ -2627,7 +2627,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     /// @param ops Post-ops object to copy post-ops from.
     void set_post_ops(const post_ops ops) {
         error::wrap_c_api(dnnl_primitive_attr_set_post_ops(get(), ops.get()),
-                "could not set primitive post-ops attribute");
+                "could not set post-ops primitive attribute");
     }
 
     /// Sets quantization scale and shift parameters for RNN data tensors.
@@ -2666,8 +2666,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rnn_data_qparams(float scale, float shift) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_rnn_data_qparams(get(), scale, shift),
-                "could not get primitive RNN data quantization parameters "
-                "attributes");
+                "could not get RNN data quantization parameters primitive "
+                "attribute");
     }
 
     /// Sets quantization scaling factors for RNN weights tensors. The
@@ -2699,8 +2699,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
         error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(get(),
                                   (int)scales.size(), mask, scales.data()),
-                "could not get primitive RNN weights quantization parameters "
-                "attributes");
+                "could not get RNN weights quantization parameters primitive "
+                "attribute");
     }
 };
 
