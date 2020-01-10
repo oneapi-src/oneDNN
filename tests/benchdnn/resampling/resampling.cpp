@@ -36,8 +36,24 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     const auto nelems = mem_dt.nelems();
     r->errors = 0;
     r->total = nelems;
-    const float trh
-            = p->alg == nearest ? 0 : (p->dt == dnnl_bf16 ? 1e-2 : 1e-6);
+
+    float trh = 0;
+    if (p->alg == nearest) {
+        // On forward, `dst` consists of exact `src` elements, hence the result
+        // shall be exact (no matter what data type is). On backward, the
+        // diff_src might be a result of accumulation of multiple diff_dst.
+        // However, we rely on the fact that benchdnn reference implementation
+        // does absolutely the same as the library implementations. We only need
+        // to take into account the conversion from accumulation data type
+        // (which is float) to the resulting data type.
+        if (p->dir & FLAG_FWD)
+            trh = 0;
+        else
+            trh = p->dt == dnnl_bf16 ? 8e-3 : 0;
+    } else {
+        assert(p->alg == linear);
+        trh = p->dt == dnnl_bf16 ? 1e-2 : 1e-6;
+    }
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
