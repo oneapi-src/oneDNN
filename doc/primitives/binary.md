@@ -48,6 +48,8 @@ The following attributes are supported:
 | Type      | Operation     | Restrictions       | Description
 | :--       | :--           | :--                | :--
 | Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | The corresponding tensor has integer data type. Only one scale per tensor is supported. Input tensors only. | Scales the corresponding input tensor by the given scale factor(s).
+| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)          | Must precede eltwise post-op. | Adds the operation result to the destination tensor instead of overwriting it. |
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)  |                               | Applies an @ref dnnl_api_eltwise operation to the result. |
 
 ### Data Types Support
 
@@ -67,6 +69,7 @@ meaning associated with any of tensors dimensions.
 1. Refer to @ref dev_guide_data_types for limitations related to data types
    support.
 
+2. No post-ops or attributes support on GPU.
 
 ## Performance Tips
 

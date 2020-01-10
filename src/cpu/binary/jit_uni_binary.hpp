@@ -42,6 +42,8 @@ struct jit_uni_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = mayiuse(avx2)
                     && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
                     && utils::everyone_is(src_type, src_md(0)->data_type,
@@ -52,11 +54,12 @@ struct jit_uni_binary_t : public primitive_impl_t {
                             == memory_desc_wrapper(src_md(1))
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(dst_md(0))
-                    && attr()->has_default_values();
+                    && attr()->has_default_values(sm::post_ops)
+                    && attr_post_ops_ok();
             if (!ok) return status::unimplemented;
 
             return status::success;
-        };
+        }
     };
 
     jit_uni_binary_t(const pd_t *apd);

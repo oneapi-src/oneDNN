@@ -41,6 +41,8 @@ struct jit_uni_i8i8_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = mayiuse(avx2) && src_md(0)->data_type == src0_type
                     && src_md(1)->data_type == src1_type
                     && dst_md(0)->data_type == src0_type
@@ -51,8 +53,8 @@ struct jit_uni_i8i8_binary_t : public primitive_impl_t {
                             memory_desc_wrapper(src_md(1)), true, false, 0)
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(dst_md(0))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales)
+                    && attr()->has_default_values(sm::post_ops | sm::scales)
+                    && attr_post_ops_ok()
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask());
             if (!ok) return status::unimplemented;

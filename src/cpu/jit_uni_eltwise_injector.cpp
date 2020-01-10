@@ -1127,8 +1127,8 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
     }
 }
 
-template struct jit_uni_eltwise_injector_f32<avx512_common>;
 template struct jit_uni_eltwise_injector_f32<avx512_core>;
+template struct jit_uni_eltwise_injector_f32<avx512_common>;
 template struct jit_uni_eltwise_injector_f32<avx2>;
 template struct jit_uni_eltwise_injector_f32<sse41>;
 

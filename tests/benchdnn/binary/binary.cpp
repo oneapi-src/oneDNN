@@ -180,6 +180,9 @@ int doit(const prb_t *p, res_t *r) {
     if (!p->inplace) {
         const auto dst_d = q(dnnl_query_dst_md);
         placeholder_dst_dt = dnn_mem_t(dst_d, engine_tgt);
+
+        if (p->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) >= 0)
+            SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
     }
     dnn_mem_t &dst_dt = p->inplace ? src_dt[0] : placeholder_dst_dt;
 

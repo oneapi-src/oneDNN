@@ -4,7 +4,7 @@
 --alg=ADD,MUL
 --ddt=f32
 --sdt=f32:f32
---batch=binary_gpu
+--batch=shapes_common_gpu
 
 --reset
 
@@ -12,7 +12,7 @@
 --alg=ADD,MUL
 --ddt=bf16
 --sdt=bf16:bf16
---batch=binary_gpu
+--batch=shapes_common_gpu
 
 --reset
 
@@ -20,4 +20,4 @@
 --alg=ADD,MUL
 --ddt=f16
 --sdt=f16:f16
---batch=binary_gpu
+--batch=shapes_common_gpu

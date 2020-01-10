@@ -1,38 +1,7 @@
-# f32
+# all
 --reset
---inplace=true,false
---alg=ADD,MUL
---ddt=f32
---sdt=f32:f32
---batch=shapes_common
 
-# int w/o scales
---reset
---inplace=true,false
---alg=ADD,MUL
+--batch=test_binary_f32
+--batch=test_binary_i8
+--batch=test_binary_bf16
 
---ddt=s8
---sdt=s8:u8,s8:s8
---batch=shapes_common
-
---ddt=u8
---sdt=u8:s8,u8:u8
---batch=shapes_common
-
-# int w/ scales
---reset
---inplace=true,false
---alg=ADD,MUL
-
---ddt=s8
---sdt=s8:u8,s8:s8
---attr=scales='src:common:0.25_src1:common:0.5'
---batch=shapes_common
-
---ddt=u8
---sdt=u8:s8,u8:u8
---attr=scales='src:common:0.125'
---batch=shapes_common
-
-# bfloat16
---batch=test_binary_bfloat16

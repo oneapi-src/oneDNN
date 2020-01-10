@@ -25,6 +25,7 @@
 
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
+#include "jit_uni_eltwise_injector.hpp"
 
 #include "jit_uni_binary.hpp"
 
@@ -74,11 +75,22 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     Reg64 reg_spat_offt_count = r12;
     Reg64 reg_reverse_spat_offt = r13;
     Reg64 reg_tmp = r14;
+    Reg64 reg_elt_inj_table = r15;
+
+    Xmm xsum_scale = Xmm(15);
+    Vmm vsum_scale = Vmm(isa == avx2 ? 15 : 27); // 28-31 are for bf16_emu
 
     size_t unroll_regs_ = isa == avx2 ? 4 : 8;
     size_t simd_w_ = 0;
     size_t tail_size_ = 0;
     size_t data_type_size_ = 0;
+    bool do_sum_ = false;
+    float sum_scale_ = 0.f;
+
+    static constexpr cpu_isa_t inject_isa
+            = isa == avx512_core_bf16 ? avx512_core : isa;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<inject_isa>> eltwise_injector_;
+    Opmask elt_inj_opmask = Opmask(2);
 
     void init() {
         const memory_desc_wrapper src0_d(pd_->src_md(0));
@@ -88,15 +100,33 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
         simd_w_ = vlen_ / sizeof(float);
         tail_size_ = nelems % simd_w_;
         data_type_size_ = is_bf16_ ? sizeof(bfloat16_t) : sizeof(float);
+
+        const auto &po = pd_->attr()->post_ops_;
+        do_sum_ = po.contain(primitive_kind::sum, 0)
+                && po.entry_[0].sum.scale != 0.f;
+        sum_scale_ = do_sum_ ? po.entry_[0].sum.scale : 0.f;
+
+        int elt_idx = po.find(primitive_kind::eltwise);
+        if (elt_idx != -1) {
+            const auto &e = po.entry_[elt_idx].eltwise;
+            eltwise_injector_.reset(
+                    new jit_uni_eltwise_injector_f32<inject_isa>(this, e.alg,
+                            e.alpha, e.beta, 1.f, true, reg_elt_inj_table,
+                            elt_inj_opmask));
+        }
     }
 
     void load_kernel_params() {
+        mov(reg_tmp, float2int(sum_scale_));
+        uni_vmovq(xsum_scale, reg_tmp);
+        uni_vbroadcastss(vsum_scale, xsum_scale);
 #define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_spat_offt_count, ptr[reg_param + PARAM_OFF(spat_offt_count)]);
         mov(reg_src0, ptr[reg_param + PARAM_OFF(src0)]);
         mov(reg_src1, ptr[reg_param + PARAM_OFF(src1)]);
         mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
 #undef PARAM_OFF
+        if (eltwise_injector_) eltwise_injector_->load_table_addr();
     }
 
     Address src0_ptr(size_t offt = 0) {
@@ -170,6 +200,8 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
         forward();
         postamble();
 
+        if (eltwise_injector_) eltwise_injector_->prepare_table();
+
         ker_ = getCode<decltype(ker_)>();
     }
 
@@ -199,7 +231,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
 
     void prepare_isa_subkernel() override { prepare_tail_mask(); }
 
-    void load(const Vmm &dst, const Address &src, data_type_t dt) {
+    void load_no_tail(const Vmm &dst, const Address &src, data_type_t dt) {
         switch (dt) {
             case data_type::f32: uni_vmovups(dst, src); break;
             case data_type::bf16:
@@ -210,8 +242,8 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         }
     }
 
-    void load_tail(const Vmm &dst, const Xbyak::Opmask &opmask,
-            const Address &src, data_type_t dt) {
+    void load_tail(const Vmm &dst, const Opmask &opmask, const Address &src,
+            data_type_t dt) {
         switch (dt) {
             case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
             case data_type::bf16:
@@ -222,7 +254,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         }
     }
 
-    void store(const Address &dst, const Vmm &src, data_type_t dt) {
+    void store_no_tail(const Address &dst, const Vmm &src, data_type_t dt) {
         Ymm ymm_src = Ymm(src.getIdx());
         switch (dt) {
             case data_type::f32: uni_vmovups(dst, src); break;
@@ -234,8 +266,8 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         }
     }
 
-    void store_tail(const Address &dst, const Xbyak::Opmask &opmask,
-            const Vmm &src, data_type_t dt) {
+    void store_tail(const Address &dst, const Opmask &opmask, const Vmm &src,
+            data_type_t dt) {
         Ymm ymm_src = Ymm(src.getIdx());
         switch (dt) {
             case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
@@ -247,22 +279,35 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         }
     }
 
+    void load(const Vmm &dst, const Address &src, data_type_t dt, bool tail) {
+        if (!tail)
+            load_no_tail(dst, src, dt);
+        else
+            load_tail(dst, tail_opmask, src, dt);
+    }
+
+    void store(const Address &dst, const Vmm &src, data_type_t dt, bool tail) {
+        if (!tail)
+            store_no_tail(dst, src, dt);
+        else
+            store_tail(dst, tail_opmask, src, dt);
+    }
+
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
             int offt = i * (vlen_ / (is_bf16_ ? 2 : 1));
-            if (!tail) {
-                load(vreg_tmp_src0, src0_ptr(offt), src_type);
-                load(vreg_tmp_src1, src1_ptr(offt), src_type);
-                perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                store(dst_ptr(offt), vreg_tmp_src0, src_type);
-            } else {
-                load_tail(vreg_tmp_src0, tail_opmask, src0_ptr(offt), src_type);
-                load_tail(vreg_tmp_src1, tail_opmask, src1_ptr(offt), src_type);
-                perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                store_tail(dst_ptr(offt), tail_opmask, vreg_tmp_src0, src_type);
+            load(vreg_tmp_src0, src0_ptr(offt), src_type, tail);
+            load(vreg_tmp_src1, src1_ptr(offt), src_type, tail);
+            perform_op(vreg_tmp_src0, vreg_tmp_src1);
+            if (do_sum_) {
+                load(vreg_tmp_src1, dst_ptr(offt), src_type, tail);
+                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp_src1, vsum_scale);
             }
+            if (eltwise_injector_)
+                eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());
+            store(dst_ptr(offt), vreg_tmp_src0, src_type, tail);
         }
     }
 
@@ -309,7 +354,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         prepare_bf16_emulator();
     }
 
-    void load(const Vmm &dst, const Address &src, data_type_t dt) {
+    void load_no_tail(const Vmm &dst, const Address &src, data_type_t dt) {
         switch (dt) {
             case data_type::f32: uni_vmovups(dst, src); break;
             case data_type::bf16:
@@ -320,8 +365,8 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         }
     }
 
-    void load_tail(const Vmm &dst, const Xbyak::Opmask &opmask,
-            const Address &src, data_type_t dt) {
+    void load_tail(const Vmm &dst, const Opmask &opmask, const Address &src,
+            data_type_t dt) {
         switch (dt) {
             case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
             case data_type::bf16:
@@ -332,7 +377,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         }
     }
 
-    void store(const Address &dst, const Vmm &src, data_type_t dt) {
+    void store_no_tail(const Address &dst, const Vmm &src, data_type_t dt) {
         Ymm ymm_src = Ymm(src.getIdx());
         switch (dt) {
             case data_type::f32: uni_vmovups(dst, src); break;
@@ -344,8 +389,8 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         }
     }
 
-    void store_tail(const Address &dst, const Xbyak::Opmask &opmask,
-            const Vmm &src, data_type_t dt) {
+    void store_tail(const Address &dst, const Opmask &opmask, const Vmm &src,
+            data_type_t dt) {
         Ymm ymm_src = Ymm(src.getIdx());
         switch (dt) {
             case data_type::f32: uni_vmovups_tail(dst, opmask, src); break;
@@ -357,22 +402,35 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         }
     }
 
+    void load(const Vmm &dst, const Address &src, data_type_t dt, bool tail) {
+        if (!tail)
+            load_no_tail(dst, src, dt);
+        else
+            load_tail(dst, tail_opmask, src, dt);
+    }
+
+    void store(const Address &dst, const Vmm &src, data_type_t dt, bool tail) {
+        if (!tail)
+            store_no_tail(dst, src, dt);
+        else
+            store_tail(dst, tail_opmask, src, dt);
+    }
+
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
             int offt = i * (vlen_ / (is_bf16_ ? 2 : 1));
-            if (!tail) {
-                load(vreg_tmp_src0, src0_ptr(offt), src_type);
-                load(vreg_tmp_src1, src1_ptr(offt), src_type);
-                perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                store(dst_ptr(offt), vreg_tmp_src0, src_type);
-            } else {
-                load_tail(vreg_tmp_src0, tail_opmask, src0_ptr(offt), src_type);
-                load_tail(vreg_tmp_src1, tail_opmask, src1_ptr(offt), src_type);
-                perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                store_tail(dst_ptr(offt), tail_opmask, vreg_tmp_src0, src_type);
+            load(vreg_tmp_src0, src0_ptr(offt), src_type, tail);
+            load(vreg_tmp_src1, src1_ptr(offt), src_type, tail);
+            perform_op(vreg_tmp_src0, vreg_tmp_src1);
+            if (do_sum_) {
+                load(vreg_tmp_src1, dst_ptr(offt), src_type, tail);
+                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp_src1, vsum_scale);
             }
+            if (eltwise_injector_)
+                eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());
+            store(dst_ptr(offt), vreg_tmp_src0, src_type, tail);
         }
     }
 
@@ -401,22 +459,35 @@ struct jit_uni_binary_subkernel_t<avx2, src_type>
 
     void prepare_isa_subkernel() override { prepare_tail_mask(); }
 
+    void load(const Vmm &dst, const Address &src, bool tail) {
+        if (!tail)
+            uni_vmovups(dst, src);
+        else
+            uni_vmovups_tail(dst, tail_vmask, src);
+    }
+
+    void store(const Address &dst, const Vmm &src, bool tail) {
+        if (!tail)
+            uni_vmovups(dst, src);
+        else
+            uni_vmovups_tail(dst, tail_vmask, src);
+    }
+
     void compute_dst(int unroll, bool tail = false) override {
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
             int offt = vlen_ * i;
-            if (!tail) {
-                uni_vmovups(vreg_tmp_src0, src0_ptr(offt));
-                uni_vmovups(vreg_tmp_src1, src1_ptr(offt));
-                perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                uni_vmovups(dst_ptr(offt), vreg_tmp_src0);
-            } else {
-                uni_vmovups_tail(vreg_tmp_src0, tail_vmask, src0_ptr(offt));
-                uni_vmovups_tail(vreg_tmp_src1, tail_vmask, src1_ptr(offt));
-                perform_op(vreg_tmp_src0, vreg_tmp_src1);
-                uni_vmovups_tail(dst_ptr(offt), tail_vmask, vreg_tmp_src0);
+            load(vreg_tmp_src0, src0_ptr(offt), tail);
+            load(vreg_tmp_src1, src1_ptr(offt), tail);
+            perform_op(vreg_tmp_src0, vreg_tmp_src1);
+            if (do_sum_) {
+                load(vreg_tmp_src1, dst_ptr(offt), tail);
+                uni_vfmadd231ps(vreg_tmp_src0, vreg_tmp_src1, vsum_scale);
             }
+            if (eltwise_injector_)
+                eltwise_injector_->compute_vector(vreg_tmp_src0.getIdx());
+            store(dst_ptr(offt), vreg_tmp_src0, tail);
         }
     }
 

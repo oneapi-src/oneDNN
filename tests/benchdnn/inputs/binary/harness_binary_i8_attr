@@ -1,0 +1,54 @@
+# i8 attributes
+
+## post_ops
+--reset
+
+--inplace=true,false
+--alg=ADD,MUL
+
+--ddt=s8 --sdt=s8:u8
+--attr=post_ops='sum:0.5'
+--batch=shapes_common
+
+--ddt=s8 --sdt=s8:s8
+--attr=post_ops='logistic:0:0:0.5'
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:u8
+--attr=post_ops='linear:2:0.125'
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:s8
+--attr=post_ops='sum:0.25;relu:-0.01'
+--batch=shapes_common
+
+## scales
+--ddt=s8 --sdt=s8:u8,s8:s8
+--attr=scales='src:common:0.25_src1:common:0.5'
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:s8
+--attr=scales='src:common:0.125'
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:u8
+--attr=scales='src1:common:2'
+--batch=shapes_common
+
+## post_ops + scales
+--ddt=s8 --sdt=s8:u8
+--attr=scales='src:common:0.25_src1:common:0.5';post_ops='sum'
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:u8
+--attr=scales='src:common:0.25_src1:common:0.5';post_ops='sum:0.5;logistic:0:0:2'
+--batch=shapes_common
+
+--ddt=s8 --sdt=s8:s8
+--attr=scales='src1:common:0.5';post_ops='linear:2:0.125'
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:s8
+--attr=scales='src:common:0.125';post_ops='sum:0.5'
+--batch=shapes_common
+

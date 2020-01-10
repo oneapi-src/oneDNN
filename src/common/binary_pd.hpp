@@ -129,6 +129,17 @@ protected:
         return status;
     }
 
+    bool attr_post_ops_ok() const {
+        using namespace primitive_kind;
+        const auto &p = attr()->post_ops_;
+        switch (p.len_) {
+            case 0: return true;
+            case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
+            case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
+            default: return false;
+        }
+    }
+
 private:
     void init_broadcast_dims() {
         const dims_t &dims_A = src_md(0)->dims;

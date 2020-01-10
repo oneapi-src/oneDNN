@@ -20,14 +20,17 @@
 
 namespace binary {
 
-void perform_op(const prb_t *p, float *d, float x, float y) {
+void perform_op(const prb_t *p, float *dst, float x, float y) {
+    float res = 0;
     if (p->alg == ADD) {
-        *d = x + y;
+        res = x + y;
     } else if (p->alg == MUL) {
-        *d = x * y;
+        res = x * y;
     } else {
         assert(!"operation not supported!");
     }
+    maybe_post_ops(res, *dst, p->attr);
+    *dst = res;
 };
 
 int64_t map_idx_B(const prb_t *p, int64_t idx) {

@@ -1,0 +1,9 @@
+# f32
+--reset
+
+--inplace=true,false
+--alg=ADD,MUL
+--ddt=f32 --sdt=f32:f32
+
+--batch=shapes_common
+
