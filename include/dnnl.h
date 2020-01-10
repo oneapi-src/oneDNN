@@ -987,8 +987,8 @@ dnnl_status_t DNNL_API dnnl_memory_get_memory_desc(
 dnnl_status_t DNNL_API dnnl_memory_get_engine(
         const_dnnl_memory_t memory, dnnl_engine_t *engine);
 
-/// Maps a memory object and returns a pointer to a host-side buffer with a
-/// copy of its contents.
+/// Maps a memory object and returns a host-side pointer to a memory buffer
+/// with a copy of its contents.
 ///
 /// Mapping enables explicit direct access to memory contents for the engines
 /// that do not support it implicitly.
@@ -1013,8 +1013,9 @@ dnnl_status_t DNNL_API dnnl_memory_get_engine(
 dnnl_status_t DNNL_API dnnl_memory_map_data(
         const_dnnl_memory_t memory, void **mapped_ptr);
 
-/// Unmaps a memory object and writes back any changes to the previously mapped
-/// buffer.
+/// Unmaps a memory object and writes back any changes made to the previously
+/// mapped memory buffer. The pointer to the mapped buffer must be obtained
+/// via the dnnl_memory_map_data() call.
 ///
 /// @note
 ///     The dnnl_memory_map_data() and dnnl_memory_unmap_data() functions are
@@ -1041,30 +1042,29 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 
 /// Sets a memory object's data handle.
 ///
-/// This function may write zeroes to the specified data @p handle if the
-/// memory object has padding to maintain data consistency.
+/// This function may write zero values to the memory specified by the @p
+/// handle if the memory object has a zero padding area. This may be time
+/// consuming and happens each time this function is called. Furthermore, it
+/// is performed using an internal service stream in a blocking manner.
 ///
 /// @note
-///     The padding is performed for memory objects created with blocked
+///     The zero padding is required by memory objects created with blocked
 ///     memory format tags like #dnnl_aBcd8b when any of the dimensions is not
-///     a multiple of a corresponding block size. The padding is performed only
-///     for memory objects created with plain memory format tags like #dnnl_nchw
-///     or #dnnl_nhwc if requested explicitly. More information is available in
-///     @ref dev_guide_understanding_memory_formats.
+///     a multiple of the corresponding block size. For "plain" formats like
+///     #dnnl_nchw or #dnnl_nhwc zero padding area needs to be set up
+///     explicitly when creating the corresponding memory descriptors. See
+///     @ref dev_guide_understanding_memory_formats for more details.
 ///
-/// The write can be time consuming and happens each time the function is
-/// called. Furthermore, it is performed using an internal service stream in a
-/// blocking manner.
-///
-/// @warning
-///     Even if the memory object is used to hold values that stay constant
-///     (e.g., pre-packed weights during inference), the function will still
-///     write zeroes to the padding area if it exists. Hence, the @p handle
-///     parameter cannot and does not have a const qualifier.
+/// @note
+///     Even when the memory object is used to hold values that stay constant
+///     during the execution of the program (pre-packed weights during
+///     inference, for example), the function will still write zeroes to the
+///     padding area if it exists. Hence, the @p handle parameter cannot and
+///     does not have a const qualifier.
 ///
 /// @param memory Memory object.
 /// @param handle Data handle. For the CPU engine, the data handle is a
-///     pointer to the actual data. For OpenCL it is a cl_mem.
+///     pointer to the actual data. For OpenCL it is a `cl_mem`.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
@@ -3546,7 +3546,13 @@ dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);
 /// @addtogroup dnnl_api_stream
 /// @{
 
-/// Creates an execution @p stream for @p engine and with @p flags.
+/// Creates an execution stream.
+///
+/// @param stream Output execution stream.
+/// @param engine Engine to create the execution stream on.
+/// @param flags Stream behavior flags (@sa dnnl_stream_flags_t).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
 dnnl_status_t DNNL_API dnnl_stream_create(
         dnnl_stream_t *stream, dnnl_engine_t engine, unsigned flags);
 

@@ -1965,29 +1965,28 @@ struct memory : public handle<dnnl_memory_t> {
         return handle;
     }
 
-    /// Sets memory buffer.
+    /// Sets a data handle.
     ///
-    /// This function may write zeroes to the specified data @p handle if the
-    /// memory object has padding to maintain data consistency.
+    /// This function may write zero values to the memory specified by the @p
+    /// handle if the memory object has a zero padding area. This may be time
+    /// consuming and happens each time this function is called. Furthermore,
+    /// it is performed using an internal service stream in a blocking manner.
     ///
     /// @note
-    ///     The padding is performed for memory objects created with blocked
-    ///     memory format tags like #dnnl_aBcd8b when any of the dimensions is
-    ///     not a multiple of a corresponding block size. The padding is
-    ///     performed only for memory objects created with plain memory format
-    ///     tags like #dnnl_nchw or #dnnl_nhwc if requested explicitly. More
-    ///     information is available in @ref
-    ///     dev_guide_understanding_memory_formats.
+    ///     The zero padding is required by memory objects created with
+    ///     blocked memory format tags like #dnnl_aBcd8b when any of the
+    ///     dimensions is not a multiple of the corresponding block size. For
+    ///     "plain" formats like #dnnl::memory::format_tag::nchw or
+    ///     #dnnl::memory::format_tag::nhwc zero padding area needs to be set
+    ///     up explicitly when creating the corresponding memory descriptors.
+    ///     See @ref dev_guide_understanding_memory_formats for more details.
     ///
-    /// The write can be time consuming and happens each time the function is
-    /// called. Furthermore, it is performed using an internal service stream
-    /// in a blocking manner.
-    ///
-    /// @warning
-    ///     Even if the memory object is used to hold values that stay constant
-    ///     (e.g., pre-packed weights during inference), the function will still
-    ///     write zeroes to the padding area if it exists. Hence, the @p
-    ///     handle parameter cannot and does not have a const qualifier.
+    /// @note
+    ///     Even when the memory object is used to hold values that stay
+    ///     constant during the execution of the program (pre-packed weights
+    ///     during inference, for example), the function will still write
+    ///     zeroes to the padding area if it exists. Hence, the @p handle
+    ///     parameter cannot and does not have a const qualifier.
     ///
     /// @param handle Output data handle. For the CPU engine, the data handle
     ///     is a pointer to the actual data. For OpenCL it is a cl_mem.
@@ -1996,13 +1995,14 @@ struct memory : public handle<dnnl_memory_t> {
                 "could not set native handle of a memory object");
     }
 
-    /// Maps the data of the memory.
+    /// Maps a memory object and returns a host-side pointer to a memory
+    /// buffer with a copy of its contents.
     ///
     /// Mapping enables read/write directly from/to the memory contents for
     /// engines that do not support direct memory access.
     ///
     /// Mapping is an exclusive operation - a memory object cannot be used in
-    /// other operations until this memory object is unmapped.
+    /// other operations until it is unmapped via memory::unmap_data() call.
     ///
     /// @note
     ///     Any primitives working with the memory should be completed before
@@ -2010,8 +2010,8 @@ struct memory : public handle<dnnl_memory_t> {
     ///     corresponding execution stream.
     ///
     /// @note
-    ///     The map/unmap API is provided mainly for debug/testing purposes and
-    ///     its performance may be suboptimal.
+    ///     The map_data and unmap_data functions are provided mainly for
+    ///     debug and testing purposes and their performance may be suboptimal.
     ///
     /// @tparam T Data type to return a pointer to.
     /// @returns Pointer to the mapped memory.
@@ -2023,15 +2023,13 @@ struct memory : public handle<dnnl_memory_t> {
         return static_cast<T *>(mapped_ptr);
     }
 
-    /// Unmaps the previously mapped data for the memory.
-    ///
-    /// Any changes of the mapped data are synchronized back to the memory
-    /// after the call is complete. The mapped pointer must be
-    /// obtained through a map_data() call.
+    /// Unmaps a memory object and writes back any changes made to the
+    /// previously mapped memory buffer. The pointer to the mapped buffer
+    /// must be obtained via the dnnl::memory::map_data() call.
     ///
     /// @note
-    ///     The map/unmap API is provided mainly for debug/testing purposes and
-    ///     its performance may be suboptimal.
+    ///     The map_data and unmap_data functions are provided mainly for
+    ///     debug and testing purposes and their performance may be suboptimal.
     ///
     /// @param mapped_ptr A pointer previously returned by map_data().
     void unmap_data(void *mapped_ptr) const {
