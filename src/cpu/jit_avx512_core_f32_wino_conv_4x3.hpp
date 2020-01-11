@@ -108,6 +108,9 @@ protected:
             const memory_tracking::grantor_t &scratchpad) const;
     _jit_avx512_core_f32_wino_conv_4x3_data_kernel *kernel_;
     const primitive_attr_t *attr_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(_jit_avx512_core_f32_wino_conv_4x3_t);
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_fwd_t

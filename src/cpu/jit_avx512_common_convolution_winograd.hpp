@@ -78,6 +78,9 @@ protected:
             float *bias_ptr,
             const memory_tracking::grantor_t &scratchpad) const;
     _jit_avx512_common_conv_winograd_data_kernel_f32 *kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(_jit_avx512_common_convolution_winograd_t);
 };
 
 struct jit_avx512_common_convolution_winograd_fwd_t
