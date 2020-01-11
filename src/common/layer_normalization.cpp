@@ -35,6 +35,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     bool args_ok = true && !any_null(lnorm_desc, data_desc)
             && one_of(prop_kind, forward_training, forward_inference,
                     backward_data, backward)
+            && 2 <= data_desc->ndims && data_desc->ndims <= 5
             && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr)
             && (flags & ~(dnnl_use_global_stats | dnnl_use_scaleshift)) == 0;
     if (!args_ok) return invalid_arguments;
@@ -79,17 +80,15 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
     ld.layer_norm_epsilon = epsilon;
     ld.flags = flags;
 
-    bool consistency = true && utils::one_of(ld.data_desc.ndims, 2, 3, 4, 5);
-    if (ld.prop_kind == backward_data)
-        consistency = consistency
-                && utils::one_of(ld.diff_data_desc.ndims, 2, 3, 4, 5)
+    if (ld.prop_kind == backward_data) {
+        bool consistency = ld.diff_data_desc.ndims == ld.data_desc.ndims
                 && array_cmp(ld.diff_data_desc.dims, ld.data_desc.dims,
                         ld.diff_data_desc.ndims)
                 && ld.data_desc.ndims == ld.stat_desc.ndims + 1
                 && array_cmp(ld.stat_desc.dims, ld.data_desc.dims,
                         ld.stat_desc.ndims);
-
-    if (!consistency) return invalid_arguments;
+        if (!consistency) return invalid_arguments;
+    }
 
     *lnorm_desc = ld;
     return success;
