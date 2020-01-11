@@ -408,6 +408,11 @@ void jit_trans_iw_ic_int16_t::transpose(
         jit_generator::kmovw(k, regw_tmp);
     };
 
+    auto kmovd = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovd(k, regw_tmp);
+    };
+
     auto store = [=](Zmm r, int i) {
         auto padding = [=](Reg64 reg, int pad) {
             kmovw(kTail, (1 << pad) - 1);
@@ -454,45 +459,80 @@ void jit_trans_iw_ic_int16_t::transpose(
         vmovups(addr, r);
     };
 
-    kmovw(kFFFF, 0xffff);
-    //all loads
-    for (int i = 0; i < 16; i++) {
-        vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
-    }
+    if (mayiuse(avx512_core)) {
+        if (conf_->stride_w > 1 || nrows % 2) kmovd(kFFFF, 0x0000ffff);
+        if (conf_->stride_w > 1) kmovd(k33, 0xffff0000);
 
-    for (int i = 0; i < nrows / 2; i++) {
-        auto src0 = src_ymm(2 * i);
-        auto src1 = src_ymm(2 * i + 1);
-        auto zmm_src0 = src_zmm(2 * i);
-        load_ymm(2 * i);
+        for (int i = 0; i < nrows / 2; i++) {
+            auto zmm_src0 = src_zmm(2 * i);
+            if (conf_->stride_w == 1) {
+                vmovdqu16(zmm_src0,
+                        EVEX_compress_addr(reg_src, 2 * i * src_stride));
+            } else {
+                vmovdqu16(zmm_src0 | kFFFF | T_z,
+                        EVEX_compress_addr(reg_src, 2 * i * src_stride));
+                vmovdqu16(zmm_src0 | k33,
+                        EVEX_compress_addr(
+                                reg_src, (2 * i + 1) * src_stride - 32));
+            }
+            vpermw(zmm_src0, vidx5, zmm_src0);
+        }
 
-        vpunpcklwd(src1, src0,
-                EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-        vpunpckhwd(src0, src0,
-                EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-        vinserti64x4(zmm_src0, zmm_src0, src1, 1);
-        vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
-    }
+        // for odd numbers we need to mix row with zeroes
+        if (nrows % 2) {
+            int i = nrows / 2;
+            auto zmm_src0 = src_zmm(2 * i);
+            vmovdqu16(zmm_src0 | kFFFF | T_z,
+                    EVEX_compress_addr(reg_src, 2 * i * src_stride));
+            vpermw(zmm_src0, vidx5, zmm_src0);
+        }
 
-    // for odd numbers we need to mix row with zeroes
-    if (nrows % 2) {
-        int i = nrows - 1;
-        auto src0 = src_ymm(i);
-        auto src1 = src_ymm(i + 1); //zero
+        if (conf_->stride_w > 1) kmovw(k33, 0x33);
 
-        auto zmm_src0 = src_zmm(i);
-        vpxor(src1, src1, src1);
+        for (int i = rnd_up(nrows, 2); i < 16; i += 2) {
+            vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
+        }
+    } else {
+        kmovw(kFFFF, 0xffff);
+        // all loads
+        for (int i = 0; i < 16; i++) {
+            vpxord(src_zmm(i), src_zmm(i), src_zmm(i));
+        }
 
-        load_ymm(i);
-        vpunpckhwd(src0, src0, src1);
-        vinserti64x4(zmm_tmp, zmm_tmp, src0, 0);
-        vpxor(src0, src0, src0);
-        load_ymm(i);
-        vpunpcklwd(src1, src0, src1);
-        vinserti64x4(zmm_tmp, zmm_tmp, src1, 1);
-        vpxord(zmm_src0, zmm_src0, zmm_src0);
-        vmovups(zmm_src0, zmm_tmp);
-        vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
+        for (int i = 0; i < nrows / 2; i++) {
+            auto src0 = src_ymm(2 * i);
+            auto src1 = src_ymm(2 * i + 1);
+            auto zmm_src0 = src_zmm(2 * i);
+            load_ymm(2 * i);
+
+            vpunpcklwd(src1, src0,
+                    EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
+            vpunpckhwd(src0, src0,
+                    EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
+            vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+            vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
+        }
+
+        // for odd numbers we need to mix row with zeroes
+        if (nrows % 2) {
+            int i = nrows - 1;
+            auto src0 = src_ymm(i);
+            auto src1 = src_ymm(i + 1); // zero
+
+            auto zmm_src0 = src_zmm(i);
+            vpxor(src1, src1, src1);
+
+            load_ymm(i);
+            vpunpckhwd(src0, src0, src1);
+            vinserti64x4(zmm_tmp, zmm_tmp, src0, 0);
+            vpxor(src0, src0, src0);
+            load_ymm(i);
+            vpunpcklwd(src1, src0, src1);
+            vinserti64x4(zmm_tmp, zmm_tmp, src1, 1);
+            vpxord(zmm_src0, zmm_src0, zmm_src0);
+            vmovups(zmm_src0, zmm_tmp);
+            vpermps(zmm_src0 | kFFFF, vidx4, zmm_src0);
+        }
     }
 
     // swap 1
@@ -587,8 +627,9 @@ void jit_trans_iw_ic_int16_t::generate() {
             = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14};
     alignas(64) static constexpr const int32_t idx4[16]
             = {8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7};
-    alignas(64) static constexpr const int32_t idx5[16]
-            = {8, 10, 12, 14, 0, 2, 4, 6, 9, 11, 13, 15, 1, 3, 5, 7};
+    alignas(64) static constexpr const uint16_t idx5[32]
+            = {0, 16, 2, 18, 8, 24, 10, 26, 4, 20, 6, 22, 12, 28, 14, 30, 1, 17,
+                    3, 19, 9, 25, 11, 27, 5, 21, 7, 23, 13, 29, 15, 31};
 
     const int ic_block = conf_->ic_block;
     const int iw = conf_->iw;
@@ -625,7 +666,7 @@ void jit_trans_iw_ic_int16_t::generate() {
     vmovdqa64(vidx2, idx2);
     vmovdqa32(vidx3, idx3);
     vmovdqa32(vidx4, idx4);
-    vmovdqa32(vidx5, idx5);
+    vmovdqa32(vidx5, (const int32_t *)idx5);
 
     // Data for every strided case is placed consecutively
     for (int s = 0; s < str_w; s++) {
@@ -716,8 +757,10 @@ private:
     bool enable_prefetch;
 
     opmask_t kFF = k1;
+    opmask_t mask_lo = k2;
 
     zmm vidx1 = zmm31;
+    zmm vidx2 = zmm30;
 
     reg64_t reg_src = r8;
     reg64_t reg_tr_src = r9;
@@ -757,33 +800,50 @@ void jit_trans_ow_oc_t::transpose(
             vmovups(addr, r);
     };
 
-    for (int i = 0; i < nrows / 2; i++) {
-        auto src0 = src_ymm(2 * i);
-        auto src1 = src_ymm(2 * i + 1);
-        auto zmm_src0 = src_zmm(2 * i);
-        load_ymm(2 * i);
-        vpunpcklwd(src1, src0,
-                EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-        vpunpckhwd(src0, src0,
-                EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
-        vinserti64x4(zmm_src0, zmm_src0, src1, 1);
-        vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
-        store(zmm_src0, 2 * i);
-    }
-    if (r_pad > 0) {
-        auto src0 = src_ymm(nrows - 1);
-        auto src1 = src_ymm(nrows);
-        auto zmm_src0 = src_zmm(30);
-        load_ymm(nrows - 1);
+    if (mayiuse(avx512_core)) {
+        for (int i = 0; i < nrows / 2; i++) {
+            auto zmm_src0 = src_zmm(i);
+            vmovdqu16(
+                    zmm_src0, EVEX_compress_addr(reg_src, 2 * i * src_stride));
+            vpermw(zmm_src0, vidx2, zmm_src0);
+            store(zmm_src0, 2 * i);
+        }
+        if (r_pad > 0) {
+            auto zmm_src0 = src_zmm(29);
+            vmovdqu16(zmm_src0 | mask_lo | T_z,
+                    EVEX_compress_addr(reg_src, (nrows - 1) * src_stride));
+            vpermw(zmm_src0, vidx2, zmm_src0);
+            store(zmm_src0, nrows - 1);
+        }
+    } else {
+        for (int i = 0; i < nrows / 2; i++) {
+            auto src0 = src_ymm(2 * i);
+            auto src1 = src_ymm(2 * i + 1);
+            auto zmm_src0 = src_zmm(2 * i);
+            load_ymm(2 * i);
+            vpunpcklwd(src1, src0,
+                    EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
+            vpunpckhwd(src0, src0,
+                    EVEX_compress_addr(reg_src, (2 * i + 1) * src_stride));
+            vinserti64x4(zmm_src0, zmm_src0, src1, 1);
+            vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
+            store(zmm_src0, 2 * i);
+        }
+        if (r_pad > 0) {
+            auto src0 = src_ymm(nrows - 1);
+            auto src1 = src_ymm(nrows);
+            auto zmm_src0 = src_zmm(30);
+            load_ymm(nrows - 1);
 
-        vpxor(src1, src1, src1);
-        vpunpckhwd(src1, src0, src1);
-        vinserti64x4(zmm_src0, zmm_src0, src1, 0);
-        vpxor(src1, src1, src1);
-        vpunpcklwd(src0, src0, src1);
-        vinserti64x4(zmm_src0, zmm_src0, src0, 1);
-        vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
-        store(zmm_src0, nrows - 1);
+            vpxor(src1, src1, src1);
+            vpunpckhwd(src1, src0, src1);
+            vinserti64x4(zmm_src0, zmm_src0, src1, 0);
+            vpxor(src1, src1, src1);
+            vpunpcklwd(src0, src0, src1);
+            vinserti64x4(zmm_src0, zmm_src0, src0, 1);
+            vpermpd(zmm_src0 | kFF, vidx1, zmm_src0);
+            store(zmm_src0, nrows - 1);
+        }
     }
 }
 
@@ -792,6 +852,9 @@ void jit_trans_ow_oc_t::generate() {
 
     alignas(64) static constexpr const int64_t idx1[8]
             = {4, 5, 0, 1, 6, 7, 2, 3};
+    alignas(64) static constexpr const int16_t idx2[32]
+            = {0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23, 8, 24, 9,
+                    25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31};
 
     const int oc_block = conf_->oc_block;
     const int ow = conf_->ow;
@@ -818,8 +881,13 @@ void jit_trans_ow_oc_t::generate() {
         mov(regw_tmp, w);
         jit_generator::kmovw(k, regw_tmp);
     };
+    auto kmovd = [=](Opmask k, unsigned w) {
+        mov(regw_tmp, w);
+        jit_generator::kmovd(k, regw_tmp);
+    };
 
     kmovw(kFF, 0xFF);
+    kmovd(mask_lo, 0x0000ffff);
 
     auto vmovdqa64 = [=](Zmm z, const int64_t *addr) {
         mov(imm_addr64, reinterpret_cast<size_t>(addr));
@@ -827,6 +895,7 @@ void jit_trans_ow_oc_t::generate() {
     };
 
     vmovdqa64(vidx1, idx1);
+    vmovdqa64(vidx2, (const int64_t *)idx2);
     if (loop_iters) {
         mov(reg_loop, loop_iters);
         Label loop;
