@@ -440,10 +440,7 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)
     , rtus_driver_(nullptr)
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-    , tr_reorder_(nullptr)
-#endif
-{
+    , tr_reorder_(nullptr) {
     kernel_ = new jit_avx512_core_bf16_1x1_conv_kernel(
             pd()->jcp_, *pd()->attr());
 
@@ -452,9 +449,8 @@ jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 
     acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
 
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-    tr_reorder_ = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t();
-#endif
+    if (!pd()->jcp_.uses_permw_transposition)
+        tr_reorder_ = new jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t();
 }
 
 template <data_type_t diff_weights_type>
@@ -483,11 +479,12 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     auto rtus_space = scratchpad.template get<src_data_t>(key_conv_rtus_space);
     auto wei_reduction = scratchpad.template get<float>(key_conv_wei_reduction);
 
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-    auto tr_src_buffer = scratchpad.template get<src_data_t>(key_conv_tr_src);
-    auto tr_diff_buffer
-            = scratchpad.template get<diff_dst_data_t>(key_conv_tr_diff_dst);
-#endif
+    auto tr_src_buffer = !jcp.uses_permw_transposition
+            ? scratchpad.template get<src_data_t>(key_conv_tr_src)
+            : nullptr;
+    auto tr_diff_buffer = !jcp.uses_permw_transposition
+            ? scratchpad.template get<diff_dst_data_t>(key_conv_tr_diff_dst)
+            : nullptr;
     auto d_dst_f32_buffer
             = scratchpad.template get<float>(key_conv_dst_bf16_convert_wsp);
 
@@ -602,12 +599,12 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                         rp.icb = bcast_step;
                         p.output_data = store_to;
 
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-                        p.reduce_dim = nstl::min(sp_b_step * jcp.reduce_block,
-                                jcp.reduce_dim - sp_b * jcp.reduce_block);
-#else
                         p.reduce_dim = sp_b_step * jcp.reduce_block;
-#endif
+                        if (!jcp.uses_permw_transposition)
+                            p.reduce_dim = nstl::min(p.reduce_dim,
+                                    (size_t)jcp.reduce_dim
+                                            - sp_b * jcp.reduce_block);
+
                         rp.os = p.reduce_dim;
 
                         p.first_last_flag = 0
@@ -642,46 +639,49 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                             p.bcast_data = rp.ws;
                         } else
                             p.bcast_data = local_src + sp * jcp.ic_block;
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-                        bf16_support::jit_call_t ptr;
-                        ptr.size = p.reduce_dim;
-                        int thr_src_block_size = rnd_up(jcp.reduce_dim, 2)
-                                * jcp.ic_block * jcp.nb_bcast_blocking_max;
-                        src_data_t *tr_src
-                                = &tr_src_buffer[ithr * thr_src_block_size];
-                        for (int bs = 0; bs < bcast_step; bs++) {
-                            size_t src_off = bs * jcp.reduce_dim * jcp.ic_block;
-                            size_t src_tr_off = bs * rnd_up(jcp.reduce_dim, 2)
-                                    * jcp.ic_block;
-                            src_data_t *curr_inp
-                                    = &((src_data_t *)p.bcast_data)[src_off];
-                            src_data_t *curr_out = &tr_src[src_tr_off];
-                            ptr.inp = (void *)curr_inp;
-                            ptr.out = (void *)curr_out;
-                            tr_reorder_->jit_ker(&ptr);
+                        if (!jcp.uses_permw_transposition) {
+                            bf16_support::jit_call_t ptr;
+                            ptr.size = p.reduce_dim;
+                            int thr_src_block_size = rnd_up(jcp.reduce_dim, 2)
+                                    * jcp.ic_block * jcp.nb_bcast_blocking_max;
+                            src_data_t *tr_src
+                                    = &tr_src_buffer[ithr * thr_src_block_size];
+                            for (int bs = 0; bs < bcast_step; bs++) {
+                                size_t src_off
+                                        = bs * jcp.reduce_dim * jcp.ic_block;
+                                size_t src_tr_off = bs
+                                        * rnd_up(jcp.reduce_dim, 2)
+                                        * jcp.ic_block;
+                                src_data_t *curr_inp = &(
+                                        (src_data_t *)p.bcast_data)[src_off];
+                                src_data_t *curr_out = &tr_src[src_tr_off];
+                                ptr.inp = (void *)curr_inp;
+                                ptr.out = (void *)curr_out;
+                                tr_reorder_->jit_ker(&ptr);
+                            }
+
+                            p.bcast_data = (void *)tr_src;
+
+                            int thr_dst_block_size = rnd_up(jcp.reduce_dim, 2)
+                                    * jcp.oc_block * jcp.nb_load_blocking_max;
+                            diff_dst_data_t *tr_diff_dst = &tr_diff_buffer[ithr
+                                    * thr_dst_block_size];
+                            for (int ls = 0; ls < load_step; ls++) {
+                                size_t ddst_off = ls * jcp.os * jcp.oc_block;
+                                size_t ddst_tr_off = ls
+                                        * rnd_up(jcp.reduce_dim, 2)
+                                        * jcp.oc_block;
+                                diff_dst_data_t *curr_inp
+                                        = &((diff_dst_data_t *)
+                                                        p.load_data)[ddst_off];
+                                diff_dst_data_t *curr_out
+                                        = &tr_diff_dst[ddst_tr_off];
+                                ptr.inp = (void *)curr_inp;
+                                ptr.out = (void *)curr_out;
+                                tr_reorder_->jit_ker(&ptr);
+                            }
+                            p.load_data = (void *)tr_diff_dst;
                         }
-
-                        p.bcast_data = (void *)tr_src;
-
-                        int thr_dst_block_size = rnd_up(jcp.reduce_dim, 2)
-                                * jcp.oc_block * jcp.nb_load_blocking_max;
-                        diff_dst_data_t *tr_diff_dst
-                                = &tr_diff_buffer[ithr * thr_dst_block_size];
-                        for (int ls = 0; ls < load_step; ls++) {
-                            size_t ddst_off = ls * jcp.os * jcp.oc_block;
-                            size_t ddst_tr_off = ls * rnd_up(jcp.reduce_dim, 2)
-                                    * jcp.oc_block;
-                            diff_dst_data_t *curr_inp = &(
-                                    (diff_dst_data_t *)p.load_data)[ddst_off];
-                            diff_dst_data_t *curr_out
-                                    = &tr_diff_dst[ddst_tr_off];
-                            ptr.inp = (void *)curr_inp;
-                            ptr.out = (void *)curr_out;
-                            tr_reorder_->jit_ker(&ptr);
-                        }
-                        p.load_data = (void *)tr_diff_dst;
-
-#endif //BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
                         kernel_->jit_ker(&p);
                     }
                 }

@@ -305,10 +305,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t
         delete kernel_;
         delete reducer_bias_;
         delete rtus_driver_;
-
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
         delete tr_reorder_;
-#endif
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -332,9 +329,7 @@ private:
     /* reduction to unit stride */
     rtus_driver_t<avx512_common> *rtus_driver_;
 
-#ifndef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_;
-#endif
 };
 
 } // namespace cpu

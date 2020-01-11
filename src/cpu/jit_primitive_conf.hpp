@@ -467,6 +467,7 @@ struct jit_1x1_conv_conf_t {
     float wei_adj_scale;
 
     cpu_isa_t isa;
+    bool uses_permw_transposition;
 };
 
 struct jit_gemm_conv_conf_t {
