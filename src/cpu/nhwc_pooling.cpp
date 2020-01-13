@@ -349,7 +349,6 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
 
 template <data_type_t d_type>
 void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
-
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto ws = CTX_IN_MEM(const unsigned char *, DNNL_ARG_WORKSPACE);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);

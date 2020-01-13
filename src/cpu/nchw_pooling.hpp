@@ -41,7 +41,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("simple_nchw:any", nchw_pooling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
@@ -91,7 +91,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t d_type>
@@ -101,7 +101,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("simple_nchw:any", nchw_pooling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
@@ -187,7 +187,7 @@ struct nchw_pooling_bwd_t : public primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

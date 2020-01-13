@@ -38,16 +38,14 @@ template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type>
 struct jit_avx512_common_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
                 jit_avx512_common_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, wei_type, dst_type, dst_type,
@@ -103,7 +101,7 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx512_common_conv_fwd_kernel *kernel_;
 };
@@ -113,16 +111,14 @@ template <impl::data_type_t diff_dst_type,
         impl::data_type_t diff_src_type = diff_dst_type>
 struct jit_avx512_common_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
                 jit_avx512_common_convolution_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
@@ -172,7 +168,7 @@ private:
     void execute_backward_data_1d(const exec_ctx_t &ctx) const;
     void execute_backward_data_2d(const exec_ctx_t &ctx) const;
     void execute_backward_data_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx512_common_conv_bwd_data_kernel_f32 *kernel_;
 };
@@ -182,16 +178,15 @@ template <impl::data_type_t src_type,
         impl::data_type_t diff_weights_type = src_type>
 struct jit_avx512_common_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", avx512_common, ""),
                 jit_avx512_common_convolution_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, diff_weights_type,
@@ -262,7 +257,7 @@ private:
     void compute_diff_bias(const thread_info_t *) const;
     void reduce_diff_bias(const thread_info_t *) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 

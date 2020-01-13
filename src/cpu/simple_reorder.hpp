@@ -29,6 +29,7 @@
 
 #include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
+#include "primitive_attr.hpp"
 #include "tag_traits.hpp"
 
 #include "cpu_isa_traits.hpp"
@@ -1365,10 +1366,10 @@ struct simple_reorder_t : public primitive_t {
                             spec>::is_applicable(src_md, dst_md, attr);
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init() != status::success) {
+            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
                 delete _pd;
                 return status::unimplemented;
             }
@@ -1392,7 +1393,7 @@ struct simple_reorder_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL

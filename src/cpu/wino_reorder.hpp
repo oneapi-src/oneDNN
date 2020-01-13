@@ -52,10 +52,10 @@ struct wino_reorder_t : public primitive_t {
                                     format_tag::hwio, format_tag::hwigo)));
             if (!args_ok) return status::invalid_arguments;
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init() != status::success) {
+            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
                 delete _pd;
                 return status::unimplemented;
             }
@@ -63,8 +63,10 @@ struct wino_reorder_t : public primitive_t {
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
-        status_t init() {
-            status_t status = cpu_reorder_pd_t::init();
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
             if (status != status::success) return status;
 
             bool ok = attr()->has_default_values(
@@ -411,7 +413,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     int r_, w_alpha_;
     int ic_, oc_, or_ic_, or_oc_, kh_, kw_;
     int oc_block_, ic_block_, oc2_block_, ic2_block_;

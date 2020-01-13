@@ -31,10 +31,10 @@ struct inner_product_fwd_pd_t;
 struct inner_product_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::inner_product;
 
-    inner_product_pd_t(engine_t *engine, const inner_product_desc_t *adesc,
+    inner_product_pd_t(const inner_product_desc_t *adesc,
             const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd) {}
 
@@ -169,10 +169,10 @@ struct inner_product_fwd_pd_t : public inner_product_pd_t {
     typedef inner_product_fwd_pd_t base_class;
     typedef inner_product_fwd_pd_t hint_class;
 
-    inner_product_fwd_pd_t(engine_t *engine, const inner_product_desc_t *adesc,
+    inner_product_fwd_pd_t(const inner_product_desc_t *adesc,
             const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_pd_t(engine, adesc, attr, hint_fwd_pd)
+        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , weights_md_(desc_.weights_desc)
         , bias_md_(desc_.bias_desc)
@@ -225,10 +225,10 @@ struct inner_product_bwd_data_pd_t : public inner_product_pd_t {
     typedef inner_product_bwd_data_pd_t base_class;
     typedef inner_product_fwd_pd_t hint_class;
 
-    inner_product_bwd_data_pd_t(engine_t *engine,
-            const inner_product_desc_t *adesc, const primitive_attr_t *attr,
+    inner_product_bwd_data_pd_t(const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_pd_t(engine, adesc, attr, hint_fwd_pd)
+        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , weights_md_(desc_.weights_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}
@@ -274,10 +274,10 @@ struct inner_product_bwd_weights_pd_t : public inner_product_pd_t {
     typedef inner_product_bwd_weights_pd_t base_class;
     typedef inner_product_fwd_pd_t hint_class;
 
-    inner_product_bwd_weights_pd_t(engine_t *engine,
-            const inner_product_desc_t *adesc, const primitive_attr_t *attr,
+    inner_product_bwd_weights_pd_t(const inner_product_desc_t *adesc,
+            const primitive_attr_t *attr,
             const inner_product_fwd_pd_t *hint_fwd_pd)
-        : inner_product_pd_t(engine, adesc, attr, hint_fwd_pd)
+        : inner_product_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , diff_weights_md_(desc_.diff_weights_desc)
         , diff_bias_md_(desc_.diff_bias_desc)

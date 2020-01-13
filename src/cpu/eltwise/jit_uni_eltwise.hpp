@@ -47,7 +47,7 @@ struct jit_uni_eltwise_fwd_t : public primitive_t {
                                     ""),
                 jit_uni_eltwise_fwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_uni_eltwise_fwd_t(const pd_t *apd);
@@ -58,7 +58,7 @@ struct jit_uni_eltwise_fwd_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<jit_uni_eltwise_kernel> kernel_;
 };
 
@@ -75,7 +75,7 @@ struct jit_uni_eltwise_bwd_t : public primitive_t {
                                     ""),
                 jit_uni_eltwise_bwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_uni_eltwise_bwd_t(const pd_t *apd);
@@ -86,7 +86,7 @@ struct jit_uni_eltwise_bwd_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<jit_uni_eltwise_kernel> kernel_;
 };
 

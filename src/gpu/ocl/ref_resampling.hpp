@@ -34,19 +34,18 @@ namespace ocl {
 
 struct ref_resampling_fwd_t : public primitive_t {
     struct pd_t : public gpu_resampling_fwd_pd_t {
-        pd_t(engine_t *engine, const resampling_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
                 const resampling_fwd_pd_t *hint_fwd_pd)
-            : gpu_resampling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_resampling_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
-            assert(engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             bool ok = is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
                     && src_md()->data_type == dst_md()->data_type
                     && set_default_params() == status::success
@@ -76,11 +75,11 @@ struct ref_resampling_fwd_t : public primitive_t {
 
     ~ref_resampling_fwd_t() = default;
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         using namespace alg_kind;
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
@@ -132,25 +131,24 @@ struct ref_resampling_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
 struct ref_resampling_bwd_t : public primitive_t {
     struct pd_t : public gpu_resampling_bwd_pd_t {
-        pd_t(engine_t *engine, const resampling_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const resampling_desc_t *adesc, const primitive_attr_t *attr,
                 const resampling_fwd_pd_t *hint_fwd_pd)
-            : gpu_resampling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_resampling_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
-            assert(engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             bool ok = !is_fwd()
                     && utils::one_of(diff_src_md()->data_type, f32, bf16)
                     && diff_src_md()->data_type == diff_dst_md()->data_type
@@ -178,11 +176,11 @@ struct ref_resampling_bwd_t : public primitive_t {
 
     ~ref_resampling_bwd_t() = default;
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         using namespace alg_kind;
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
@@ -236,7 +234,7 @@ struct ref_resampling_bwd_t : public primitive_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

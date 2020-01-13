@@ -41,7 +41,7 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int:", isa, ""),
                 jit_uni_i8i8_pooling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && mayiuse(isa) && utils::one_of(ndims(), 3, 4, 5)
                     && set_default_params() == status::success
                     && desc()->prop_kind == prop_kind::forward_inference
@@ -81,7 +81,7 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_uni_i8i8_pooling_fwd_ker_t<isa> *ker_;
 };

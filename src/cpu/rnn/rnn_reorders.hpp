@@ -59,10 +59,10 @@ struct rnn_data_reorder_t : public primitive_t {
                                     && od.matches_tag(format_tag::ldnc));
             if (!args_ok) return invalid_arguments;
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init() != success) {
+            if (_pd->init(engine, src_engine, dst_engine) != success) {
                 delete _pd;
                 return unimplemented;
             }
@@ -94,7 +94,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t type_i>
@@ -134,11 +134,11 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
             const int mask = attr->rnn_weights_qparams_.mask_;
             if (!utils::one_of(mask, 0, 24)) return unimplemented;
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
             _pd->itag_ = itag;
-            if (_pd->init() != success) {
+            if (_pd->init(engine, src_engine, dst_engine) != success) {
                 delete _pd;
                 return unimplemented;
             }
@@ -147,8 +147,10 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 #undef PD_CHECK_ARG
         }
 
-        status_t init() {
-            status_t status = cpu_reorder_pd_t::init();
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
             if (status != status::success) return status;
 
             init_scratchpad();
@@ -408,7 +410,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t type_i, data_type_t type_o>
@@ -440,10 +442,10 @@ struct rnn_weights_reorder_t : public primitive_t {
                     format_tag::ldigo, format_tag::ldgoi);
             if (itag == format_tag::undef) return invalid_arguments;
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return out_of_memory;
-            if (_pd->init() != success) {
+            if (_pd->init(engine, src_engine, dst_engine) != success) {
                 delete _pd;
                 return unimplemented;
             }
@@ -454,8 +456,10 @@ struct rnn_weights_reorder_t : public primitive_t {
 
         format_tag_t itag_;
 
-        status_t init() {
-            status_t status = cpu_reorder_pd_t::init();
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+            status_t status
+                    = cpu_reorder_pd_t::init(engine, src_engine, dst_engine);
             if (status != status::success) return status;
 
             init_scratchpad();
@@ -591,7 +595,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

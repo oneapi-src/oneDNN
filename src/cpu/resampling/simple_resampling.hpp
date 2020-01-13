@@ -24,6 +24,7 @@
 #include "utils.hpp"
 
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 
 #include "cpu_resampling_pd.hpp"
 #include "primitive.hpp"
@@ -40,7 +41,7 @@ struct simple_resampling_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("simple:any", simple_resampling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
             bool ok = is_fwd() && !has_zero_dim_memory()
@@ -118,7 +119,7 @@ private:
             dim_t stride_d, dim_t stride_h, dim_t stride_w, dim_t od, dim_t oh,
             dim_t ow) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_forward(const exec_ctx_t &ctx) const;
 };
 
@@ -129,7 +130,7 @@ struct simple_resampling_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("simple:any", simple_resampling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
             bool ok = !is_fwd() && !has_zero_dim_memory()
@@ -226,7 +227,7 @@ private:
             const float *diff_dst, dim_t stride_d, dim_t stride_h,
             dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_backward(const exec_ctx_t &ctx) const;
 };
 

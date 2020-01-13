@@ -33,7 +33,6 @@ using namespace nstl;
 
 template <data_type_t d_type>
 void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
-
     auto alg = pd()->desc()->alg_kind;
 
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
@@ -299,7 +298,6 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
 
 template <data_type_t d_type>
 void nchw_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
-
     auto alg = pd()->desc()->alg_kind;
     const bool is_3d = pd()->desc()->diff_src_desc.ndims == 5;
     const bool is_2d = pd()->desc()->diff_src_desc.ndims == 4;

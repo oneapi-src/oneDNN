@@ -26,7 +26,6 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
-
     const auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC);
     const auto &b = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     const auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);

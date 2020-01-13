@@ -45,16 +45,17 @@ void unpoison_outputs(const exec_args_t &args) {
 } // namespace
 
 // API
-status_t dnnl_primitive_desc_destroy(primitive_desc_t *primitive_desc) {
-    if (primitive_desc) delete primitive_desc;
+status_t dnnl_primitive_desc_destroy(
+        primitive_desc_iface_t *primitive_desc_iface) {
+    if (primitive_desc_iface) delete primitive_desc_iface;
     return success;
 }
 
 status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
-        const primitive_desc_t *primitive_desc) {
-    if (utils::any_null(primitive_iface, primitive_desc))
+        const primitive_desc_iface_t *primitive_desc_iface) {
+    if (utils::any_null(primitive_iface, primitive_desc_iface))
         return invalid_arguments;
-    return primitive_desc->create_primitive_iface(primitive_iface);
+    return primitive_desc_iface->create_primitive_iface(primitive_iface);
 }
 
 status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
@@ -65,8 +66,8 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
     if (!ok) return invalid_arguments;
 
     exec_args_t args;
-    status_t status
-            = cvt_primtive_args(primitive_iface->pd(), nargs, c_args, args);
+    status_t status = cvt_primtive_args(
+            primitive_iface->pd()->impl().get(), nargs, c_args, args);
     if (status != status::success) return status;
 
     stream->before_exec_hook();
@@ -93,11 +94,11 @@ status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
 
 status_t dnnl_primitive_get_primitive_desc(
         const primitive_iface_t *primitive_iface,
-        const primitive_desc_t **primitive_desc) {
-    if (utils::any_null(primitive_iface, primitive_desc))
+        const primitive_desc_iface_t **primitive_desc_iface) {
+    if (utils::any_null(primitive_iface, primitive_desc_iface))
         return invalid_arguments;
-    return safe_ptr_assign<const primitive_desc_t>(
-            *primitive_desc, primitive_iface->pd());
+    return safe_ptr_assign<const primitive_desc_iface_t>(
+            *primitive_desc_iface, primitive_iface->pd());
 }
 
 status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
@@ -107,29 +108,28 @@ status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
 
 // primitive_t implementation
 dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
-        bool use_global_scratchpad = false)
-    : primitive_(primitive), scratchpad_(nullptr) {
+        engine_t *engine, bool use_global_scratchpad)
+    : primitive_(primitive)
+    , scratchpad_(nullptr)
+    , pd_(utils::make_unique<primitive_desc_iface_t>(
+              primitive_->pd(), engine)) {
 
     const size_t scratchpad_size
             = primitive_->pd()->scratchpad_size(scratchpad_mode::library);
 
     if (scratchpad_size) {
         auto *scratchpad_ptr = create_scratchpad(
-                engine(), scratchpad_size, use_global_scratchpad);
+                pd_->engine(), scratchpad_size, use_global_scratchpad);
         scratchpad_.reset(scratchpad_ptr);
     }
 }
 
-status_t dnnl_primitive::init() {
-    return primitive_->init();
-}
-
 engine_t *dnnl_primitive::engine() const {
-    return primitive_->engine();
+    return pd_->engine();
 }
 
-const primitive_desc_t *dnnl_primitive::pd() const {
-    return primitive_->pd();
+const primitive_desc_iface_t *dnnl_primitive::pd() const {
+    return pd_.get();
 }
 
 const std::shared_ptr<primitive_t> &dnnl_primitive::get_primitive() const {

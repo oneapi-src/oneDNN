@@ -40,7 +40,7 @@ struct ref_shuffle_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_shuffle_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
 
             bool ok = true
@@ -106,7 +106,7 @@ struct ref_shuffle_t : public primitive_t {
 private:
     template <format_tag_t tag>
     void execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     int *rev_transposed_;
 };
 

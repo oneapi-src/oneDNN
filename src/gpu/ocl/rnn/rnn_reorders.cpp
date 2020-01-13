@@ -24,7 +24,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t rnn_weights_reorder_t::pd_t::init_conf() {
+status_t rnn_weights_reorder_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src_mdw(src_md());
     const memory_desc_wrapper dst_mdw(dst_md());
 
@@ -43,8 +43,7 @@ status_t rnn_weights_reorder_t::pd_t::init_conf() {
     conf.sub_group_size = 1;
 
     // only for LDIGO
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     conf.dispatch.define_dim("D0", 0, dims[0]);

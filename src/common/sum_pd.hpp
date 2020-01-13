@@ -30,12 +30,9 @@ namespace dnnl {
 namespace impl {
 
 struct sum_pd_t : public primitive_desc_t {
-    sum_pd_t(engine_t *engine, const primitive_attr_t *attr,
-            const memory_desc_t *dst_md, int n, const float *scales,
-            const memory_desc_t *src_mds)
-        : primitive_desc_t(engine, attr, primitive_kind::sum)
-        , n_(n)
-        , dst_md_(*dst_md) {
+    sum_pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
+            const float *scales, const memory_desc_t *src_mds)
+        : primitive_desc_t(attr, primitive_kind::sum), n_(n), dst_md_(*dst_md) {
         scales_.reserve(n_);
         for (int i = 0; i < n_; ++i)
             scales_.push_back(scales[i]);
@@ -100,7 +97,7 @@ protected:
 protected:
     sum_desc_t desc_;
     /* inits dst_md_ in simple cases. The call may fail. */
-    status_t init() {
+    status_t init(engine_t *engine) {
         for (int i = 0; i < n_; ++i) {
             const memory_desc_wrapper src_d(&src_mds_[i]);
             if (!src_d.is_blocking_desc() || src_d.is_additional_buffer())
@@ -148,28 +145,19 @@ protected:
             const primitive_attr_t *attr, const memory_desc_t *dst_md, int n, \
             const float *scales, const memory_desc_t *src_mds) { \
         using namespace status; \
-        auto _pd = new pd_t(engine, attr, dst_md, n, scales, src_mds); \
+        auto _pd = new pd_t(attr, dst_md, n, scales, src_mds); \
         if (_pd == nullptr) return out_of_memory; \
-        if (_pd->init() != success) { \
+        if (_pd->init(engine) != success) { \
             delete _pd; \
             return unimplemented; \
         } \
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
-    virtual status_t create_primitive_iface( \
-            primitive_iface_t **primitive_iface) const override { \
-        primitive_iface_t *p_iface = nullptr; \
-        auto status = dnnl::impl::safe_ptr_assign<primitive_iface_t>(p_iface, \
-                new primitive_iface_t( \
-                        std::make_shared<__VA_ARGS__>(this), false)); \
-        if (status != status::success) { return status; } \
-        status = p_iface->init(); \
-        if (status != status::success) { \
-            delete p_iface; \
-            return status; \
-        } \
-        (*primitive_iface) = p_iface; \
+    virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
+            engine_t *engine) const override { \
+        primitive = std::make_shared<__VA_ARGS__>(this); \
+        auto status = primitive->init(engine); \
         return status; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \

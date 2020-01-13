@@ -23,8 +23,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(
-        conv_conf_t &conf, offsets_t &off, const convolution_pd_t *pd) {
+static status_t init_conf_common(conv_conf_t &conf, offsets_t &off,
+        const convolution_pd_t *pd, engine_t *engine) {
     const convolution_desc_t &cd = *pd->desc();
     const memory_desc_t &src_md = *pd->invariant_src_md();
     const memory_desc_t &weights_md = *pd->invariant_wei_md();
@@ -39,8 +39,7 @@ static status_t init_conf_common(
     set_offsets(dst_md, off.dst_off);
 
     int oc_idx = (int)conf.with_groups;
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     switch (cd.prop_kind) {
         case prop_kind::forward_training:
         case prop_kind::forward_inference: {
@@ -172,8 +171,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t ref_convolution_fwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t ref_convolution_fwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t ref_convolution_fwd_t::pd_t::init_kernel_ctx(
@@ -225,8 +224,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t ref_convolution_bwd_data_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t ref_convolution_bwd_data_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t ref_convolution_bwd_data_t::pd_t::init_kernel_ctx(
@@ -257,8 +256,8 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     return status;
 }
 
-status_t ref_convolution_bwd_weights_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t ref_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t ref_convolution_bwd_weights_t::pd_t::init_kernel_ctx(

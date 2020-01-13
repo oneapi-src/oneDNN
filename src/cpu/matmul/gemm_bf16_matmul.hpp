@@ -43,7 +43,7 @@ struct gemm_bf16_matmul_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("gemm:jit", gemm_bf16_matmul_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
         const gemm_based::params_t &params() const { return params_; }
 
     private:
@@ -72,7 +72,7 @@ struct gemm_bf16_matmul_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
 
     using pp_kernel_t = inner_product_utils::pp_kernel_t<acc_type, dst_type>;

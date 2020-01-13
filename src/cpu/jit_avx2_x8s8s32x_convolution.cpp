@@ -192,7 +192,6 @@ void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx2_x8s8s32x_convolution_fwd_t<src_type,
         dst_type>::execute_forward_1d(const exec_ctx_t &ctx) const {
-
     auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);

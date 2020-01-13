@@ -50,8 +50,8 @@ bool need_post_processing(const pd_t *pd, float runtime_dst_zero_point = 0.f) {
 } // namespace
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
-status_t
-gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init() {
+status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init(
+        engine_t *engine) {
     using namespace utils;
 
     auto check_bias = [&]() -> bool {

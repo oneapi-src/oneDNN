@@ -88,18 +88,16 @@ struct jit_avx512_common_convolution_winograd_fwd_t
     : _jit_avx512_common_convolution_winograd_t<true>,
       public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
                 jit_avx512_common_convolution_winograd_fwd_t,
                 USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
@@ -153,25 +151,23 @@ struct jit_avx512_common_convolution_winograd_fwd_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_data_t
     : _jit_avx512_common_convolution_winograd_t<false>,
       public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino:", avx512_common, ""),
                 jit_avx512_common_convolution_winograd_bwd_data_t,
                 USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::undef, data_type::f32, data_type::f32)
@@ -223,16 +219,15 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_weights_t
     : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
@@ -240,7 +235,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
                 jit_avx512_common_convolution_winograd_bwd_weights_t,
                 USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
@@ -295,7 +290,7 @@ private:
     void _maybe_execute_diff_bias_copy(float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;
 };
 

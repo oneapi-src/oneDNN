@@ -44,7 +44,7 @@ struct ref_matmul_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_matmul_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = src_md()->data_type == src_type
@@ -70,7 +70,6 @@ struct ref_matmul_t : public primitive_t {
                 else if (acc_type == s32)
                     ok = ok && utils::one_of(bia_dt, f32, s32, s8, u8);
             }
-
             return ok ? status::success : status::unimplemented;
         }
 
@@ -109,7 +108,7 @@ struct ref_matmul_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
 
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;

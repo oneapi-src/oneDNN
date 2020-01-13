@@ -17,6 +17,7 @@
 #include "primitive_exec_types.hpp"
 #include "memory.hpp"
 #include "primitive.hpp"
+#include "primitive_desc.hpp"
 
 namespace dnnl {
 namespace impl {

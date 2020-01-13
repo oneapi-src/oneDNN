@@ -35,11 +35,10 @@ namespace cpu {
 
 struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        using dw_conv_pd_type = jit_sse41_dw_convolution_fwd_t::pd_t;
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
             copy(other);
@@ -55,7 +54,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", sse41, ""),
                 jit_sse41_1x1_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
@@ -71,7 +70,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             if (status != status::success) return status;
 
             if (jcp_.with_dw_conv) {
-                status = depthwise_po_init();
+                status = depthwise_po_init(engine);
                 if (status != status::success) return status;
             }
 
@@ -127,7 +126,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             return;
         }
 
-        status_t depthwise_po_init() {
+        status_t depthwise_po_init(engine_t *engine) {
 
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
@@ -165,8 +164,8 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
             CHECK(get_depthwise_conv_desc(
                     cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
-            dw_conv_pd_.reset(new dw_pd_t(engine_, &cd_dw, &attr_dw, nullptr));
-            CHECK(dw_conv_pd_->init());
+            dw_conv_pd_.reset(new dw_pd_t(&cd_dw, &attr_dw, nullptr));
+            CHECK(dw_conv_pd_->init(engine));
             auto &jcp_dw = dw_conv_pd_->jcp_;
 
             ok = true
@@ -240,7 +239,7 @@ private:
             const data_t *weights, const data_t *bias, const data_t *weights_dw,
             const data_t *bias_dw, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_sse41_1x1_conv_kernel_f32 *kernel_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sse41>;
     dw_conv_kernel_t *kernel_dw_ = nullptr;

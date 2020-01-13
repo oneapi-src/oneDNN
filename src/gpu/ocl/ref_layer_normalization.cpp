@@ -23,8 +23,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(
-        lnorm_conf_t &conf, const layer_normalization_pd_t *pd) {
+static status_t init_conf_common(lnorm_conf_t &conf,
+        const layer_normalization_pd_t *pd, engine_t *engine) {
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
     memory_desc_wrapper dst_mdw(pd->dst_md());
@@ -41,8 +41,7 @@ static status_t init_conf_common(
 
     conf.is_fwd = pd->is_fwd();
 
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch_scaleshift = compute_engine->create_dispatch();
     conf.dispatch = compute_engine->create_dispatch(
             pd->is_fwd() ? dst_mdw.md_ : src_mdw.md_);
@@ -100,8 +99,8 @@ static status_t init_kernel_ctx_common(
     return status::success;
 }
 
-status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, this);
+status_t ref_layer_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_layer_normalization_fwd_t::pd_t::init_kernel_ctx(
@@ -141,8 +140,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     return status;
 }
 
-status_t ref_layer_normalization_bwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, this);
+status_t ref_layer_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, this, engine);
 }
 
 status_t ref_layer_normalization_bwd_t::pd_t::init_kernel_ctx(

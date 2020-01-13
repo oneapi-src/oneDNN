@@ -49,15 +49,15 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:gemm:any", gen9_gemm_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             using namespace primitive_kind;
             using smask_t = primitive_attr_t::skip_mask_t;
 
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops;
 
@@ -152,37 +152,39 @@ struct gen9_gemm_t : public gpu_gemm_t {
         size_t dyn_offset_c = 0;
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
                 compute_engine->device_info());
 
         eu_count_ = dev_info->eu_count();
         hw_threads_ = dev_info->hw_threads();
 
-        gemm_type_ = get_gemm_type();
+        gemm_type_ = get_gemm_type(engine);
+
         switch (gemm_type_) {
-            case type::copy_based: return init_copy_based();
-            case type::no_copy: return init_nocopy();
+            case type::copy_based: return init_copy_based(engine);
+            case type::no_copy: return init_nocopy(engine);
             case type::no_copy_if_even_off: {
-                status_t result = init_copy_based();
+                status_t result = init_copy_based(engine);
                 if (result != status::success) return result;
-                return init_nocopy();
+                return init_nocopy(engine);
             }
-            case type::no_copy_superkernel: return init_nocopy_superkernel();
-            case type::no_copy_k_unroll: return init_nocopy();
+            case type::no_copy_superkernel:
+                return init_nocopy_superkernel(engine);
+            case type::no_copy_k_unroll: return init_nocopy(engine);
         }
 
         return status::invalid_arguments;
     }
 
-    status_t init_copy_based() {
+    status_t init_copy_based(engine_t *engine) {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
 
         memory_storage_t *temp_buf_ptr;
-        this->engine()->create_memory_storage(&temp_buf_ptr, 128 << 20);
+        engine->create_memory_storage(&temp_buf_ptr, 128 << 20);
         temp_buf_.reset(temp_buf_ptr);
 
         for (bool beta0 : {false, true}) {
@@ -229,7 +231,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    status_t init_nocopy() {
+    status_t init_nocopy(engine_t *engine) {
         const char *kernel_name = nullptr;
 
         switch (pd()->desc()->c_type) {
@@ -248,7 +250,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
         auto n = pd()->desc()->n;
 
         memory_storage_t *flag_ptr;
-        this->engine()->create_memory_storage(&flag_ptr,
+        engine->create_memory_storage(&flag_ptr,
                 ((m + unroll_m - 1) / unroll_m)
                         * ((n + unroll_n - 1) / unroll_n) * sizeof(int));
         flag_.reset(flag_ptr);
@@ -256,7 +258,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
         bool with_k_unroll = use_nocopy_k_unroll();
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx,
@@ -271,16 +273,16 @@ struct gen9_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    status_t init_nocopy_superkernel() {
+    status_t init_nocopy_superkernel(engine_t *engine) {
         if (pd()->desc()->c_type != data_type::f32 || pd()->desc()->transa)
             return status::unimplemented;
 
         memory_storage_t *temp_buf_ptr;
-        this->engine()->create_memory_storage(&temp_buf_ptr, max_plan_size());
+        engine->create_memory_storage(&temp_buf_ptr, max_plan_size());
         temp_buf_.reset(temp_buf_ptr);
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen9_gemm_nocopy_superkernel_t::init_kernel_ctx(
@@ -359,7 +361,7 @@ private:
     int eu_count_ = 0;
     int threads_ = 0;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     bool use_nocopy() const {
         bool transa = (pd()->desc()->transa == dnnl_trans);
@@ -393,7 +395,7 @@ private:
         return true;
     }
 
-    bool use_superkernel() const {
+    bool use_superkernel(engine_t *engine) const {
         if (disable_superkernel) return false;
 
         if (pd()->desc()->c_type != data_type::f32) return false;
@@ -405,7 +407,7 @@ private:
         //  (~2% resulting efficiency). Avoid using superkernels for these
         //  versions.
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
                 compute_engine->device_info());
         compute::runtime_version_t min_version = {19, 11, 12599};
@@ -445,10 +447,10 @@ private:
         return false;
     }
 
-    type get_gemm_type() const {
+    type get_gemm_type(engine_t *engine) const {
         return use_nocopy_k_unroll() ? type::no_copy_k_unroll
                                      : !use_nocopy() ? type::copy_based
-                                                     : use_superkernel()
+                                                     : use_superkernel(engine)
                                 ? type::no_copy_superkernel
                                 : (pd()->desc()->c_type == data_type::f16)
                                         ? type::no_copy_if_even_off

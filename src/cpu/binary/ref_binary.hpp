@@ -41,7 +41,7 @@ struct ref_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_binary_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -74,14 +74,15 @@ struct ref_binary_t : public primitive_t {
         }
     };
 
-    ref_binary_t(const pd_t *apd) : primitive_t(apd) {
+    ref_binary_t(const pd_t *apd) : primitive_t(apd) {}
+
+    virtual status_t init(engine_t *engine) override {
         int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
         if (e_idx != -1)
             eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
                     pd()->attr()->post_ops_.entry_[e_idx].eltwise));
+        return status::success;
     }
-
-    ~ref_binary_t() {}
 
     using src0_data_t = typename prec_traits<src0_type>::type;
     using src1_data_t = typename prec_traits<src1_type>::type;
@@ -93,9 +94,8 @@ struct ref_binary_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_ref(const exec_ctx_t &ctx) const;
-
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
 };
 

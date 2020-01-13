@@ -443,15 +443,15 @@ status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::pd_t::init() {
+status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace utils;
     using namespace rnn_utils;
     using namespace format_tag;
 
-    assert(this->engine()->kind() == engine_kind::gpu);
-    auto *compute_engine = utils::downcast<const compute::compute_engine_t *>(
-            this->engine());
+    assert(engine->kind() == engine_kind::gpu);
+    auto *compute_engine
+            = utils::downcast<const compute::compute_engine_t *>(engine);
 
     const alg_kind_t cell_kind = this->desc()->cell_kind;
 
@@ -583,10 +583,11 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
-    auto create_gemm_pd = [&](primitive_desc_t **gemm_pd, int m, int n, int k,
-                                  int lda, int ldb, int ldc, data_type_t a_dt,
-                                  data_type_t b_dt, data_type_t c_dt,
-                                  bool is_B_trans, float beta) -> status_t {
+    auto create_gemm_pd
+            = [&](std::unique_ptr<primitive_desc_t> &gemm_pd, int m, int n,
+                      int k, int lda, int ldb, int ldc, data_type_t a_dt,
+                      data_type_t b_dt, data_type_t c_dt, bool is_B_trans,
+                      float beta) -> status_t {
         gemm_desc_t gemm_desc;
         gemm_desc.primitive_kind = primitive_kind::gemm;
         gemm_desc.transa = transpose::notrans;
@@ -606,11 +607,14 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
         gemm_desc.c_type = c_dt;
         gemm_desc.acc_type = c_dt;
 
-        primitive_attr_t dummy_attr;
-        dummy_attr.post_ops_.append_sum(beta);
-
-        return dnnl_primitive_desc_create(gemm_pd, (op_desc_t *)&gemm_desc,
-                &dummy_attr, this->engine(), nullptr);
+        primitive_attr_t attr;
+        attr.post_ops_.append_sum(beta);
+        dnnl_primitive_desc_iterator it(
+                engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+        ++it;
+        gemm_pd.reset(it.fetch_once());
+        if (!gemm_pd) return status::unimplemented;
+        return status::success;
     };
 
     int batch = rnn_conf.mb;
@@ -630,13 +634,13 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
         case prop_kind::forward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(&gemm_layer_fwd_pd_, n_gates * dhc,
+                            create_gemm_pd(gemm_layer_fwd_pd_, n_gates * dhc,
                                     layer_merged_size, slc,
                                     rnn_conf.weights_layer_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
                                     rnn_conf.acc_data_type, false, 0.0),
-                            create_gemm_pd(&gemm_iter_fwd_pd_, n_gates * dhc,
+                            create_gemm_pd(gemm_iter_fwd_pd_, n_gates * dhc,
                                     batch, sic, rnn_conf.weights_iter_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
@@ -645,27 +649,27 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
         case prop_kind::backward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(&gemm_iter_bwd_pd_, sic, batch,
+                            create_gemm_pd(gemm_iter_bwd_pd_, sic, batch,
                                     n_gates * dhc, rnn_conf.weights_iter_ld,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.diff_states_ws_ld, weights_type,
                                     src_type, rnn_conf.acc_data_type, false,
                                     0.0f),
-                            create_gemm_pd(&gemm_layer_bwd_pd_, slc,
+                            create_gemm_pd(gemm_layer_bwd_pd_, slc,
                                     layer_merged_size, n_gates * dhc,
                                     rnn_conf.weights_layer_ld,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.diff_states_ws_ld, weights_type,
                                     src_type, rnn_conf.acc_data_type, false,
                                     0.0f),
-                            create_gemm_pd(&gemm_diff_wei_layer_pd_,
+                            create_gemm_pd(gemm_diff_wei_layer_pd_,
                                     n_gates * dhc, slc, layer_merged_size,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.states_ws_ld,
                                     rnn_conf.diff_weights_layer_ld,
                                     weights_type, src_type,
                                     rnn_conf.acc_data_type, true, 1.0f),
-                            create_gemm_pd(&gemm_diff_wei_iter_pd_,
+                            create_gemm_pd(gemm_diff_wei_iter_pd_,
                                     n_gates * dhc, sic, iter_merged_size,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.states_ws_ld,
@@ -681,9 +685,8 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::init() {
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine());
+status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     compute::kernel_ctx_t kernel_ctx;
 
     status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off);
@@ -726,7 +729,7 @@ status_t _ref_rnn_common_t<aprop>::init() {
         size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
                 * sizeof(float); // G * O * sizeof(float);
         memory_storage_t *temp_buf_ptr;
-        engine()->create_memory_storage(&temp_buf_ptr, size);
+        engine->create_memory_storage(&temp_buf_ptr, size);
         scales_buf_.reset(temp_buf_ptr);
         if (!scales_buf_) return status::runtime_error;
     }
@@ -739,7 +742,7 @@ status_t _ref_rnn_common_t<aprop>::init() {
         size_t size = pd()->rnn_conf.tm_ngates
                 * sizeof(*pd_->attr()->rnn_tparams_.scales_);
         memory_storage_t *temp_buf_ptr;
-        engine()->create_memory_storage(&temp_buf_ptr, size);
+        engine->create_memory_storage(&temp_buf_ptr, size);
         tm_scales_buf_.reset(temp_buf_ptr);
         if (!tm_scales_buf_) return status::runtime_error;
 
@@ -758,24 +761,22 @@ status_t _ref_rnn_common_t<aprop>::init() {
         case prop_kind::forward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            pd()->gemm_layer_fwd_pd_->create_primitive_iface(
-                                    &gemm_layer_fwd_),
-                            pd()->gemm_iter_fwd_pd_->create_primitive_iface(
-                                    &gemm_iter_fwd_));
+                            pd()->gemm_layer_fwd_pd_->create_primitive(
+                                    gemm_layer_fwd_, engine),
+                            pd()->gemm_iter_fwd_pd_->create_primitive(
+                                    gemm_iter_fwd_, engine));
             break;
         case prop_kind::backward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            pd()->gemm_layer_bwd_pd_->create_primitive_iface(
-                                    &gemm_layer_bwd_),
-                            pd()->gemm_iter_bwd_pd_->create_primitive_iface(
-                                    &gemm_iter_bwd_),
-                            pd()->gemm_diff_wei_layer_pd_
-                                    ->create_primitive_iface(
-                                            &gemm_diff_wei_layer_),
-                            pd()->gemm_diff_wei_iter_pd_
-                                    ->create_primitive_iface(
-                                            &gemm_diff_wei_iter_));
+                            pd()->gemm_layer_bwd_pd_->create_primitive(
+                                    gemm_layer_bwd_, engine),
+                            pd()->gemm_iter_bwd_pd_->create_primitive(
+                                    gemm_iter_bwd_, engine),
+                            pd()->gemm_diff_wei_layer_pd_->create_primitive(
+                                    gemm_diff_wei_layer_, engine),
+                            pd()->gemm_diff_wei_iter_pd_->create_primitive(
+                                    gemm_diff_wei_iter_, engine));
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
@@ -834,9 +835,9 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     memory_storage_t *gemm_B_ = nullptr;
     memory_storage_t *gemm_C_ = nullptr;
 
-    engine()->create_memory_storage(&gemm_A_, use_runtime_ptr, 0, nullptr);
-    engine()->create_memory_storage(&gemm_B_, use_runtime_ptr, 0, nullptr);
-    engine()->create_memory_storage(&gemm_C_, use_runtime_ptr, 0, nullptr);
+    engine->create_memory_storage(&gemm_A_, use_runtime_ptr, 0, nullptr);
+    engine->create_memory_storage(&gemm_B_, use_runtime_ptr, 0, nullptr);
+    engine->create_memory_storage(&gemm_C_, use_runtime_ptr, 0, nullptr);
 
     switch (gemm_kind) {
         case gemm_iter_fwd:
@@ -887,19 +888,19 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     auto gemm_ctx = gemm_exec_ctx_t(ctx.stream(), gemm_args);
 
     switch (gemm_kind) {
-        case gemm_iter_fwd: gemm_impl(gemm_iter_fwd_)->execute(gemm_ctx); break;
+        case gemm_iter_fwd: gpu_gemm(gemm_iter_fwd_)->execute(gemm_ctx); break;
         case gemm_layer_fwd:
-            gemm_impl(gemm_layer_fwd_)->execute(gemm_ctx);
+            gpu_gemm(gemm_layer_fwd_)->execute(gemm_ctx);
             break;
-        case gemm_iter_bwd: gemm_impl(gemm_iter_bwd_)->execute(gemm_ctx); break;
+        case gemm_iter_bwd: gpu_gemm(gemm_iter_bwd_)->execute(gemm_ctx); break;
         case gemm_layer_bwd:
-            gemm_impl(gemm_layer_bwd_)->execute(gemm_ctx);
+            gpu_gemm(gemm_layer_bwd_)->execute(gemm_ctx);
             break;
         case gemm_diff_wei_iter:
-            gemm_impl(gemm_diff_wei_iter_)->execute(gemm_ctx);
+            gpu_gemm(gemm_diff_wei_iter_)->execute(gemm_ctx);
             break;
         case gemm_diff_wei_layer:
-            gemm_impl(gemm_diff_wei_layer_)->execute(gemm_ctx);
+            gpu_gemm(gemm_diff_wei_layer_)->execute(gemm_ctx);
             break;
         default: assert(!"unknown gemm_kind");
     }
@@ -953,14 +954,14 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                                   batch * pd()->rnn_conf.states_ws_ld)
                                 * types::data_type_size(src_t));
 
-                gemm_primitive(ctx, w_input, wei_offset, workspace,
+                gemm_primitive(engine, ctx, w_input, wei_offset, workspace,
                         offset_input, scratch_gates, 0, gemm_layer_fwd);
             }
 
             for (int i = 0; i < n_iter; i++) {
                 int iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
-                (this->*cell_func)(ctx, dir, lay, iter, dhc, slc, sic, wic,
-                        batch, n_layer, n_dir, n_iter, n_gates, n_states,
+                (this->*cell_func)(engine, ctx, dir, lay, iter, dhc, slc, sic,
+                        wic, batch, n_layer, n_dir, n_iter, n_gates, n_states,
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
                         workspace, scratch_gates, w_input, w_state,
@@ -991,9 +992,10 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                                                     .diff_weights_layer_ld)
                         * sizeof(float);
 
-                gemm_primitive(ctx, w_input, offset_w_input, scratch_gates, 0,
-                        workspace, offset_workspace_layer, gemm_layer_bwd);
-                gemm_primitive(ctx, scratch_gates, 0, workspace,
+                gemm_primitive(engine, ctx, w_input, offset_w_input,
+                        scratch_gates, 0, workspace, offset_workspace_layer,
+                        gemm_layer_bwd);
+                gemm_primitive(engine, ctx, scratch_gates, 0, workspace,
                         offset_ws_states, diff_weights_layer,
                         offset_weights_layer, gemm_diff_wei_layer);
             }
@@ -1009,7 +1011,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
                                   pd()->rnn_conf.diff_weights_iter_nld
                                           * pd()->rnn_conf.diff_weights_iter_ld)
                         * sizeof(float);
-                gemm_primitive(ctx, scratch_gates, 0, workspace,
+                gemm_primitive(engine, ctx, scratch_gates, 0, workspace,
                         offset_workspace_iter, diff_weights_iter,
                         offset_weights_iter, gemm_diff_wei_iter);
             }
@@ -1248,7 +1250,7 @@ template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
-
+    engine_t *engine = ctx.stream()->engine();
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -1441,8 +1443,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     WS_PRINT(compute_stream, workspace_);
 
     // run the execution on the grid
-    (this->*grid_computation)(ctx, dhc, slc, sic, wic, batch, n_layer, n_dir,
-            n_iter, n_gates, n_states, n_bias, offset_wei_input_,
+    (this->*grid_computation)(engine, ctx, dhc, slc, sic, wic, batch, n_layer,
+            n_dir, n_iter, n_gates, n_states, n_bias, offset_wei_input_,
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
             bias_native_, workspace_, scratch_gates, w_input_native_,
             w_state_native_, diff_weights_layer_native_,

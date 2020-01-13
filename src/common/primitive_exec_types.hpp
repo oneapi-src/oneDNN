@@ -24,7 +24,6 @@
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
-#include "primitive_desc.hpp"
 
 #define CTX_IN_STORAGE(arg) \
     (ctx.input(arg) ? *(ctx.input(arg)->memory_storage()) \
@@ -45,6 +44,8 @@ struct memory_arg_t {
     memory_t *mem;
     bool is_const;
 };
+
+struct primitive_desc_t;
 
 using exec_args_t = std::unordered_map<int, memory_arg_t>;
 

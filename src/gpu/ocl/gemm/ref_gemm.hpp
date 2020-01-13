@@ -33,7 +33,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_gemm_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using smask_t = primitive_attr_t::skip_mask_t;
 
@@ -137,28 +137,26 @@ struct ref_gemm_t : public gpu_gemm_t {
         bool with_bias() const { return desc()->bias_type != data_type::undef; }
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         using namespace gemm_utils;
 
         const auto attr = pd()->attr();
-        auto e = pd()->engine();
-
         status_t s = status::success;
 
-        s = prepare_zero_points(attr, e, DNNL_ARG_A, a0_mem_storage_);
+        s = prepare_zero_points(attr, engine, DNNL_ARG_A, a0_mem_storage_);
         if (s != status::success) return s;
 
-        s = prepare_zero_points(attr, e, DNNL_ARG_B, b0_mem_storage_);
+        s = prepare_zero_points(attr, engine, DNNL_ARG_B, b0_mem_storage_);
         if (s != status::success) return s;
 
-        s = prepare_zero_points(attr, e, DNNL_ARG_C, c0_mem_storage_);
+        s = prepare_zero_points(attr, engine, DNNL_ARG_C, c0_mem_storage_);
         if (s != status::success) return s;
 
-        s = prepare_scales(attr, e, s_mem_storage_);
+        s = prepare_scales(attr, engine, s_mem_storage_);
         if (s != status::success) return s;
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
@@ -191,7 +189,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
 private:
     compute::kernel_t kernel_;

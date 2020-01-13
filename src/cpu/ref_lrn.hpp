@@ -38,7 +38,7 @@ struct ref_lrn_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("lrn_ref:any", ref_lrn_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
 
@@ -74,7 +74,7 @@ struct ref_lrn_fwd_t : public primitive_t {
 private:
     template <format_tag_t tag>
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t d_type>
@@ -84,7 +84,7 @@ struct ref_lrn_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("lrn_ref:any", ref_lrn_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace format_tag;
             using namespace data_type;
 
@@ -122,7 +122,7 @@ struct ref_lrn_bwd_t : public primitive_t {
 private:
     template <format_tag_t tag>
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

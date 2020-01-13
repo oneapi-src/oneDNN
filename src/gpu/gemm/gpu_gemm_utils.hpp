@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
+#include "common/primitive_attr.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 
 namespace dnnl {
@@ -81,8 +82,8 @@ inline status_t prepare_zero_points(const primitive_attr_t *attr,
     return s;
 }
 
-inline const gpu_gemm_t *gemm_impl(const primitive_iface_t *p_iface) {
-    return utils::downcast<gpu_gemm_t *>(p_iface->get_primitive().get());
+inline const gpu_gemm_t *gpu_gemm(const std::shared_ptr<primitive_t> &p) {
+    return utils::downcast<gpu_gemm_t *>(p.get());
 }
 
 } // namespace gemm_utils

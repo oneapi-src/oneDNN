@@ -45,7 +45,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper dst_d(dst_md());
             auto data_type = src_d.data_type();
@@ -94,7 +94,7 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     softmax_impl::driver_t<isa> *softmax_driver_;
 };
 
@@ -106,7 +106,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const memory_desc_wrapper dst_d(dst_md());
             const memory_desc_wrapper diff_dst_d(diff_dst_md());
             const memory_desc_wrapper diff_src_d(diff_src_md());
@@ -157,7 +157,7 @@ struct jit_uni_softmax_bwd_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     softmax_impl::driver_t<isa> *softmax_driver_;
 };

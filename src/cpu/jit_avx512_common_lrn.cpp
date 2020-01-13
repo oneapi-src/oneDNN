@@ -355,7 +355,7 @@ struct jit_avx512_common_lrn_fwd_t<d_type>::jit_avx512_common_lrn_kernel_f
 };
 
 template <data_type_t d_type>
-status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init() {
+status_t jit_avx512_common_lrn_fwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace alg_kind;
 
@@ -815,7 +815,7 @@ struct jit_avx512_common_lrn_bwd_t<d_type>::jit_avx512_common_lrn_kernel_f
 };
 
 template <data_type_t d_type>
-status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init() {
+status_t jit_avx512_common_lrn_bwd_t<d_type>::pd_t::init(engine_t *engine) {
     using namespace alg_kind;
 
     const memory_desc_wrapper data_d(src_md());

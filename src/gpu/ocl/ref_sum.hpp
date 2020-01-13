@@ -32,24 +32,23 @@ struct ref_sum_t : public primitive_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
         pd_t(const pd_t &rhs) : gpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
 
-        ~pd_t() { clear(); }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             gpu_sum_pd_t::operator=(rhs);
-            clear();
             clone_reorder_pds(rhs);
             return *this;
         }
 
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
-        status_t init() {
-            bool ok = gpu_sum_pd_t::init() == status::success;
+        status_t init(engine_t *engine) {
+            bool ok = gpu_sum_pd_t::init(engine) == status::success;
             if (!ok) return status::unimplemented;
 
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine_->get_reorder_implementation_list(
+                auto r_impls = engine->get_reorder_implementation_list(
                         src_md(i), dst_md());
                 for (auto r = r_impls; *r; ++r) {
                     primitive_attr_t attr;
@@ -57,10 +56,10 @@ struct ref_sum_t : public primitive_t {
                     if (i != 0) attr.post_ops_.append_sum(1.0);
 
                     reorder_pd_t *r_pd;
-                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
+                    if ((*r)(&r_pd, engine, &attr, engine, src_md(i), engine,
                                 dst_md())
                             == status::success) {
-                        reorder_pds_.push_back(r_pd);
+                        reorder_pds_.emplace_back(r_pd);
                         break;
                     }
                 }
@@ -70,30 +69,27 @@ struct ref_sum_t : public primitive_t {
         }
 
         void clone_reorder_pds(const pd_t &rhs) {
+            reorder_pds_.clear();
             for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.push_back(
-                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
+                reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
         }
 
-        void clear() {
-            for (auto &rpd : reorder_pds_)
-                delete rpd;
-        }
-
-        std::vector<const reorder_pd_t *> reorder_pds_;
+        std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
     };
 
-    ref_sum_t(const pd_t *apd) : primitive_t(apd) {
+    ref_sum_t(const pd_t *apd) : primitive_t(apd) {}
+
+    status_t init(engine_t *engine) override {
         const int n = pd()->n_inputs();
         reorders_.resize(n);
-        for (int i = 0; i < n; ++i)
-            pd()->reorder_pds_[i]->create_primitive_iface(&reorders_[i]);
+        for (int i = 0; i < n; ++i) {
+            pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
+            reorders_[i]->init(engine);
+        }
+        return status::success;
     }
 
-    ~ref_sum_t() {
-        for (auto &r : reorders_)
-            delete r;
-    }
+    ~ref_sum_t() = default;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         const auto n = pd()->n_inputs();
@@ -109,8 +105,8 @@ struct ref_sum_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    std::vector<primitive_iface_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::vector<std::shared_ptr<primitive_t>> reorders_;
 };
 
 } // namespace ocl

@@ -80,16 +80,13 @@ struct _ref_rnn_common_t : public primitive_t {
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             base_pd_t::operator=(other);
-            clear();
             copy_from(other);
             return *this;
         }
 
-        ~pd_t() { clear(); }
-
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
-        status_t init();
+        status_t init(engine_t *engine);
 
         status_t set_default_params();
 
@@ -100,12 +97,12 @@ struct _ref_rnn_common_t : public primitive_t {
         data_type_t src_type;
         data_type_t weights_type;
 
-        primitive_desc_t *gemm_iter_fwd_pd_ = nullptr;
-        primitive_desc_t *gemm_layer_fwd_pd_ = nullptr;
-        primitive_desc_t *gemm_iter_bwd_pd_ = nullptr;
-        primitive_desc_t *gemm_layer_bwd_pd_ = nullptr;
-        primitive_desc_t *gemm_diff_wei_layer_pd_ = nullptr;
-        primitive_desc_t *gemm_diff_wei_iter_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_iter_fwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_layer_fwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_iter_bwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_layer_bwd_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_diff_wei_layer_pd_;
+        std::unique_ptr<primitive_desc_t> gemm_diff_wei_iter_pd_;
 
     private:
         void init_scratchpad(size_t scratchpad_sz) {
@@ -122,38 +119,28 @@ struct _ref_rnn_common_t : public primitive_t {
             acc_data_t = other.acc_data_t;
             src_type = other.src_type;
             weights_type = other.weights_type;
-            gemm_layer_fwd_pd_ = other.gemm_layer_fwd_pd_
-                    ? other.gemm_layer_fwd_pd_->clone()
-                    : nullptr;
-            gemm_iter_fwd_pd_ = other.gemm_iter_fwd_pd_
-                    ? other.gemm_iter_fwd_pd_->clone()
-                    : nullptr;
-            gemm_layer_bwd_pd_ = other.gemm_layer_bwd_pd_
-                    ? other.gemm_layer_bwd_pd_->clone()
-                    : nullptr;
-            gemm_iter_bwd_pd_ = other.gemm_iter_bwd_pd_
-                    ? other.gemm_iter_bwd_pd_->clone()
-                    : nullptr;
-            gemm_diff_wei_layer_pd_ = other.gemm_diff_wei_layer_pd_
-                    ? other.gemm_diff_wei_layer_pd_->clone()
-                    : nullptr;
-            gemm_diff_wei_iter_pd_ = other.gemm_diff_wei_iter_pd_
-                    ? other.gemm_diff_wei_iter_pd_->clone()
-                    : nullptr;
+            gemm_layer_fwd_pd_.reset(other.gemm_layer_fwd_pd_
+                            ? other.gemm_layer_fwd_pd_->clone()
+                            : nullptr);
+            gemm_iter_fwd_pd_.reset(other.gemm_iter_fwd_pd_
+                            ? other.gemm_iter_fwd_pd_->clone()
+                            : nullptr);
+            gemm_layer_bwd_pd_.reset(other.gemm_layer_bwd_pd_
+                            ? other.gemm_layer_bwd_pd_->clone()
+                            : nullptr);
+            gemm_iter_bwd_pd_.reset(other.gemm_iter_bwd_pd_
+                            ? other.gemm_iter_bwd_pd_->clone()
+                            : nullptr);
+            gemm_diff_wei_layer_pd_.reset(other.gemm_diff_wei_layer_pd_
+                            ? other.gemm_diff_wei_layer_pd_->clone()
+                            : nullptr);
+            gemm_diff_wei_iter_pd_.reset(other.gemm_diff_wei_iter_pd_
+                            ? other.gemm_diff_wei_iter_pd_->clone()
+                            : nullptr);
         }
-
-        void clear() {
-            delete gemm_layer_fwd_pd_;
-            delete gemm_iter_fwd_pd_;
-            delete gemm_layer_bwd_pd_;
-            delete gemm_iter_bwd_pd_;
-            delete gemm_diff_wei_layer_pd_;
-            delete gemm_diff_wei_iter_pd_;
-        }
-
     }; // struct pd_t : public base_pd_t
 
-    status_t init() override;
+    virtual status_t init(engine_t *engine) override;
 
     _ref_rnn_common_t(const pd_t *apd) : primitive_t(apd) {
         using namespace rnn_utils;
@@ -221,13 +208,6 @@ struct _ref_rnn_common_t : public primitive_t {
     ~_ref_rnn_common_t() {
         free(offset_wei_input_);
         free(offset_wei_state_);
-
-        delete gemm_iter_fwd_;
-        delete gemm_layer_fwd_;
-        delete gemm_iter_bwd_;
-        delete gemm_layer_bwd_;
-        delete gemm_diff_wei_layer_;
-        delete gemm_diff_wei_iter_;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -236,7 +216,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     grid_execution_sig(linear_execution);
     // grid_execution_sig(wavefront_execution);
@@ -307,12 +287,12 @@ private:
     compute::kernel_t gates_reduction_kernel_;
 
     // GEMM primitives.
-    primitive_iface_t *gemm_layer_fwd_ = nullptr;
-    primitive_iface_t *gemm_iter_fwd_ = nullptr;
-    primitive_iface_t *gemm_layer_bwd_ = nullptr;
-    primitive_iface_t *gemm_iter_bwd_ = nullptr;
-    primitive_iface_t *gemm_diff_wei_layer_ = nullptr;
-    primitive_iface_t *gemm_diff_wei_iter_ = nullptr;
+    std::shared_ptr<primitive_t> gemm_layer_fwd_;
+    std::shared_ptr<primitive_t> gemm_iter_fwd_;
+    std::shared_ptr<primitive_t> gemm_layer_bwd_;
+    std::shared_ptr<primitive_t> gemm_iter_bwd_;
+    std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
+    std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
 
     std::unique_ptr<memory_storage_t> scales_buf_;
     std::unique_ptr<memory_storage_t> tm_scales_buf_;

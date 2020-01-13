@@ -43,7 +43,7 @@ struct simple_concat_t : public primitive_t {
 
         DECLARE_CONCAT_PD_T("simple:any", simple_concat_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const memory_desc_wrapper dst_d(dst_md());
             bool ok = true
                     && IMPLICATION(
@@ -168,7 +168,7 @@ struct simple_concat_t : public primitive_t {
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

@@ -18,64 +18,72 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
+
+#include "primitive.hpp"
 #include "primitive_desc.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 
-status_t primitive_desc_t::query(query_t what, int idx, void *result) const {
-    auto safe_ret_md = [&](const memory_desc_t *_) {
-        if (_ == nullptr) return not_required;
-        *(const memory_desc_t **)result = _;
-        return success;
-    };
+dnnl_primitive_desc::dnnl_primitive_desc(primitive_desc_t *pd, engine_t *engine)
+    : pd_(pd), engine_(engine) {}
 
-    switch (what) {
-        case query::engine: *(engine_t **)result = engine(); break;
-        case query::primitive_kind: *(primitive_kind_t *)result = kind(); break;
+dnnl_primitive_desc::dnnl_primitive_desc(
+        const std::shared_ptr<primitive_desc_t> &pd, engine_t *engine)
+    : pd_(pd), engine_(engine) {}
 
-        case query::scratchpad_engine:
-            *(engine_t **)result = scratchpad_engine();
-            break;
+status_t dnnl_primitive_desc::create_primitive_iface(
+        primitive_iface_t **primitive_iface) const {
+    std::shared_ptr<primitive_t> p;
+    auto status = pd_->create_primitive(p, engine());
+    if (status != status::success) return status;
+    status = safe_ptr_assign<primitive_iface_t>(
+            *primitive_iface, new primitive_iface_t(p, engine()));
+    return status;
+}
 
-        case query::memory_consumption_s64:
-            *(dim_t *)result = scratchpad_size(scratchpad_mode::library);
-            break;
+const std::shared_ptr<primitive_desc_t> &dnnl_primitive_desc::impl() const {
+    return pd_;
+}
 
-        case query::op_d:
-            if (idx != 0 || op_desc() == nullptr) return invalid_arguments;
-            *(const_c_op_desc_t *)result
-                    = static_cast<const_c_op_desc_t>(op_desc());
-            break;
+dnnl::impl::engine_t *dnnl_primitive_desc::engine() const {
+    return engine_;
+}
+const dnnl::impl::primitive_attr_t *dnnl_primitive_desc::attr() const {
+    return pd_->attr();
+}
 
-        case query::exec_arg_md: return safe_ret_md(arg_md(idx));
-        case query::src_md: return safe_ret_md(src_md(idx));
-        case query::diff_src_md: return safe_ret_md(diff_src_md(idx));
-        case query::dst_md: return safe_ret_md(dst_md(idx));
-        case query::diff_dst_md: return safe_ret_md(diff_dst_md(idx));
-        case query::weights_md: return safe_ret_md(weights_md(idx));
-        case query::diff_weights_md: return safe_ret_md(diff_weights_md(idx));
-        case query::workspace_md:
-            if (idx != 0) return status::invalid_arguments;
-            return safe_ret_md(workspace_md(idx));
-        case query::scratchpad_md:
-            if (idx != 0) return status::invalid_arguments;
-            return safe_ret_md(scratchpad_md(idx));
+const char *dnnl_primitive_desc::info() const {
+    return pd_->info(engine_);
+}
 
-        case query::num_of_inputs_s32: *(int *)result = n_inputs(); break;
-        case query::num_of_outputs_s32: *(int *)result = n_outputs(); break;
+dnnl::impl::engine_t *dnnl_primitive_desc::src_engine() const {
+    return engine_;
+}
+dnnl::impl::engine_t *dnnl_primitive_desc::dst_engine() const {
+    return engine_;
+}
 
-        case query::impl_info_str: *(const char **)result = name(); break;
+dnnl::impl::engine_t *dnnl_primitive_desc::scratchpad_engine() const {
+    return engine_;
+}
 
-        default: return unimplemented;
+status_t dnnl_primitive_desc::query(query_t what, int idx, void *result) const {
+    auto status = status::success;
+    if (what == query::engine) {
+        *(engine_t **)result = engine();
+    } else {
+        status = pd_->query(what, idx, result);
     }
-    return success;
+    return status;
 }
 
 status_t dnnl_primitive_desc_get_attr(
-        const primitive_desc_t *primitive_desc, const primitive_attr_t **attr) {
-    if (utils::any_null(primitive_desc, attr)) return invalid_arguments;
+        const primitive_desc_iface_t *primitive_desc_iface,
+        const primitive_attr_t **attr) {
+    if (utils::any_null(primitive_desc_iface, attr)) return invalid_arguments;
 
-    *attr = primitive_desc->attr();
+    *attr = primitive_desc_iface->attr();
     return success;
 }
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

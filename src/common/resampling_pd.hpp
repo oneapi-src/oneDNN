@@ -33,10 +33,10 @@ struct resampling_fwd_pd_t;
 struct resampling_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::resampling;
 
-    resampling_pd_t(dnnl::impl::engine_t *engine,
-            const resampling_desc_t *adesc, const primitive_attr_t *attr,
+    resampling_pd_t(const resampling_desc_t *adesc,
+            const primitive_attr_t *attr,
             const resampling_fwd_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd) {}
 
@@ -104,10 +104,10 @@ struct resampling_fwd_pd_t : public resampling_pd_t {
     typedef resampling_fwd_pd_t base_class;
     typedef resampling_fwd_pd_t hint_class;
 
-    resampling_fwd_pd_t(dnnl::impl::engine_t *engine,
-            const resampling_desc_t *adesc, const primitive_attr_t *attr,
+    resampling_fwd_pd_t(const resampling_desc_t *adesc,
+            const primitive_attr_t *attr,
             const resampling_fwd_pd_t *hint_fwd_pd)
-        : resampling_pd_t(engine, adesc, attr, hint_fwd_pd)
+        : resampling_pd_t(adesc, attr, hint_fwd_pd)
         , src_md_(desc_.src_desc)
         , dst_md_(desc_.dst_desc) {}
 
@@ -153,10 +153,10 @@ struct resampling_bwd_pd_t : public resampling_pd_t {
     typedef resampling_bwd_pd_t base_class;
     typedef resampling_fwd_pd_t hint_class;
 
-    resampling_bwd_pd_t(engine_t *engine, const resampling_desc_t *adesc,
+    resampling_bwd_pd_t(const resampling_desc_t *adesc,
             const primitive_attr_t *attr,
             const resampling_fwd_pd_t *hint_fwd_pd)
-        : resampling_pd_t(engine, adesc, attr, hint_fwd_pd)
+        : resampling_pd_t(adesc, attr, hint_fwd_pd)
         , diff_src_md_(desc_.diff_src_desc)
         , diff_dst_md_(desc_.diff_dst_desc) {}
 

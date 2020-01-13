@@ -170,7 +170,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                                     ""),
                 _jit_avx512_core_x8s8s32x_deconvolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && (desc()->alg_kind & alg_kind::deconvolution_direct)
                     && desc()->src_desc.data_type == src_type
@@ -232,7 +232,7 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
 

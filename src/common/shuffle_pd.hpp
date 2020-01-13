@@ -31,9 +31,9 @@ struct shuffle_pd_t : public primitive_desc_t {
     typedef shuffle_pd_t base_class;
     typedef shuffle_pd_t hint_class;
 
-    shuffle_pd_t(engine_t *engine, const shuffle_desc_t *adesc,
-            const primitive_attr_t *attr, const shuffle_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+    shuffle_pd_t(const shuffle_desc_t *adesc, const primitive_attr_t *attr,
+            const shuffle_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , hint_fwd_pd_(hint_fwd_pd)
         , data_md_(desc_.data_desc) {}

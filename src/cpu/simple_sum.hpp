@@ -44,14 +44,14 @@ struct simple_sum_t : public primitive_t {
 
         DECLARE_SUM_PD_T("simple:any", simple_sum_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             const int n = n_inputs();
 
             bool ok = true
                     && IMPLICATION(utils::one_of(data_type::bf16, src_data_type,
                                            dst_data_type),
                             mayiuse(avx512_core))
-                    && cpu_sum_pd_t::init() == status::success
+                    && cpu_sum_pd_t::init(engine) == status::success
                     && n <= max_num_arrs;
             if (!ok) return status::unimplemented;
 
@@ -127,7 +127,7 @@ struct simple_sum_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

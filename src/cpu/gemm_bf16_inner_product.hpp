@@ -39,7 +39,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_inner_product_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
             using namespace data_type;
 
@@ -102,7 +102,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                 || has_bias || has_eltwise;
         if (postops_in_ip_)
             pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::f32,
-                    dst_data_type>(apd, !has_sum_as_postops);
+                    dst_data_type>(pd(), !has_sum_as_postops);
 
         auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
         beta_ = sum_idx >= 0 && !has_sum_as_postops
@@ -128,7 +128,7 @@ private:
     float beta_;
 
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t diff_src_data_type>
@@ -138,7 +138,7 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_bf16_inner_product_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && mayiuse(avx512_core)
@@ -187,7 +187,7 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t diff_wei_data_type>
@@ -199,7 +199,7 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 GEMM_IMPL_STR, gemm_bf16_inner_product_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
             using namespace data_type;
 
@@ -257,7 +257,7 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

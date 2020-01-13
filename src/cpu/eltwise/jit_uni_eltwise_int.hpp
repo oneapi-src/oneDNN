@@ -42,7 +42,7 @@ struct jit_uni_eltwise_int_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8:", isa, ""),
                 jit_uni_eltwise_int_fwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_uni_eltwise_int_fwd_t(const pd_t *apd);
@@ -57,7 +57,7 @@ struct jit_uni_eltwise_int_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_uni_eltwise_int_kernel *kernel_ = nullptr;
 };
 

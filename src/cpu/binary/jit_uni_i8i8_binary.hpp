@@ -20,12 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "cpu_binary_pd.hpp"
+#include "cpu_isa_traits.hpp"
 #include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
-#include "cpu_binary_pd.hpp"
-#include "cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -40,7 +39,7 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("jit:uni", jit_uni_i8i8_binary_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -96,7 +95,7 @@ struct jit_uni_i8i8_binary_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<i8i8_binary_kernel_t> kernel_;
 };

@@ -1083,10 +1083,10 @@ struct jit_uni_reorder_t : public primitive_t {
                 prb_dump(ker_desc.prb);
             });
 
-            auto _pd = new pd_t(
-                    engine, attr, src_engine, src_md, dst_engine, dst_md);
+            auto _pd = new pd_t(attr, src_engine->kind(), src_md,
+                    dst_engine->kind(), dst_md);
             if (_pd == nullptr) return status::out_of_memory;
-            if (_pd->init() != status::success) {
+            if (_pd->init(engine, src_engine, dst_engine) != status::success) {
                 delete _pd;
                 return status::unimplemented;
             }
@@ -1236,7 +1236,7 @@ struct jit_uni_reorder_t : public primitive_t {
     enum { ndims_driver_max = 4 };
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     tr::kernel_t *kernel_;
 };
 

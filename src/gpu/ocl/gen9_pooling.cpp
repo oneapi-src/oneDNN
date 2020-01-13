@@ -21,8 +21,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-static status_t init_conf_common(
-        pool_conf_t &conf, offsets_t &off, const pooling_pd_t *pd) {
+static status_t init_conf_common(pool_conf_t &conf, offsets_t &off,
+        const pooling_pd_t *pd, engine_t *engine) {
     using namespace dnnl::impl::format_tag;
 
     const memory_desc_wrapper src_mdw(pd->invariant_src_md());
@@ -65,8 +65,7 @@ static status_t init_conf_common(
         }
         conf.nvect = 1;
     }
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
 
@@ -138,8 +137,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t gen9_pooling_fwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t gen9_pooling_fwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t gen9_pooling_fwd_t::pd_t::init_kernel_ctx(
@@ -166,8 +165,8 @@ status_t gen9_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
-status_t gen9_pooling_bwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t gen9_pooling_bwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t gen9_pooling_bwd_t::pd_t::init_kernel_ctx(

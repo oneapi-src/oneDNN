@@ -42,7 +42,7 @@ struct jit_uni_lrn_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_lrn_fwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
 
         format_tag_t dat_tag_;
     };
@@ -59,7 +59,7 @@ struct jit_uni_lrn_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_uni_lrn_fwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
@@ -72,7 +72,7 @@ struct jit_uni_lrn_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_lrn_bwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
 
         format_tag_t dat_tag_;
     };
@@ -89,7 +89,7 @@ struct jit_uni_lrn_bwd_t : public primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };

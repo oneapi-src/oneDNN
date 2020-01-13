@@ -39,19 +39,20 @@ struct rnn_weights_reorder_t : public primitive_t {
 
         DECLARE_GPU_REORDER_CREATE();
 
-        status_t init() {
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             if (!(dst_md()->extra.flags
                         & memory_extra_flags::gpu_rnn_u8s8_compensation))
                 return status::unimplemented;
 
             bool args_ok = true
-                    && utils::one_of(src_engine_->kind(), engine_kind::gpu,
+                    && utils::one_of(src_engine->kind(), engine_kind::gpu,
                             engine_kind::cpu)
-                    && dst_engine_->kind() == engine_kind::gpu;
+                    && dst_engine->kind() == engine_kind::gpu;
             if (!args_ok) return status::unimplemented;
 
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(dst_engine_);
+                    = utils::downcast<compute::compute_engine_t *>(dst_engine);
 
             args_ok = args_ok
                     && compute_engine->mayiuse(
@@ -66,18 +67,18 @@ struct rnn_weights_reorder_t : public primitive_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         rnn_reorder_conf_t conf;
     };
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -89,12 +90,12 @@ struct rnn_weights_reorder_t : public primitive_t {
         if (pd()->conf.do_reorder) {
             size_t size = pd()->conf.nelems * sizeof(float);
             memory_storage_t *temp_buf_ptr;
-            engine()->create_memory_storage(&temp_buf_ptr, size);
+            engine->create_memory_storage(&temp_buf_ptr, size);
             temp_buf.reset(temp_buf_ptr);
             if (!temp_buf) return status::runtime_error;
 
             size = pd()->conf.scales_count * sizeof(float);
-            engine()->create_memory_storage(&temp_buf_ptr, size);
+            engine->create_memory_storage(&temp_buf_ptr, size);
             scales_buf.reset(temp_buf_ptr);
             if (!scales_buf) return status::runtime_error;
         }
@@ -107,7 +108,7 @@ struct rnn_weights_reorder_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
     std::unique_ptr<memory_storage_t> temp_buf;
     std::unique_ptr<memory_storage_t> scales_buf;

@@ -24,6 +24,7 @@
 #include "utils.hpp"
 
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 
 #include "cpu_resampling_pd.hpp"
 #include "primitive.hpp"
@@ -39,7 +40,7 @@ struct ref_resampling_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = is_fwd()
                     && utils::everyone_is(
@@ -65,7 +66,7 @@ struct ref_resampling_fwd_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_forward(const exec_ctx_t &ctx) const;
 };
 
@@ -76,7 +77,7 @@ struct ref_resampling_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = !is_fwd()
                     && utils::everyone_is(data_type, diff_src_md()->data_type,
@@ -102,7 +103,7 @@ struct ref_resampling_bwd_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_backward(const exec_ctx_t &ctx) const;
 };
 

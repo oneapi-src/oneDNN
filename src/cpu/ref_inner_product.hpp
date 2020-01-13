@@ -39,7 +39,7 @@ struct ref_inner_product_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && is_fwd() && src_md()->data_type == src_type
@@ -73,7 +73,7 @@ struct ref_inner_product_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
@@ -85,7 +85,7 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && diff_src_md()->data_type == diff_src_type
                     && weights_md()->data_type == wei_type
@@ -111,7 +111,7 @@ struct ref_inner_product_bwd_data_t : public primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t data_type>
@@ -122,7 +122,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && utils::everyone_is(data_type, src_md()->data_type,
                             diff_dst_md()->data_type,
@@ -145,7 +145,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

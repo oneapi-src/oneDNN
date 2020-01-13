@@ -36,7 +36,7 @@ struct ref_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_binary_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -59,10 +59,10 @@ struct ref_binary_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         bool with_scales(int position) const {
@@ -130,9 +130,9 @@ struct ref_binary_t : public primitive_t {
 
     ~ref_binary_t() {}
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -150,7 +150,7 @@ struct ref_binary_t : public primitive_t {
 
 private:
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

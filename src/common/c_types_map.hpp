@@ -716,7 +716,7 @@ struct op_desc_t {
 
 using engine_t = dnnl_engine;
 using primitive_desc_iterator_t = dnnl_primitive_desc_iterator;
-using primitive_desc_t = dnnl_primitive_desc;
+using primitive_desc_iface_t = dnnl_primitive_desc;
 using primitive_attr_t = dnnl_primitive_attr;
 using post_ops_t = dnnl_post_ops;
 using memory_t = dnnl_memory;

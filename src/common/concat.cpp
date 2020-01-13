@@ -19,21 +19,20 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "concat_pd.hpp"
 #include "engine.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
-#include "concat_pd.hpp"
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
-status_t dnnl_concat_primitive_desc_create(primitive_desc_t **concat_pd,
-        const memory_desc_t *dst_md, int n, int concat_dim,
-        const memory_desc_t *src_mds, const primitive_attr_t *attr,
-        engine_t *engine) {
-    bool args_ok = !any_null(concat_pd, src_mds) && n > 0;
+status_t dnnl_concat_primitive_desc_create(
+        primitive_desc_iface_t **concat_pd_iface, const memory_desc_t *dst_md,
+        int n, int concat_dim, const memory_desc_t *src_mds,
+        const primitive_attr_t *attr, engine_t *engine) {
+    bool args_ok = !any_null(concat_pd_iface, src_mds) && n > 0;
     if (!args_ok) return invalid_arguments;
 
     if (attr == NULL) attr = &default_attr();
@@ -74,11 +73,12 @@ status_t dnnl_concat_primitive_desc_create(primitive_desc_t **concat_pd,
         dst_md = &dummy_dst_md;
     }
 
-    auto c_pd = reinterpret_cast<concat_pd_t **>(concat_pd);
+    concat_pd_t *concat_pd = nullptr;
     for (auto c = engine->get_concat_implementation_list(); *c; ++c) {
-        if ((*c)(c_pd, engine, attr, dst_md, n, concat_dim, src_mds)
+        if ((*c)(&concat_pd, engine, attr, dst_md, n, concat_dim, src_mds)
                 == success) {
-            return success;
+            return safe_ptr_assign<primitive_desc_iface_t>(*concat_pd_iface,
+                    new primitive_desc_iface_t(concat_pd, engine));
         }
     }
     return unimplemented;

@@ -42,7 +42,7 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
                         ""),
                 jit_avx512_common_lrn_fwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_avx512_common_lrn_fwd_t(const pd_t *apd);
@@ -58,7 +58,7 @@ struct jit_avx512_common_lrn_fwd_t : public primitive_t {
 private:
     static const int vsize = 16;
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     int use_h_parallelism;
 
@@ -80,7 +80,7 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_t {
                         ""),
                 jit_avx512_common_lrn_bwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_avx512_common_lrn_bwd_t(const pd_t *apd);
@@ -96,7 +96,7 @@ struct jit_avx512_common_lrn_bwd_t : public primitive_t {
 private:
     static const int vsize = 16;
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     int use_h_parallelism;
     struct jit_avx512_common_lrn_kernel_f;

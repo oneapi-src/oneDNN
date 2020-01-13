@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "primitive_attr.hpp"
 #include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 
@@ -42,9 +43,9 @@ struct dnnl_primitive_desc_iterator : public dnnl::impl::c_compatible {
         while (impl_list_[last_idx_] != nullptr)
             ++last_idx_;
     }
-    ~dnnl_primitive_desc_iterator() {
-        if (pd_) delete pd_;
-    }
+    ~dnnl_primitive_desc_iterator() = default;
+
+    dnnl::impl::engine_t *engine() const { return engine_; }
 
     bool operator==(const dnnl::impl::primitive_desc_iterator_t &rhs) const {
         return idx_ == rhs.idx_ && engine_ == rhs.engine_;

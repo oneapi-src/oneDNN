@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
 #include "common/primitive.hpp"
+#include "common/primitive_iterator.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gemm/gpu_gemm_utils.hpp"
@@ -35,10 +36,11 @@ namespace ocl {
 
 namespace {
 // XXX: Can be unified and used across all primitives
-inline status_t create_gemm_x8s8s32x_pd(primitive_desc_t **gemm_pd,
-        engine_t *engine, transpose_t transa, transpose_t transb, int m, int n,
-        int k, int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
-        data_type_t c_dt, const primitive_attr_t &attr) {
+inline status_t create_gemm_x8s8s32x_pd(
+        std::unique_ptr<primitive_desc_t> &gemm_pd, engine_t *engine,
+        transpose_t transa, transpose_t transb, int m, int n, int k, int lda,
+        int ldb, int ldc, data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
+        const primitive_attr_t &attr) {
     gemm_desc_t gemm_desc;
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
@@ -58,30 +60,32 @@ inline status_t create_gemm_x8s8s32x_pd(primitive_desc_t **gemm_pd,
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
 
-    return dnnl_primitive_desc_create(
-            gemm_pd, (op_desc_t *)&gemm_desc, &attr, engine, nullptr);
+    dnnl_primitive_desc_iterator it(
+            engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+    ++it;
+    gemm_pd.reset(it.fetch_once());
+    if (!gemm_pd) return status::unimplemented;
+    return status::success;
 }
 } // namespace
 
 struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
-            if (rhs.gemm_pd_) gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;
         }
 
-        ~pd_t() { delete gemm_pd_; }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            delete gemm_pd_;
-            if (rhs.gemm_pd_) gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;
             return *this;
@@ -90,13 +94,13 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(
                 "ocl:gemm_x8s8s32x", gemm_x8s8s32x_inner_product_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace status;
             using namespace utils;
             using namespace data_type;
             using namespace primitive_kind;
 
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
 
             primitive_attr_t::skip_mask_t attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale
@@ -134,7 +138,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
             const int ic_total = this->IC_total_padded();
 
             bool gemm_ok = status::success
-                    == create_gemm_x8s8s32x_pd(&gemm_pd_, this->engine(),
+                    == create_gemm_x8s8s32x_pd(gemm_pd_, engine,
                             wei_tr ? transpose::trans : transpose::notrans,
                             transpose::notrans, oc, mb, ic_total,
                             wei_tr ? ic_total : oc, ic_total, oc,
@@ -235,14 +239,14 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
             return status::success;
         }
 
-        primitive_desc_t *gemm_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_pd_;
 
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
     };
 
-    status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
+    status_t init(engine_t *engine) override {
+        status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
 
         const size_t mb = pd()->MB();
@@ -253,7 +257,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
             memory_desc_wrapper scratchpad_mdw(pd()->ip_scratchpad_md());
             const size_t scratchpad_size = scratchpad_mdw.size();
             memory_storage_t *scratchpad_ptr = nullptr;
-            engine()->create_memory_storage(&scratchpad_ptr, scratchpad_size);
+            engine->create_memory_storage(&scratchpad_ptr, scratchpad_size);
             scratchpad_.reset(scratchpad_ptr);
             if (!scratchpad_) return status::runtime_error;
         }
@@ -263,8 +267,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         // changed during execution.
         if (pd()->with_scales()) {
             memory_desc_wrapper scales_mdw(pd()->scales_md());
-            scales_mem_.reset(new memory_t(engine(), pd()->scales_md(),
-                    memory_flags_t::alloc, nullptr));
+            scales_mem_.reset(new memory_t(
+                    engine, pd()->scales_md(), memory_flags_t::alloc, nullptr));
             void *scales_ptr = nullptr;
             status_t status
                     = scales_mem_->memory_storage()->map_data(&scales_ptr);
@@ -279,7 +283,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         // Prepare post process kernel
         if (pd()->with_post_process()) {
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             compute::kernel_ctx_t kernel_ctx;
 
             kernel_ctx.define_int("MB", mb);
@@ -322,7 +326,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     }
 
     gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~gemm_x8s8s32x_inner_product_fwd_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -330,9 +333,9 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    primitive_iface_t *gemm_ = nullptr;
+    std::shared_ptr<primitive_t> gemm_;
     compute::kernel_t post_process_kernel_;
     std::unique_ptr<memory_t> scales_mem_;
     std::unique_ptr<memory_storage_t> scratchpad_;

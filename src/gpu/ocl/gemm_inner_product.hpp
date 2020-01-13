@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "common/primitive_iterator.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
@@ -31,10 +32,10 @@ namespace gpu {
 namespace ocl {
 
 namespace {
-status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
-        transpose_t transa, transpose_t transb, int m, int n, int k, int lda,
-        int ldb, int ldc, data_type_t a_dt, data_type_t b_dt, data_type_t c_dt,
-        const primitive_attr_t &attr) {
+status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
+        engine_t *engine, transpose_t transa, transpose_t transb, int m, int n,
+        int k, int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
+        data_type_t c_dt, const primitive_attr_t &attr) {
     gemm_desc_t gemm_desc;
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
@@ -54,38 +55,40 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
 
-    return dnnl_primitive_desc_create(
-            gemm_pd, (op_desc_t *)&gemm_desc, &attr, engine, nullptr);
+    dnnl_primitive_desc_iterator it(
+            engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+    ++it;
+    gemm_pd.reset(it.fetch_once());
+    if (!gemm_pd) return status::unimplemented;
+    return status::success;
 }
 } // namespace
 
 struct gemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_inner_product_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
         pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
-            gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
         }
-        ~pd_t() { delete gemm_pd_; }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             gpu_inner_product_fwd_pd_t::operator=(rhs);
-            delete gemm_pd_;
-            gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
             return *this;
         }
 
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
             using namespace data_type;
 
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
 
             const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
 
@@ -114,7 +117,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
             const int ic_total = this->IC_total_padded();
 
             bool gemm_ok = status::success
-                    == create_gemm_pd(&gemm_pd_, this->engine(),
+                    == create_gemm_pd(gemm_pd_, engine,
                             wei_tr ? transpose::trans : transpose::notrans,
                             transpose::notrans, oc, mb, ic_total,
                             wei_tr ? ic_total : oc, ic_total, oc,
@@ -125,16 +128,16 @@ struct gemm_inner_product_fwd_t : public primitive_t {
             return status::success;
         }
 
-        primitive_desc_t *gemm_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_pd_;
     };
 
-    status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
+    status_t init(engine_t *engine) override {
+        status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             compute::kernel_ctx_t kernel_ctx;
 
             kernel_ctx.set_data_type(pd()->src_md()->data_type);
@@ -150,7 +153,6 @@ struct gemm_inner_product_fwd_t : public primitive_t {
     }
 
     gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-    ~gemm_inner_product_fwd_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -158,39 +160,36 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    primitive_iface_t *gemm_ = nullptr;
+    std::shared_ptr<primitive_t> gemm_;
     compute::kernel_t bias_kernel_;
 };
 
 struct gemm_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public gpu_inner_product_bwd_data_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_bwd_data_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_inner_product_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
         pd_t(const pd_t &rhs) : gpu_inner_product_bwd_data_pd_t(rhs) {
-            gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
         }
-        ~pd_t() { delete gemm_pd_; }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             gpu_inner_product_bwd_data_pd_t::operator=(rhs);
-            delete gemm_pd_;
-            gemm_pd_ = rhs.gemm_pd_->clone();
+            if (rhs.gemm_pd_) gemm_pd_.reset(rhs.gemm_pd_->clone());
             return *this;
         }
 
         DECLARE_COMMON_PD_T("ocl:gemm", gemm_inner_product_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
 
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
 
             bool ok = this->desc()->prop_kind == backward_data
                     && set_default_params() == status::success
@@ -211,7 +210,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
             const int ic_total = this->IC_total_padded();
 
             bool gemm_ok = status::success
-                    == create_gemm_pd(&gemm_pd_, this->engine(),
+                    == create_gemm_pd(gemm_pd_, engine,
                             wei_tr ? transpose::trans : transpose::notrans,
                             transpose::notrans, ic_total, mb, oc,
                             wei_tr ? oc : ic_total, oc, ic_total,
@@ -222,17 +221,16 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
             return status::success;
         }
 
-        primitive_desc_t *gemm_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_pd_;
     };
 
-    status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
-        if (gemm_status != status::success) return gemm_status;
+    status_t init(engine_t *engine) override {
+        status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
+        return gemm_status;
         return status::success;
     }
 
     gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
-    ~gemm_inner_product_bwd_data_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -240,38 +238,36 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    primitive_iface_t *gemm_ = nullptr;
+    std::shared_ptr<primitive_t> gemm_;
 };
 
 struct gemm_inner_product_bwd_weights_t : public primitive_t {
     using gpu_ip_bwd_weights_pd_t = gpu_inner_product_bwd_weights_pd_t;
     struct pd_t : public gpu_ip_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const inner_product_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_ip_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_ip_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
         pd_t(const pd_t &rhs) : gpu_ip_bwd_weights_pd_t(rhs) {
-            gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
         }
-        ~pd_t() { delete gemm_pd_; }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             gpu_ip_bwd_weights_pd_t::operator=(rhs);
-            delete gemm_pd_;
-            gemm_pd_ = rhs.gemm_pd_->clone();
+            gemm_pd_.reset(rhs.gemm_pd_->clone());
             return *this;
         }
 
         DECLARE_COMMON_PD_T("gemm:ocl", gemm_inner_product_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
 
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
 
             bool ok = this->desc()->prop_kind == backward_weights
                     && set_default_params() == status::success
@@ -290,18 +286,18 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
 
             bool gemm_ok = false;
             if (wei_tr()) {
-                gemm_ok = create_gemm_pd(&gemm_pd_, this->engine(),
-                                  transpose::notrans, transpose::trans, oc,
-                                  ic_total, mb, oc, ic_total, oc,
+                gemm_ok = create_gemm_pd(gemm_pd_, engine, transpose::notrans,
+                                  transpose::trans, oc, ic_total, mb, oc,
+                                  ic_total, oc, src_md()->data_type,
                                   src_md()->data_type, src_md()->data_type,
-                                  src_md()->data_type, *attr())
+                                  *attr())
                         == status::success;
             } else {
-                gemm_ok = create_gemm_pd(&gemm_pd_, this->engine(),
-                                  transpose::notrans, transpose::trans,
-                                  ic_total, oc, mb, ic_total, oc, ic_total,
+                gemm_ok = create_gemm_pd(gemm_pd_, engine, transpose::notrans,
+                                  transpose::trans, ic_total, oc, mb, ic_total,
+                                  oc, ic_total, src_md()->data_type,
                                   src_md()->data_type, src_md()->data_type,
-                                  src_md()->data_type, *attr())
+                                  *attr())
                         == status::success;
             }
             if (!gemm_ok) return status::unimplemented;
@@ -314,16 +310,16 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
             return wmd.format_desc.blocking.strides[0] == 1;
         }
 
-        primitive_desc_t *gemm_pd_ = nullptr;
+        std::unique_ptr<primitive_desc_t> gemm_pd_;
     };
 
-    status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
+    status_t init(engine_t *engine) override {
+        status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
             compute::kernel_ctx_t kernel_ctx;
 
             kernel_ctx.set_data_type(pd()->src_md()->data_type);
@@ -339,7 +335,6 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
     }
 
     gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
-    ~gemm_inner_product_bwd_weights_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
@@ -347,8 +342,8 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    primitive_iface_t *gemm_ = nullptr;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::shared_ptr<primitive_t> gemm_;
     compute::kernel_t bias_kernel_;
 };
 

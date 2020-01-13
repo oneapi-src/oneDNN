@@ -39,10 +39,9 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
     // TODO: (Roma) Code duplication duplication! Remove with templates
     //              (maybe...)!
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_()
             , jcp_dw_(nullptr) {}
@@ -61,7 +60,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", jcp_.isa, ""),
                 jit_avx2_1x1_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
@@ -80,7 +79,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             if (status != status::success) return status;
 
             if (jcp_.with_dw_conv) {
-                status = depthwise_po_init();
+                status = depthwise_po_init(engine);
                 if (status != status::success) return status;
             }
 
@@ -156,7 +155,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             }
         }
 
-        status_t depthwise_po_init() {
+        status_t depthwise_po_init(engine_t *engine) {
 
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
@@ -197,8 +196,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
 
             if (jcp_1x1.isa == avx2) {
                 std::unique_ptr<dw_pd_t<avx2>> fusable_pd(
-                        new dw_pd_t<avx2>(engine_, &cd_dw, &attr_dw, nullptr));
-                CHECK(fusable_pd->init());
+                        new dw_pd_t<avx2>(&cd_dw, &attr_dw, nullptr));
+                CHECK(fusable_pd->init(engine));
                 jcp_dw = &(fusable_pd->jcp_);
                 dw_conv_pd_ = std::move(fusable_pd);
             } else {
@@ -207,8 +206,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
                 // NOTE: Currently dw f32 kernel is similar for all ISA and can
                 // be fused regardless of ISA if inter-connecting md_ matches.
                 std::unique_ptr<dw_pd_t<sse41>> fusable_pd(
-                        new dw_pd_t<sse41>(engine_, &cd_dw, &attr_dw, nullptr));
-                CHECK(fusable_pd->init());
+                        new dw_pd_t<sse41>(&cd_dw, &attr_dw, nullptr));
+                CHECK(fusable_pd->init(engine));
                 jcp_dw = &(fusable_pd->jcp_);
                 dw_conv_pd_ = std::move(fusable_pd);
             }
@@ -312,7 +311,7 @@ private:
             const data_t *weights, const data_t *bias, const data_t *weights_dw,
             const data_t *bias_dw, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     rtus_driver_t<avx2> *rtus_driver_;
@@ -326,17 +325,16 @@ private:
 
 struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
@@ -401,7 +399,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     rtus_driver_t<avx2> *rtus_driver_;
@@ -409,17 +407,16 @@ private:
 
 struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
                 jit_avx2_1x1_convolution_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::f32, data_type::f32,
@@ -527,7 +524,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx2_1x1_conv_kernel_f32 *kernel_;
     cpu_reducer_2d_t<data_type::f32> *reducer_weights_;

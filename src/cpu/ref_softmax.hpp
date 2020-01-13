@@ -38,7 +38,7 @@ struct ref_softmax_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd() && src_md()->data_type == data_type
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -94,7 +94,7 @@ private:
     void execute_forward_dense(const exec_ctx_t &ctx) const;
     void execute_forward_generic(const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     bool use_dense_;
     int outer_size_, channels_, inner_size_;
@@ -107,7 +107,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && !is_fwd()
                     && utils::everyone_is(data_type, dst_md()->data_type,
                             diff_src_md()->data_type)
@@ -151,7 +151,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 private:
     void execute_backward_dense(const exec_ctx_t &ctx) const;
     void execute_backward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     bool use_dense_;
     int outer_size_, channels_, inner_size_;

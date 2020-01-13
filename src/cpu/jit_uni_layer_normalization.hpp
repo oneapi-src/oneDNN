@@ -23,6 +23,7 @@
 #include "memory_tracking.hpp"
 #include "primitive.hpp"
 #include "reorder_pd.hpp"
+#include "stream.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -41,23 +42,26 @@ static status_t fill_compatible_stats_md(
 
 static status_t create_reorder_pd(engine_t *engine,
         const memory_desc_t *from_md, const memory_desc_t *to_md,
-        const primitive_desc_t **reorder_pd) {
-
-    const primitive_attr_t attr;
-    primitive_desc_t *r_pd = nullptr;
-    status_t status = dnnl_reorder_primitive_desc_create(
-            &r_pd, from_md, engine, to_md, engine, &attr);
-    *reorder_pd = r_pd;
-    return status;
+        std::unique_ptr<primitive_desc_t> &reorder_pd) {
+    auto r_impls = engine->get_reorder_implementation_list(from_md, to_md);
+    for (auto r = r_impls; *r; ++r) {
+        primitive_attr_t attr;
+        reorder_pd_t *r_pd = nullptr;
+        if ((*r)(&r_pd, engine, &attr, engine, from_md, engine, to_md)
+                == status::success) {
+            reorder_pd.reset(r_pd);
+            break;
+        }
+    }
+    return status::success;
 }
 
 struct jit_uni_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
-        pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
+        pd_t(const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_layer_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , reorder_pd_(nullptr) {}
+            : cpu_layer_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &other) : cpu_layer_normalization_fwd_pd_t(other) {
             copy_from(other);
@@ -66,16 +70,15 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_layer_normalization_fwd_pd_t::operator=(other);
-            clear();
             copy_from(other);
             return *this;
         }
-        ~pd_t() { clear(); }
+        ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("jit_uni_layer_normalization:any",
                 jit_uni_layer_normalization_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper stat_d(stat_md());
@@ -95,10 +98,10 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
             CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
 
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
-                CHECK(create_reorder_pd(engine_,
+                CHECK(create_reorder_pd(engine,
                         stats_are_src() ? stat_md() : &reordered_stat_md_,
                         stats_are_src() ? &reordered_stat_md_ : stat_md(),
-                        &reorder_pd_));
+                        reorder_pd_));
             }
 
             init_scratchpad();
@@ -107,7 +110,7 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
 
         bool use_tmp_stats() const { return reorder_pd_ || stats_are_tmp(); }
 
-        const primitive_desc_t *reorder_pd_;
+        std::unique_ptr<primitive_desc_t> reorder_pd_;
         memory_desc_t reordered_stat_md_;
 
     private:
@@ -122,31 +125,30 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
             }
         }
 
-        void clear() { delete reorder_pd_; }
-
         void copy_from(const pd_t &other) {
             reordered_stat_md_ = other.reordered_stat_md_;
-            reorder_pd_
-                    = other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr;
+            reorder_pd_.reset(
+                    other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr);
         }
     };
 
-    jit_uni_layer_normalization_fwd_t(const pd_t *apd)
-        : primitive_t(apd), reorder_(nullptr) {
+    virtual status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
-            pd()->reorder_pd_->create_primitive_iface(&reorder_);
+            pd()->reorder_pd_->create_primitive(reorder_, engine);
         stat_kernel_ = new statistics_kernel_t(pd());
         data_kernel_ = new data_kernel_t(pd());
+        return status::success;
     }
 
+    jit_uni_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     ~jit_uni_layer_normalization_fwd_t() {
-        delete reorder_;
         delete stat_kernel_;
         delete data_kernel_;
     }
 
-    void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
-            const memory_arg_t &out) const {
+    void reorder_stat(const exec_ctx_t &ctx, engine_t *engine,
+            const memory_arg_t &in, const memory_arg_t &out) const {
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = in;
         r_args[DNNL_ARG_DST] = out;
@@ -160,26 +162,29 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
          * as data tensor (i.e. data in abcd, stats in abc) and user's
          * input/output statistics are reordered if necessary */
         using namespace memory_tracking::names;
+        engine_t *engine = ctx.stream()->engine();
         auto scratchpad = ctx.get_scratchpad_grantor();
         auto mean_handle = scratchpad.template get<void>(key_lnorm_tmp_mean);
         auto variance_handle = scratchpad.template get<void>(key_lnorm_tmp_var);
-        memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
+        memory_t mean(engine, &(pd()->reordered_stat_md_),
                 memory_flags_t::use_runtime_ptr, mean_handle);
-        memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
+        memory_t variance(engine, &(pd()->reordered_stat_md_),
                 memory_flags_t::use_runtime_ptr, variance_handle);
 
         // reorder input stats
         if (pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
             reorder_stat(
-                    ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});
+                    ctx, engine, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_VARIANCE),
+                    {&variance, false});
         }
         execute_forward(ctx);
         // reorder output stats
         if (!pd()->stats_are_src() && reorder_) {
-            reorder_stat(ctx, {&mean, true}, ctx.args().at(DNNL_ARG_MEAN));
             reorder_stat(
-                    ctx, {&variance, true}, ctx.args().at(DNNL_ARG_VARIANCE));
+                    ctx, engine, {&mean, true}, ctx.args().at(DNNL_ARG_MEAN));
+            reorder_stat(ctx, engine, {&variance, true},
+                    ctx.args().at(DNNL_ARG_VARIANCE));
         }
 
         return status::success;
@@ -187,20 +192,19 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     statistics_kernel_t *stat_kernel_;
     data_kernel_t *data_kernel_;
-    primitive_iface_t *reorder_;
+    std::shared_ptr<primitive_t> reorder_;
 };
 
 struct jit_uni_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
-        pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
+        pd_t(const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const layer_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_layer_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , reorder_pd_(nullptr) {}
+            : cpu_layer_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &other) : cpu_layer_normalization_bwd_pd_t(other) {
             copy_from(other);
@@ -209,16 +213,15 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_layer_normalization_bwd_pd_t::operator=(other);
-            clear();
             copy_from(other);
             return *this;
         }
-        ~pd_t() { clear(); }
+        ~pd_t() = default;
 
         DECLARE_COMMON_PD_T("jit_uni_layer_normalization:any",
                 jit_uni_layer_normalization_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             const memory_desc_wrapper src_d(src_md());
             const memory_desc_wrapper stat_d(stat_md());
@@ -240,16 +243,16 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
 
             if (reordered_stat_md_ != *stat_md()) {
                 CHECK(create_reorder_pd(
-                        engine_, stat_md(), &reordered_stat_md_, &reorder_pd_));
+                        engine, stat_md(), &reordered_stat_md_, reorder_pd_));
             }
 
             init_scratchpad();
             return status::success;
         }
 
-        bool use_tmp_stats() const { return reorder_pd_; }
+        bool use_tmp_stats() const { return reorder_pd_.get(); }
 
-        const primitive_desc_t *reorder_pd_;
+        std::unique_ptr<primitive_desc_t> reorder_pd_;
         memory_desc_t reordered_stat_md_;
 
     private:
@@ -268,31 +271,30 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
                     key_lnorm_tmp_diff_ss, sizeof(float) * 2 * norm_axis());
         }
 
-        void clear() { delete reorder_pd_; }
-
         void copy_from(const pd_t &other) {
             reordered_stat_md_ = other.reordered_stat_md_;
-            reorder_pd_
-                    = other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr;
+            reorder_pd_.reset(
+                    other.reorder_pd_ ? other.reorder_pd_->clone() : nullptr);
         }
     };
 
-    jit_uni_layer_normalization_bwd_t(const pd_t *apd)
-        : primitive_t(apd), reorder_(nullptr) {
+    virtual status_t init(engine_t *engine) override {
         if (pd()->reorder_pd_)
-            pd()->reorder_pd_->create_primitive_iface(&reorder_);
+            pd()->reorder_pd_->create_primitive(reorder_, engine);
         diff_ss_kernel_ = new diff_ss_kernel_t(pd());
         diff_data_kernel_ = new diff_data_kernel_t(pd());
+        return status::success;
     }
 
+    jit_uni_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     ~jit_uni_layer_normalization_bwd_t() {
-        delete reorder_;
         delete diff_ss_kernel_;
         delete diff_data_kernel_;
     }
 
-    void reorder_stat(const exec_ctx_t &ctx, const memory_arg_t &in,
-            const memory_arg_t &out) const {
+    void reorder_stat(const exec_ctx_t &ctx, engine_t *engine,
+            const memory_arg_t &in, const memory_arg_t &out) const {
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = in;
         r_args[DNNL_ARG_DST] = out;
@@ -308,18 +310,20 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
          * input/output statistics are reordered if necessary */
 
         if (reorder_) {
+            engine_t *engine = ctx.stream()->engine();
             auto scratchpad = ctx.get_scratchpad_grantor();
             auto mean_handle
                     = scratchpad.template get<void>(key_lnorm_tmp_mean);
             auto variance_handle
                     = scratchpad.template get<void>(key_lnorm_tmp_var);
-            memory_t mean(pd()->engine(), &(pd()->reordered_stat_md_),
+            memory_t mean(engine, &(pd()->reordered_stat_md_),
                     memory_flags_t::use_runtime_ptr, mean_handle);
-            memory_t variance(pd()->engine(), &(pd()->reordered_stat_md_),
+            memory_t variance(engine, &(pd()->reordered_stat_md_),
                     memory_flags_t::use_runtime_ptr, variance_handle);
-            reorder_stat(ctx, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
             reorder_stat(
-                    ctx, ctx.args().at(DNNL_ARG_VARIANCE), {&variance, false});
+                    ctx, engine, ctx.args().at(DNNL_ARG_MEAN), {&mean, false});
+            reorder_stat(ctx, engine, ctx.args().at(DNNL_ARG_VARIANCE),
+                    {&variance, false});
         }
 
         execute_backward(ctx);
@@ -328,8 +332,8 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    primitive_iface_t *reorder_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::shared_ptr<primitive_t> reorder_;
     diff_ss_kernel_t *diff_ss_kernel_;
     diff_data_kernel_t *diff_data_kernel_;
 };

@@ -44,7 +44,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
                                                       : IGEMM_S8S8S32_IMPL_STR,
                 gemm_x8s8s32x_inner_product_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && is_fwd() && !has_zero_dim_memory()
@@ -106,7 +106,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
     gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
-                dst_type>(apd, false);
+                dst_type>(pd(), false);
     }
     ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 
@@ -124,7 +124,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     inner_product_utils::pp_kernel_t<data_type::s32, dst_type> *pp_kernel_;
 };

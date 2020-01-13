@@ -41,7 +41,7 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jpp_.isa, ""),
                 jit_uni_pooling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
             bool ok = true && set_default_params() == status::success
@@ -87,7 +87,7 @@ private:
     void execute_forward(const data_t *src, data_t *dst, char *indices) const;
     void execute_forward_3d(
             const data_t *src, data_t *dst, char *indices) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_uni_pool_kernel<isa> *kernel_;
 };
 
@@ -103,7 +103,7 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", jpp_.isa, ""),
                 jit_uni_pooling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
             bool ok = true && set_default_params() == status::success
@@ -148,7 +148,7 @@ private:
             data_t *diff_src, const exec_ctx_t &ctx) const;
     void execute_backward_3d(const data_t *diff_dst, const char *indices,
             data_t *diff_src) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_uni_pool_kernel<isa> *kernel_;
 
     jit_uni_pooling_utils::trans_wrapper_t *diff_dst_trans_;

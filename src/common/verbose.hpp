@@ -44,6 +44,7 @@ const char *get_isa_info();
 #endif
 
 /// A container for primitive desc verbose string.
+struct primitive_desc_t;
 struct pd_info_t {
     pd_info_t() = default;
     pd_info_t(const pd_info_t &rhs)
@@ -57,7 +58,7 @@ struct pd_info_t {
     const char *c_str() const { return str_.c_str(); }
     bool is_initialized() const { return is_initialized_; }
 
-    void init(const primitive_desc_t *pd);
+    void init(engine_t *engine, const primitive_desc_t *pd);
 
 private:
     std::string str_;

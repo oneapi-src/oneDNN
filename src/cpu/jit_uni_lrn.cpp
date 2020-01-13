@@ -139,7 +139,7 @@ void jit_uni_lrn_fwd_t<isa>::execute_forward(const exec_ctx_t &ctx) const {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_lrn_fwd_t<isa>::pd_t::init() {
+status_t jit_uni_lrn_fwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace alg_kind;
 
@@ -262,7 +262,7 @@ void jit_uni_lrn_bwd_t<isa>::execute_backward(const exec_ctx_t &ctx) const {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_lrn_bwd_t<isa>::pd_t::init() {
+status_t jit_uni_lrn_bwd_t<isa>::pd_t::init(engine_t *engine) {
     using namespace prop_kind;
     using namespace alg_kind;
 

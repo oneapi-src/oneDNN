@@ -21,7 +21,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_binary_t::pd_t::init_conf() {
+status_t ref_binary_t::pd_t::init_conf(engine_t *engine) {
     const memory_desc_wrapper src0_d(src_md(0));
     const memory_desc_wrapper src1_d(src_md(1));
     const memory_desc_wrapper dst_d(dst_md());
@@ -86,8 +86,7 @@ status_t ref_binary_t::pd_t::init_conf() {
         }
     }
 
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
     if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
         conf.dispatch.define_dim("IDX", 0, dst_d.nelems());

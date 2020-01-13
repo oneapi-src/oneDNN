@@ -33,16 +33,15 @@ namespace ocl {
 
 struct ref_softmax_fwd_t : public primitive_t {
     struct pd_t : public gpu_softmax_fwd_pd_t {
-        pd_t(engine_t *engine, const softmax_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : gpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_softmax_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             bool ok = true
                     && utils::one_of(desc()->prop_kind,
@@ -108,9 +107,9 @@ struct ref_softmax_fwd_t : public primitive_t {
 
     ~ref_softmax_fwd_t() = default;
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -144,20 +143,19 @@ struct ref_softmax_fwd_t : public primitive_t {
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
 struct ref_softmax_bwd_t : public primitive_t {
     struct pd_t : public gpu_softmax_bwd_pd_t {
-        pd_t(engine_t *engine, const softmax_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const softmax_desc_t *adesc, const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : gpu_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_softmax_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
@@ -193,9 +191,9 @@ struct ref_softmax_bwd_t : public primitive_t {
 
     ~ref_softmax_bwd_t() = default;
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -226,7 +224,7 @@ struct ref_softmax_bwd_t : public primitive_t {
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

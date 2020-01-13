@@ -52,7 +52,7 @@ struct ref_eltwise_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
             auto src_d = memory_desc_wrapper(src_md());
@@ -98,7 +98,7 @@ private:
     void execute_forward_nCspBc_padded(const exec_ctx_t &ctx) const;
     void execute_forward_dense(const exec_ctx_t &ctx) const;
     void execute_forward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t data_type>
@@ -108,7 +108,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_eltwise_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
             bool ok = true && !is_fwd()
@@ -162,7 +162,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
 private:
     void execute_backward_dense(const exec_ctx_t &ctx) const;
     void execute_backward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

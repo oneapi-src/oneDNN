@@ -38,10 +38,10 @@ namespace cpu {
 template <impl::data_type_t dst_type>
 struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        using dw_conv_pd_type = cpu_convolution_fwd_pd_t;
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_()
             , jcp_dw_(nullptr) {}
@@ -60,7 +60,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && mayiuse(avx512_core) && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::bf16, data_type::bf16,
@@ -84,7 +84,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             if (status != status::success) return status;
 
             if (jcp_.with_dw_conv) {
-                status = depthwise_po_init();
+                status = depthwise_po_init(engine);
                 if (status != status::success) return status;
             }
 
@@ -170,7 +170,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
             return;
         }
 
-        status_t depthwise_po_init() {
+        status_t depthwise_po_init(engine_t *engine) {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
             jit_conv_conf_t *jcp_dw = nullptr;
@@ -213,8 +213,8 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
 #define CASE(dt) \
     case dt: { \
         std::unique_ptr<dw_pd_t<dt>> fusable_pd( \
-                new dw_pd_t<dt>(engine(), &cd_dw, &attr_dw, nullptr)); \
-        CHECK(fusable_pd->init()); \
+                new dw_pd_t<dt>(&cd_dw, &attr_dw, nullptr)); \
+        CHECK(fusable_pd->init(engine)); \
         jcp_dw = &(fusable_pd->jcp_); \
         dw_conv_pd_ = std::move(fusable_pd); \
         break; \
@@ -312,7 +312,7 @@ private:
             const dw_wei_data_t *weights_dw, const float *bias_dw,
             const char *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx512_core_bf16_1x1_conv_kernel *kernel_;
     rtus_driver_t<avx512_common> *rtus_driver_;
@@ -324,17 +324,16 @@ private:
 template <impl::data_type_t diff_src_type>
 struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && mayiuse(avx512_core) && is_bwd_d()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, data_type::bf16,
@@ -405,7 +404,7 @@ private:
     void execute_backward_data_thr(const int, const int,
             const diff_dst_data_t *, const wei_data_t *, diff_src_data_t *,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx512_core_bf16_1x1_conv_kernel *kernel_;
     /* reduction to unit stride */
@@ -415,19 +414,18 @@ private:
 template <impl::data_type_t diff_weights_type>
 struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_() {}
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::cpu);
+            assert(engine->kind() == engine_kind::cpu);
             bool ok = true && mayiuse(avx512_core) && is_bwd_w()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(data_type::bf16, diff_weights_type,
@@ -517,7 +515,7 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_weights_t : public primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx512_core_bf16_1x1_conv_kernel *kernel_;
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;

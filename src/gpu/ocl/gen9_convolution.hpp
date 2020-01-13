@@ -34,19 +34,18 @@ namespace ocl {
 
 struct gen9_convolution_fwd_t : public primitive_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             auto src_data_t = this->desc()->src_desc.data_type;
 
@@ -87,7 +86,7 @@ struct gen9_convolution_fwd_t : public primitive_t {
         conv_conf_t conf;
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         const char *kernel_name = nullptr;
         if (pd()->conf.is_nhwc && pd()->conf.src_data_type == data_type::f32) {
             kernel_name = "gen9_conv_nhwc_fwd_f32";
@@ -102,13 +101,14 @@ struct gen9_convolution_fwd_t : public primitive_t {
         }
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
 
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
+        printf("kernel: %d\n", kernel_ == true), fflush(0);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
@@ -122,25 +122,24 @@ struct gen9_convolution_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
 struct gen9_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_convolution_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && this->desc()->prop_kind == backward_data
@@ -178,7 +177,7 @@ struct gen9_convolution_bwd_data_t : public primitive_t {
         conv_conf_t conf;
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         const char *kernel_name = nullptr;
         if (pd()->conf.is_depthwise) {
             kernel_name = "gen9_conv_dw_bwd_data";
@@ -189,7 +188,7 @@ struct gen9_convolution_bwd_data_t : public primitive_t {
                 kernel_name = "gen9_conv_bwd_data";
         }
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
 
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -209,26 +208,24 @@ struct gen9_convolution_bwd_data_t : public primitive_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
 struct gen9_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public gpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_convolution_bwd_weights_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_convolution_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using namespace prop_kind;
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
                     && this->desc()->prop_kind == backward_weights
@@ -241,7 +238,7 @@ struct gen9_convolution_bwd_weights_t : public primitive_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
+            status_t status = init_conf(engine);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -250,13 +247,13 @@ struct gen9_convolution_bwd_weights_t : public primitive_t {
             return ok ? status::success : status::unimplemented;
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         conv_conf_t conf;
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         const char *kernel_name;
         if (pd()->conf.is_nhwc) {
             kernel_name = "gen9_conv_nhwc_bwd_weights";
@@ -264,7 +261,7 @@ struct gen9_convolution_bwd_weights_t : public primitive_t {
             kernel_name = "gen9_conv_bwd_weights";
         }
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
 
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -272,7 +269,6 @@ struct gen9_convolution_bwd_weights_t : public primitive_t {
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
-
         return status::success;
     }
 
@@ -284,7 +280,7 @@ struct gen9_convolution_bwd_weights_t : public primitive_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

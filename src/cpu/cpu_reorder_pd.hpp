@@ -31,12 +31,12 @@ namespace cpu {
 struct cpu_reorder_pd_t : public reorder_pd_t {
     using reorder_pd_t::reorder_pd_t;
 
-    status_t init() {
+    status_t init(
+            engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
         const auto &post_ops = attr()->post_ops_;
         bool args_ok = IMPLICATION(post_ops.len_ != 0,
                 post_ops.len_ == 1
                         && post_ops.entry_[0].kind == primitive_kind::sum);
-        scratchpad_engine_ = src_engine_;
         return args_ok ? status::success : status::unimplemented;
     }
 };

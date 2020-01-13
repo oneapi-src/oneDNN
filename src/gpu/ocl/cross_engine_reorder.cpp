@@ -36,10 +36,11 @@ status_t cross_engine_reorder_t::pd_t::init_scratchpad(
     return status::success;
 }
 
-status_t cross_engine_reorder_t::pd_t::init() {
-    bool args_ok = src_engine() != dst_engine()
-            && utils::one_of(engine_kind::gpu, src_engine()->kind(),
-                    dst_engine()->kind());
+status_t cross_engine_reorder_t::pd_t::init(
+        engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
+    bool args_ok = src_engine != dst_engine
+            && utils::one_of(
+                    engine_kind::gpu, src_engine->kind(), dst_engine->kind());
 
     if (!args_ok) return status::unimplemented;
 
@@ -49,9 +50,8 @@ status_t cross_engine_reorder_t::pd_t::init() {
     bool with_sum_ab = alpha() != 1.0 || beta() != 0.0;
     do_reorder_ = with_sum_ab || src_mdw != dst_mdw;
 
-    engine_t *reorder_engine = src_engine()->kind() == engine_kind::gpu
-            ? src_engine()
-            : dst_engine();
+    engine_t *reorder_engine
+            = src_engine->kind() == engine_kind::gpu ? src_engine : dst_engine;
 
     auto r_impls = reorder_engine->get_reorder_implementation_list(
             src_md(), dst_md());
@@ -61,12 +61,12 @@ status_t cross_engine_reorder_t::pd_t::init() {
         if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
                     reorder_engine, dst_md())
                 == status::success) {
-            reorder_.reset(r_pd);
+            reorder_pd_.reset(r_pd);
             break;
         }
     }
 
-    if (!reorder_) return status::unimplemented;
+    if (!reorder_pd_) return status::unimplemented;
     if (do_reorder_) {
         auto scratchpad = scratchpad_registry().registrar();
         init_scratchpad(scratchpad);

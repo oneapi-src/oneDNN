@@ -20,6 +20,7 @@
 
 #include "c_types_map.hpp"
 #include "engine.hpp"
+#include "primitive_desc.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -29,11 +30,11 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::status;
 
-status_t dnnl_sum_primitive_desc_create(primitive_desc_t **sum_pd,
+status_t dnnl_sum_primitive_desc_create(primitive_desc_iface_t **sum_pd_iface,
         const memory_desc_t *dst_md, int n, const float *scales,
         const memory_desc_t *src_mds, const primitive_attr_t *attr,
         engine_t *engine) {
-    bool args_ok = !any_null(sum_pd, src_mds, scales) && n > 0;
+    bool args_ok = !any_null(sum_pd_iface, src_mds, scales) && n > 0;
     if (!args_ok) return invalid_arguments;
 
     if (attr == NULL) attr = &default_attr();
@@ -66,10 +67,12 @@ status_t dnnl_sum_primitive_desc_create(primitive_desc_t **sum_pd,
         dst_md = &dummy_dst_md;
     }
 
-    auto s_pd = reinterpret_cast<sum_pd_t **>(sum_pd);
     for (auto s = engine->get_sum_implementation_list(); *s; ++s) {
-        if ((*s)(s_pd, engine, attr, dst_md, n, scales, src_mds) == success) {
-            return success;
+        sum_pd_t *sum_pd = nullptr;
+        if ((*s)(&sum_pd, engine, attr, dst_md, n, scales, src_mds)
+                == success) {
+            return safe_ptr_assign<primitive_desc_iface_t>(
+                    *sum_pd_iface, new primitive_desc_iface_t(sum_pd, engine));
         }
     }
     return unimplemented;

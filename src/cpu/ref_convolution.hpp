@@ -40,7 +40,7 @@ struct ref_convolution_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             bool ok = true && is_fwd()
@@ -128,7 +128,7 @@ struct ref_convolution_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     ref_eltwise_scalar_fwd_t *eltwises_[dnnl_post_ops::capacity];
 };
 
@@ -141,7 +141,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
@@ -189,7 +189,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
@@ -202,7 +202,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_convolution_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, diff_wei_type, diff_wei_type,
@@ -236,7 +236,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

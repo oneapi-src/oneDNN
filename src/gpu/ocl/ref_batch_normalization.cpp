@@ -31,7 +31,7 @@ namespace gpu {
 namespace ocl {
 
 static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
-        const batch_normalization_pd_t *pd) {
+        const batch_normalization_pd_t *pd, engine_t *engine) {
     using namespace dnnl::impl::format_tag;
 
     const batch_normalization_desc_t &bd = *pd->desc();
@@ -65,8 +65,7 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
 
     set_offsets(data_mdw, off.src_off);
 
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
 
     conf.use_16mb_unroll = 0;
     conf.use_nhwc = 0;
@@ -217,8 +216,8 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-status_t ref_batch_normalization_fwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t ref_batch_normalization_fwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t ref_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
@@ -332,8 +331,8 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     return status;
 }
 
-status_t ref_batch_normalization_bwd_t::pd_t::init_conf() {
-    return init_conf_common(conf, off, this);
+status_t ref_batch_normalization_bwd_t::pd_t::init_conf(engine_t *engine) {
+    return init_conf_common(conf, off, this, engine);
 }
 
 status_t ref_batch_normalization_bwd_t::pd_t::init_kernel_ctx(

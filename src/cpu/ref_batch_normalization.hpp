@@ -34,15 +34,14 @@ namespace cpu {
 template <data_type_t d_type>
 struct ref_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
-        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+        pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_fwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : cpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("bnorm_ref:any", ref_batch_normalization_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = true && is_fwd() && src_md()->data_type == d_type
                     && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
@@ -71,21 +70,20 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <data_type_t d_type>
 struct ref_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
-        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+        pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_bwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : cpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("bnorm_ref:any", ref_batch_normalization_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             bool ok = true && is_bwd() && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
@@ -116,7 +114,7 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

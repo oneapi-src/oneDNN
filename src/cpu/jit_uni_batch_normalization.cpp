@@ -1329,7 +1329,7 @@ using namespace utils;
 /* fwd */
 
 template <cpu_isa_t isa>
-status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init() {
+status_t jit_uni_batch_normalization_fwd_t<isa>::pd_t::init(engine_t *engine) {
     auto desired_fmt_tag = (ndims() == 4)
             ? isa == avx512_common ? nChw16c : nChw8c
             : isa == avx512_common ? nCdhw16c : nCdhw8c;
@@ -1402,7 +1402,7 @@ jit_uni_batch_normalization_fwd_t<isa>::~jit_uni_batch_normalization_fwd_t() {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init() {
+status_t jit_uni_batch_normalization_bwd_t<isa>::pd_t::init(engine_t *engine) {
     auto desired_fmt_tag = (ndims() == 4)
             ? one_of(isa, sse41, avx2) ? nChw8c : nChw16c
             : one_of(isa, sse41, avx2) ? nCdhw8c : nCdhw16c;

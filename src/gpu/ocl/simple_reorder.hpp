@@ -38,11 +38,12 @@ struct simple_reorder_t : public primitive_t {
 
         DECLARE_GPU_REORDER_CREATE();
 
-        status_t init() {
+        status_t init(
+                engine_t *engine, engine_t *src_engine, engine_t *dst_engine) {
             const auto &post_ops = attr()->post_ops_;
 
-            bool ok = (src_engine() == dst_engine())
-                    && (src_engine()->kind() == engine_kind::gpu)
+            bool ok = (src_engine == dst_engine)
+                    && (src_engine->kind() == engine_kind::gpu)
                     && utils::one_of(src_md()->data_type, data_type::u8,
                             data_type::s8, data_type::f16, data_type::s32,
                             data_type::f32, data_type::bf16)
@@ -53,7 +54,7 @@ struct simple_reorder_t : public primitive_t {
                             utils::one_of(data_type::f16, src_md()->data_type,
                                     dst_md()->data_type),
                             utils::downcast<compute::compute_engine_t *>(
-                                    src_engine())
+                                    src_engine)
                                     ->mayiuse(compute::device_ext_t::khr_fp16))
                     && (attr()->has_default_values()
                             || IMPLICATION(post_ops.len_ != 0,
@@ -64,8 +65,8 @@ struct simple_reorder_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
-                    dst_engine()->kind() == engine_kind::gpu ? dst_engine()
-                                                             : src_engine());
+                    dst_engine->kind() == engine_kind::gpu ? dst_engine
+                                                           : src_engine);
 
             ok = ok
                     && compute_engine->mayiuse(
@@ -82,14 +83,14 @@ struct simple_reorder_t : public primitive_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = init_conf();
+            status_t status = init_conf(engine);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
             return init_scratchpad(scratchpad);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_scratchpad(
                 memory_tracking::registrar_t &scratchpad) const;
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
@@ -97,9 +98,9 @@ struct simple_reorder_t : public primitive_t {
         reorder_conf_t conf;
     };
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -119,7 +120,7 @@ struct simple_reorder_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

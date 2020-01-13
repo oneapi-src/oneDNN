@@ -36,9 +36,9 @@ struct ref_eltwise_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_eltwise_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             using namespace alg_kind;
             bool ok = true
@@ -71,19 +71,19 @@ struct ref_eltwise_fwd_t : public primitive_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         eltwise_conf_t conf;
         offsets_t off;
     };
 
-    virtual status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -103,23 +103,22 @@ struct ref_eltwise_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward_dense(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 
 struct ref_eltwise_bwd_t : public primitive_t {
     struct pd_t : public gpu_eltwise_bwd_pd_t {
-        pd_t(engine_t *engine, const eltwise_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const eltwise_desc_t *adesc, const primitive_attr_t *attr,
                 const eltwise_fwd_pd_t *hint_fwd_pd)
-            : gpu_eltwise_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_eltwise_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_eltwise_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace utils;
-            assert(engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
 
             using namespace alg_kind;
             bool ok = desc()->prop_kind == backward_data
@@ -141,10 +140,10 @@ struct ref_eltwise_bwd_t : public primitive_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         eltwise_conf_t conf;
@@ -152,9 +151,9 @@ struct ref_eltwise_bwd_t : public primitive_t {
         bool use_dense;
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -176,7 +175,7 @@ struct ref_eltwise_bwd_t : public primitive_t {
 
 private:
     status_t execute_backward_dense(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::kernel_t kernel_;
 };
 

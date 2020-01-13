@@ -37,7 +37,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             auto src_data_t = src_md()->data_type;
@@ -55,10 +55,10 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         lnorm_conf_t conf;
@@ -66,9 +66,9 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
 
     ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -86,7 +86,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_;
 };
@@ -98,7 +98,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
 
             auto src_data_t = src_md()->data_type;
@@ -118,10 +118,10 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return init_conf();
+            return init_conf(engine);
         }
 
-        status_t init_conf();
+        status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         lnorm_conf_t conf;
@@ -129,9 +129,9 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
     ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -154,7 +154,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_scaleshift_;
     compute::kernel_t kernel_;

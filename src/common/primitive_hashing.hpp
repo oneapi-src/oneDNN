@@ -25,6 +25,9 @@
 
 namespace dnnl {
 namespace impl {
+
+struct primitive_desc_t;
+
 namespace primitive_hashing {
 
 struct key_t {

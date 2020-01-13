@@ -17,13 +17,12 @@
 #ifndef ENGINE_HPP
 #define ENGINE_HPP
 
-#include <mutex>
-
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
+#include "primitive_desc.hpp"
 #include "utils.hpp"
 
 /** \brief An abstraction of an execution unit with shared resources
@@ -36,8 +35,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     dnnl_engine(dnnl::impl::engine_kind_t kind,
             dnnl::impl::runtime_kind_t runtime_kind)
         : kind_(kind), runtime_kind_(runtime_kind) {}
-
-    virtual ~dnnl_engine() {}
+    virtual ~dnnl_engine() = default;
 
     /** get kind of the current engine */
     dnnl::impl::engine_kind_t kind() const { return kind_; }
@@ -65,7 +63,7 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
     // TODO: remove engine?
     typedef dnnl::impl::status_t (*reorder_primitive_desc_create_f)(
-            dnnl::impl::reorder_pd_t **reorder_pd, dnnl::impl::engine_t *engine,
+            dnnl::impl::reorder_pd_t **, dnnl::impl::engine_t *engine,
             const dnnl::impl::primitive_attr_t *attr,
             dnnl::impl::engine_t *src_engine,
             const dnnl::impl::memory_desc_t *src_md,
@@ -73,13 +71,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
             const dnnl::impl::memory_desc_t *dst_md);
 
     typedef dnnl::impl::status_t (*concat_primitive_desc_create_f)(
-            dnnl::impl::concat_pd_t **concat_pd, dnnl::impl::engine_t *engine,
+            dnnl::impl::concat_pd_t **, dnnl::impl::engine_t *engine,
             const dnnl::impl::primitive_attr_t *attr,
             const dnnl::impl::memory_desc_t *dst_md, int n, int concat_dim,
             const dnnl::impl::memory_desc_t *src_mds);
 
     typedef dnnl::impl::status_t (*sum_primitive_desc_create_f)(
-            dnnl::impl::sum_pd_t **sum_pd, dnnl::impl::engine_t *engine,
+            dnnl::impl::sum_pd_t **, dnnl::impl::engine_t *engine,
             const dnnl::impl::primitive_attr_t *attr,
             const dnnl::impl::memory_desc_t *dst_md, int n, const float *scales,
             const dnnl::impl::memory_desc_t *src_mds);

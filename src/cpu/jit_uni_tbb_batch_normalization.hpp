@@ -39,11 +39,10 @@ struct driver_t;
 template <cpu_isa_t isa>
 struct jit_uni_tbb_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
-        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+        pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_fwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : cpu_batch_normalization_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("bnorm_tbb_jit:",
@@ -55,7 +54,7 @@ struct jit_uni_tbb_batch_normalization_fwd_t : public primitive_t {
                         ""),
                 jit_uni_tbb_batch_normalization_fwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_uni_tbb_batch_normalization_fwd_t(const pd_t *apd);
@@ -64,7 +63,7 @@ struct jit_uni_tbb_batch_normalization_fwd_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     bnorm_tbb_impl::driver_t<isa> *bnorm_driver_;
 };
@@ -72,11 +71,10 @@ private:
 template <cpu_isa_t isa>
 struct jit_uni_tbb_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
-        pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
+        pd_t(const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : cpu_batch_normalization_bwd_pd_t(
-                    engine, adesc, attr, hint_fwd_pd) {}
+            : cpu_batch_normalization_bwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("bnorm_tbb_jit:",
@@ -88,7 +86,7 @@ struct jit_uni_tbb_batch_normalization_bwd_t : public primitive_t {
                         ""),
                 jit_uni_tbb_batch_normalization_bwd_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
     };
 
     jit_uni_tbb_batch_normalization_bwd_t(const pd_t *apd);
@@ -97,7 +95,7 @@ struct jit_uni_tbb_batch_normalization_bwd_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     bnorm_tbb_impl::driver_t<isa> *bnorm_driver_;
 };

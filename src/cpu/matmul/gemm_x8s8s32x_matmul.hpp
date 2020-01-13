@@ -42,7 +42,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("gemm:jit", gemm_x8s8s32x_matmul_t);
 
-        status_t init();
+        status_t init(engine_t *engine);
         const gemm_based::params_t &params() const { return params_; }
 
     private:
@@ -68,7 +68,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
     void post_process_src_and_weights_zero_points(
             std::vector<acc_data_t> &src_comp,

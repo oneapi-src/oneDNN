@@ -27,7 +27,7 @@ namespace ocl {
 
 using namespace dnnl::impl::memory_tracking::names;
 
-status_t simple_reorder_t::pd_t::init_conf() {
+status_t simple_reorder_t::pd_t::init_conf(engine_t *engine) {
     using namespace format_tag;
 
     const memory_desc_wrapper src_mdw(src_md());
@@ -106,8 +106,7 @@ status_t simple_reorder_t::pd_t::init_conf() {
         conf.sub_group_size = 16;
     }
 
-    auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(engine());
+    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     for (int i = 0; i < 6; ++i) {
         auto dim_str = utils::format("D%d", i);

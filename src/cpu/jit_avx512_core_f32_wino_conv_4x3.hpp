@@ -118,17 +118,15 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     : _jit_avx512_core_f32_wino_conv_4x3_t<true>,
       public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
                 jit_avx512_core_f32_wino_conv_4x3_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::convolution_auto,
@@ -194,25 +192,23 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
     : _jit_avx512_core_f32_wino_conv_4x3_t<false>,
       public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            : cpu_convolution_bwd_data_pd_t(adesc, attr, hint_fwd_pd), jcp_() {}
 
         DECLARE_COMMON_PD_T(
                 JIT_IMPL_NAME_HELPER("jit_wino_4x3:", avx512_core, ""),
                 jit_avx512_core_f32_wino_conv_4x3_bwd_data_t,
                 USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && dnnl_thr_syncable()
                     && desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->alg_kind,
@@ -277,15 +273,14 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_data_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_convolution_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_bwd_weights_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_() {}
 
         DECLARE_COMMON_PD_T(
@@ -293,7 +288,7 @@ struct jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t : public primitive_t {
                 jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t,
                 USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && dnnl_thr_syncable()
                     && desc()->prop_kind == prop_kind::backward_weights
                     && utils::one_of(desc()->alg_kind,
@@ -365,7 +360,7 @@ private:
             const float *diff_dst, float *diff_weights, float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_avx512_core_f32_wino_conv_4x3_bwd_weights_kernel *kernel_;
 };
 

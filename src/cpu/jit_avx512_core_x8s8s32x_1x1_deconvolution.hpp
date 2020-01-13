@@ -37,11 +37,9 @@ namespace cpu {
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
-        pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const deconvolution_desc_t *adesc, const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : cpu_deconvolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , conv_pd_(nullptr) {}
+            : cpu_deconvolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {}
 
         pd_t(const pd_t &other)
             : cpu_deconvolution_fwd_pd_t(other)
@@ -50,17 +48,16 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_deconvolution_fwd_pd_t::operator=(other);
-            delete conv_pd_;
-            conv_pd_ = other.conv_pd_->clone();
+            conv_pd_.reset(other.conv_pd_->clone());
             return *this;
         }
 
-        ~pd_t() { delete conv_pd_; }
+        ~pd_t() = default;
 
         DECLARE_COMMON_PD_T(conv_pd_->name(),
                 jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t);
 
-        status_t init_convolution() {
+        status_t init_convolution(engine_t *engine) {
             convolution_desc_t cd;
             status_t status;
 
@@ -71,8 +68,10 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                     dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 
             if (status == status::success) {
-                status = dnnl_primitive_desc::create<conv_pd_t>(
-                        &conv_pd_, (op_desc_t *)&cd, &attr_, engine_, nullptr);
+                primitive_desc_t *_conv_pd = nullptr;
+                status = primitive_desc_t::create<conv_pd_t>(
+                        &_conv_pd, (op_desc_t *)&cd, &attr_, engine, nullptr);
+                conv_pd_.reset(_conv_pd);
             }
 
             if (status == status::success) status = set_default_params();
@@ -80,7 +79,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             return status;
         };
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && !has_zero_dim_memory()
@@ -97,19 +96,19 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                             | primitive_attr_t::skip_mask_t::post_ops);
             if (!ok) return status::unimplemented;
 
-            CHECK(init_convolution());
+            CHECK(init_convolution(engine));
 
             return status::success;
         }
 
         virtual void init_scratchpad_md() override {
-            const auto conv_1x1_pd = static_cast<conv_pd_t *>(conv_pd_);
+            const auto conv_1x1_pd = static_cast<conv_pd_t *>(conv_pd_.get());
             scratchpad_md_ = *conv_1x1_pd->scratchpad_md();
         }
 
     protected:
         status_t set_default_params() {
-            auto conv_1x1_pd_ = static_cast<conv_pd_t *>(conv_pd_);
+            auto conv_1x1_pd_ = static_cast<conv_pd_t *>(conv_pd_.get());
             src_md_ = *conv_1x1_pd_->src_md();
             dst_md_ = *conv_1x1_pd_->dst_md();
             weights_md_ = *conv_1x1_pd_->weights_md();
@@ -121,23 +120,25 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
                 typename jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<
                         src_type, dst_type>::pd_t;
         friend jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t;
-        primitive_desc_t *conv_pd_;
+
+        std::unique_ptr<primitive_desc_t> conv_pd_;
     };
 
     jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd) {
-        pd()->conv_pd_->create_primitive_iface(&conv_p_);
-    }
+        : primitive_t(apd) {}
 
-    ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t() { delete conv_p_; }
+    virtual status_t init(engine_t *engine) override {
+        pd()->conv_pd_->create_primitive(conv_p_, engine);
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return conv_p_->execute(const_cast<exec_ctx_t &>(ctx));
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    primitive_iface_t *conv_p_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::shared_ptr<primitive_t> conv_p_;
 };
 
 } // namespace cpu

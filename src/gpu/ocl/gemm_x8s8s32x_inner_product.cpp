@@ -39,7 +39,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
     }
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
+    status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_post_process()) {

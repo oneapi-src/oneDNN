@@ -38,7 +38,7 @@ struct ref_pooling_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_pooling_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true
                     && IMPLICATION(
                             data_type == data_type::bf16, mayiuse(avx512_core))
@@ -69,7 +69,7 @@ struct ref_pooling_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t data_type>
@@ -79,7 +79,7 @@ struct ref_pooling_bwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", ref_pooling_bwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true
                     && IMPLICATION(
                             data_type == data_type::bf16, mayiuse(avx512_core))
@@ -108,7 +108,7 @@ struct ref_pooling_bwd_t : public primitive_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

@@ -34,9 +34,9 @@ struct binary_pd_t : public primitive_desc_t {
     typedef binary_pd_t base_class;
     typedef binary_pd_t hint_class;
 
-    binary_pd_t(engine_t *engine, const binary_desc_t *adesc,
-            const primitive_attr_t *attr, const binary_pd_t *hint_fwd_pd)
-        : primitive_desc_t(engine, attr, base_pkind)
+    binary_pd_t(const binary_desc_t *adesc, const primitive_attr_t *attr,
+            const binary_pd_t *hint_fwd_pd)
+        : primitive_desc_t(attr, base_pkind)
         , desc_(*adesc)
         , src0_md_(desc_.src_desc[0])
         , src1_md_(desc_.src_desc[1])

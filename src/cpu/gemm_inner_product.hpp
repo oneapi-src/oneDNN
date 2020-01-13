@@ -40,7 +40,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace utils;
 
             bool ok = true && is_fwd() && !has_zero_dim_memory()
@@ -79,7 +79,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         postops_in_ip_ = has_bias || has_eltwise;
 
         pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type, data_type>(
-                apd, true);
+                pd(), true);
 
         auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
         beta_ = sum_idx >= 0 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
@@ -96,7 +96,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     inner_product_utils::pp_kernel_t<data_type, data_type> *pp_kernel_;
     bool postops_in_ip_;
@@ -110,7 +110,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_bwd_data_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && !has_zero_dim_memory()
                     && utils::everyone_is(data_type, diff_src_md()->data_type,
@@ -133,7 +133,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 template <impl::data_type_t data_type>
@@ -144,7 +144,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
 
         DECLARE_COMMON_PD_T(GEMM_IMPL_STR, gemm_inner_product_bwd_weights_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && !has_zero_dim_memory()
                     && utils::everyone_is(data_type, src_md()->data_type,
@@ -171,7 +171,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
 } // namespace cpu

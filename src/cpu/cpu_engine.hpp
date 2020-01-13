@@ -56,7 +56,6 @@ public:
         : engine_t(engine_kind::cpu, get_default_runtime(engine_kind::cpu)) {}
 
     /* implementation part */
-
     virtual status_t create_memory_storage(memory_storage_t **storage,
             unsigned flags, size_t size, void *handle) override;
 

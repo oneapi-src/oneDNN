@@ -808,7 +808,7 @@ status_t gen9_convolution_bwd_data_t::execute_backward_data(
 }
 
 static void bwd_w_compute_block_sizes(
-        conv_conf_t &conf, const convolution_pd_t *pd) {
+        conv_conf_t &conf, const convolution_pd_t *pd, engine_t *engine) {
     const bool is_1stconv = conf.ic_without_padding == 3;
 
     if (conf.is_depthwise) {
@@ -825,7 +825,7 @@ static void bwd_w_compute_block_sizes(
         conf.nchunk = conf.osp_chunk * conf.mb_chunk;
         return;
     }
-    auto *dev_info = utils::downcast<compute::compute_engine_t *>(pd->engine())
+    auto *dev_info = utils::downcast<compute::compute_engine_t *>(engine)
                              ->device_info();
     int hw_threads = dev_info->hw_threads();
     size_t llc_bytes = dev_info->llc_cache_size();
@@ -942,7 +942,7 @@ static void bwd_w_compute_block_sizes(
     conf.nchunk = conf.mb_chunk * conf.osp_chunk;
 }
 
-status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
+status_t gen9_convolution_bwd_weights_t::pd_t::init_conf(engine_t *engine) {
     using namespace dnnl::impl::format_tag;
     using namespace data_type;
 
@@ -1022,7 +1022,7 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
             break;
     }
 
-    bwd_w_compute_block_sizes(conf, this);
+    bwd_w_compute_block_sizes(conf, this, engine);
 
     conf.sub_group_size = 16;
     conf.lws_d[0] = 16;

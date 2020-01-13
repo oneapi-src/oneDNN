@@ -41,7 +41,7 @@ struct jit_uni_binary_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("jit:uni", jit_uni_binary_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
@@ -105,7 +105,7 @@ struct jit_uni_binary_t : public primitive_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<binary_kernel_t> kernel_;
 };

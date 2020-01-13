@@ -19,6 +19,7 @@
 
 #include "engine.hpp"
 #include "reorder_pd.hpp"
+#include "stream.hpp"
 
 #include "cpu_concat_pd.hpp"
 #include "primitive.hpp"
@@ -29,25 +30,24 @@ namespace cpu {
 
 struct ref_concat_t : public primitive_t {
     struct pd_t : public cpu_concat_pd_t {
-        pd_t(engine_t *engine, const primitive_attr_t *attr,
-                const memory_desc_t *dst_md, int n, int concat_dim,
-                const memory_desc_t *src_mds)
-            : cpu_concat_pd_t(engine, attr, dst_md, n, concat_dim, src_mds)
+        pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
+                int concat_dim, const memory_desc_t *src_mds)
+            : cpu_concat_pd_t(attr, dst_md, n, concat_dim, src_mds)
             , tent_dst_md_(types::zero_md()) {}
         pd_t(const pd_t &rhs) : cpu_concat_pd_t(rhs) { copy(rhs); }
-        ~pd_t() { clear(); }
+        ~pd_t() = default;
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             cpu_concat_pd_t::operator=(rhs);
-            clear();
+            reorder_pds_.clear();
             copy(rhs);
             return *this;
         }
 
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             status_t status = cpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
@@ -61,15 +61,15 @@ struct ref_concat_t : public primitive_t {
             }
 
             for (int i = 0; i < n_; ++i) {
-                auto r_impls = engine_->get_reorder_implementation_list(
+                auto r_impls = engine->get_reorder_implementation_list(
                         src_md(i), src_image_md(i));
                 for (auto r = r_impls; *r; ++r) {
                     const primitive_attr_t attr; /* alpha == 1. */
                     reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
+                    if ((*r)(&r_pd, engine, &attr, engine, src_md(i), engine,
                                 src_image_md(i))
                             == status::success) {
-                        reorder_pds_.push_back(r_pd);
+                        reorder_pds_.emplace_back(r_pd);
                         break;
                     }
                 }
@@ -80,12 +80,18 @@ struct ref_concat_t : public primitive_t {
                 assert(tent_dst_md_.format_kind != format_kind::undef);
                 assert(dst_md_.format_kind != format_kind::undef);
 
-                primitive_desc_t *r_pd = nullptr;
-                status = dnnl_reorder_primitive_desc_create(&r_pd,
-                        &tent_dst_md_, engine_, &dst_md_, engine_, nullptr);
-                if (status != status::success) return status;
-                reorder_pds_.push_back((const reorder_pd_t *)r_pd);
-
+                auto r_impls = engine->get_reorder_implementation_list(
+                        &tent_dst_md_, &dst_md_);
+                for (auto r = r_impls; *r; ++r) {
+                    primitive_attr_t attr;
+                    reorder_pd_t *r_pd = nullptr;
+                    if ((*r)(&r_pd, engine, &attr, engine, &tent_dst_md_,
+                                engine, &dst_md_)
+                            == status::success) {
+                        reorder_pds_.emplace_back(r_pd);
+                        break;
+                    }
+                }
                 using namespace memory_tracking::names;
                 auto scratchpad = scratchpad_registry().registrar();
                 scratchpad.book(memory_tracking::names::key_concat_tent_dst,
@@ -98,41 +104,36 @@ struct ref_concat_t : public primitive_t {
         // if dst is forced and cannot be used directly.
         bool use_tent_dst() const { return !types::is_zero_md(&tent_dst_md_); }
 
-        std::vector<const reorder_pd_t *> reorder_pds_;
+        std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
         memory_desc_t tent_dst_md_;
 
     private:
         void copy(const pd_t &rhs) {
             tent_dst_md_ = rhs.tent_dst_md_;
             for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
-                reorder_pds_.push_back(
-                        (const reorder_pd_t *)rhs.reorder_pds_[i]->clone());
-        }
-
-        void clear() {
-            for (auto &rpd : reorder_pds_)
-                delete rpd;
+                reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
         }
     };
 
-    ref_concat_t(const pd_t *apd) : primitive_t(apd) {
+    ref_concat_t(const pd_t *apd) : primitive_t(apd) {}
+
+    virtual status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i)
-            pd()->reorder_pds_[i]->create_primitive_iface(&reorders_[i]);
+            pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
+        return status::success;
     }
 
-    ~ref_concat_t() {
-        for (auto &r : reorders_)
-            delete r;
-    }
+    ~ref_concat_t() = default;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();
 
         auto execute_reorder
-                = [&](const primitive_iface_t *reorder, const memory_arg_t &src,
-                          const memory_arg_t &dst) {
+                = [&](const std::shared_ptr<primitive_t> &reorder,
+                          const memory_arg_t &src, const memory_arg_t &dst) {
                       exec_args_t r_args;
                       r_args[DNNL_ARG_SRC] = src;
                       r_args[DNNL_ARG_DST] = dst;
@@ -149,21 +150,21 @@ struct ref_concat_t : public primitive_t {
                     memory_tracking::names::key_concat_tent_dst);
 
             for (int i = 0; i < n; ++i) {
-                memory_t tent_dst_i(engine(), pd()->src_image_md(i),
+                memory_t tent_dst_i(engine, pd()->src_image_md(i),
                         submemory_flags, tent_dst_ptr);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
                         {&tent_dst_i, false});
             }
 
-            memory_t tent_dst(engine(), &pd()->tent_dst_md_,
+            memory_t tent_dst(engine, &pd()->tent_dst_md_,
                     memory_flags_t::use_runtime_ptr, tent_dst_ptr);
             execute_reorder(reorders_[n], {&tent_dst, true},
                     ctx.args().at(DNNL_ARG_DST));
         } else {
             auto dst_ptr = CTX_OUT_MEM(void *, DNNL_ARG_DST);
             for (int i = 0; i < n; ++i) {
-                memory_t tent_dst_i(engine(), pd()->src_image_md(i),
+                memory_t tent_dst_i(engine, pd()->src_image_md(i),
                         submemory_flags, dst_ptr);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
@@ -175,8 +176,8 @@ struct ref_concat_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    std::vector<primitive_iface_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::vector<std::shared_ptr<primitive_t>> reorders_;
 };
 
 } // namespace cpu

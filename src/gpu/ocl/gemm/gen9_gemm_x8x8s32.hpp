@@ -42,15 +42,15 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
 
         DECLARE_COMMON_PD_T("ocl:gemm:any", gen9_gemm_x8x8s32_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace data_type;
             using namespace primitive_kind;
             using smask_t = primitive_attr_t::skip_mask_t;
 
-            assert(this->engine()->kind() == engine_kind::gpu);
+            assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
+                    = utils::downcast<compute::compute_engine_t *>(engine);
 
             const auto attr_skip_mask = smask_t::oscale | smask_t::post_ops
                     | smask_t::zero_points_runtime;
@@ -149,9 +149,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         size_t dyn_offset_co = 0;
     };
 
-    status_t init() override {
+    status_t init(engine_t *engine) override {
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
                 compute_engine->device_info());
 
@@ -161,13 +161,13 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         gemm_type_ = get_gemm_type();
 
         switch (gemm_type_) {
-            case type::no_copy: return init_nocopy();
+            case type::no_copy: return init_nocopy(engine);
         }
 
         return status::invalid_arguments;
     }
 
-    status_t init_nocopy() {
+    status_t init_nocopy(engine_t *engine) {
         const char *kernel_name = nullptr;
 
         //compute kernel
@@ -179,11 +179,11 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         }
 
         auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine());
+                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         memory_storage_t *temp_buf_ptr;
-        this->engine()->create_memory_storage(
+        engine->create_memory_storage(
                 &temp_buf_ptr, pd()->desc()->m * pd()->desc()->n * sizeof(int));
         temp_buf_.reset(temp_buf_ptr);
 
@@ -252,7 +252,7 @@ private:
     int hw_threads_ = 0;
     int eu_count_ = 0;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     type get_gemm_type() const { return type::no_copy; }
 };

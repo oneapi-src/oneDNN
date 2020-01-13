@@ -37,10 +37,10 @@ namespace cpu {
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
 struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        using dw_conv_pd_type = cpu_convolution_fwd_pd_t;
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_()
             , jcp_dw_(nullptr) {}
@@ -59,7 +59,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8_1x1:", avx2, ""),
                 jit_avx2_x8s8s32x_1x1_convolution_fwd_t);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, data_type::s8,
@@ -88,7 +88,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             if (status != status::success) return status;
 
             if (jcp_.with_dw_conv) {
-                status = depthwise_po_init();
+                status = depthwise_po_init(engine);
                 if (status != status::success) return status;
             }
 
@@ -209,7 +209,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             return weights_md_ == want_wei_md;
         }
 
-        status_t depthwise_po_init() {
+        status_t depthwise_po_init(engine_t *engine) {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
             auto &attr_1x1 = attr_;
@@ -250,8 +250,8 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 #define CASE(sdt, ddt) \
     case ddt: { \
         std::unique_ptr<dw_pd_t<sdt, ddt>> fusable_pd( \
-                new dw_pd_t<sdt, ddt>(engine(), &cd_dw, &attr_dw, nullptr)); \
-        CHECK(fusable_pd->init()); \
+                new dw_pd_t<sdt, ddt>(&cd_dw, &attr_dw, nullptr)); \
+        CHECK(fusable_pd->init(engine)); \
         jcp_dw_ = &(fusable_pd->jcp_); \
         dw_conv_pd_ = std::move(fusable_pd); \
         break; \
@@ -327,6 +327,10 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     template <cpu_isa_t isa, typename conv_t>
     friend void init_rtus_driver(conv_t *self);
 
+    template <impl::data_type_t sdt, impl::data_type_t ddt>
+    using fusable_pd_type =
+            typename jit_avx2_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t;
+
     jit_avx2_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
         : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
         kernel_ = new jit_avx2_x8s8s32x_1x1_conv_kernel(
@@ -364,7 +368,7 @@ private:
             const src_data_t *src, const wei_data_t *weights, const char *bias,
             const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     jit_avx2_x8s8s32x_1x1_conv_kernel *kernel_;
     rtus_driver_t<avx2> *rtus_driver_;

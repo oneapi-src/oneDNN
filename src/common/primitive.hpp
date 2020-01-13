@@ -35,16 +35,15 @@ namespace impl {
 
 struct primitive_t : public c_compatible {
     primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
-    virtual ~primitive_t() { delete pd_; }
+    virtual ~primitive_t() = default;
 
-    virtual status_t init() { return status::success; }
-    engine_t *engine() const { return pd_->engine(); }
-    const primitive_desc_t *pd() const { return pd_; }
+    virtual status_t init(engine_t *engine) { return status::success; }
+    std::shared_ptr<primitive_desc_t> pd() const { return pd_; }
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
 
 protected:
-    const primitive_desc_t *pd_;
+    std::shared_ptr<primitive_desc_t> pd_;
 
 private:
     primitive_t() = delete;
@@ -65,17 +64,17 @@ private:
 
 struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
-            bool use_global_scratchpad);
+            dnnl::impl::engine_t *engine, bool use_global_scratchpad = false);
 
-    dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
-    const dnnl::impl::primitive_desc_t *pd() const;
+    const dnnl::impl::primitive_desc_iface_t *pd() const;
     const std::shared_ptr<dnnl::impl::primitive_t> &get_primitive() const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
 private:
     std::shared_ptr<dnnl::impl::primitive_t> primitive_;
     std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
+    std::unique_ptr<dnnl::impl::primitive_desc_iface_t> pd_;
 
     dnnl_primitive() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);

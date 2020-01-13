@@ -349,7 +349,7 @@ void jit_uni_relu_kernel_int<avx512_common>::store_8bit(
 } /* namespace */
 
 template <cpu_isa_t isa, data_type_t d_type>
-status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init() {
+status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init(engine_t *engine) {
     bool ok = mayiuse(isa) && desc()->data_desc.data_type == d_type
             && desc()->alg_kind == alg_kind::eltwise_relu // only relu so far
             && !has_zero_dim_memory()

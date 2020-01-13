@@ -17,8 +17,10 @@
 #ifndef CPU_REF_FUSED_CONVOLUTION_HPP
 #define CPU_REF_FUSED_CONVOLUTION_HPP
 
+#include "common/primitive_iterator.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 #include "primitive.hpp"
+#include "stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -68,10 +70,9 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
     };
 
     struct pd_t : public cpu_convolution_fwd_pd_t {
-        pd_t(engine_t *engine, const convolution_desc_t *adesc,
-                const primitive_attr_t *attr,
+        pd_t(const convolution_desc_t *adesc, const primitive_attr_t *attr,
                 const typename pd_t::base_class *hint_fwd_pd)
-            : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {
+            : cpu_convolution_fwd_pd_t(adesc, attr, hint_fwd_pd) {
             name_ = "ref_fused_convolution:any";
         }
 
@@ -82,22 +83,19 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_convolution_fwd_pd_t::operator=(other);
-            clear();
             copy_from(other);
             return *this;
         }
 
-        ~pd_t() { clear(); }
-
         DECLARE_COMMON_PD_T(name_.c_str(), ref_fused_convolution_fwd_t);
 
-        status_t init() {
+        virtual status_t init(engine_t *engine) {
             bool ok = true && is_fwd()
                     && (attr()->post_ops_.find(primitive_kind::sum) == -1);
 
             if (!ok) return status::unimplemented;
 
-            CHECK(init_ops());
+            CHECK(init_ops(engine));
             init_name();
             return status::success;
         }
@@ -134,25 +132,33 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
         }
 
         size_t user_scratchpad_size_;
-        std::vector<primitive_desc_t *> op_pds_;
+        std::vector<std::unique_ptr<primitive_desc_t>> op_pds_;
         std::vector<arg_cache_t> args_;
 
     private:
         std::string name_;
         const unsigned int max_fusions_ = 1;
 
-        status_t append_op(
-                primitive_desc_t *op_pd, size_t &sp_begin, size_t &sp_end) {
+        status_t append_op(primitive_desc_t *op_pd, size_t &sp_begin,
+                size_t &sp_end, engine_t *engine) {
             auto from_md = op_pds_.back()->dst_md();
             auto to_md = op_pd->src_md();
 
             if (*from_md != *to_md) {
                 //TODO: Find a test-case for this
-                primitive_desc_t *r_pd;
-                auto status = dnnl_reorder_primitive_desc_create(
-                        &r_pd, from_md, engine(), to_md, engine(), nullptr);
-                if (status != status::success) return status;
-                op_pds_.push_back(r_pd);
+                reorder_pd_t *r_pd = nullptr;
+                auto r_impls = engine->get_reorder_implementation_list(
+                        from_md, to_md);
+                for (auto r = r_impls; *r; ++r) {
+                    primitive_attr_t attr;
+                    if ((*r)(&r_pd, engine, &attr, engine, from_md, engine,
+                                to_md)
+                            == status::success) {
+                        op_pds_.emplace_back((primitive_desc_t *)r_pd);
+                        break;
+                    }
+                }
+                if (!r_pd) return status::unimplemented;
 
                 arg_cache_t arg_cache;
                 arg_cache.append_inout_arg(
@@ -168,13 +174,13 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                         op_pds_.back()->scratchpad_size(scratchpad_mode::user));
             }
 
-            op_pds_.push_back(op_pd);
+            op_pds_.emplace_back(op_pd);
             user_scratchpad_size_ = nstl::max<size_t>(user_scratchpad_size_,
                     op_pds_.back()->scratchpad_size(scratchpad_mode::user));
             return status::success;
         }
 
-        status_t init_ops() {
+        status_t init_ops(engine_t *engine) {
             using namespace data_type;
             auto &root_attr = *attr();
             auto po_op_iter
@@ -184,11 +190,12 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             primitive_attr_t attr_1x1 = *attr();
             attr_1x1.post_ops_.len_ = po_op_iter;
 
-            primitive_desc_t *root_pd;
-            CHECK(dnnl_primitive_desc_create(
-                    &root_pd, op_desc(), &attr_1x1, engine(), NULL));
-            op_pds_.push_back(root_pd);
-
+            dnnl_primitive_desc_iterator it(
+                    engine, op_desc(), &attr_1x1, nullptr);
+            ++it;
+            primitive_desc_t *root_pd = it.fetch_once();
+            if (!root_pd) return status::unimplemented;
+            op_pds_.emplace_back(root_pd);
             // Scratchpad offsets. Simulate offset computation so that offset
             // computation can be avoided during execution.
             size_t inout_sp_offset_begin = 0;
@@ -221,13 +228,13 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             while (po_op_iter < end) {
                 if (fusion_ops++ > max_fusions_) return status::unimplemented;
 
-                auto prev_op_pd = op_pds_.back();
+                const auto &prev_op_pd = op_pds_.back();
 
                 if (po.entry_[po_op_iter].kind == primitive_kind::convolution) {
                     if (prev_op_pd->kind() != primitive_kind::convolution)
                         return status::unimplemented;
-                    auto conv_pd
-                            = reinterpret_cast<convolution_pd_t *>(prev_op_pd);
+                    auto conv_pd = reinterpret_cast<convolution_pd_t *>(
+                            prev_op_pd.get());
                     bool ok = true && is_fwd()
                             && utils::everyone_is(1, conv_pd->KD(),
                                     conv_pd->KH(), conv_pd->KW());
@@ -238,17 +245,20 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                     primitive_desc_t *append_conv_pd;
                     CHECK(get_depthwise_conv_desc(cd_dw, *(conv_pd->dst_md()),
                             root_attr, attr_dw, po_op_iter));
-                    CHECK(dnnl_primitive_desc_create(&append_conv_pd,
-                            (op_desc_t *)&cd_dw, &attr_dw, engine_, NULL));
+                    dnnl_primitive_desc_iterator it(
+                            engine, (op_desc_t *)&cd_dw, &attr_dw, nullptr);
+                    ++it;
+                    append_conv_pd = (it.fetch_once());
+                    if (!append_conv_pd) return status::unimplemented;
 
                     auto status = append_op(append_conv_pd,
-                            inout_sp_offset_begin, inout_sp_offset_end);
+                            inout_sp_offset_begin, inout_sp_offset_end, engine);
                     if (status != status::success) {
                         delete append_conv_pd;
                         return status;
                     }
 
-                    auto op = op_pds_.back();
+                    const auto &op = op_pds_.back();
                     arg_cache_t arg_cache;
                     arg_cache.append_inout_arg(DNNL_ARG_SRC,
                             inout_sp_offset_begin, op->src_md(), true);
@@ -303,49 +313,40 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
         void copy_from(const pd_t &other) {
             user_scratchpad_size_ = other.user_scratchpad_size_;
+            op_pds_.clear();
             for (const auto &other_op_pd : other.op_pds_)
-                op_pds_.push_back(other_op_pd->clone());
+                op_pds_.emplace_back(other_op_pd->clone());
             args_ = other.args_;
             name_ = other.name_;
             return;
         }
-
-        void clear() {
-            for (auto &op_pd : op_pds_)
-                delete op_pd;
-            op_pds_.clear();
-            return;
-        }
     };
 
-    ref_fused_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
+    ref_fused_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
+    virtual status_t init(engine_t *engine) override {
         const auto &op_pds = pd()->op_pds_;
-        for (const auto &op_pd : op_pds) {
-            primitive_iface_t *p = nullptr;
-            op_pd->create_primitive_iface(&p);
-            primitives_.push_back(p);
+        for (auto &op_pd : op_pds) {
+            std::shared_ptr<primitive_t> p;
+            op_pd->create_primitive(p, engine);
+            primitives_.emplace_back(p);
         }
 
         const dims_t dims_tz
                 = {static_cast<dim_t>(pd()->user_scratchpad_size_)};
         dnnl_memory_desc_init_by_tag(
                 &user_scratchpad_md_, 1, dims_tz, data_type::u8, format_tag::a);
-    }
-
-    ~ref_fused_convolution_fwd_t() {
-        for (auto &primitive : primitives_) {
-            if (primitive) delete primitive;
-        }
+        return status::success;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        engine_t *engine = ctx.stream()->engine();
         const auto scratchpad = ctx.get_scratchpad_grantor();
 
         const bool is_user_scratchpad_mode
                 = pd()->attr()->scratchpad_mode_ == scratchpad_mode::user;
 
-        memory_t user_scratchpad_mem(engine(), &user_scratchpad_md_,
+        memory_t user_scratchpad_mem(engine, &user_scratchpad_md_,
                 memory_flags_t::use_runtime_ptr, NULL);
         if (is_user_scratchpad_mode) {
             const auto buffer = scratchpad.get<void>(
@@ -370,8 +371,8 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 if (arg_info.is_ctx_arg) {
                     exec_args[arg_info.op_arg] = ctx_args.at(arg_info.ctx_arg);
                 } else {
-                    inout_memory.emplace_back(new memory_t(engine(),
-                            &arg_info.md, memory_flags_t::use_runtime_ptr,
+                    inout_memory.emplace_back(new memory_t(engine, &arg_info.md,
+                            memory_flags_t::use_runtime_ptr,
                             inout_buffer + arg_info.offset));
                     exec_args[arg_info.op_arg].mem = inout_memory.back().get();
                     exec_args[arg_info.op_arg].is_const = arg_info.is_const;
@@ -388,8 +389,8 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
-    std::vector<primitive_iface_t *> primitives_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::vector<std::shared_ptr<primitive_t>> primitives_;
     memory_desc_t user_scratchpad_md_;
 };
 

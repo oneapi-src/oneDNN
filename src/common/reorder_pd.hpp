@@ -29,14 +29,48 @@
 namespace dnnl {
 namespace impl {
 
-struct reorder_pd_t : public primitive_desc_t {
-    reorder_pd_t(engine_t *engine, const primitive_attr_t *attr,
-            engine_t *src_engine, const memory_desc_t *src_md,
-            engine_t *dst_engine, const memory_desc_t *dst_md)
-        : primitive_desc_t(engine, attr, primitive_kind::reorder)
+struct reorder_primitive_desc_iface_t : public dnnl_primitive_desc {
+    reorder_primitive_desc_iface_t(dnnl::impl::primitive_desc_t *pd,
+            dnnl::impl::engine_t *engine, dnnl::impl::engine_t *src_engine,
+            dnnl::impl::engine_t *dst_engine)
+        : dnnl_primitive_desc(pd, engine)
         , src_engine_(src_engine)
         , dst_engine_(dst_engine)
-        , scratchpad_engine_(nullptr)
+        , scratchpad_engine_(nullptr) {}
+
+    dnnl::impl::engine_t *src_engine() const override { return src_engine_; }
+    dnnl::impl::engine_t *dst_engine() const override { return dst_engine_; }
+
+    dnnl::impl::engine_t *scratchpad_engine() const override {
+        return scratchpad_engine_;
+    }
+
+    dnnl::impl::status_t query(
+            dnnl::impl::query_t what, int idx, void *result) const override {
+        auto status = dnnl::impl::status::success;
+        switch (what) {
+            case dnnl::impl::query::reorder_src_engine:
+                *(dnnl::impl::engine_t **)result = src_engine();
+                break;
+            case dnnl::impl::query::reorder_dst_engine:
+                *(dnnl::impl::engine_t **)result = dst_engine();
+                break;
+            default: status = dnnl_primitive_desc::query(what, idx, result);
+        }
+        return status;
+    }
+
+private:
+    dnnl::impl::engine_t *src_engine_;
+    dnnl::impl::engine_t *dst_engine_;
+    dnnl::impl::engine_t *scratchpad_engine_;
+};
+
+struct reorder_pd_t : public primitive_desc_t {
+    reorder_pd_t(const primitive_attr_t *attr, engine_kind_t src_engine_kind,
+            const memory_desc_t *src_md, engine_kind_t dst_engine_kind,
+            const memory_desc_t *dst_md)
+        : primitive_desc_t(attr, primitive_kind::reorder)
         , src_md_(*src_md)
         , dst_md_(*dst_md) {
 
@@ -45,8 +79,8 @@ struct reorder_pd_t : public primitive_desc_t {
         desc_.primitive_kind = primitive_kind::reorder;
         desc_.src_md = src_md_;
         desc_.dst_md = dst_md_;
-        desc_.src_engine_kind = src_engine_->kind();
-        desc_.dst_engine_kind = dst_engine_->kind();
+        desc_.src_engine_kind = src_engine_kind;
+        desc_.dst_engine_kind = dst_engine_kind;
     }
 
     const reorder_desc_t *desc() const { return &desc_; }
@@ -86,32 +120,8 @@ struct reorder_pd_t : public primitive_desc_t {
         return sum_idx == -1 ? 0 : attr()->post_ops_.entry_[sum_idx].sum.scale;
     }
 
-    engine_t *src_engine() const { return src_engine_; }
-    engine_t *dst_engine() const { return dst_engine_; }
-
-    virtual dnnl::impl::engine_t *scratchpad_engine() const override {
-        return scratchpad_engine_;
-    }
-
-    virtual status_t query(query_t what, int idx, void *result) const override {
-        switch (what) {
-            case query::reorder_src_engine:
-                *(engine_t **)result = src_engine();
-                break;
-            case query::reorder_dst_engine:
-                *(engine_t **)result = dst_engine();
-                break;
-            default: return primitive_desc_t::query(what, idx, result);
-        }
-        return status::success;
-    }
-
 protected:
     reorder_desc_t desc_;
-    engine_t *src_engine_;
-    engine_t *dst_engine_;
-    engine_t *scratchpad_engine_;
-
     memory_desc_t src_md_;
     memory_desc_t dst_md_;
 };

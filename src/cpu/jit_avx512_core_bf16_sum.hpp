@@ -170,9 +170,9 @@ struct jit_bf16_sum_t : public primitive_t {
         DECLARE_SUM_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_", jsp_.isa, ""),
                 jit_bf16_sum_t);
 
-        virtual status_t init() {
+        status_t init(engine_t *engine) {
             bool ok = true && mayiuse(avx512_core)
-                    && cpu_sum_pd_t::init() == status::success
+                    && cpu_sum_pd_t::init(engine) == status::success
                     && src_mds_.size()
                             <= jit_avx512_core_bf16_sum_kernel::max_num_arrs;
             if (!ok) return status::unimplemented;
@@ -216,7 +216,7 @@ struct jit_bf16_sum_t : public primitive_t {
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     jit_avx512_core_bf16_sum_kernel *kernel_;
 };
 

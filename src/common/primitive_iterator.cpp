@@ -30,7 +30,7 @@ using namespace dnnl::impl::status;
 status_t dnnl_primitive_desc_iterator_create(
         primitive_desc_iterator_t **iterator, const_c_op_desc_t c_op_desc,
         const primitive_attr_t *attr, engine_t *engine,
-        const primitive_desc_t *hint_fwd_pd) {
+        const primitive_desc_iface_t *hint_fwd_pd) {
     const op_desc_t *op_desc = (const op_desc_t *)c_op_desc;
     if (utils::any_null(iterator, op_desc, engine)) return invalid_arguments;
 
@@ -41,7 +41,8 @@ status_t dnnl_primitive_desc_iterator_create(
             pooling, resampling, rnn, shuffle, softmax);
     if (!known_primitive_kind) return invalid_arguments;
 
-    auto it = new primitive_desc_iterator_t(engine, op_desc, attr, hint_fwd_pd);
+    auto it = new primitive_desc_iterator_t(engine, op_desc, attr,
+            hint_fwd_pd ? hint_fwd_pd->impl().get() : nullptr);
     if (it == nullptr) return out_of_memory;
 
     ++(*it);
@@ -61,18 +62,24 @@ status_t dnnl_primitive_desc_iterator_next(
     return *iterator == iterator->end() ? iterator_ends : success;
 }
 
-primitive_desc_t *dnnl_primitive_desc_iterator_fetch(
+primitive_desc_iface_t *dnnl_primitive_desc_iterator_fetch(
         const primitive_desc_iterator_t *iterator) {
     if (iterator == nullptr) return nullptr;
-    return *(*iterator);
+    primitive_desc_iface_t *pd
+            = new primitive_desc_iface_t(*(*iterator), iterator->engine());
+    return pd;
 }
 
-status_t dnnl_primitive_desc_clone(primitive_desc_t **primitive_desc,
-        const primitive_desc_t *existing_primitive_desc) {
-    if (utils::any_null(primitive_desc, existing_primitive_desc))
+status_t dnnl_primitive_desc_clone(
+        primitive_desc_iface_t **primitive_desc_iface,
+        const primitive_desc_iface_t *existing_primitive_desc_iface) {
+    if (utils::any_null(primitive_desc_iface, existing_primitive_desc_iface))
         return invalid_arguments;
-    return safe_ptr_assign<primitive_desc_t>(
-            *primitive_desc, existing_primitive_desc->clone());
+
+    return safe_ptr_assign<primitive_desc_iface_t>(*primitive_desc_iface,
+            new dnnl::impl::primitive_desc_iface_t(
+                    existing_primitive_desc_iface->impl()->clone(),
+                    existing_primitive_desc_iface->engine()));
 }
 
 status_t dnnl_primitive_desc_iterator_destroy(
@@ -81,19 +88,21 @@ status_t dnnl_primitive_desc_iterator_destroy(
     return success;
 }
 
-status_t dnnl_primitive_desc_create(primitive_desc_t **primitive_desc,
+status_t dnnl_primitive_desc_create(
+        primitive_desc_iface_t **primitive_desc_iface,
         const_c_op_desc_t c_op_desc, const primitive_attr_t *attr,
-        engine_t *engine, const primitive_desc_t *hint_fwd_pd) {
+        engine_t *engine, const primitive_desc_iface_t *hint_fwd_pd) {
     primitive_desc_iterator_t *it;
     status_t status = dnnl_primitive_desc_iterator_create(
             &it, c_op_desc, attr, engine, hint_fwd_pd);
     if (status != status::success) return status;
 
-    primitive_desc_t *pd = it->fetch_once();
+    primitive_desc_iface_t *pd_iface
+            = new primitive_desc_iface_t(it->fetch_once(), engine);
     dnnl_primitive_desc_iterator_destroy(it);
-    if (pd == nullptr) return out_of_memory;
+    if (pd_iface == nullptr) return out_of_memory;
 
-    *primitive_desc = pd;
+    *primitive_desc_iface = pd_iface;
 
     return success;
 }

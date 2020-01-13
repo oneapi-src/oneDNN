@@ -33,7 +33,6 @@ namespace ocl {
 
 template <data_type_t data_type>
 status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
-
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 

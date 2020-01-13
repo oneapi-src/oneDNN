@@ -100,7 +100,7 @@ struct _ref_rnn_common_t : public primitive_t {
 
         DECLARE_COMMON_PD_T("ref:any", class_name, USE_GLOBAL_SCRATCHPAD);
 
-        status_t init() {
+        status_t init(engine_t *engine) {
             using namespace prop_kind;
             using namespace utils;
             using namespace format_tag;
@@ -343,7 +343,7 @@ private:
             const gemm_acc_t *ws_diff_states_iter_,
             const gemm_acc_t *ws_diff_states_iter_c_) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     size_t ws_gates_offset_;
     size_t ws_ht_offset_;

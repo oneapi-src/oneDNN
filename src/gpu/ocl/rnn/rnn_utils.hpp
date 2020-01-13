@@ -41,10 +41,10 @@
             const memory_storage_t *tm_scales) const
 
 #define cell_execution_sig(f) \
-    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
-            int slc, int sic, int wic, int batch, int n_layer, int n_dir, \
-            int n_iter, int n_gates, int n_states, int n_bias, \
-            size_t *weights_input, int n_parts_weights_layer, \
+    void f(engine_t *engine, const exec_ctx_t &ctx, int dir, int lay, \
+            int iter, int dhc, int slc, int sic, int wic, int batch, \
+            int n_layer, int n_dir, int n_iter, int n_gates, int n_states, \
+            int n_bias, size_t *weights_input, int n_parts_weights_layer, \
             size_t *weights_states, int n_parts_weights_iter, \
             const memory_storage_t &bias, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
@@ -55,9 +55,9 @@
             const memory_storage_t *tm_scales) const
 
 #define grid_execution_sig(f) \
-    void f(const exec_ctx_t &ctx, int dhc, int slc, int sic, int wic, \
-            int batch, int n_layer, int n_dir, int n_iter, int n_gates, \
-            int n_states, int n_bias, size_t *weights_input, \
+    void f(engine_t *engine, const exec_ctx_t &ctx, int dhc, int slc, int sic, \
+            int wic, int batch, int n_layer, int n_dir, int n_iter, \
+            int n_gates, int n_states, int n_bias, size_t *weights_input, \
             int n_parts_weights_layer, size_t *weights_states, \
             int n_parts_weights_iter, const memory_storage_t &bias, \
             const memory_storage_t &workspace, \
@@ -69,8 +69,8 @@
             const memory_storage_t *tm_scales) const
 
 #define gemm_sig(f) \
-    void f(const exec_ctx_t &ctx, const memory_storage_t &a, size_t off_a, \
-            const memory_storage_t &b, size_t off_b, \
+    void f(engine_t *engine, const exec_ctx_t &ctx, const memory_storage_t &a, \
+            size_t off_a, const memory_storage_t &b, size_t off_b, \
             const memory_storage_t &c, size_t off_c, gemm_kind_t gemm_kind) \
             const
 
