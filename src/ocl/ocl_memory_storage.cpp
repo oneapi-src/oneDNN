@@ -25,29 +25,12 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-status_t ocl_memory_storage_t::init(unsigned flags, size_t size, void *handle) {
-    // Do not allocate memory if one of these is true:
-    // 1) size is 0
-    // 2) handle is nullptr and 'alloc' flag is not set
-    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc))) {
-        if (handle != DNNL_MEMORY_ALLOCATE)
-            mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
-                    static_cast<cl_mem>(handle), true);
-        return status::success;
-    }
+status_t ocl_memory_storage_t::init_allocate(size_t size) {
     auto *ocl_engine = utils::downcast<ocl_gpu_engine_t *>(engine());
     cl_int err;
-    if (flags & memory_flags_t::alloc) {
-        cl_mem mem_object_ptr = clCreateBuffer(
-                ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
-        OCL_CHECK(err);
-        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(mem_object_ptr, false);
-    } else if (flags & memory_flags_t::use_runtime_ptr) {
-        mem_object_ = ocl_utils::ocl_wrapper_t<cl_mem>(
-                static_cast<cl_mem>(handle), true);
-    } else {
-        assert(!"not expected");
-    }
+    mem_object_ = clCreateBuffer(
+            ocl_engine->context(), CL_MEM_READ_WRITE, size, nullptr, &err);
+    OCL_CHECK(err);
     return status::success;
 }
 

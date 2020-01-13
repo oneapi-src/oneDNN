@@ -186,10 +186,10 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     auto &co = CTX_IN_STORAGE(DNNL_ARG_SRC_2);
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
-    size_t off_c0 = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
-    size_t offset_co = co.get_offset() / sizeof(c_t) + pd()->dyn_offset_co;
+    size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
+    size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
+    size_t off_c0 = c.offset() / sizeof(c_t) + pd()->dyn_offset_c;
+    size_t offset_co = co.offset() / sizeof(c_t) + pd()->dyn_offset_co;
 
     bool do_compute = ((k > 0) && (alpha != 0.0f));
     bool do_scale = !(
