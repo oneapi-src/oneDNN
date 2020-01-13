@@ -33,8 +33,6 @@ public:
     ocl_memory_storage_t(engine_t *engine)
         : memory_storage_t(engine), mem_object_(nullptr) {}
 
-    status_t init(unsigned flags, size_t size, void *handle);
-
     virtual status_t get_data_handle(void **handle) const override {
         *handle = static_cast<void *>(mem_object_.get());
         return status::success;
@@ -53,6 +51,9 @@ public:
 
     virtual std::unique_ptr<memory_storage_t> get_sub_storage(
             size_t offset, size_t size) const override;
+
+protected:
+    virtual status_t init_allocate(size_t size) override;
 
 private:
     ocl_utils::ocl_wrapper_t<cl_mem> mem_object_;

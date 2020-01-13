@@ -35,6 +35,8 @@ struct memory_storage_t : public c_compatible {
     memory_storage_t(engine_t *engine) : engine_(engine) {}
     virtual ~memory_storage_t() = default;
 
+    status_t init(unsigned flags, size_t size, void *handle);
+
     engine_t *engine() const { return engine_; }
 
     void *data_handle() const {
@@ -48,7 +50,7 @@ struct memory_storage_t : public c_compatible {
     virtual status_t get_data_handle(void **handle) const = 0;
     virtual status_t set_data_handle(void *handle) = 0;
 
-    size_t get_offset() const { return offset_; }
+    size_t offset() const { return offset_; }
     void set_offset(size_t offset) { offset_ = offset; }
 
     virtual status_t map_data(void **mapped_ptr) const {
@@ -80,6 +82,9 @@ struct memory_storage_t : public c_compatible {
 
     static memory_storage_t &empty_storage();
 
+protected:
+    virtual status_t init_allocate(size_t size) = 0;
+
 private:
     engine_t *engine_;
     size_t offset_ = 0;
@@ -105,6 +110,9 @@ struct empty_memory_storage_t : public memory_storage_t {
         assert(!"not expected");
         return nullptr;
     }
+
+protected:
+    virtual status_t init_allocate(size_t) override { return status::success; }
 };
 
 inline memory_storage_t &memory_storage_t::empty_storage() {

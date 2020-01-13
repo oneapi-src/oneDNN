@@ -435,9 +435,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
     auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
-    size_t off_c0 = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
+    size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
+    size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
+    size_t off_c0 = c.offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
     bool nocopy = (gemm_type_ == type::no_copy)
             || (gemm_type_ == type::no_copy_if_even_off && !(off_a0 & 1)
@@ -550,9 +550,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    size_t off_a0 = a.get_offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b0 = b.get_offset() / sizeof(b_t) + pd()->dyn_offset_b;
-    size_t off_c = c.get_offset() / sizeof(c_t) + pd()->dyn_offset_c;
+    size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
+    size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
+    size_t off_c = c.offset() / sizeof(c_t) + pd()->dyn_offset_c;
 
     status_t status;
     auto block_k = jit_gen9_gemm_driver_params<acc_type, true>::block_k;

@@ -33,24 +33,6 @@ public:
     cpu_memory_storage_t(engine_t *engine)
         : memory_storage_t(engine), data_(nullptr, release) {}
 
-    status_t init(unsigned flags, size_t size, void *handle) {
-        // Do not allocate memory if one of these is true:
-        // 1) size is 0
-        // 2) handle is nullptr and 'alloc' flag is not set
-        if (size == 0 || (!handle && !(flags & memory_flags_t::alloc))) {
-            data_ = decltype(data_)(handle, release);
-            return status::success;
-        }
-        if (flags & memory_flags_t::alloc) {
-            void *data_ptr = malloc(size, 64);
-            if (data_ptr == nullptr) return status::out_of_memory;
-            data_ = decltype(data_)(data_ptr, destroy);
-        } else if (flags & memory_flags_t::use_runtime_ptr) {
-            data_ = decltype(data_)(handle, release);
-        }
-        return status::success;
-    }
-
     virtual status_t get_data_handle(void **handle) const override {
         *handle = data_.get();
         return status::success;
@@ -67,6 +49,14 @@ public:
         auto sub_storage = new cpu_memory_storage_t(this->engine());
         sub_storage->init(memory_flags_t::use_runtime_ptr, size, sub_ptr);
         return std::unique_ptr<memory_storage_t>(sub_storage);
+    }
+
+protected:
+    virtual status_t init_allocate(size_t size) override {
+        void *ptr = malloc(size, 64);
+        if (!ptr) return status::out_of_memory;
+        data_ = decltype(data_)(ptr, destroy);
+        return status::success;
     }
 
 private:
