@@ -86,7 +86,8 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     const auto nelems = dt_mem.nelems();
     r->errors = 0;
     r->total = nelems;
-    const float trh = (p->ddt == dnnl_f16 ? 1e-3 : 1e-7) * p->n_inputs();
+    const float trh = epsilon_dt(p->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
+            * p->n_inputs();
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);

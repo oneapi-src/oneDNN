@@ -136,8 +136,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
     // Tolerate ~3 ulp of relative error for fp32.
     float trh = 2e-6;
     // Tolerate only rounding error(~1/2 ulp) for reduced precision.
-    if (p->dt == dnnl_f16) trh = 1e-3;
-    if (p->dt == dnnl_bf16) trh = 8e-3;
+    if (p->dt == dnnl_f16 || p->dt == dnnl_bf16) trh = epsilon_dt(p->dt);
 
     // Tolerate ~7ulp for complex primitives in fp32.
     if (p->dt == dnnl_f32

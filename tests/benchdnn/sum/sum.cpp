@@ -69,9 +69,7 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
     r->errors = 0;
     r->total = nelems;
 
-    float trh = 1e-7 * p->n_inputs(); // relative error for fp32
-    if (dst_data_type == dnnl_f16) trh = 1e-3 * p->n_inputs();
-    if (dst_data_type == dnnl_bf16) trh = 8e-3 * p->n_inputs();
+    float trh = epsilon_dt(dst_data_type) * p->n_inputs();
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);

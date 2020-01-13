@@ -42,7 +42,7 @@ diff_last_layer,
 params: {data_type, min, max, f_min, f_max, f_mean, f_stddev, eps}
 */
 
-#define EPS_F32 1e-7
+#define EPS_F32 epsilon_dt(dnnl_f32)
 
 #define MIN_F32 0.0f
 #define MAX_F32 .999999f
@@ -77,7 +77,7 @@ const _dt_conf_t conf_f32 = {
         F32_ENTRY_INEXACT, //diff_last_layer
 };
 
-#define EPS_BF16 8e-3
+#define EPS_BF16 epsilon_dt(dnnl_bf16)
 
 #define MIN_BF16 0.0f
 #define MAX_BF16 .999999f
@@ -194,7 +194,7 @@ const _dt_conf_t conf_f32u8f32f32 = {
 
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
-#define EPS 1e-3
+#define EPS epsilon_dt(dnnl_f16)
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
