@@ -23,6 +23,7 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "compute/compute.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 #include "ocl/jit_gen9_gemm_kernel_x8x8s32.hpp"
 #include "ocl/ocl_gemm_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -34,7 +35,7 @@ namespace ocl {
 
 template <impl::data_type_t a_type, impl::data_type_t b_type,
         impl::data_type_t c_type>
-struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
+struct jit_gen9_gemm_x8x8s32_t : public ocl_gemm_t {
     using c_t = typename prec_traits<c_type>::type;
     using ao_t = typename prec_traits<a_type>::type;
     using bo_t = typename prec_traits<b_type>::type;
@@ -59,7 +60,7 @@ struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops;
+            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::post_ops | primitive_attr_t::skip_mask_t::zero_points_runtime;
 
             bool ok = true && desc()->a_type == a_type
                     && desc()->b_type == b_type && desc()->c_type == c_type
@@ -152,9 +153,11 @@ struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
                 &temp_buf_ptr, pd()->desc()->m * pd()->desc()->n * sizeof(int));
         temp_buf_.reset(temp_buf_ptr);
 
-        bool fixed_c = (pd()->desc()->offsetc == dnnl_fixed);
-        bool column_c = (pd()->desc()->offsetc == dnnl_column);
-        bool row_c = (pd()->desc()->offsetc == dnnl_row);
+        int cmask = 0;
+        pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+        bool fixed_c = (0 == cmask);
+        bool column_c = (1 << 0 == cmask);
+        bool row_c = (1 << 1 == cmask);
 
         auto status = jit_gen9_gemm_x8x8s32_kernel<a_type, b_type,
                 c_type>::init_const_def(kernel_ctx, pd()->desc()->transa,
@@ -181,9 +184,10 @@ struct jit_gen9_gemm_x8x8s32_t : public primitive_impl_t {
         return status::success;
     }
 
-    jit_gen9_gemm_x8x8s32_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    jit_gen9_gemm_x8x8s32_t(const pd_t *apd) : ocl_gemm_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
+    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     status_t launch_x8x8s32(compute::compute_stream_t *s,
@@ -201,7 +205,7 @@ private:
             int64_t offset_co, bool alpha_is_zero, bool apply_eltwise,
             c_t eltwise_alpha, c_t eltwise_beta) const;
 
-    virtual status_t execute_standard(const exec_ctx_t &ctx) const;
+    virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
 
     compute::kernel_t compute_x8x8s32_kernel_;
     compute::kernel_t scale_x8x8s32_kernel_;

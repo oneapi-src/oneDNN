@@ -201,18 +201,12 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
                                                         : transpose::trans;
     op_desc.transb = (*transb == 'n' || *transb == 'N') ? transpose::notrans
                                                         : transpose::trans;
-    op_desc.offsetc = (*offsetc == 'f' || *offsetc == 'F')
-            ? offsetc::fixed
-            : ((*offsetc == 'c' || *offsetc == 'C') ? offsetc::column
-                                                    : offsetc::row);
     op_desc.m = m;
     op_desc.n = n;
     op_desc.k = k;
     op_desc.lda = lda;
     op_desc.ldb = ldb;
     op_desc.ldc = ldc;
-    op_desc.ao = ao;
-    op_desc.bo = bo;
     op_desc.alpha = alpha;
     op_desc.beta = beta;
     op_desc.a_type = a_type;
@@ -233,6 +227,32 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
 
     std::unique_ptr<primitive_desc_t> pd;
     primitive_attr_t attr;
+
+    auto &zp = attr.zero_points_;
+    switch (*offsetc) {
+        case 'f':
+        case 'F': status = zp.set(DNNL_ARG_DST, DNNL_RUNTIME_S32_VAL); break;
+        case 'c':
+        case 'C':
+            status = zp.set(DNNL_ARG_DST, 1, 1 << 1, &DNNL_RUNTIME_S32_VAL);
+            break;
+        case 'r':
+        case 'R':
+            status = zp.set(DNNL_ARG_DST, 1, 1 << 0, &DNNL_RUNTIME_S32_VAL);
+            break;
+        default: status = status::invalid_arguments;
+    }
+    if (status != status::success) return status;
+
+    if (ao != 0) {
+        status = zp.set(DNNL_ARG_SRC, ao);
+        if (status != status::success) return status;
+    }
+    if (bo != 0) {
+        zp.set(DNNL_ARG_WEIGHTS, bo);
+        if (status != status::success) return status;
+    }
+
     primitive_desc_t *pd_ptr;
     status = primitive_desc_t::create<pd_type>(&pd_ptr,
             reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),

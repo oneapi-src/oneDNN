@@ -157,12 +157,25 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_scale_x8x8s32(
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute(
         const exec_ctx_t &ctx) const {
+    gemm_exec_args_t gemm_args;
+    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC_0);
+    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC_1);
+    gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
+    gemm_args.c_zero_point = &CTX_IN_STORAGE(DNNL_ARG_SRC_2);
+
+    gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    return execute(gemm_ctx);
+}
+
+template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
+status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute(
+        const gemm_exec_ctx_t &ctx) const {
     return execute_standard(ctx);
 }
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
-        const exec_ctx_t &ctx) const {
+        const gemm_exec_ctx_t &ctx) const {
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -178,11 +191,14 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     bool transa = (pd()->desc()->transa == dnnl_trans);
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
+    int cmask = 0;
+    pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
+
     char offsetc_char;
 
-    if (pd()->desc()->offsetc == dnnl_column)
+    if (1 << 1 == cmask)
         offsetc_char = 'C';
-    else if (pd()->desc()->offsetc == dnnl_row)
+    else if (1 << 0 == cmask)
         offsetc_char = 'R';
     else
         offsetc_char = 'F';
@@ -191,8 +207,13 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     auto ldb = pd()->desc()->ldb;
     auto ldc = pd()->desc()->ldc;
 
-    a_t ao = pd()->desc()->ao;
-    b_t bo = pd()->desc()->bo;
+    const int *ao_i32 = nullptr;
+    const int *bo_i32 = nullptr;
+    pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
+    pd()->attr()->zero_points_.get(DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
+
+    a_t ao = static_cast<a_t>(ao_i32[0]);
+    b_t bo = static_cast<b_t>(bo_i32[0]);
 
     auto alpha = pd()->desc()->alpha;
     auto beta = pd()->desc()->beta;
@@ -200,10 +221,10 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
 
-    auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
-    auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-    auto &co = CTX_IN_STORAGE(DNNL_ARG_SRC_2);
-    auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &a = GEMM_CTX_ARG_STORAGE(a);
+    auto &b = GEMM_CTX_ARG_STORAGE(b);
+    auto &c = GEMM_CTX_ARG_STORAGE(c);
+    auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
     size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
     size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;

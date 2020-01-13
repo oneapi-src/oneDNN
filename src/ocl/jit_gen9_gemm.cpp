@@ -395,6 +395,19 @@ template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
         data_type_t acc_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
         const exec_ctx_t &ctx) const {
+    gemm_exec_args_t gemm_args;
+    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC_0);
+    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC_1);
+    gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
+
+    gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    return execute(gemm_ctx);
+}
+
+template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
+        data_type_t acc_type>
+status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
+        const gemm_exec_ctx_t &ctx) const {
     if (gemm_type_ == type::no_copy_superkernel)
         return execute_superkernel(ctx);
     else
@@ -404,7 +417,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
         data_type_t acc_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
-        const exec_ctx_t &ctx) const {
+        const gemm_exec_ctx_t &ctx) const {
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -431,9 +444,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
     beta_native = beta;
     one_native = 1.0f;
 
-    auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
-    auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-    auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &a = GEMM_CTX_ARG_STORAGE(a);
+    auto &b = GEMM_CTX_ARG_STORAGE(b);
+    auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
     size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
@@ -524,7 +537,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
         data_type_t acc_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
-        const exec_ctx_t &ctx) const {
+        const gemm_exec_ctx_t &ctx) const {
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -546,9 +559,9 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
 
-    auto &a = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
-    auto &b = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-    auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
+    auto &a = GEMM_CTX_ARG_STORAGE(a);
+    auto &b = GEMM_CTX_ARG_STORAGE(b);
+    auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
     size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;

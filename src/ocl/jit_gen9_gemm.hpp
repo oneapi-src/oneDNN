@@ -23,6 +23,7 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "compute/compute.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 #include "ocl/jit_gen9_gemm_kernel.hpp"
 #include "ocl/ocl_gemm_pd.hpp"
 #include "ocl/ocl_stream.hpp"
@@ -34,7 +35,7 @@ namespace ocl {
 
 template <impl::data_type_t a_type, impl::data_type_t b_type = a_type,
         impl::data_type_t c_type = a_type, impl::data_type_t acc_type = c_type>
-struct jit_gen9_gemm_t : public primitive_impl_t {
+struct jit_gen9_gemm_t : public ocl_gemm_t {
     using a_t = typename prec_traits<a_type>::type;
     using b_t = typename prec_traits<b_type>::type;
     using c_t = typename prec_traits<c_type>::type;
@@ -251,9 +252,10 @@ struct jit_gen9_gemm_t : public primitive_impl_t {
         return init_superkernel_plan();
     }
 
-    jit_gen9_gemm_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    jit_gen9_gemm_t(const pd_t *apd) : ocl_gemm_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
+    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 protected:
 #ifdef _WIN32
@@ -296,8 +298,8 @@ private:
     size_t max_plan_size() const;
     status_t init_superkernel_plan();
 
-    virtual status_t execute_standard(const exec_ctx_t &ctx) const;
-    virtual status_t execute_superkernel(const exec_ctx_t &ctx) const;
+    virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
+    virtual status_t execute_superkernel(const gemm_exec_ctx_t &ctx) const;
 
     compute::kernel_t compute_kernel_[2];
     compute::kernel_t copy_kernel_[2][2];

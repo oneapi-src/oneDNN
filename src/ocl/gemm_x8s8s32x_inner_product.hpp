@@ -40,7 +40,6 @@ inline status_t create_gemm_x8s8s32x_pd(primitive_desc_t **gemm_pd,
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
     gemm_desc.transb = transb;
-    gemm_desc.offsetc = offsetc::fixed;
     gemm_desc.m = m;
     gemm_desc.n = n;
     gemm_desc.k = k;
@@ -53,8 +52,6 @@ inline status_t create_gemm_x8s8s32x_pd(primitive_desc_t **gemm_pd,
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
-    gemm_desc.ao = 0;
-    gemm_desc.bo = 0;
 
     return dnnl_primitive_desc_create(
             gemm_pd, (op_desc_t *)&gemm_desc, &attr, engine, nullptr);
