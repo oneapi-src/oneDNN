@@ -473,18 +473,34 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                                         &gemm_layer_fwd_),
                                 pd()->gemm_iter_fwd_pd_->create_primitive(
                                         &gemm_iter_fwd_));
+                gemm_ok = gemm_ok
+                        && utils::everyone_is(status::success,
+                                get_primitive_impl(
+                                        &gemm_layer_fwd_impl_, gemm_layer_fwd_),
+                                get_primitive_impl(
+                                        &gemm_iter_fwd_impl_, gemm_iter_fwd_));
                 break;
             case prop_kind::backward:
                 gemm_ok = true
                         && utils::everyone_is(status::success,
-                                pd()->gemm_iter_bwd_pd_->create_primitive(
-                                        &gemm_iter_bwd_),
                                 pd()->gemm_layer_bwd_pd_->create_primitive(
                                         &gemm_layer_bwd_),
+                                pd()->gemm_iter_bwd_pd_->create_primitive(
+                                        &gemm_iter_bwd_),
                                 pd()->gemm_diff_wei_layer_pd_->create_primitive(
                                         &gemm_diff_wei_layer_),
                                 pd()->gemm_diff_wei_iter_pd_->create_primitive(
                                         &gemm_diff_wei_iter_));
+                gemm_ok = gemm_ok
+                        && utils::everyone_is(status::success,
+                                get_primitive_impl(
+                                        &gemm_layer_bwd_impl_, gemm_layer_bwd_),
+                                get_primitive_impl(
+                                        &gemm_iter_bwd_impl_, gemm_iter_bwd_),
+                                get_primitive_impl(&gemm_diff_wei_layer_impl_,
+                                        gemm_diff_wei_layer_),
+                                get_primitive_impl(&gemm_diff_wei_iter_impl_,
+                                        gemm_diff_wei_iter_));
                 break;
             default:
                 assert(!"unknown prop_kind");
@@ -654,6 +670,13 @@ private:
     primitive_t *gemm_iter_bwd_ = nullptr;
     primitive_t *gemm_diff_wei_layer_ = nullptr;
     primitive_t *gemm_diff_wei_iter_ = nullptr;
+
+    ocl_gemm_t *gemm_layer_fwd_impl_ = nullptr;
+    ocl_gemm_t *gemm_iter_fwd_impl_ = nullptr;
+    ocl_gemm_t *gemm_layer_bwd_impl_ = nullptr;
+    ocl_gemm_t *gemm_iter_bwd_impl_ = nullptr;
+    ocl_gemm_t *gemm_diff_wei_layer_impl_ = nullptr;
+    ocl_gemm_t *gemm_diff_wei_iter_impl_ = nullptr;
 
     std::unique_ptr<memory_storage_t> scales_buf_;
     std::unique_ptr<memory_storage_t> tm_scales_buf_;

@@ -34,6 +34,7 @@
 #include "dnnl_thread.hpp"
 #include "dnnl_traits.hpp"
 #include "math_utils.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 #include "type_helpers.hpp"
 
 namespace dnnl {
@@ -69,127 +70,100 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     // memory before each gemm call. Each cell type (+prop kind) might have
     // different number of GEMMs.
 
-    memory_desc_t scratchpad_md;
-    memory_desc_t scratchpad_gates_md;
-
-    size_t scratchpad_sz {0}, ws_sz {0};
-    get_scratchpad_and_workspace_sizes(pd()->rnn_conf_, scratchpad_sz, ws_sz);
-    dims_t scratchpad_dims = {(int)scratchpad_sz};
-    dnnl_memory_desc_init_by_tag(
-            &scratchpad_md, 1, scratchpad_dims, data_type::u8, format_tag::x);
-
-    dims_t scratch_gates_dims = {(dim_t)pd()->rnn_conf_.scratch_gates_size};
-    dnnl_memory_desc_init_by_tag(&scratchpad_gates_md, 1, scratch_gates_dims,
-            data_type::u8, format_tag::x);
-
-    void *mem_storage_scratchpad = nullptr;
-    void *mem_storage_scratchpad_gates = nullptr;
+    void *scratchpad_ptr {nullptr}, *scratchpad_gates_ptr {nullptr};
 
     memory_t *workspace = (aprop == prop_kind::forward)
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
 
     if (pd()->rnn_conf_.use_workspace) {
-        workspace->memory_storage()->get_data_handle(&mem_storage_scratchpad);
+        workspace->memory_storage()->get_data_handle(&scratchpad_ptr);
     } else {
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_rnn_space);
-        scratchpad->get_data_handle(&mem_storage_scratchpad);
+        scratchpad->get_data_handle(&scratchpad_ptr);
     }
+
     auto scratchpad_gates
             = ctx.get_scratchpad_grantor().get_memory_storage(key_rnn_gates);
-    scratchpad_gates->get_data_handle(&mem_storage_scratchpad_gates);
+    scratchpad_gates->get_data_handle(&scratchpad_gates_ptr);
 
-    void *mem_storage_weights = nullptr;
-    memory_t *weights = nullptr;
-    exec_args_t gemm_args;
+    void *weights_ptr {nullptr};
+    memory_t *weights {nullptr};
 
-    std::shared_ptr<memory_t> gemm_mem_A;
-    std::shared_ptr<memory_t> gemm_mem_B;
-    std::shared_ptr<memory_t> gemm_mem_C;
+    // These memory storages provide a mechanism to reuse existing memory
+    // storage with an offset. These memory storages don't own attached memory
+    memory_storage_t *gemm_A_ = nullptr;
+    memory_storage_t *gemm_B_ = nullptr;
+    memory_storage_t *gemm_C_ = nullptr;
 
-    // offsets (off_a, off_b and off_c) come by bytes
+    engine()->create_memory_storage(&gemm_A_, use_runtime_ptr, 0, nullptr);
+    engine()->create_memory_storage(&gemm_B_, use_runtime_ptr, 0, nullptr);
+    engine()->create_memory_storage(&gemm_C_, use_runtime_ptr, 0, nullptr);
+
     switch (gemm_kind) {
         case gemm_iter_fwd:
         case gemm_layer_fwd:
             weights = (gemm_kind == gemm_layer_fwd)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            weights->memory_storage()->get_data_handle(&mem_storage_weights);
+            weights->memory_storage()->get_data_handle(&weights_ptr);
 
-            gemm_mem_A.reset(new memory_t(engine(), weights->md(),
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_C.reset(new memory_t(engine(), &scratchpad_gates_md,
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_A->set_data_handle(mem_storage_weights);
-            gemm_mem_B->set_data_handle(mem_storage_scratchpad);
-            gemm_mem_C->set_data_handle(mem_storage_scratchpad_gates);
-            gemm_mem_A->memory_storage()->set_offset(off_a);
-            gemm_mem_B->memory_storage()->set_offset(off_b);
-            gemm_mem_C->memory_storage()->set_offset(off_c);
+            gemm_A_->set_data_handle(weights_ptr);
+            gemm_B_->set_data_handle(scratchpad_ptr);
+            gemm_C_->set_data_handle(scratchpad_gates_ptr);
             break;
         case gemm_iter_bwd:
         case gemm_layer_bwd:
             weights = (gemm_kind == gemm_layer_bwd)
                     ? ctx.input(DNNL_ARG_WEIGHTS_LAYER)
                     : ctx.input(DNNL_ARG_WEIGHTS_ITER);
-            weights->memory_storage()->get_data_handle(&mem_storage_weights);
+            weights->memory_storage()->get_data_handle(&weights_ptr);
 
-            gemm_mem_A.reset(new memory_t(engine(), weights->md(),
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_B.reset(new memory_t(engine(), &scratchpad_gates_md,
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_C.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_A->set_data_handle(mem_storage_weights);
-            gemm_mem_B->set_data_handle(mem_storage_scratchpad_gates);
-            gemm_mem_C->set_data_handle(mem_storage_scratchpad);
-            gemm_mem_A->memory_storage()->set_offset(off_a);
-            gemm_mem_B->memory_storage()->set_offset(off_b);
-            gemm_mem_C->memory_storage()->set_offset(off_c);
+            gemm_A_->set_data_handle(weights_ptr);
+            gemm_B_->set_data_handle(scratchpad_gates_ptr);
+            gemm_C_->set_data_handle(scratchpad_ptr);
             break;
         case gemm_diff_wei_iter:
         case gemm_diff_wei_layer:
             weights = (gemm_kind == gemm_diff_wei_iter)
                     ? ctx.output(DNNL_ARG_DIFF_WEIGHTS_ITER)
                     : ctx.output(DNNL_ARG_DIFF_WEIGHTS_LAYER);
-            weights->memory_storage()->get_data_handle(&mem_storage_weights);
+            weights->memory_storage()->get_data_handle(&weights_ptr);
 
-            gemm_mem_A.reset(new memory_t(engine(), &scratchpad_gates_md,
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_B.reset(new memory_t(engine(), &scratchpad_md,
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_C.reset(new memory_t(engine(), weights->md(),
-                    memory_flags_t::use_runtime_ptr, nullptr));
-            gemm_mem_A->set_data_handle(mem_storage_scratchpad_gates);
-            gemm_mem_B->set_data_handle(mem_storage_scratchpad);
-            gemm_mem_C->set_data_handle(mem_storage_weights);
-            gemm_mem_A->memory_storage()->set_offset(off_a);
-            gemm_mem_B->memory_storage()->set_offset(off_b);
-            gemm_mem_C->memory_storage()->set_offset(off_c);
+            gemm_A_->set_data_handle(scratchpad_gates_ptr);
+            gemm_B_->set_data_handle(scratchpad_ptr);
+            gemm_C_->set_data_handle(weights_ptr);
             break;
         default: assert(!"unknown gemm_kind");
     }
 
-    gemm_args[DNNL_ARG_SRC_0] = {gemm_mem_A.get(), true};
-    gemm_args[DNNL_ARG_SRC_1] = {gemm_mem_B.get(), true};
-    gemm_args[DNNL_ARG_DST] = {gemm_mem_C.get(), false};
+    gemm_A_->set_offset(off_a);
+    gemm_B_->set_offset(off_b);
+    gemm_C_->set_offset(off_c);
 
-    auto gemm_ctx = exec_ctx_t(ctx.stream(), std::move(gemm_args));
+    gemm_exec_args_t gemm_args;
+    gemm_args.a = gemm_A_;
+    gemm_args.b = gemm_B_;
+    gemm_args.c = gemm_C_;
+
+    auto gemm_ctx = gemm_exec_ctx_t(ctx.stream(), std::move(gemm_args));
 
     switch (gemm_kind) {
-        case gemm_iter_fwd: gemm_iter_fwd_->execute(gemm_ctx); break;
-        case gemm_layer_fwd: gemm_layer_fwd_->execute(gemm_ctx); break;
-        case gemm_iter_bwd: gemm_iter_bwd_->execute(gemm_ctx); break;
-        case gemm_layer_bwd: gemm_layer_bwd_->execute(gemm_ctx); break;
-        case gemm_diff_wei_iter: gemm_diff_wei_iter_->execute(gemm_ctx); break;
+        case gemm_iter_fwd: gemm_iter_fwd_impl_->execute(gemm_ctx); break;
+        case gemm_layer_fwd: gemm_layer_fwd_impl_->execute(gemm_ctx); break;
+        case gemm_iter_bwd: gemm_iter_bwd_impl_->execute(gemm_ctx); break;
+        case gemm_layer_bwd: gemm_layer_bwd_impl_->execute(gemm_ctx); break;
+        case gemm_diff_wei_iter: gemm_diff_wei_iter_impl_->execute(gemm_ctx); break;
         case gemm_diff_wei_layer:
-            gemm_diff_wei_layer_->execute(gemm_ctx);
+            gemm_diff_wei_layer_impl_->execute(gemm_ctx);
             break;
         default: assert(!"unknown gemm_kind");
     }
+
+    delete gemm_A_;
+    delete gemm_B_;
+    delete gemm_C_;
 }
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
