@@ -22,6 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
 #include "compute/compute.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 #include "ocl/jit_primitive_conf.hpp"
 #include "ocl/ocl_inner_product_pd.hpp"
 
@@ -236,6 +237,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
     status_t init() override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
         if (gemm_status != status::success) return gemm_status;
+        gemm_status = get_primitive_impl(&gemm_impl_, gemm_);
+        if (gemm_status != status::success) return gemm_status;
 
         const size_t mb = pd()->MB();
         const size_t oc = pd()->OC();
@@ -326,6 +329,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
+    ocl_gemm_t *gemm_impl_ = nullptr;
     compute::kernel_t post_process_kernel_;
     std::unique_ptr<memory_t> scales_mem_;
     std::unique_ptr<memory_storage_t> scratchpad_;

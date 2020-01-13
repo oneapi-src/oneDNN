@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "ocl/gemm_x8s8s32x_inner_product.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 #include "ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -24,27 +25,18 @@ namespace ocl {
 status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
-    exec_args_t gemm_args;
-    gemm_args[DNNL_ARG_SRC_0] = ctx.args().at(DNNL_ARG_WEIGHTS);
-    gemm_args[DNNL_ARG_SRC_1] = ctx.args().at(DNNL_ARG_SRC);
-
-    std::shared_ptr<memory_t> scratchpad_mem;
-    if (pd()->use_scratchpad()) {
-        scratchpad_mem.reset(new memory_t(engine(), pd()->ip_scratchpad_md(),
-                memory_flags_t::use_runtime_ptr, nullptr));
-        void *mem_storage_scratchpad = nullptr;
-        scratchpad_->get_data_handle(&mem_storage_scratchpad);
-        scratchpad_mem->set_data_handle(mem_storage_scratchpad);
-    }
+    gemm_exec_args_t gemm_args;
+    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
+    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
 
     if (pd()->use_temp_dst()) {
-        gemm_args[DNNL_ARG_DST] = {scratchpad_mem.get(), false};
+        gemm_args.c = scratchpad_.get();
     } else {
-        gemm_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
+        gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
     }
 
-    exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
-    status_t gemm_exec_status = gemm_->execute(gemm_ctx);
+    gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    status_t gemm_exec_status = gemm_impl_->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_post_process()) {
