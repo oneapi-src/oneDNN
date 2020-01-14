@@ -72,7 +72,7 @@ if(UNIX OR MINGW)
     set(test_c_symbols "${CMAKE_CURRENT_BINARY_DIR}/test_c_symbols.c")
     add_custom_command(
         OUTPUT ${test_c_symbols}
-        COMMAND /bin/bash ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/generate_c_symbols_refs.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/.. ${test_c_symbols} ${include_dirs}
     )
     register_exe(test_c_symbols-c ${test_c_symbols} "test")
