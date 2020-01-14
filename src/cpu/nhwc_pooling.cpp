@@ -426,14 +426,13 @@ void nhwc_pooling_bwd_t<d_type>::execute_backward(const exec_ctx_t &ctx) const {
                 size_t ws_offset_init = strided_offset(mb, ws_n_stride, od,
                         ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
                 const int index = kd * KH * KW + kh * KW + kw;
+                const unsigned char *ws_ = ws + ws_offset_init;
+                const int *intws_ = (int *)ws + ws_offset_init;
+                const bool ws_is_u8 = MEM_D(ws).data_type() == data_type::u8;
 
                 PRAGMA_OMP_SIMD()
                 for (int oc = 0; oc < OC; ++oc) {
-                    const int index_from_ws
-                            = (MEM_D(ws).data_type() == data_type::u8)
-                            ? (int)ws[ws_offset_init + oc]
-                            : ((int *)ws)[ws_offset_init + oc];
-
+                    const int index_from_ws = ws_is_u8 ? ws_[oc] : intws_[oc];
                     const data_t d = diff_dst[dst_offset_init + oc];
 
                     // Check if kernel windows are disjoint, in this case
@@ -575,13 +574,13 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
                 size_t ws_offset_init = strided_offset(mb, ws_n_stride, od,
                         ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
                 const int index = kd * KH * KW + kh * KW + kw;
+                const unsigned char *ws_ = ws + ws_offset_init;
+                const int *intws_ = (int *)ws + ws_offset_init;
+                const bool ws_is_u8 = MEM_D(ws).data_type() == data_type::u8;
 
                 PRAGMA_OMP_SIMD()
                 for (int oc = 0; oc < OC; ++oc) {
-                    const int index_from_ws
-                            = (MEM_D(ws).data_type() == data_type::u8)
-                            ? (int)ws[ws_offset_init + oc]
-                            : ((int *)ws)[ws_offset_init + oc];
+                    const int index_from_ws = ws_is_u8 ? ws_[oc] : intws_[oc];
 
                     // Check if kernel windows are disjoint, in this case
                     // there's no update needed and we just write there once

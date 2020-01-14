@@ -59,7 +59,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
     protected:
         bool set_default_formats() {
             using namespace format_tag;
-            auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
+            auto dat_tag = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
             auto wei_tag = with_groups()
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
@@ -108,7 +108,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
     protected:
         bool set_default_formats() {
             using namespace format_tag;
-            auto dat_tag = utils::pick(ndims() - 3, ncw, nchw, ncdhw);
+            auto dat_tag = utils::pick(ndims() - 3, nwc, nhwc, ndhwc);
             auto wei_tag = with_groups()
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);

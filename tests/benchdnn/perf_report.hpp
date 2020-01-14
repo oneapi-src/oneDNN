@@ -72,6 +72,7 @@ struct base_perf_report_t {
 
         HANDLE("alg", dump_alg(s));
         HANDLE("cfg", dump_cfg(s));
+        HANDLE("desc", dump_desc(s));
         HANDLE("DESC", dump_desc_csv(s));
         HANDLE("flags", dump_flags(s));
         HANDLE("activation", dump_rnn_activation(s));
@@ -94,7 +95,7 @@ struct base_perf_report_t {
         HANDLE("bw", s << get_bw());
         HANDLE("flops", s << get_flops());
         HANDLE("clocks", s << t.ticks(mode) / unit);
-        HANDLE("desc", s << prb_str);
+        HANDLE("prb", s << prb_str);
         HANDLE("engine", s << engine_kind2str(engine_tgt_kind));
         HANDLE("freq", s << get_freq());
         HANDLE("ops", s << ops() / unit);
@@ -145,6 +146,7 @@ struct base_perf_report_t {
     /* primitive-specific properties (but with common interface) */
     virtual void dump_alg(std::ostream &) const { SAFE_V(FAIL); }
     virtual void dump_cfg(std::ostream &) const { SAFE_V(FAIL); }
+    virtual void dump_desc(std::ostream &) const { SAFE_V(FAIL); }
     virtual void dump_desc_csv(std::ostream &) const { SAFE_V(FAIL); }
     virtual void dump_flags(std::ostream &) const { SAFE_V(FAIL); }
     virtual void dump_rnn_activation(std::ostream &) const { SAFE_V(FAIL); }

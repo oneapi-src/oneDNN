@@ -80,6 +80,9 @@ struct attr_t {
             // reorder section ends
             POLICY_TOTAL
         };
+        scale_t() : policy(NONE), scale(1.) {}
+        scale_t(policy_t policy, float scale) : policy(policy), scale(scale) {}
+
         static policy_t str2policy(const char *str);
         static const char *policy2str(policy_t policy);
 
@@ -121,7 +124,22 @@ struct attr_t {
         }
 
         std::map<int, entry_t> points;
-        static const std::map<int, const char *> NAME_MAP;
+    };
+
+    struct arg_scales_t {
+        void set(int arg, scale_t::policy_t p, float scale) {
+            scales.insert(std::make_pair(arg, attr_t::scale_t(p, scale)));
+        }
+
+        scale_t get(int arg) const {
+            const auto &s = scales.find(arg);
+            return s == scales.end() ? scale_t() : s->second;
+        }
+
+        bool is_def() const { return scales.empty(); }
+        int from_str(const char *str, const char **end_s);
+
+        std::map<int, scale_t> scales;
     };
 
     struct post_ops_t {
@@ -175,6 +193,7 @@ struct attr_t {
     };
 
     scale_t oscale;
+    arg_scales_t scales;
     zero_points_t zero_points;
     post_ops_t post_ops;
 

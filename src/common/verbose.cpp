@@ -125,9 +125,13 @@ const char *get_isa_info() {
     return ISA_ANY;
 }
 
+#if defined(DISABLE_VERBOSE)
+void pd_info_t::init(const primitive_desc_t *) {}
+
+#else
+
 /* init_info section */
 namespace {
-#if !defined(DISABLE_VERBOSE)
 #define DNNL_VERBOSE_DAT_LEN 256
 #define DNNL_VERBOSE_ATTR_LEN 128
 #define DNNL_VERBOSE_AUX_LEN 384
@@ -213,6 +217,22 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
         DPRINT(str, len, written, ";");
     }
 
+    const arg_scales_t &as = attr->scales_;
+    if (!as.has_default_values()) {
+        const char *delim = "";
+        DPRINT(str, len, written, "scales:'");
+        for (const auto &map_entry : as.scales_) {
+            const auto &val = map_entry.second;
+            if (!val.has_default_values()) {
+                DPRINT(str, len, written, "%ssrc:%d", delim, val.mask_);
+                if (val.mask_ == 0)
+                    DPRINT(str, len, written, ":%g", val.scales_[0]);
+                delim = "_";
+            }
+        }
+        DPRINT(str, len, written, "';");
+    }
+
     const post_ops_t &po = attr->post_ops_;
     if (!po.has_default_values()) {
         DPRINT(str, len, written, "post_ops:'");
@@ -280,7 +300,7 @@ void verbose_templ(char *buffer, dnnl_engine_t engine,
 }
 
 template <typename pd_t>
-static void init_info_bnorm(pd_t *s, char *buffer) {
+static void init_info_batch_normalization(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     { // data
@@ -342,7 +362,7 @@ static void init_info_concat(pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
-static void init_info_conv(pd_t *s, char *buffer) {
+static void init_info_convolution(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     { // src
@@ -424,6 +444,11 @@ static void init_info_conv(pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
+static void init_info_deconvolution(pd_t *s, char *buffer) {
+    init_info_convolution(s, buffer);
+}
+
+template <typename pd_t>
 static void init_info_shuffle(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
@@ -493,7 +518,7 @@ static void init_info_gemm(pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
-static void init_info_iprod(pd_t *s, char *buffer) {
+static void init_info_inner_product(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     { // src
@@ -549,7 +574,7 @@ static void init_info_iprod(pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
-static void init_info_lnorm(pd_t *s, char *buffer) {
+static void init_info_layer_normalization(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     { // data
@@ -641,7 +666,17 @@ static void init_info_mem(pd_t *s, char *buffer) {
 }
 
 template <typename pd_t>
-static void init_info_pool(pd_t *s, char *buffer) {
+static void init_info_reorder(pd_t *s, char *buffer) {
+    init_info_mem(s, buffer);
+}
+
+template <typename pd_t>
+static void init_info_sum(pd_t *s, char *buffer) {
+    init_info_mem(s, buffer);
+}
+
+template <typename pd_t>
+static void init_info_pooling(pd_t *s, char *buffer) {
     DECL_DAT_AUX_PRB_STRS();
 
     { // src
@@ -721,6 +756,11 @@ static void init_info_softmax(pd_t *s, char *buffer) {
 
     verbose_templ(buffer, s->engine(), s->kind(), s->name(),
             s->desc()->prop_kind, dat_str, attr_str, aux_str, prb_str);
+}
+
+template <typename pd_t>
+static void init_info_logsoftmax(pd_t *s, char *buffer) {
+    init_info_softmax(s, buffer);
 }
 
 template <typename pd_t>
@@ -885,91 +925,47 @@ static void init_info_resampling(pd_t *s, char *buffer) {
 }
 
 #undef DPRINT
-
-#else // !defined(DISABLE_VERBOSE)
-
-#define DEFINE_STUB(name) \
-    template <typename pd_t> \
-    static void CONCAT2(init_info_, name)(pd_t * s, char *buffer) { \
-        UNUSED(s); \
-        UNUSED(buffer); \
-    }
-
-DEFINE_STUB(binary);
-DEFINE_STUB(bnorm);
-DEFINE_STUB(concat);
-DEFINE_STUB(conv);
-DEFINE_STUB(eltwise);
-DEFINE_STUB(gemm);
-DEFINE_STUB(iprod);
-DEFINE_STUB(lnorm);
-DEFINE_STUB(lrn);
-DEFINE_STUB(matmul);
-DEFINE_STUB(mem);
-DEFINE_STUB(pool);
-DEFINE_STUB(resampling);
-DEFINE_STUB(rnn);
-DEFINE_STUB(shuffle);
-DEFINE_STUB(softmax);
-#undef DEFINE_STUB
-
-#endif // !defined(DISABLE_VERBOSE)
 } // namespace
 
-void init_info(batch_normalization_pd_t *s, char *b) {
-    init_info_bnorm(s, b);
+void pd_info_t::init(const primitive_desc_t *pd) {
+    if (is_initialized_) return;
+
+    std::call_once(initialization_flag_, [&] {
+        str_.resize(DNNL_VERBOSE_BUF_LEN, '\0');
+
+        using logsoftmax_pd_t = softmax_pd_t;
+#define CASE(kind) \
+    case primitive_kind::kind: \
+        init_info_##kind((const kind##_pd_t *)pd, &str_[0]); \
+        break
+
+        switch (pd->kind()) {
+            CASE(batch_normalization);
+            CASE(binary);
+            CASE(concat);
+            CASE(convolution);
+            CASE(deconvolution);
+            CASE(eltwise);
+            CASE(inner_product);
+            CASE(layer_normalization);
+            CASE(lrn);
+            CASE(logsoftmax);
+            CASE(matmul);
+            CASE(pooling);
+            CASE(reorder);
+            CASE(resampling);
+            CASE(rnn);
+            CASE(shuffle);
+            CASE(softmax);
+            CASE(sum);
+            default: assert(!"unknown primitive kind");
+        }
+#undef CASE
+
+        is_initialized_ = true;
+    });
 }
-void init_info(binary_pd_t *s, char *b) {
-    init_info_binary(s, b);
-}
-void init_info(concat_pd_t *s, char *b) {
-    init_info_concat(s, b);
-}
-void init_info(convolution_pd_t *s, char *b) {
-    init_info_conv(s, b);
-}
-void init_info(deconvolution_pd_t *s, char *b) {
-    init_info_conv(s, b);
-}
-void init_info(eltwise_pd_t *s, char *b) {
-    init_info_eltwise(s, b);
-}
-void init_info(gemm_pd_t *s, char *b) {
-    init_info_gemm(s, b);
-}
-void init_info(inner_product_pd_t *s, char *b) {
-    init_info_iprod(s, b);
-}
-void init_info(layer_normalization_pd_t *s, char *b) {
-    init_info_lnorm(s, b);
-}
-void init_info(lrn_pd_t *s, char *b) {
-    init_info_lrn(s, b);
-}
-void init_info(matmul_pd_t *s, char *b) {
-    init_info_matmul(s, b);
-}
-void init_info(pooling_pd_t *s, char *b) {
-    init_info_pool(s, b);
-}
-void init_info(reorder_pd_t *s, char *b) {
-    init_info_mem(s, b);
-}
-void init_info(resampling_pd_t *s, char *b) {
-    init_info_resampling(s, b);
-}
-void init_info(rnn_pd_t *s, char *b) {
-    init_info_rnn(s, b);
-}
-void init_info(shuffle_pd_t *s, char *b) {
-    init_info_shuffle(s, b);
-}
-void init_info(softmax_pd_t *s, char *b) {
-    init_info_softmax(s, b);
-}
-void init_info(sum_pd_t *s, char *b) {
-    init_info_mem(s, b);
-}
+#endif
 
 } // namespace impl
 } // namespace dnnl
@@ -982,7 +978,7 @@ dnnl_status_t dnnl_set_verbose(int level) {
 }
 
 const dnnl_version_t *dnnl_version() {
-    static dnnl_version_t ver
+    static const dnnl_version_t ver
             = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR, DNNL_VERSION_PATCH,
                     DNNL_VERSION_HASH, DNNL_CPU_RUNTIME, DNNL_GPU_RUNTIME};
     return &ver;

@@ -29,13 +29,16 @@ std::ostream &operator<<(std::ostream &s, const std::vector<float> &scales) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (!(p.n_inputs() == 2 && p.sdt[0] == dnnl_f32 && p.sdt[1] == dnnl_f32))
+    if (canonical
+            || !(p.n_inputs() == 2 && p.sdt[0] == dnnl_f32
+                    && p.sdt[1] == dnnl_f32))
         s << "--sdt=" << p.sdt << " ";
-    if (p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
-    if (!(p.n_inputs() == 2 && p.stag[0] == dnnl_nchw
-                && p.stag[1] == dnnl_nchw))
+    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (canonical
+            || !(p.n_inputs() == 2 && p.stag[0] == dnnl_nchw
+                    && p.stag[1] == dnnl_nchw))
         s << "--stag=" << p.stag << " ";
-    if (p.dtag != dnnl_format_tag_undef)
+    if (canonical || p.dtag != dnnl_format_tag_undef)
         s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
     s << "--scales=" << p.scales << " ";
 

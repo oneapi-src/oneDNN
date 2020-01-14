@@ -50,8 +50,10 @@ public:
     }
 
     virtual const reorder_primitive_desc_create_f *
-    get_reorder_implementation_list() const override {
-        return cpu::cpu_engine_impl_list_t::get_reorder_implementation_list();
+    get_reorder_implementation_list(const memory_desc_t *src_md,
+            const memory_desc_t *dst_md) const override {
+        return cpu::cpu_engine_impl_list_t::get_reorder_implementation_list(
+                src_md, dst_md);
     }
 
     virtual const concat_primitive_desc_create_f *
@@ -64,9 +66,9 @@ public:
         return cpu::cpu_engine_impl_list_t::get_sum_implementation_list();
     }
 
-    virtual const primitive_desc_create_f *
-    get_implementation_list() const override {
-        return cpu::cpu_engine_impl_list_t::get_implementation_list();
+    virtual const primitive_desc_create_f *get_implementation_list(
+            const op_desc_t *desc) const override {
+        return cpu::cpu_engine_impl_list_t::get_implementation_list(desc);
     }
 };
 

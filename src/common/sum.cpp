@@ -36,8 +36,7 @@ status_t dnnl_sum_primitive_desc_create(primitive_desc_t **sum_pd,
     bool args_ok = !any_null(sum_pd, src_mds, scales) && n > 0;
     if (!args_ok) return invalid_arguments;
 
-    const primitive_attr_t dummy_attr;
-    if (attr == NULL) attr = &dummy_attr;
+    if (attr == NULL) attr = &default_attr();
 
     const int ndims = src_mds[0].ndims;
     const dims_t &dims = src_mds[0].dims;

@@ -1,3 +1,3 @@
---tag=nc      --stat_tag=x           30x300 256x768 128x1024 5120x1024
---tag=tnc,ntc --stat_tag=nt,tn       64x30x512 128x1x1024 128x40x1024
---tag=ldnc    --stat_tag=abc,bac,acb 6x2x128x1024
+--tag=nc      --stat_tag=any,undef,x           30x300 256x768 128x1024 5120x1024
+--tag=tnc,ntc --stat_tag=any,undef,nt,tn       64x30x512 128x1x1024 128x40x1024
+--tag=ldnc    --stat_tag=any,undef,abc,bac,acb 6x2x128x1024

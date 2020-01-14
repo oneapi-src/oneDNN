@@ -58,12 +58,12 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
                                     data_type::f32, data_type::bf16))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_fwd_kernel::init_conf(jcp_,
-                    *desc(), *src_md(), *weights_md(0), *dst_md(),
-                    *weights_md(1), *attr(), dnnl_get_max_threads());
+                    *desc(), src_md_, weights_md_, dst_md_, bias_md_, *attr(),
+                    dnnl_get_max_threads());
             if (status != status::success) return status::unimplemented;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -73,18 +73,6 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    OIw8i16o2i, gOIw8i16o2i, OIhw8i16o2i, gOIhw8i16o2i,
-                    OIdhw8i16o2i, gOIdhw8i16o2i);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     jit_avx512_core_bf16_convolution_fwd_t(const pd_t *apd)

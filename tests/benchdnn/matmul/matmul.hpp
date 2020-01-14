@@ -135,6 +135,10 @@ struct perf_report_t : public base_perf_report_t {
         s << cfg2str(p_->cfg);
     }
 
+    virtual void dump_desc(std::ostream &s) const override {
+        s << static_cast<const desc_t &>(*p_);
+    }
+
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->ndims << ',' << p_->mb << ',' << p_->m << ',' << p_->n << ','
           << p_->k;

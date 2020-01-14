@@ -57,8 +57,6 @@ struct sum_pd_t : public primitive_desc_t {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual void init_info() override { impl::init_info(this, this->info_); }
-
     virtual arg_usage_t arg_usage(int arg) const override {
         if (arg >= DNNL_ARG_MULTIPLE_SRC
                 && arg < DNNL_ARG_MULTIPLE_SRC + n_inputs())
@@ -156,7 +154,6 @@ protected:
             delete _pd; \
             return unimplemented; \
         } \
-        _pd->init_info(); \
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \

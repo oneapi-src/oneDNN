@@ -43,6 +43,8 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
     const int IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
+
+    // check if OC is NOT the leading dimension
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
 
     const float *scales = pd()->attr()->output_scales_.scales_;

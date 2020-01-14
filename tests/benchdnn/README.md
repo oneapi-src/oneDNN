@@ -34,6 +34,7 @@ So far it supports and uses the following drivers:
                [--max-ms-per-prb=INT] [--fix-times-per-prb=INT] \
                [-vINT|--verbose=INT] [--fast-ref-gpu=BOOL] \
                [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
+               [--canonical=BOOL] \
                [--perf-template=PERF_TEMPLATE] [DRIVER-OPTS] \
                PROBLEM-DESCRIPTION [--batch=FILE]
 ```
@@ -61,6 +62,8 @@ where:
             (see dnnl_query_impl_info_str), default `""`.
  - `--allow-unimpl=true|false` -- do not treat unimplemented configuration
             as an error. Default is `false`.
+ - `--canonical=true|false` -- If `true`, print all problem and descriptor
+            settings with default values. Default is `false`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
             [performance report](doc/knobs_perf_report.md) for details.

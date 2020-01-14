@@ -115,7 +115,7 @@ private:
         dim_t s = 1;
         for (int i = 0; i < idx; ++i) {
             if (dims_[i].gws_index == dims_[idx].gws_index) {
-                s *= dims_[i].size / dims_[i].block;
+                s *= utils::div_up(dims_[i].size, dims_[i].block);
             }
         }
         return s;

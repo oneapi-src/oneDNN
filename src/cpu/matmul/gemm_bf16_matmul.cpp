@@ -79,14 +79,17 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::check_and_configure_attributes() {
 
     auto check_attr_post_ops = [&]() -> bool {
         using namespace primitive_kind;
-        const auto &p = attr()->post_ops_;
-        auto check_sum = [&](int idx) -> bool {
-            return p.contain(sum, idx) && params_.gemm_applies_output_scales_;
+
+        bool gemm_applies_output_scales = params_.gemm_applies_output_scales_;
+        auto check_sum = [=](const post_ops_t &p, int idx) -> bool {
+            return p.contain(sum, idx) && gemm_applies_output_scales;
         };
+
+        const auto &p = attr()->post_ops_;
         switch (p.len_) {
             case 0: return true;
-            case 1: return check_sum(0) || p.contain(eltwise, 0);
-            case 2: return check_sum(0) && p.contain(eltwise, 1);
+            case 1: return check_sum(p, 0) || p.contain(eltwise, 0);
+            case 2: return check_sum(p, 0) && p.contain(eltwise, 1);
             default: return false;
         }
     };

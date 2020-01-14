@@ -55,9 +55,7 @@ protected:
         // softmax specific types and values
         using op_desc_t = softmax_forward::desc;
         using pd_t = softmax_forward::primitive_desc;
-        bool supports_oscale = false;
-        bool supports_po_sum = false;
-        bool supports_po_eltwise = false;
+        allows_attr_t aa {0}; // doesn't support anything
 
         auto strm = stream(*eng);
         prop_kind pk = p.aprop_kind == prop_kind::backward_data
@@ -76,8 +74,7 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, *eng));
         // test all pd ctors
-        test_fwd_pd_constructors<op_desc_t, pd_t>(
-                pd, supports_oscale, supports_po_sum, supports_po_eltwise);
+        test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
 
         // default primitive ctor
@@ -137,9 +134,7 @@ protected:
         using op_desc_t = softmax_backward::desc;
         using pd_t = softmax_backward::primitive_desc;
         using hint_pd_t = softmax_forward::primitive_desc;
-        bool supports_oscale = false;
-        bool supports_po_sum = false;
-        bool supports_po_eltwise = false;
+        allows_attr_t aa {0}; // doesn't support anything
 
         auto strm = stream(*eng);
         auto prec = data_traits<data_t>::data_type;
@@ -156,8 +151,8 @@ protected:
         // regular pd ctor
         ASSERT_NO_THROW(pd = pd_t(op_desc, *eng, *pd_fwd_hint));
         // test all pd ctors
-        test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(pd, *pd_fwd_hint,
-                supports_oscale, supports_po_sum, supports_po_eltwise);
+        test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(
+                op_desc, pd, *pd_fwd_hint, aa);
 
         // default primitive ctor
         auto softmax = softmax_backward();

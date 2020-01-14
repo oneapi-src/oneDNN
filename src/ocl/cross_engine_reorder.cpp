@@ -37,7 +37,8 @@ status_t cross_engine_reorder_t::pd_t::init() {
             ? src_engine()
             : dst_engine();
 
-    auto r_impls = reorder_engine->get_reorder_implementation_list();
+    auto r_impls = reorder_engine->get_reorder_implementation_list(
+            src_md(), dst_md());
     const primitive_attr_t r_attr(*attr());
     for (auto r = r_impls; *r; ++r) {
         reorder_pd_t *r_pd = nullptr;

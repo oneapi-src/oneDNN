@@ -37,8 +37,8 @@ static const rpd_create_f ocl_ce_reorder_impl_list[]
                 simple_reorder_t::pd_t::create, nullptr};
 } // namespace
 
-const rpd_create_f *
-ocl_gpu_engine_impl_list_t::get_reorder_implementation_list() {
+const rpd_create_f *ocl_gpu_engine_impl_list_t::get_reorder_implementation_list(
+        const memory_desc_t *, const memory_desc_t *) {
     return ocl_ce_reorder_impl_list;
 }
 

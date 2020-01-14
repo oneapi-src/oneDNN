@@ -79,6 +79,7 @@ private:
     const Vmm vmm_tmp = Vmm(28);
     const Vmm vmm_one = Vmm(29);
     const Vmm vmm_zero = Vmm(30);
+    const Vmm vmm_prev_dst = Vmm(30);
     const Vmm vmm_shift = Vmm(30);
     const Vmm vmm_bcast = Vmm(31);
     const Vmm vmm_bias_alpha = Vmm(31);
@@ -150,6 +151,9 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel {
     _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Zmm> *zmm_kernel_;
     _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Ymm> *ymm_kernel_;
     _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Xmm> *xmm_kernel_;
+
+private:
+    DNNL_DISALLOW_COPY_AND_ASSIGN(jit_avx512_core_x8s8s32x_1x1_conv_kernel);
 };
 
 } // namespace cpu

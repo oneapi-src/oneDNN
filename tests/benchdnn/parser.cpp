@@ -262,6 +262,11 @@ static bool parse_engine_kind(
     return false;
 }
 
+static bool parse_canonical(
+        const char *str, const std::string &option_name = "canonical") {
+    return parse_single_value_option(canonical, str2bool, str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
@@ -276,6 +281,8 @@ bool parse_bench_settings(const char *str) {
     else if (parse_engine_kind(str))
         ;
     else if (parse_fast_ref_gpu(str))
+        ;
+    else if (parse_canonical(str))
         ;
     else
         return false;

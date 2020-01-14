@@ -82,12 +82,23 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
     size_t seed = 0;
     // scratchpad_mode
     seed = hash_combine(seed, static_cast<size_t>(attr->scratchpad_mode_));
-    // output_scales: mask
-    seed = hash_combine(seed, attr->output_scales_.mask_);
-    // output_scales: scales[:]
-    if (attr->output_scales_.scales_) {
-        for (int i = 0; i < attr->output_scales_.count_; i++) {
-            seed = hash_combine(seed, attr->output_scales_.scales_[i]);
+
+    if (!attr->output_scales_.has_default_values()) {
+        // output_scales: mask
+        seed = hash_combine(seed, attr->output_scales_.mask_);
+        // output_scales: scales[:]
+        if (attr->output_scales_.scales_) {
+            for (int i = 0; i < attr->output_scales_.count_; i++) {
+                seed = hash_combine(seed, attr->output_scales_.scales_[i]);
+            }
+        }
+    } else if (!attr->scales_.has_default_values()) {
+        // go through scales for all arguments
+        for (const auto &p : attr->scales_.scales_) {
+            seed = hash_combine(seed, p.second.mask_);
+            for (int i = 0; i < p.second.count_; i++) {
+                seed = hash_combine(seed, p.second.scales_[i]);
+            }
         }
     }
     // zero_points

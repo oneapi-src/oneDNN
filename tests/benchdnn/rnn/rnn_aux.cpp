@@ -186,23 +186,29 @@ int str2desc(desc_t *desc, const char *str) {
     return OK;
 }
 
+std::ostream &operator<<(std::ostream &s, const desc_t &d) {
+    s << "l" << d.n_layer << "t" << d.n_iter << "mb" << d.mb << "sic" << d.sic
+      << "slc" << d.slc << "dic" << d.dic << "dlc" << d.dlc;
+
+    if (d.name) s << "n" << d.name;
+
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    s << "--prop=" << prop2str(p.prop) << " --alg=" << alg2str(p.alg)
-      << " --skip-nonlinear=" << bool2str(p.skip_nonlinear);
-    if (p.alg == VANILLA_RNN)
-        s << " --activation=" << activation2str(p.activation);
+    s << "--prop=" << prop2str(p.prop) << " ";
+    s << "--alg=" << alg2str(p.alg) << " ";
+    s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
+    if (canonical || p.alg == VANILLA_RNN)
+        s << "--activation=" << activation2str(p.activation) << " ";
 
-    s << " --direction=" << direction2str(p.direction)
-      << " --cfg=" << cfg2str(p.cfg)
-      << " --scaling=" << attr_t::scale_t::policy2str(p.scale_policy);
+    s << "--direction=" << direction2str(p.direction) << " ";
+    s << "--cfg=" << cfg2str(p.cfg) << " ";
+    s << "--scaling=" << attr_t::scale_t::policy2str(p.scale_policy) << " ";
 
-    s << " "
-      << "l" << p.n_layer << "t" << p.n_iter << "mb" << p.mb << "sic" << p.sic
-      << "slc" << p.slc << "dic" << p.dic << "dlc" << p.dlc;
-
-    if (p.name) s << "n" << p.name;
+    s << static_cast<const desc_t &>(p);
 
     return s;
 }

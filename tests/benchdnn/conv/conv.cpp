@@ -428,7 +428,6 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
         dnnl_format_tag_t dst_tag = dnnl_format_tag_undef) {
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
-    int ndims = is_problem_3d(p) ? 5 : is_problem_1d(p) ? 3 : 4;
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
     dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
@@ -454,28 +453,26 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     if (bia_tag == dnnl_format_tag_undef) bia_tag = dnnl_format_tag_any;
     if (dst_tag == dnnl_format_tag_undef) dst_tag = p->dtag;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, ndims,
-                     is_problem_3d(p)
-                             ? src_3d_dims
-                             : is_problem_1d(p) ? src_1d_dims : src_2d_dims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
+                     p->ndims == 5 ? src_3d_dims
+                                   : p->ndims == 3 ? src_1d_dims : src_2d_dims,
                      src_dt, src_tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, ndims + p->has_groups,
-                     is_problem_3d(p)
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
+                     p->ndims == 5
                              ? &wei_3d_dims[!p->has_groups]
-                             : is_problem_1d(p) ? &wei_1d_dims[!p->has_groups]
-                                                : &wei_2d_dims[!p->has_groups],
+                             : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
+                                             : &wei_2d_dims[!p->has_groups],
                      wei_dt, wei_tag),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&bia_d, 1, bia_dims, bia_dt, bia_tag),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, ndims,
-                     is_problem_3d(p)
-                             ? dst_3d_dims
-                             : is_problem_1d(p) ? dst_1d_dims : dst_2d_dims,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
+                     p->ndims == 5 ? dst_3d_dims
+                                   : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
                      dst_dt, dst_tag),
             WARN);
 
@@ -483,7 +480,7 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     dnnl_dim_t dilates_nd[] = {p->dd, p->dh, p->dw};
     dnnl_dim_t padding_nd[] = {p->pd, p->ph, p->pw};
 
-    auto bph = [&](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
+    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph,
                        int64_t dh) {
         return (oh - 1) * sh - ih + ((kh - 1) * (dh + 1) + 1) - ph;
     };
@@ -491,10 +488,10 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
             bph(p->ih, p->oh, p->kh, p->sh, p->ph, p->dh),
             bph(p->iw, p->ow, p->kw, p->sw, p->pw, p->dw)};
 
-    dnnl_dim_t *strides = strides_nd + (5 - ndims);
-    dnnl_dim_t *dilates = dilates_nd + (5 - ndims);
-    dnnl_dim_t *padding = padding_nd + (5 - ndims);
-    dnnl_dim_t *padding_r = padding_r_nd + (5 - ndims);
+    dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
+    dnnl_dim_t *dilates = dilates_nd + (5 - p->ndims);
+    dnnl_dim_t *padding = padding_nd + (5 - p->ndims);
+    dnnl_dim_t *padding_r = padding_r_nd + (5 - p->ndims);
 
     dnnl_alg_kind_t alg = dnnl_convolution_direct;
     if (p->alg == WINO) alg = dnnl_convolution_winograd;
@@ -610,12 +607,9 @@ int doit(const prb_t *p, res_t *r) {
     dnnl_primitive_desc_t cpd_ref = nullptr;
     dnnl_primitive_t c_ref = nullptr;
 
-    int src_ndims = is_problem_3d(p) ? 5 : is_problem_1d(p) ? 3 : 4;
-    int wei_ndims = src_ndims + p->has_groups;
-
     const auto fp = dnnl_f32;
-    auto src_tag = get_default_tag(src_ndims);
-    auto wei_tag = get_default_tag(wei_ndims);
+    auto src_tag = get_default_tag(p->ndims);
+    auto wei_tag = get_default_tag(p->ndims + p->has_groups);
 
     if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
         SAFE(init_pd(engine_cpu, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,

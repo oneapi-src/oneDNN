@@ -304,7 +304,8 @@ T *align_ptr(T *ptr, uintptr_t alignment) {
 }
 
 template <typename T, typename U, typename V>
-inline U this_block_size(const T offset, const U max, const V block_size) {
+inline typename remove_reference<U>::type this_block_size(
+        const T offset, const U max, const V block_size) {
     assert(offset < max);
     // TODO (Roma): can't use nstl::max() due to circular dependency... we
     // need to fix this

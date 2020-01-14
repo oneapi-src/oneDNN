@@ -175,8 +175,10 @@ void copy_context(
     for (dim_t k = 1; k < n_layers; k++)
         for (dim_t j = 0; j < batch; j++)
             for (dim_t i = 0; i < feature_size; i++)
-                src_iter[(k * batch + j) * (feature_size + feature_size) + i]
-                        = src_iter[j * (feature_size + feature_size) + i];
+                src_iter[(k * batch + j) * (feature_size + feature_size)
+                        + feature_size + i]
+                        = src_iter[j * (feature_size + feature_size)
+                                + feature_size + i];
 }
 
 void simple_net() {

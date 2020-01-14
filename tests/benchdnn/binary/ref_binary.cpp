@@ -37,23 +37,22 @@ int64_t map_idx_B(const prb_t *p, int64_t idx) {
     return dims_off(p->sdims[1], dims);
 }
 
-void compute_ref(const prb_t *p, const std::vector<dnn_mem_t> &src,
-        const std::vector<dnn_mem_t> &scale, dnn_mem_t &dst) {
+void compute_ref(
+        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst) {
     float *dst_ptr = (float *)dst;
     const float *A = (const float *)src[0];
     const float *B = (const float *)src[1];
-    const float alpha = p->scale_policy == policy_t::NONE
-            ? 1
-            : ((const float *)scale[0])[0];
-    const float beta = p->scale_policy == policy_t::NONE
-            ? 1
-            : ((const float *)scale[1])[0];
+
+    // 1:src0 2:src1
+    float scales[2] = {p->attr.scales.get(DNNL_ARG_SRC_0).scale,
+            p->attr.scales.get(DNNL_ARG_SRC_1).scale};
+
     const auto nelems_A = src[0].nelems();
     const auto nelems_B = src[1].nelems();
 
     dnnl::impl::parallel_nd(nelems_A, [&](int64_t i) {
         int64_t idx_B = nelems_B == nelems_A ? i : map_idx_B(p, i);
-        perform_op(p, &dst_ptr[i], alpha * A[i], beta * B[idx_B]);
+        perform_op(p, &dst_ptr[i], scales[0] * A[i], scales[1] * B[idx_B]);
     });
 }
 

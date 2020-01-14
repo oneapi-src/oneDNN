@@ -67,8 +67,6 @@ protected:
     }
 
     void Test() {
-        p = ::testing::TestWithParam<decltype(p)>::GetParam();
-
         eng = get_test_engine();
         strm = stream(eng);
 
@@ -106,6 +104,8 @@ protected:
 
     void Forward(
             prop_kind pk, normalization_flags flags = (normalization_flags)0u) {
+        fwd_iface_test_stat_any(pk, flags);
+
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
         bool useGlobalStats
@@ -153,6 +153,8 @@ protected:
 
     void Backward(
             prop_kind pk, normalization_flags flags = (normalization_flags)0u) {
+        bwd_iface_test_stat_any(pk, flags);
+
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
 
@@ -480,6 +482,94 @@ protected:
                 ASSERT_NEAR((out_diff_src - ref_diff_src) / norm_max, 0., eps);
             }
         });
+    }
+
+    void fwd_iface_test_stat_any(prop_kind pk, normalization_flags flags) {
+        // non stats if inference w/o use global stats
+        if (pk == prop_kind::forward_inference
+                && !(bool)(flags & normalization_flags::use_global_stats))
+            return;
+
+        using tag = memory::format_tag;
+
+        tag expect_stat_tag = derive_stat_tag();
+        if (expect_stat_tag == tag::undef) return; // optimism
+
+        memory::dims stat_dims(p.dims.begin(), p.dims.end() - 1);
+        memory::desc expect_stat_md(
+                stat_dims, memory::data_type::f32, expect_stat_tag);
+
+        // no stat_md provided at all
+        {
+            layer_normalization_forward::primitive_desc fwd_pd(
+                    {pk, *data_d, p.epsilon, flags}, eng);
+
+            EXPECT_EQ(fwd_pd.mean_desc(), expect_stat_md);
+            EXPECT_EQ(fwd_pd.variance_desc(), expect_stat_md);
+        }
+
+        // stat_md with format_tag::any
+        {
+            memory::desc any_stat_md(
+                    stat_dims, memory::data_type::f32, tag::any);
+            layer_normalization_forward::primitive_desc fwd_pd(
+                    {pk, *data_d, any_stat_md, p.epsilon, flags}, eng);
+
+            EXPECT_EQ(fwd_pd.mean_desc(), expect_stat_md);
+            EXPECT_EQ(fwd_pd.variance_desc(), expect_stat_md);
+        }
+    }
+
+    void bwd_iface_test_stat_any(prop_kind pk, normalization_flags flags) {
+        using tag = memory::format_tag;
+
+        tag expect_stat_tag = derive_stat_tag();
+        if (expect_stat_tag == tag::undef) return; // optimism
+
+        memory::dims stat_dims(p.dims.begin(), p.dims.end() - 1);
+        memory::desc expect_stat_md(
+                stat_dims, memory::data_type::f32, expect_stat_tag);
+
+        layer_normalization_forward::primitive_desc fwd_pd(
+                {prop_kind::forward_training, *data_d, p.epsilon, flags}, eng);
+
+        // no stat_md provided at all
+        {
+            layer_normalization_backward::primitive_desc bwd_pd(
+                    {pk, *diff_d, *data_d, p.epsilon, flags}, eng, fwd_pd);
+
+            EXPECT_EQ(bwd_pd.mean_desc(), expect_stat_md);
+            EXPECT_EQ(bwd_pd.variance_desc(), expect_stat_md);
+        }
+
+        // stat_md with format_tag::any
+        {
+            memory::desc any_stat_md(
+                    stat_dims, memory::data_type::f32, tag::any);
+            layer_normalization_backward::primitive_desc bwd_pd(
+                    {pk, *diff_d, *data_d, any_stat_md, p.epsilon, flags}, eng,
+                    fwd_pd);
+
+            EXPECT_EQ(bwd_pd.mean_desc(), expect_stat_md);
+            EXPECT_EQ(bwd_pd.variance_desc(), expect_stat_md);
+        }
+    }
+
+private:
+    memory::format_tag derive_stat_tag() const {
+        using tag = memory::format_tag;
+        tag expect_stat_tag = tag::undef;
+
+        // TODO: add more cases and test cases
+        // XXX: currently test only simple cases like `abc`, `acb`. Extend,
+        //      if possible, to blocked formats too.
+        switch (p.data_tag) {
+            case tag::abc: expect_stat_tag = tag::ab; break;
+            case tag::bac: expect_stat_tag = tag::ba; break;
+            default: break;
+        }
+
+        return expect_stat_tag;
     }
 };
 

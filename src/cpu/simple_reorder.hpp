@@ -120,7 +120,9 @@ template <SIMPLE_REORDER_TEMPL_DECL>
 struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         typename utils::enable_if<tag_i == format_tag::any
                         && (false || tag_o == format_tag::hwio
-                                || tag_o == format_tag::hwigo),
+                                || tag_o == format_tag::hwigo
+                                || tag_o == format_tag::dhwio
+                                || tag_o == format_tag::dhwigo),
                 spec::conv_s8s8>::type> {
     static bool is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
@@ -130,8 +132,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 
         const size_t D_mask = utils::array_product(
                 input_d.dims(), math::ilog2q(attr->output_scales_.mask_ + 1));
-        const int oc = (input_d.dims()[tag_o == format_tag::hwigo + 0]);
-        const int g = (tag_o == format_tag::hwigo) ? (input_d.dims()[0]) : 1;
+        static constexpr bool w_groups
+                = (tag_o == format_tag::hwigo || tag_o == format_tag::dhwigo);
+        const int oc_idx = w_groups ? 1 : 0;
+        const int oc = input_d.dims()[oc_idx];
+        const int g = w_groups ? (input_d.dims()[0]) : 1;
 
         return simple_attr_check(attr, true, false)
                 && output_d.matches_tag(tag_o)
@@ -147,7 +152,10 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     static status_t execute(const cpu_reorder_pd_t *pd, const exec_ctx_t &ctx) {
         DECLARE_COMMON_PARAMS();
 
-        static constexpr bool w_groups = tag_o == format_tag::hwigo;
+        static constexpr bool w_groups
+                = (tag_o == format_tag::hwigo || tag_o == format_tag::dhwigo);
+        static constexpr bool w_depth
+                = (tag_o == format_tag::dhwio || tag_o == format_tag::dhwigo);
 
         const auto &dims = input_d.dims();
         const auto &pdims = output_d.padded_dims();
@@ -155,8 +163,9 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int G = w_groups ? dims[0] : 1;
         const int OC = dims[w_groups + 0];
         const int IC = dims[w_groups + 1];
-        const int H = dims[w_groups + 2];
-        const int W = dims[w_groups + 3];
+        const int D = w_depth ? dims[w_groups + 2] : 1;
+        const int H = dims[w_groups + w_depth + 2];
+        const int W = dims[w_groups + w_depth + 3];
 
         const float *scales = pd->attr()->output_scales_.scales_;
         const size_t D_mask = utils::array_product(input_d.dims(),
@@ -169,16 +178,23 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                 ? output_d.extra().scale_adjust
                 : 1.f;
 
-        size_t offset = G * pdims[w_groups + 0] * pdims[w_groups + 1] * H * W;
+        size_t offset
+                = G * pdims[w_groups + 0] * pdims[w_groups + 1] * D * H * W;
         int32_t *cp = reinterpret_cast<int32_t *>(output + offset);
 
         parallel_nd(G, OC, [&](int g, int oc) {
             cp[g * OC + oc] = 0;
             for_(int ic = 0; ic < IC; ic++)
+            for_(int d = 0; d < D; d++)
             for_(int h = 0; h < H; h++)
             for (int w = 0; w < W; w++) {
-                auto i = input[input_d.blk_off<!w_groups>(g, oc, ic, h, w)];
-                auto &o = output[output_d.blk_off<!w_groups>(g, oc, ic, h, w)];
+                auto i = w_depth
+                        ? input[input_d.blk_off<!w_groups>(g, oc, ic, d, h, w)]
+                        : input[input_d.blk_off<!w_groups>(g, oc, ic, h, w)];
+                auto &o = w_depth
+                        ? output[output_d.blk_off<!w_groups>(
+                                g, oc, ic, d, h, w)]
+                        : output[output_d.blk_off<!w_groups>(g, oc, ic, h, w)];
                 const float s = scales[(D_mask == 1) ? 0 : g * OC + oc];
 
                 o = qz_b0<data_t<type_i>, data_t<type_o>>()(i, s * adj_scale);
@@ -1326,7 +1342,6 @@ struct simple_reorder_t : public primitive_impl_t {
             auto scratchpad = _pd->scratchpad_registry().registrar();
             scratchpad.book(
                     memory_tracking::names::key_reorder_space, scratchpad_sz_);
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }

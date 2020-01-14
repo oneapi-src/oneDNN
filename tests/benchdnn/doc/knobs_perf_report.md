@@ -6,13 +6,13 @@
 ```
 
 where:
- - def -- default template, has problem name, canonical descriptor dump, ops
-            (if applied), minimum and average time and GFLOPS (if applied)
+ - def -- default template. Has problem name, problem dump, ops (if applied),
+          minimum and average time and GFLOPS (if applied)
  - csv -- comma-separated values style template. Same as default, but dumps
-            all descriptor values with comma delimiter.
- - CUSTOM_TEMPLATE -- a specific set of special words supported by **benchdnn**,
-            user-defined output. Refer to the list of all supported special
-            words below.
+          problem and descriptor values with comma delimiter.
+ - CUSTOM_TEMPLATE -- user-defined template. Should consist of special options
+                      supported by specific driver. Refer to the list of
+                      options supported below.
 
 
 **benchdnn** supports both out-of-the-box and custom performance reports.
@@ -43,7 +43,7 @@ Options supported:
 | %@bw%         | Ops based                                          | Bytes per second (modifier extended)
 | %cfg%         | Conv, IP, Matmul, Pool, RNN                        | Config, describes data types and filling rules
 | %@clocks%     | All                                                | Time in clocks (modifier extended)
-| %desc%        | All                                                | Problem descriptor (dimensions and other options included)
+| %desc%        | All                                                | String style problem descriptor
 | %DESC%        | All                                                | CSV-style problem descriptor (mostly dimensions)
 | %ddt%         | Binary, Concat, Reorder, Sum                       | Destination data types (precision)
 | %dir%         | All, except Concat, RNN, Reorder, Sum              | Primitive prop kind
@@ -57,6 +57,7 @@ Options supported:
 | %group%       | Shuffle                                            | Shuffle group
 | %name%        | Problem desc based                                 | Problem name
 | %@ops%        | Ops based                                          | Number of ops required (padding is not taken into account)
+| %prb%         | All                                                | Canonical problem (options and descriptor in REPRO style)
 | %prop%        | RNN                                                | RNN prop kind
 | %sdt%         | Binary, Concat, Reorder, Sum                       | Source data types (precision)
 | %stag%        | Binary, Concat, Reorder, Sum                       | Source format tag (physical memory layout)
@@ -91,7 +92,7 @@ dumping results with a standard performance template:
                --batch=inputs/ip/ip_all
 ```
 ```
-Output template: perf,%engine%,%name%,%desc%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
+Output template: perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%
 perf,cpu,"resnet:ip1",mb112oc1000ic2048n"resnet:ip1",0.458752,0,0.521729,879.293,0.576451,795.822
 ```
 
@@ -110,10 +111,10 @@ Runs a set of inner products measuring performance and dumping custom template -
 reporting descriptor, minimum time, and corresponding gigaFLOPs. Note: ',' is
 not a special symbol here; any other delimiter can be used:
 ``` sh
-    ./benchdnn --ip --mode=p --perf-template=%desc%,%-time%,%-Gflops% \
+    ./benchdnn --ip --mode=p --perf-template=%prb%,%-time%,%-Gflops% \
                --batch=inputs/ip/ip_all
 ```
 ```
-Output template: %desc%,%-time%,%-Gflops%
+Output template: %prb%,%-time%,%-Gflops%
 mb112oc1000ic2048n"resnet:ip1",0.521973,878.881
 ```

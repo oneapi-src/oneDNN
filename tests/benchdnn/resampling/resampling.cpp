@@ -90,7 +90,7 @@ int fill_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     const int f_min = 0;
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const int gen = ((97 * i) - 17 * kind + 101) % (range + 1);
+        const float gen = ((97 * i) - 17 * kind + 101) % (range + 1);
         const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
                 ? (f_min + gen) / range
                 : (f_min + gen) * (1.0f + 4.0f / range);

@@ -979,7 +979,6 @@ struct jit_uni_reorder_t : public primitive_impl_t {
             }
             _pd->prb_ = prb;
             _pd->ker_desc_ = ker_desc;
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }

@@ -45,15 +45,8 @@ struct desc_t {
     int64_t pd, ph, pw;
 
     const char *name;
+    int ndims;
 };
-
-inline bool is_3d(const desc_t *p) {
-    return p->id > 1 || p->od > 1 || p->kd > 1;
-}
-
-inline bool is_1d(const desc_t *p) {
-    return !is_3d(p) && p->ih == 1 && p->oh == 1 && p->kh == 1;
-}
 
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
@@ -115,6 +108,10 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_cfg(std::ostream &s) const override {
         s << cfg2str(p_->cfg);
+    }
+
+    virtual void dump_desc(std::ostream &s) const override {
+        s << static_cast<const desc_t &>(*p_);
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {

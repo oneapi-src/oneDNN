@@ -43,12 +43,16 @@ The binary primitive does not have a notion of forward or backward propagations.
 
 ### Post-ops and Attributes
 
-The binary primitive does not support any post-ops or attributes.
+The following attributes are supported:
+
+| Type      | Operation     | Restrictions       | Description
+| :--       | :--           | :--                | :--
+| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | The corresponding tensor has integer data type. Only one scale per tensor is supported. Input tensors only. | Scales the corresponding input tensor by the given scale factor(s).
 
 ### Data Types Support
 
-The source and destination tensors may have `f32` or `bf16` data types. See @ref
-dev_guide_data_types page for more details.
+The source and destination tensors may have `f32`, `bf16`, or `int8` data types.
+See @ref dev_guide_data_types page for more details.
 
 ### Data Representation
 
@@ -66,5 +70,5 @@ meaning associated with any of tensors dimensions.
 
 ## Performance Tips
 
-1. Whenever possible, avoid specifying the destination memory format so that
-   the primitive is able to choose the most appropriate one.
+1. Whenever possible, avoid specifying different memory formats for source
+   tensors.

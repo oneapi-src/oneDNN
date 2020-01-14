@@ -47,15 +47,15 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (!(p.sdt[0] == dnnl_f32 && p.sdt[1] == dnnl_f32))
+    if (canonical || !(p.sdt[0] == dnnl_f32 && p.sdt[1] == dnnl_f32))
         s << "--sdt=" << p.sdt << " ";
-    if (p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
-    if (!(p.stag[0] == dnnl_nchw && p.stag[1] == dnnl_nchw))
+    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (canonical || !(p.stag[0] == dnnl_nchw && p.stag[1] == dnnl_nchw))
         s << "--stag=" << p.stag << " ";
-    if (p.alg != ADD) s << "--alg=" << alg2str(p.alg) << " ";
-    if (p.scale_policy != policy_t::NONE)
-        s << "--scaling=" << attr_t::scale_t::policy2str(p.scale_policy) << " ";
-    if (p.inplace != true) s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || p.alg != ADD) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.inplace != true)
+        s << "--inplace=" << bool2str(p.inplace) << " ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << p.sdims;
 

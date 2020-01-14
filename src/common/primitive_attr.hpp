@@ -17,6 +17,7 @@
 #ifndef PRIMITIVE_ATTR_HPP
 #define PRIMITIVE_ATTR_HPP
 
+#include <map>
 #include <initializer_list>
 
 #include "dnnl.h"
@@ -28,6 +29,8 @@
 
 namespace dnnl {
 namespace impl {
+
+const primitive_attr_t &default_attr();
 
 struct rnn_data_qparams_t : public c_compatible {
     rnn_data_qparams_t() : scale_(1.), shift_(0.) {}
@@ -118,6 +121,10 @@ struct rnn_tparams_t : public c_compatible {
 
 struct scales_t : public c_compatible {
     scales_t() : count_(1), mask_(0), scales_(scales_buf_) { set(1.); }
+    scales_t(dim_t count, int mask, const float *scales)
+        : scales_(scales_buf_) {
+        set(count, mask, scales);
+    }
 
     scales_t(const scales_t &rhs) : scales_t() {
         set(rhs.count_, rhs.mask_, rhs.scales_);
@@ -168,6 +175,48 @@ private:
         count_ = 1;
         mask_ = 0;
         scales_ = scales_buf_;
+    }
+};
+
+struct arg_scales_t : public c_compatible {
+    arg_scales_t() {
+        for (const auto &sa : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}) {
+            set(sa, 1.f);
+        }
+    }
+
+    const scales_t &get(int arg) const {
+        static const scales_t default_scales;
+        const auto it = scales_.find(arg);
+        if (it == scales_.end()) return default_scales;
+        return it->second;
+    }
+
+    bool operator==(const arg_scales_t &rhs) const {
+        return scales_ == rhs.scales_;
+    }
+
+    bool has_default_values() const {
+        for (const auto &s : scales_) {
+            if (!s.second.has_default_values()) return false;
+        }
+        return true;
+    }
+
+    status_t get(int arg, dim_t *count, int *mask, const float **scales) const;
+    status_t set(int arg, dim_t count, int mask, const float *scales);
+    status_t set(int arg, float single_scale) {
+        return set(arg, 1, 0, &single_scale);
+    }
+
+    std::map<int, scales_t> scales_;
+
+private:
+    bool check_arg(int arg) const {
+        for (const auto &sa : {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1}) {
+            if (arg == sa) return true;
+        }
+        return false;
     }
 };
 
@@ -331,12 +380,13 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         none = 0,
         oscale = 1u << 0,
         oscale_runtime = (unsigned)oscale | (1u << 1),
-        zero_points = 1u << 2,
-        zero_points_runtime = (unsigned)zero_points | (1u << 3),
-        post_ops = 1u << 4,
-        rnn_data_qparams = 1u << 5,
-        rnn_weights_qparams = 1u << 6,
-        rnn_tparams = 1u << 7,
+        scales = 1u << 2,
+        zero_points = 1u << 3,
+        zero_points_runtime = (unsigned)zero_points | (1u << 4),
+        post_ops = 1u << 5,
+        rnn_data_qparams = 1u << 6,
+        rnn_weights_qparams = 1u << 7,
+        rnn_tparams = 1u << 8,
     };
 
     /** Returns true if the attributes have default values.
@@ -350,7 +400,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     bool operator==(const dnnl_primitive_attr &rhs) const {
         bool ret = scratchpad_mode_ == rhs.scratchpad_mode_
                 && output_scales_ == rhs.output_scales_
-                && zero_points_ == rhs.zero_points_
+                && scales_ == rhs.scales_ && zero_points_ == rhs.zero_points_
                 && post_ops_ == rhs.post_ops_
                 && rnn_data_qparams_ == rhs.rnn_data_qparams_
                 && rnn_weights_qparams_ == rhs.rnn_weights_qparams_
@@ -363,9 +413,10 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::status_t set_post_ops(const dnnl::impl::post_ops_t &post_ops);
 
     // NOTE: make sure that the types below have overloaded comparison operator
-    dnnl::impl::scratchpad_mode_t scratchpad_mode_;
     dnnl::impl::scales_t output_scales_;
+    dnnl::impl::arg_scales_t scales_;
     dnnl::impl::zero_points_t zero_points_;
+    dnnl::impl::scratchpad_mode_t scratchpad_mode_;
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;

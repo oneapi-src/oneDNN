@@ -54,8 +54,6 @@ struct reorder_pd_t : public primitive_desc_t {
         return reinterpret_cast<const op_desc_t *>(this->desc());
     }
 
-    virtual void init_info() override { impl::init_info(this, this->info_); }
-
     virtual arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_FROM) return arg_usage_t::input;
 

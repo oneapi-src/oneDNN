@@ -48,7 +48,7 @@ struct desc_t {
     int64_t mb, ic, id, ih, iw;
     float eps;
     const char *name;
-    int64_t ndims;
+    int ndims;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
@@ -86,6 +86,10 @@ struct perf_report_t : public base_perf_report_t {
     void report(const prb_t *p, const res_t *r, const char *prb_str) {
         p_ = p;
         base_report(r, prb_str);
+    }
+
+    virtual void dump_desc(std::ostream &s) const override {
+        s << static_cast<const desc_t &>(*p_);
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {

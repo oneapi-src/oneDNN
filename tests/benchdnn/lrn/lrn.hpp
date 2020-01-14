@@ -42,7 +42,7 @@ struct desc_t {
     int64_t ls;
     float alpha, beta, k;
     const char *name;
-    int64_t ndims;
+    int ndims;
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
@@ -74,6 +74,10 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_alg(std::ostream &s) const override {
         s << alg2str(p_->alg);
+    }
+
+    virtual void dump_desc(std::ostream &s) const override {
+        s << static_cast<const desc_t &>(*p_);
     }
 
     virtual void dump_desc_csv(std::ostream &s) const override {

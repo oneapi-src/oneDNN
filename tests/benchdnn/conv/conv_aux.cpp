@@ -60,28 +60,24 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     desc_t d {0};
 
     /* canonical form:
-     * dYgXmbXicXihXiwXocXohXowXkhXkwXshXswXphXpwXdhXdwXnS
+     * gXmbX_icXidXihXiwX_ocXodXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_ddXdhXdwXnS
      *
-     * where: Y = {fb, fd, bd, bw, bb}, X is number, S - string
+     * where X is number, S - string
      * note: symbol `_` is ignored
      *
      * implicit rules:
-     *  - default values:
-     *      mb = 2, g = 1, d = fd, sh = sw = 1, dh = dw = 0
-     *  - if H is undefined => H = W
-     *  - if W is undefined => W = H
-     *  - if `output` is undefined => compute output
-     *  - if padding is undefined => compute trivial padding
+     *  - if smaller dimensions are not specified => square or cubic form;
+     *  - if output is undefined => compute output;
+     *  - if padding is undefined => compute trivial padding;
      */
 
     d.g = 1;
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.dd = d.dh = d.dw = 0;
+    d.pd = d.ph = d.pw = -1;
     d.has_groups = false;
-    d.pw = -1;
-    d.ph = -1;
-    d.pd = -1;
+    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -166,7 +162,8 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
         } else if (d.pd < 0)
             d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
-    }
+    } else
+        d.ndims--;
 
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
@@ -175,6 +172,8 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.oh = compute_out(is_deconv, d.ih, d.kh, d.sh, d.ph, d.dh);
         } else if (d.ph < 0)
             d.ph = compute_pad(is_deconv, d.oh, d.ih, d.kh, d.sh, d.dh);
+    } else {
+        if (no_d) d.ndims--;
     }
 
     if (!no_w) {
@@ -186,26 +185,37 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
-    if (no_w && no_h && d.id > 0) {
-        // User specified values for the d dimesion but not values h and w
-        // dimensions. Propagate *d values to h and w dimesions.
+    if (d.ndims == 5 && no_w && no_h) {
+        // User specified values for the d dimension but not values for h and w
+        // dimensions. Propagate d values to h and w dimensions.
         d.iw = d.ih = d.id;
         d.kw = d.kh = d.kd;
         d.ow = d.oh = d.od;
         d.pw = d.ph = d.pd;
         d.sw = d.sh = d.sd;
         d.dw = d.dh = d.dd;
-    } else if (no_w && d.ih > 0) {
-        /* user specified values for h dimesion but not w
-         * dimension. propagate *h values to the w dimension. */
+    } else if (d.ndims == 4 && no_w) {
+        // User specified values for the h dimension but not values for the w
+        // dimension. Propagate h values to the w dimension.
         d.iw = d.ih;
         d.kw = d.kh;
         d.ow = d.oh;
         d.pw = d.ph;
         d.sw = d.sh;
         d.dw = d.dh;
-    } else if (no_h && !no_w) {
-        /* this is a 1D convolution. set default values for the h dimension  */
+    }
+
+    if (d.ndims < 5) {
+        // User did not specify values for the d dimension, set them to default.
+        d.id = 1;
+        d.kd = 1;
+        d.od = 1;
+        d.pd = 0;
+        d.sd = 1;
+        d.dd = 0;
+    }
+    if (d.ndims < 4) {
+        // User did not specify values for the h dimension, set them to default.
         d.ih = 1;
         d.kh = 1;
         d.oh = 1;
@@ -214,43 +224,34 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
         d.dh = 0;
     }
 
-    if (no_d) {
-        /* user did not specify values for the d dimension. set them
-         * to defaults. this also happens for 1D convolutions. */
-        d.id = 1;
-        d.kd = 1;
-        d.od = 1;
-        d.sd = 1;
-        d.pd = 0;
-        d.dd = 0;
-    }
-
     *desc = d;
 
     return OK;
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool canonical = s.flags() & std::ios_base::fixed;
+    const bool square_form = (d.ih == d.iw) && (d.kh == d.kw) && (d.oh == d.ow)
+            && (d.sh == d.sw) && (d.ph == d.pw) && (d.dh == d.dw);
+    const bool cubic_form = square_form && (d.id == d.ih) && (d.kd == d.kh)
+            && (d.od == d.oh) && (d.pd == d.ph) && (d.sd == d.sh)
+            && (d.dd == d.dh);
+
+    const bool print_d = d.ndims == 5;
+    const bool print_h
+            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
+    const bool print_w
+            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+
+    auto print_spatial
+            = [&](const char *d_str, int64_t d_val, const char *h_str,
+                      int64_t h_val, const char *w_str, int64_t w_val) {
+                  if (print_d) s << d_str << d_val;
+                  if (print_h) s << h_str << h_val;
+                  if (print_w) s << w_str << w_val;
+              };
 
     if (canonical || d.has_groups) s << "g" << d.g;
     if (canonical || d.mb != 2) s << "mb" << d.mb;
-
-    const bool print_d = is_problem_3d(&d);
-    const bool half_form
-            = (d.ih == d.iw && d.kh == d.kw && d.oh == d.ow && d.sh == d.sw
-                      && d.ph == d.pw && d.dh == d.dw)
-            && !print_d;
-
-    const bool print_w = canonical || print_d || !half_form;
-
-    auto print_spatial = [&](const char *sd, int64_t vd, const char *sh,
-                                 int64_t vh, const char *sw, int64_t vw) {
-        if (print_d) s << sd << vd;
-        s << sh << vh;
-        if (print_w) s << sw << vw;
-    };
-
     s << "ic" << d.ic;
     print_spatial("id", d.id, "ih", d.ih, "iw", d.iw);
     s << "oc" << d.oc;
@@ -328,16 +329,16 @@ void prb_t::generate_oscales() {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.stag != dnnl_format_tag_any)
+    if (canonical || p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.stag != dnnl_format_tag_any)
         s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (p.wtag != dnnl_format_tag_any)
+    if (canonical || p.wtag != dnnl_format_tag_any)
         s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (p.dtag != dnnl_format_tag_any)
+    if (canonical || p.dtag != dnnl_format_tag_any)
         s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
-    if (p.alg != DIRECT) s << "--alg=" << alg2str(p.alg) << " ";
-    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (canonical || p.alg != DIRECT) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
 

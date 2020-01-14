@@ -65,7 +65,6 @@ struct rnn_data_reorder_t : public primitive_impl_t {
                 delete _pd;
                 return unimplemented;
             }
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
@@ -136,7 +135,6 @@ struct rnn_weights_reorder_s8_t : public primitive_impl_t {
                 delete _pd;
                 return unimplemented;
             }
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
@@ -183,8 +181,12 @@ private:
         auto output = CTX_OUT_MEM(char *, DNNL_ARG_TO);
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
-        const auto &dims = input_d.dims();
+        if (input_d.has_zero_dim()) {
+            assert(output_d.has_zero_dim());
+            return status::success;
+        }
 
+        const auto &dims = input_d.dims();
         const int L = dims[0];
         const int D = dims[1];
         const int I = dims[2];
@@ -330,7 +332,6 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                 return unimplemented;
             }
             _pd->itag_ = itag;
-            _pd->init_info();
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }

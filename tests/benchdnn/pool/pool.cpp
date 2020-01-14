@@ -139,46 +139,46 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &ppd,
         const_dnnl_primitive_desc_t hint, res_t *r) {
     dnnl_memory_desc_t src_d, dst_d;
 
-    const int ndims = is_3d(p) ? 5 : is_1d(p) ? 3 : 4;
-
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
     dnnl_dims_t src_2d_dims = {p->mb, p->ic, p->ih, p->iw};
     dnnl_dims_t src_3d_dims = {p->mb, p->ic, p->id, p->ih, p->iw};
-    dnnl_dim_t *src_dims
-            = is_3d(p) ? src_3d_dims : is_1d(p) ? src_1d_dims : src_2d_dims;
+    dnnl_dim_t *src_dims = p->ndims == 5
+            ? src_3d_dims
+            : p->ndims == 4 ? src_2d_dims : src_1d_dims;
 
     dnnl_dims_t dst_1d_dims = {p->mb, p->ic, p->ow};
     dnnl_dims_t dst_2d_dims = {p->mb, p->ic, p->oh, p->ow};
     dnnl_dims_t dst_3d_dims = {p->mb, p->ic, p->od, p->oh, p->ow};
-    dnnl_dim_t *dst_dims
-            = is_3d(p) ? dst_3d_dims : is_1d(p) ? dst_1d_dims : dst_2d_dims;
+    dnnl_dim_t *dst_dims = p->ndims == 5
+            ? dst_3d_dims
+            : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     dnnl_format_tag_t tag_src = (dir & FLAG_FWD) ? p->tag : dnnl_format_tag_any;
     dnnl_format_tag_t tag_dst = dnnl_format_tag_any;
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, ndims, src_dims, p->cfg[SRC].dt, tag_src),
+                     &src_d, p->ndims, src_dims, p->cfg[SRC].dt, tag_src),
             WARN);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, ndims, dst_dims, p->cfg[DST].dt, tag_dst),
+                     &dst_d, p->ndims, dst_dims, p->cfg[DST].dt, tag_dst),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};
     dnnl_dim_t kernel_nd[] = {p->kd, p->kh, p->kw};
     dnnl_dim_t padding_l_nd[] = {p->pd, p->ph, p->pw};
 
-    auto bph = [&](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph) {
+    auto bph = [](int64_t ih, int64_t oh, int64_t kh, int64_t sh, int64_t ph) {
         return (oh - 1) * sh - ih + kh - ph;
     };
     dnnl_dim_t padding_r_nd[] = {bph(p->id, p->od, p->kd, p->sd, p->pd),
             bph(p->ih, p->oh, p->kh, p->sh, p->ph),
             bph(p->iw, p->ow, p->kw, p->sw, p->pw)};
 
-    dnnl_dim_t *strides = strides_nd + (5 - ndims);
-    dnnl_dim_t *kernel = kernel_nd + (5 - ndims);
-    dnnl_dim_t *padding_l = padding_l_nd + (5 - ndims);
-    dnnl_dim_t *padding_r = padding_r_nd + (5 - ndims);
+    dnnl_dim_t *strides = strides_nd + (5 - p->ndims);
+    dnnl_dim_t *kernel = kernel_nd + (5 - p->ndims);
+    dnnl_dim_t *padding_l = padding_l_nd + (5 - p->ndims);
+    dnnl_dim_t *padding_r = padding_r_nd + (5 - p->ndims);
 
     dnnl_alg_kind_t alg = alg2alg_kind(p->alg);
     dnnl_pooling_desc_t pd;

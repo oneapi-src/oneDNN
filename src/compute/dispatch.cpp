@@ -225,7 +225,7 @@ void dispatch_t::generate() {
     for (int i = ndims_ - 1; i >= 0; --i) {
         dim_t block = std::max(dims_[i].block, (dim_t)1);
         int gws_index = dims_[i].gws_index;
-        gws[gws_index] *= (dims_[i].size / block);
+        gws[gws_index] *= utils::div_up(dims_[i].size, block);
     }
 
     size_t gws_size = gws[0] * gws[1] * gws[2];

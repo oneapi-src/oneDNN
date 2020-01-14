@@ -18,3 +18,7 @@ g1ic16oc32_id128od64kd2sd2dd0pd0_ih128oh64kh2sh2dh0ph0_iw64ow32kw2sw2dw0pw0_n"vn
 g2_ic32oc32_id17kd2_n"3d_gconv_channel-block-16"
 g8_ic64oc64_id19kd2_n"3d_gconv_channel-block-8"
 g6_ic24oc24_id21kd3_n"3d_gconv_channel-block-4"
+
+g4_ic24oc24_id21kd3_n"3d_gconv_non-block"
+g2_ic10oc20_id16kd1_n"3d_gconv_non-block_1x1"
+g3_ic6oc6_id56kd3sd2_n"3d_gconv_non-block_s2"

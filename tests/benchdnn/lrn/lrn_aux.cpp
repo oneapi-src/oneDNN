@@ -132,18 +132,27 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    if (d.mb != 2) s << "mb" << d.mb;
+    const bool square_form = (d.ih == d.iw);
+    const bool cubic_form = square_form && (d.id == d.ih);
+
+    const bool print_d = d.ndims == 5;
+    const bool print_h
+            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
+    const bool print_w
+            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+
+    if (canonical || d.mb != 2) s << "mb" << d.mb;
 
     s << "ic" << d.ic;
 
-    if (d.ndims >= 5) s << "id" << d.id;
-    if (d.ndims >= 4) s << "ih" << d.ih;
-    if (d.ndims >= 3) s << "iw" << d.iw;
+    if (print_d) s << "id" << d.id;
+    if (print_h) s << "ih" << d.ih;
+    if (print_w) s << "iw" << d.iw;
 
-    if (d.ls != 5) s << "ls" << d.ls;
-    if (d.alpha != 1.f / 8192) s << "alpha" << d.alpha;
-    if (d.beta != 0.75f) s << "beta" << d.beta;
-    if (d.k != 1) s << "k" << d.k;
+    if (canonical || d.ls != 5) s << "ls" << d.ls;
+    if (canonical || d.alpha != 1.f / 8192) s << "alpha" << d.alpha;
+    if (canonical || d.beta != 0.75f) s << "beta" << d.beta;
+    if (canonical || d.k != 1) s << "k" << d.k;
 
     if (d.name) s << "n" << d.name;
 
@@ -153,10 +162,11 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (canonical || p.tag != dnnl_nchw)
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 

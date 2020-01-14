@@ -179,6 +179,49 @@ TEST_F(attr_test, TestZeroPointsExpectFailure) {
     EXPECT_ANY_THROW(attr.set_zero_points(unsupported_arg, 1 << 1, {1, 2, 3}));
 }
 
+TEST_F(attr_test, TestScales) {
+    dnnl::primitive_attr attr;
+
+    const std::vector<int> supported_args = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
+    const std::vector<int> unsupported_args = {DNNL_ARG_BIAS, DNNL_ARG_DST_2,
+            DNNL_ARG_MEAN, DNNL_ARG_WORKSPACE, DNNL_ARG_SCRATCHPAD};
+    int scales_mask;
+    std::vector<float> scales;
+
+    // default scales
+    for (int arg : supported_args) {
+        attr.get_scales(arg, scales_mask, scales);
+        ASSERT_EQ(scales_mask, 0);
+        ASSERT_EQ(scales.size(), 1U);
+        ASSERT_EQ(scales[0], 1.f);
+    }
+
+    // single non-default scales for supported arg
+    attr.set_scales(supported_args[0], 0, {2});
+    attr.get_scales(supported_args[0], scales_mask, scales);
+    ASSERT_EQ(scales_mask, 0);
+    ASSERT_EQ(scales.size(), 1U);
+    ASSERT_EQ(scales[0], 2);
+
+    // multiple scales
+    attr.set_scales(supported_args[0], 1 << 1, {1., 2., 3.});
+    attr.get_scales(supported_args[0], scales_mask, scales);
+    ASSERT_EQ(scales_mask, 1 << 1);
+    ASSERT_EQ(scales.size(), 3U);
+    ASSERT_EQ(scales[0], 1.);
+    ASSERT_EQ(scales[1], 2.);
+    ASSERT_EQ(scales[2], 3.);
+}
+
+TEST_F(attr_test, TestScalesExpectFailure) {
+    dnnl::primitive_attr attr;
+    const int unsupported_arg = DNNL_ARG_MEAN;
+
+    // non-default scales for unsupported arg
+    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 0, {2}));
+    EXPECT_ANY_THROW(attr.set_scales(unsupported_arg, 1 << 1, {1, 2, 3}));
+}
+
 TEST_F(attr_test, TestPostOps) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;

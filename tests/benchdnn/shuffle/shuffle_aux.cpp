@@ -24,11 +24,12 @@ namespace shuffle {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (p.tag != dnnl_nchw) s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (p.group != 1) s << "--group=" << p.group << " ";
-    if (p.axis != 1) s << "--axis=" << p.axis << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
+    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (canonical || p.tag != dnnl_nchw)
+        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.group != 1) s << "--group=" << p.group << " ";
+    if (canonical || p.axis != 1) s << "--axis=" << p.axis << " ";
 
     s << p.dims;
 

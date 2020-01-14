@@ -22,16 +22,17 @@ namespace concat {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.sdt != dnnl_f32) s << "--sdt=" << dt2str(p.sdt) << " ";
-    if (p.dtag != dnnl_format_tag_undef && p.ddt != dnnl_f32)
+    if (canonical || p.sdt != dnnl_f32) s << "--sdt=" << dt2str(p.sdt) << " ";
+    if (canonical || (p.dtag != dnnl_format_tag_undef && p.ddt != dnnl_f32))
         s << "--ddt=" << dt2str(p.ddt) << " ";
 
-    if (!(p.n_inputs() == 2 && p.stag[0] == dnnl_nchw
-                && p.stag[1] == dnnl_nchw))
+    if (canonical
+            || !(p.n_inputs() == 2 && p.stag[0] == dnnl_nchw
+                    && p.stag[1] == dnnl_nchw))
         s << "--stag=" << p.stag << " ";
-    if (p.dtag != dnnl_format_tag_undef)
+    if (canonical || p.dtag != dnnl_format_tag_undef)
         s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
-    if (p.axis != 1) s << "--axis=" << p.axis << " ";
+    if (canonical || p.axis != 1) s << "--axis=" << p.axis << " ";
 
     s << p.sdims;
 

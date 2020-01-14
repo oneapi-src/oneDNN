@@ -199,6 +199,7 @@ typedef enum {
     dnnl_cdba, ///< permuted 4D tensor
     dnnl_cdeba, ///< permuted 5D tensor
     dnnl_decab, ///< permuted 5D tensor
+    dnnl_defcab, ///< permuted 6D tensor
 
     // Opaque blocked formats
 
@@ -309,18 +310,22 @@ typedef enum {
     dnnl_aCBdef8b16c2b,
     dnnl_aBCdef8c8b,
     dnnl_aBdc16b,
+    dnnl_aBdC16b2c,
     dnnl_aBdc4b,
     dnnl_aBdc8b,
     dnnl_aBdec16b,
+    dnnl_aBdeC16b2c,
     dnnl_aBdec32b,
     dnnl_aBdec4b,
     dnnl_aBdec8b,
     dnnl_aBdefc16b,
+    dnnl_aBdefC16b2c,
     dnnl_aCBdef16c16b,
     dnnl_aBdefc4b,
     dnnl_aBdefc8b,
     dnnl_Abcdef16a,
     dnnl_Acb16a,
+    dnnl_AcB16a2b,
     dnnl_Acb4a,
     dnnl_Acb8a,
     dnnl_aCBd16b16c,
@@ -328,10 +333,12 @@ typedef enum {
     dnnl_aCBde16b16c,
     dnnl_aCBde16c16b,
     dnnl_Acdb16a,
+    dnnl_AcdB16a2b,
     dnnl_Acdb32a,
     dnnl_Acdb4a,
     dnnl_Acdb8a,
     dnnl_Acdeb16a,
+    dnnl_AcdeB16a2b,
     dnnl_Acdeb4a,
     dnnl_Acdeb8a,
     dnnl_BAc16a16b,
@@ -413,6 +420,8 @@ typedef enum {
     dnnl_goidhw = dnnl_abcdef,
     /// 6D CNN weights tensor (incl. groups), an alias to #dnnl_acbdef
     dnnl_giodhw = dnnl_acbdef,
+    /// 6D CNN weights tensor (incl. groups), an alias to #dnnl_defcab
+    dnnl_dhwigo = dnnl_defcab,
 
     /// 3D RNN data tensor in the format (seq_length, batch, input channels).
     dnnl_tnc = dnnl_abc,
@@ -496,6 +505,7 @@ typedef enum {
     dnnl_IOw8o16i2o = dnnl_BAc8a16b2a,
     dnnl_OIw8o8i = dnnl_ABc8a8b,
     dnnl_Owi16o = dnnl_Acb16a,
+    dnnl_OwI16o2i = dnnl_AcB16a2b,
     dnnl_Owi4o = dnnl_Acb4a,
     dnnl_Owi8o = dnnl_Acb8a,
 
@@ -503,6 +513,7 @@ typedef enum {
     dnnl_IOhw16i16o = dnnl_BAcd16b16a,
     dnnl_IOhw16o16i = dnnl_BAcd16a16b,
     dnnl_Ohwi16o = dnnl_Acdb16a,
+    dnnl_OhwI16o2i = dnnl_AcdB16a2b,
     dnnl_Ohwi32o = dnnl_Acdb32a,
     dnnl_Ohwi4o = dnnl_Acdb4a,
     dnnl_Ohwi8o = dnnl_Acdb8a,
@@ -522,6 +533,7 @@ typedef enum {
 
     // weights, 5D
     dnnl_Odhwi16o = dnnl_Acdeb16a,
+    dnnl_OdhwI16o2i = dnnl_AcdeB16a2b,
     dnnl_Odhwi4o = dnnl_Acdeb4a,
     dnnl_Odhwi8o = dnnl_Acdeb8a,
     dnnl_OIdhw16i16o = dnnl_ABcde16b16a,
@@ -558,6 +570,7 @@ typedef enum {
     dnnl_gIOw8o16i2o = dnnl_aCBd8b16c2b,
     dnnl_gOIw8o8i = dnnl_aBCd8b8c,
     dnnl_gOwi16o = dnnl_aBdc16b,
+    dnnl_gOwI16o2i = dnnl_aBdC16b2c,
     dnnl_gOwi4o = dnnl_aBdc4b,
     dnnl_gOwi8o = dnnl_aBdc8b,
 
@@ -565,6 +578,7 @@ typedef enum {
     dnnl_gIOhw16i16o = dnnl_aCBde16c16b,
     dnnl_gIOhw16o16i = dnnl_aCBde16b16c,
     dnnl_gOhwi16o = dnnl_aBdec16b,
+    dnnl_gOhwI16o2i = dnnl_aBdeC16b2c,
     dnnl_gOhwi32o = dnnl_aBdec32b,
     dnnl_gOhwi4o = dnnl_aBdec4b,
     dnnl_gOhwi8o = dnnl_aBdec8b,
@@ -592,6 +606,7 @@ typedef enum {
     // weights w/ groups, 6D
     dnnl_gIOdhw16i16o = dnnl_aCBdef16c16b,
     dnnl_gOdhwi16o = dnnl_aBdefc16b,
+    dnnl_gOdhwI16o2i = dnnl_aBdefC16b2c,
     dnnl_gOdhwi4o = dnnl_aBdefc4b,
     dnnl_gOdhwi8o = dnnl_aBdefc8b,
     dnnl_gOIdhw16i16o = dnnl_aBCdef16c16b,

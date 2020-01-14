@@ -137,32 +137,39 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (p.cfg != defaults::cfg) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (p.stag != defaults::tag) s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (p.wtag != defaults::tag) s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (p.dtag != defaults::tag) s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
+    if (canonical || p.cfg != defaults::cfg)
+        s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.stag != defaults::tag)
+        s << "--stag=" << fmt_tag2str(p.stag) << " ";
+    if (canonical || p.wtag != defaults::tag)
+        s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
+    if (canonical || p.dtag != defaults::tag)
+        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
 
-    if (p.ld_src != defaults::ld) s << "--ld_src=" << p.ld_src << " ";
-    if (p.ld_wei != defaults::ld) s << "--ld_wei=" << p.ld_wei << " ";
-    if (p.ld_dst != defaults::ld) s << "--ld_dst=" << p.ld_dst << " ";
+    if (canonical || p.ld_src != defaults::ld)
+        s << "--ld_src=" << p.ld_src << " ";
+    if (canonical || p.ld_wei != defaults::ld)
+        s << "--ld_wei=" << p.ld_wei << " ";
+    if (canonical || p.ld_dst != defaults::ld)
+        s << "--ld_dst=" << p.ld_dst << " ";
 
-    if (p.runtime_mb != defaults::runtime_val)
+    if (canonical || p.runtime_mb != defaults::runtime_val)
         s << "--runtime_mb=" << p.runtime_mb << " ";
-    if (p.runtime_m != defaults::runtime_val)
+    if (canonical || p.runtime_m != defaults::runtime_val)
         s << "--runtime_m=" << p.runtime_m << " ";
-    if (p.runtime_n != defaults::runtime_val)
+    if (canonical || p.runtime_n != defaults::runtime_val)
         s << "--runtime_n=" << p.runtime_n << " ";
-    if (p.runtime_k != defaults::runtime_val)
+    if (canonical || p.runtime_k != defaults::runtime_val)
         s << "--runtime_k=" << p.runtime_k << " ";
 
-    if (p.bia_dt != defaults::bia_dt) {
+    if (canonical || p.bia_dt != defaults::bia_dt) {
         s << "--bia_dt=" << dt2str(p.bia_dt) << " ";
 
-        if (p.bia_mask != defaults::bia_mask)
+        if (canonical || p.bia_mask != defaults::bia_mask)
             s << "--bia_mask=" << p.bia_mask << " ";
     }
 
-    if (!p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
 

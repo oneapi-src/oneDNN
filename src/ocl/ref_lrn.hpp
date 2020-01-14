@@ -68,9 +68,9 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
             dispatch = compute_engine->create_dispatch(&data_md_);
             dispatch.define_dim("MB", 0, MB());
             dispatch.define_dim("IC", 1, C());
-            dispatch.define_dim("IH", nstl::min(data_md_.ndims - 1, 2), H());
-            dispatch.define_dim("IW", nstl::min(data_md_.ndims - 1, 3), W());
-            dispatch.define_dim("ID", nstl::min(data_md_.ndims - 1, 4), D());
+            dispatch.define_dim("ID", nstl::max(1, data_md_.ndims - 3), D());
+            dispatch.define_dim("IH", nstl::max(1, data_md_.ndims - 2), H());
+            dispatch.define_dim("IW", nstl::max(1, data_md_.ndims - 1), W());
             dispatch.generate();
 
             return status::success;
@@ -118,9 +118,9 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         kernel_ctx.define_int("NDIMS", ndims);
         kernel_ctx.define_int("MB", pd()->MB());
         kernel_ctx.define_int("IC", pd()->C());
+        kernel_ctx.define_int("ID", pd()->D());
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
-        kernel_ctx.define_int("ID", pd()->D());
 
         const uint32_t round_norm_size = desc->local_size;
         uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));
@@ -198,9 +198,9 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
             dispatch = compute_engine->create_dispatch(&diff_data_md_);
             dispatch.define_dim("MB", 0, MB());
             dispatch.define_dim("IC", 1, C());
-            dispatch.define_dim("IH", nstl::min(data_md_.ndims - 1, 2), H());
-            dispatch.define_dim("IW", nstl::min(data_md_.ndims - 1, 3), W());
-            dispatch.define_dim("ID", nstl::min(data_md_.ndims - 1, 4), D());
+            dispatch.define_dim("ID", nstl::max(1, data_md_.ndims - 3), D());
+            dispatch.define_dim("IH", nstl::max(1, data_md_.ndims - 2), H());
+            dispatch.define_dim("IW", nstl::max(1, data_md_.ndims - 1), W());
             dispatch.generate();
 
             return status::success;
@@ -245,9 +245,9 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         kernel_ctx.define_int("NDIMS", ndims);
         kernel_ctx.define_int("MB", pd()->MB());
         kernel_ctx.define_int("IC", pd()->C());
+        kernel_ctx.define_int("ID", pd()->D());
         kernel_ctx.define_int("IH", pd()->H());
         kernel_ctx.define_int("IW", pd()->W());
-        kernel_ctx.define_int("ID", pd()->D());
 
         const uint32_t round_norm_size = desc->local_size;
         uint32_t num_elements = pow(round_norm_size, nstl::max(0, ndims - 2));

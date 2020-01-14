@@ -670,8 +670,10 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
 
     if (p->dir & FLAG_FWD) {
-        if (prepare_fwd(p, src_fp, mean_fp, var_fp, ss_fp) != OK)
-            return r->state = MISTRUSTED, OK;
+        if (prepare_fwd(p, src_fp, mean_fp, var_fp, ss_fp) != OK) {
+            r->state = MISTRUSTED;
+            goto out;
+        }
 
         SAFE(src_dt.reorder(src_fp), WARN);
 
@@ -724,8 +726,10 @@ int doit(const prb_t *p, res_t *r) {
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
         if (prepare_bwd(p, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp, ws_fp)
-                != OK)
-            return r->state = MISTRUSTED, OK;
+                != OK) {
+            r->state = MISTRUSTED;
+            goto out;
+        }
 
         SAFE(src_dt.reorder(src_fp), WARN);
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
@@ -766,8 +770,8 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, b, args);
 
+out:
     DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
-
     return OK;
 }
 
