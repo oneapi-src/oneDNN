@@ -191,10 +191,12 @@ register_benchdnn_test(test_benchdnn_regression
     "-v1 --conv --batch=inputs/conv/test_conv_regression"
     "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions"
     )
-register_benchdnn_test(test_benchdnn_regression_large
-    cpu
-    "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
-    )
+if(NOT DNNL_USE_CLANG_SANITIZER)
+    register_benchdnn_test(test_benchdnn_regression_large
+        cpu
+        "-v1 --bnorm --batch=inputs/bnorm/test_bnorm_regressions_large"
+        )
+endif()
 
 if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_conv
