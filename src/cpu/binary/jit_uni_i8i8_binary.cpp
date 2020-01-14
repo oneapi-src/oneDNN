@@ -166,11 +166,16 @@ struct jit_uni_i8i8_binary_kernel_t : public i8i8_binary_kernel_t,
         if (do_scale_src0_) uni_vmulps(v0, v0, s_src0);
         if (do_scale_src1_) uni_vmulps(v1, v1, s_src1);
 
-        if (alg == alg_kind::binary_add) {
+        if (alg == binary_add)
             uni_vaddps(v0, v0, v1);
-        } else if (alg == alg_kind::binary_mul) {
+        else if (alg == binary_mul)
             uni_vmulps(v0, v0, v1);
-        }
+        else if (alg == binary_max)
+            uni_vmaxps(v0, v0, v1);
+        else if (alg == binary_min)
+            uni_vminps(v0, v0, v1);
+        else
+            assert(!"not supported operation!");
     }
 
     void load_and_convert(const Vmm &vmm, const Operand &op, data_type_t idt) {

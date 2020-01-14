@@ -14,7 +14,7 @@ where *binary-knobs* are:
  - `--stag={nchw:nchw [default], ...}` -- physical src memory layout.
             Refer to ``Inputs`` below.
             Refer to the common glossary in README.md for details.
- - `--alg={ADD [default], MUL}` -- algorithm for binary operations.
+ - `--alg={ADD [default], MUL, MAX, MIN}` -- algorithm for binary operations.
             Refer to ``doc/primitives/binary.md`` for details.
  - `--attr="attr_str"` -- primitive attributes. The default is `""` (no
             attributes). Refer to knobs_attr.md for details.

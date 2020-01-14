@@ -72,6 +72,8 @@ extern "C" {
 #endif
 
 %s
+const char DNNL_API *dnnl_runtime2str(unsigned v);
+
 /// Forms a format string for a given memory descriptor.
 ///
 /// The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.

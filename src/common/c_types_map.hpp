@@ -91,6 +91,8 @@ const alg_kind_t vanilla_gru = dnnl_vanilla_gru;
 const alg_kind_t lbr_gru = dnnl_lbr_gru;
 const alg_kind_t binary_add = dnnl_binary_add;
 const alg_kind_t binary_mul = dnnl_binary_mul;
+const alg_kind_t binary_max = dnnl_binary_max;
+const alg_kind_t binary_min = dnnl_binary_min;
 const alg_kind_t resampling_nearest = dnnl_resampling_nearest;
 const alg_kind_t resampling_linear = dnnl_resampling_linear;
 } // namespace alg_kind

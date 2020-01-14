@@ -26,6 +26,10 @@ void perform_op(const prb_t *p, float *dst, float x, float y) {
         res = x + y;
     } else if (p->alg == MUL) {
         res = x * y;
+    } else if (p->alg == MAX) {
+        res = MAX2(x, y);
+    } else if (p->alg == MIN) {
+        res = MIN2(x, y);
     } else {
         assert(!"operation not supported!");
     }

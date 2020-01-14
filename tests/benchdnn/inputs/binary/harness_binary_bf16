@@ -3,7 +3,7 @@
 
 --allow-unimpl=true
 --inplace=true,false
---alg=ADD,MUL
+--alg=ADD,MUL,MAX,MIN
 --ddt=bf16 --sdt=bf16:bf16
 
 --batch=shapes_common

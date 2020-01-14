@@ -54,6 +54,8 @@ struct jit_ref_binary_common_kernel {
         }
         jib.is_add = (alg == alg_kind::binary_add);
         jib.is_mul = (alg == alg_kind::binary_mul);
+        jib.is_max = (alg == alg_kind::binary_max);
+        jib.is_min = (alg == alg_kind::binary_min);
         jib.is_tensor_op = is_tensor_op;
         jib.is_dense = dst_d.is_dense();
         jib.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
@@ -83,6 +85,8 @@ struct jit_ref_binary_common_kernel {
         kernel_ctx.define_int("NDIMS", jib.ndims);
         kernel_ctx.define_int("IS_MUL", jib.is_mul);
         kernel_ctx.define_int("IS_ADD", jib.is_add);
+        kernel_ctx.define_int("IS_MAX", jib.is_max);
+        kernel_ctx.define_int("IS_MIN", jib.is_min);
         kernel_ctx.define_int("IS_TENSOR_OP", jib.is_tensor_op);
         kernel_ctx.define_int("IS_DENSE", jib.is_dense);
         kernel_ctx.define_int("IS_SAME_MD", jib.is_same_md);

@@ -34,6 +34,10 @@ __kernel void ref_binary(
     dst[off] = CONVERT_DATA_T(tmp_src0 + tmp_src1);
 #elif IS_MUL
     dst[off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
+#elif IS_MAX
+    dst[off] = CONVERT_DATA_T(max(tmp_src0, tmp_src1));
+#elif IS_MIN
+    dst[off] = CONVERT_DATA_T(min(tmp_src0, tmp_src1));
 #endif
 }
 
@@ -82,6 +86,10 @@ __kernel void ref_binary(
     dst[dst_off] = CONVERT_DATA_T(tmp_src0 + tmp_src1);
 #elif IS_MUL
     dst[dst_off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
+#elif IS_MAX
+    dst[dst_off] = CONVERT_DATA_T(max(tmp_src0, tmp_src1));
+#elif IS_MIN
+    dst[dst_off] = CONVERT_DATA_T(min(tmp_src0, tmp_src1));
 #endif
 }
 #endif

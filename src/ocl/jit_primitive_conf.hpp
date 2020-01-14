@@ -352,6 +352,8 @@ struct jit_binary_conf_t {
     data_type_t data_type;
     bool is_mul;
     bool is_add;
+    bool is_max;
+    bool is_min;
     bool is_tensor_op;
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];

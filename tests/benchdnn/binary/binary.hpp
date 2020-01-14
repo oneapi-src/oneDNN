@@ -29,7 +29,7 @@
 
 namespace binary {
 
-enum alg_t { ADD, MUL };
+enum alg_t { ADD, MUL, MAX, MIN };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);

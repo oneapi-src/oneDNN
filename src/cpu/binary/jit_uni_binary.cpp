@@ -144,10 +144,16 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     void perform_op(const Vmm &v0, const Vmm &v1) {
         using namespace alg_kind;
         const auto alg = pd_->desc()->alg_kind;
-        if (alg == alg_kind::binary_add)
+        if (alg == binary_add)
             uni_vaddps(v0, v0, v1);
-        else if (alg == alg_kind::binary_mul)
+        else if (alg == binary_mul)
             uni_vmulps(v0, v0, v1);
+        else if (alg == binary_max)
+            uni_vmaxps(v0, v0, v1);
+        else if (alg == binary_min)
+            uni_vminps(v0, v0, v1);
+        else
+            assert(!"not supported operation!");
     }
 
     virtual void prepare_isa_subkernel() = 0;

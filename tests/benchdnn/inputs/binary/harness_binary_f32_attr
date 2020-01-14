@@ -2,7 +2,7 @@
 --reset
 
 --inplace=true,false
---alg=ADD,MUL
+--alg=ADD,MUL,MAX,MIN
 --ddt=f32 --sdt=f32:f32
 
 --attr=post_ops='sum:0.5'

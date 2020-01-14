@@ -13,7 +13,8 @@ element-wise:
         src0(\overline{x}) \mathbin{op} src1(\overline{x}),
 \f]
 
-where \f$op\f$ is addition or multiplication.
+where \f$op\f$ is addition, multiplication, get maximum value or get minimum
+value.
 
 The binary primitive does not have a notion of forward or backward propagations.
 

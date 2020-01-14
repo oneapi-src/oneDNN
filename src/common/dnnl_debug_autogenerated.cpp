@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2019 Intel Corporation
+* Copyright 2018-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_cdba) return "cdba";
     if (v == dnnl_cdeba) return "cdeba";
     if (v == dnnl_decab) return "decab";
+    if (v == dnnl_defcab) return "defcab";
     if (v == dnnl_Abc16a) return "Abc16a";
     if (v == dnnl_ABc16a16b) return "ABc16a16b";
     if (v == dnnl_ABc4a4b) return "ABc4a4b";
@@ -243,6 +244,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_giohw) return "giohw";
     if (v == dnnl_goidhw) return "goidhw";
     if (v == dnnl_giodhw) return "giodhw";
+    if (v == dnnl_dhwigo) return "dhwigo";
     if (v == dnnl_tnc) return "tnc";
     if (v == dnnl_ntc) return "ntc";
     if (v == dnnl_ldnc) return "ldnc";
@@ -463,6 +465,8 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_lbr_gru) return "lbr_gru";
     if (v == dnnl_binary_add) return "binary_add";
     if (v == dnnl_binary_mul) return "binary_mul";
+    if (v == dnnl_binary_max) return "binary_max";
+    if (v == dnnl_binary_min) return "binary_min";
     if (v == dnnl_resampling_nearest) return "resampling_nearest";
     if (v == dnnl_resampling_linear) return "resampling_linear";
     assert(!"unknown alg_kind");
@@ -498,6 +502,20 @@ const char *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v) {
     if (v == dnnl_scratchpad_mode_user) return "scratchpad_mode_user";
     assert(!"unknown scratchpad_mode");
     return "unknown scratchpad_mode";
+}
+
+const char *dnnl_cpu_isa2str(dnnl_cpu_isa_t v) {
+    if (v == dnnl_cpu_isa_all) return "cpu_isa_all";
+    if (v == dnnl_cpu_isa_sse41) return "cpu_isa_sse41";
+    if (v == dnnl_cpu_isa_avx) return "cpu_isa_avx";
+    if (v == dnnl_cpu_isa_avx2) return "cpu_isa_avx2";
+    if (v == dnnl_cpu_isa_avx512_mic) return "cpu_isa_avx512_mic";
+    if (v == dnnl_cpu_isa_avx512_mic_4ops) return "cpu_isa_avx512_mic_4ops";
+    if (v == dnnl_cpu_isa_avx512_core) return "cpu_isa_avx512_core";
+    if (v == dnnl_cpu_isa_avx512_core_vnni) return "cpu_isa_avx512_core_vnni";
+    if (v == dnnl_cpu_isa_avx512_core_bf16) return "cpu_isa_avx512_core_bf16";
+    assert(!"unknown cpu_isa");
+    return "unknown cpu_isa";
 }
 
 

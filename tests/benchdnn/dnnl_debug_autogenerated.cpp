@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2019 Intel Corporation
+* Copyright 2017-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,6 +73,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(cdba);
     CASE(cdeba);
     CASE(decab);
+    CASE(defcab);
     CASE(Abc16a);
     CASE(ABc16a16b);
     CASE(ABc4a4b);
@@ -233,6 +234,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(giohw);
     CASE(goidhw);
     CASE(giodhw);
+    CASE(dhwigo);
     CASE(tnc);
     CASE(ntc);
     CASE(ldnc);

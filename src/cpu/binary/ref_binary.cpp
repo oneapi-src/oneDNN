@@ -21,6 +21,7 @@
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "math_utils.hpp"
+#include "nstl.hpp"
 #include "simple_q10n.hpp"
 #include "type_helpers.hpp"
 
@@ -47,6 +48,10 @@ data_t compute_alg(data_t x, data_t y, alg_kind_t alg) {
         d = x + y;
     } else if (alg == alg_kind::binary_mul) {
         d = x * y;
+    } else if (alg == alg_kind::binary_max) {
+        d = nstl::max(x, y);
+    } else if (alg == alg_kind::binary_min) {
+        d = nstl::min(x, y);
     } else {
         assert(!"not supported operation!");
     }
