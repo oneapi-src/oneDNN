@@ -520,6 +520,7 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
      */
     arg->kernel[isBeta0][col_req][row_req](
             &m, &n, &k, &alpha, a, b, c, ldc, col_offset, row_offset);
+    msan_unpoison_matrix(c, m, n, ldc, sizeof(*c));
 
     // sgemm kernels don't support bias yet.
     if (data_traits<a_type>::data_type == data_type::f32) {
@@ -719,8 +720,6 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                                 bufferB, 0.0f, bufferC + Um, ldc_buf,
                                 a_row_sum_eff, b_col_sum, (c_type *)NULL,
                                 offset_type::none, arg);
-                        msan_unpoison_matrix(bufferC + Um, sizeUM, sizeN,
-                                ldc_buf, sizeof(c_type));
 
                         /* Finish the block adding the necessary alpha, beta
                          * and offsets.
@@ -732,8 +731,6 @@ static dnnl_status_t gemm_kernel_driver(int ithr, dim_t m, dim_t n, dim_t k,
                         gemm_kernel(sizeUM, sizeN, sizeK, alpha, bufferA_eff,
                                 bufferB, beta_eff, c_block, ldc, a_row_sum_eff,
                                 b_col_sum, co + co_stride, offsetc_eff, arg);
-                        msan_unpoison_matrix(
-                                c_block, sizeUM, sizeN, ldc, sizeof(c_type));
                     }
                 }
                 a_block_copied = 1;
