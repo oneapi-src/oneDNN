@@ -946,6 +946,7 @@ void pd_info_t::init(const primitive_desc_t *pd) {
             CASE(convolution);
             CASE(deconvolution);
             CASE(eltwise);
+            CASE(gemm);
             CASE(inner_product);
             CASE(layer_normalization);
             CASE(lrn);

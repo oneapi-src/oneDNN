@@ -75,8 +75,8 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
         return lin_interp(
                 lin_interp(c00, c10, w0), lin_interp(c01, c11, w0), w1);
     };
-    auto trilin_interp = [&](float c000, float c010, float c100, float c110,
-                                 float c001, float c011, float c101, float c111,
+    auto trilin_interp = [&](float c000, float c001, float c010, float c011,
+                                 float c100, float c101, float c110, float c111,
                                  float w0, float w1, float w2) {
         return lin_interp(bilin_interp(c000, c010, c100, c110, w0, w1),
                 bilin_interp(c001, c011, c101, c111, w0, w1), w2);
@@ -103,7 +103,7 @@ void ref_resampling_fwd_t<data_type>::execute_forward(
                     auto id = linear_coeffs_t(od, FD, ID);
                     auto iw = linear_coeffs_t(ow, FW, IW);
                     auto ih = linear_coeffs_t(oh, FH, IH);
-                    dim_t src_l[8] = {0};
+                    data_t src_l[8] = {0};
                     for_(int i = 0; i < 2; i++)
                     for_(int j = 0; j < 2; j++)
                     for (int k = 0; k < 2; k++) {
@@ -146,36 +146,51 @@ void ref_resampling_bwd_t<data_type>::execute_backward(
     const float FH = pd()->FH();
     const float FW = pd()->FW();
 
-    parallel_nd(MB, C, ID, IH, IW,
-            [&](dim_t mb, dim_t ch, dim_t id, dim_t ih, dim_t iw) {
-                diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)] = 0.f;
-            });
-    parallel_nd(MB, C, [&](dim_t mb, dim_t ch) {
-        for_(int od = 0; od < OD; ++od)
-        for_(int oh = 0; oh < OH; ++oh)
-        for (int ow = 0; ow < OW; ++ow) {
-            if (alg == alg_kind::resampling_nearest) {
-                dim_t id = nearest_idx(od, FD), ih = nearest_idx(oh, FH),
-                      iw = nearest_idx(ow, FW);
-                diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)]
-                        += diff_dst[get_offset(diff_dst_d, mb, ch, od, oh, ow)];
-            } else if (alg == alg_kind::resampling_linear) {
-                auto id = linear_coeffs_t(od, FD, ID);
-                auto iw = linear_coeffs_t(ow, FW, IW);
-                auto ih = linear_coeffs_t(oh, FH, IH);
-                // accessor for source values on a cubic lattice
-                data_t dd
-                        = diff_dst[get_offset(diff_dst_d, mb, ch, od, oh, ow)];
-                for_(int i = 0; i < 2; i++)
-                for_(int j = 0; j < 2; j++)
-                for (int k = 0; k < 2; k++) {
-                    auto off = get_offset(diff_src_d, mb, ch, id.idx[i],
-                            ih.idx[j], iw.idx[k]);
-                    diff_src[off] += dd * id.wei[i] * ih.wei[j] * iw.wei[k];
-                }
-            }
-        }
-    });
+    if (alg == alg_kind::resampling_nearest) {
+        parallel_nd(MB, C, ID, IH, IW,
+                [&](dim_t mb, dim_t ch, dim_t id, dim_t ih, dim_t iw) {
+                    const dim_t od_start = ceil_idx(id * FD - 0.5f);
+                    const dim_t oh_start = ceil_idx(ih * FH - 0.5f);
+                    const dim_t ow_start = ceil_idx(iw * FW - 0.5f);
+
+                    const dim_t od_end = ceil_idx((id + 1.f) * FD - 0.5f);
+                    const dim_t oh_end = ceil_idx((ih + 1.f) * FH - 0.5f);
+                    const dim_t ow_end = ceil_idx((iw + 1.f) * FW - 0.5f);
+
+                    float ds = 0;
+                    for_(dim_t od = od_start; od < od_end; od++)
+                    for_(dim_t oh = oh_start; oh < oh_end; oh++)
+                    for (dim_t ow = ow_start; ow < ow_end; ow++)
+                        ds += diff_dst[get_offset(
+                                diff_dst_d, mb, ch, od, oh, ow)];
+                    diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)] = ds;
+                });
+        return;
+    } else {
+        parallel_nd(MB, C, ID, IH, IW,
+                [&](dim_t mb, dim_t ch, dim_t id, dim_t ih, dim_t iw) {
+                    bwd_linear_coeffs_t d(id, FD, ID, OD);
+                    bwd_linear_coeffs_t h(ih, FH, IH, OH);
+                    bwd_linear_coeffs_t w(iw, FW, IW, OW);
+
+                    float ds = 0;
+                    for_(int i = 0; i < 2; i++)
+                    for_(int j = 0; j < 2; j++)
+                    for_(int k = 0; k < 2; k++)
+                    for_(dim_t od = d.start[i]; od < d.end[i]; od++)
+                    for_(dim_t oh = h.start[j]; oh < h.end[j]; oh++)
+                    for (dim_t ow = w.start[k]; ow < w.end[k]; ow++) {
+                        const float weight_d = linear_weight(i, od, FD);
+                        const float weight_h = linear_weight(j, oh, FH);
+                        const float weight_w = linear_weight(k, ow, FW);
+
+                        float dd = diff_dst[get_offset(
+                                diff_dst_d, mb, ch, od, oh, ow)];
+                        ds += dd * weight_d * weight_h * weight_w;
+                    }
+                    diff_src[get_offset(diff_src_d, mb, ch, id, ih, iw)] = ds;
+                });
+    }
 }
 
 template struct ref_resampling_bwd_t<data_type::f32>;

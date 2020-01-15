@@ -2508,18 +2508,12 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     }
 
     jcp.ic_block_step = jcp.kw <= 3 ? 8 : (jcp.kw < 7 ? 4 : 2);
-    // code path with src/diff_dst transformation to vnni-friendly format by
-    // permw instructions inside jit kernel is disabled based on performance
-    // measurements for resnet50 v1.5 problems
-    // TODO: investigate performance of jcp.uses_permw_transposition = true
-    // code path and correct cross point
-    jcp.uses_permw_transposition = false;
-#if 0
-    jcp.uses_permw_transposition
-            = (jcp.stride_w != 1 || jcp.dilate_w != 0 || jcp.ic_block_step <= 4)
-            ? false
-            : true;
-#endif
+    // jcp.uses_permw_transposition = false shows better performance for
+    // resnet50 v1.5 problems
+    // jcp.uses_permw_transposition = true works better for 3d 1x1x1 problems
+    // TODO: tune cross point
+    jcp.uses_permw_transposition = ndims == 5 && jcp.kw == 1
+            && jcp.stride_w == 1 && jcp.dilate_w == 0 && jcp.ic_block_step > 4;
     const int tr_round = 4;
     // TODO: try to optimize required memory size
     int tr_pad

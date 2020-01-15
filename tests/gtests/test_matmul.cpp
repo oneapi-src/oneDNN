@@ -284,14 +284,16 @@ protected:
         memory dst_m(init_md(p.base.dst, true), eng);
 
         // Initialize memory to make sanitizers happy
-        {
-            auto src_ptr = map_memory<uint8_t>(src_m);
-            auto wei_ptr = map_memory<uint8_t>(weights_m);
-            auto dst_ptr = map_memory<uint8_t>(dst_m);
-            memset(src_ptr, 0, src_m.get_desc().get_size());
-            memset(wei_ptr, 0, weights_m.get_desc().get_size());
-            memset(dst_ptr, 0, dst_m.get_desc().get_size());
-        }
+        auto set_to_zero = [](memory &m) {
+            if (m) {
+                auto p = map_memory<char>(m);
+                memset(p, 0, m.get_desc().get_size());
+            }
+        };
+        set_to_zero(src_m);
+        set_to_zero(weights_m);
+        set_to_zero(dst_m);
+        set_to_zero(bia_m);
 
         matmul_p.execute(strm,
                 {

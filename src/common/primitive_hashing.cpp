@@ -177,6 +177,9 @@ bool key_t::operator==(const key_t &rhs) const {
         case primitive_kind::reorder:
             ret = cast_and_compare<reorder_desc_t>(op_desc_, rhs.op_desc_);
             break;
+        case primitive_kind::resampling:
+            ret = cast_and_compare<resampling_desc_t>(op_desc_, rhs.op_desc_);
+            break;
         case primitive_kind::rnn:
             ret = cast_and_compare<rnn_desc_t>(op_desc_, rhs.op_desc_);
             break;

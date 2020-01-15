@@ -75,7 +75,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t, public jit_generator {
     Reg64 reg_reverse_spat_offt = r13;
     Reg64 reg_tmp = r14;
 
-    size_t unroll_regs_ = isa == avx512_core ? 8 : 4;
+    size_t unroll_regs_ = isa == avx2 ? 4 : 8;
     size_t simd_w_ = 0;
     size_t tail_size_ = 0;
     size_t data_type_size_ = 0;
@@ -251,7 +251,7 @@ struct jit_uni_binary_subkernel_t<avx512_core_bf16, src_type>
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
-            int offt = vlen_ * i;
+            int offt = i * (vlen_ / (is_bf16_ ? 2 : 1));
             if (!tail) {
                 load(vreg_tmp_src0, src0_ptr(offt), src_type);
                 load(vreg_tmp_src1, src1_ptr(offt), src_type);
@@ -361,7 +361,7 @@ struct jit_uni_binary_subkernel_t<avx512_core, src_type>
         for (int i = 0; i < unroll; i++) {
             Vmm vreg_tmp_src0 = Vmm(2 * i + 1);
             Vmm vreg_tmp_src1 = Vmm(2 * i + 2);
-            int offt = i * (vlen_ / (is_bf16_ ? 2.f : 1.f));
+            int offt = i * (vlen_ / (is_bf16_ ? 2 : 1));
             if (!tail) {
                 load(vreg_tmp_src0, src0_ptr(offt), src_type);
                 load(vreg_tmp_src1, src1_ptr(offt), src_type);
@@ -483,8 +483,8 @@ status_t jit_uni_binary_t<src_type>::execute(const exec_ctx_t &ctx) const {
                 spat_offt_count = nelems0_tail;
             } else if (end == nelems0_simd + has_tail) {
                 // last thread takes care of tail
-                spat_offt_count = ((end - start - 1) * simd_w) * sizeof(data_t)
-                        + nelems0_tail;
+                spat_offt_count = (((end - start - 1) * simd_w) + nelems0_tail)
+                        * sizeof(data_t);
             }
         }
 
