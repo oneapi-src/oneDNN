@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <stdlib.h>
 #include <cmath>
+#include <stdlib.h>
 
 #include "dnnl.h"
 
