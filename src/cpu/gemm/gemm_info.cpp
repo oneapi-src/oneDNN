@@ -107,9 +107,8 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
         dim_t cols;
 
         this->a_packed.reset(new gemm_pack_storage_t(a));
-        if (this->a_packed->get_nocopy(this->lda, cols)) {
+        if (this->a_packed->get_nocopy(this->transa, this->lda, cols)) {
             this->a = this->a_packed->template matrix<a_t>();
-            this->transa = no_trans;
             this->a_packed = nullptr;
         }
     }
@@ -117,9 +116,8 @@ gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
         dim_t rows;
 
         this->b_packed.reset(new gemm_pack_storage_t(b));
-        if (this->b_packed->get_nocopy(this->ldb, rows)) {
+        if (this->b_packed->get_nocopy(this->transb, this->ldb, rows)) {
             this->b = this->b_packed->template matrix<b_t>();
-            this->transb = no_trans;
             this->b_packed = nullptr;
         }
     }

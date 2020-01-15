@@ -23,6 +23,7 @@
 #include "dnnl_thread.hpp"
 #include "dnnl_types.h"
 #include "gemm_info.hpp"
+#include "gemm_utils.hpp"
 #include "jit_generator.hpp"
 #include "nstl.hpp"
 
@@ -386,15 +387,55 @@ dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
 
     if (k == 0) return dnnl_success;
 
-    if (n == 1 && transa == do_trans) {
-        gemv_threading_driver(do_trans, k, m, alpha, a, lda, b,
-                transb == no_trans ? 1 : ldb, beta, c, 1, arg);
+    auto packing = (arg->packing != pack_type::none);
+    auto do_a = (arg->packing == pack_type::pack_a);
+    gemm_pack_storage_t *pack_dst = arg->pack_dst;
+
+    if (n == 1 && (transa == do_trans || packing)) {
+        if (!packing) {
+            gemv_threading_driver(do_trans, k, m, alpha, a, lda, b,
+                    transb == no_trans ? 1 : ldb, beta, c, 1, arg);
+        } else {
+            if (do_a) {
+                gemm_utils::prep_gemm_pack<a_t, c_t>(
+                        do_a, do_trans, m, k, pack_dst);
+            } else {
+                gemm_utils::prep_gemm_pack<b_t, c_t>(
+                        do_a, no_trans, k, n, pack_dst);
+            }
+
+            if (arg->measure_only) return dnnl_success;
+
+            if (do_a) {
+                gemm_utils::pack_no_copy(a, lda, m, k, transa, alpha, pack_dst);
+            } else {
+                gemm_utils::pack_no_copy(b, ldb, k, n, transb, alpha, pack_dst);
+            }
+        }
         return dnnl_success;
     }
 
-    if (m == 1 && transb == no_trans) {
-        gemv_threading_driver(do_trans, k, n, alpha, b, ldb, a,
-                transa == no_trans ? lda : 1, beta, c, ldc, arg);
+    if (m == 1 && (transb == no_trans || packing)) {
+        if (!packing) {
+            gemv_threading_driver(do_trans, k, n, alpha, b, ldb, a,
+                    transa == no_trans ? lda : 1, beta, c, ldc, arg);
+        } else {
+            if (do_a) {
+                gemm_utils::prep_gemm_pack<a_t, c_t>(
+                        do_a, do_trans, m, k, pack_dst);
+            } else {
+                gemm_utils::prep_gemm_pack<b_t, c_t>(
+                        do_a, no_trans, k, n, pack_dst);
+            }
+
+            if (arg->measure_only) return dnnl_success;
+
+            if (do_a) {
+                gemm_utils::pack_no_copy(a, lda, m, k, transa, alpha, pack_dst);
+            } else {
+                gemm_utils::pack_no_copy(b, ldb, k, n, transb, alpha, pack_dst);
+            }
+        }
         return dnnl_success;
     }
 

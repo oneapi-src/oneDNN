@@ -19,6 +19,7 @@
 #include "jit_avx512_core_gemv_s8x8s32.hpp"
 
 #include "../gemm_info.hpp"
+#include "../gemm_utils.hpp"
 #include "common/bfloat16.hpp"
 #include "common_u8.hpp"
 #include "dnnl_thread.hpp"
@@ -228,31 +229,54 @@ typename std::enable_if<std::is_same<b_type, uint8_t>::value
 jump_to_gemv_s8x8s32_impl(gemm_info_t<int8_t, b_type, int32_t> *arg) {
     gemm_info_t<int8_t, b_type, int32_t> arg_gemv = *arg;
 
+    gemm_pack_storage_t *pack_dst = arg->pack_dst;
+    auto do_a = (arg->packing == pack_type::pack_a);
+    auto packing = (arg->packing != pack_type::none);
     bool supported = mayiuse(avx512_core);
     bool bo_ok
             = IMPLICATION((std::is_same<b_type, int8_t>::value), arg->bo == 128)
             && IMPLICATION(
                     (std::is_same<b_type, uint8_t>::value), arg->bo == 0);
 
-    bool applicable = (arg->offsetc == offset_type::fixed) && // Fix offset
-            (arg->ao == 0) && bo_ok && (arg->co[0] == 0) && (arg->alpha == 1.0f)
-            && (arg->beta == 1.0f || arg->beta == 0.0f);
+    bool applicable = (arg->offsetc == offset_type::fixed || packing)
+            && // Fix offset
+            (arg->ao == 0) && bo_ok && ((arg->co && arg->co[0] == 0) || packing)
+            && (arg->alpha == 1.0f) && (arg->beta == 1.0f || arg->beta == 0.0f);
 
     if (!applicable || !supported) return 0;
 
-    if (arg->n == 1) {
-        if (arg->transa == do_trans) {
+    if (arg->n == 1 && (arg->transa == do_trans || packing)) {
+        if (!packing) {
             arg_gemv.n = arg->k;
             arg_gemv.ldc = 1;
             arg_gemv.swap = 0;
             if (arg->transb == no_trans) { arg_gemv.ldb = 1; }
             // B transpose arg_gemv.ldb = arg->ldb
             return gemv_threading_driver(&arg_gemv);
+        } else {
+            if (do_a) {
+                gemm_utils::prep_gemm_pack<int8_t, int32_t>(
+                        do_a, do_trans, arg->m, arg->k, pack_dst);
+            } else {
+                gemm_utils::prep_gemm_pack<b_type, int32_t>(
+                        do_a, no_trans, arg->k, arg->n, pack_dst);
+            }
+
+            if (arg->measure_only) return 1;
+
+            if (do_a) {
+                gemm_utils::pack_no_copy(arg->a, arg->lda, arg->m, arg->k,
+                        arg->transa, arg->alpha, arg->pack_dst);
+            } else {
+                gemm_utils::pack_no_copy(arg->b, arg->ldb, arg->k, arg->n,
+                        arg->transb, arg->alpha, arg->pack_dst);
+            }
+            return 1;
         }
     }
 
-    if (arg->m == 1) {
-        if (arg->transb == no_trans) {
+    if (arg->m == 1 && (arg->transb == no_trans || packing)) {
+        if (!packing) {
             arg_gemv.transa = do_trans;
             arg_gemv.m = arg->n;
             arg_gemv.n = arg->k;
@@ -266,6 +290,25 @@ jump_to_gemv_s8x8s32_impl(gemm_info_t<int8_t, b_type, int32_t> *arg) {
                 arg_gemv.ldb = 1;
             }
             return gemv_threading_driver(&arg_gemv);
+        } else {
+            if (do_a) {
+                gemm_utils::prep_gemm_pack<int8_t, int32_t>(
+                        do_a, do_trans, arg->m, arg->k, pack_dst);
+            } else {
+                gemm_utils::prep_gemm_pack<b_type, int32_t>(
+                        do_a, no_trans, arg->k, arg->n, pack_dst);
+            }
+
+            if (arg->measure_only) return 1;
+
+            if (do_a) {
+                gemm_utils::pack_no_copy(arg->a, arg->lda, arg->m, arg->k,
+                        arg->transa, arg->alpha, arg->pack_dst);
+            } else {
+                gemm_utils::pack_no_copy(arg->b, arg->ldb, arg->k, arg->n,
+                        arg->transb, arg->alpha, arg->pack_dst);
+            }
+            return 1;
         }
     }
 
