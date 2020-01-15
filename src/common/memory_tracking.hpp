@@ -278,8 +278,11 @@ struct registry_t {
         if (offset_map_.count(key) != 1) return nullptr;
 
         const auto &e = offset_map_.at(key);
-        assert(e.offset + e.size <= size());
-        return base_mem_storage->get_sub_storage(e.offset, e.size);
+        const size_t aligned_offset
+                = reinterpret_cast<size_t>(utils::align_ptr<char>(
+                        reinterpret_cast<char *>(e.offset), e.alignment));
+        assert(aligned_offset + e.size <= size());
+        return base_mem_storage->get_sub_storage(aligned_offset, e.size);
     }
 
     size_t size() const { return size_; }
@@ -288,7 +291,7 @@ struct registry_t {
     grantor_t grantor(const memory_storage_t *mem_storage) const;
 
 protected:
-    enum { minimal_alignment = 64 };
+    enum { minimal_alignment = 128 };
     struct entry_t {
         size_t offset, size, capacity, alignment;
     };
@@ -298,7 +301,7 @@ protected:
 };
 
 struct registrar_t {
-    enum { default_alignment = 64 };
+    enum { default_alignment = 128 };
 
     registrar_t(registry_t &registry) : registry_(registry), prefix_(0) {}
     registrar_t(registrar_t &parent, const key_t &prefix)
