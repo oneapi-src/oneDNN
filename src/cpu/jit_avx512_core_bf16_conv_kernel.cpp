@@ -2436,9 +2436,9 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
             calculate_end_padding(
                     jcp.f_pad, jcp.od, jcp.id, jcp.stride_d, ext_kd));
 
-    /* XXX: currently, does not support stride_d > 1 or dilation_d > 0 */
-    if (ndims == 5)
-        if (jcp.stride_d > 1 || jcp.dilate_d > 0) return status::unimplemented;
+    /* XXX: no support for padding when dilation_d > 0 */
+    if (!IMPLICATION(jcp.dilate_d > 0, everyone_is(0, jcp.back_pad, jcp.f_pad)))
+        return status::unimplemented;
 
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
