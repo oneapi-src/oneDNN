@@ -38,7 +38,7 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
             const jit_conv_conf_t &ajcp, const primitive_attr_t &attr)
         : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
 
         generate();
@@ -52,7 +52,7 @@ struct _jit_avx512_core_x8s8s32x_fwd_kernel : public jit_generator {
     void (*jit_ker_)(jit_conv_call_s *);
 
 private:
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
     enum {
         typesize = sizeof(float),

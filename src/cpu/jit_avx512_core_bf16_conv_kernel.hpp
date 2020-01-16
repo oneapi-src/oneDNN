@@ -43,7 +43,7 @@ struct jit_avx512_core_bf16_fwd_kernel : public jit_generator {
         , eltwise_injector_(nullptr)
         , bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
@@ -135,7 +135,7 @@ private:
     Xbyak::Opmask odd_load_mask = Xbyak::Opmask(1);
     Xbyak::Opmask even_load_mask = Xbyak::Opmask(2);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
     bf16_emulation_t *bf16_emu_;
 
     inline void prepare_output(int ur_w);

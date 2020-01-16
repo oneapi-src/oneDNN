@@ -36,7 +36,7 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     jit_avx512_dw_conv_fwd_kernel_bf16(jit_conv_conf_t ajcp)
         : jcp(ajcp), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
@@ -103,7 +103,7 @@ private:
     inline void store_dst(int ur_ch_blocks, int ur_w);
     inline void loop_ow(int ur_ch_blocks);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
     bf16_emulation_t *bf16_emu_;
 

@@ -27,7 +27,7 @@ namespace cpu {
 
 using namespace Xbyak;
 static constexpr int n_mantissa_bits = 23;
-static constexpr int k_mask_size = 16;
+static constexpr int k_mask_size = 8;
 
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::injector_preamble(
@@ -321,7 +321,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
     h->uni_vmovups(h->ptr[h->rsp + 1 * vlen], vmm_aux1);
     h->uni_vmovups(h->ptr[h->rsp + 2 * vlen], vmm_aux2);
     h->uni_vmovups(h->ptr[h->rsp + 3 * vlen], vmm_src);
-    if (has_avx512()) h->kmovd(h->ptr[h->rsp + 4 * vlen], k_mask);
+    if (has_avx512()) h->kmovw(h->ptr[h->rsp + 4 * vlen], k_mask);
 
     exp_compute_vector(vmm_aux3);
 
@@ -329,7 +329,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
     h->uni_vmovups(vmm_aux1, h->ptr[h->rsp + 1 * vlen]);
     h->uni_vmovups(vmm_aux2, h->ptr[h->rsp + 2 * vlen]);
     h->uni_vmovups(vmm_src, h->ptr[h->rsp + 3 * vlen]);
-    if (has_avx512()) h->kmovd(k_mask, h->ptr[h->rsp + 4 * vlen]);
+    if (has_avx512()) h->kmovw(k_mask, h->ptr[h->rsp + 4 * vlen]);
     h->add(h->rsp, stack_size);
 
     // 1 + exp(2x)
@@ -620,7 +620,7 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector(const Vmm &vmm_src) {
         Xbyak::Address table_idx = h->ptr[p_table + vlen
                 + table_start_idx * vlen + offt + vmm_idxs * sizeof(float)];
         if (has_avx512()) {
-            h->kmovd(k_mask, table_val(5));
+            h->kmovw(k_mask, table_val(5));
             h->vgatherdps(vmm_dst | k_mask, table_idx);
         } else if (isa == avx2) {
             h->uni_vmovups(vmm_mask, table_val(6));
@@ -751,8 +751,12 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
         size_t n_k_regs_to_save = 8;
         if (has_avx512()) {
             h->sub(h->rsp, n_k_regs_to_save * k_mask_size);
-            for (size_t i = 0; i < n_k_regs_to_save; ++i)
-                h->kmovd(h->ptr[h->rsp + i * k_mask_size], Opmask(i));
+            for (size_t i = 0; i < n_k_regs_to_save; ++i) {
+                if (mayiuse(avx512_core))
+                    h->kmovq(h->ptr[h->rsp + i * k_mask_size], Opmask(i));
+                else
+                    h->kmovw(h->ptr[h->rsp + i * k_mask_size], Opmask(i));
+            }
         }
 
         // 1. Caller obligation to save vector registers as callee may use them.
@@ -798,8 +802,12 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
 
         // restore k registers
         if (has_avx512()) {
-            for (int i = n_k_regs_to_save - 1; i >= 0; --i)
-                h->kmovd(Opmask(i), h->ptr[h->rsp + i * k_mask_size]);
+            for (int i = n_k_regs_to_save - 1; i >= 0; --i) {
+                if (mayiuse(avx512_core))
+                    h->kmovq(Opmask(i), h->ptr[h->rsp + i * k_mask_size]);
+                else
+                    h->kmovw(Opmask(i), h->ptr[h->rsp + i * k_mask_size]);
+            }
             h->add(h->rsp, n_k_regs_to_save * k_mask_size);
         }
 

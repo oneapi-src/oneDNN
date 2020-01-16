@@ -38,7 +38,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
         , eltwise_injector_(nullptr)
         , bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
 
         if (!isa_has_bf16(jcp.isa))
@@ -119,7 +119,7 @@ private:
     Xbyak::Opmask half_mask = Xbyak::Opmask(6);
     Xbyak::Label dst_prm_table;
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
     int bcast_loop_work_offt = 0;
 #ifdef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION

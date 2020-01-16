@@ -207,7 +207,7 @@ private:
         size_t vlen_;
         cpu_isa_t isa_;
         bf16_emulation_t *bf16_emu_;
-        jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+        jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
         void generate();
         int vreg_dst_idx(int iter) {
