@@ -17,6 +17,15 @@
 --cfg=bf16f32bf16  --batch=set_conv_all
 --cfg=bf16bf16bf16 --batch=shapes_resnet_50
 
+--reset
+--mb=2
+--allow-unimpl=true --skip-impl="ref:gemm"
+--dir=FWD_D --cfg=bf16bf16bf16
+--batch=shapes_3d_2d_strided_padding --batch=shapes_dilated_3d_strided_padding
+--dir=BWD_D --cfg=f32bf16bf16 --batch=shapes_3d_2d_strided_padding
+--dir=BWD_WB --cfg=bf16f32bf16
+--batch=set_conv_3d --batch=shapes_dilated_3d_unit-stride_no-padding
+
 # PostOps + Attributes
 --dir=FWD_B
 --attr=post_ops='sum' --batch=shapes_resnet_50
