@@ -85,8 +85,9 @@ bool check_extreme_values(const float &a, const float &b, alg_t alg) {
         case alg_t::SQRT:
         case alg_t::LOG:
         case alg_t::POW:
-            if (isnan(a) && isnan(b)) return true;
-            if (isinf(a) && isinf(b) && std::signbit(a) == std::signbit(b))
+            if (std::isnan(a) && std::isnan(b)) return true;
+            if (std::isinf(a) && std::isinf(b)
+                    && std::signbit(a) == std::signbit(b))
                 return true;
         default: break;
     }
