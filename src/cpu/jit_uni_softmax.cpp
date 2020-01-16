@@ -111,10 +111,10 @@ struct jit_softmax_base_t : public jit_generator {
 
     void load_common_params() {
         mov(reg_tmp, float2int(1.0f));
-        movq(xone, reg_tmp);
+        uni_vmovq(xone, reg_tmp);
         uni_vbroadcastss(vone, xone);
         mov(reg_tmp, float2int(-FLT_MAX));
-        movq(xneg_flt_max, reg_tmp);
+        uni_vmovq(xneg_flt_max, reg_tmp);
         uni_vbroadcastss(vneg_flt_max, xneg_flt_max);
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)

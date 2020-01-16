@@ -272,7 +272,7 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
 
         mov(imm_addr64, float2int(desc.alpha));
-        movq(xmm_ns, imm_addr64);
+        uni_vmovq(xmm_ns, imm_addr64);
         uni_vbroadcastss(vmm_ns, xmm_ns);
 
         uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
@@ -380,7 +380,7 @@ struct jit_uni_relu_kernel_int : public jit_uni_eltwise_kernel,
         mov(reg_work_amount, ptr[param + GET_OFF(work_amount)]);
 
         mov(imm_addr64, float2int(desc.alpha));
-        movq(xmm_ns, imm_addr64);
+        uni_vmovq(xmm_ns, imm_addr64);
         uni_vbroadcastss(vmm_ns, xmm_ns);
 
         uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
@@ -466,7 +466,7 @@ private:
             // load exactly one data item
             mov(reg_s8.cvt8(), mem_from);
             movsx(reg_s8.cvt32(), reg_s8.cvt8());
-            movq(Xmm(vr_from.getIdx()), reg_s8);
+            uni_vmovq(Xmm(vr_from.getIdx()), reg_s8);
         }
     };
 
@@ -613,7 +613,7 @@ void jit_uni_relu_kernel_int<avx2>::store_8bit(
 
         // s16 -> s8 : {16 x s16}{16 x 0} -> {32 x s8}
         vpacksswb(vr_to, vr_to, vmm_zero);
-        vmovq(mem_to, Xmm(vr_to.getIdx()));
+        uni_vmovq(mem_to, Xmm(vr_to.getIdx()));
     } else {
         // store exactly one data item
         // s32 save as s8

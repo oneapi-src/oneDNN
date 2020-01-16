@@ -827,6 +827,19 @@ public:
         vmovmskps(x1, x2);
     }
 
+    void uni_vmovq(const Xbyak::Xmm &x, const Xbyak::Reg64 &r) {
+        if (mayiuse(avx))
+            vmovq(x, r);
+        else
+            movq(x, r);
+    }
+    void uni_vmovq(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        if (mayiuse(avx))
+            vmovq(addr, x);
+        else
+            movq(addr, x);
+    }
+
     void uni_vpackssdw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,
             const Xbyak::Operand &op) {
         assert(x1.getIdx() == x1.getIdx());
