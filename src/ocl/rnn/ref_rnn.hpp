@@ -26,8 +26,7 @@
 #include "common/utils.hpp"
 #include "compute/compute.hpp"
 
-#include "ocl/jit_gen9_gemm.hpp"
-#include "ocl/jit_gen9_gemm_x8x8s32.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 #include "ocl/ocl_memory_storage.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"

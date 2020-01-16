@@ -18,7 +18,7 @@
 #include "common/dnnl_traits.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ocl/jit_gen9_gemm_x8x8s32.hpp"
+#include "ocl/gemm/jit_gen9_gemm_x8x8s32.hpp"
 
 namespace dnnl {
 namespace impl {

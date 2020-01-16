@@ -19,7 +19,7 @@
 #include "common/float16.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ocl/jit_gen9_gemm.hpp"
+#include "ocl/gemm/jit_gen9_gemm.hpp"
 
 namespace dnnl {
 namespace impl {

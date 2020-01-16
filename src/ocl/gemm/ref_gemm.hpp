@@ -18,9 +18,9 @@
 #define OCL_REF_GEMM_HPP
 
 #include "ocl/gemm/ocl_gemm.hpp"
+#include "ocl/gemm/ocl_gemm_pd.hpp"
 #include "ocl/gemm/ocl_gemm_utils.hpp"
 #include "ocl/jit_primitive_conf.hpp"
-#include "ocl/ocl_gemm_pd.hpp"
 
 namespace dnnl {
 namespace impl {

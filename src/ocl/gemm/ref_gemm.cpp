@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "ocl/ref_gemm.hpp"
+#include "ocl/gemm/ref_gemm.hpp"
 
 namespace dnnl {
 namespace impl {

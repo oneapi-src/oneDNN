@@ -23,9 +23,9 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "compute/compute.hpp"
+#include "ocl/gemm/jit_gen9_gemm_kernel.hpp"
 #include "ocl/gemm/ocl_gemm.hpp"
-#include "ocl/jit_gen9_gemm_kernel.hpp"
-#include "ocl/ocl_gemm_pd.hpp"
+#include "ocl/gemm/ocl_gemm_pd.hpp"
 #include "ocl/ocl_stream.hpp"
 #include "ocl/ocl_utils.hpp"
 

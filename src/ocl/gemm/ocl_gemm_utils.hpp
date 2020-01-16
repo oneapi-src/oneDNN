@@ -17,6 +17,9 @@
 #ifndef OCL_GEMM_UTILS_HPP
 #define OCL_GEMM_UTILS_HPP
 
+#include "common/c_types_map.hpp"
+#include "common/memory_storage.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace ocl {
