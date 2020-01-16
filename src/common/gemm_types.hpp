@@ -68,7 +68,7 @@ typedef struct {
     dnnl_dim_t ldc = 0;
 
     /** Describes size of bias matrix. */
-    int bias_mask = 0;
+    dnnl_dim_t bias_mask = 0;
     /** Type of matrix A. */
     dnnl_data_type_t a_type = dnnl_data_type_undef;
     /** Type of matrix B. */

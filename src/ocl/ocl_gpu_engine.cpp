@@ -19,6 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "ocl/gemm_inner_product.hpp"
+#include "ocl/gemm_matmul.hpp"
 #include "ocl/gemm_x8s8s32x_inner_product.hpp"
 #include "ocl/jit_gen9_common_convolution.hpp"
 #include "ocl/jit_gen9_gemm.hpp"
@@ -224,6 +225,7 @@ static const pd_create_f ocl_impl_list[] = {
         /* binary */
         INSTANCE(ref_binary_t),
         /* matmul */
+        INSTANCE(gemm_matmul_t),
         INSTANCE(ref_matmul_t),
         /*resampling*/
         INSTANCE(ref_resampling_fwd_t),
