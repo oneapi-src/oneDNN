@@ -88,14 +88,16 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
                                                         : transpose::trans;
     op_desc.transb = (*transb == 'n' || *transb == 'N') ? transpose::notrans
                                                         : transpose::trans;
+    op_desc.batch = 1;
     op_desc.m = m;
     op_desc.n = n;
     op_desc.k = k;
+    op_desc.stride_a = lda;
+    op_desc.stride_b = ldb;
+    op_desc.stride_c = ldc;
     op_desc.lda = lda;
     op_desc.ldb = ldb;
     op_desc.ldc = ldc;
-    op_desc.alpha = alpha;
-    op_desc.beta = beta;
     op_desc.a_type = a_type;
     op_desc.b_type = b_type;
     op_desc.c_type = c_type;
@@ -112,6 +114,9 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
 
     std::unique_ptr<primitive_desc_t> pd;
     primitive_attr_t attr;
+    if (alpha != 1.0f) attr.output_scales_.set(alpha);
+    if (beta != 0.0f) attr.post_ops_.append_sum(beta);
+
     primitive_desc_t *pd_ptr;
     status = primitive_desc_t::create<pd_type>(&pd_ptr,
             reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),
@@ -140,8 +145,8 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     gemm_prim.reset(gemm_prim_ptr);
 
     exec_args_t args = {
-            {DNNL_ARG_SRC_0, {a_mem.get(), true}},
-            {DNNL_ARG_SRC_1, {b_mem.get(), true}},
+            {DNNL_ARG_SRC, {a_mem.get(), true}},
+            {DNNL_ARG_WEIGHTS, {b_mem.get(), true}},
             {DNNL_ARG_DST, {c_mem.get(), false}},
     };
 
@@ -201,14 +206,16 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
                                                         : transpose::trans;
     op_desc.transb = (*transb == 'n' || *transb == 'N') ? transpose::notrans
                                                         : transpose::trans;
+    op_desc.batch = 1;
     op_desc.m = m;
     op_desc.n = n;
     op_desc.k = k;
     op_desc.lda = lda;
     op_desc.ldb = ldb;
     op_desc.ldc = ldc;
-    op_desc.alpha = alpha;
-    op_desc.beta = beta;
+    op_desc.stride_a = lda;
+    op_desc.stride_b = ldb;
+    op_desc.stride_c = ldc;
     op_desc.a_type = a_type;
     op_desc.b_type = b_type;
     op_desc.c_type = c_type;
@@ -253,6 +260,9 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
         if (status != status::success) return status;
     }
 
+    if (alpha != 1.0f) attr.output_scales_.set(alpha);
+    if (beta != 0.0f) attr.post_ops_.append_sum(beta);
+
     primitive_desc_t *pd_ptr;
     status = primitive_desc_t::create<pd_type>(&pd_ptr,
             reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),
@@ -285,9 +295,9 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
     gemm_prim.reset(gemm_prim_ptr);
 
     exec_args_t args = {
-            {DNNL_ARG_SRC_0, {a_mem.get(), true}},
-            {DNNL_ARG_SRC_1, {b_mem.get(), true}},
-            {DNNL_ARG_SRC_2, {co_mem.get(), true}},
+            {DNNL_ARG_SRC, {a_mem.get(), true}},
+            {DNNL_ARG_WEIGHTS, {b_mem.get(), true}},
+            {DNNL_ARG_DST | DNNL_ARG_ATTR_ZERO_POINTS, {co_mem.get(), true}},
             {DNNL_ARG_DST, {c_mem.get(), false}},
     };
 

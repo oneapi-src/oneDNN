@@ -394,19 +394,6 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::init_superkernel_plan() {
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
         data_type_t acc_type>
 status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
-        const exec_ctx_t &ctx) const {
-    gemm_exec_args_t gemm_args;
-    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC_0);
-    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-    gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
-
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
-    return execute(gemm_ctx);
-}
-
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
         const gemm_exec_ctx_t &ctx) const {
     if (gemm_type_ == type::no_copy_superkernel)
         return execute_superkernel(ctx);
@@ -433,8 +420,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
     auto ldb = pd()->desc()->ldb;
     auto ldc = pd()->desc()->ldc;
 
-    auto alpha = pd()->desc()->alpha;
-    auto beta = pd()->desc()->beta;
+    auto alpha = pd()->alpha();
+    auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
@@ -553,8 +540,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto ldb = pd()->desc()->ldb;
     auto ldc = pd()->desc()->ldc;
 
-    auto alpha = pd()->desc()->alpha;
-    auto beta = pd()->desc()->beta;
+    auto alpha = pd()->alpha();
+    auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();

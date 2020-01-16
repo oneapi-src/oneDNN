@@ -20,6 +20,10 @@
 #include "common/memory_storage.hpp"
 #include "common/stream.hpp"
 
+#define DNNL_ARG_A DNNL_ARG_SRC
+#define DNNL_ARG_B DNNL_ARG_WEIGHTS
+#define DNNL_ARG_C DNNL_ARG_DST
+
 namespace dnnl {
 namespace impl {
 namespace ocl {
@@ -35,6 +39,8 @@ struct gemm_exec_args_t {
     memory_storage_t *a_zero_point = nullptr;
     memory_storage_t *b_zero_point = nullptr;
     memory_storage_t *c_zero_point = nullptr;
+    memory_storage_t *bias = nullptr;
+    memory_storage_t *output_scales = nullptr;
 };
 
 struct gemm_exec_ctx_t {

@@ -32,6 +32,7 @@
 #include "ocl/ref_convolution.hpp"
 #include "ocl/ref_deconvolution.hpp"
 #include "ocl/ref_eltwise.hpp"
+#include "ocl/ref_gemm.hpp"
 #include "ocl/ref_inner_product.hpp"
 #include "ocl/ref_layer_normalization.hpp"
 #include "ocl/ref_lrn.hpp"
@@ -207,6 +208,7 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(jit_gen9_gemm_t<f16, f16, f32>),
         INSTANCE(jit_gen9_gemm_t<f16>),
         INSTANCE(jit_gen9_gemm_t<f32>),
+        INSTANCE(ref_gemm_t),
         /*rnn*/
         INSTANCE(ref_rnn_fwd_u8s8_t),
         INSTANCE(ref_rnn_fwd_f16_t),

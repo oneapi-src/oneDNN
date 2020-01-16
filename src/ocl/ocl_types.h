@@ -259,6 +259,30 @@
 #endif
 #endif
 
+#ifdef A_DATA_T
+#define A_DATA8_T CONCAT2(A_DATA_T, 8)
+#if A_DT_BF16
+#define A_TO_REF(x) convert_bf16_to_f32(x)
+#define A_TO_REF8(x) convert_bf16_to_f32_vec8(x)
+#define REF_TO_A(x) convert_f32_to_bf16(x)
+#else
+#define A_TO_REF(x) (x)
+#define A_TO_REF8(x) (x)
+#define REF_TO_A(x) (x)
+#endif
+#if A_DT_BF16
+#define TO_A(x) convert_f32_to_bf16(x)
+#elif A_DT_U8
+#define TO_A(x) convert_uchar_sat_rte(x)
+#elif A_DT_S8
+#define TO_A(x) convert_char_sat_rte(x)
+#elif A_DT_S32
+#define TO_A(x) convert_int_sat_rte(x)
+#else
+#define TO_A(x) (x)
+#endif
+#endif
+
 #ifdef WEI_DATA_T
 #if WEI_DT_BF16
 #define WEI_TO_REF(x) convert_bf16_to_f32(x)
@@ -277,6 +301,27 @@
 #define TO_WEI(x) convert_int_sat_rte(x)
 #else
 #define TO_WEI(x) (x)
+#endif
+#endif
+
+#ifdef B_DATA_T
+#if B_DT_BF16
+#define B_TO_REF(x) convert_bf16_to_f32(x)
+#define REF_TO_B(x) convert_f32_to_bf16(x)
+#else
+#define B_TO_REF(x) (x)
+#define REF_TO_B(x) (x)
+#endif
+#if B_DT_BF16
+#define TO_B(x) convert_f32_to_bf16(x)
+#elif B_DT_U8
+#define TO_B(x) convert_uchar_sat_rte(x)
+#elif B_DT_S8
+#define TO_B(x) convert_char_sat_rte(x)
+#elif B_DT_S32
+#define TO_B(x) convert_int_sat_rte(x)
+#else
+#define TO_B(x) (x)
 #endif
 #endif
 
@@ -332,6 +377,42 @@
 #elif DST_DT_F32
 #define TO_DST(x) convert_float(x)
 #define TO_DST8(x) convert_float8(x)
+#else
+#error "Not expected"
+#endif
+#endif
+
+#ifdef C_DATA_T
+#define C_DATA8_T CONCAT2(C_DATA_T, 8)
+#if C_DT_BF16
+#define C_TO_REF(x) convert_bf16_to_f32(x)
+#define C_TO_REF8(x) convert_bf16_to_f32_vec8(x)
+#define REF_TO_C(x) convert_f32_to_bf16(x)
+#define REF_TO_C8(x) convert_f32_to_bf16_vec8(convert_float8(x))
+#else
+#define C_TO_REF(x) (x)
+#define C_TO_REF8(x) (x)
+#define REF_TO_C(x) (x)
+#define REF_TO_C8(x) (x)
+#endif
+#if C_DT_BF16
+#define TO_C(x) convert_f32_to_bf16(x)
+#define TO_C8(x) convert_f32_to_bf16_vec8(convert_float8(x))
+#elif C_DT_F16
+#define TO_C(x) convert_half(x)
+#define TO_C8(x) convert_half8(x)
+#elif C_DT_U8
+#define TO_C(x) convert_uchar_sat_rte(x)
+#define TO_C8(x) convert_uchar8_sat_rte(x)
+#elif C_DT_S8
+#define TO_C(x) convert_char_sat_rte(x)
+#define TO_C8(x) convert_char8_sat_rte(x)
+#elif C_DT_S32
+#define TO_C(x) convert_int_sat_rte(x)
+#define TO_C8(x) convert_int8_sat_rte(x)
+#elif C_DT_F32
+#define TO_C(x) convert_float(x)
+#define TO_C8(x) convert_float8(x)
 #else
 #error "Not expected"
 #endif

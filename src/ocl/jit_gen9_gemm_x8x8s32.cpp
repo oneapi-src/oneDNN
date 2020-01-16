@@ -156,19 +156,6 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_scale_x8x8s32(
 
 template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
 status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute(
-        const exec_ctx_t &ctx) const {
-    gemm_exec_args_t gemm_args;
-    gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_SRC_0);
-    gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC_1);
-    gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
-    gemm_args.c_zero_point = &CTX_IN_STORAGE(DNNL_ARG_SRC_2);
-
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
-    return execute(gemm_ctx);
-}
-
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute(
         const gemm_exec_ctx_t &ctx) const {
     return execute_standard(ctx);
 }
@@ -215,8 +202,8 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     a_t ao = static_cast<a_t>(ao_i32[0]);
     b_t bo = static_cast<b_t>(bo_i32[0]);
 
-    auto alpha = pd()->desc()->alpha;
-    auto beta = pd()->desc()->beta;
+    auto alpha = pd()->alpha();
+    auto beta = pd()->beta();
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();

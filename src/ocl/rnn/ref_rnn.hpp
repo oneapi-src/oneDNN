@@ -235,20 +235,23 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                 gemm_desc.transa = transpose::notrans;
                 gemm_desc.transb
                         = is_B_trans ? transpose::trans : transpose::notrans;
+                gemm_desc.batch = 1;
                 gemm_desc.m = m;
                 gemm_desc.n = n;
                 gemm_desc.k = k;
                 gemm_desc.lda = lda;
                 gemm_desc.ldb = ldb;
                 gemm_desc.ldc = ldc;
-                gemm_desc.alpha = 1.0;
-                gemm_desc.beta = beta;
+                gemm_desc.stride_a = lda;
+                gemm_desc.stride_b = ldb;
+                gemm_desc.stride_c = ldc;
                 gemm_desc.a_type = a_dt;
                 gemm_desc.b_type = b_dt;
                 gemm_desc.c_type = c_dt;
                 gemm_desc.acc_type = c_dt;
 
                 primitive_attr_t dummy_attr;
+                dummy_attr.post_ops_.append_sum(beta);
 
                 return dnnl_primitive_desc_create(gemm_pd,
                         (op_desc_t *)&gemm_desc, &dummy_attr, this->engine(),

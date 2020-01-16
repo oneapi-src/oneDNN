@@ -297,7 +297,6 @@ inline bool operator==(const gemm_desc_t &lhs, const gemm_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(m) && COMPARE_DESC_MEMBERS(n)
             && COMPARE_DESC_MEMBERS(k) && COMPARE_DESC_MEMBERS(lda)
             && COMPARE_DESC_MEMBERS(ldb) && COMPARE_DESC_MEMBERS(ldc)
-            && COMPARE_DESC_MEMBERS(alpha) && COMPARE_DESC_MEMBERS(beta)
             && COMPARE_DESC_MEMBERS(a_type) && COMPARE_DESC_MEMBERS(b_type)
             && COMPARE_DESC_MEMBERS(c_type) && COMPARE_DESC_MEMBERS(acc_type);
     return ret;

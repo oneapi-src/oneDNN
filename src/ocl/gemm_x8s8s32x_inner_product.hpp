@@ -35,20 +35,21 @@ namespace {
 inline status_t create_gemm_x8s8s32x_pd(primitive_desc_t **gemm_pd,
         engine_t *engine, transpose_t transa, transpose_t transb, int m, int n,
         int k, int lda, int ldb, int ldc, data_type_t a_dt, data_type_t b_dt,
-        data_type_t c_dt, float alpha, float beta,
-        const primitive_attr_t &attr) {
+        data_type_t c_dt, const primitive_attr_t &attr) {
     gemm_desc_t gemm_desc;
     gemm_desc.primitive_kind = primitive_kind::gemm;
     gemm_desc.transa = transa;
     gemm_desc.transb = transb;
+    gemm_desc.batch = 1;
     gemm_desc.m = m;
     gemm_desc.n = n;
     gemm_desc.k = k;
     gemm_desc.lda = lda;
     gemm_desc.ldb = ldb;
     gemm_desc.ldc = ldc;
-    gemm_desc.alpha = alpha;
-    gemm_desc.beta = beta;
+    gemm_desc.stride_a = lda;
+    gemm_desc.stride_b = ldb;
+    gemm_desc.stride_c = ldc;
     gemm_desc.a_type = a_dt;
     gemm_desc.b_type = b_dt;
     gemm_desc.c_type = c_dt;
@@ -135,7 +136,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
                             transpose::notrans, oc, mb, ic_total,
                             wei_tr ? ic_total : oc, ic_total, oc,
                             weights_md()->data_type, src_md()->data_type, s32,
-                            1.0, 0.0, gemm_attr);
+                            gemm_attr);
             if (!gemm_ok) return status::unimplemented;
 
             status_t scratchpad_status = init_ip_scratchpad_md();

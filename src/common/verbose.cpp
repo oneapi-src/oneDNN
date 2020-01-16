@@ -506,12 +506,10 @@ static void init_info_gemm(pd_t *s, char *buffer) {
     attr2str(attr_str, DNNL_VERBOSE_ATTR_LEN, attr_written, s->attr());
 
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, dat_written,
-            "m" DFMT "n" DFMT "k" DFMT
-            "a_dt:%sb_dt:%sc_dt:%sacc_dt:%salpha%fbeta%f",
+            "m" DFMT "n" DFMT "k" DFMT "a_dt:%sb_dt:%sc_dt:%sacc_dt:%s",
             s->desc()->m, s->desc()->n, s->desc()->k,
             dnnl_dt2str(s->desc()->a_type), dnnl_dt2str(s->desc()->b_type),
-            dnnl_dt2str(s->desc()->c_type), dnnl_dt2str(s->desc()->acc_type),
-            s->desc()->alpha, s->desc()->beta);
+            dnnl_dt2str(s->desc()->c_type), dnnl_dt2str(s->desc()->acc_type));
 
     verbose_templ(buffer, s->engine(), s->kind(), s->name(), prop_kind::undef,
             dat_str, attr_str, aux_str, prb_str);
