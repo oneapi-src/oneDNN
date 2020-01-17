@@ -31,9 +31,10 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
-#define data_blk_off(f, n, c, h, w) \
-    ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
-
+#define data_blk_off(f, n, c, d, h, w) \
+    ((ndims == 3) ? (f).blk_off(n, c, w) \
+                  : ((ndims == 4) ? (f).blk_off(n, c, h, w) \
+                                  : (f).blk_off(n, c, d, h, w)))
 /* convolution forward */
 
 void jit_avx2_1x1_convolution_fwd_t::execute_forward(
@@ -55,7 +56,8 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
     const int ndims = dst_d.ndims();
 
-    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
@@ -89,9 +91,13 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
             bcast_step = nstl::min(bcast_step, end - iwork);
 
             const int os = osb * os_block;
-            const int oh = os / jcp.ow;
-            const int ow = os % jcp.ow;
 
+            const int od = os / (jcp.oh * jcp.ow);
+            const int os_2d = os % (jcp.oh * jcp.ow);
+            const int oh = os_2d / jcp.ow;
+            const int ow = os_2d % jcp.ow;
+
+            const int id = od * stride_d;
             const int ih = oh * stride_h;
             const int iw = ow * stride_w;
             rp.iw_start = iw;
@@ -107,7 +113,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
                 const int _ocb = g * nb_oc + ocb;
                 p.load_dim = this_block_size(
                         ocb * jcp.oc_block, jcp.oc, load_step * jcp.oc_block);
-                const size_t dst_off = data_blk_off(dst_d, n, _ocb, oh, ow);
+                const size_t dst_off = data_blk_off(dst_d, n, _ocb, od, oh, ow);
 
                 p.output_data = &dst[dst_off];
 
@@ -133,14 +139,15 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
                                 + _icb * jcp.is * jcp.ic_block;
 
                         if (ocb == 0) {
-                            rp.src = src + data_blk_off(src_d, n, _icb, ih, iw);
+                            rp.src = src
+                                    + data_blk_off(src_d, n, _icb, id, ih, iw);
                             rtus_driver_->ker_(&rp);
                         }
 
                         p.bcast_data = rp.ws;
                     } else
-                        p.bcast_data
-                                = src + data_blk_off(src_d, n, _icb, ih, iw);
+                        p.bcast_data = src
+                                + data_blk_off(src_d, n, _icb, id, ih, iw);
 
                     kernel_->jit_ker(&p);
                 }
@@ -184,10 +191,11 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
             : NULL;
 
     // TODO (Roma): remove this restriction
-    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+    assert(jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1);
     const int ndims = diff_dst_d.ndims();
 
-    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
     const int nb_ic = jcp.nb_load;
@@ -233,14 +241,18 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
                         = this_block_size(os, jcp.os, bcast_step * os_block);
                 rp.os = p.bcast_dim;
 
-                const int oh = os / jcp.ow;
-                const int ow = os % jcp.ow;
+                const int od = os / (jcp.oh * jcp.ow);
+                const int os_2d = os % (jcp.oh * jcp.ow);
+                const int oh = os_2d / jcp.ow;
+                const int ow = os_2d % jcp.ow;
+                const int id = od * stride_d;
                 const int ih = oh * stride_h;
                 const int iw = ow * stride_w;
                 rp.iw_start = iw;
 
                 const int _icb = g * nb_ic + icb;
-                rp.src = diff_src + data_blk_off(diff_src_d, n, _icb, ih, iw);
+                rp.src = diff_src
+                        + data_blk_off(diff_src_d, n, _icb, id, ih, iw);
                 if (pd()->rtus_.reduce_src_) {
                     rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_;
                     p.output_data = rp.ws;
@@ -251,7 +263,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
                         ocb += jcp.nb_reduce_blocking) {
                     const int _ocb = g * nb_oc + ocb;
                     size_t diff_dst_off
-                            = data_blk_off(diff_dst_d, n, _ocb, oh, ow);
+                            = data_blk_off(diff_dst_d, n, _ocb, od, oh, ow);
                     p.bcast_data = &diff_dst[diff_dst_off];
 
                     p.load_data = &weights[pd()->with_groups()
@@ -334,7 +346,8 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
     const int sp_dim = jcp.reduce_dim;
     const int mb_sp_work = jcp.mb * sp_dim;
 
-    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
     auto step = [](int default_step, int remaining, int tail_step) {
@@ -381,9 +394,12 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                             + (oc_b * jcp.reduce_dim + sp) * jcp.oc_block;
 
                     if (pd()->rtus_.reduce_src_) {
-                        const int oh = sp / jcp.ow;
-                        const int ow = sp % jcp.ow;
+                        const int od = sp / (jcp.oh * jcp.ow);
+                        const int sp_2d = sp % (jcp.oh * jcp.ow);
+                        const int oh = sp_2d / jcp.ow;
+                        const int ow = sp_2d % jcp.ow;
 
+                        const int id = od * stride_d;
                         const int ih = oh * stride_h;
                         const int iw = ow * stride_w;
                         rp.iw_start = iw;
@@ -391,13 +407,16 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         rp.ws = rtus_space
                                 + ithr * pd()->rtus_.space_per_thread_
                                 + (ic_b * jcp.is + sp) * jcp.ic_block;
-                        if (ndims == 3)
-                            rp.src = src
-                                    + iw * src_d.blocking_desc().strides[2];
-                        else
-                            rp.src = src + ih * src_d.blocking_desc().strides[2]
-                                    + iw * src_d.blocking_desc().strides[3];
+                        size_t src_offset
+                                = iw * src_d.blocking_desc().strides[ndims - 1];
+                        if (ndims > 3)
+                            src_offset += ih
+                                    * src_d.blocking_desc().strides[ndims - 2];
+                        if (ndims == 5)
+                            src_offset += id
+                                    * src_d.blocking_desc().strides[ndims - 3];
 
+                        rp.src = src + src_offset;
                         if (oc_b == 0) rtus_driver_->ker_(&rp);
 
                         p.bcast_data = rp.ws;
@@ -509,7 +528,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
                     for (int o = 0; o < 8; ++o)
                         d_bias[o] = 0.;
 
-                for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
+                for (int hw = 0; hw < jcp.os; ++hw) {
                     PRAGMA_OMP_SIMD()
                     for (int o = 0; o < 8; ++o)
                         d_bias[o] += d_dst[o];

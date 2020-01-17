@@ -445,24 +445,29 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
 
-    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[2];
+    jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
-    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[2];
+    jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
+    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jcp.ow = dst_d.dims()[ndims - 1];
 
-    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + 2];
+    jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims - 2];
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
 
-    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][0];
+    jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
 
-    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
+    jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
 
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
-    jcp.os = jcp.oh * jcp.ow;
-    jcp.is = jcp.ih * jcp.iw;
+    jcp.os = jcp.od * jcp.oh * jcp.ow;
+    jcp.is = jcp.id * jcp.ih * jcp.iw;
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
@@ -478,12 +483,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     const int is_bwd_d = jcp.prop_kind == backward_data;
 
-    format_tag_t dat_tag = ndims == 3 ? nCw8c : nChw8c;
+    format_tag_t dat_tag = utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
     format_tag_t wei_tag = with_groups
             ? utils::pick(2 * ndims - 6 + is_bwd_d, gOIw8i8o, gOIw8o8i,
-                    gOIhw8i8o, gOIhw8o8i)
+                    gOIhw8i8o, gOIdhw8o8i, gOIhw8i8o, gOIdhw8o8i)
             : utils::pick(2 * ndims - 6 + is_bwd_d, OIw8i8o, OIw8o8i, OIhw8i8o,
-                    OIhw8o8i);
+                    OIhw8o8i, OIdhw8i8o, OIdhw8o8i);
 
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
@@ -498,11 +503,10 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
             && jcp.wei_tag == wei_tag && jcp.dst_tag == dat_tag;
     if (!args_ok) return status::unimplemented;
 
-    args_ok = true && jcp.ih == jcp.oh && jcp.iw == jcp.ow
-            && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0 && jcp.t_pad == 0
-            && jcp.l_pad == 0 && jcp.stride_w == 1
-            && jcp.stride_h == 1 // TODO: support some strides
-            && jcp.ow == jcp.iw && jcp.oh == jcp.ih // enforce rpad=0
+    args_ok = true && jcp.id == jcp.od && jcp.ih == jcp.oh && jcp.iw == jcp.ow
+            && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0 && jcp.f_pad == 0
+            && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
+            && jcp.stride_h == 1 && jcp.stride_d == 1 && jcp.kd == 1
             && jcp.kh == 1 && jcp.kw == 1;
     if (!args_ok) return status::unimplemented;
 

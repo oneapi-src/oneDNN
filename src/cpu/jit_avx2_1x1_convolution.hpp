@@ -81,8 +81,8 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_impl_t {
 
             auto dat_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
+                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o, gOIdhw8i8o)
+                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o, OIdhw8i8o);
 
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
@@ -164,8 +164,8 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_impl_t {
 
             auto dat_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i)
-                    : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i);
+                    ? utils::pick(ndims() - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i)
+                    : utils::pick(ndims() - 3, OIw8o8i, OIhw8o8i, OIdhw8o8i);
 
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
@@ -259,8 +259,8 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_impl_t {
 
             auto dat_tag = utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
             auto wei_tag = with_groups()
-                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o)
-                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o);
+                    ? utils::pick(ndims() - 3, gOIw8i8o, gOIhw8i8o, gOIdhw8i8o)
+                    : utils::pick(ndims() - 3, OIw8i8o, OIhw8i8o, OIdhw8i8o);
 
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
