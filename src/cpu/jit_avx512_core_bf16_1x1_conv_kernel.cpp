@@ -654,9 +654,6 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
 
-    /*TODO: Add 3D support */
-    if (ndims > 4) return status::unimplemented;
-
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
     jcp.prop_kind = cd.prop_kind;
@@ -677,18 +674,23 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
-    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[2];
+    jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
-    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[2];
+    jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
+    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jcp.ow = dst_d.dims()[ndims - 1];
 
-    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + 2];
+    jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims - 2];
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
 
-    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][0];
+    jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
 
-    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
+    jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
 
     jcp.with_bias = pick_by_prop_kind(jcp.prop_kind, cd.bias_desc.format_kind,
@@ -701,8 +703,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
             : data_type::undef;
     jcp.typesize_bia = jcp.with_bias ? types::data_type_size(jcp.bia_dt) : 0;
 
-    jcp.os = jcp.oh * jcp.ow;
-    jcp.is = jcp.ih * jcp.iw;
+    jcp.os = jcp.od * jcp.oh * jcp.ow;
+    jcp.is = jcp.id * jcp.ih * jcp.iw;
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
@@ -716,7 +718,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     }
 
     using namespace format_tag;
-    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c);
+    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
 
@@ -724,10 +726,11 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     const int is_bwd_w = jcp.prop_kind == backward_weights;
 
     auto wei_tag = utils::pick(
-            2 * ndims - 6 + with_groups + 4 * is_bwd_d + 8 * is_bwd_w,
-            OIw8i16o2i, gOIw8i16o2i, OIhw8i16o2i, gOIhw8i16o2i, IOw8o16i2o,
-            gIOw8o16i2o, IOhw8o16i2o, gIOhw8o16i2o, OIw16i16o, gOIw16i16o,
-            OIhw16i16o, gOIhw16i16o);
+            2 * ndims - 6 + with_groups + 6 * is_bwd_d + 12 * is_bwd_w,
+            OIw8i16o2i, gOIw8i16o2i, OIhw8i16o2i, gOIhw8i16o2i, OIdhw8i16o2i,
+            gOIdhw8i16o2i, IOw8o16i2o, gIOw8o16i2o, IOhw8o16i2o, gIOhw8o16i2o,
+            IOdhw8o16i2o, gIOdhw8o16i2o, OIw16i16o, gOIw16i16o, OIhw16i16o,
+            gOIhw16i16o, OIdhw16i16o, gOIdhw16i16o);
     jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
 
     bool args_ok = true && jcp.ngroups == 1 && jcp.src_tag == dat_tag
@@ -735,9 +738,10 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     if (!args_ok) return status::unimplemented;
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
-            && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
-            && jcp.stride_h == 1 && jcp.kh == 1 && jcp.kw == 1
-            && jcp.ow == jcp.iw && jcp.oh == jcp.ih; // enforce rpad=0
+            && jcp.f_pad == 0 && jcp.t_pad == 0 && jcp.l_pad == 0
+            && jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1
+            && jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1 && jcp.ow == jcp.iw
+            && jcp.oh == jcp.ih && jcp.od == jcp.id; // enforce rpad=0
     if (!args_ok) return status::unimplemented;
 
     jcp.ic_block = jcp.oc_block = simd_w;
@@ -813,8 +817,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         int max_regs, min_regs, size_treshold, ur_step;
         const int spatial
                 = (one_of(jcp.prop_kind, forward_training, forward_inference))
-                ? jcp.oh
-                : jcp.ih;
+                ? jcp.od * jcp.oh
+                : jcp.id * jcp.ih;
         if ((8 * jcp.mb) / nthreads >= 1) {
             max_regs = 9;
             min_regs = 6;
@@ -1161,7 +1165,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
 
         if (jcp.with_bias) {
             const size_t d_dst_f32_size
-                    = (size_t)jcp.typesize_acc * jcp.oh * jcp.ow * jcp.oc_block;
+                    = (size_t)jcp.typesize_acc * jcp.os * jcp.oc_block;
             scratchpad.book(
                     key_conv_dst_bf16_convert_wsp, jcp.nthr * d_dst_f32_size);
         }

@@ -32,8 +32,10 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
-#define data_blk_off(f, n, c, h, w) \
-    ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
+#define data_blk_off(f, n, c, d, h, w) \
+    ((ndims == 3) ? (f).blk_off(n, c, w) \
+                  : ((ndims == 4) ? (f).blk_off(n, c, h, w) \
+                                  : (f).blk_off(n, c, d, h, w)))
 
 namespace {
 /*TODO: investigate why common balance2D defined in dnnl_thread.hpp
@@ -103,7 +105,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             : NULL;
 
     const int ndims = src_d.ndims();
-    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -125,8 +128,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
             ocb_start, ocb_end, jcp.load_grp_count);
 
-    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &oh,
-                              int &ow, int &ih, int &iw) {
+    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &od,
+                              int &oh, int &ow, int &id, int &ih, int &iw) {
         int osb {0};
         nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
         bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
@@ -134,9 +137,12 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         bcast_step = nstl::min(bcast_step, bcast_end - iwork);
 
         const int os = osb * os_block;
-        oh = os / jcp.ow;
-        ow = os % jcp.ow;
+        od = os / (jcp.oh * jcp.ow);
+        int os_2d = os % (jcp.oh * jcp.ow);
+        oh = os_2d / jcp.ow;
+        ow = os_2d % jcp.ow;
 
+        id = od * stride_d;
         ih = oh * stride_h;
         iw = ow * stride_w;
         rp.iw_start = iw;
@@ -157,11 +163,11 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         rp.icb = p.reduce_dim / jcp.reduce_block;
     };
 
-    auto inner_ker = [&](int ocb, int n, int g, int oh, int ow, int ih,
-                             int iw) {
+    auto inner_ker = [&](int ocb, int n, int g, int od, int oh, int ow, int id,
+                             int ih, int iw) {
         const int icb = 0;
         const int _ocb = g * nb_oc + ocb;
-        const size_t dst_off = data_blk_off(dst_d, n, _ocb, oh, ow);
+        const size_t dst_off = data_blk_off(dst_d, n, _ocb, od, oh, ow);
 
         p.output_data = &dst[dst_off];
         p.bias_data = &bias[_ocb * jcp.oc_block * jcp.typesize_bia];
@@ -174,12 +180,12 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
                     + _icb * jcp.is * jcp.ic_block;
             if (ocb == ocb_start) {
-                rp.src = src + data_blk_off(src_d, n, _icb, ih, iw);
+                rp.src = src + data_blk_off(src_d, n, _icb, id, ih, iw);
                 rtus_driver_->ker_(&rp);
             }
             p.bcast_data = rp.ws;
         } else
-            p.bcast_data = src + data_blk_off(src_d, n, _icb, ih, iw);
+            p.bcast_data = src + data_blk_off(src_d, n, _icb, id, ih, iw);
 
         kernel_->jit_ker(&p);
     };
@@ -192,9 +198,9 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             init_load(ocb, load_step);
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, oh, ow, ih, iw;
-                init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 iwork += bcast_step;
             }
             ocb += load_step;
@@ -206,10 +212,10 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             init_load(ocb, load_step);
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, oh, ow, ih, iw;
-                init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
                 init_reduce();
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 iwork += bcast_step;
             }
             ocb += load_step;
@@ -218,13 +224,13 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         init_reduce();
         int iwork = bcast_start;
         while (iwork < bcast_end) {
-            int n, g, bcast_step, oh, ow, ih, iw;
-            init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+            int n, g, bcast_step, od, oh, ow, id, ih, iw;
+            init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
             int ocb = ocb_start;
             while (ocb < ocb_end) {
                 int load_step;
                 init_load(ocb, load_step);
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 ocb += load_step;
             }
             iwork += bcast_step;
@@ -232,14 +238,14 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     } else if (jcp.loop_order == loop_blr) {
         int iwork = bcast_start;
         while (iwork < bcast_end) {
-            int n, g, bcast_step, oh, ow, ih, iw;
-            init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+            int n, g, bcast_step, od, oh, ow, id, ih, iw;
+            init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
             int ocb = ocb_start;
             while (ocb < ocb_end) {
                 int load_step;
                 init_load(ocb, load_step);
                 init_reduce();
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 ocb += load_step;
             }
             iwork += bcast_step;
@@ -296,7 +302,8 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     const int nb_oc = jcp.nb_reduce;
     const int os_block = jcp.bcast_block;
 
-    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[0];
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
     int bcast_start {0}, bcast_end {0}, icb_start {0}, icb_end {0};
@@ -304,8 +311,8 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
             icb_start, icb_end, jcp.load_grp_count);
 
     auto init_bcast = [&](const int icb, int iwork, int &n, int &g,
-                              int &bcast_step, int &oh, int &ow, int &ih,
-                              int &iw) {
+                              int &bcast_step, int &od, int &oh, int &ow,
+                              int &id, int &ih, int &iw) {
         int osb {0};
         nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
         bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
@@ -316,8 +323,11 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
         rp.os = p.bcast_dim;
 
-        oh = os / jcp.ow;
-        ow = os % jcp.ow;
+        od = os / (jcp.oh * jcp.ow);
+        const int os_2d = os % (jcp.oh * jcp.ow);
+        oh = os_2d / jcp.ow;
+        ow = os_2d % jcp.ow;
+        id = od * stride_d;
         ih = oh * stride_h;
         iw = ow * stride_w;
         rp.iw_start = iw;
@@ -333,11 +343,12 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
 
     auto init_reduce = [&]() { p.reduce_dim = jcp.oc; };
 
-    auto inner_ker = [&](int icb, int n, int g, int oh, int ow, int ih,
-                             int iw) {
+    auto inner_ker = [&](int icb, int n, int g, int od, int oh, int ow, int id,
+                             int ih, int iw) {
         const int ocb = 0;
         const int _icb = g * nb_ic + icb;
-        const size_t diff_src_off = data_blk_off(diff_src_d, n, _icb, ih, iw);
+        const size_t diff_src_off
+                = data_blk_off(diff_src_d, n, _icb, id, ih, iw);
 
         rp.src = diff_src + diff_src_off;
         if (pd()->rtus_.reduce_src_) {
@@ -350,7 +361,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
                                                : weights_d.blk_off(ocb, icb)];
 
         const int _ocb = g * nb_oc + ocb;
-        p.bcast_data = diff_dst + data_blk_off(diff_dst_d, n, _ocb, oh, ow);
+        p.bcast_data = diff_dst + data_blk_off(diff_dst_d, n, _ocb, od, oh, ow);
 
         kernel_->jit_ker(&p);
         if (pd()->rtus_.reduce_src_) rtus_driver_->ker_(&rp);
@@ -364,9 +375,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
             init_load(icb, load_step);
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n {0}, g {0}, bcast_step, oh, ow, ih, iw;
-                init_bcast(0, iwork, n, g, bcast_step, oh, ow, ih, iw);
-                inner_ker(icb, n, g, oh, ow, ih, iw);
+                int n {0}, g {0}, bcast_step, od, oh, ow, id, ih, iw;
+                init_bcast(0, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
+                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
                 iwork += bcast_step;
             }
             icb += load_step;
@@ -379,10 +390,11 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
             init_load(icb, load_step);
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, oh, ow, ih, iw;
-                init_bcast(icb, iwork, n, g, bcast_step, oh, ow, ih, iw);
+                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                init_bcast(
+                        icb, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
                 init_reduce();
-                inner_ker(icb, n, g, oh, ow, ih, iw);
+                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
                 iwork += bcast_step;
             }
             icb += load_step;
@@ -391,13 +403,13 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         init_reduce();
         int iwork = bcast_start;
         while (iwork < bcast_end) {
-            int n, g, bcast_step, oh, ow, ih, iw;
-            init_bcast(0, iwork, n, g, bcast_step, oh, ow, ih, iw);
+            int n, g, bcast_step, od, oh, ow, id, ih, iw;
+            init_bcast(0, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
             int icb = icb_start;
             while (icb < icb_end) {
                 int load_step;
                 init_load(icb, load_step);
-                inner_ker(icb, n, g, oh, ow, ih, iw);
+                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
                 icb += load_step;
             }
             iwork += bcast_step;
@@ -405,14 +417,14 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     } else if (jcp.loop_order == loop_blr) {
         int iwork = bcast_start;
         while (iwork < bcast_end) {
-            int n, g, bcast_step, oh, ow, ih, iw;
-            init_bcast(0, iwork, n, g, bcast_step, oh, ow, ih, iw);
+            int n, g, bcast_step, od, oh, ow, id, ih, iw;
+            init_bcast(0, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
             int icb = icb_start;
             while (icb < icb_end) {
                 int load_step;
                 init_load(icb, load_step);
                 init_reduce();
-                inner_ker(icb, n, g, oh, ow, ih, iw);
+                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
                 icb += load_step;
             }
             iwork += bcast_step;
@@ -803,8 +815,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                         ithr, diff_bias, reducer_bia_scratchpad)[batch_job_loc
                         * rb->balancer().job_size_];
 
-                const size_t d_dst_f32_size
-                        = (size_t)jcp.oh * jcp.ow * jcp.oc_block;
+                const size_t d_dst_f32_size = (size_t)jcp.os * jcp.oc_block;
                 auto dst_ws = d_dst_f32_buffer + d_dst_f32_size * ithr;
 
                 cvt_bfloat16_to_float(dst_ws, d_dst, d_dst_f32_size);
@@ -813,7 +824,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                     for (int o = 0; o < 16; ++o)
                         d_bias[o] = 0.;
 
-                for (int hw = 0; hw < jcp.oh * jcp.ow; ++hw) {
+                for (int hw = 0; hw < jcp.os; ++hw) {
                     PRAGMA_OMP_SIMD()
                     for (int o = 0; o < 16; ++o)
                         d_bias[o] += dst_ws[o];
