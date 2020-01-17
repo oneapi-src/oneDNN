@@ -2653,12 +2653,35 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
          *      kernel: temporal workspace 1 write
          *      reduction: 1 read from workspace and 1 write to the diff_wei
          *    - but experiments showed 8 works better than 5 or 6... */
+
+        const dim_t src_type_size = 2;
+        const dim_t wei_type_size = 4;
+        const dim_t balance_threshold = 16;
+
+        dim_t src_size
+                = (dim_t)j.mb * j.ic * j.id * j.ih * j.iw * src_type_size;
+        dim_t wei_size
+                = (dim_t)j.oc * j.ic * j.kd * j.kh * j.kw * wei_type_size;
+
+        dim_t r2 = nstl::min(balance_threshold,
+                nstl::max(div_up(src_size, wei_size), (dim_t)1));
+        dim_t r1 = nstl::min(balance_threshold,
+                nstl::max(div_up(wei_size, src_size), (dim_t)1));
+
         const dim_t spatial_size_threshold = 28 * 28;
         auto get_src_coef = [=]() {
-            return (j.oh * j.ow < spatial_size_threshold) ? 4 : 1;
+            if (j.ndims == 5 && j.kw == 1)
+                // To avoid degradations for problems with 1x1x1 kernel
+                return (src_size <= wei_size) ? r2 : r1;
+
+            return (dim_t)(j.oh * j.ow < spatial_size_threshold ? 4 : 1);
         };
         auto get_wei_coef = [=]() {
-            return (j.oh * j.ow < spatial_size_threshold) ? 1 : 24;
+            if (j.ndims == 5 && j.kw == 1)
+                // To avoid degradations for problems with 1x1x1 kernel
+                return (src_size <= wei_size) ? r1 : r2;
+
+            return (dim_t)(j.oh * j.ow < spatial_size_threshold ? 1 : 24);
         };
 
         const dim_t src_coef = get_src_coef();
