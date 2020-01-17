@@ -240,6 +240,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(f32, any, f32, Odhwi16o),
         REG_SR_BIDIR(f32, any, f32, OIdhw16o16i),
         REG_SR_BIDIR(f32, any, f32, OIdhw16i16o),
+        REG_SR_BIDIR(f32, any, f32, IOdhw16o16i),
 
         REG_SR_BIDIR(f32, any, f32, gOIhw4i16o4i),
 
@@ -263,6 +264,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(f32, any, f32, gOdhwi16o),
         REG_SR_BIDIR(f32, any, f32, gOIdhw16o16i),
         REG_SR_BIDIR(f32, any, f32, gOIdhw16i16o),
+        REG_SR_BIDIR(f32, any, f32, gIOdhw16o16i),
 
         REG_SR(f32, any, f32, any, fmt_order::any, spec::reference),
 
