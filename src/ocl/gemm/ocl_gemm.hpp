@@ -44,15 +44,6 @@ struct ocl_gemm_t : public primitive_impl_t {
     }
 };
 
-// XXX: Use this function with caution. There is no guarantee that prim_impl
-// will be alive once primitive is destoyed.
-template <typename T>
-status_t get_primitive_impl(T **prim_impl, const primitive_t *p) {
-    *prim_impl = dynamic_cast<T *>(p->get_primitive_impl().get());
-    if (!*prim_impl) return status::runtime_error;
-    return status::success;
-}
-
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl

@@ -16,6 +16,7 @@
 
 #include "ocl/ocl_stream.hpp"
 
+#include "ocl/gemm/ocl_gemm_utils.hpp"
 #include "ocl/gemm_inner_product.hpp"
 
 namespace dnnl {
@@ -24,6 +25,7 @@ namespace ocl {
 
 status_t gemm_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
+    using namespace gemm_utils;
 
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -34,7 +36,7 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl_->execute(gemm_ctx);
+    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {
@@ -56,13 +58,15 @@ status_t gemm_inner_product_fwd_t::execute_forward(
 
 status_t gemm_inner_product_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
+    using namespace gemm_utils;
+
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl_->execute(gemm_ctx);
+    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     return status::success;
@@ -70,6 +74,8 @@ status_t gemm_inner_product_bwd_data_t::execute_backward_data(
 
 status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
+    using namespace gemm_utils;
+
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -84,7 +90,7 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
     gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl_->execute(gemm_ctx);
+    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_bias()) {

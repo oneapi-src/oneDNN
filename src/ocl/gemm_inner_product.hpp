@@ -130,8 +130,6 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
     status_t init() override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
         if (gemm_status != status::success) return gemm_status;
-        gemm_status = get_primitive_impl(&gemm_impl_, gemm_);
-        if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
             auto *compute_engine
@@ -162,7 +160,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
-    ocl_gemm_t *gemm_impl_ = nullptr;
     compute::kernel_t bias_kernel_;
 };
 
@@ -230,9 +227,6 @@ struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
     status_t init() override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
         if (gemm_status != status::success) return gemm_status;
-        gemm_status = get_primitive_impl(&gemm_impl_, gemm_);
-        if (gemm_status != status::success) return gemm_status;
-
         return status::success;
     }
 
@@ -248,7 +242,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     primitive_t *gemm_ = nullptr;
-    ocl_gemm_t *gemm_impl_ = nullptr;
 };
 
 struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
@@ -326,8 +319,6 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
     status_t init() override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
         if (gemm_status != status::success) return gemm_status;
-        gemm_status = get_primitive_impl(&gemm_impl_, gemm_);
-        if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
             auto *compute_engine
@@ -357,7 +348,6 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     primitive_t *gemm_ = nullptr;
-    ocl_gemm_t *gemm_impl_ = nullptr;
     compute::kernel_t bias_kernel_;
 };
 

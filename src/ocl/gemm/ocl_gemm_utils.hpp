@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
+#include "ocl/gemm/ocl_gemm.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -78,6 +79,10 @@ inline status_t prepare_zero_points(const primitive_attr_t *attr,
     if (s != status::success) return s;
 
     return s;
+}
+
+inline const ocl_gemm_t *gemm_impl(const primitive_t *p) {
+    return utils::downcast<ocl_gemm_t *>(p->get_primitive_impl().get());
 }
 
 } // namespace gemm_utils

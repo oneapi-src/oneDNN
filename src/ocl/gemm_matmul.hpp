@@ -170,9 +170,6 @@ struct gemm_matmul_t : public primitive_impl_t {
     virtual status_t init() override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
         if (gemm_status != status::success) return gemm_status;
-        gemm_status = get_primitive_impl(&gemm_impl_, gemm_);
-        if (gemm_status != status::success) return gemm_status;
-
         return status::success;
     }
 
@@ -184,7 +181,6 @@ struct gemm_matmul_t : public primitive_impl_t {
 
 private:
     primitive_t *gemm_ = nullptr;
-    ocl_gemm_t *gemm_impl_ = nullptr;
 };
 
 } // namespace ocl

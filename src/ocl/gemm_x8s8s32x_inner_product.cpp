@@ -24,6 +24,7 @@ namespace ocl {
 
 status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
+    using namespace gemm_utils;
 
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
@@ -36,7 +37,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
     }
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
-    status_t gemm_exec_status = gemm_impl_->execute(gemm_ctx);
+    status_t gemm_exec_status = gemm_impl(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
     if (pd()->with_post_process()) {

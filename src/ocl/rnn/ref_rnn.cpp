@@ -35,6 +35,7 @@
 #include "dnnl_traits.hpp"
 #include "math_utils.hpp"
 #include "ocl/gemm/ocl_gemm.hpp"
+#include "ocl/gemm/ocl_gemm_utils.hpp"
 #include "type_helpers.hpp"
 
 namespace dnnl {
@@ -65,6 +66,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
 gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
+    using namespace gemm_utils;
 
     // FIXME: This should be created once per execute() instead of creating
     // memory before each gemm call. Each cell type (+prop kind) might have
@@ -150,13 +152,19 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     auto gemm_ctx = gemm_exec_ctx_t(ctx.stream(), gemm_args);
 
     switch (gemm_kind) {
-        case gemm_iter_fwd: gemm_iter_fwd_impl_->execute(gemm_ctx); break;
-        case gemm_layer_fwd: gemm_layer_fwd_impl_->execute(gemm_ctx); break;
-        case gemm_iter_bwd: gemm_iter_bwd_impl_->execute(gemm_ctx); break;
-        case gemm_layer_bwd: gemm_layer_bwd_impl_->execute(gemm_ctx); break;
-        case gemm_diff_wei_iter: gemm_diff_wei_iter_impl_->execute(gemm_ctx); break;
+        case gemm_iter_fwd: gemm_impl(gemm_iter_fwd_)->execute(gemm_ctx); break;
+        case gemm_layer_fwd:
+            gemm_impl(gemm_layer_fwd_)->execute(gemm_ctx);
+            break;
+        case gemm_iter_bwd: gemm_impl(gemm_iter_bwd_)->execute(gemm_ctx); break;
+        case gemm_layer_bwd:
+            gemm_impl(gemm_layer_bwd_)->execute(gemm_ctx);
+            break;
+        case gemm_diff_wei_iter:
+            gemm_impl(gemm_diff_wei_iter_)->execute(gemm_ctx);
+            break;
         case gemm_diff_wei_layer:
-            gemm_diff_wei_layer_impl_->execute(gemm_ctx);
+            gemm_impl(gemm_diff_wei_layer_)->execute(gemm_ctx);
             break;
         default: assert(!"unknown gemm_kind");
     }

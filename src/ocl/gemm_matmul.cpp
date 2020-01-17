@@ -15,12 +15,15 @@
 *******************************************************************************/
 
 #include "ocl/gemm_matmul.hpp"
+#include "ocl/gemm/ocl_gemm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace ocl {
 
 status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
+    using namespace gemm_utils;
+
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS);
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST);
@@ -111,7 +114,7 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_desc.bias_type = bia_dt;
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args, &gemm_desc);
-    status_t gemm_status = gemm_impl_->execute(gemm_ctx);
+    status_t gemm_status = gemm_impl(gemm_)->execute(gemm_ctx);
     if (gemm_status != status::success) return gemm_status;
 
     return status::success;
