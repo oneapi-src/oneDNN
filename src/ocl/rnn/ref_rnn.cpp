@@ -147,7 +147,7 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     gemm_args.b = gemm_B_;
     gemm_args.c = gemm_C_;
 
-    auto gemm_ctx = gemm_exec_ctx_t(ctx.stream(), std::move(gemm_args));
+    auto gemm_ctx = gemm_exec_ctx_t(ctx.stream(), gemm_args);
 
     switch (gemm_kind) {
         case gemm_iter_fwd: gemm_iter_fwd_impl_->execute(gemm_ctx); break;

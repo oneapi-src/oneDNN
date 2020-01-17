@@ -39,7 +39,7 @@ struct ocl_gemm_t : public primitive_impl_t {
         gemm_args.c_zero_point
                 = &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_C);
 
-        gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+        gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
         return execute(gemm_ctx);
     }
 };

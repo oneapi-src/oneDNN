@@ -44,10 +44,9 @@ struct gemm_exec_args_t {
 };
 
 struct gemm_exec_ctx_t {
-    gemm_exec_ctx_t(stream_t *stream) : stream_(stream) {}
-    gemm_exec_ctx_t(stream_t *stream, gemm_exec_args_t &&args,
+    gemm_exec_ctx_t(stream_t *stream, const gemm_exec_args_t &args,
             gemm_desc_t *gemm_desc = nullptr)
-        : stream_(stream), args_(std::move(args)), gemm_desc_(gemm_desc) {}
+        : stream_(stream), args_(args), gemm_desc_(gemm_desc) {}
 
     stream_t *stream() const { return stream_; }
     const gemm_exec_args_t &args() const { return args_; }

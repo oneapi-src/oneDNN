@@ -35,7 +35,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
     }
 
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), std::move(gemm_args));
+    gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args);
     status_t gemm_exec_status = gemm_impl_->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 
