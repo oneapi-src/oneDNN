@@ -39,7 +39,8 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
         copy_based,
         no_copy,
         no_copy_if_even_off,
-        no_copy_superkernel
+        no_copy_superkernel,
+        no_copy_k_unroll
     };
 
     struct pd_t : public ocl_gemm_pd_t {
@@ -161,6 +162,7 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
                 return init_nocopy();
             }
             case type::no_copy_superkernel: return init_nocopy_superkernel();
+            case type::no_copy_k_unroll: return init_nocopy();
         }
 
         return status::invalid_arguments;
@@ -227,18 +229,30 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
             default: return status::unimplemented;
         }
 
+        int unroll_m, unroll_n, unroll_k;
+        bool transa = (pd()->desc()->transa == dnnl_trans);
+        bool transb = (pd()->desc()->transb == dnnl_trans);
+
+        jit_gen9_gemm_nocopy_kernel::get_unrolls(transa, transb, unroll_m,
+                unroll_n, unroll_k, pd()->desc()->c_type);
+        auto m = pd()->desc()->m;
+        auto n = pd()->desc()->n;
+
+        memory_storage_t *flag_ptr;
+        this->engine()->create_memory_storage(&flag_ptr,
+                ((m + unroll_m - 1) / unroll_m)
+                        * ((n + unroll_n - 1) / unroll_n) * sizeof(int));
+        flag_.reset(flag_ptr);
+
+        bool with_k_unroll = use_nocopy_k_unroll();
+
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
-        auto status = jit_gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx,
-                pd()->desc()->transa, pd()->desc()->transb,
-                pd()->with_eltwise(), pd()->eltwise_alg_kind(),
-                pd()->desc()->c_type);
-        if (status != status::success) return status;
 
-        status = jit_gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx,
-                pd()->desc()->transa, pd()->desc()->transb,
-                pd()->with_eltwise(), pd()->eltwise_alg_kind(),
+        auto status = jit_gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx,
+                pd()->desc()->transa, pd()->desc()->transb, with_k_unroll,
+                unroll_k, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
@@ -305,7 +319,8 @@ private:
             const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
             int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
             int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-            float eltwise_alpha, float eltwise_beta) const;
+            float eltwise_alpha, float eltwise_beta,
+            memory_storage_t &flag) const;
 
     status_t launch_nocopy_superkernel(compute::compute_stream_t *s,
             const memory_storage_t &plan, int32_t threads,
@@ -328,6 +343,7 @@ private:
     compute::kernel_t nocopy_superkernel_;
 
     std::unique_ptr<memory_storage_t> temp_buf_;
+    std::unique_ptr<memory_storage_t> flag_;
 
     type gemm_type_ = type::copy_based;
     int hw_threads_ = 0;
@@ -393,13 +409,41 @@ private:
         return !transa && (hw_threads_ > 0) && (k >= 384);
     }
 
+    bool use_nocopy_k_unroll() const {
+        bool transa = (pd()->desc()->transa == dnnl_trans);
+        bool transb = (pd()->desc()->transb == dnnl_trans);
+
+        auto m = pd()->desc()->m;
+        auto n = pd()->desc()->n;
+        auto k = pd()->desc()->k;
+        auto lda = pd()->desc()->lda;
+        auto ldb = pd()->desc()->ldb;
+        auto c_type = pd()->desc()->c_type;
+
+        if (!utils::one_of(c_type, data_type::f32, data_type::f16))
+            return false;
+
+        // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
+        if (c_type == data_type::f16)
+            if ((lda & 1) || (ldb & 1)) return false;
+
+        if (c_type == data_type::f32)
+            return ((n == 1) && transa && !transb && (m <= 1024) && (k >= 128));
+
+        if (c_type == data_type::f16)
+            return ((n == 1) && transa && !transb && (m <= 1024) && (k >= 384));
+
+        return false;
+    }
+
     type get_gemm_type() const {
-        return !use_nocopy()
-                ? type::copy_based
-                : use_superkernel() ? type::no_copy_superkernel
-                                    : (pd()->desc()->c_type == data_type::f16)
-                                ? type::no_copy_if_even_off
-                                : type::no_copy;
+        return use_nocopy_k_unroll() ? type::no_copy_k_unroll
+                                     : !use_nocopy() ? type::copy_based
+                                                     : use_superkernel()
+                                ? type::no_copy_superkernel
+                                : (pd()->desc()->c_type == data_type::f16)
+                                        ? type::no_copy_if_even_off
+                                        : type::no_copy;
     }
 };
 

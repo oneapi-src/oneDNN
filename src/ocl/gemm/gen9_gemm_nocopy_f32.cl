@@ -74,7 +74,8 @@
 #if WITH_ELTWISE == 1
 #define POST_OP(val) \
     do { \
-        if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+        if (last_k_block && last_k_unroll) \
+            val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
     } while (0)
 #else
 #define POST_OP(val)
@@ -230,28 +231,46 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) {
+        float eltwise_alpha, float eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     float2 a[4]; // 32 x 4  block of A, 4x 32x1 block accesses   [col major]
     float4 b;    // 4  x 16 block of B, 1x 4x16 scattered access [row major]
     float4 c[8]; // 32 x 16 block of C, 8x 4x16 scattered access [row major]
     // clang-format on
-
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 32;
     int j0 = idN;
-
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + i0 + k0 * lda;
+    B += offset_b + j0 * ldb + k0;
+    k = kt;
+#else
     A += offset_a + i0;
     B += offset_b + j0 * ldb;
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global float *A_cols[4] = {A, A + lda, A + 2 * lda, A + 3 * lda};
@@ -261,6 +280,11 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
 
     for (int z = 0; z < 8; z++)
         c[z] = 0.f;
+
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
 
 #ifndef ALLOW_READ_OVERRUNS
     if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 16) {
@@ -284,7 +308,6 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
             FMA_I_LOOP_32_ROW(2);
             FMA_I_LOOP_32_ROW(3);
         }
-
         int krem = k & 3;
         for (int h = 0; h < krem; h++) {
             a[0] = as_float2(
@@ -324,10 +347,27 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
 #endif /* ALLOW_READ_OVERRUNS */
 
     // Update C.
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C_32_ROW(1);
+        else
+            UPDATE_C_32_ROW(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C_32_ROW(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C_32_ROW(1);
     else
         UPDATE_C_32_ROW(0);
+#endif
 }
 #endif
 
@@ -337,28 +377,46 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) {
+        float eltwise_alpha, float eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     float2 a[2]; // 32 x 2  block of A, 2x 32x1 block accesses   [col major]
     float b[2];  // 2  x 16 block of B, 2x 1x16 block accesses   [row major]
     float4 c[8]; // 32 x 16 block of C, 8x 4x16 scattered access [row major]
     // clang-format on
-
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 32;
     int j0 = idN;
-
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + i0 + k0 * lda;
+    B += offset_b + sub_group_broadcast(j0, 0) + k0 * ldb;
+    k = kt;
+#else
     A += offset_a + i0;
     B += offset_b + sub_group_broadcast(j0, 0);
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global float *A_cols[2] = {A, A + lda};
@@ -369,6 +427,11 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
 
     for (int z = 0; z < 8; z++)
         c[z] = 0.f;
+
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
 
 #ifndef ALLOW_READ_OVERRUNS
     if (irem >= 32 && sub_group_broadcast(jrem, 0) >= 16) {
@@ -437,10 +500,27 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
 #endif /* ALLOW_READ_OVERRUNS */
 
     // Update C.
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C_32_ROW(1);
+        else
+            UPDATE_C_32_ROW(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C_32_ROW(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C_32_ROW(1);
     else
         UPDATE_C_32_ROW(0);
+#endif
 }
 #endif
 
@@ -450,28 +530,46 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) {
+        float eltwise_alpha, float eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     float4 a;       // 16 x 4  block of A, 1x     16x4 scattered [col major]
     float4 b[2];    // 4  x 32 block of B, 2x     4x16 scattered [row major]
     float4 c[4][2]; // 16 x 32 block of C, (4x2)x 4x16 scattered [row major]
     // clang-format on
-
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 16;
     int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
-
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + (i0 + lid) * lda + k0;
+    B += offset_b + j0 * ldb + k0;
+    k = kt;
+#else
     A += offset_a + (i0 + lid) * lda;
     B += offset_b + j0 * ldb;
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global float *B_ptrs[2] = {B, B + 16 * ldb};
@@ -479,6 +577,11 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
     for (int ii = 0; ii < 4; ii++)
         for (int jj = 0; jj < 2; jj++)
             c[ii][jj] = 0.f;
+
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
 
     for (int h = 0; h < (k >> 2); h++) {
         // Load A
@@ -513,10 +616,27 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
     // Update C.
     global float *C_ptrs[2] = {C, C + 16 * ldc};
 
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C_16_ROW(1);
+        else
+            UPDATE_C_16_ROW(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C_16_ROW(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C_16_ROW(1);
     else
         UPDATE_C_16_ROW(0);
+#endif
 }
 #endif
 
@@ -526,7 +646,13 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) {
+        float eltwise_alpha, float eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     float4 a;       // 16 x 4  block of A, 1x     16x4 scattered [col major]
@@ -537,17 +663,30 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 16;
     int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
-
     int irem = m - i0;
     int jrem = n - j0;
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + (i0 + lid) * lda + k0;
+    B += offset_b + sub_group_broadcast(j0, 0) + k0 * ldb;
+    k = kt;
+#else
     A += offset_a + (i0 + lid) * lda;
     B += offset_b + sub_group_broadcast(j0, 0);
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global float *B_rows[4] = {B, B + ldb, B + 2 * ldb, B + 3 * ldb};
@@ -557,6 +696,11 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
     for (int ii = 0; ii < 4; ii++)
         for (int jj = 0; jj < 2; jj++)
             c[ii][jj] = 0.f;
+
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
 
 #ifndef ALLOW_READ_OVERRUNS
     if (irem >= 16 && sub_group_broadcast(jrem, 0) >= 32) {
@@ -629,9 +773,26 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
     // Update C.
     global float *C_ptrs[2] = {C, C + 16 * ldc};
 
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C_16_ROW(1);
+        else
+            UPDATE_C_16_ROW(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C_16_ROW(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C_16_ROW(1);
     else
         UPDATE_C_16_ROW(0);
+#endif
 }
 #endif

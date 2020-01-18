@@ -76,7 +76,8 @@
 #if WITH_ELTWISE == 1
 #define POST_OP(val) \
     do { \
-        if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+        if (last_k_block && last_k_unroll) \
+            val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
     } while (0)
 #else
 #define POST_OP(val)
@@ -178,7 +179,13 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta) {
+        half eltwise_alpha, half eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     half2 a[4];    // 32 x 4  block of A,      4x 32x1 block accesses
@@ -189,6 +196,8 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 32;
     int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
@@ -199,8 +208,20 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     if (jrem < 0) jrem = 0;
     int irem2 = (irem + 1) >> 1;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + i0 + k0 * lda;
+    B += offset_b + j0 * ldb + k0;
+    k = kt;
+#else
     A += offset_a + i0;
     B += offset_b + j0 * ldb;
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global half *A_ptrs[4] = {A, A + lda, A + 2 * lda, A + 3 * lda};
@@ -210,6 +231,10 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
     int k_align = k & ~3;
 
 #ifndef ALLOW_READ_OVERRUNS
@@ -277,10 +302,27 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     global half *C2 = C + 16 * ldc;
 
     // Update C.
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C(1);
+        else
+            UPDATE_C(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C(1);
     else
         UPDATE_C(0);
+#endif
 }
 #endif
 
@@ -290,7 +332,13 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta) {
+        half eltwise_alpha, half eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     half2 a[4];    // 32 x 4  block of A,      4x 32x1 block access
@@ -301,6 +349,8 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 32;
     int j00 = sub_group_broadcast(idN, 0) * 2;
@@ -312,8 +362,20 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     if (jrem < 0) jrem = 0;
     int irem2 = (irem + 1) >> 1;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + i0 + k0 * lda;
+    B += offset_b + j00 + k0 * ldb;
+    k = kt;
+#else
     A += offset_a + i0;
     B += offset_b + j00;
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global half *A_ptrs[4] = {A, A + lda, A + 2 * lda, A + 3 * lda};
@@ -323,6 +385,10 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
     int k_align = k & ~3;
 
 #ifndef ALLOW_READ_OVERRUNS
@@ -381,10 +447,27 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     global half *C2 = C + 16 * ldc;
 
     // Update C.
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C(1);
+        else
+            UPDATE_C(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C(1);
     else
         UPDATE_C(0);
+#endif
 }
 #endif
 
@@ -394,7 +477,13 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta) {
+        half eltwise_alpha, half eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     half4 a[2];    // 32 x 4  block of A,      2x 16x4 scattered access
@@ -405,6 +494,8 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 32;
     int j0 = sub_group_broadcast(idN, 0) * 2 + lid;
@@ -414,8 +505,20 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + (i0 + lid) * lda + k0;
+    B += offset_b + j0 * ldb + k0;
+    k = kt;
+#else
     A += offset_a + (i0 + lid) * lda;
     B += offset_b + j0 * ldb;
+#endif
     C += offset_c + i0 + j0 * ldc;
 
     global half *A_ptrs[2] = {A, A + 16 * lda};
@@ -425,6 +528,10 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
     int k_align = k & ~3;
 
 #ifndef ALLOW_READ_OVERRUNS
@@ -479,10 +586,27 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     global half *C2 = C + 16 * ldc;
 
     // Update C.
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C(1);
+        else
+            UPDATE_C(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C(1);
     else
         UPDATE_C(0);
+#endif
 }
 #endif
 
@@ -492,7 +616,13 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta) {
+        half eltwise_alpha, half eltwise_beta
+#ifdef WITH_K_UNROLL
+        ,
+        volatile global int *flag, long offset_f) {
+#else
+) {
+#endif
 
     // clang-format off
     half4 a[2];    // 32 x 4  block of A,      2x 16x4 scattered access
@@ -503,6 +633,8 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     int idM = get_global_id(1);
     int idN = get_global_id(0);
     int lid = get_sub_group_local_id();
+    int idK = get_global_id(2);
+    int nku = get_global_size(2);
 
     int i0 = idM * 32;
     int j00 = sub_group_broadcast(idN, 0) * 2;
@@ -513,8 +645,21 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     if (irem < 0) irem = 0;
     if (jrem < 0) jrem = 0;
 
+    int last_k_unroll = (idK == nku - 1);
+
+#ifdef WITH_K_UNROLL
+    int k0 = idK * UNROLL_K;
+    int kt = k - k0;
+    if (kt < 0) kt = 0;
+    if (kt > UNROLL_K) kt = UNROLL_K;
+    A += offset_a + (i0 + lid) * lda + k0;
+    B += offset_b + j00 + k0 * ldb;
+    k = kt;
+#else
     A += offset_a + (i0 + lid) * lda;
     B += offset_b + j00;
+#endif
+
     C += offset_c + i0 + j0 * ldc;
 
     global half *A_ptrs[2] = {A, A + 16 * lda};
@@ -524,6 +669,10 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         for (int z = 0; z < 2; z++)
             c[y][z] = 0;
 
+#ifdef WITH_K_UNROLL
+    flag += offset_f + idM;
+    if (idK == 0 && lid == 0) *flag = 0;
+#endif
     int k_align = k & ~3;
 
 #ifndef ALLOW_READ_OVERRUNS
@@ -585,9 +734,26 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
     global half *C2 = C + 16 * ldc;
 
     // Update C.
+#ifdef WITH_K_UNROLL
+    do {
+        read_mem_fence(CLK_GLOBAL_MEM_FENCE);
+    } while (*flag != idK);
+
+    if (idK == 0) {
+        if (beta == 0)
+            UPDATE_C(1);
+        else
+            UPDATE_C(0);
+    } else {
+        beta = 1.0;
+        UPDATE_C(0);
+    }
+    if (lid == 0) *flag = idK + 1;
+#else
     if (beta == 0)
         UPDATE_C(1);
     else
         UPDATE_C(0);
+#endif
 }
 #endif

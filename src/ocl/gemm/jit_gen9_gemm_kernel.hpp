@@ -125,26 +125,28 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
 
 struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-            bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
-            impl::data_type_t type) {
+            bool trans_a, bool trans_b, bool with_k_unroll, int unroll_k,
+            bool with_eltwise, alg_kind_t alg, impl::data_type_t type) {
 
         auto status = init_cl_options(kernel_ctx, type);
         if (status) return status;
 
         if (trans_a) kernel_ctx.add_option("-DTRANS_A");
         if (trans_b) kernel_ctx.add_option("-DTRANS_B");
-
+        if (with_k_unroll) {
+            kernel_ctx.add_option("-DWITH_K_UNROLL");
+            kernel_ctx.define_int("UNROLL_K", unroll_k);
+        }
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
         if (with_eltwise) def_postops(kernel_ctx, alg);
-
         kernel_ctx.print_options();
         return status::success;
     }
 
     static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
-            int &unroll_n, impl::data_type_t type) {
+            int &unroll_n, int &unroll_k, impl::data_type_t type) {
 
-        unroll_m = unroll_n = 0;
+        unroll_m = unroll_n = unroll_k = 0;
 
         if (type == data_type::f32) {
             static constexpr int unroll_m_table[2][2] = {{32, 32}, {16, 16}};
@@ -152,8 +154,11 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
 
             unroll_m = unroll_m_table[trans_a][trans_b];
             unroll_n = unroll_n_table[trans_a][trans_b];
-        } else if (type == data_type::f16)
+            unroll_k = 128;
+        } else if (type == data_type::f16) {
             unroll_m = unroll_n = 32;
+            unroll_k = 128;
+        }
     }
 };
 
@@ -164,8 +169,8 @@ struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
 
         if (trans_a) return status::unimplemented;
 
-        return jit_gen9_gemm_nocopy_kernel::init_const_def(
-                kernel_ctx, trans_a, trans_b, with_eltwise, alg, type);
+        return jit_gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx, trans_a,
+                trans_b, false, 32, with_eltwise, alg, type);
     }
 
     static void get_unrolls(

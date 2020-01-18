@@ -154,9 +154,11 @@ status_t jit_gen9_gemm_t::launch_nocopy(
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
         int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        int last_k_block, float eltwise_alpha, float eltwise_beta) const {
+        int last_k_block, float eltwise_alpha, float eltwise_beta,
+        memory_storage_t &flag) const {
 
     auto &kernel = nocopy_kernel_;
+    int64_t offset_f = 0;
 
     assert(kernel);
     compute::kernel_arg_list_t arg_list;
@@ -177,20 +179,30 @@ status_t jit_gen9_gemm_t::launch_nocopy(
     arg_list.set(14, last_k_block);
     arg_list.set(15, eltwise_alpha);
     arg_list.set(16, eltwise_beta);
+    if (gemm_type_ == type::no_copy_k_unroll) {
+        arg_list.set(17, flag);
+        arg_list.set(18, offset_f);
+    }
 
     bool transa = (pd()->desc()->transa == dnnl_trans);
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
-    int unroll_m, unroll_n;
+    int unroll_m, unroll_n, unroll_k;
 
     jit_gen9_gemm_nocopy_kernel::get_unrolls(
-            transa, transb, unroll_m, unroll_n, pd()->desc()->c_type);
+            transa, transb, unroll_m, unroll_n, unroll_k, pd()->desc()->c_type);
 
     size_t nthreads_x = (n + unroll_n - 1) / nstl::max(unroll_n, 1);
     size_t nthreads_y = (m + unroll_m - 1) / nstl::max(unroll_m, 1);
+    size_t nthreads_z;
+    if (gemm_type_ == type::no_copy_k_unroll)
+        nthreads_z = (k + unroll_k - 1) / nstl::max(unroll_k, 1);
+    else
+        nthreads_z = 1;
 
     size_t lthreads_x = 2;
     size_t lthreads_y = 8;
+    size_t lthreads_z = 1;
 
 #ifndef CL_VERSION_2_0
     while (nthreads_x % lthreads_x)
@@ -200,8 +212,8 @@ status_t jit_gen9_gemm_t::launch_nocopy(
 #endif
 
     static constexpr size_t subgroup_size = 16;
-    size_t gws[3] = {nthreads_x * subgroup_size, nthreads_y, 1};
-    size_t lws[3] = {lthreads_x * subgroup_size, lthreads_y, 1};
+    size_t gws[3] = {nthreads_x * subgroup_size, nthreads_y, nthreads_z};
+    size_t lws[3] = {lthreads_x * subgroup_size, lthreads_y, lthreads_z};
 
     auto nd_range = compute::nd_range_t(gws, lws);
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
@@ -415,7 +427,8 @@ status_t jit_gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
     bool nocopy = (gemm_type_ == type::no_copy)
             || (gemm_type_ == type::no_copy_if_even_off && !(off_a0 & 1)
-                    && !(off_b0 & 1));
+                    && !(off_b0 & 1))
+            || (gemm_type_ == type::no_copy_k_unroll);
 
     status_t status;
     constexpr int64_t align = 0x1000;
@@ -485,7 +498,7 @@ status_t jit_gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                     status = launch_nocopy(compute_stream, a, b, c, off_a_src,
                             off_b_src, off_c, lda, ldb, ldc, size_m, size_n,
                             size_k, alpha, eff_beta, (int)last_k_block,
-                            eltwise_alpha, eltwise_beta);
+                            eltwise_alpha, eltwise_beta, *flag_);
                 } else {
                     bool beta0 = (beta == 0) && (Bk == 0);
                     status = launch_compute(compute_stream, size_m, size_n,
