@@ -2075,15 +2075,21 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param dims Tensor dimensions.
         /// @param data_type Data precision/type.
         /// @param format_tag Memory format tag.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be constructed. This flag is
+        ///     optional and defaults to false.
         desc(const memory::dims &dims, data_type data_type,
-                format_tag format_tag) {
+                format_tag format_tag, bool allow_empty = false)
+            : data() {
             validate_dims(dims);
-            error::wrap_c_api(
-                    dnnl_memory_desc_init_by_tag(&data, (int)dims.size(),
-                            dims.size() == 0 ? nullptr : &dims[0],
-                            convert_to_c(data_type), convert_to_c(format_tag)),
-                    "could not construct a memory descriptor using a format "
-                    "tag");
+            dnnl_status_t status = dnnl_memory_desc_init_by_tag(&data,
+                    (int)dims.size(), dims.size() == 0 ? nullptr : &dims[0],
+                    convert_to_c(data_type), convert_to_c(format_tag));
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not construct a memory descriptor using a "
+                        "format tag");
         }
 
         /// Constructs a memory descriptor by strides.
@@ -2097,15 +2103,22 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param dims Tensor dimensions.
         /// @param data_type Data precision/type.
         /// @param strides The strides for each dimension.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be constructed. This flag is
+        ///     optional and defaults to false.
         desc(const memory::dims &dims, data_type data_type,
-                const memory::dims &strides) {
+                const memory::dims &strides, bool allow_empty = false)
+            : data() {
             validate_dims(dims);
-            error::wrap_c_api(
-                    dnnl_memory_desc_init_by_strides(&data, (int)dims.size(),
-                            dims.size() == 0 ? nullptr : &dims[0],
-                            convert_to_c(data_type),
-                            strides.size() == 0 ? nullptr : &strides[0]),
-                    "could not construct a memory descriptor using strides");
+            dnnl_status_t status = dnnl_memory_desc_init_by_strides(&data,
+                    (int)dims.size(), dims.size() == 0 ? nullptr : &dims[0],
+                    convert_to_c(data_type),
+                    strides.size() == 0 ? nullptr : &strides[0]);
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not construct a memory descriptor using "
+                        "strides");
         }
 
         /// Constructs a memory descriptor from a C API data structure.
@@ -2119,13 +2132,18 @@ struct memory : public handle<dnnl_memory_t> {
         /// @param dims Sizes of the region.
         /// @param offsets Offsets to the region from the encompassing
         ///     memory object in each dimension.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be returned. This flag is optional
+        ///     and defaults to false.
         /// @returns A memory descriptor for the region.
-        desc submemory_desc(
-                const memory::dims &dims, const memory::dims &offsets) const {
-            dnnl_memory_desc_t sub_md;
-            error::wrap_c_api(dnnl_memory_desc_init_submemory(
-                                      &sub_md, &data, &dims[0], &offsets[0]),
-                    "could not construct a sub-memory");
+        desc submemory_desc(const memory::dims &dims,
+                const memory::dims &offsets, bool allow_empty = false) const {
+            dnnl_memory_desc_t sub_md{};
+            dnnl_status_t status = dnnl_memory_desc_init_submemory(
+                    &sub_md, &data, &dims[0], &offsets[0]);
+            if (!allow_empty)
+                error::wrap_c_api(status, "could not construct a sub-memory");
             return desc(sub_md);
         }
 
@@ -2133,12 +2151,18 @@ struct memory : public handle<dnnl_memory_t> {
         //
         /// @param dims New dimensions. The product of dimensions must
         /// remain constant.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be returned. This flag is optional
+        ///     and defaults to false.
         /// @returns A new memory descriptor with new dimensions.
-        desc reshape(const memory::dims &dims) const {
-            dnnl_memory_desc_t out_md;
-            error::wrap_c_api(dnnl_memory_desc_reshape(&out_md, &data,
-                                      (int)dims.size(), &dims[0]),
-                    "could not reshape a memory descriptor");
+        desc reshape(const memory::dims &dims, bool allow_empty = false) const {
+            dnnl_memory_desc_t out_md{};
+            dnnl_status_t status = dnnl_memory_desc_reshape(
+                    &out_md, &data, (int)dims.size(), &dims[0]);
+            if (!allow_empty)
+                error::wrap_c_api(
+                        status, "could not reshape a memory descriptor");
             return desc(out_md);
         }
 
