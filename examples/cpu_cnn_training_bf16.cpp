@@ -57,7 +57,6 @@ void simple_net() {
 
     // float data type is used for user data
     std::vector<float> net_src(batch * 3 * 227 * 227);
-    std::vector<float> net_dst(batch * 96 * 27 * 27);
 
     // initializing non-zero values for src
     for (size_t i = 0; i < net_src.size(); ++i)
@@ -87,18 +86,15 @@ void simple_net() {
     // create memory for user data
     auto conv_user_src_memory
             = memory({{conv_src_tz}, dt::f32, tag::nchw}, cpu_engine);
-    // copy net_src to conv_user_src_memory
-    // ...
+    write_to_dnnl_memory(net_src.data(), conv_user_src_memory);
 
     auto conv_user_weights_memory
             = memory({{conv_weights_tz}, dt::f32, tag::oihw}, cpu_engine);
-    // copy conv_weights to conv_user_weights_memory
-    // ...
+    write_to_dnnl_memory(conv_weights.data(), conv_user_weights_memory);
 
     auto conv_user_bias_memory
             = memory({{conv_bias_tz}, dt::f32, tag::x}, cpu_engine);
-    // copy conv_bias to conv_user_bias_memory
-    // ...
+    write_to_dnnl_memory(conv_bias.data(), conv_user_bias_memory);
 
     // create memory descriptors for bfloat16 convolution data w/ no specified
     // format tag(`any`)
@@ -221,8 +217,8 @@ void simple_net() {
     memory::dims pool_padding = {0, 0};
 
     // create memory for pool dst data in user format
-    auto pool_user_dst_memory = memory(
-            {{pool_dst_tz}, dt::f32, tag::nchw}, cpu_engine, net_dst.data());
+    auto pool_user_dst_memory
+            = memory({{pool_dst_tz}, dt::f32, tag::nchw}, cpu_engine);
 
     // create pool dst memory descriptor in format any for bfloat16 data type
     auto pool_dst_md = memory::desc({pool_dst_tz}, dt::bf16, tag::any);
@@ -267,8 +263,7 @@ void simple_net() {
     // create memory for user diff dst data stored in float data type
     auto pool_user_diff_dst_memory
             = memory({{pool_dst_tz}, dt::f32, tag::nchw}, cpu_engine);
-    // copy net_diff_dst to pool_user_diff_dst_memory
-    // ...
+    write_to_dnnl_memory(net_diff_dst.data(), pool_user_diff_dst_memory);
 
     // Backward pooling
     // create memory descriptors for pooling
@@ -364,18 +359,11 @@ void simple_net() {
 
     // Backward convolution with respect to weights
     // create user format diff weights and diff bias memory for float data type
-    std::vector<float> conv_user_diff_weights_buffer(product(conv_weights_tz));
-    std::vector<float> conv_diff_bias_buffer(product(conv_bias_tz));
 
     auto conv_user_diff_weights_memory
             = memory({{conv_weights_tz}, dt::f32, tag::nchw}, cpu_engine);
-    // copy conv_user_diff_weights_buffer to conv_user_diff_weights_memory
-    // ...
-
-    auto conv_diff_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x},
-            cpu_engine, conv_diff_bias_buffer.data());
-    // copy conv_diff_bias_buffer to conv_diff_bias_memory
-    // ...
+    auto conv_diff_bias_memory
+            = memory({{conv_bias_tz}, dt::f32, tag::x}, cpu_engine);
 
     // create memory descriptors for bfloat16 convolution data
     auto conv_bwd_src_md = memory::desc({conv_src_tz}, dt::bf16, tag::any);
