@@ -24,6 +24,7 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
+#include "ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -52,7 +53,10 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                                                     f32, s32, s8, u8))
                                     && IMPLICATION(src_type == f32,
                                             bias_md_.data_type == f32))
-                    && set_default_formats() && attr()->has_default_values();
+                    && set_default_formats()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::post_ops)
+                    && post_ops_ok();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -65,9 +69,42 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
+
+        bool post_ops_ok() const {
+            // to be consistent with other primitives and documentation
+            // the number and sequence of post op is limited
+            using namespace dnnl::impl::primitive_kind;
+            auto const &po = attr()->post_ops_;
+            auto is_eltwise
+                    = [&](int idx) { return po.entry_[idx].is_eltwise(); };
+
+            switch (po.len_) {
+                case 0: return true;
+                case 1: return is_eltwise(0) || po.contain(sum, 0);
+                case 2:
+                    return (po.contain(sum, 0) && is_eltwise(1))
+                            || (po.contain(sum, 1) && is_eltwise(0));
+                default: return false;
+            }
+            return false;
+        }
     };
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+        for (int idx = 0; idx < dnnl_post_ops::capacity; ++idx)
+            eltwises_[idx] = nullptr;
+        auto &post_ops = pd()->attr()->post_ops_;
+        for (int idx = 0; idx < post_ops.len_; ++idx) {
+            const auto &e = post_ops.entry_[idx];
+            if (e.kind != dnnl_sum)
+                eltwises_[idx] = new ref_eltwise_scalar_fwd_t(e.eltwise);
+        }
+    }
+
+    ~ref_convolution_fwd_t() {
+        for (int idx = 0; idx < dnnl_post_ops::capacity; ++idx)
+            if (eltwises_[idx] != nullptr) delete eltwises_[idx];
+    }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -82,6 +119,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    ref_eltwise_scalar_fwd_t *eltwises_[dnnl_post_ops::capacity];
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
