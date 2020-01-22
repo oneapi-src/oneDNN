@@ -154,7 +154,7 @@ struct jit_conv_conf_t {
     int src_offsets[28];
     int src_count;
     bool expl_bcast;
-    bool large_spatial;
+    bool large_spatial, large_w_filter;
     int is_oc_scale;
     int max_regs_ur; // maximum accumulation registers
     // dw conv

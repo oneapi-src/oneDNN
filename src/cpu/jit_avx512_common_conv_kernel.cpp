@@ -2041,7 +2041,7 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma(
 
 template <typename Vmm>
 void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma_core(
-        int ur_w, int l_overflow, int r_overflow) {
+        int ur_w, int l_overflow, int r_overflow, int k_offset) {
     int kw = jcp.kw;
     int ow = jcp.ow;
     int dilate_w = jcp.dilate_w + 1;
@@ -2104,7 +2104,8 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma_core(
                     }
                 }
                 for (int ii = 0; ii < nb_ic_block; ii++) {
-                    int aux_kernel_offset = kernel_offset(ii, oc, ki);
+                    int aux_kernel_offset
+                            = kernel_offset(ii, oc, ki + k_offset);
                     if (jj_end - jj_start > 0)
                         vmovups(vmm_wei,
                                 EVEX_compress_addr(
@@ -2143,7 +2144,7 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop_fma_core(
 
 template <typename Vmm>
 inline void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop(
-        int ur_w, int l_overflow, int r_overflow) {
+        int ur_w, int l_overflow, int r_overflow, int k_offset) {
     if (jcp.ndims == 5) push(reg_oi);
 
     prepare_output(ur_w);
@@ -2166,7 +2167,7 @@ inline void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::compute_loop(
         else if (jcp.kernel_kind == embd_bcast && jcp.nb_ic_blocking == 1)
             compute_loop_fma(ur_w, l_overflow, r_overflow);
         else
-            compute_loop_fma_core(ur_w, l_overflow, r_overflow);
+            compute_loop_fma_core(ur_w, l_overflow, r_overflow, k_offset);
     else
         assert(!"unknown convolution version");
 
@@ -2216,7 +2217,6 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::generate() {
     bool threaded = is_iw_threading_on(jcp);
     Label head_label, body_label, pretail_label, tail_label, end_label;
     assert(n_oi > 0);
-
     if (r_overflow_no_tail > 0) n_oi--;
     if (l_overflow > 0) n_oi--;
     if (n_oi < 0) {
@@ -2314,9 +2314,11 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::generate() {
             compute_loop(ur_w, body_l_overflow, body_r_overflow);
             if (n_oi > 1 || r_overflow_no_tail > 0 || ur_w_tail != 0) {
                 add(reg_src, src_shift);
-                add(reg_dst, dst_shift);
                 add(reg_src_prf, src_shift);
-                add(reg_dst_prf, dst_shift);
+                if (!jcp.large_w_filter) {
+                    add(reg_dst, dst_shift);
+                    add(reg_dst_prf, dst_shift);
+                }
             }
             if (n_oi > 1) {
                 sub(reg_oi, 1);
@@ -2342,7 +2344,15 @@ void _jit_avx512_common_conv_bwd_data_kernel_f32<Vmm>::generate() {
         }
     }
     L(tail_label);
-    if (ur_w_tail != 0) { compute_loop(ur_w_tail, 0, r_overflow); }
+    if (ur_w_tail != 0) {
+        /* if 'filter-width > ur_w' then the main loop only partially computes
+         * width, ur_w_tail needs to offset the initial ur_w from the filter
+         * address. */
+        if (jcp.large_w_filter)
+            compute_loop(ur_w_tail, body_l_overflow, r_overflow - ur_w, ur_w);
+        else
+            compute_loop(ur_w_tail, 0, r_overflow);
+    }
     L(end_label);
 
     postamble();
@@ -2536,6 +2546,21 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         }
     }
 
+    /* Support for large filter 'kw > 14' is only possible when ur_w is small
+     * (e.g ur_w = 1) because of register allocation (max_reg = 31) */
+    const int min_filter_size = 14;
+    /* Don't let JIT generate too big of a code which might result in an
+     * out-of-memory crash. */
+    const int max_filter_size = 20;
+
+    /* These conditions define a set of shapes with 'ow = 1' which
+     * have a very limited optimization space for performance.
+     * Optimize by using a targeted 'jcp.nb_ic_blocking' value. */
+    jcp.large_w_filter = jcp.kw >= min_filter_size && jcp.kw < max_filter_size
+            && jcp.ow == 1 && jcp.nb_ic > 1 && jcp.kw == jcp.iw
+            && jcp.stride_w == 1
+            && utils::everyone_is(0, jcp.dilate_d, jcp.dilate_h, jcp.dilate_w);
+
     if (jcp.ver == ver_fma && mayiuse(avx512_core)) {
         int try_nb_ic_blocking = 2;
         unsigned int ker_inp_size = typesize * jcp.iw * jcp.ic_block
@@ -2545,11 +2570,14 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
                 * jcp.oc_block * try_nb_ic_blocking;
         unsigned int ker_total_size
                 = ker_inp_size + ker_out_size + ker_wei_size;
-        if (!(jcp.kw == 1 || (jcp.kw == 5 && jcp.iw < 8)
-                    || (jcp.kw < 5
-                            && ((jcp.iw <= 5 || (jcp.iw > 8 && jcp.iw <= 13))
-                                    || ker_total_size > L1_cache_size)))
-                || jcp.stride_h > 1 || jcp.stride_d > 1) {
+        bool use_expl_bcast
+                = !(jcp.kw == 1 || (jcp.kw == 5 && jcp.iw < 8)
+                          || (jcp.kw < 5
+                                  && ((jcp.iw <= 5
+                                              || (jcp.iw > 8 && jcp.iw <= 13))
+                                          || ker_total_size > L1_cache_size)))
+                || jcp.stride_h > 1 || jcp.stride_d > 1;
+        if (use_expl_bcast && !jcp.large_w_filter) {
             jcp.kernel_kind = embd_bcast;
             jcp.ur_w = nstl::min(jcp.iw, regs);
             jcp.nb_ic_blocking = jcp.nb_oc_blocking = 1;
@@ -2565,7 +2593,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         } else {
             jcp.kernel_kind = expl_bcast;
             jcp.nb_oc_blocking = 1;
-            jcp.nb_ic_blocking = 4;
+            jcp.nb_ic_blocking = jcp.large_w_filter ? 2 : 4;
             if (jcp.nb_ic < jcp.nb_ic_blocking) jcp.nb_ic_blocking = jcp.nb_ic;
             if (jcp.nb_ic % jcp.nb_ic_blocking != 0)
                 for (int i = jcp.nb_ic_blocking; i > 0; i--)
@@ -2646,7 +2674,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.iw_block = get_iw_block(jcp.nb_ic_blocking, jcp.ur_w);
     jcp.nb_iw = div_up(jcp.iw, jcp.iw_block);
 
-    if (l_overflow * jcp.stride_w > jcp.ur_w) return status::unimplemented;
+    if (l_overflow * jcp.stride_w > jcp.ur_w && !jcp.large_w_filter)
+        return status::unimplemented;
     r_overflow_no_tail = nstl::max(0,
             ((jcp.kw - 1) * (jcp.dilate_w + 1)
                     - nstl::max(0, jcp.r_pad + jcp.ur_w_tail))
@@ -2699,7 +2728,8 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         float ur_fac
                 = (float)jcp.kw * jcp.oc_block * jcp.nb_ic_blocking * jcp.ur_w;
         float code_size = mult * ur_fac * max_instruction_size;
-        if (code_size > max_code_size) return status::unimplemented;
+        if (code_size > max_code_size && !jcp.large_w_filter)
+            return status::unimplemented;
     }
 
     return status::success;
