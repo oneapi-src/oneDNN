@@ -2328,10 +2328,6 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::generate() {
 
     Reg64 reg_mask_load = r11;
 
-    mov(reg_input, ptr[param + GET_OFF(src)]);
-    mov(reg_output, ptr[param + GET_OFF(dst)]);
-    mov(reg_kernel, ptr[param + GET_OFF(filt)]);
-
     if (jcp.uses_permw_transposition) {
         int ilow_mask = (1 << jcp.ic_block_step) - 1;
         int ihigh_mask = ilow_mask << 16;
