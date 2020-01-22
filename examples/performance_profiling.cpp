@@ -105,10 +105,8 @@ const memory::dims padding = {0, 0};
 // function to init data
 void init_data(memory &m, float v) {
     size_t size = m.get_desc().get_size() / sizeof(float);
-    std::vector<float> data(size);
-    read_from_dnnl_memory(data.data(), m);
-    for (size_t i = 0; i < size; ++i)
-        data[i] = v;
+    std::vector<float> data(size, v);
+    write_to_dnnl_memory(data.data(), m);
 }
 
 // function to execute non-fused relu
