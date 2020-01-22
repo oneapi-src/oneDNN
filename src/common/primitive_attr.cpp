@@ -78,7 +78,7 @@ status_t arg_scales_t::get(
 status_t zero_points_t::get(
         int arg, dim_t *count, int *mask, const int **zero_points) const {
     if (count) *count = 1;
-    if (mask) *mask = 0;
+    if (mask) *mask = get_mask(arg);
     if (zero_points) *zero_points = get(arg);
     return status::success;
 }
@@ -89,14 +89,26 @@ status_t zero_points_t::set(
 
     const bool supported_arg
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
-    const bool ok = count == 1 && mask == 0
+    const bool ok = count == 1
+            && IMPLICATION(mask != 0,
+                    arg == DNNL_ARG_DST
+                            && zero_points[0] == DNNL_RUNTIME_S32_VAL)
             && IMPLICATION(!supported_arg, *zero_points == 0);
     if (!ok) return status::unimplemented;
 
     switch (arg) {
-        case DNNL_ARG_SRC: zero_point_src = *zero_points; break;
-        case DNNL_ARG_WEIGHTS: zero_point_wei = *zero_points; break;
-        case DNNL_ARG_DST: zero_point_dst = *zero_points; break;
+        case DNNL_ARG_SRC:
+            zero_point_src = *zero_points;
+            mask_src = mask;
+            break;
+        case DNNL_ARG_WEIGHTS:
+            zero_point_wei = *zero_points;
+            mask_wei = mask;
+            break;
+        case DNNL_ARG_DST:
+            zero_point_dst = *zero_points;
+            mask_dst = mask;
+            break;
     }
     return status::success;
 }

@@ -233,7 +233,9 @@ struct zero_points_t : public c_compatible {
     // arg-specific checks
     bool common(int arg) const { return true; }
     bool defined(int arg) const { return !is_runtime_value(*get(arg)); }
-    bool has_default_values(int arg) const { return *get(arg) == 0; }
+    bool has_default_values(int arg) const {
+        return *get(arg) == 0 && get_mask(arg) == 0;
+    }
 
     // same checks but for all supported arguments at once
     bool common() const { return check_all(&zero_points_t::common); }
@@ -264,6 +266,18 @@ struct zero_points_t : public c_compatible {
 private:
     // TODO: support count and mask
     int zero_point_src = 0, zero_point_wei = 0, zero_point_dst = 0;
+    int mask_src = 0, mask_wei = 0, mask_dst = 0;
+
+    int get_mask(int arg) const {
+        int mask = 0;
+        switch (arg) {
+            case DNNL_ARG_SRC: mask = mask_src; break;
+            case DNNL_ARG_WEIGHTS: mask = mask_wei; break;
+            case DNNL_ARG_DST: mask = mask_dst; break;
+            default: mask = 0;
+        }
+        return mask;
+    }
 
     bool check_all(bool (zero_points_t::*f)(int) const) const {
         for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
