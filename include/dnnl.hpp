@@ -8819,6 +8819,9 @@ struct binary : public primitive {
         /// Underlying C operation descriptor.
         dnnl_binary_desc_t data;
 
+        /// Default constructor. Produces an empty object.
+        desc() = default;
+
         /// Constructs a descriptor for an elementwise binary operator
         /// primitive.
         ///
