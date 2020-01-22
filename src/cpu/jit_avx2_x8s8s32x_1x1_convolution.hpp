@@ -85,13 +85,20 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_impl_t {
         reduce_to_unit_stride_t rtus_;
 
     protected:
-        format_tag_t dat_tag() const { return format_tag::nhwc; }
+        format_tag_t dat_tag() const {
+            return utils::pick(ndims() - 3, format_tag::nwc, format_tag::nhwc,
+                    format_tag::ndhwc);
+        }
 
         bool set_or_check_wei_format() {
             using namespace format_tag;
 
             const bool is_src_s8 = src_md_.data_type == data_type::s8;
-            format_tag_t wei_tag = with_groups() ? gOIhw2i8o4i : OIhw2i8o4i;
+            format_tag_t wei_tag = with_groups()
+                    ? utils::pick(
+                            ndims() - 3, gOIw2i8o4i, gOIhw2i8o4i, gOIdhw2i8o4i)
+                    : utils::pick(
+                            ndims() - 3, OIw2i8o4i, OIhw2i8o4i, OIdhw2i8o4i);
 
             memory_desc_t want_wei_md = weights_md_;
             memory_desc_init_by_tag(want_wei_md, wei_tag);

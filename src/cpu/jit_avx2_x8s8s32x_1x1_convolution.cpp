@@ -31,6 +31,11 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
+#define data_blk_off(f, n, c, d, h, w) \
+    ((ndims == 3) ? (f).blk_off(n, c, w) \
+                  : ((ndims == 4) ? (f).blk_off(n, c, h, w) \
+                                  : (f).blk_off(n, c, d, h, w)))
+
 /* convolution forward */
 template <data_type_t src_type, data_type_t dst_type>
 void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
@@ -83,8 +88,10 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
-    const int stride_h = pd()->desc()->strides[0];
-    const int stride_w = pd()->desc()->strides[1];
+    const int ndims = dst_d.ndims();
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
+    const int stride_w = pd()->desc()->strides[ndims - 3];
 
     const auto &oscales = pd()->attr()->output_scales_;
 
@@ -114,8 +121,8 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
         ocb_end *= jcp.nb_load_chunk;
     }
 
-    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &oh,
-                              int &ow, int &ih, int &iw) {
+    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &od,
+                              int &oh, int &ow, int &id, int &ih, int &iw) {
         int osb {0};
         nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
         bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
@@ -123,9 +130,12 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
         bcast_step = nstl::min(bcast_step, bcast_end - iwork);
 
         const int os = osb * os_block;
-        oh = os / jcp.ow;
-        ow = os % jcp.ow;
+        od = os / (jcp.oh * jcp.ow);
+        const int os_2d = os % (jcp.oh * jcp.ow);
+        oh = os_2d / jcp.ow;
+        ow = os_2d % jcp.ow;
 
+        id = od * stride_d;
         ih = oh * stride_h;
         iw = ow * stride_w;
         rp.iw_start = iw;
@@ -151,13 +161,14 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
         rp.icb = p.reduce_dim / jcp.reduce_block;
     };
 
-    auto inner_ker = [&](int ocb, int n, int g, int oh, int ow, int ih,
-                             int iw) {
+    auto inner_ker = [&](int ocb, int n, int g, int od, int oh, int ow, int id,
+                             int ih, int iw) {
         const int icb = 0; // Start from the first IC block
         const int _ocb = g * nb_oc + ocb;
         const int _icb = g;
 
-        const size_t dst_off = dst_d.blk_off(n, _ocb * jcp.oc_block, oh, ow);
+        const size_t dst_off
+                = data_blk_off(dst_d, n, _ocb * jcp.oc_block, od, oh, ow);
 
         p.output_data = &dst[dst_off];
         p.load_data
@@ -173,12 +184,15 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
             rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
                     + _icb * jcp.is * jcp.ic_block;
             if (ocb == ocb_start) {
-                rp.src = src + src_d.blk_off(n, _icb * jcp.ic_block, ih, iw);
+                rp.src = src
+                        + data_blk_off(
+                                src_d, n, _icb * jcp.ic_block, id, ih, iw);
                 rtus_driver_->ker_(&rp);
             }
             p.bcast_data = rp.ws;
         } else
-            p.bcast_data = src + src_d.blk_off(n, _icb * jcp.ic_block, ih, iw);
+            p.bcast_data = src
+                    + data_blk_off(src_d, n, _icb * jcp.ic_block, id, ih, iw);
 
         kernel_->jit_ker(&p);
     };
@@ -191,9 +205,9 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
             init_load(ocb, load_step);
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, oh, ow, ih, iw;
-                init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 iwork += bcast_step;
             }
             ocb += load_step;
@@ -205,10 +219,10 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
             init_load(ocb, load_step);
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, oh, ow, ih, iw;
-                init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
                 init_reduce();
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 iwork += bcast_step;
             }
             ocb += load_step;
@@ -217,13 +231,13 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
         init_reduce();
         int iwork = bcast_start;
         while (iwork < bcast_end) {
-            int n, g, bcast_step, oh, ow, ih, iw;
-            init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+            int n, g, bcast_step, od, oh, ow, id, ih, iw;
+            init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
             int ocb = ocb_start;
             while (ocb < ocb_end) {
                 int load_step;
                 init_load(ocb, load_step);
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 ocb += load_step;
             }
             iwork += bcast_step;
@@ -231,14 +245,14 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
     } else if (jcp.loop_order == loop_blr) {
         int iwork = bcast_start;
         while (iwork < bcast_end) {
-            int n, g, bcast_step, oh, ow, ih, iw;
-            init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+            int n, g, bcast_step, od, oh, ow, id, ih, iw;
+            init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
             int ocb = ocb_start;
             while (ocb < ocb_end) {
                 int load_step;
                 init_load(ocb, load_step);
                 init_reduce();
-                inner_ker(ocb, n, g, oh, ow, ih, iw);
+                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
                 ocb += load_step;
             }
             iwork += bcast_step;
