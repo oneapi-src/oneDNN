@@ -23,8 +23,7 @@ provides comprehensive reference of the library API.
 System Requirements
 -------------------
 
-DNNL supports systems based on Intel 64 architecture or
-compatible processors.
+DNNL supports systems based on Intel 64 or AMD64 architecture.
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support

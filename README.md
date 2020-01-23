@@ -77,8 +77,8 @@ If the configuration you need is not available, you can
 
 # System Requirements
 
-DNNL supports systems based on Intel 64 architecture or
-compatible processors.
+DNNL supports systems based on
+[Intel 64 or AMD64 architecture](https://en.wikipedia.org/wiki/X86-64).
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
