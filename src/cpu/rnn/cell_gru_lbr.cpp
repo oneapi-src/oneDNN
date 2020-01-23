@@ -40,7 +40,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     auto src_layer_ld = rnn.src_layer_ld(cell_position);
     auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
-    if (!rnn.merge_gemm_layer) {
+    if (rnn.need_gemm_layer(cell_position)) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
                 src_layer_ld, 0.0, scratch_gates_, rnn.gates_ws_ld);
