@@ -232,6 +232,17 @@ struct rnn_conf_t {
     inline dim_t dst_copy_ld(cell_position_t cell_position) const {
         return dst_iter_ld(cell_position);
     }
+
+    inline bool need_gemm_layer(cell_position_t cell_position) const {
+        // In case of merge_gemm_layer we might still need a layer gemm if we store
+        // the states of the last iteration in the destination memory. The
+        // exception of this rule is the first layer though, in which case all
+        // states are kept in user's src_layer, hence making full merged gemm
+        // possible.
+        return IMPLICATION(merge_gemm_layer,
+                skip_dst_iter_copy() && (cell_position & last_iter)
+                        && !(cell_position & first_layer));
+    }
 };
 
 bool is_ldigo(const memory_desc_wrapper &md);
