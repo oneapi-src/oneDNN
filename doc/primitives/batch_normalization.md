@@ -27,14 +27,13 @@ where
 - \f$\gamma(c), \beta(c)\f$ are optional scale and shift for a channel
 (see #dnnl_use_scaleshift flag),
 
-- \f$\mu(c), \sigma^2(c)\f$ are computed at run-time or provided by a user
-mean and variance for channel (see #dnnl_use_global_stats flag),
+- \f$\mu(c), \sigma^2(c)\f$ are computed at runtime or provided by a user
+mean and variance for a channel (see #dnnl_use_global_stats flag),
 and
 
 - \f$\varepsilon\f$ is a constant to improve numerical stability.
 
-When mean and variance are computed at a run-time the following formulas are
-used:
+When mean and variance are computed at runtime, the following formulas are used:
 
 - \f$\mu(c) = \frac{1}{NHW} \sum\limits_{nhw} src(n, c, h, w)_{}\f$,
 
@@ -42,13 +41,13 @@ used:
 
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
-In training mode the primitive also optionally supports fusion with ReLU
+In training mode, the primitive also optionally supports fusion with ReLU
 activation with zero negative slope applied to the result
 (see #dnnl_fuse_norm_relu flag).
 
 @note
 * The batch normalization primitive computes population mean and variance and
-  not their sample or unbiased versions that are typically used to compute
+  not the sample or unbiased versions that are typically used to compute
   running mean and variance.
 * Using the mean and variance computed by the batch normalization primitive,
   running mean and variance \f$\hat\mu\f$ and \f$\hat\sigma^2\f$ can be
@@ -57,12 +56,11 @@ activation with zero negative slope applied to the result
     \hat\sigma^2 := \alpha \cdot \hat\sigma^2 + (1 - \alpha) \cdot \sigma^2.
   \f]
 
-
 #### Difference Between Forward Training and Forward Inference
 
- * If mean and variance are computed at run-time (i.e., #dnnl_use_global_stats
+ * If mean and variance are computed at runtime (i.e., #dnnl_use_global_stats
    is not set), they become outputs for the propagation kind
-   #dnnl_forward_training (since they would be required during the backward
+   #dnnl_forward_training (because they would be required during the backward
    propagation) and are not exposed for the propagation kind
    #dnnl_forward_inference.
 
@@ -85,15 +83,14 @@ based on
 \f$\sigma^2(c)\f$, \f$\gamma(c) ^*\f$, and \f$\beta(c) ^*\f$.
 
 The tensors marked with an asterisk are used only when the primitive is
-configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$ (i.e.,
+configured to use \f$\gamma(c)\f$ and \f$\beta(c)\f$ (i.e.,
 #dnnl_use_scaleshift is set).
 
 ## Execution Arguments
 
 Depending on the [flags](@ref dnnl_normalization_flags_t) and
 [propagation kind](@ref dnnl_prop_kind_t), the batch normalization primitive
-requires different inputs and outputs.  For clarity, the summary table is shown
-below.
+requires different inputs and outputs.  For clarity, a summary is shown below.
 
 |                                                | #dnnl_forward_inference                                                                                 | #dnnl_forward_training                                                                                                                        | #dnnl_backward                                                                                                                                                        | #dnnl_backward_data                                                                                                                           |
 | :--                                            | :--                                                                                                     | :--                                                                                                                                           | :--                                                                                                                                                                   | :--                                                                                                                                           |
@@ -113,21 +110,21 @@ below.
    flags can be set using the bitwise OR operator (`|`).
 
 2. For forward propagation, the mean and variance might be either computed at
-   run-time (in which case they are outputs of the primitive) or provided by
+   runtime (in which case they are outputs of the primitive) or provided by
    a user (in which case they are inputs). In the latter case, a user must set
    the #dnnl_use_global_stats flag. For the backward propagation, the mean and
    variance are always input parameters.
 
 3. The memory format and data type for `src` and `dst` are assumed to be the
-   same, and in the API are typically referred as `data` (e.g., see `data_desc`
-   in dnnl::batch_normalization_forward::desc::desc()). The same holds for
-   `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
-   to as `diff_data_desc`.
+   same, and in the API they are typically referred to as `data` (e.g., see
+   `data_desc` in dnnl::batch_normalization_forward::desc::desc()). The same is
+   true for `diff_src` and `diff_dst`. The corresponding memory descriptors are
+   referred to as `diff_data_desc`.
 
 4. Both forward and backward propagation support in-place operations, meaning
    that `src` can be used as input and output for forward propagation, and
    `diff_dst` can be used as input and output for backward propagation. In case
-   of in-place operation, the original data will be overwritten.
+   of an in-place operation, the original data will be overwritten.
 
 5. As mentioned above, the batch normalization primitive can be fused with
    ReLU activation even in the training mode. In this case, on the forward
@@ -145,22 +142,22 @@ The operation supports the following combinations of data types:
 | forward            | s8                   | f32
 
 @warning
-    There might be hardware and/or implementation specific restrictions.
-    Check [Implementation Limitations](@ref dg_bnorm_impl_limits) section below.
+    There might be hardware- or implementation-specific restrictions. Check the
+    [Implementation Limitations](@ref dg_bnorm_impl_limits) section below.
 
 ### Data Representation
 
 #### Mean and Variance
 
-The mean (\f$\mu\f$) and variance (\f$\sigma^2\f$) are
-separate 1D tensors of size \f$C\f$.
+The mean (\f$\mu\f$) and variance (\f$\sigma^2\f$) are separate 1D tensors of
+size \f$C\f$.
 
 The format of the corresponding memory object must be #dnnl_x (#dnnl_a).
 
 #### Scale and Shift
 
-If used, the scale (\f$\gamma\f$) and shift (\f$\beta\f$) are
-combined in a single 2D tensor of shape \f$2 \times C\f$.
+If used, the scale (\f$\gamma\f$) and shift (\f$\beta\f$) are combined in a
+single 2D tensor of shape \f$2 \times C\f$.
 
 The format of the corresponding memory object must be #dnnl_nc (#dnnl_ab).
 
@@ -193,7 +190,7 @@ normalization primitives:
 | forward     | post-op | eltwise   | Applies an @ref dnnl_api_eltwise operation to the result (currently only #dnnl_eltwise_relu algorithm is supported)
 
 @note As mentioned in @ref dev_guide_attributes, the post-ops should be used
-for inference only. For instance, using ReLU as a post-op would not produce an
+for inference only. For instance, using ReLU as a post-op would not produce the
 additional output `workspace` that is required to compute backward propagation
 correctly. Hence, in case of training one should use the #dnnl_fuse_norm_relu
 directly.

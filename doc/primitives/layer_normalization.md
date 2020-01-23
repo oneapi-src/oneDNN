@@ -6,11 +6,11 @@ Layer Normalization {#dev_guide_layer_normalization}
 >
 
 The layer normalization primitive performs a forward or backward layer
-normalization operation on 2-5D data tensor.
+normalization operation on a 2-5D data tensor.
 
 The layer normalization operation performs normalization over the last logical
-axis of data tensor and is defined by the following formulas. We show
-formulas only for 3D data which are straightforward to generalize to
+axis of the data tensor and is defined by the following formulas. We show
+formulas only for 3D data, which are straightforward to generalize to
 cases of higher dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
 
@@ -28,14 +28,12 @@ where
 - \f$\gamma(c), \beta(c)\f$ are optional scale and shift for a channel
 (see #dnnl_use_scaleshift flag),
 
-- \f$\mu(t, n), \sigma^2(t, n)\f$ are computed at run-time or provided by a user
-mean and variance (see #dnnl_use_global_stats flag),
-and
+- \f$\mu(t, n), \sigma^2(t, n)\f$ are computed at runtime or provided by a user
+mean and variance (see #dnnl_use_global_stats flag), and
 
 - \f$\varepsilon\f$ is a constant to improve numerical stability.
 
-When mean and variance are computed at a run-time the following formulas are
-used:
+When mean and variance are computed at runtime, the following formulas are used:
 
 - \f$\mu(t, n) = \frac{1}{C} \sum\limits_{c} src(t, n, c)_{}\f$,
 
@@ -45,12 +43,12 @@ The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
 #### Difference Between Forward Training and Forward Inference
 
- * If mean and variance are computed at run-time (i.e., #dnnl_use_global_stats
+ * If mean and variance are computed at runtime (i.e., #dnnl_use_global_stats
    is not set), they become outputs for the propagation kind
-   #dnnl_forward_training (since they would be required during the backward
-   propagation). Data layout for mean and variance must be specified when
-   initializing layer normalization descriptor by passing memory descriptor
-   for statistics (e.g., by passing stat_desc in
+   #dnnl_forward_training (because they would be required during the backward
+   propagation). Data layout for mean and variance must be specified during
+   initialization of the layer normalization descriptor by passing the memory
+   descriptor for statistics (e.g., by passing stat_desc in
    dnnl::layer_normalization_forward::desc::desc()). Mean and variance are
    not exposed for the propagation kind #dnnl_forward_inference.
 
@@ -71,8 +69,7 @@ configured to use \f$\gamma(c)\f$, and \f$\beta(c)\f$ (i.e.,
 
 Depending on the [flags](@ref dnnl_normalization_flags_t) and
 [propagation kind](@ref dnnl_prop_kind_t), the layer normalization primitive
-requires different inputs and outputs. For clarity, the summary table is shown
-below.
+requires different inputs and outputs. For clarity, a summary is shown below.
 
 |                                                | #dnnl_forward_inference                                                                                                                       | #dnnl_forward_training                                                                                                                        | #dnnl_backward                                                                                                                                                        | #dnnl_backward_data                                                                                                                           |
 | :--                                            | :--                                                                                                                                           | :--                                                                                                                                           | :--                                                                                                                                                                   | :--                                                                                                                                           |
@@ -91,21 +88,21 @@ below.
    flags can be set using the bitwise OR operator (`|`).
 
 2. For forward propagation, the mean and variance might be either computed at
-   run-time (in which case they are outputs of the primitive) or provided by
+   runtime (in which case they are outputs of the primitive) or provided by
    a user (in which case they are inputs). In the latter case, a user must set
    the #dnnl_use_global_stats flag. For the backward propagation, the mean and
    variance are always input parameters.
 
 3. The memory format and data type for `src` and `dst` are assumed to be the
-   same, and in the API are typically referred as `data` (e.g., see `data_desc`
-   in dnnl::layer_normalization_forward::desc::desc()). The same holds for
-   `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
-   to as `diff_data_desc`.
+   same, and in the API they are typically referred to as `data` (e.g., see
+   `data_desc` in dnnl::layer_normalization_forward::desc::desc()). The same is
+   true for `diff_src` and `diff_dst`. The corresponding memory descriptors are
+   referred to as `diff_data_desc`.
 
 4. Both forward and backward propagation support in-place operations, meaning
    that `src` can be used as input and output for forward propagation, and
    `diff_dst` can be used as input and output for backward propagation. In case
-   of in-place operation, the original data will be overwritten.
+   of an in-place operation, the original data will be overwritten.
 
 ### Data Type Support
 
@@ -120,18 +117,18 @@ The operation supports the following combinations of data types:
 
 #### Mean and Variance
 
-The mean (\f$\mu\f$) and variance (\f$\sigma^2\f$) are
-separate tensors with number of dimensions equal to (\f$data\_ndims - 1\f$) and size
-\f$(data\_dim[0], data\_dim[1], ..., data\_dim[ndims - 2]).\f$
+The mean (\f$\mu\f$) and variance (\f$\sigma^2\f$) are separate tensors with
+number of dimensions equal to (\f$data\_ndims - 1\f$) and size
+\f$(data\_dim[0], data\_dim[1], ..., data\_dim[ndims - 2])\f$.
 
-Corresponding memory object can have arbitrary memory format. Unless mean and
-variance are computed at runtime and not exposed (i.e. propagation kind is
-#dnnl_forward_inference and #dnnl_use_global_stats is not set), user should
-provide memory descriptor for statistics when initializing layer normalization
-descriptor. For best performance it is advised to use memory format that follows
-the data memory format, i.e. data format is #dnnl_tnc, best performance can be
-expected for statistics with #dnnl_tn format and suboptimal for statistics with
-#dnnl_nc format.
+The corresponding memory object can have an arbitrary memory format. Unless mean
+and variance are computed at runtime and not exposed (i.e., propagation kind is
+#dnnl_forward_inference and #dnnl_use_global_stats is not set), the user should
+provide a memory descriptor for statistics when initializing the layer
+normalization descriptor. For best performance, it is advised to use the memory
+format that follows the data memory format; i.e., if the data format is
+#dnnl_tnc, the best performance can be expected for statistics with the
+#dnnl_tn format and suboptimal for statistics with the #dnnl_nc format.
 
 #### Scale and Shift
 
@@ -142,8 +139,8 @@ The format of the corresponding memory object must be #dnnl_nc (#dnnl_ab).
 
 #### Source, Destination, and Their Gradients
 
-Layer normalization primitive works with arbitrary data tensor, however it was
-designed for RNN data tensors(i.e. #dnnl_nc, #dnnl_tnc, #dnnl_ldnc).
+The layer normalization primitive works with an arbitrary data tensor; however,
+it was designed for RNN data tensors (i.e., #dnnl_nc, #dnnl_tnc, #dnnl_ldnc).
 Unlike CNN data tensors, RNN data tensors have a single feature dimension.
 Layer normalization performs normalization over the last logical dimension
 (feature dimension for RNN tensors) across non-feature dimensions.
@@ -157,18 +154,17 @@ The layer normalization primitive is optimized for the following memory formats:
 | LDNC           | #dnnl_ldnc (#dnnl_abcd)
 
 ## Performance Tips
-1. For data tensors (`src`, `dst`, `diff_src`, `diff_dst`) use memory
-   formats for which last logical axis is the last in the physical memory layout.
+1. For data tensors (`src`, `dst`, `diff_src`, `diff_dst`), use memory formats
+   for which the last logical axis is the last in the physical memory layout.
 
-2. For `mean`/`variance` use memory format that follows the data memory format, i.e.
-   data format is #dnnl_tnc, best performance can be expected for statistics
-   with #dnnl_tn and suboptimal for statistics with #dnnl_nc format.
+2. For `mean`/`variance`, use the memory format that follows the data memory
+   format; i.e., if the data format is #dnnl_tnc, the best performance can be
+   expected for statistics with #dnnl_tn and suboptimal for statistics with the
+   #dnnl_nc format.
 
 3. For backward propagation, use the same memory format for `src`, `diff_dst`,
-   and `diff_src` (the format of the `diff_dst` and `diff_src` are always the
-   same because of the API). Different formats are functionally supported but
-   lead to highly suboptimal performance.
+   and `diff_src` (the format of `diff_dst` and `diff_src` are always the same
+   because of the API). Different formats are functionally supported but lead to
+   highly suboptimal performance.
 
 4. Use in-place operations whenever possible.
-
-
