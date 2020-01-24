@@ -779,7 +779,7 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
 
         // align stack on 16-byte as ABI requires
         h->mov(h->rbx, h->rsp);
-        h->and_(h->rbx, 0x10);
+        h->and_(h->rbx, 0xf);
         h->sub(h->rsp, h->rbx);
 
         // Take src, apply powf on it and replace value on a stack with dst.
