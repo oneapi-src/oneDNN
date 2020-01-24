@@ -25,28 +25,22 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-template <data_type_t c_type, bool nocopy>
-struct jit_gen9_gemm_driver_params {};
-
-template <>
-struct jit_gen9_gemm_driver_params<data_type::f32, false> {
-    static constexpr auto block_m = 512 * 16;
-    static constexpr auto block_n = 64 * 32;
-    static constexpr auto block_k = 1024;
+struct driver_params_f32_copy {
+    static constexpr int block_m = 512 * 16;
+    static constexpr int block_n = 64 * 32;
+    static constexpr int block_k = 1024;
 };
 
-template <>
-struct jit_gen9_gemm_driver_params<data_type::f16, false> {
-    static constexpr auto block_m = 512 * 16;
-    static constexpr auto block_n = 64 * 32;
-    static constexpr auto block_k = 2048;
+struct driver_params_f16_copy {
+    static constexpr int block_m = 512 * 16;
+    static constexpr int block_n = 64 * 32;
+    static constexpr int block_k = 2048;
 };
 
-template <data_type_t c_type>
-struct jit_gen9_gemm_driver_params<c_type, true> {
-    static constexpr auto block_m = 4096;
-    static constexpr auto block_n = 2048;
-    static constexpr auto block_k = 2048;
+struct driver_params_f32_nocopy {
+    static constexpr int block_m = 4096;
+    static constexpr int block_n = 2048;
+    static constexpr int block_k = 2048;
 };
 
 union plan_element_t {
@@ -64,12 +58,9 @@ union plan_element_t {
 static_assert(sizeof(plan_element_t) == 8,
         "Plan element structure has been padded by the compiler.");
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_beta(
-        compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
-        acc_t alpha, const memory_storage_t &a, int64_t offset_a,
-        int64_t lda) const {
+status_t jit_gen9_gemm_t::launch_beta(compute::compute_stream_t *compute_stream,
+        int64_t m, int64_t n, float alpha, const memory_storage_t &a,
+        int64_t offset_a, int64_t lda) const {
     assert(beta_kernel_);
 
     compute::kernel_arg_list_t arg_list;
@@ -87,13 +78,10 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_beta(
     return compute_stream->parallel_for(nd_range, beta_kernel_, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_copy(
-        compute::compute_stream_t *compute_stream, int64_t x, int64_t y,
-        const memory_storage_t &a, int64_t offset_a, int64_t lda, acc_t alpha,
-        const memory_storage_t &b, int64_t offset_b, bool outer,
-        bool trans) const {
+status_t jit_gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
+        int64_t x, int64_t y, const memory_storage_t &a, int64_t offset_a,
+        int64_t lda, float alpha, const memory_storage_t &b, int64_t offset_b,
+        bool outer, bool trans) const {
     auto &kernel = copy_kernel_[outer][trans];
 
     assert(kernel);
@@ -108,7 +96,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_copy(
     arg_list.set(7, offset_b);
 
     int unroll_m, unroll_n;
-    jit_gen9_gemm_compute_kernel<acc_type>::get_unrolls(unroll_m, unroll_n);
+    jit_gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
 
     auto unroll = outer ? unroll_n : unroll_m;
 
@@ -120,13 +108,11 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_copy(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_compute(
+status_t jit_gen9_gemm_t::launch_compute(
         compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
         int64_t k, const memory_storage_t &base, int32_t offset_a,
         int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
-        int64_t ldc, int last_k_block, c_t eltwise_alpha, c_t eltwise_beta,
+        int64_t ldc, int last_k_block, float eltwise_alpha, float eltwise_beta,
         bool beta0) const {
     auto &kernel = compute_kernel_[beta0];
 
@@ -146,7 +132,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_compute(
     arg_list.set(11, eltwise_beta);
 
     int unroll_m, unroll_n;
-    jit_gen9_gemm_compute_kernel<acc_type>::get_unrolls(unroll_m, unroll_n);
+    jit_gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
 
     int nthreads_x = (m + unroll_m - 1) / unroll_m;
     int nthreads_y = (n + unroll_n - 1) / unroll_n;
@@ -163,14 +149,12 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_compute(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_nocopy(
+status_t jit_gen9_gemm_t::launch_nocopy(
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, c_t alpha, c_t beta,
-        int last_k_block, c_t eltwise_alpha, c_t eltwise_beta) const {
+        int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
+        int last_k_block, float eltwise_alpha, float eltwise_beta) const {
 
     auto &kernel = nocopy_kernel_;
 
@@ -199,8 +183,8 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_nocopy(
 
     int unroll_m, unroll_n;
 
-    jit_gen9_gemm_nocopy_kernel<c_type>::get_unrolls(
-            transa, transb, unroll_m, unroll_n);
+    jit_gen9_gemm_nocopy_kernel::get_unrolls(
+            transa, transb, unroll_m, unroll_n, pd()->desc()->c_type);
 
     size_t nthreads_x = (n + unroll_n - 1) / nstl::max(unroll_n, 1);
     size_t nthreads_y = (m + unroll_m - 1) / nstl::max(unroll_m, 1);
@@ -223,16 +207,13 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_nocopy(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t
-jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_nocopy_superkernel(
+status_t jit_gen9_gemm_t::launch_nocopy_superkernel(
         compute::compute_stream_t *compute_stream, const memory_storage_t &plan,
         int32_t threads, const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-        int32_t n, int32_t k, c_t alpha, c_t beta, int last_k_block,
-        c_t eltwise_alpha, c_t eltwise_beta) const {
+        int32_t n, int32_t k, float alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta) const {
 
     auto &kernel = nocopy_superkernel_;
 
@@ -268,10 +249,7 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::launch_nocopy_superkernel(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-size_t
-jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::max_plan_size() const {
+size_t jit_gen9_gemm_t::max_plan_size() const {
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -279,7 +257,7 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::max_plan_size() const {
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
+    jit_gen9_gemm_nocopy_superkernel::get_unrolls(
             transa, transb, unroll_m, unroll_n);
 
     auto max_threads
@@ -288,10 +266,7 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::max_plan_size() const {
     return sizeof(plan_element_t) * (max_threads + 1);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t
-jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::init_superkernel_plan() {
+status_t jit_gen9_gemm_t::init_superkernel_plan() {
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -300,7 +275,7 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::init_superkernel_plan() {
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel<c_type>::get_unrolls(
+    jit_gen9_gemm_nocopy_superkernel::get_unrolls(
             transa, transb, unroll_m, unroll_n);
 
     int km = utils::div_up(m, unroll_m[0]);
@@ -391,20 +366,17 @@ jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::init_superkernel_plan() {
     return status::success;
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute(
-        const gemm_exec_ctx_t &ctx) const {
+status_t jit_gen9_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (gemm_type_ == type::no_copy_superkernel)
         return execute_superkernel(ctx);
     else
         return execute_standard(ctx);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
-        const gemm_exec_ctx_t &ctx) const {
+status_t jit_gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
+    auto a_type = pd()->desc()->a_type;
+    auto b_type = pd()->desc()->b_type;
+    auto c_type = pd()->desc()->c_type;
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -426,18 +398,20 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
 
-    acc_t alpha_native, beta_native, one_native;
-    alpha_native = alpha;
-    beta_native = beta;
-    one_native = 1.0f;
+    auto alpha_native = alpha;
+    auto beta_native = beta;
+    auto one_native = 1.0f;
 
     auto &a = GEMM_CTX_ARG_STORAGE(a);
     auto &b = GEMM_CTX_ARG_STORAGE(b);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
-    size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
-    size_t off_c0 = c.offset() / sizeof(c_t) + pd()->dyn_offset_c;
+    size_t off_a0
+            = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
+    size_t off_b0
+            = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
+    size_t off_c0
+            = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
 
     bool nocopy = (gemm_type_ == type::no_copy)
             || (gemm_type_ == type::no_copy_if_even_off && !(off_a0 & 1)
@@ -447,13 +421,19 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
     constexpr int64_t align = 0x1000;
     int block_m, block_n, block_k;
     if (!nocopy) {
-        block_m = jit_gen9_gemm_driver_params<acc_type, false>::block_m;
-        block_n = jit_gen9_gemm_driver_params<acc_type, false>::block_n;
-        block_k = jit_gen9_gemm_driver_params<acc_type, false>::block_k;
+        if (pd()->desc()->acc_type == data_type::f16) {
+            block_m = driver_params_f16_copy::block_m;
+            block_n = driver_params_f16_copy::block_n;
+            block_k = driver_params_f16_copy::block_k;
+        } else {
+            block_m = driver_params_f32_copy::block_m;
+            block_n = driver_params_f32_copy::block_n;
+            block_k = driver_params_f32_copy::block_k;
+        }
     } else {
-        block_m = jit_gen9_gemm_driver_params<acc_type, true>::block_m;
-        block_n = jit_gen9_gemm_driver_params<acc_type, true>::block_n;
-        block_k = jit_gen9_gemm_driver_params<acc_type, true>::block_k;
+        block_m = driver_params_f32_nocopy::block_m;
+        block_n = driver_params_f32_nocopy::block_n;
+        block_k = driver_params_f32_nocopy::block_k;
     }
 
     if (!nocopy && beta != 0. && beta != 1.) {
@@ -521,10 +501,11 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_standard(
     return status::success;
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type,
-        data_type_t acc_type>
-status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
+status_t jit_gen9_gemm_t::execute_superkernel(
         const gemm_exec_ctx_t &ctx) const {
+    auto a_type = pd()->desc()->a_type;
+    auto b_type = pd()->desc()->b_type;
+    auto c_type = pd()->desc()->c_type;
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -550,12 +531,15 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
     auto &b = GEMM_CTX_ARG_STORAGE(b);
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
-    size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
-    size_t off_c = c.offset() / sizeof(c_t) + pd()->dyn_offset_c;
+    size_t off_a0
+            = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
+    size_t off_b0
+            = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
+    size_t off_c
+            = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
 
     status_t status;
-    auto block_k = jit_gen9_gemm_driver_params<acc_type, true>::block_k;
+    auto block_k = driver_params_f32_nocopy::block_k;
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;
@@ -565,7 +549,7 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
         auto off_a = off_a0 + (!transa ? Bk * lda : Bk);
         auto off_b = off_b0 + (!transb ? Bk : Bk * ldb);
 
-        acc_t this_beta = (Bk == 0) ? beta : 1.0f;
+        auto this_beta = (Bk == 0) ? beta : 1.0f;
 
         status = launch_nocopy_superkernel(compute_stream, *temp_buf_, threads_,
                 a, b, c, off_a, off_b, off_c, lda, ldb, ldc, m, n, size_k,
@@ -577,14 +561,6 @@ status_t jit_gen9_gemm_t<a_type, b_type, c_type, acc_type>::execute_superkernel(
 
     return status::success;
 }
-
-using namespace data_type;
-
-template struct jit_gen9_gemm_t<f16>;
-template struct jit_gen9_gemm_t<f32>;
-template struct jit_gen9_gemm_t<f16, f16, f32>;
-template struct jit_gen9_gemm_t<bf16, bf16, f32>;
-template struct jit_gen9_gemm_t<bf16, bf16, bf16, f32>;
 
 } // namespace ocl
 } // namespace impl

@@ -200,23 +200,12 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_softmax_fwd_t),
         INSTANCE(ref_softmax_bwd_t),
         /* gemm */
-        INSTANCE(jit_gen9_gemm_x8x8s32_t<s8, s8, s32>),
-        INSTANCE(jit_gen9_gemm_x8x8s32_t<s8, u8, s32>),
-        INSTANCE(jit_gen9_gemm_x8x8s32_t<u8, s8, s32>),
-        INSTANCE(jit_gen9_gemm_x8x8s32_t<u8, u8, s32>),
-        INSTANCE(jit_gen9_gemm_t<bf16, bf16, bf16, f32>),
-        INSTANCE(jit_gen9_gemm_t<bf16, bf16, f32>),
-        INSTANCE(jit_gen9_gemm_t<f16, f16, f32>),
-        INSTANCE(jit_gen9_gemm_t<f16>),
-        INSTANCE(jit_gen9_gemm_t<f32>),
+        INSTANCE(jit_gen9_gemm_x8x8s32_t),
+        INSTANCE(jit_gen9_gemm_t),
         INSTANCE(ref_gemm_t),
         /*rnn*/
-        INSTANCE(ref_rnn_fwd_u8s8_t),
-        INSTANCE(ref_rnn_fwd_f16_t),
-        INSTANCE(ref_rnn_fwd_f32_t),
-        INSTANCE(ref_rnn_bwd_f32_t),
-        INSTANCE(ref_rnn_fwd_bf16_t),
-        INSTANCE(ref_rnn_bwd_bf16_t),
+        INSTANCE(ref_rnn_fwd_t),
+        INSTANCE(ref_rnn_bwd_t),
         /* shuffle */
         INSTANCE(ref_shuffle_t),
         /*layer normalization */

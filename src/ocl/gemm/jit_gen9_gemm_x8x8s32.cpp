@@ -24,11 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace ocl {
 
-template <data_type_t c_type, bool nocopy>
-struct jit_gen9_gemm_x8x8s32_driver_params {};
-
-template <>
-struct jit_gen9_gemm_x8x8s32_driver_params<data_type::s32, true> {
+struct jit_gen9_gemm_x8x8s32_driver_params {
     //unroll_m = 32, unroll_n = 16
     static constexpr auto block_m = 6 * 32;
     static constexpr auto block_n = 4 * 16;
@@ -38,23 +34,22 @@ struct jit_gen9_gemm_x8x8s32_driver_params<data_type::s32, true> {
                     & ~3);
 };
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_x8x8s32(
+status_t jit_gen9_gemm_x8x8s32_t::launch_x8x8s32(
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int64_t lda, int64_t ldb,
-        int64_t ldc, int64_t m, int64_t n, int64_t k, int64_t beta, ao_t ao,
-        bo_t bo, const memory_storage_t &co, int64_t offset_co, bool apply_co,
-        bool apply_eltwise, c_t eltwise_alpha, c_t eltwise_beta) const {
+        int64_t ldc, int64_t m, int64_t n, int64_t k, int64_t beta, int32_t ao,
+        int32_t bo, const memory_storage_t &co, int64_t offset_co,
+        bool apply_co, bool apply_eltwise, float eltwise_alpha,
+        float eltwise_beta) const {
 
     auto &kernel = compute_x8x8s32_kernel_;
     assert(kernel);
 
     int unroll_m, unroll_n, block_m, block_n;
-    jit_gen9_gemm_x8x8s32_kernel<a_type, b_type, c_type>::get_unrolls(
-            unroll_m, unroll_n);
-    block_m = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_m;
-    block_n = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_n;
+    jit_gen9_gemm_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
+    block_m = jit_gen9_gemm_x8x8s32_driver_params::block_m;
+    block_n = jit_gen9_gemm_x8x8s32_driver_params::block_n;
     int kk = ((k + 3) & ~3);
 
     int sizea = block_m * (kk + sizeof(int));
@@ -106,14 +101,13 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_x8x8s32(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_scale_x8x8s32(
+status_t jit_gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
         int64_t offset_c, int64_t m, int64_t n, int64_t ldc, float alpha,
         float beta, const memory_storage_t &co, int64_t offset_co,
-        bool alpha_is_zero, bool apply_eltwise, c_t eltwise_alpha,
-        c_t eltwise_beta) const {
+        bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
+        float eltwise_beta) const {
 
     auto &kernel = scale_x8x8s32_kernel_;
 
@@ -137,8 +131,7 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_scale_x8x8s32(
 
     int unroll_m, unroll_n;
 
-    jit_gen9_gemm_scale_x8x8s32_kernel<a_type, b_type, c_type>::get_unrolls(
-            unroll_m, unroll_n);
+    jit_gen9_gemm_scale_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
 
     size_t nthreads_x = (m + unroll_m - 1) / unroll_m;
     size_t nthreads_y = (n + unroll_n - 1) / unroll_n;
@@ -154,22 +147,18 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::launch_scale_x8x8s32(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute(
-        const gemm_exec_ctx_t &ctx) const {
+status_t jit_gen9_gemm_x8x8s32_t::execute(const gemm_exec_ctx_t &ctx) const {
     return execute_standard(ctx);
 }
 
-template <data_type_t a_type, data_type_t b_type, data_type_t c_type>
-status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
+status_t jit_gen9_gemm_x8x8s32_t::execute_standard(
         const gemm_exec_ctx_t &ctx) const {
+    auto a_type = pd()->desc()->a_type;
+    auto b_type = pd()->desc()->b_type;
+    auto c_type = pd()->desc()->c_type;
 
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-
-    using a_t = typename prec_traits<a_type>::type;
-    using b_t = typename prec_traits<b_type>::type;
-    using c_t = typename prec_traits<c_type>::type;
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -198,9 +187,8 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     const int *bo_i32 = nullptr;
     pd()->attr()->zero_points_.get(DNNL_ARG_SRC, nullptr, nullptr, &ao_i32);
     pd()->attr()->zero_points_.get(DNNL_ARG_WEIGHTS, nullptr, nullptr, &bo_i32);
-
-    a_t ao = static_cast<a_t>(ao_i32[0]);
-    b_t bo = static_cast<b_t>(bo_i32[0]);
+    auto ao = *ao_i32;
+    auto bo = *bo_i32;
 
     auto alpha = pd()->alpha();
     auto beta = pd()->beta();
@@ -213,10 +201,14 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     auto &c = GEMM_CTX_ARG_STORAGE(c);
     auto &co = GEMM_CTX_ARG_STORAGE(c_zero_point);
 
-    size_t off_a0 = a.offset() / sizeof(a_t) + pd()->dyn_offset_a;
-    size_t off_b0 = b.offset() / sizeof(b_t) + pd()->dyn_offset_b;
-    size_t off_c0 = c.offset() / sizeof(c_t) + pd()->dyn_offset_c;
-    size_t offset_co = co.offset() / sizeof(c_t) + pd()->dyn_offset_co;
+    size_t off_a0
+            = a.offset() / types::data_type_size(a_type) + pd()->dyn_offset_a;
+    size_t off_b0
+            = b.offset() / types::data_type_size(b_type) + pd()->dyn_offset_b;
+    size_t off_c0
+            = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
+    size_t offset_co
+            = co.offset() / types::data_type_size(c_type) + pd()->dyn_offset_co;
 
     bool do_compute = ((k > 0) && (alpha != 0.0f));
     bool do_scale = !(
@@ -228,12 +220,11 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     int block_m, block_n, block_k;
     int slices;
 
-    jit_gen9_gemm_x8x8s32_kernel<a_type, b_type, c_type>::get_unrolls(
-            unroll_m, unroll_n);
+    jit_gen9_gemm_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
 
-    block_m = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_m;
-    block_n = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_n;
-    block_k = jit_gen9_gemm_x8x8s32_driver_params<c_type, true>::block_k;
+    block_m = jit_gen9_gemm_x8x8s32_driver_params::block_m;
+    block_n = jit_gen9_gemm_x8x8s32_driver_params::block_n;
+    block_k = jit_gen9_gemm_x8x8s32_driver_params::block_k;
 
     slices = eu_count_ / 24; //24EUs per slice
 
@@ -293,13 +284,6 @@ status_t jit_gen9_gemm_x8x8s32_t<a_type, b_type, c_type>::execute_standard(
     }
     return status::success;
 }
-
-using namespace data_type;
-
-template struct jit_gen9_gemm_x8x8s32_t<s8, s8, s32>;
-template struct jit_gen9_gemm_x8x8s32_t<s8, u8, s32>;
-template struct jit_gen9_gemm_x8x8s32_t<u8, s8, s32>;
-template struct jit_gen9_gemm_x8x8s32_t<u8, u8, s32>;
 
 } // namespace ocl
 } // namespace impl

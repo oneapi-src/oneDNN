@@ -56,7 +56,50 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             }
             set_err = clSetKernelArg(ocl_kernel_, i, sizeof(cl_mem), &ocl_mem);
         } else {
-            set_err = clSetKernelArg(ocl_kernel_, i, arg.size(), arg.value());
+            char type[100];
+            OCL_CHECK(clGetKernelArgInfo(ocl_kernel_, i,
+                    CL_KERNEL_ARG_TYPE_NAME, sizeof(type), type, nullptr));
+            auto str_type = std::string(type);
+            size_t type_size = arg.size();
+            auto value = arg.value();
+            compute::kernel_arg_t temp_arg;
+
+            //downcast if necessary
+            if (str_type.compare("half") == 0 && sizeof(float) == arg.size()) {
+                float v = *((float *)arg.value());
+                temp_arg.set_value((float16_t)v);
+                type_size = temp_arg.size();
+                value = temp_arg.value();
+
+            } else if (str_type.compare("uchar") == 0
+                    && sizeof(uint8_t) != arg.size()) {
+                if (sizeof(int64_t) == arg.size()) {
+                    int64_t v = *((int64_t *)arg.value());
+                    temp_arg.set_value((uint8_t)v);
+                } else if (sizeof(int32_t) == arg.size()) {
+                    int32_t v = *((int32_t *)arg.value());
+                    temp_arg.set_value((uint8_t)v);
+                } else {
+                    assert(!"not expected");
+                }
+                type_size = temp_arg.size();
+                value = temp_arg.value();
+            } else if (str_type.compare("char") == 0
+                    && sizeof(char) != arg.size()) {
+                if (sizeof(int64_t) == arg.size()) {
+                    int64_t v = *((int64_t *)arg.value());
+                    temp_arg.set_value((char)v);
+                } else if (sizeof(int32_t) == arg.size()) {
+                    int32_t v = *((int32_t *)arg.value());
+                    temp_arg.set_value((char)v);
+                } else {
+                    assert(!"not expected");
+                }
+                type_size = temp_arg.size();
+                value = temp_arg.value();
+            }
+
+            set_err = clSetKernelArg(ocl_kernel_, i, type_size, value);
         }
         status_t status = ocl_utils::convert_to_dnnl(set_err);
         if (status != status::success) return status;

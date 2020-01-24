@@ -26,9 +26,9 @@ namespace impl {
 namespace ocl {
 
 struct jit_gen9_int8_gemm_kernel {
-    template <impl::data_type_t a_type, impl::data_type_t b_type,
-            impl::data_type_t c_type>
-    static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx) {
+    static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx,
+            impl::data_type_t a_type, impl::data_type_t b_type,
+            impl::data_type_t c_type) {
         using namespace data_type;
 
         if (c_type != s32) return status::unimplemented;
@@ -52,27 +52,22 @@ struct jit_gen9_int8_gemm_kernel {
     };
 };
 
-template <impl::data_type_t a_type, impl::data_type_t b_type,
-        impl::data_type_t c_type>
 struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
-            bool with_eltwise, alg_kind_t alg) {
+            bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
+            impl::data_type_t b_type, impl::data_type_t c_type) {
 
-        auto status = init_cl_options<a_type, b_type, c_type>(kernel_ctx);
+        auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
 
-        using ao_type = typename prec_traits<a_type>::type;
-        using bo_type = typename prec_traits<b_type>::type;
+        using namespace data_type;
 
-        if ((std::is_same<ao_type, int8_t>::value)
-                && (std::is_same<bo_type, int8_t>::value)) {
+        if ((a_type == s8) && (b_type == s8)) {
             kernel_ctx.add_option("-DS8S8");
-        } else if ((std::is_same<ao_type, uint8_t>::value)
-                && (std::is_same<bo_type, int8_t>::value)) {
+        } else if ((a_type == u8) && (b_type == s8)) {
             kernel_ctx.add_option("-DU8S8");
-        } else if ((std::is_same<ao_type, int8_t>::value)
-                && (std::is_same<bo_type, uint8_t>::value)) {
+        } else if ((a_type == s8) && (b_type == u8)) {
             kernel_ctx.add_option("-DS8U8");
         } else {
             kernel_ctx.add_option("-DU8U8");
@@ -113,13 +108,12 @@ struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
     }
 };
 
-template <impl::data_type_t a_type, impl::data_type_t b_type,
-        impl::data_type_t c_type>
 struct jit_gen9_gemm_scale_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-            bool with_eltwise, alg_kind_t alg) {
+            bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
+            impl::data_type_t b_type, impl::data_type_t c_type) {
 
-        auto status = init_cl_options<a_type, b_type, c_type>(kernel_ctx);
+        auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
 
         kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);

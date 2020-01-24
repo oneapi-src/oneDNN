@@ -51,8 +51,8 @@ using namespace dnnl::impl::memory_tracking::names;
 
 #define AOC array_offset_calculator
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
+template <prop_kind_t aprop>
+gemm_sig((_ref_rnn_common_t<aprop>::packed_gemm)) {
 #if USE_MKL_PACKED_GEMM
 // TBD
 #else
@@ -64,8 +64,8 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::packed_gemm)) {
 #endif
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
+template <prop_kind_t aprop>
+gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     using namespace gemm_utils;
 
     // FIXME: This should be created once per execute() instead of creating
@@ -174,10 +174,10 @@ gemm_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::gemm_primitive)) {
     delete gemm_C_;
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
-        const exec_ctx_t &ctx, int dir, int lay, int iter, int n_gates, int dic,
-        int batch, const memory_storage_t &scratch_gates,
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
+        int lay, int iter, int n_gates, int dic, int batch,
+        const memory_storage_t &scratch_gates,
         const memory_storage_t &diff_bias) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -194,12 +194,11 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::gates_reduction(
 }
 
 //*************** Grid computations strategy: linear ***************//
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-grid_execution_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::linear_execution)) {
+template <prop_kind_t aprop>
+grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 
-    using src_t = typename prec_traits<src_type>::type;
-    using wei_t = typename prec_traits<weights_type>::type;
+    data_type_t src_t = pd()->src_type;
+    data_type_t wei_t = pd()->weights_type;
 
     // We run the grid of computation
     for (int dir = 0; dir < n_dir; dir++) {
@@ -212,12 +211,12 @@ grid_execution_sig(
                         = OFF3(lay, n_layer, dir, n_dir, 0,
                                   pd()->rnn_conf_.weights_layer_nld
                                           * pd()->rnn_conf_.weights_layer_ld)
-                        * sizeof(wei_t);
+                        * types::data_type_size(wei_t);
 
                 cl_ulong offset_input = (cl_ulong)(ws_states_offset_
                         + OFF4(lay, n_layer + 1, dir, n_dir, 1, n_iter + 1, 0,
                                   batch * pd()->rnn_conf_.states_ws_ld)
-                                * sizeof(src_t));
+                                * types::data_type_size(src_t));
 
                 gemm_primitive(ctx, w_input, wei_offset, workspace,
                         offset_input, scratch_gates, 0, gemm_layer_fwd);
@@ -239,11 +238,11 @@ grid_execution_sig(
                 AOC<size_t, 3> off_weights_i(
                         weights_input, n_layer, n_dir, n_parts_weights_layer);
                 cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0))
-                        * sizeof(wei_t);
+                        * types::data_type_size(wei_t);
                 cl_ulong offset_ws_states = ws_states_offset_
                         + OFF4(lay, n_layer + 1, dir, n_dir, 1, n_iter + 1, 0,
                                   batch * pd()->rnn_conf_.states_ws_ld)
-                                * sizeof(src_t);
+                                * types::data_type_size(src_t);
                 cl_ulong offset_workspace_layer = ws_diff_states_offset_
                         + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
                                   n_states + 1, 0, n_iter + 1, 0,
@@ -269,7 +268,7 @@ grid_execution_sig(
                 cl_ulong offset_workspace_iter = ws_states_offset_
                         + OFF4(lay + 1, n_layer + 1, dir, n_dir, 0, n_iter + 1,
                                   0, batch * pd()->rnn_conf_.states_ws_ld)
-                                * sizeof(src_t);
+                                * types::data_type_size(src_t);
                 cl_ulong offset_weights_iter
                         = OFF3(lay, n_layer, dir, n_dir, 0,
                                   pd()->rnn_conf_.diff_weights_iter_nld
@@ -286,8 +285,8 @@ grid_execution_sig(
 
 //********* GRID computations strategy: utility functions **********//
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare(
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::bias_prepare(
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int n_bias, int n_gates, int dic, const memory_storage_t &ws,
         const memory_storage_t &scales, const memory_storage_t &wei_layer,
@@ -309,8 +308,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::bias_prepare(
             bias_prepare_kernel_, arg_list);
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::copy_init_layer(
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
         int batch, int slc, const memory_storage_t &ws,
         const memory_storage_t &input,
@@ -335,8 +334,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_layer(
     }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::copy_init_iter(
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int batch, int sic, int dic, const memory_storage_t &ws,
         const memory_storage_t &firstit_states,
@@ -367,8 +366,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_init_iter(
     }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::copy_res_layer(
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
         int batch, int slc, int dic, const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
@@ -396,8 +395,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_layer(
     }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::copy_res_iter(
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int batch, int sic, int dic, const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
@@ -427,9 +426,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::copy_res_iter(
     }
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_set(
-        compute::compute_stream_t *compute_stream,
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::ws_set(compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_, const cl_ulong ws_offset,
         const int ws_part, const float val, const size_t size) const {
 
@@ -443,8 +441,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_set(
 }
 
 #if DEBUGPRINT
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_print(
+template <prop_kind_t aprop>
+void _ref_rnn_common_t<aprop>::ws_print(
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_) const {
 
@@ -455,8 +453,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type>::ws_print(
 }
 #endif
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-packing_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::pack_weights)) {
+template <prop_kind_t aprop>
+packing_sig((_ref_rnn_common_t<aprop>::pack_weights)) {
 #if USE_MKL_PACKED_GEMM
 // TBD
 #else
@@ -475,9 +473,8 @@ packing_sig((_ref_rnn_common_t<aprop, src_type, weights_type>::pack_weights)) {
 #endif
 }
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-packing_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::no_pack_weights)) {
+template <prop_kind_t aprop>
+packing_sig((_ref_rnn_common_t<aprop>::no_pack_weights)) {
     AOC<size_t, 3> weights(weights_, n_layer, n_dir, n_parts);
 
     for (int i = 0; i < n_layer; i++) {
@@ -491,9 +488,8 @@ packing_sig(
         }
     }
 }
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-free_packed_sig((_ref_rnn_common_t<aprop, src_type,
-        weights_type>::free_packed_weights)) {
+template <prop_kind_t aprop>
+free_packed_sig((_ref_rnn_common_t<aprop>::free_packed_weights)) {
 #if USE_MKL_PACKED_GEMM
 // TBD
 #else
@@ -504,9 +500,8 @@ free_packed_sig((_ref_rnn_common_t<aprop, src_type,
     assert(!"packed gemm is disabled");
 #endif
 }
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-free_packed_sig((_ref_rnn_common_t<aprop, src_type,
-        weights_type>::free_no_packed_weights)) {
+template <prop_kind_t aprop>
+free_packed_sig((_ref_rnn_common_t<aprop>::free_no_packed_weights)) {
     UNUSED(n_layer);
     UNUSED(n_dir);
     UNUSED(n_parts);
@@ -515,9 +510,8 @@ free_packed_sig((_ref_rnn_common_t<aprop, src_type,
 
 //********************* Execution function *********************//
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
-        const exec_ctx_t &ctx) const {
+template <prop_kind_t aprop>
+status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
 
@@ -753,90 +747,37 @@ status_t _ref_rnn_common_t<aprop, src_type, weights_type>::execute_(
 
 /* Fix for MSVS warning C4661 */
 template <>
-cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
+cell_execution_sig(ref_rnn_fwd_t::cell_execution);
 template <>
-cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
+cell_execution_sig(ref_rnn_bwd_t::cell_execution);
 template <>
-cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
+cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru);
 template <>
-cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru);
+cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru);
 template <>
-cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru);
+cell_execution_sig(ref_rnn_fwd_t::cell_execution_gru_lbr);
 template <>
-cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru);
+cell_execution_sig(ref_rnn_bwd_t::cell_execution_gru_lbr);
 template <>
-cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
+elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
 template <>
-cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru_lbr);
+elemwise_sig(ref_rnn_bwd_t::rnn_elemwise);
 template <>
-cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution_gru_lbr);
+elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
 template <>
-cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr);
+elemwise_sig(ref_rnn_bwd_t::lstm_elemwise);
 template <>
-cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
+elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);
 template <>
-cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution);
+elemwise_sig(ref_rnn_bwd_t::lstm_elemwise_u8s8);
 template <>
-cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+elemwise_sig(ref_rnn_fwd_t::gru_lbr_elemwise);
 template <>
-cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru);
-template <>
-cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution_gru_lbr);
-template <>
-cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution);
-template <>
-cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru);
-template <>
-cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution_gru_lbr);
-template <>
-elemwise_sig(ref_rnn_fwd_u8s8_t::rnn_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_f16_t::rnn_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_f32_t::rnn_elemwise);
-template <>
-elemwise_sig(ref_rnn_bwd_f32_t::rnn_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_bf16_t::rnn_elemwise);
-template <>
-elemwise_sig(ref_rnn_bwd_bf16_t::rnn_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_u8s8_t::lstm_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_f16_t::lstm_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_f32_t::lstm_elemwise);
-template <>
-elemwise_sig(ref_rnn_bwd_f32_t::lstm_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_bf16_t::lstm_elemwise);
-template <>
-elemwise_sig(ref_rnn_bwd_bf16_t::lstm_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_u8s8_t::gru_lbr_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_f16_t::gru_lbr_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_f32_t::gru_lbr_elemwise);
-template <>
-elemwise_sig(ref_rnn_bwd_f32_t::gru_lbr_elemwise);
-template <>
-elemwise_sig(ref_rnn_fwd_bf16_t::gru_lbr_elemwise);
-template <>
-elemwise_sig(ref_rnn_bwd_bf16_t::gru_lbr_elemwise);
+elemwise_sig(ref_rnn_bwd_t::gru_lbr_elemwise);
 
-template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
-        data_type::s8>;
-template struct _ref_rnn_common_t<prop_kind::forward, data_type::f16,
-        data_type::f16>;
-template struct _ref_rnn_common_t<prop_kind::forward, data_type::f32,
-        data_type::f32>;
-template struct _ref_rnn_common_t<prop_kind::backward, data_type::f32,
-        data_type::f32>;
-template struct _ref_rnn_common_t<prop_kind::forward, data_type::bf16,
-        data_type::bf16>;
-template struct _ref_rnn_common_t<prop_kind::backward, data_type::bf16,
-        data_type::bf16>;
+template struct _ref_rnn_common_t<prop_kind::forward>;
+template struct _ref_rnn_common_t<prop_kind::backward>;
+
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl

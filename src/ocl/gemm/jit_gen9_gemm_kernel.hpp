@@ -26,11 +26,13 @@ namespace impl {
 namespace ocl {
 
 struct jit_gen9_gemm_kernel {
-    template <impl::data_type_t type, impl::data_type_t src_type = type,
-            impl::data_type_t dst_type = type>
-    static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx) {
+    static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx,
+            impl::data_type_t type,
+            impl::data_type_t src_type = impl::data_type::undef,
+            impl::data_type_t dst_type = impl::data_type::undef) {
         using namespace data_type;
-
+        if (src_type == impl::data_type::undef) src_type = type;
+        if (dst_type == impl::data_type::undef) dst_type = type;
         if (type != f32 && type != f16) return status::unimplemented;
 
         def_data_type(kernel_ctx, src_type, "SRC");
@@ -58,10 +60,12 @@ struct jit_gen9_gemm_kernel {
     };
 };
 
-template <impl::data_type_t src_type, impl::data_type_t type = src_type>
 struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
-    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx) {
-        auto status = init_cl_options<type, src_type, src_type>(kernel_ctx);
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            impl::data_type_t src_type,
+            impl::data_type_t type = impl::data_type::undef) {
+        if (type == impl::data_type::undef) type = src_type;
+        auto status = init_cl_options(kernel_ctx, type, src_type, src_type);
         if (status) return status;
 
         kernel_ctx.print_options();
@@ -69,11 +73,12 @@ struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-template <impl::data_type_t src_type, impl::data_type_t type = src_type>
 struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
-    static status_t init_const_def(
-            compute::kernel_ctx_t &kernel_ctx, bool outer, bool trans) {
-        auto status = init_cl_options<type, src_type>(kernel_ctx);
+    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+            bool outer, bool trans, impl::data_type_t src_type,
+            impl::data_type_t type = impl::data_type::undef) {
+        if (type == impl::data_type::undef) type = src_type;
+        auto status = init_cl_options(kernel_ctx, type, src_type);
         if (status) return status;
 
         kernel_ctx.define_int("COPY_UNROLL",
@@ -91,11 +96,13 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-template <impl::data_type_t type, impl::data_type_t dst_type = type>
 struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-            bool beta0, bool with_eltwise, alg_kind_t alg) {
-        auto status = init_cl_options<type, type, dst_type>(kernel_ctx);
+            bool beta0, bool with_eltwise, alg_kind_t alg,
+            impl::data_type_t type,
+            impl::data_type_t dst_type = impl::data_type::undef) {
+        if (dst_type == impl::data_type::undef) dst_type = type;
+        auto status = init_cl_options(kernel_ctx, type, type, dst_type);
         if (status) return status;
 
         if (beta0) kernel_ctx.add_option("-DBETA_ZERO");
@@ -116,12 +123,12 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-template <impl::data_type_t type>
 struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-            bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg) {
+            bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
+            impl::data_type_t type) {
 
-        auto status = init_cl_options<type>(kernel_ctx);
+        auto status = init_cl_options(kernel_ctx, type);
         if (status) return status;
 
         if (trans_a) kernel_ctx.add_option("-DTRANS_A");
@@ -134,8 +141,8 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
         return status::success;
     }
 
-    static void get_unrolls(
-            bool trans_a, bool trans_b, int &unroll_m, int &unroll_n) {
+    static void get_unrolls(bool trans_a, bool trans_b, int &unroll_m,
+            int &unroll_n, impl::data_type_t type) {
 
         unroll_m = unroll_n = 0;
 
@@ -150,15 +157,15 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-template <impl::data_type_t type>
 struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-            bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg) {
+            bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
+            impl::data_type_t type) {
 
         if (trans_a) return status::unimplemented;
 
-        return jit_gen9_gemm_nocopy_kernel<type>::init_const_def(
-                kernel_ctx, trans_a, trans_b, with_eltwise, alg);
+        return jit_gen9_gemm_nocopy_kernel::init_const_def(
+                kernel_ctx, trans_a, trans_b, with_eltwise, alg, type);
     }
 
     static void get_unrolls(

@@ -27,11 +27,10 @@ using namespace rnn_utils;
 
 #define AOC array_offset_calculator
 
-template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type>
-cell_execution_sig(
-        (_ref_rnn_common_t<aprop, src_type, weights_type>::cell_execution)) {
-    using src_t = typename prec_traits<src_type>::type;
-    using wei_t = typename prec_traits<weights_type>::type;
+template <prop_kind_t aprop>
+cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
+    data_type_t src_t = this->pd()->src_type;
+    data_type_t wei_t = this->pd()->weights_type;
 
     const rnn_conf_t &rnn = this->pd()->rnn_conf_;
 
@@ -47,19 +46,19 @@ cell_execution_sig(
         cl_ulong offset_states = (cl_ulong)(ws_states_offset_
                 + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1, 0,
                           batch * rnn.states_ws_ld)
-                        * sizeof(src_t));
+                        * types::data_type_size(src_t));
         cl_ulong offset_input = (cl_ulong)(ws_states_offset_
                 + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
                           batch * rnn.states_ws_ld)
-                        * sizeof(src_t));
+                        * types::data_type_size(src_t));
         cl_ulong offset_w_input
                 = OFF3(lay, n_layer, dir, n_dir, 0,
                           rnn.weights_layer_nld * rnn.weights_layer_ld)
-                * sizeof(wei_t);
+                * types::data_type_size(wei_t);
         cl_ulong offset_w_state
                 = OFF3(lay, n_layer, dir, n_dir, 0,
                           rnn.weights_iter_nld * rnn.weights_iter_ld)
-                * sizeof(wei_t);
+                * types::data_type_size(wei_t);
         if (!rnn.merge_gemm_layer)
             gemm_primitive(ctx, w_input, offset_w_input, workspace,
                     offset_input, scratch_gates, offset_scratch_gates,
@@ -81,10 +80,10 @@ cell_execution_sig(
         (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
                 scratch_gates, scales, bias, tm_scales);
 
-        cl_ulong offset_w_state
-                = (cl_ulong)(off_weights_st(lay, dir, 0)) * sizeof(wei_t);
-        cl_ulong offset_w_input
-                = (cl_ulong)(off_weights_i(lay, dir, 0)) * sizeof(src_t);
+        cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0))
+                * types::data_type_size(wei_t);
+        cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0))
+                * types::data_type_size(src_t);
         cl_ulong offset_workspace_common = ws_diff_states_offset_
                 + OFF5(lay, n_layer + 1, dir, n_dir, 0, n_states + 1, iter,
                           n_iter + 1, 0, rnn.states_nld * rnn.diff_states_ws_ld)
@@ -97,7 +96,7 @@ cell_execution_sig(
         cl_ulong offset_workspace_layer = ws_states_offset_
                 + OFF4(lay, n_layer + 1, dir, n_dir, iter + 1, n_iter + 1, 0,
                           batch * rnn.states_ws_ld)
-                        * sizeof(src_t);
+                        * types::data_type_size(src_t);
         cl_ulong offset_diff_weights_layer
                 = OFF3(lay, n_layer, dir, n_dir, 0,
                           rnn.diff_weights_layer_nld
@@ -123,7 +122,7 @@ cell_execution_sig(
             cl_ulong offset_workspace_iter = ws_states_offset_
                     + OFF4(lay + 1, n_layer + 1, dir, n_dir, iter, n_iter + 1,
                               0, batch * rnn.states_ws_ld)
-                            * sizeof(src_t);
+                            * types::data_type_size(src_t);
             cl_ulong offset_weights_iter
                     = OFF3(lay, n_layer, dir, n_dir, 0,
                               rnn.diff_weights_iter_nld
@@ -138,13 +137,8 @@ cell_execution_sig(
                 diff_bias);
     }
 }
-template cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
-template cell_execution_sig(ref_rnn_fwd_f16_t::cell_execution);
-template cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
-template cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution);
-template cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
-template cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution);
-
+template cell_execution_sig(ref_rnn_fwd_t::cell_execution);
+template cell_execution_sig(ref_rnn_bwd_t::cell_execution);
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl

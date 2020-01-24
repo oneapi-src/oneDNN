@@ -53,15 +53,10 @@ enum gemm_kind_t {
     gemm_diff_wei_layer
 };
 
-template <prop_kind_t aprop, impl::data_type_t src_type,
-        impl::data_type_t weights_type>
+template <prop_kind_t aprop>
 struct _ref_rnn_common_t : public primitive_impl_t {
-    typedef typename prec_traits<src_type>::type src_data_t;
-    typedef typename prec_traits<weights_type>::type weights_data_t;
-    typedef typename utils::conditional3<src_type == data_type::u8, int32_t,
-            src_type == data_type::f16, float16_t, float>::type acc_data_t;
 
-    using class_name = _ref_rnn_common_t<aprop, src_type, weights_type>;
+    using class_name = _ref_rnn_common_t<aprop>;
 
     typedef elemwise_sig((class_name::*elemwise_f));
     typedef cell_execution_sig((class_name::*cell_execution_f));
@@ -111,6 +106,16 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     = this->desc()->weights_iter_desc.data_type;
             data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
+            bool src_is_u8 = src_layer_dt == data_type::u8;
+            bool src_is_f16 = src_layer_dt == data_type::f16;
+            if (src_is_u8 && !src_is_f16)
+                acc_data_t = data_type::s32;
+            else if (!src_is_u8 && src_is_f16)
+                acc_data_t = data_type::f16;
+            else if (!src_is_u8 && !src_is_f16)
+                acc_data_t = data_type::f32;
+            src_type = src_layer_dt;
+            weights_type = weights_layer_dt;
 
             bool ok = true
                     && one_of(cell_kind, alg_kind::vanilla_rnn,
@@ -121,6 +126,18 @@ struct _ref_rnn_common_t : public primitive_impl_t {
                     && IMPLICATION(aprop == backward,
                             one_of(this->desc()->prop_kind, backward))
                     && src_layer_dt == src_type
+                    && ((aprop == prop_kind::forward
+                                && src_layer_dt == data_type::u8
+                                && weights_layer_dt == data_type::s8)
+                            || (aprop == prop_kind::forward
+                                    && one_of(src_layer_dt, data_type::f16,
+                                            data_type::f32, data_type::bf16)
+                                    && weights_layer_dt == src_layer_dt)
+                            || (aprop == prop_kind::backward
+                                    && one_of(weights_layer_dt, data_type::f32,
+                                            data_type::bf16)
+                                    && weights_layer_dt == src_layer_dt))
+                    && weights_iter_dt == weights_layer_dt
                     && everyone_is(
                             weights_type, weights_iter_dt, weights_layer_dt)
                     && this->set_default_params() == status::success
@@ -218,8 +235,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
             init_scratchpad(scratchpad_sz);
 
-            rnn_conf_.acc_data_type = data_traits<acc_data_t>::data_type;
-            rnn_conf_.acc_data_type_elsz = sizeof(acc_data_t);
+            rnn_conf_.acc_data_type = acc_data_t;
+            rnn_conf_.acc_data_type_elsz = types::data_type_size(acc_data_t);
             status_t status
                     = init_jit<aprop>(jrnn_, rnn_conf_, this, this->jit_off_);
             if (status != status::success) { return status; }
@@ -341,6 +358,9 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         jit_rnn_conf_t jrnn_;
         jit_rnn_offsets jit_off_;
         rnn_utils::rnn_conf_t rnn_conf_;
+        data_type_t acc_data_t;
+        data_type_t src_type;
+        data_type_t weights_type;
 
         primitive_desc_t *gemm_iter_fwd_pd_ = nullptr;
         primitive_desc_t *gemm_layer_fwd_pd_ = nullptr;
@@ -361,6 +381,9 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             jrnn_ = other.jrnn_;
             jit_off_ = other.jit_off_;
             rnn_conf_ = other.rnn_conf_;
+            acc_data_t = other.acc_data_t;
+            src_type = other.src_type;
+            weights_type = other.weights_type;
             gemm_layer_fwd_pd_ = other.gemm_layer_fwd_pd_
                     ? other.gemm_layer_fwd_pd_->clone()
                     : nullptr;
@@ -525,7 +548,10 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         switch (pd()->cell_kind()) {
             case alg_kind::vanilla_lstm:
                 cell_func = &class_name::cell_execution;
-                elemwise_func = &class_name::lstm_elemwise;
+                elemwise_func = pd()->src_type == data_type::u8
+                                && pd()->weights_type == data_type::s8
+                        ? &class_name::lstm_elemwise_u8s8
+                        : &class_name::lstm_elemwise;
                 break;
             case alg_kind::vanilla_rnn: // @todo switch on cell kind
                 cell_func = &class_name::cell_execution;
@@ -588,6 +614,7 @@ private:
     cell_execution_sig(cell_execution_gru_lbr);
     elemwise_sig(rnn_elemwise);
     elemwise_sig(lstm_elemwise);
+    elemwise_sig(lstm_elemwise_u8s8);
     elemwise_sig(gru_lbr_elemwise);
     gemm_sig(gemm_primitive);
     gemm_sig(packed_gemm);
@@ -685,18 +712,8 @@ private:
     free_packed_t weights_input_free_packed_func;
     free_packed_t weights_state_free_packed_func;
 };
-using ref_rnn_fwd_u8s8_t
-        = _ref_rnn_common_t<prop_kind::forward, data_type::u8, data_type::s8>;
-using ref_rnn_fwd_f16_t
-        = _ref_rnn_common_t<prop_kind::forward, data_type::f16, data_type::f16>;
-using ref_rnn_fwd_f32_t
-        = _ref_rnn_common_t<prop_kind::forward, data_type::f32, data_type::f32>;
-using ref_rnn_bwd_f32_t = _ref_rnn_common_t<prop_kind::backward, data_type::f32,
-        data_type::f32>;
-using ref_rnn_fwd_bf16_t = _ref_rnn_common_t<prop_kind::forward,
-        data_type::bf16, data_type::bf16>;
-using ref_rnn_bwd_bf16_t = _ref_rnn_common_t<prop_kind::backward,
-        data_type::bf16, data_type::bf16>;
+using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
+using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;
 } // namespace ocl
 } // namespace impl
 } // namespace dnnl
