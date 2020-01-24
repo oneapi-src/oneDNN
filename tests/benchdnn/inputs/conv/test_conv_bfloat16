@@ -14,8 +14,8 @@
 --cfg=bf16bf16bf16 --batch=set_conv_all
 
 --dir=BWD_WB
---cfg=bf16f32bf16  --batch=set_conv_all
---cfg=bf16bf16bf16 --batch=shapes_resnet_50
+--cfg=bf16f32bf16 --batch=set_conv_all --batch=set_dilated-conv
+--cfg=bf16bf16bf16 --batch=shapes_resnet_50 --batch=set_dilated-conv
 
 # PostOps + Attributes
 --dir=FWD_B
