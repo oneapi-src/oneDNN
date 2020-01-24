@@ -180,15 +180,23 @@ protected:
         auto src_layer_md_tgt
                 = memory::desc({src_layer_dims}, prec, p.fmts.src_layer_fmt);
         auto src_iter_md_tgt
-                = memory::desc({src_iter_dims}, prec, p.fmts.src_iter_fmt);
+                = (p.fmts.src_iter_fmt != memory::format_tag::undef)
+                ? memory::desc({src_iter_dims}, prec, p.fmts.src_iter_fmt)
+                : memory::desc();
         auto src_iter_c_md_tgt
-                = memory::desc({src_iter_c_dims}, prec, p.fmts.src_iter_fmt);
+                = (p.fmts.src_iter_fmt != memory::format_tag::undef)
+                ? memory::desc({src_iter_c_dims}, prec, p.fmts.src_iter_fmt)
+                : memory::desc();
         auto dst_layer_md_tgt
                 = memory::desc({dst_layer_dims}, prec, p.fmts.dst_layer_fmt);
         auto dst_iter_md_tgt
-                = memory::desc({dst_iter_dims}, prec, p.fmts.dst_iter_fmt);
+                = (p.fmts.dst_iter_fmt != memory::format_tag::undef)
+                ? memory::desc({dst_iter_dims}, prec, p.fmts.dst_iter_fmt)
+                : memory::desc();
         auto dst_iter_c_md_tgt
-                = memory::desc({dst_iter_c_dims}, prec, p.fmts.dst_iter_fmt);
+                = (p.fmts.dst_iter_fmt != memory::format_tag::undef)
+                ? memory::desc({dst_iter_c_dims}, prec, p.fmts.dst_iter_fmt)
+                : memory::desc();
 
         // Create the reference primitive descriptor
         auto ref_d = setDesc(p.aprop, p.extra.activation, p.direction,
@@ -245,27 +253,41 @@ protected:
         auto dst_iter_c_tgt = memory(dst_iter_c_md_tgt, eng);
 
         // Assumption: b is a plain layout
-        auto init_tensor = [&](memory a, memory b) {
-            auto b_ptr = map_memory<float>(b);
+        auto init_tensor = [&](memory a, memory b, int scale = 1) {
             auto desc = a.get_desc();
             auto b_dims = desc.data.dims;
             auto b_ndims = desc.data.ndims;
             auto n_elems = std::accumulate(b_dims, b_dims + b_ndims, size_t(1),
                     std::multiplies<float>());
             const dnnl::impl::memory_desc_wrapper mdw(desc.data);
+
+            auto b_ptr = map_memory<float>(b);
             for (size_t i = 0; i < n_elems; i++)
-                b_ptr[i] = i;
+                b_ptr[i] = scale * i;
             reorder(b, a).execute(strm, b, a);
             strm.wait();
+        };
+        auto init_zero_tensor = [&](memory a, memory::format_tag fmt) {
+            auto desc = a.get_desc();
+            memory::desc tmp_md(desc.dims(), desc.data_type(), fmt);
+            memory tmp(tmp_md, eng);
+            // Zero fill the tmp tensor
+            init_tensor(a, tmp, 0);
         };
 
         init_tensor(weights_layer_ref, weights_layer_tgt);
         init_tensor(weights_iter_ref, weights_iter_tgt);
         init_tensor(bias_ref, bias_tgt);
         init_tensor(src_layer_ref, src_layer_tgt);
-        init_tensor(src_iter_ref, src_iter_tgt);
-        if (std::is_same<T, lstm_forward>::value)
-            init_tensor(src_iter_c_ref, src_iter_c_tgt);
+        if (p.fmts.src_iter_fmt != memory::format_tag::undef) {
+            init_tensor(src_iter_ref, src_iter_tgt);
+            if (std::is_same<T, lstm_forward>::value)
+                init_tensor(src_iter_c_ref, src_iter_c_tgt);
+        } else {
+            init_zero_tensor(src_iter_ref, memory::format_tag::ldnc);
+            if (std::is_same<T, lstm_forward>::value)
+                init_zero_tensor(src_iter_c_ref, memory::format_tag::ldnc);
+        }
 
         // run the non packed version
         T(ref_pd).execute(strm,
@@ -303,7 +325,11 @@ protected:
 
         // compare dst_layer and dst_iter
         compare_data<data_t>(dst_layer_ref, dst_layer_tgt, 1e-5);
-        compare_data<data_t>(dst_iter_ref, dst_iter_tgt, 1e-5);
+        if (p.fmts.dst_iter_fmt != memory::format_tag::undef) {
+            compare_data<data_t>(dst_iter_ref, dst_iter_tgt, 1e-5);
+            if (std::is_same<T, lstm_forward>::value)
+                compare_data<data_t>(dst_iter_c_ref, dst_iter_c_tgt, 1e-5);
+        }
     }
 };
 
@@ -368,7 +394,7 @@ memory::desc rnn_forward_test<lstm_forward, float>::querySrcIterC(
 template <>
 memory::desc rnn_forward_test<lstm_forward, float>::queryDstIterC(
         lstm_forward::primitive_desc rpd) {
-    return rpd.src_iter_c_desc();
+    return rpd.dst_iter_c_desc();
 }
 
 /* GRU specializations */
@@ -460,15 +486,43 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
                         {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
                                 fmt::tnc, fmt::ldnc},
                         test_rnn_sizes_t(2, 1, 10, 16, 100, 100, 50, 100), true,
-                        dnnl_invalid_arguments}));
+                        dnnl_invalid_arguments},
+                /* Check if passing {src,dst}_iter impacts results */
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::undef, fmt::ldigo, fmt::ldigo,
+                                fmt::ldgo, fmt::tnc, fmt::ldnc},
+                        test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)},
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::undef},
+                        test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)},
+                cfg_f32 {PLAIN_RNN(alg::eltwise_tanh),
+                        prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::undef, fmt::ldigo, fmt::ldigo,
+                                fmt::ldgo, fmt::tnc, fmt::undef},
+                        test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)}
+
+                ));
 
 TEST_P(lstm_forward_test_f32, TestsLSTM) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestLSTM, lstm_forward_test_f32,
-        ::testing::Values(cfg_f32 {NOT_RNN, prop_kind::forward_inference,
-                dir::unidirectional_left2right,
-                {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
-                        fmt::tnc, fmt::ldnc},
-                test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)}));
+        ::testing::Values(
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::ldnc},
+                        test_rnn_sizes_t(1, 1, 10, 16, 100, 100, 100, 100)},
+                /* Check if not passing dst_iter impacts results */
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::undef},
+                        test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)}));
 
 CPU_INSTANTIATE_TEST_SUITE_P(TestLSTM_failure, lstm_forward_test_f32,
         ::testing::Values(cfg_f32 {NOT_RNN, prop_kind::forward_inference,
@@ -480,21 +534,35 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestLSTM_failure, lstm_forward_test_f32,
 
 TEST_P(gru_forward_test_f32, TestsGRU_failure) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestGRU_failure, gru_forward_test_f32,
-        ::testing::Values(cfg_f32 {NOT_RNN, prop_kind::forward_inference,
-                dir::unidirectional_left2right,
-                {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
-                        fmt::tnc, fmt::ldnc},
-                //               L  D  T  MB  SLC  SIC  DLC  DIC
-                test_rnn_sizes_t(1, 1, 1, 1, 10, 5, 5, 5)}));
+        ::testing::Values(
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::ldnc},
+                        //               L  D  T  MB  SLC  SIC  DLC  DIC
+                        test_rnn_sizes_t(1, 1, 1, 1, 10, 5, 5, 5)},
+                /* Check if not passing dst_iter impacts results */
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::undef},
+                        test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)}));
 
 TEST_P(lbr_gru_forward_test_f32, TestsGRUlbr_failure) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestGRUlbr_failure, lbr_gru_forward_test_f32,
-        ::testing::Values(cfg_f32 {NOT_RNN, prop_kind::forward_inference,
-                dir::unidirectional_left2right,
-                {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
-                        fmt::tnc, fmt::ldnc},
-                //               L  D  T  MB  SLC  SIC  DLC  DIC
-                test_rnn_sizes_t(1, 1, 1, 1, 10, 5, 5, 5)}));
+        ::testing::Values(
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::ldnc},
+                        //               L  D  T  MB  SLC  SIC  DLC  DIC
+                        test_rnn_sizes_t(1, 1, 1, 1, 10, 5, 5, 5)},
+                /* Check if not passing dst_iter impacts results */
+                cfg_f32 {NOT_RNN, prop_kind::forward_inference,
+                        dir::unidirectional_left2right,
+                        {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo, fmt::ldgo,
+                                fmt::tnc, fmt::undef},
+                        test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)}));
 
 TEST_P(rnn_forward_test_f32, TestsRNN_failure) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestRNN_failure, rnn_forward_test_f32,
