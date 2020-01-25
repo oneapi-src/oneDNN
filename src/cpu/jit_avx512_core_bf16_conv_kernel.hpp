@@ -347,6 +347,7 @@ private:
     reg64_t reg_oj = r15;
     reg64_t reg_ih_count = rbx;
     reg64_t reg_tmp = r14;
+    reg64_t reg_ih_shift = reg_tmp;
     reg64_t reg_long_offt = r14;
 
     reg64_t ki = r11;
@@ -392,12 +393,13 @@ private:
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
     bf16_emulation_t *bf16_emu_;
-    int stack_space_needed = 296;
+    int stack_space_needed = 304;
     int kd_count_offset = 256;
     int input_d_offset = 256 + 8;
     int output_d_offset = 256 + 16;
     int d_index_offset = 256 + 24;
     int trans_tmp_offset = 256 + 32;
+    int ih_dilate_shift = 256 + 40;
 };
 
 } // namespace cpu

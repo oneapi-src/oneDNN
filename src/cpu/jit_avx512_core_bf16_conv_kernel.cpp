@@ -2025,7 +2025,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
             if (is_dilated) {
                 const int tail = t_pad % dilate_h;
                 const int shift = tail == 0 ? 0 : dilate_h - tail;
-                mov(reg_tmp, shift);
+                mov(reg_ih_shift, shift);
+                mov(ptr[rsp + ih_dilate_shift], reg_ih_shift);
                 if (tail != 0)
                     add(reg_input, jcp.typesize_in * shift * iw * inp_mult);
             }
@@ -2037,13 +2038,16 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
                 compute_oh_step_disp();
                 add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
                 if (is_dilated) {
-                    inc(reg_tmp);
-                    cmp(reg_tmp, dilate_h);
+                    mov(reg_ih_shift, ptr[rsp + ih_dilate_shift]);
+                    inc(reg_ih_shift);
+                    mov(ptr[rsp + ih_dilate_shift], reg_ih_shift);
+                    cmp(reg_ih_shift, dilate_h);
                     jl(oh_dilate_label_shift, T_NEAR);
                     // unshift input as new kernel element enters
                     sub(reg_input,
                             jcp.typesize_in * (dilate_h - 1) * iw * inp_mult);
-                    xor_(reg_tmp, reg_tmp);
+                    xor_(reg_ih_shift, reg_ih_shift);
+                    mov(ptr[rsp + ih_dilate_shift], reg_ih_shift);
                 }
                 // kernel overlap only changes when (t_pad + oj) % dilate_h == 0
                 sub(reg_kernel,
@@ -2145,7 +2149,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
 
         if (is_dilated) {
             mov(reg_kh, jcp.kh - 1); // assumes unit stride for dilations
-            mov(reg_tmp, 0);
+            xor_(reg_ih_shift, reg_ih_shift);
+            mov(ptr[rsp + ih_dilate_shift], reg_ih_shift);
         } else {
             mov(reg_kh, jcp.ihp - b_pad);
             sub(reg_kh, reg_ih_count);
@@ -2156,10 +2161,13 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
             add(reg_input, jcp.typesize_in * stride_h * iw * inp_mult);
             add(reg_output, jcp.typesize_in * ow * jcp.oc_block);
             if (is_dilated) {
-                inc(reg_tmp);
-                cmp(reg_tmp, dilate_h);
+                mov(reg_ih_shift, ptr[rsp + ih_dilate_shift]);
+                inc(reg_ih_shift);
+                mov(ptr[rsp + ih_dilate_shift], reg_ih_shift);
+                cmp(reg_ih_shift, dilate_h);
                 jl(oh_dilate_label_end, T_NEAR);
-                xor_(reg_tmp, reg_tmp);
+                xor_(reg_ih_shift, reg_ih_shift);
+                mov(ptr[rsp + ih_dilate_shift], reg_ih_shift);
             }
             sub(reg_kh, stride_h);
             cmp(reg_kh, 0);
