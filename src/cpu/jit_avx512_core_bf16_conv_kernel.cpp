@@ -1879,10 +1879,21 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
             ur_w_tail += ur_w;
             ur_w_trips--;
         } else {
-            ur_w_tail += (ur_w - ur_w / 2);
-            ur_w = ur_w / 2;
+            int ur_w_tail_total = ur_w + ur_w_tail;
+            ur_w = (ur_w_tail_total % 4 == 0) ? ur_w_tail / 2
+                                              : ur_w_tail / 2 + 1;
+            ur_w_tail = ur_w_tail_total - ur_w;
+            if (l_pad > ur_w / 2) {
+                ur_w = (l_pad % 2 == 0) ? l_pad : l_pad + 1;
+                ur_w_tail = ur_w_tail_total - ur_w;
+            } else if (r_pad > ur_w_tail) {
+                ur_w_tail = (r_pad % 2 == 0) ? r_pad : r_pad + 1;
+                ur_w = ur_w_tail_total - ur_w_tail;
+            }
         }
     }
+    assert(l_pad <= ur_w);
+    assert(r_pad <= ur_w_tail);
     int inp_mult = (jcp.uses_permw_transposition) ? ic_block : 1;
     int input_comeback = (ur_w_trips * ur_w * stride_w - l_pad) * inp_mult;
     int output_comeback = ur_w_trips * ur_w * oc_block;
@@ -2558,7 +2569,9 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     const int max_pad_h = ext_kh / 2;
     const bool boundaries_ok = true && jcp.l_pad < ext_kw && jcp.r_pad < ext_kw
             && jcp.t_pad <= max_pad_h && jcp.b_pad <= max_pad_h
-            && jcp.f_pad < ext_kd && jcp.back_pad < ext_kd;
+            && jcp.f_pad < ext_kd && jcp.back_pad < ext_kd
+            && IMPLICATION(jcp.is_1stconv && jcp.ow > max_ur_w,
+                    jcp.l_pad < max_ur_w && ext_kw <= jcp.ow);
     if (!boundaries_ok) return status::unimplemented;
 
     /* yet another common check */
@@ -2614,6 +2627,11 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         jcp.transpose_src = true;
         jcp.transpose_dst = true;
     }
+
+    const bool padding_ok = IMPLICATION(!jcp.transpose_src,
+            jcp.l_pad < max_ur_w && jcp.r_pad < max_ur_w
+                    && ext_kw <= jcp.iw + 1);
+    if (!padding_ok) return status::unimplemented;
 
     const int tr_round = 4;
     // TODO: try to optimize required memory size
