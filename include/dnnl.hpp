@@ -2139,7 +2139,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A memory descriptor for the region.
         desc submemory_desc(const memory::dims &dims,
                 const memory::dims &offsets, bool allow_empty = false) const {
-            dnnl_memory_desc_t sub_md{};
+            dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_init_submemory(
                     &sub_md, &data, &dims[0], &offsets[0]);
             if (!allow_empty)
@@ -2157,7 +2157,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///     and defaults to false.
         /// @returns A new memory descriptor with new dimensions.
         desc reshape(const memory::dims &dims, bool allow_empty = false) const {
-            dnnl_memory_desc_t out_md{};
+            dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_reshape(
                     &out_md, &data, (int)dims.size(), &dims[0]);
             if (!allow_empty)
