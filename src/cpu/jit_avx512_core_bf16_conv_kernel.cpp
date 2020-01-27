@@ -1531,6 +1531,244 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 }
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
+        compute_ic_block_step_interleave(int ur_w, int pad_l, int pad_r,
+                int ic_block_step, int input_offset, int kernel_offset,
+                int output_offset, bool is_tail) {
+    assert(jcp.is_1stconv); // Only supports nchw format src
+    int kw = jcp.kw;
+    int ic_block = jcp.ic_block;
+    int oc_block = jcp.oc_block;
+    const int out_zmm_base_idx = 24;
+    const int in_zmm_base_idx = 24;
+    const int num_out_zmm_regs = !isa_has_bf16(jcp.isa) ? 2 : 4;
+    //const int num_in_zmm_regs = 8;
+    const int zmm_inp_reg = out_zmm_base_idx + num_out_zmm_regs;
+    const int reorder_block = 16;
+    const int reorder_size
+            = rnd_up(jcp.stride_w * (ur_w - 1) + kw, reorder_block);
+    const int reorder_bytes = 2 * jcp.typesize_in * reorder_size;
+    const int stack_size = reorder_bytes * ic_block_step;
+    if (stack_size > ic_block_step_stack_size) {
+        // This is a guard. Ideally it is never used, but is included to defend
+        // against overlooked edge cases.
+        sub(rsp, stack_size - ic_block_step_stack_size);
+    }
+
+    auto zmm_ker = [=](int i_kw, int i_ic) {
+        return Zmm(i_kw * ic_block_step + i_ic);
+    };
+    auto zmm_out = [=](int i_iw) {
+        return Zmm(out_zmm_base_idx + i_iw % num_out_zmm_regs);
+    };
+    auto zmm_in = [=](int i_iw, int i_ic, bool stride_reg) {
+        int stride = stride_reg ? 1 : 0;
+        return Zmm(in_zmm_base_idx + 4 * (i_ic % 2) + 2 * (i_iw % 2) + stride);
+    };
+
+    auto ker_addr = [=](int i_kw, int i_ic) {
+        size_t local_offset
+                = jcp.typesize_out * (i_kw * ic_block + i_ic) * jcp.oc_block;
+        return EVEX_compress_addr(reg_kernel, local_offset + kernel_offset);
+    };
+    auto inp_addr = [=](int i_iw, int i_ic, ptrdiff_t extra_offset = 0,
+                            bool vnni_bcast = false) {
+        int local_offset = i_ic * reorder_bytes + 2 * jcp.typesize_in * i_iw;
+
+        if (vnni_bcast)
+            return EVEX_compress_addr(rsp, local_offset, true);
+        else
+            return EVEX_compress_addr(rsp, local_offset);
+    };
+    auto out_addr = [=](int i_ur) {
+        auto ow_per_oc = 2;
+        return EVEX_compress_addr(reg_output,
+                jcp.typesize_in * i_ur * oc_block * ow_per_oc + output_offset);
+    };
+    auto load_src_to_stack = [=](int i_iw, int i_ic, Opmask mask,
+                                     bool mask_empty, Opmask stride_mask,
+                                     bool stride_mask_empty) {
+        int local_offset
+                = jcp.typesize_in * (i_ic * jcp.iw * jcp.ih * jcp.id + i_iw);
+        int stack_offset
+                = i_ic * reorder_bytes + 2 * jcp.typesize_in * (i_iw + pad_l);
+
+        auto zmm = zmm_in(i_iw, i_ic, false);
+        auto zmm_stride = zmm_in(i_iw, i_ic, true);
+        auto base_addr = EVEX_compress_addr(
+                reg_input, local_offset + input_offset, false);
+        auto stride_addr = EVEX_compress_addr(reg_input,
+                local_offset + input_offset + jcp.typesize_in * jcp.stride_w);
+        auto stack_addr = EVEX_compress_addr(rsp, stack_offset);
+        assert(IMPLICATION(mask_empty, stride_mask_empty));
+        if (mask_empty) {
+            vpxord(zmm, zmm, zmm);
+        } else {
+            vpmovzxwd(zmm | mask | T_z, base_addr);
+        }
+        if (!stride_mask_empty) {
+            vpmovzxwd(zmm_stride | stride_mask | T_z, stride_addr);
+            vpslld(zmm_stride, zmm_stride, 16);
+            vpord(zmm, zmm, zmm_stride);
+        }
+        vmovdqu16(stack_addr, zmm);
+    };
+
+    assert(ur_w % 2 == 0);
+    auto steps = ur_w / 2;
+
+    const int str_w = jcp.stride_w;
+    int i_iw_shift = str_w * (jcp.tr_ow - ur_w)
+            - ((jcp.l_pad != pad_l) ? jcp.l_pad : 0);
+    const int overflow_boundary
+            = is_tail ? jcp.iw - i_iw_shift : str_w * (ur_w - 1) + kw - pad_l;
+
+    // Calculate padding required by the data reorder using 32 byte loads
+    int reorder_overflow = reorder_size - pad_l - overflow_boundary;
+    int reorder_stride_overflow = reorder_overflow + str_w;
+    reorder_overflow = nstl::max(0, reorder_overflow);
+    reorder_stride_overflow = nstl::max(0, reorder_stride_overflow);
+    int reorder_pad_r = reorder_overflow % reorder_block;
+    int reorder_stride_pad_r = reorder_stride_overflow % reorder_block;
+    if (reorder_stride_overflow >= reorder_size && reorder_stride_pad_r == 0) {
+        assert(reorder_stride_overflow == reorder_size);
+        reorder_stride_pad_r = reorder_block;
+    }
+    reorder_overflow -= reorder_pad_r;
+    reorder_stride_overflow -= reorder_stride_pad_r;
+
+    int pad_l_mask = (0xffff << pad_l) & 0xffff;
+    int pad_l_mask_strided
+            = (0xffff << (pad_l >= str_w ? (pad_l - str_w) : 0)) & 0xffff;
+    int pad_r_mask = 0xffff >> reorder_pad_r;
+    int pad_r_mask_strided = 0xffff >> (reorder_stride_pad_r);
+    pad_r_mask = pad_r_mask & 0xffff;
+
+    // Setup masks to load and reorder data
+    if (reorder_size - reorder_stride_overflow > reorder_block) {
+        // Overflow and underflow happen in different data reorder rounds
+        kxnorw(overflow_stride_mask, overflow_stride_mask,
+                overflow_stride_mask);
+        kshiftlw(underflow_mask, overflow_stride_mask, pad_l);
+        kshiftlw(underflow_stride_mask, overflow_stride_mask,
+                pad_l >= str_w ? pad_l - str_w : 0);
+        kshiftrw(overflow_mask, overflow_stride_mask, reorder_pad_r);
+        kshiftrw(overflow_stride_mask, overflow_stride_mask,
+                reorder_stride_pad_r);
+    } else if (reorder_size - reorder_overflow > reorder_block) {
+        // Overflow and underflow happen in the same round for loading the data
+        // at the stride offset.
+        kxnorw(overflow_mask, overflow_mask, overflow_mask);
+        kshiftlw(underflow_mask, overflow_mask, pad_l);
+        kshiftrw(overflow_mask, overflow_mask, reorder_pad_r);
+        mov(reg_tmp.cvt32(), pad_l_mask_strided & pad_r_mask_strided);
+        kmovw(underflow_stride_mask, reg_tmp.cvt32());
+    } else {
+        // Overflow and underflow happen in the same round for all data loads
+        mov(reg_tmp.cvt32(), pad_l_mask & pad_r_mask);
+        kmovw(underflow_mask, reg_tmp.cvt32());
+        mov(reg_tmp.cvt32(), pad_l_mask_strided & pad_r_mask_strided);
+        kmovw(underflow_stride_mask, reg_tmp.cvt32());
+    }
+
+    // Load and reorder data to the stack
+    int reorder_start = -pad_l;
+    int reorder_end = reorder_size - pad_l;
+    for (int i_iw = reorder_start; i_iw < reorder_end; i_iw += reorder_block) {
+        for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+            Opmask mask, stride_mask;
+            bool mask_empty, stride_mask_empty;
+            // Performing this reorder on the stack may not be (always) optimal.
+            // There are a couple of methods involving externally reordering the
+            // data that were not considered due to time constraints. The first
+            // is to transpose similar to the extern method. The other is to
+            // perform the same interleave transform used here. The tradeoff
+            // between these methods is the transpose method does not lend
+            // itself to SIMD instructions (except possibly for some specific
+            // strides) since the data is not blocked. The transform performed
+            // here does, but uses twice as much data since
+            // most data elements are duplicated.
+
+            if (i_iw == reorder_start) {
+                mask = underflow_mask;
+                mask_empty = false;
+                if (pad_l_mask == 0) mask_empty = true;
+            } else if (i_iw + reorder_overflow >= reorder_end) {
+                mask_empty = true;
+            } else if (i_iw + reorder_block + reorder_overflow >= reorder_end) {
+                mask = overflow_mask;
+                mask_empty = false;
+                if (pad_r_mask == 0) mask_empty = true;
+            } else {
+                mask = full_mask;
+                mask_empty = false;
+            }
+            if (i_iw == reorder_start) {
+                stride_mask = underflow_stride_mask;
+                stride_mask_empty = false;
+                if (pad_l_mask_strided == 0) mask_empty = true;
+            } else if (i_iw + reorder_stride_overflow >= reorder_end) {
+                stride_mask_empty = true;
+            } else if (i_iw + reorder_block + reorder_stride_overflow
+                    >= reorder_end) {
+                stride_mask = overflow_stride_mask;
+                stride_mask_empty = false;
+                if (pad_r_mask_strided == 0) mask_empty = true;
+            } else {
+                stride_mask = full_mask;
+                stride_mask_empty = false;
+            }
+            load_src_to_stack(i_iw, i_ic, mask, mask_empty, stride_mask,
+                    stride_mask_empty);
+        }
+    }
+
+    // Initialize kernel accumulators. It should sometimes be possible to skip
+    // initializing and storing this data between calls to this function.
+    for (int i_kw = 0; i_kw < kw; i_kw++)
+        for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+            auto zmm = zmm_ker(i_kw, i_ic);
+            vpxord(zmm, zmm, zmm);
+        }
+
+    // Calculate this blocks contribution
+    for (int i_ur = 0; i_ur < steps; i_ur++) {
+        auto zmm = zmm_out(i_ur);
+        vmovdqu16(zmm, out_addr(i_ur));
+
+        for (int i_kw = 0; i_kw < kw; i_kw++) {
+            for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+                int i_iw = 2 * i_ur * str_w + i_kw;
+                auto acc = zmm_ker(i_kw, i_ic);
+                auto wei = zmm_out(i_ur);
+
+                if (!isa_has_bf16(jcp.isa)) {
+                    auto inp = Zmm(zmm_inp_reg);
+                    vpbroadcastd(inp, inp_addr(i_iw, i_ic, 0));
+                    bf16_emu_->vdpbf16ps(acc, wei, inp);
+                } else
+                    vdpbf16ps(acc, wei, inp_addr(i_iw, i_ic, 0, true));
+            }
+        }
+    }
+
+    // Store kernel accumulators
+    for (int i_kw = 0; i_kw < kw; i_kw++) {
+        for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
+            auto addr = ker_addr(i_kw, i_ic);
+            auto zmm = zmm_ker(i_kw, i_ic);
+            vaddps(zmm, zmm, addr);
+            vmovups(addr, zmm);
+        }
+    }
+
+    if (stack_size > ic_block_step_stack_size) {
+        // This is a guard. Ideally it is never used, but is included to defend
+        // against overlooked edge cases.
+        add(rsp, stack_size - ic_block_step_stack_size);
+    }
+}
+
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         compute_ic_block_step_vpermw(int ur_w, int pad_l, int pad_r,
                 int ic_block_step, int input_offset, int kernel_offset,
                 int output_offset, bool is_tail) {
@@ -1712,6 +1950,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
     if (jcp.uses_permw_transposition)
         compute_ic_block_step_vpermw(ur_w, pad_l, pad_r, ic_block_step,
                 input_offset, kernel_offset, output_offset, is_tail);
+    else if (jcp.is_1stconv && jcp.stride_w > 1)
+        compute_ic_block_step_interleave(ur_w, pad_l, pad_r, ic_block_step,
+                input_offset, kernel_offset, output_offset, is_tail);
     else
         compute_ic_block_step_extern(ur_w, pad_l, pad_r, ic_block_step,
                 input_offset, kernel_offset, output_offset, is_tail);
@@ -1869,7 +2110,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
     }
     int l_pad = (jcp.transpose_src) ? 0 : jcp.l_pad;
 
-    int stride_w = (jcp.uses_permw_transposition) ? jcp.stride_w : 1;
+    int stride_w = (jcp.transpose_src) ? 1 : jcp.stride_w;
 
     int ur_w = nstl::min(ow, max_ur_w);
     int ur_w_trips = ow / ur_w;
@@ -2375,8 +2616,28 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_loop() {
     }
 }
 
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::setup_stack_space() {
+
+    if (jcp.is_1stconv && jcp.stride_w > 1)
+        ic_block_step_stack_size = interleave_ic_block_step_stack_size;
+    else if (jcp.uses_permw_transposition)
+        ic_block_step_stack_size = vpermw_ic_block_step_stack_size;
+    else
+        ic_block_step_stack_size = extern_ic_block_step_stack_size;
+
+    kd_count_offset = ic_block_step_stack_size;
+    input_d_offset = ic_block_step_stack_size + 8;
+    output_d_offset = ic_block_step_stack_size + 16;
+    d_index_offset = ic_block_step_stack_size + 24;
+    trans_tmp_offset = ic_block_step_stack_size + 32;
+    ih_dilate_shift = ic_block_step_stack_size + 40;
+    stack_space_needed = ic_block_step_stack_size + 48;
+}
+
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::generate() {
     preamble();
+
+    setup_stack_space();
 
     sub(rsp, stack_space_needed);
 
@@ -2402,10 +2663,15 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::generate() {
         mov(reg_mask_load.cvt32(), 0x0000ffff);
         kmovd(m_0000ffff, reg_mask_load.cvt32());
     } else if (jcp.is_1stconv) {
-        int ieveryother_mask = 0x55555555;
-        mov(reg_mask_load.cvt32(), ieveryother_mask);
-        kmovd(everyother_mask, reg_mask_load.cvt32());
-        kshiftld(everyother_shift_mask, everyother_mask, 1);
+        if (jcp.stride_w == 1) {
+            int ieveryother_mask = 0x55555555;
+            mov(reg_mask_load.cvt32(), ieveryother_mask);
+            kmovd(everyother_mask, reg_mask_load.cvt32());
+            kshiftld(everyother_shift_mask, everyother_mask, 1);
+        } else {
+            mov(reg_mask_load.cvt32(), 0xffffffff);
+            kmovd(full_mask, reg_mask_load.cvt32());
+        }
     }
 
     mov(reg_input, ptr[param + GET_OFF(src)]);
@@ -2495,7 +2761,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     if (!ok) return status::unimplemented;
 
     jcp.is_1stconv = is_1stconv(jcp);
-    if (jcp.is_1stconv && jcp.stride_w > 1) return status::unimplemented;
     jcp.r_pad = nstl::max(0,
             calculate_end_padding(
                     jcp.l_pad, jcp.ow, jcp.iw, jcp.stride_w, ext_kw));
@@ -2604,6 +2869,15 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
     if (jcp.is_1stconv) {
         jcp.ic_block_step = 24 / jcp.kw;
+        int channel_stack_size
+                = rnd_up(4 * (max_ur_w * jcp.stride_w + jcp.kw - 1), 64);
+        int max_strided_step
+                = interleave_ic_block_step_stack_size / channel_stack_size;
+        if (jcp.stride_w > 1 && jcp.ic_block_step > max_strided_step) {
+            if (max_strided_step == 0) return status::unimplemented;
+            jcp.ic_block_step = max_strided_step;
+        }
+
         while (jcp.ic_block % jcp.ic_block_step != 0)
             jcp.ic_block_step--;
     } else {

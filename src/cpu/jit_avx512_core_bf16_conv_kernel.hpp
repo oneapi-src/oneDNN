@@ -321,13 +321,21 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 
 private:
     Xbyak::Label dst_prm_table;
+    // Used by compute_ic_block_step_{vpermw, interleave}
     Xbyak::Opmask full_mask = Xbyak::Opmask(1);
+    // Used by compute_ic_block_step_vpermw
     Xbyak::Opmask low_mask = Xbyak::Opmask(2);
     Xbyak::Opmask high_mask = Xbyak::Opmask(3);
     Xbyak::Opmask m_ffffffff = Xbyak::Opmask(4);
     Xbyak::Opmask m_0000ffff = Xbyak::Opmask(5);
+    // Used by compute_ic_block_step_extern (1st_conv only)
     Xbyak::Opmask everyother_mask = Xbyak::Opmask(6);
     Xbyak::Opmask everyother_shift_mask = Xbyak::Opmask(7);
+    // Used by compute_ic_block_step_interleave (1st_conv only)
+    Xbyak::Opmask underflow_mask = Xbyak::Opmask(4);
+    Xbyak::Opmask overflow_mask = Xbyak::Opmask(5);
+    Xbyak::Opmask underflow_stride_mask = Xbyak::Opmask(6);
+    Xbyak::Opmask overflow_stride_mask = Xbyak::Opmask(7);
 
     Xbyak::Zmm perm = Xbyak::Zmm(24);
 
@@ -379,6 +387,9 @@ private:
     inline void compute_ic_block_step_extern(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool is_tail = false);
+    inline void compute_ic_block_step_interleave(int ur_w, int pad_l, int pad_r,
+            int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset, bool is_tail = false);
     inline void compute_ic_block_step_vpermw(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool is_tail = false);
@@ -394,15 +405,20 @@ private:
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
     bf16_emulation_t *bf16_emu_;
-    int stack_space_needed = 304;
-    int kd_count_offset = 256;
-    int input_d_offset = 256 + 8;
-    int output_d_offset = 256 + 16;
-    int d_index_offset = 256 + 24;
-    int trans_tmp_offset = 256 + 32;
-    int ih_dilate_shift = 256 + 40;
-};
 
+    void setup_stack_space();
+    static const int extern_ic_block_step_stack_size = 0;
+    static const int vpermw_ic_block_step_stack_size = 256;
+    static const int interleave_ic_block_step_stack_size = 1152;
+    int ic_block_step_stack_size;
+    int stack_space_needed;
+    int kd_count_offset;
+    int input_d_offset;
+    int output_d_offset;
+    int d_index_offset;
+    int trans_tmp_offset;
+    int ih_dilate_shift;
+};
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
