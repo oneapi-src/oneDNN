@@ -54,6 +54,12 @@ struct prb_t {
     alg_t alg;
     float alpha, beta;
     bool inplace;
+
+    bool use_dst() const {
+        return alg == alg_t::RELU_DST || alg == alg_t::TANH_DST
+                || alg == alg_t::ELU_DST || alg == alg_t::SQRT_DST
+                || alg == alg_t::LOGISTIC_DST || alg == alg_t::EXP_DST;
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 

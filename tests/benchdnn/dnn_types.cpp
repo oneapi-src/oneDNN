@@ -318,6 +318,15 @@ static po_table_entry_t kind_table[] = {{pk_t::SUM, "sum", dnnl_alg_kind_undef},
         {pk_t::LOG, "log", dnnl_eltwise_log},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
         {pk_t::POW, "pow", dnnl_eltwise_pow},
+
+        {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
+        {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
+        {pk_t::ELU_DST, "elu_dst", dnnl_eltwise_elu_use_dst_for_bwd},
+        {pk_t::SQRT_DST, "sqrt_dst", dnnl_eltwise_sqrt_use_dst_for_bwd},
+        {pk_t::LOGISTIC_DST, "logistic_dst",
+                dnnl_eltwise_logistic_use_dst_for_bwd},
+        {pk_t::EXP_DST, "exp_dst", dnnl_eltwise_exp_use_dst_for_bwd},
+
         {pk_t::KIND_TOTAL, "unknown", dnnl_alg_kind_undef}};
 
 pk_t attr_t::post_ops_t::str2kind(const char *str) {
@@ -714,6 +723,14 @@ float compute_eltwise_fwd(
         case pk_t::LOG: return scale * log_fwd(src);
         case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
+
+        case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
+        case pk_t::TANH_DST: return scale * tanh_fwd(src);
+        case pk_t::ELU_DST: return scale * elu_fwd(src, alpha);
+        case pk_t::SQRT_DST: return scale * sqrt_fwd(src);
+        case pk_t::LOGISTIC_DST: return scale * logistic_fwd(src);
+        case pk_t::EXP_DST: return scale * exp_fwd(src);
+
         default: assert(!"unknown attr::post_ops::kind");
     };
     return NAN;
@@ -740,6 +757,14 @@ float compute_eltwise_bwd(
         case pk_t::LOG: return log_bwd(d_dst, src);
         case pk_t::CLIP: return clip_bwd(d_dst, src, alpha, beta);
         case pk_t::POW: return pow_bwd(d_dst, src, alpha, beta);
+
+        case pk_t::RELU_DST: return relu_bwd_use_dst(d_dst, src, alpha);
+        case pk_t::TANH_DST: return tanh_bwd_use_dst(d_dst, src);
+        case pk_t::ELU_DST: return elu_bwd_use_dst(d_dst, src, alpha);
+        case pk_t::SQRT_DST: return sqrt_bwd_use_dst(d_dst, src);
+        case pk_t::LOGISTIC_DST: return logistic_bwd_use_dst(d_dst, src);
+        case pk_t::EXP_DST: return exp_bwd_use_dst(d_dst, src);
+
         default: assert(!"unknown attr::post_ops::kind");
     }
     return NAN;

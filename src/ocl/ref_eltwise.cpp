@@ -53,7 +53,8 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
+    auto &src = pd()->use_dst() ? CTX_IN_STORAGE(DNNL_ARG_DST)
+                                : CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 

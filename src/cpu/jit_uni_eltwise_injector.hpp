@@ -52,7 +52,10 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                 eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
                 eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                eltwise_clip, eltwise_pow));
+                eltwise_clip, eltwise_pow, eltwise_relu_use_dst_for_bwd,
+                eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                eltwise_sqrt_use_dst_for_bwd, eltwise_logistic_use_dst_for_bwd,
+                eltwise_exp_use_dst_for_bwd));
     }
 
     jit_uni_eltwise_injector_f32(jit_generator *host,

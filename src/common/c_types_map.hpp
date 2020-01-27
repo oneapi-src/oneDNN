@@ -79,6 +79,16 @@ const alg_kind_t eltwise_gelu = dnnl_eltwise_gelu;
 const alg_kind_t eltwise_log = dnnl_eltwise_log;
 const alg_kind_t eltwise_clip = dnnl_eltwise_clip;
 const alg_kind_t eltwise_pow = dnnl_eltwise_pow;
+const alg_kind_t eltwise_relu_use_dst_for_bwd
+        = dnnl_eltwise_relu_use_dst_for_bwd;
+const alg_kind_t eltwise_tanh_use_dst_for_bwd
+        = dnnl_eltwise_tanh_use_dst_for_bwd;
+const alg_kind_t eltwise_elu_use_dst_for_bwd = dnnl_eltwise_elu_use_dst_for_bwd;
+const alg_kind_t eltwise_sqrt_use_dst_for_bwd
+        = dnnl_eltwise_sqrt_use_dst_for_bwd;
+const alg_kind_t eltwise_logistic_use_dst_for_bwd
+        = dnnl_eltwise_logistic_use_dst_for_bwd;
+const alg_kind_t eltwise_exp_use_dst_for_bwd = dnnl_eltwise_exp_use_dst_for_bwd;
 const alg_kind_t pooling_max = dnnl_pooling_max;
 const alg_kind_t pooling_avg = dnnl_pooling_avg;
 const alg_kind_t pooling_avg_include_padding = dnnl_pooling_avg_include_padding;

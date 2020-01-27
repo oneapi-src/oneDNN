@@ -73,13 +73,17 @@ void check_correctness() {
         switch (i_alg) {
             case alg_t::ABS:
             case alg_t::EXP:
+            case alg_t::EXP_DST:
             case alg_t::GELU:
             case alg_t::LOG:
             case alg_t::LOGISTIC:
+            case alg_t::LOGISTIC_DST:
             case alg_t::SQRT:
+            case alg_t::SQRT_DST:
             case alg_t::SQUARE:
             case alg_t::SRELU:
             case alg_t::TANH:
+            case alg_t::TANH_DST:
                 // Skip everything but alpha = 0 and beta = 0
                 if (i_alpha != 0 || i_beta != 0) continue;
             case alg_t::ELU:
@@ -87,6 +91,8 @@ void check_correctness() {
             case alg_t::SWISH:
                 // Test any alpha value but beta = 0
                 if (i_beta != 0) continue;
+            case alg_t::ELU_DST:
+            case alg_t::RELU_DST:
             case alg_t::BRELU:
                 // Test non-negative alpha value but beta = 0
                 if (i_alpha < 0 || i_beta != 0) continue;

@@ -660,15 +660,6 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
                 = new jit_uni_eltwise_injector_f32<isa>(this, desc.alg_kind,
                         desc.alpha, desc.beta, 1.f, false, r9, Opmask(1));
 
-        using namespace alg_kind;
-
-        assert(is_bwd() == false);
-        assert(utils::one_of(desc.alg_kind, eltwise_tanh, eltwise_elu,
-                eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-                eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                eltwise_clip, eltwise_pow));
-
         preamble();
 
         if (is_bf16()) {
@@ -803,16 +794,20 @@ status_t jit_uni_eltwise_fwd_t<isa, d_type>::pd_t::init() {
 
     const auto alg = desc()->alg_kind;
     // relu supports bf16, f32, s32 and s8
-    bool relu_ok = true && alg == eltwise_relu
-            && utils::one_of(d_type, bf16, f32, s32, s8);
+    bool relu_ok
+            = alg == eltwise_relu && utils::one_of(d_type, bf16, f32, s32, s8);
 
     // others supports bf16 and f32
-    bool non_relu_ok = true
-            && utils::one_of(alg, eltwise_tanh, eltwise_elu, eltwise_square,
-                    eltwise_abs, eltwise_sqrt, eltwise_linear,
-                    eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                    eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                    eltwise_clip, eltwise_pow)
+    bool non_relu_ok
+            = utils::one_of(alg, eltwise_tanh, eltwise_elu, eltwise_square,
+                      eltwise_abs, eltwise_sqrt, eltwise_linear,
+                      eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                      eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
+                      eltwise_clip, eltwise_pow, eltwise_relu_use_dst_for_bwd,
+                      eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                      eltwise_sqrt_use_dst_for_bwd,
+                      eltwise_logistic_use_dst_for_bwd,
+                      eltwise_exp_use_dst_for_bwd)
             && utils::one_of(d_type, bf16, f32);
 
     bool ok = true && mayiuse(isa) && is_fwd()

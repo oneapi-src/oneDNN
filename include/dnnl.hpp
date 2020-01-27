@@ -467,7 +467,7 @@ enum class algorithm {
     eltwise_relu = dnnl_eltwise_relu,
     /// Elementwise: hyperbolic tangent non-linearity (tanh)
     eltwise_tanh = dnnl_eltwise_tanh,
-    /// Elementwise: parametric exponential linear unit (elu)
+    /// Elementwise: exponential linear unit (elu)
     eltwise_elu = dnnl_eltwise_elu,
     /// Elementwise: square
     eltwise_square = dnnl_eltwise_square,
@@ -491,10 +491,22 @@ enum class algorithm {
     eltwise_gelu = dnnl_eltwise_gelu,
     /// Elementwise: natural logarithm
     eltwise_log = dnnl_eltwise_log,
-    /// Eltwise: clip
+    /// Elementwise: clip
     eltwise_clip = dnnl_eltwise_clip,
-    /// Eltwise: pow
+    /// Elementwise: pow
     eltwise_pow = dnnl_eltwise_pow,
+    /// Elementwise: ReLU (dst for backward)
+    eltwise_relu_use_dst_for_bwd = dnnl_eltwise_relu_use_dst_for_bwd,
+    /// Elementwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
+    eltwise_tanh_use_dst_for_bwd = dnnl_eltwise_tanh_use_dst_for_bwd,
+    /// Elementwise: exponential linear unit (elu) (dst for backward)
+    eltwise_elu_use_dst_for_bwd = dnnl_eltwise_elu_use_dst_for_bwd,
+    /// Elementwise: square root (dst for backward)
+    eltwise_sqrt_use_dst_for_bwd = dnnl_eltwise_sqrt_use_dst_for_bwd,
+    /// Elementwise: logistic (dst for backward)
+    eltwise_logistic_use_dst_for_bwd = dnnl_eltwise_logistic_use_dst_for_bwd,
+    /// Elementwise: exponent (dst for backward)
+    eltwise_exp_use_dst_for_bwd = dnnl_eltwise_exp_use_dst_for_bwd,
     /// Local response normalization (LRN) across multiple channels
     lrn_across_channels = dnnl_lrn_across_channels,
     /// LRN within a single channel
@@ -5047,10 +5059,9 @@ struct pooling_backward : public primitive {
 /// @warning
 ///     Because the original source data is required for backward propagation,
 ///     in-place forward propagation is not generally supported in the
-///     training mode.  However, for namely ReLU with the alpha parameter set
-///     to 0, either dst or src can be used for the backward propagation,
-///     which makes it possible to get performance benefit even in the
-///     training mode.
+///     training mode.  However, for algorithms supporting destination as input
+///     memory, dst can be used for the backward propagation, which makes it
+///     possible to get performance benefit even in the training mode.
 ///
 /// @sa @ref dev_guide_eltwise in developer guide
 ///

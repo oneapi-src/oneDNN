@@ -720,7 +720,7 @@ typedef enum {
     dnnl_eltwise_relu = 0x1f,
     /// Eltwise: hyperbolic tangent non-linearity (tanh)
     dnnl_eltwise_tanh = 0x2f,
-    /// Eltwise: parametric exponential linear unit (elu)
+    /// Eltwise: exponential linear unit (elu)
     dnnl_eltwise_elu = 0x3f,
     /// Eltwise: square
     dnnl_eltwise_square = 0x4f,
@@ -751,6 +751,18 @@ typedef enum {
     dnnl_eltwise_clip = 0xff,
     /// Eltwise: pow
     dnnl_eltwise_pow = 0x20,
+    /// Eltwise: ReLU (dst for backward)
+    dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
+    /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
+    dnnl_eltwise_tanh_use_dst_for_bwd = 0x101,
+    /// Eltwise: exponential linear unit (elu) (dst for backward)
+    dnnl_eltwise_elu_use_dst_for_bwd = 0x102,
+    /// Eltwise: square root (dst for backward)
+    dnnl_eltwise_sqrt_use_dst_for_bwd = 0x103,
+    /// Eltwise: logistic (dst for backward)
+    dnnl_eltwise_logistic_use_dst_for_bwd = 0x104,
+    /// Eltwise: exp (dst for backward)
+    dnnl_eltwise_exp_use_dst_for_bwd = 0x105,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding
@@ -1153,6 +1165,11 @@ typedef struct {
     /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu,
     /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
     /// #dnnl_eltwise_pow.
+    /// Possible values for passing destination memory on backward:
+    /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
+    /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
+    /// #dnnl_eltwise_logistic_use_dst_for_bwd,
+    /// #dnnl_eltwise_exp_use_dst_for_bwd.
     dnnl_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     dnnl_memory_desc_t data_desc;

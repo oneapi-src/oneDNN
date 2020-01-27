@@ -171,17 +171,25 @@ template <typename T, typename A,
 inline U relu_bwd(T s, A alpha) {
     return s > 0 ? (U)1 : (U)alpha;
 }
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U relu_bwd_use_dst(T dd, T d, A alpha) {
+    return d > 0 ? dd : (U)(dd * alpha);
+}
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U tanh_fwd(T s) {
     const float e = tanhf((float)s);
     return (U)e;
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U tanh_bwd(T dd, T s) {
     const float e = tanh_fwd<float>((float)s);
     return (U)(dd * (1 - e) * (1 + e));
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U tanh_bwd_use_dst(T dd, T d) {
+    return (U)(dd * (1 - d) * (1 + d));
 }
 
 template <typename T, typename A,
@@ -194,13 +202,17 @@ template <typename T, typename A,
 inline U elu_bwd(T dd, T s, A alpha) {
     return (U)(dd * (s > 0 ? 1 : alpha * ::expf((float)s)));
 }
+template <typename T, typename A,
+        typename U = typename utils::remove_reference<T>::type>
+inline U elu_bwd_use_dst(T dd, T d, A alpha) {
+    return (U)(dd * (d > 0 ? 1 : d + alpha));
+}
 
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U swish_fwd(T s, A alpha) {
     return (U)(s / (1 + ::expf(-alpha * (float)s)));
 }
-
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U swish_bwd(T dd, T s, A alpha) {
@@ -212,7 +224,6 @@ template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U square_fwd(T s) {
     return s * s;
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U square_bwd(T dd, T s) {
     return dd * 2 * s;
@@ -222,7 +233,6 @@ template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U abs_fwd(T s) {
     return s > 0 ? s : (U)-s;
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U abs_bwd(T dd, T s) {
     return s > 0 ? dd : s < 0 ? (U)-dd : (U)0;
@@ -232,10 +242,13 @@ template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_fwd(T s) {
     return (U)(::sqrtf((float)(s)));
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U sqrt_bwd(T dd, T s) {
     return (U)(dd / (2 * ::sqrtf((float)(s))));
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U sqrt_bwd_use_dst(T dd, T d) {
+    return (U)(dd / (2 * d));
 }
 
 template <typename T, typename A,
@@ -243,7 +256,6 @@ template <typename T, typename A,
 inline U linear_fwd(T s, A alpha, A beta) {
     return (U)(alpha * s + beta);
 }
-
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U linear_bwd(T dd, T s, A alpha, A beta) {
@@ -258,7 +270,6 @@ inline U bounded_relu_fwd(T s, A alpha) {
     s = s > 0 ? s : (U)0;
     return s > alpha ? (U)(alpha) : s;
 }
-
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U bounded_relu_bwd(T dd, T s, A alpha) {
@@ -270,7 +281,6 @@ inline U soft_relu_fwd(T s) {
     float max_logf = 8.872284e+01; //::logf(FLT_MAX)
     return s < max_logf ? (U)(::log1pf(::expf((float)s))) : s;
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U soft_relu_bwd(T dd, T s) {
     return (U)(dd / (1 + ::expf((float)(-s))));
@@ -281,21 +291,27 @@ inline U logistic_fwd(T s) {
     float v = ::expf((float)-s);
     return (U)(1. / (1 + v));
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U logistic_bwd(T dd, T s) {
     float v = logistic_fwd<T, float>(s);
     return (U)(dd * v * (1 - v));
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U logistic_bwd_use_dst(T dd, T d) {
+    return (U)(dd * d * (1 - d));
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U exp_fwd(T s) {
     return (U)(::expf((float)s));
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U exp_bwd(T dd, T s) {
     return (U)(dd * (::expf((float)s)));
+}
+template <typename T, typename U = typename utils::remove_reference<T>::type>
+inline U exp_bwd_use_dst(T dd, T d) {
+    return (U)(dd * d);
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
@@ -305,7 +321,6 @@ inline U gelu_fwd(T s) {
     float v = tanh_fwd(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
     return (U)(0.5 * s * (1. + v));
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U gelu_bwd(T dd, T s) {
     const float sqrt_2_over_pi = 0.797884;
@@ -320,7 +335,6 @@ template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U log_fwd(T s) {
     return (U)(::logf((float)s));
 }
-
 template <typename T, typename U = typename utils::remove_reference<T>::type>
 inline U log_bwd(T dd, T s) {
     return (U)(dd * (1.f / (float)s));
@@ -332,7 +346,6 @@ inline U clip_fwd(T s, A alpha, A beta) {
     s = s > alpha ? s : (U)alpha;
     return s > beta ? (U)beta : s;
 }
-
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U clip_bwd(T dd, T s, A alpha, A beta) {
@@ -344,7 +357,6 @@ template <typename T, typename A,
 inline U pow_fwd(T s, A alpha, A beta) {
     return (U)(alpha * ::powf((float)s, beta));
 }
-
 template <typename T, typename A,
         typename U = typename utils::remove_reference<T>::type>
 inline U pow_bwd(T dd, T s, A alpha, A beta) {
@@ -358,15 +370,29 @@ inline bool is_eltwise_ok(
         data_type_t dt, alg_kind_t alg, float alpha, float beta) {
     using namespace alg_kind;
     using namespace utils;
-    return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
-                   eltwise_abs, eltwise_sqrt, eltwise_linear,
-                   eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                   eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                   eltwise_clip, eltwise_pow)
+
+    const bool eltwise_use_src
+            = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
+                      eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
+                      eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
+                      eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
+                      eltwise_clip, eltwise_pow)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
                     alg == eltwise_relu && alpha == 0);
+
+    const bool eltwise_use_dst
+            = one_of(alg, eltwise_relu_use_dst_for_bwd,
+                      eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                      eltwise_sqrt_use_dst_for_bwd,
+                      eltwise_logistic_use_dst_for_bwd,
+                      eltwise_exp_use_dst_for_bwd)
+            && IMPLICATION(one_of(alg, eltwise_relu_use_dst_for_bwd,
+                                   eltwise_elu_use_dst_for_bwd),
+                    alpha >= 0);
+
+    return eltwise_use_src || eltwise_use_dst;
 }
 
 inline bool eltwise_fwd_preserves_zero(
@@ -376,6 +402,9 @@ inline bool eltwise_fwd_preserves_zero(
     return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
                    eltwise_abs, eltwise_sqrt, eltwise_swish,
                    eltwise_bounded_relu, eltwise_gelu)
+            || one_of(alg, eltwise_relu_use_dst_for_bwd,
+                    eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
+                    eltwise_sqrt_use_dst_for_bwd)
             || (alg == eltwise_clip && alpha <= 0 && beta >= 0)
             || (alg == eltwise_linear && beta == 0)
             || (alg == eltwise_pow && beta > 0);

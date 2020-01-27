@@ -93,6 +93,18 @@ struct jit_ref_eltwise_common_kernel {
         kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
         kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
         kernel_ctx.define_int("POW", alg_kind::eltwise_pow);
+
+        kernel_ctx.define_int(
+                "RELU_DST", alg_kind::eltwise_relu_use_dst_for_bwd);
+        kernel_ctx.define_int(
+                "LOGISTIC_DST", alg_kind::eltwise_logistic_use_dst_for_bwd);
+        kernel_ctx.define_int(
+                "TANH_DST", alg_kind::eltwise_tanh_use_dst_for_bwd);
+        kernel_ctx.define_int("ELU_DST", alg_kind::eltwise_elu_use_dst_for_bwd);
+        kernel_ctx.define_int(
+                "SQRT_DST", alg_kind::eltwise_sqrt_use_dst_for_bwd);
+        kernel_ctx.define_int("EXP_DST", alg_kind::eltwise_exp_use_dst_for_bwd);
+
         kernel_ctx.define_int("ALG_KIND", jel.alg);
         kernel_ctx.define_int("NDIMS", jel.ndims);
         kernel_ctx.define_int(

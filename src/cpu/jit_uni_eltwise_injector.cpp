@@ -1022,23 +1022,30 @@ void jit_uni_eltwise_injector_f32<isa>::linear_prepare_table() {
 
 template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
+    using namespace alg_kind;
     switch (alg_) {
-        case alg_kind::eltwise_relu: return (alpha_ == 0.f) ? 0 : 2;
-        case alg_kind::eltwise_elu: return 4;
-        case alg_kind::eltwise_tanh: return 5;
-        case alg_kind::eltwise_square: return 0;
-        case alg_kind::eltwise_abs: return 0;
-        case alg_kind::eltwise_sqrt: return 2;
-        case alg_kind::eltwise_swish: return 4;
-        case alg_kind::eltwise_linear: return 1;
-        case alg_kind::eltwise_bounded_relu: return 0;
-        case alg_kind::eltwise_soft_relu: return 4;
-        case alg_kind::eltwise_logistic: return 4;
-        case alg_kind::eltwise_exp: return 3;
-        case alg_kind::eltwise_gelu: return 5;
-        case alg_kind::eltwise_log: return 5;
-        case alg_kind::eltwise_clip: return 0;
-        case alg_kind::eltwise_pow: return 2;
+        case eltwise_relu_use_dst_for_bwd:
+        case eltwise_relu: return (alpha_ == 0.f) ? 0 : 2;
+        case eltwise_elu_use_dst_for_bwd:
+        case eltwise_elu: return 4;
+        case eltwise_tanh_use_dst_for_bwd:
+        case eltwise_tanh: return 5;
+        case eltwise_square: return 0;
+        case eltwise_abs: return 0;
+        case eltwise_sqrt_use_dst_for_bwd:
+        case eltwise_sqrt: return 2;
+        case eltwise_swish: return 4;
+        case eltwise_linear: return 1;
+        case eltwise_bounded_relu: return 0;
+        case eltwise_soft_relu: return 4;
+        case eltwise_logistic_use_dst_for_bwd:
+        case eltwise_logistic: return 4;
+        case eltwise_exp_use_dst_for_bwd:
+        case eltwise_exp: return 3;
+        case eltwise_gelu: return 5;
+        case eltwise_log: return 5;
+        case eltwise_clip: return 0;
+        case eltwise_pow: return 2;
         default: assert(!"unsupported eltwise algorithm");
     }
 
@@ -1051,16 +1058,20 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
     using namespace alg_kind;
     for (size_t idx = start_idx; idx < end_idx; idx++) {
         switch (alg_) {
+            case eltwise_relu_use_dst_for_bwd:
             case eltwise_relu:
                 if (alpha_ == 0.f)
                     relu_zero_ns_compute_vector(Vmm(idx));
                 else
                     relu_compute_vector(Vmm(idx));
                 break;
+            case eltwise_elu_use_dst_for_bwd:
             case eltwise_elu: elu_compute_vector(Vmm(idx)); break;
+            case eltwise_tanh_use_dst_for_bwd:
             case eltwise_tanh: tanh_compute_vector(Vmm(idx)); break;
             case eltwise_square: square_compute_vector(Vmm(idx)); break;
             case eltwise_abs: abs_compute_vector(Vmm(idx)); break;
+            case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: sqrt_compute_vector(Vmm(idx)); break;
             case eltwise_swish: swish_compute_vector(Vmm(idx)); break;
             case eltwise_linear: linear_compute_vector(Vmm(idx)); break;
@@ -1068,7 +1079,9 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
                 bounded_relu_compute_vector(Vmm(idx));
                 break;
             case eltwise_soft_relu: soft_relu_compute_vector(Vmm(idx)); break;
+            case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: logistic_compute_vector(Vmm(idx)); break;
+            case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp: exp_compute_vector(Vmm(idx)); break;
             case eltwise_gelu: gelu_compute_vector(Vmm(idx)); break;
             case eltwise_log: log_compute_vector(Vmm(idx)); break;
@@ -1107,10 +1120,15 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
 
         switch (alg_) {
             case eltwise_bounded_relu:
+            case eltwise_relu_use_dst_for_bwd:
             case eltwise_relu: relu_prepare_table(); break;
+            case eltwise_elu_use_dst_for_bwd:
             case eltwise_elu:
+            case eltwise_tanh_use_dst_for_bwd:
             case eltwise_tanh:
+            case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic:
+            case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp:
             case eltwise_swish:
             case eltwise_gelu: elu_prepare_table(); break;
@@ -1120,6 +1138,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
             case eltwise_pow:
             case eltwise_linear: linear_prepare_table(); break;
             case eltwise_log: log_prepare_table(); break;
+            case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt:
             case eltwise_square: break;
             default: assert(!"unsupported eltwise algorithm");

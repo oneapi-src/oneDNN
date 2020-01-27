@@ -161,6 +161,14 @@ struct attr_t {
             LOG,
             CLIP,
             POW,
+
+            RELU_DST,
+            TANH_DST,
+            ELU_DST,
+            SQRT_DST,
+            LOGISTIC_DST,
+            EXP_DST,
+
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);

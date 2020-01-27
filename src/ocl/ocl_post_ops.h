@@ -48,6 +48,10 @@ POST_OP_DATA_T relu_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return s > 0 ? dd : dd * alpha;
 }
+POST_OP_DATA_T relu_bwd_use_dst(
+        POST_OP_DATA_T dd, POST_OP_DATA_T d, POST_OP_DATA_T alpha) {
+    return d > 0 ? dd : dd * alpha;
+}
 
 POST_OP_DATA_T linear_fwd(
         POST_OP_DATA_T s, POST_OP_DATA_T alpha, POST_OP_DATA_T beta) {
@@ -80,6 +84,9 @@ POST_OP_DATA_T logistic_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     POST_OP_DATA_T v = logistic_fwd(s);
     return dd * v * (1 - v);
 }
+POST_OP_DATA_T logistic_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+    return dd * d * (1 - d);
+}
 
 POST_OP_DATA_T square_fwd(POST_OP_DATA_T s) {
     return s * s;
@@ -93,6 +100,9 @@ POST_OP_DATA_T sqrt_fwd(POST_OP_DATA_T s) {
 }
 POST_OP_DATA_T sqrt_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd / (2 * sqrt(s));
+}
+POST_OP_DATA_T sqrt_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+    return dd / (2 * d);
 }
 
 POST_OP_DATA_T abs_fwd(POST_OP_DATA_T s) {
@@ -109,6 +119,9 @@ POST_OP_DATA_T tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     POST_OP_DATA_T e = tanh_fwd(s);
     return dd * (1 - e) * (1 + e);
 }
+POST_OP_DATA_T tanh_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+    return dd * (1 - d) * (1 + d);
+}
 
 POST_OP_DATA_T elu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return s > 0 ? s : alpha * expm1(s);
@@ -117,12 +130,19 @@ POST_OP_DATA_T elu_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
     return dd * (s > 0 ? 1 : alpha * exp(s));
 }
+POST_OP_DATA_T elu_bwd_use_dst(
+        POST_OP_DATA_T dd, POST_OP_DATA_T d, POST_OP_DATA_T alpha) {
+    return dd * (d > 0 ? 1 : d + alpha);
+}
 
 POST_OP_DATA_T exp_fwd(POST_OP_DATA_T s) {
     return exp(s);
 }
 POST_OP_DATA_T exp_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd * exp_fwd(s);
+}
+POST_OP_DATA_T exp_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
+    return dd * d;
 }
 
 POST_OP_DATA_T gelu_fwd(POST_OP_DATA_T s) {
@@ -199,6 +219,14 @@ POST_OP_DATA_T fwd_eltwise(
         case LOG: return log_fwd(x); break;
         case CLIP: return clip_fwd(x, alpha_, beta_); break;
         case POW: return pow_fwd(x, alpha_, beta_); break;
+
+        case RELU_DST: return relu_fwd(x, alpha_); break;
+        case LOGISTIC_DST: return logistic_fwd(x); break;
+        case TANH_DST: return tanh_fwd(x); break;
+        case ELU_DST: return elu_fwd(x, alpha_); break;
+        case SQRT_DST: return sqrt_fwd(x); break;
+        case EXP_DST: return exp_fwd(x); break;
+
         default: return x; break;
     }
 #else
@@ -226,6 +254,14 @@ POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
         case LOG: return log_bwd(x, y); break;
         case CLIP: return clip_bwd(x, y, alpha_, beta_); break;
         case POW: return pow_bwd(x, y, alpha_, beta_); break;
+
+        case RELU_DST: return relu_bwd_use_dst(x, y, alpha_); break;
+        case LOGISTIC_DST: return logistic_bwd_use_dst(x, y); break;
+        case TANH_DST: return tanh_bwd_use_dst(x, y); break;
+        case ELU_DST: return elu_bwd_use_dst(x, y, alpha_); break;
+        case SQRT_DST: return sqrt_bwd_use_dst(x, y); break;
+        case EXP_DST: return exp_bwd_use_dst(x, y); break;
+
         default: return x; break;
     }
 #else

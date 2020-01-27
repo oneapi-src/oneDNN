@@ -85,6 +85,7 @@ bool check_extreme_values(const float &a, const float &b, alg_t alg) {
         case alg_t::LOG:
         case alg_t::POW:
         case alg_t::SQRT:
+        case alg_t::SQRT_DST:
             if (std::isnan(a) && std::isnan(b)) return true;
             if (std::isinf(a) && std::isinf(b)
                     && std::signbit(a) == std::signbit(b))
@@ -128,7 +129,7 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
     }
 }
 
-static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
+static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
         const dnn_mem_t &mem_fp, const dnn_mem_t &mem_dt, res_t *r) {
     // Tolerate only rounding error (1 ulp) for other than fp32 precisions.
     float trh = epsilon_dt(p->dt);
@@ -148,7 +149,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_src_fp,
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = mem_dt.get_elem(i);
-        const float src = mem_src_fp.get_elem(i);
+        const float src = mem_arg_fp.get_elem(i);
         const float fp0 = mem_fp.get_elem(i);
         const float fp = maybe_saturate(p->dt, fp0);
 
@@ -311,9 +312,9 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t d_src_fp, d_src_dt;
 
     args_t args;
-    args.set(DNNL_ARG_SRC, src_dt);
 
     if (p->dir & FLAG_FWD) {
+        args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
 
         DNN_SAFE(execute_and_wait(e, stream_tgt, args), WARN);
@@ -346,12 +347,24 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
 
+        if (p->use_dst()) {
+            if (bench_mode & CORR) compute_ref_fwd(p, src_fp, dst_fp);
+            SAFE(dst_dt.reorder(dst_fp), WARN);
+            // make dst_fp of same values as for bf16, otherwise there are high
+            // relative and absolute errors due to initial difference in source
+            // values which become worse particularly when (1 - x) is used.
+            SAFE(dst_fp.reorder(dst_dt), WARN);
+            args.set(DNNL_ARG_DST, dst_dt);
+        } else {
+            args.set(DNNL_ARG_SRC, src_dt);
+        }
         DNN_SAFE(execute_and_wait(e, stream_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
+            dnn_mem_t &arg_fp = p->use_dst() ? dst_fp : src_fp;
+            compute_ref_bwd(p, arg_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
-            SAFE(compare(p, src_fp, d_src_fp, d_src, r), WARN);
+            SAFE(compare(p, arg_fp, d_src_fp, d_src, r), WARN);
         }
     }
 
