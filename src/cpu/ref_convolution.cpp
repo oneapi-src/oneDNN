@@ -78,6 +78,14 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
     using namespace data_type;
     bool is_int_conv = utils::one_of(src_type, s32, s8, u8);
 
+    auto maybe_oscale = [=](float &d, int g, int oc) {
+        // scale_idx_mult = 1 for per_oc scales and 0, otherwise
+        const int scale_idx_mult
+                = pd()->attr()->output_scales_.mask_ == (1 << 1);
+        const float *scales = pd()->attr()->output_scales_.scales_;
+        d *= scales[(g * OC + oc) * scale_idx_mult];
+    };
+
     auto maybe_postops = [=](float &d, dst_data_t dst) {
         // Sum and post ops:
         const post_ops_t &ops = pd()->attr()->post_ops_;
@@ -227,6 +235,7 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
                 else
                     assert(false);
 
+                maybe_oscale(a, g, oc);
                 maybe_postops(a, dst[dst_off]);
 
                 if (is_int_conv)
@@ -283,6 +292,14 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
 
     using namespace data_type;
     bool is_int_conv = utils::one_of(diff_dst_type, s32, s8, u8);
+
+    auto maybe_oscale = [=](float &d, int g, int ic) {
+        /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
+        const int scale_idx_mult
+                = pd()->attr()->output_scales_.mask_ == (1 << 1);
+        const float *scales = pd()->attr()->output_scales_.scales_;
+        d *= scales[(g * OC + ic) * scale_idx_mult];
+    };
 
     auto ker = [=](int g, int mb, int ic, int id, int ih, int iw) {
         acc_data_t d = 0;
@@ -435,6 +452,7 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     a += ker_plain(g, mb, ic, id, ih, iw);
                 else
                     a += ker(g, mb, ic, id, ih, iw);
+                maybe_oscale(a, g, ic);
                 if (is_int_conv)
                     diff_src[ds_idx] = round_and_saturate<diff_src_data_t>(a);
                 else

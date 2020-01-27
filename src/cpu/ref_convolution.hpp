@@ -55,8 +55,9 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                                             bias_md_.data_type == f32))
                     && set_default_formats()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
-                    && post_ops_ok();
+                            primitive_attr_t::skip_mask_t::oscale
+                            | primitive_attr_t::skip_mask_t::post_ops)
+                    && output_scales_mask_ok() && post_ops_ok();
             return ok ? status::success : status::unimplemented;
         }
 
@@ -68,6 +69,14 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
+        }
+
+        bool output_scales_mask_ok() const {
+            using namespace data_type;
+            const auto &mask = attr()->output_scales_.mask_;
+            return IMPLICATION(!utils::one_of(src_type, s8, u8),
+                           attr()->output_scales_.has_default_values())
+                    && (mask == 0 || mask == 1 << 1);
         }
 
         bool post_ops_ok() const {
@@ -136,7 +145,10 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, wei_type,
                             data_type::undef, diff_dst_type, acc_type)
-                    && set_default_formats() && attr()->has_default_values();
+                    && set_default_formats()
+                    && attr()->has_default_values(
+                            primitive_attr_t::skip_mask_t::oscale)
+                    && output_scales_mask_ok();
 
             return ok ? status::success : status::unimplemented;
         }
@@ -151,6 +163,14 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     ? utils::pick(ndims() - 3, goiw, goihw, goidhw)
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
+        }
+
+        bool output_scales_mask_ok() const {
+            using namespace data_type;
+            const auto &mask = attr()->output_scales_.mask_;
+            return IMPLICATION(!utils::one_of(diff_dst_type, s8, u8),
+                           attr()->output_scales_.has_default_values())
+                    && (mask == 0 || mask == 1 << 1);
         }
     };
 
