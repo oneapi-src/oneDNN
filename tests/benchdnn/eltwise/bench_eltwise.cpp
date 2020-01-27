@@ -69,30 +69,28 @@ void check_correctness() {
     for_(const auto &i_beta : beta)
     for_(const auto &i_inplace : inplace)
     for (const auto &i_mb : mb) {
-        using pk = attr_t::post_ops_t::kind_t;
-
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
-            case pk::ABS:
-            case pk::EXP:
-            case pk::GELU:
-            case pk::LOG:
-            case pk::LOGISTIC:
-            case pk::SQRT:
-            case pk::SQUARE:
-            case pk::SRELU:
-            case pk::TANH:
+            case alg_t::ABS:
+            case alg_t::EXP:
+            case alg_t::GELU:
+            case alg_t::LOG:
+            case alg_t::LOGISTIC:
+            case alg_t::SQRT:
+            case alg_t::SQUARE:
+            case alg_t::SRELU:
+            case alg_t::TANH:
                 // Skip everything but alpha = 0 and beta = 0
                 if (i_alpha != 0 || i_beta != 0) continue;
-            case pk::ELU:
-            case pk::RELU:
-            case pk::SWISH:
+            case alg_t::ELU:
+            case alg_t::RELU:
+            case alg_t::SWISH:
                 // Test any alpha value but beta = 0
                 if (i_beta != 0) continue;
-            case pk::BRELU:
+            case alg_t::BRELU:
                 // Test non-negative alpha value but beta = 0
                 if (i_alpha < 0 || i_beta != 0) continue;
-            case pk::CLIP:
+            case alg_t::CLIP:
                 // Test beta >= alpha values
                 if (i_beta < i_alpha) continue;
 
