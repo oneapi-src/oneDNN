@@ -160,7 +160,12 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
                                         desc()->weights_desc.data_type)
                                     && utils::one_of(desc()->dst_desc.data_type,
                                             data_type::f32, data_type::bf16))
-                            || desc()->dst_desc.data_type == data_type::u8);
+                            || (desc()->weights_desc.data_type == data_type::s8
+                                    && utils::one_of(desc()->src_desc.data_type,
+                                            data_type::u8, data_type::s8)
+                                    && utils::one_of(desc()->dst_desc.data_type,
+                                            data_type::u8, data_type::s8,
+                                            data_type::s32, data_type::f32)));
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any) {
