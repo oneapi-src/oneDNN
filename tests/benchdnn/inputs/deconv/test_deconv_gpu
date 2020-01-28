@@ -19,6 +19,6 @@
 
 # int8
 --reset
---cfg=u8s8u8,s8s8u8
+--cfg=u8s8u8,s8s8u8,s8s8s8,s8s8s32,u8s8s32
 --mb=2
 --dir=FWD_B --batch=deconv_all
