@@ -49,9 +49,7 @@ struct jit_uni_binary_t : public primitive_impl_t {
                     && utils::everyone_is(src_type, src_md(0)->data_type,
                             src_md(1)->data_type)
                     && set_default_params() == status::success
-                    && !has_zero_dim_memory()
-                    && memory_desc_wrapper(src_md(0))
-                            == memory_desc_wrapper(src_md(1))
+                    && !has_zero_dim_memory() && is_applicable()
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(dst_md(0))
                     && attr()->has_default_values(sm::post_ops)
@@ -59,6 +57,44 @@ struct jit_uni_binary_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             return status::success;
+        }
+
+    private:
+        bool is_applicable() {
+            const memory_desc_wrapper src0_d(src_md(0));
+            const memory_desc_wrapper src1_d(src_md(1));
+            // full tensor operation
+            if (src0_d == src1_d) return true;
+
+            // broadcast operation
+            const auto ndims = src0_d.ndims();
+            bool ok = ndims >= 2;
+            // only supported case for now is NxCxDxHxW:{N,1}xCx1x1x1
+            const auto &bcast_dims = broadcast_dims();
+            ok = ok && bcast_dims[1] == 0;
+            for (int d = 2; d < ndims; ++d)
+                ok = ok && bcast_dims[d] == 1;
+            if (!ok) return false;
+
+            if (src0_d.is_plain() && src1_d.is_plain()) {
+                const auto &bd0 = src0_d.blocking_desc();
+                const auto &bd1 = src1_d.blocking_desc();
+                return bd0.strides[0] >= bd0.strides[1]
+                        && IMPLICATION(bd0.strides[1] > 1,
+                                bd0.strides[1] >= bd0.strides[2])
+                        && bd1.strides[0] >= bd1.strides[1];
+            }
+
+            // check blocking_desc consistency
+            auto valid_bd = [&](const memory_desc_wrapper &mdw) {
+                int blksize = 8;
+                if (mayiuse(avx512_core)) blksize = 16;
+                const auto &bd = mdw.blocking_desc();
+                return bd.inner_nblks == 1 && bd.inner_blks[0] == blksize
+                        && bd.inner_idxs[0] == 1;
+            };
+
+            return valid_bd(src0_d) && valid_bd(src1_d);
         }
     };
 

@@ -1,28 +1,16 @@
---stag=nchw:nchw       3x5x6x9:3x5x6x9 5x3x2x9:1x3x1x9 4x4x4x4:4x4x1x4
---stag=nchw:nChw16c    1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
---stag=nchw:nc         3x7x5x1:3x7 2x16x4x3:1x16
---stag=nchw:x          7x2x1x8:7 3x2x3x2:1
+--stag=nchw:nchw       3x5x6x9:3x5x6x9 5x3x2x9:1x3x2x9 4x4x4x4:4x4x1x4 32x17x2x3:32x17x1x1 32x17x2x3:1x17x1x1 16x12x2x2:16x1x1x1
+--stag=nhwc:nhwc       3x5x6x9:3x5x6x9 5x3x2x9:5x1x2x9 4x4x4x4:4x4x4x1 32x17x2x3:32x17x1x1 32x17x2x3:1x17x1x1 16x12x2x2:1x1x1x1
+--stag=nChw16c:nChw16c 4x16x5x7:4x16x5x7 8x15x5x7:8x15x1x1
+--stag=nChw8c:nChw8c   4x16x5x7:4x16x5x7 8x15x5x7:1x15x1x1
 
---stag=nhwc:nhwc       3x5x6x9:3x5x6x9 5x3x2x9:1x3x1x9 4x4x4x4:4x4x1x4
---stag=nhwc:nc         3x7x5x1:3x7 2x16x4x3:1x16
---stag=nhwc:x          7x2x1x8:7 3x2x3x2:1
+--stag=nchw:nhwc       3x5x6x9:3x5x6x9 5x3x2x9:1x3x2x9 4x4x4x4:4x4x1x4 16x12x2x2:16x1x1x1
+--stag=nchw:nChw8c     2x8x3x10:2x8x3x10 2x7x3x10:2x7x3x1 2x17x3x10:1x17x1x1
+--stag=nhwc:nChw8c     2x8x3x10:2x8x3x10 2x7x3x10:2x7x3x1 2x17x3x10:1x17x1x1
+--stag=nChw8c:nChw16c  2x16x5x7:2x16x5x7 2x16x5x7:2x16x1x1 3x15x5x1:1x15x5x1
+--stag=nChw16c:nhwc    2x16x5x7:2x16x5x7 2x16x5x7:2x16x1x1 3x15x5x1:1x15x5x1
 
---stag=nChw8c:nChw8c   2x8x3x10:2x8x3x10 2x7x3x10:2x7x3x10
---stag=nChw8c:nhwc     2x8x3x10:2x8x3x10 2x7x3x10:2x7x3x10
---stag=nChw8c:nc       2x16x1x1:1x16 2x17x1x1:1x17
---stag=nChw8c:x        3x8x4x3:1 3x12x4x3:1
-
---stag=nChw16c:nChw16c 1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
---stag=nChw16c:nChw8c  1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
---stag=nChw16c:nCw16c  2x32x3x3:1x32x3 2x33x3x3:1x33x3
---stag=nChw16c:x       3x16x2x4:1 3x24x2x4:1
-
---stag=nCw4c:nCw4c     2x23x5:2x23x5 3x16x6:3x1x6
---stag=nCw4c:ncw       2x23x5:2x23x5 3x16x6:3x1x6
---stag=nCw4c:nc        2x23x5:1x23 3x16x6:3x16
---stag=nCw4c:x         2x23x5:2 3x16x6:1
-
+--stag=abc:bac         4x6x7:4x6x7 4x6x7:4x6x1
 --stag=x:x             1024:1024 127:1
 
-# NCF
---stag=nc:nc           1000x60:1000x60
+--stag=nc:nc           1000x60:1000x60 # NCF
+

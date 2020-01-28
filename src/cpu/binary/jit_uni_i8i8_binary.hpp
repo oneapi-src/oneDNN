@@ -48,9 +48,7 @@ struct jit_uni_i8i8_binary_t : public primitive_impl_t {
                     && dst_md(0)->data_type == src0_type
                     && set_default_params()
                             == status::success /* should precede comparison */
-                    && !has_zero_dim_memory()
-                    && memory_desc_wrapper(src_md(0)).similar_to(
-                            memory_desc_wrapper(src_md(1)), true, false, 0)
+                    && !has_zero_dim_memory() && is_applicable()
                     && memory_desc_wrapper(src_md(0))
                             == memory_desc_wrapper(dst_md(0))
                     && attr()->has_default_values(sm::post_ops | sm::scales)
@@ -68,6 +66,26 @@ struct jit_uni_i8i8_binary_t : public primitive_impl_t {
                 if (s.second.mask_ != 0) return false;
             }
             return true;
+        }
+
+        bool is_applicable() {
+            const memory_desc_wrapper src0_d(src_md(0));
+            const memory_desc_wrapper src1_d(src_md(1));
+            // full tensor operation
+            if (src0_d.similar_to(src1_d, true, false, 0)) return true;
+
+            // broadcast operation
+            const auto ndims = src0_d.ndims();
+            bool ok = ndims >= 2;
+            // only supported case for now is NxCxDxHxW:{N,1}xCx1x1x1
+            const auto &bcast_dims = broadcast_dims();
+            ok = ok && bcast_dims[1] == 0;
+            for (int d = 2; d < ndims; ++d)
+                ok = ok && bcast_dims[d] == 1;
+            if (!ok) return false;
+
+            const auto &bd = src0_d.blocking_desc();
+            return bd.strides[1] == 1 && bd.inner_nblks == 0;
         }
     };
 
