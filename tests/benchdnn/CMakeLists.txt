@@ -210,7 +210,7 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
     register_benchdnn_test(test_benchdnn_ip
         gpu "-v1 --ip --batch=inputs/ip/test_ip_gpu")
     register_benchdnn_test(test_benchdnn_rnn
-        gpu "-v1 --rnn --batch=inputs/rnn/test_rnn_gpu")
+        gpu "-v1 --rnn --batch=inputs/rnn/test_rnn_small_gpu")
     register_benchdnn_test(test_benchdnn_reorder
         gpu "-v1 --reorder --batch=inputs/reorder/test_reorder_gpu")
     register_benchdnn_test(test_benchdnn_pool
