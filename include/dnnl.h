@@ -1914,22 +1914,22 @@ dnnl_status_t DNNL_API dnnl_lrn_backward_desc_init(dnnl_lrn_desc_t *lrn_desc,
 /// Inputs:
 ///  - src (#dnnl_query_src_md, 0)
 ///  - mean (#dnnl_query_src_md, 1),
-///     if #dnnl_use_global_stats bit-flags is set in @p flags
+///     if #dnnl_use_global_stats bit-flag is set in @p flags
 ///  - variance (#dnnl_query_src_md, 2),
-///     if #dnnl_use_global_stats bit-flags is set in @p flags
+///     if #dnnl_use_global_stats bit-flag is set in @p flags
 ///  - scale_and_shift (#dnnl_query_weights_md, 0),
-///     if #dnnl_use_scaleshift bit-flags is set in @p flags
+///     if #dnnl_use_scaleshift bit-flag is set in @p flags
 ///
 /// Outputs:
 ///  - dst (#dnnl_query_dst_md, 0)
 ///  - mean (#dnnl_query_dst_md, 1),
-///     if #dnnl_use_global_stats bit-flags is not set in @p flags
+///     if #dnnl_use_global_stats bit-flag is not set in @p flags
 ///     and @p prop_kind = #dnnl_forward_training
 ///  - variance (#dnnl_query_dst_md, 2),
-///     if #dnnl_use_global_stats bit-flags is not set in @p flags
+///     if #dnnl_use_global_stats bit-flag is not set in @p flags
 ///     and @p prop_kind = #dnnl_forward_training
 ///  - workspace (#dnnl_query_workspace_md, 0),
-///     if #dnnl_fuse_norm_relu bit-flags is set in @p flags
+///     if #dnnl_fuse_norm_relu bit-flag is set in @p flags
 ///     and @p prop_kind = #dnnl_forward_training; must be queried for
 ///     using @ref dnnl_primitive_desc_query_md() after a corresponding
 ///     primitive descriptor is created
@@ -1959,14 +1959,14 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_forward_desc_init(
 ///  - variance (#dnnl_query_src_md, 2)
 ///  - diff_dst (#dnnl_query_diff_dst_md, 0)
 ///  - scale_and_shift (#dnnl_query_weights_md, 0),
-///     if #dnnl_use_scaleshift bit-flags is set in @p flags
+///     if #dnnl_use_scaleshift bit-flag is set in @p flags
 ///  - workspace (#dnnl_query_workspace_md, 0),
-///     if #dnnl_fuse_norm_relu bit-flags is set in @p flags
+///     if #dnnl_fuse_norm_relu bit-flag is set in @p flags
 ///
 /// Outputs:
 ///  - diff_src (#dnnl_query_diff_src_md, 0)
 ///  - diff_scale_and_shift (#dnnl_query_diff_weights_md, 0),
-///     if #dnnl_use_scaleshift bit-flags is set in @p flags
+///     if #dnnl_use_scaleshift bit-flag is set in @p flags
 ///     and @p prop_kind = #dnnl_backward
 ///
 /// @param bnrm_desc Output descriptor for batch normalization primitive.
@@ -1999,19 +1999,19 @@ dnnl_status_t DNNL_API dnnl_batch_normalization_backward_desc_init(
 /// Inputs:
 ///  - src (#dnnl_query_src_md, 0)
 ///  - mean (#dnnl_query_src_md, 1),
-///     if #dnnl_use_global_stats bit-flags is set in @p flags
+///     if #dnnl_use_global_stats bit-flag is set in @p flags
 ///  - variance (#dnnl_query_src_md, 2),
-///     if #dnnl_use_global_stats bit-flags is set in @p flags
+///     if #dnnl_use_global_stats bit-flag is set in @p flags
 ///  - scale_and_shift (#dnnl_query_weights_md, 0),
-///     if #dnnl_use_scaleshift bit-flags is set in @p flags
+///     if #dnnl_use_scaleshift bit-flag is set in @p flags
 ///
 /// Outputs:
 ///  - dst (#dnnl_query_dst_md, 0)
 ///  - mean (#dnnl_query_dst_md, 1),
-///     if #dnnl_use_global_stats bit-flags is not set in @p flags
+///     if #dnnl_use_global_stats bit-flag is not set in @p flags
 ///     and @p prop_kind = #dnnl_forward_training
 ///  - variance (#dnnl_query_dst_md, 2),
-///     if #dnnl_use_global_stats bit-flags is not set in @p flags
+///     if #dnnl_use_global_stats bit-flag is not set in @p flags
 ///     and @p prop_kind = #dnnl_forward_training
 ///
 /// @param lnrm_desc Output descriptor for layer normalization primitive.
@@ -2045,12 +2045,12 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_forward_desc_init(
 ///  - variance (#dnnl_query_src_md, 2)
 ///  - diff_dst (#dnnl_query_diff_dst_md, 0)
 ///  - scale_and_shift (#dnnl_query_weights_md, 0),
-///     if #dnnl_use_scaleshift bit-flags is set in @p flags
+///     if #dnnl_use_scaleshift bit-flag is set in @p flags
 ///
 /// Outputs:
 ///  - diff_src (#dnnl_query_diff_src_md, 0)
 ///  - diff_scale_and_shift (#dnnl_query_diff_weights_md, 0),
-///     if #dnnl_use_scaleshift bit-flags is set in @p flags
+///     if #dnnl_use_scaleshift bit-flag is set in @p flags
 ///     and @p prop_kind = #dnnl_backward
 ///
 /// @param lnrm_desc Output descriptor for layer normalization primitive.

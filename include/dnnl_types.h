@@ -1643,27 +1643,27 @@ typedef const struct dnnl_primitive_desc *const_dnnl_primitive_desc_t;
 
 /// Scratchpad mode
 typedef enum {
-    /// The library manages scratchpad (default)
-    /// The allocation policy is controlled by the DNNL_ENABLE_CONCURRENT_EXEC
-    /// build option (@ref dev_guide_build_options).
+    /// The library manages the scratchpad allocation according to the policy
+    /// specified by the `DNNL_ENABLE_CONCURRENT_EXEC`
+    /// [build option](@ref dev_guide_build_options) (default).
     ///
-    /// When DNNL_ENABLE_CONCURRENT_EXEC=OFF (default), the library
-    /// scratchpad is common to all primitives to reduce the memory
-    /// footprint.  This configuration comes with limited
-    /// thread-safety properties, namely different primitives can be
-    /// created and executed in parallel but cannot migrate between
-    /// threads (in other words, each primitive should be executed in
+    /// When `DNNL_ENABLE_CONCURRENT_EXEC=OFF` (default), the library
+    /// scratchpad is common to all primitives to reduce the memory footprint.
+    /// This configuration comes with limited thread-safety properties, namely
+    /// primitives can be created and executed in parallel but cannot migrate
+    /// between threads (in other words, each primitive should be executed in
     /// the same thread it was created in).
     ///
-    /// When DNNL_ENABLE_CONCURRENT_EXEC=ON, the library scratchpad is private
-    /// to each primitive. The memory footprint is larger than when using
-    /// DNNL_ENABLE_CONCURRENT_EXEC=OFF but different primitives can be created
-    /// and run concurrently (the same primitive cannot be run concurrently from
-    /// two different threads though).
+    /// When `DNNL_ENABLE_CONCURRENT_EXEC=ON`, the library scratchpad is
+    /// private to each primitive. The memory footprint is larger than when
+    /// using `DNNL_ENABLE_CONCURRENT_EXEC=OFF` but different primitives can be
+    /// created and run concurrently (the same primitive cannot be run
+    /// concurrently from two different threads though).
     dnnl_scratchpad_mode_library,
-    /// A user shall query and provide the scratchpad memory to primitives
-    /// This mode is thread-safe as long as the scratchpad buffers
-    /// are not used concurrently by two primitive executions.
+    /// The user manages the scratchpad allocation by querying and providing
+    /// the scratchpad memory to primitives. This mode is thread-safe as long
+    /// as the scratchpad buffers are not used concurrently by two primitive
+    /// executions.
     dnnl_scratchpad_mode_user,
 } dnnl_scratchpad_mode_t;
 
