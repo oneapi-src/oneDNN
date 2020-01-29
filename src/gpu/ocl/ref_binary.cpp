@@ -28,6 +28,13 @@ status_t ref_binary_t::pd_t::init_conf() {
 
     alg_kind_t alg = desc()->alg_kind;
 
+    const auto &po = pd->attr()->post_ops_;
+    bool with_sum = po.contain(primitive_kind::sum, 0)
+            && po.entry_[0].sum.scale != 0.f;
+    float sum_scale = with_sum ? po.entry_[0].sum.scale : 1;
+    int e_idx = po.find(primitive_kind::eltwise);
+    bool with_eltwise = e_idx != -1 ? true : false;
+
     const int ndims = src0_d.ndims();
     conf.src0_md_info = memory_desc_info_t::create(src0_d);
     conf.src1_md_info = memory_desc_info_t::create(src1_d);
@@ -44,6 +51,11 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf.is_tensor_op = is_tensor_op();
     conf.is_dense = dst_d.is_dense();
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
+
+    conf.with_eltwise = with_eltwise;
+    conf.with_sum = with_sum;
+    conf.sum_scale = sum_scale;
+    if (with_eltwise) { conf.eltwise = po.entry_[e_idx].eltwise; }
 
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine());
@@ -80,9 +92,15 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
     kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
 
+    kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
+    kernel_ctx.define_int("WITH_SUM", conf.with_sum);
+    kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1);
+
     def_memory_desc_info(kernel_ctx, conf.src0_md_info, "SRC0");
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
     def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
+
+    if (conf.with_eltwise) { def_postops(kernel_ctx, conf.eltwise.alg); }
 
     def_dispatch(kernel_ctx, conf.dispatch);
 
@@ -97,10 +115,17 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
+    auto eltwise_alpha = pd()->eltwise_alpha();
+    auto eltwise_beta = pd()->eltwise_beta();
+    auto sum_scale = pd()->sum_scale();
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src0);
     arg_list.set(1, src1);
     arg_list.set(2, dst);
+    arg_list.set(3, eltwise_alpha);
+    arg_list.set(4, eltwise_beta);
+    arg_list.set(5, sum_scale);
 
     const auto &conf = pd()->conf;
 

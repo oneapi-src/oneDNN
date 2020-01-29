@@ -359,6 +359,10 @@ struct binary_conf_t {
     int bcast_dims[MAX_NDIMS];
     bool is_dense;
     bool is_same_md;
+    bool with_eltwise;
+    post_ops_t::entry_t::eltwise_t eltwise;
+    bool with_sum;
+    float sum_scale;
     memory_desc_info_t src0_md_info;
     memory_desc_info_t src1_md_info;
     memory_desc_info_t dst_md_info;

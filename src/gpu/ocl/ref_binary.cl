@@ -15,6 +15,10 @@
 *******************************************************************************/
 #include "gpu/ocl/ocl_types.h"
 
+#if WITH_ELTWISE == 1 || WITH_POST_SUM_ELTWISE == 1
+#include "ocl/ocl_post_ops.h"
+#endif
+
 #undef DST_OFF
 
 #define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
@@ -23,24 +27,39 @@
 
 #if IS_TENSOR_OP && IS_DENSE && IS_SAME_MD
 KERNEL_ATTR
-__kernel void ref_binary(
-        __global DATA_T *src0, __global DATA_T *src1, __global DATA_T *dst) {
+__kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
+        __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
+        float sum_scale) {
     int off = GWS_GET_IDX();
 
     POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
     POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[off]);
+    POST_OP_DATA_T d = 0;
 
 #if IS_ADD
-    dst[off] = CONVERT_DATA_T(tmp_src0 + tmp_src1);
+    d = CONVERT_DATA_T(tmp_src0 + tmp_src1);
 #elif IS_MUL
-    dst[off] = CONVERT_DATA_T(tmp_src0 * tmp_src1);
+    d = CONVERT_DATA_T(tmp_src0 * tmp_src1);
 #elif IS_MAX
-    dst[off] = CONVERT_DATA_T(max(tmp_src0, tmp_src1));
+    d = CONVERT_DATA_T(max(tmp_src0, tmp_src1));
 #elif IS_MIN
-    dst[off] = CONVERT_DATA_T(min(tmp_src0, tmp_src1));
+    d = CONVERT_DATA_T(min(tmp_src0, tmp_src1));
 #endif
-}
 
+#if WITH_SUM == 1
+#if SUM_SCALE == 1
+    d += (POST_OP_DATA_T)dst[off];
+#else
+    d += sum_scale * (POST_OP_DATA_T)dst[off];
+#endif
+#endif
+
+#if WITH_ELTWISE == 1
+    d = fwd_eltwise(d, eltwise_alpha, eltwise_beta);
+#endif
+
+    dst[off] = TO_DST(d);
+}
 #else
 KERNEL_ATTR
 __kernel void ref_binary(
