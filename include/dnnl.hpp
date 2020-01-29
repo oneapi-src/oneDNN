@@ -2159,10 +2159,45 @@ struct memory : public handle<dnnl_memory_t> {
             return desc(sub_md);
         }
 
-        /// Constructs a memory descriptor by reshaping existing one.
-        //
+        /// Constructs a memory descriptor by reshaping an existing one. The
+        /// new memory descriptor inherits the data type. This operation is
+        /// valid only for memory descriptors that have format_kind set to
+        /// #dnnl::memory::format_kind::blocked or
+        /// #dnnl::memory::format_kind::any.
+        ///
+        /// The operation ensures that the transformation of the physical memory
+        /// format corresponds to the transformation of the logical dimensions.
+        /// If such transformation is impossible, the function either throws an
+        /// exception (default) or returns a zero memory descriptor depending on
+        /// the `allow_empty` flag.
+        ///
+        /// The reshape operation can be described as a combination of the
+        /// following basic operations:
+        /// 1. Add a dimension of size `1`. This is always possible.
+        /// 2. Remove a dimension of size `1`. This is possible only if the
+        ///    dimension has no padding (i.e.
+        ///    `padded_dims[dim] == dims[dim] && dims[dim] == 1`).
+        /// 3. Split a dimension into multiple ones. This is possible only if
+        ///    the size of the dimension is exactly equal to the product of the
+        ///    split ones and the dimension does not have padding (i.e.
+        ///    `padded_dims[dim] = dims[dim]`).
+        /// 4. Joining multiple consecutive dimensions into a single one. As in
+        ///    the cases above, this requires that the dimensions do not have
+        ///    padding and that the memory format is such that in physical
+        ///    memory these dimensions are dense and have the same order as
+        ///    their logical counterparts. This also assumes that these
+        ///    dimensions are not blocked.
+        ///    - Here, dense means:
+        ///      `stride for dim[i] == (stride for dim[i + 1]) * dim[i + 1]`;
+        ///    - And same order means:
+        ///      `i < j <=> stride for dim[i] < stride for dim[j]`.
+        ///
+        /// @warning
+        ///     Some combinations of physical memory layout and/or offsets or
+        ///     dimensions may result in a failure to make a reshape.
+        ///
         /// @param dims New dimensions. The product of dimensions must
-        /// remain constant.
+        ///     remain constant.
         /// @param allow_empty A flag signifying whether construction is
         ///     allowed to fail without throwing an exception. In this case a
         ///     zero memory descriptor will be returned. This flag is optional

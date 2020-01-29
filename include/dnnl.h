@@ -716,15 +716,39 @@ dnnl_status_t DNNL_API dnnl_memory_desc_init_submemory(
 
 /// Initializes a memory descriptor by reshaping an existing one. The new
 /// memory descriptor inherits the data type. This operation is valid only for
-/// memory descriptors that have format_kind set to #dnnl_blocked.
+/// memory descriptors that have format_kind set to #dnnl_blocked or
+/// #dnnl_format_kind_any.
 ///
-/// @note
-///     Currently reshape is limited to appending 1-sized dimensions to the
-///     end of the dimensions array.
+/// The operation ensures the transformation of the physical memory format
+/// corresponds to the transformation of the logical dimensions. If such
+/// transformation is impossible, the function returns #dnnl_invalid_arguments.
+///
+/// The reshape operation can be described as a combination of the following
+/// basic operations:
+/// 1. Add a dimension of size `1`. This is always possible.
+/// 2. Remove a dimension of size `1`. This is possible only if the dimension
+///    has no padding (i.e. `padded_dims[dim] == dims[dim] && dims[dim] == 1`).
+/// 3. Split a dimension into multiple ones. This is possible only if the size
+///    of the dimension is exactly equal to the product of the split ones and
+///    the dimension does not have padding (i.e.
+///    `padded_dims[dim] = dims[dim]`).
+/// 4. Joining multiple consecutive dimensions into a single one. As in the
+///    cases above, this requires that the dimensions do not have padding and
+///    that the memory format is such that in physical memory these dimensions
+///    are dense and have the same order as their logical counterparts. This
+///    also assumes that these dimensions are not blocked.
+///    - Here, dense means:
+///      `stride for dim[i] == (stride for dim[i + 1]) * dim[i + 1]`;
+///    - And same order means:
+///      `i < j <=> stride for dim[i] < stride for dim[j]`.
+///
+/// @warning
+///     Some combinations of physical memory layout and/or offsets or
+///     dimensions may result in a failure to make a reshape.
 ///
 /// @param out_memory_desc Output memory descriptor.
 /// @param in_memory_desc An existing memory descriptor. Must have format_kind
-///     set to #dnnl_blocked.
+///     set to #dnnl_blocked or #dnnl_format_kind_any.
 /// @param ndims Number of dimensions for the output memory descriptor.
 /// @param dims Dimensions for the output memory descriptor.
 /// @returns #dnnl_success on success and a status describing the error
