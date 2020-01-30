@@ -911,6 +911,7 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
     static const double FORCE_NOCOPY_THRESH = 0.00196;
 
     bool is_NT_case = transa == no_trans && transb == do_trans;
+    bool is_TN_case = transa == do_trans && transb == no_trans;
 
     bool is_lda_bad = lda % BAD_LD_MULT == 0;
     bool is_ldb_bad = ldb % BAD_LD_MULT == 0;
@@ -925,6 +926,10 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
             && !(is_lda_verybad && is_NT_case)) {
         return true;
     }
+
+    // Copy-based performs better for TN case with small N in sequential case.
+    if (nthr == 1 && is_TN_case && m > 100 && m < 1200 && n < 200 && k < 1200)
+        return false;
 
     // Copy strategy usually performs better than nocopy on "bad" leading
     // dimensions.
