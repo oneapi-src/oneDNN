@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace ocl {
+
 struct ref_convolution_kernel_t {
     ref_convolution_kernel_t() = default;
 
@@ -196,6 +197,9 @@ struct ref_convolution_kernel_t {
         kernel_ctx.define_int("WITH_SUM", conf_.with_sum);
         kernel_ctx.define_int(
                 "WITH_POST_SUM_ELTWISE", conf_.with_post_sum_eltwise);
+
+        kernel_ctx.define_int("SCALES_COMMON", conf_.with_common_scales);
+        kernel_ctx.define_int("SCALES_PER_OC", conf_.with_per_oc_scales);
 
         return status::success;
     }
