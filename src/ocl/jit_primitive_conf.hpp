@@ -155,7 +155,7 @@ struct jit_conv_conf_t {
     size_t gws_d[3], lws_d[3];
     compute::dispatch_t dispatch;
 
-    bool with_bias, with_sum, with_sum_relu, with_groups;
+    bool with_bias, with_sum, with_sum_relu, with_groups, with_scales;
 
     bool with_eltwise;
     bool with_post_sum_eltwise;
@@ -410,11 +410,13 @@ struct jit_shuffle_conf_t {
 
 inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         const memory_desc_t &src_md, const memory_desc_t &weights_md,
-        const memory_desc_t &dst_md, const primitive_attr_t &attr) {
+        const memory_desc_t &dst_md, const memory_desc_t &bias_md,
+        const primitive_attr_t &attr) {
 
     const memory_desc_wrapper src_mdw(&src_md);
     const memory_desc_wrapper weights_mdw(&weights_md);
     const memory_desc_wrapper dst_mdw(&dst_md);
+    const memory_desc_wrapper bias_mdw(&bias_md);
 
     const bool with_groups = weights_mdw.ndims() == src_mdw.ndims() + 1;
     int ndims = src_mdw.ndims();
@@ -454,6 +456,14 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
     jcp.dilate_w = cd.dilates[ndims - 3];
+
+    jcp.with_bias = bias_mdw.format_kind() != format_kind::undef;
+
+    jcp.src_data_type = src_mdw.data_type();
+    jcp.weights_data_type = weights_mdw.data_type();
+    jcp.dst_data_type = dst_mdw.data_type();
+    jcp.acc_data_type = cd.accum_data_type;
+    jcp.bias_data_type = jcp.with_bias ? bias_mdw.data_type() : data_type::f32;
 
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;

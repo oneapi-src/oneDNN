@@ -33,9 +33,10 @@ struct ref_convolution_kernel_t {
         const memory_desc_t &src_md = *pd->invariant_src_md();
         const memory_desc_t &weights_md = *pd->invariant_wei_md();
         const memory_desc_t &dst_md = *pd->invariant_dst_md();
+        const memory_desc_t &bias_md = *pd->invariant_bia_md();
         const primitive_attr_t &attr = *pd->attr();
 
-        set_default_conf(conf_, cd, src_md, weights_md, dst_md, attr);
+        set_default_conf(conf_, cd, src_md, weights_md, dst_md, bias_md, attr);
 
         set_offsets(src_md, off_.src_off);
         set_offsets(weights_md, off_.wht_off);
@@ -47,15 +48,6 @@ struct ref_convolution_kernel_t {
         switch (cd.prop_kind) {
             case prop_kind::forward_training:
             case prop_kind::forward_inference: {
-                conf_.with_bias
-                        = cd.bias_desc.format_kind != format_kind::undef;
-                conf_.src_data_type = cd.src_desc.data_type;
-                conf_.weights_data_type = cd.weights_desc.data_type;
-                conf_.dst_data_type = cd.dst_desc.data_type;
-                conf_.acc_data_type = cd.accum_data_type;
-                conf_.bias_data_type = conf_.with_bias ? cd.bias_desc.data_type
-                                                       : data_type::f32;
-
                 conf_.dispatch = compute_engine->create_dispatch(&dst_md);
                 conf_.dispatch.define_dim("MB", 0, conf_.mb);
                 conf_.dispatch.define_dim("G", 1, conf_.ngroups);
@@ -70,14 +62,6 @@ struct ref_convolution_kernel_t {
                 break;
             }
             case prop_kind::backward_data: {
-                conf_.with_bias
-                        = cd.bias_desc.format_kind != format_kind::undef;
-                conf_.src_data_type = cd.diff_src_desc.data_type;
-                conf_.weights_data_type = cd.weights_desc.data_type;
-                conf_.dst_data_type = cd.diff_dst_desc.data_type;
-                conf_.acc_data_type = cd.accum_data_type;
-                conf_.bias_data_type = conf_.with_bias ? cd.bias_desc.data_type
-                                                       : data_type::f32;
                 conf_.dispatch = compute_engine->create_dispatch(&src_md);
                 conf_.dispatch.define_dim_with_nesting_level(
                         "IC", conf_.ndims, conf_.ic);
@@ -93,16 +77,6 @@ struct ref_convolution_kernel_t {
                 break;
             }
             case prop_kind::backward_weights: {
-                conf_.with_bias
-                        = cd.diff_bias_desc.format_kind != format_kind::undef;
-                conf_.src_data_type = cd.src_desc.data_type;
-                conf_.weights_data_type = cd.diff_weights_desc.data_type;
-                conf_.dst_data_type = cd.diff_dst_desc.data_type;
-                conf_.acc_data_type = cd.accum_data_type;
-                conf_.bias_data_type = conf_.with_bias
-                        ? cd.diff_bias_desc.data_type
-                        : data_type::f32;
-
                 conf_.dispatch = compute_engine->create_dispatch(&weights_md);
                 conf_.dispatch.define_dim("G", 0, conf_.ngroups);
                 conf_.dispatch.define_dim("OC", oc_idx, conf_.oc);

@@ -45,15 +45,8 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         const primitive_attr_t &attr = *pd->attr();
 
-        set_default_conf(
-                jcp, cd, *pd->src_md(), *pd->weights_md(), *pd->dst_md(), attr);
-
-        jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
-        jcp.src_data_type = cd.src_desc.data_type;
-        jcp.weights_data_type = cd.weights_desc.data_type;
-        jcp.dst_data_type = cd.dst_desc.data_type;
-        jcp.acc_data_type = cd.accum_data_type;
-        jcp.bias_data_type = jcp.with_bias ? cd.bias_desc.data_type : f32;
+        set_default_conf(jcp, cd, *pd->src_md(), *pd->weights_md(),
+                *pd->dst_md(), *pd->weights_md(1), attr);
 
         const bool is_1stconv = jcp.ic_without_padding == 3;
         const bool is_depthwise = jcp.with_groups
@@ -102,7 +95,6 @@ struct jit_gen9_common_conv_fwd_kernel {
 
         status_t status = status::success;
         jcp.ocb = 1;
-        jcp.src_data_type = src_mdw.data_type();
 
         switch (jcp.ver) {
             case ver_16mb16c:
@@ -494,14 +486,7 @@ struct jit_gen9_common_conv_bwd_data_kernel {
         const primitive_attr_t &attr = *pd->attr();
 
         set_default_conf(jcp, cd, *pd->diff_src_md(), *pd->weights_md(),
-                *pd->diff_dst_md(), attr);
-
-        jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
-        jcp.src_data_type = cd.diff_src_desc.data_type;
-        jcp.weights_data_type = cd.weights_desc.data_type;
-        jcp.dst_data_type = cd.diff_dst_desc.data_type;
-        jcp.acc_data_type = cd.accum_data_type;
-        jcp.bias_data_type = jcp.with_bias ? cd.bias_desc.data_type : f32;
+                *pd->diff_dst_md(), *pd->weights_md(1), attr);
 
         const bool is_1stconv = jcp.ic_without_padding == 3;
         const bool is_depthwise = jcp.with_groups
@@ -876,14 +861,7 @@ struct jit_gen9_common_conv_bwd_weights_kernel {
         const primitive_attr_t &attr = *pd->attr();
 
         set_default_conf(jcp, cd, *pd->src_md(), *pd->diff_weights_md(),
-                *pd->diff_dst_md(), attr);
-
-        jcp.with_bias = cd.diff_bias_desc.format_kind != format_kind::undef;
-        jcp.src_data_type = cd.src_desc.data_type;
-        jcp.weights_data_type = cd.diff_weights_desc.data_type;
-        jcp.dst_data_type = cd.diff_dst_desc.data_type;
-        jcp.acc_data_type = cd.accum_data_type;
-        jcp.bias_data_type = jcp.with_bias ? cd.diff_bias_desc.data_type : f32;
+                *pd->diff_dst_md(), *pd->diff_weights_md(1), attr);
 
         const bool is_1stconv = jcp.ic_without_padding == 3;
         const bool is_depthwise = jcp.with_groups
