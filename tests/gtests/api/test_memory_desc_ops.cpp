@@ -190,5 +190,81 @@ INSTANTIATE_TEST_SUITE_P(TestReshapeOK, reshape_test, cases_generic);
 
 } // namespace reshape
 
+namespace permute_axes {
+
+struct params_t {
+    memory_desc_proxy_t in;
+    memory_desc_proxy_t out;
+    std::vector<int> perm;
+    test_direction_t test_direction;
+    dnnl_status_t expected_status;
+};
+
+class permute_axes_test : public ::testing::TestWithParam<params_t> {
+protected:
+    void Test(const memory::desc &in_md, const memory::desc &out_md,
+            const std::vector<int> &perm) {
+        memory::desc get_out_md = in_md.permute_axes(perm);
+
+        debug::print_md("in_md", in_md);
+        debug::print_vec("perm : ", perm.data(), (int)perm.size());
+        debug::print_md("out_md", get_out_md);
+        debug::print_md("expect_out_md", out_md);
+
+        ASSERT_EQ(get_out_md, out_md);
+    }
+};
+TEST_P(permute_axes_test, TestsPermuteAxes) {
+    params_t p = ::testing::TestWithParam<decltype(p)>::GetParam();
+    catch_expected_failures([=]() { Test(p.in.md, p.out.md, p.perm); },
+            p.expected_status != dnnl_success, p.expected_status);
+    if (p.test_direction == UNI_DIRECTION) return;
+
+    std::vector<int> inv_perm(p.perm.size());
+    for (int i = 0; i < (int)p.perm.size(); ++i)
+        inv_perm[p.perm[i]] = i;
+    catch_expected_failures([=]() { Test(p.out.md, p.in.md, inv_perm); },
+            p.expected_status != dnnl_success, p.expected_status);
+}
+
+using fmt = dnnl::memory::format_tag;
+
+// clang-format off
+auto cases_expect_to_fail = ::testing::Values(
+        // incorrect permutation
+        params_t {{{2, 2, 1, 1}, fmt::abcd}, {{2, 2, 1, 1}, fmt::abcd}, {0, 1, 2, 2}, UNI_DIRECTION, dnnl_invalid_arguments},
+        // incorrect permutation
+        params_t {{{2, 2, 1, 1}, fmt::abcd}, {{2, 2, 1, 1}, fmt::abcd}, {0, 1, 2, 4}, UNI_DIRECTION, dnnl_invalid_arguments},
+        // incorrect permutation
+        params_t {{{2, 2, 1, 1}, fmt::abcd}, {{2, 2, 1, 1}, fmt::abcd}, {0, 1, 2, -1}, UNI_DIRECTION, dnnl_invalid_arguments},
+        // nothing can be done with zero memory desc
+        params_t {{}, {}, {}, UNI_DIRECTION, dnnl_invalid_arguments},
+        // invalid format kind
+        params_t {{{2, 2, 1, 1}, memory::format_kind::wino}, {{2, 2, 1, 1}, fmt::any}, {1, 2, 3, 4}, UNI_DIRECTION, dnnl_invalid_arguments},
+        // invalid format kind
+        params_t {{{2, 2, 1, 1}, memory::format_kind::undef}, {{2, 2, 1, 1}, fmt::any}, {1, 2, 3, 4}, UNI_DIRECTION, dnnl_invalid_arguments},
+        // run-time dims are not supported
+        params_t {{{DNNL_RUNTIME_DIM_VAL}, {1}}, {{DNNL_RUNTIME_DIM_VAL}, {1}}, {0}, UNI_DIRECTION, dnnl_invalid_arguments}
+        );
+
+auto cases_generic = ::testing::Values(
+        params_t {{{2, 1}, fmt::ab}, {{2, 1}, fmt::ab}, {0, 1}},
+        params_t {{{2, 1}, fmt::ab}, {{1, 2}, fmt::ba}, {1, 0}},
+        params_t {{{2, 1}, fmt::ba}, {{1, 2}, fmt::ab}, {1, 0}},
+        params_t {{{2, 3}, {4, 1}, {2, 4}}, {{3, 2}, {1, 4}, {4, 2}}, {1, 0}},
+        params_t {{{3, 2}, {2, 30}}, {{2, 3}, {30, 2}}, {1, 0}},
+        params_t {{{2, 3, 4, 5}, fmt::acdb}, {{2, 4, 5, 3}, fmt::abcd}, {0, 3, 1, 2}},
+        params_t {{{2, 3, 4, 5}, fmt::cdba}, {{4, 5, 3, 2}, fmt::abcd}, {3, 2, 0, 1}},
+        params_t {{{2, 15, 3, 4}, fmt::ABcd16b16a}, {{15, 2, 3, 4}, fmt::BAcd16a16b}, {1, 0, 2, 3}},
+        params_t {{{3, 2, 15, 3, 4, 5}, fmt::aBCdef16b16c}, {{3, 15, 2, 3, 4, 5}, fmt::aCBdef16c16b}, {0, 2, 1, 3, 4, 5}}
+        );
+// clang-format on
+
+INSTANTIATE_TEST_SUITE_P(
+        TestPermuteAxesEF, permute_axes_test, cases_expect_to_fail);
+INSTANTIATE_TEST_SUITE_P(TestPermuteAxesOK, permute_axes_test, cases_generic);
+
+} // namespace permute_axes
+
 } // namespace memory_desc_ops
 } // namespace dnnl

@@ -419,6 +419,42 @@ status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
     return success;
 }
 
+status_t dnnl_memory_desc_permute_axes(
+        memory_desc_t *out_md, const memory_desc_t *in_md, const int *perm) {
+    if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
+            || !one_of(
+                    in_md->format_kind, format_kind::any, format_kind::blocked)
+            || types::is_zero_md(in_md)
+            || memory_desc_wrapper(in_md).has_runtime_dims_or_strides()
+            || in_md->extra.flags != 0)
+        return invalid_arguments;
+
+    // verify that perm is indeed a permutation of [0 .. ndims)
+    unsigned occurrence_mask = 0;
+    for (int d = 0; d < in_md->ndims; ++d)
+        if (0 <= perm[d] && perm[d] < in_md->ndims)
+            occurrence_mask |= (1u << perm[d]);
+    if (occurrence_mask + 1 != (1u << in_md->ndims)) return invalid_arguments;
+
+    *out_md = *in_md;
+    for (int d = 0; d < in_md->ndims; ++d) {
+        if (perm[d] == d) continue;
+        out_md->dims[perm[d]] = in_md->dims[d];
+        out_md->padded_dims[perm[d]] = in_md->padded_dims[d];
+        out_md->padded_offsets[perm[d]] = in_md->padded_offsets[d];
+        if (in_md->format_kind == format_kind::blocked) {
+            const auto &i_bd = in_md->format_desc.blocking;
+            auto &o_bd = out_md->format_desc.blocking;
+
+            o_bd.strides[perm[d]] = i_bd.strides[d];
+            for (int blk = 0; blk < i_bd.inner_nblks; ++blk)
+                if (i_bd.inner_idxs[blk] == d) o_bd.inner_idxs[blk] = perm[d];
+        }
+    }
+
+    return success;
+}
+
 size_t dnnl_memory_desc_get_size(const memory_desc_t *md) {
     if (md == nullptr) return 0;
     return memory_desc_wrapper(*md).size();

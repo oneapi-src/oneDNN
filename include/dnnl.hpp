@@ -2213,6 +2213,53 @@ struct memory : public handle<dnnl_memory_t> {
             return desc(out_md);
         }
 
+        /// Constructs a memory descriptor by permuting axes in an existing
+        /// one.
+        ///
+        /// The physical memory layout representation is adjusted accordingly
+        /// to maintain the consistency between the logical and physical parts
+        /// of the memory descriptor.
+        ///
+        /// The new memory descriptor inherits the data type. This operation is
+        /// valid only for memory descriptors that have format_kind set to
+        /// #dnnl::memory::format_kind::blocked or
+        /// #dnnl::memory::format_kind::any.
+        ///
+        /// The logical axes will be permuted in the following manner:
+        /// ```
+        /// for (i: 0 .. ndims())
+        ///     new_desc.dims()[permutation[i]] = dims()[i];
+        /// ```
+        ///
+        /// Example:
+        /// @code
+        ///     std::vector<int> permutation = {1, 0}; // swap the first and
+        ///                                            // the second axes
+        ///     dnnl::memory::desc in_md(
+        ///             {2, 3}, data_type, memory::format_tag::ab);
+        ///     dnnl::memory::desc expect_out_md(
+        ///             {3, 2}, data_type, memory::format_tag::ba);
+        ///
+        ///     assert(in_md.permute_axes(permutation) == expect_out_md);
+        /// @endcode
+        ///
+        /// @param permutation Axes permutation.
+        /// @param allow_empty A flag signifying whether construction is
+        ///     allowed to fail without throwing an exception. In this case a
+        ///     zero memory descriptor will be returned. This flag is optional
+        ///     and defaults to false.
+        /// @returns A new memory descriptor with new dimensions.
+        desc permute_axes(const std::vector<int> &permutation,
+                bool allow_empty = false) const {
+            dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
+            dnnl_status_t status = dnnl_memory_desc_permute_axes(
+                    &out_md, &data, &permutation[0]);
+            if (!allow_empty)
+                error::wrap_c_api(status,
+                        "could not permute axes of a memory descriptor");
+            return desc(out_md);
+        }
+
         /// Returns dimensions of the memory descriptor.
         ///
         /// Potentially expensive due to the data copy involved.

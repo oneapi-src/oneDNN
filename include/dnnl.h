@@ -758,6 +758,50 @@ dnnl_status_t DNNL_API dnnl_memory_desc_reshape(
         const dnnl_memory_desc_t *in_memory_desc, int ndims,
         const dnnl_dims_t dims);
 
+/// Initializes a memory descriptor by permuting axes in an existing one.
+///
+/// The physical memory layout representation is adjusted accordingly to
+/// maintain the consistency between the logical and physical parts of the
+/// memory descriptor.
+///
+/// The new memory descriptor inherits the data type. This operation is valid
+/// only for memory descriptors that have format_kind set to #dnnl_blocked or
+/// #dnnl_format_kind_any.
+///
+/// The logical axes will be permuted in the following manner:
+/// ```
+/// for (i: 0 .. in_memory_desc->ndims)
+///     out_memory_desc->dims[permutation[i]] = in_memory_desc->dims[i];
+/// ```
+///
+/// Example:
+/// @code
+///     dnnl_memory_desc_t in_md, out_md, expect_out_md;
+///
+///     const int permutation[] = {1, 0}; // swap the first and the second axes
+///
+///     dnnl_dims_t in_dims = {2, 3}, out_dims = {3, 2};
+///     dnnl_format_tag_t in_tag = dnnl_ab, out_tag = dnnl_ba;
+///
+///     dnnl_memory_desc_init_by_tag(
+///             &in_md, 2, in_dims, data_type, in_tag);
+///     dnnl_memory_desc_init_by_tag(
+///             &expect_out_md, 2, out_dims, data_type, out_tag);
+///
+///     dnnl_memory_desc_permute_axes(&out_md, in_md, permutation);
+///     assert(dnnl_memory_desc_equal(&out_md, &expect_out_md));
+/// @endcode
+///
+/// @param out_memory_desc Output memory descriptor.
+/// @param in_memory_desc An existing memory descriptor. Must have format_kind
+///     set to #dnnl_blocked or #dnnl_format_kind_any.
+/// @param permutation Axes permutation (of size `in_memory_desc->ndims`).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_desc_permute_axes(
+        dnnl_memory_desc_t *out_memory_desc,
+        const dnnl_memory_desc_t *in_memory_desc, const int *permutation);
+
 /// Compares two memory descriptors.
 ///
 /// Use this function to identify whether a reorder is required between the
