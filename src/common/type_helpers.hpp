@@ -111,13 +111,28 @@ inline bool memory_extra_desc_is_equal(
                     lhs.scale_adjust == rhs.scale_adjust);
 }
 
-inline bool blocking_desc_is_equal(const blocking_desc_t &lhs,
-        const blocking_desc_t &rhs, int ndims = DNNL_MAX_NDIMS) {
+inline bool blocking_desc_is_equal(const memory_desc_t &lhs_md,
+        const memory_desc_t &rhs_md, bool ignore_strides = false) {
     using dnnl::impl::utils::array_cmp;
-    return true && lhs.inner_nblks == rhs.inner_nblks
-            && array_cmp(lhs.strides, rhs.strides, ndims)
+
+    assert(lhs_md.format_kind == format_kind::blocked);
+    assert(rhs_md.format_kind == format_kind::blocked);
+
+    const auto &lhs = lhs_md.format_desc.blocking;
+    const auto &rhs = rhs_md.format_desc.blocking;
+    bool equal = lhs.inner_nblks == rhs.inner_nblks
             && array_cmp(lhs.inner_blks, rhs.inner_blks, lhs.inner_nblks)
             && array_cmp(lhs.inner_idxs, rhs.inner_idxs, lhs.inner_nblks);
+    if (ignore_strides) return equal;
+
+    // Check the strides.
+    // Note: for dimensions of size `1` the stride doesn't really matter.
+    for (int d = 0; d < lhs_md.ndims; ++d) {
+        if (lhs_md.dims[d] == 1 && lhs_md.padded_dims[d] == 1) continue;
+        equal = equal && lhs.strides[d] == rhs.strides[d];
+    }
+
+    return equal;
 }
 
 inline bool wino_desc_is_equal(const wino_desc_t &lhs, const wino_desc_t &rhs) {
@@ -207,8 +222,7 @@ inline bool operator==(const memory_desc_t &lhs, const memory_desc_t &rhs) {
     if (!base_equal) return false;
     if (!types::memory_extra_desc_is_equal(lhs.extra, rhs.extra)) return false;
     if (lhs.format_kind == format_kind::blocked)
-        return types::blocking_desc_is_equal(
-                lhs.format_desc.blocking, rhs.format_desc.blocking, lhs.ndims);
+        return types::blocking_desc_is_equal(lhs, rhs);
     else if (lhs.format_kind == format_kind::wino)
         return types::wino_desc_is_equal(
                 lhs.format_desc.wino_desc, rhs.format_desc.wino_desc);
