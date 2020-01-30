@@ -155,7 +155,8 @@ struct jit_conv_conf_t {
     size_t gws_d[3], lws_d[3];
     compute::dispatch_t dispatch;
 
-    bool with_bias, with_sum, with_sum_relu, with_groups, with_scales;
+    bool with_bias, with_sum, with_sum_relu, with_groups;
+    bool with_scales, with_common_scales, with_per_oc_scales;
 
     bool with_eltwise;
     bool with_post_sum_eltwise;
@@ -480,7 +481,10 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
             = (eltwise_ind != -1 && jcp.eltwise.alg == alg_kind::eltwise_relu);
     if (jcp.eltwise_alg_relu) jcp.relu_negative_slope = jcp.eltwise.alpha;
 
+    jcp.with_scales = !attr.output_scales_.has_default_values();
     jcp.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
+    jcp.with_common_scales = jcp.with_scales && attr.output_scales_.mask_ == 0;
+    jcp.with_per_oc_scales = jcp.with_scales && jcp.scale_idx_mult;
 }
 
 inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,

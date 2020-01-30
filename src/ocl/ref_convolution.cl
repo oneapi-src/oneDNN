@@ -26,8 +26,13 @@ __kernel void ref_convolution_fwd(
         const __global BIA_DATA_T *bias, __global DST_DATA_T *dst,
         float eltwise_alpha, float eltwise_beta, float sum_scale
 #if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
+#if SCALES_PER_OC
+        ,
+        const __global float *scales
+#elif SCALES_COMMON
         ,
         float scales
+#endif
 #endif
 ) {
     const int n = GWS_GET_MB();
@@ -61,7 +66,11 @@ __kernel void ref_convolution_fwd(
 #endif
 
 #if SRC_DT_S8 == 1 || SRC_DT_U8 == 1
+#if SCALES_PER_OC
+    tmp *= scales[g * OC + oc];
+#elif SCALES_COMMON
     tmp *= scales;
+#endif
 #endif
 
 #if WITH_ELTWISE == 1

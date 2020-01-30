@@ -58,11 +58,19 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                     && post_ops_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(src_md_.data_type, s8, u8)
-                                    && attr()->output_scales_.mask_ == 0);
+                                    && utils::one_of(
+                                            attr()->output_scales_.mask_, 0,
+                                            1 << 1));
             if (!ok) return status::unimplemented;
+
+            auto scales_status = init_scales_md();
+            if (scales_status != status::success) return scales_status;
 
             return kernel_.init(this);
         }
+
+        const memory_desc_t *scales_md() const { return &scales_md_; }
+
         bool with_eltwise(int position) const {
             return attr()->post_ops_.contain(primitive_kind::eltwise, position);
         }
@@ -101,6 +109,18 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                     : dnnl_alg_kind_undef;
         }
 
+        bool with_scales() const {
+            return !attr()->output_scales_.has_default_values();
+        }
+
+        bool with_common_scales() const {
+            return with_scales() && attr()->output_scales_.mask_ == 0;
+        }
+
+        bool with_per_oc_scales() const {
+            return with_scales() && attr()->output_scales_.mask_ == (1 << 1);
+        }
+
         const ref_convolution_kernel_t *kernel() const { return &kernel_; }
 
     private:
@@ -113,10 +133,37 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
+        status_t init_scales_md() {
+            if (with_per_oc_scales()) {
+                scales_md_.data_type = data_type::f32;
+                scales_md_.ndims = 1;
+                scales_md_.dims[0] = attr()->output_scales_.count_;
+                return memory_desc_init_by_tag(scales_md_, format_tag::x);
+            }
+
+            return status::success;
+        }
+
         ref_convolution_kernel_t kernel_;
+        memory_desc_t scales_md_;
     };
 
     status_t init() override {
+        if (pd()->with_per_oc_scales()) {
+            memory_desc_wrapper scales_mdw(pd()->scales_md());
+            scales_mem_.reset(new memory_t(engine(), pd()->scales_md(),
+                    memory_flags_t::alloc, nullptr));
+            void *scales_ptr = nullptr;
+            status_t status
+                    = scales_mem_->memory_storage()->map_data(&scales_ptr);
+            if (status != status::success) return status;
+            utils::array_copy((float *)scales_ptr,
+                    pd()->attr()->output_scales_.scales_,
+                    pd()->attr()->output_scales_.count_);
+            status = scales_mem_->memory_storage()->unmap_data(scales_ptr);
+            if (status != status::success) return status;
+        }
+
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
@@ -141,6 +188,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     compute::kernel_t kernel_;
+    std::unique_ptr<memory_t> scales_mem_;
 };
 
 struct ref_convolution_bwd_data_t : public primitive_impl_t {
