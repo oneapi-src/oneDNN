@@ -125,6 +125,9 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
             par_conv.filt = wht_w;
             par_conv.bias = bias_w;
             par_conv.owb = owb;
+
+            par_conv.oc_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
             (*kernel_)(&par_conv);
 
             if (jcp.loop_order == loop_cwgn) {
@@ -240,6 +243,9 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
                 par_conv.bias = bias_w;
                 par_conv.kh_padding = kh_padding;
                 par_conv.owb = owb;
+
+                par_conv.oc_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
                 (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;
@@ -370,6 +376,9 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
                 par_conv.kh_padding = kh_padding;
                 par_conv.kd_padding = kd_padding;
                 par_conv.owb = owb;
+
+                par_conv.oc_off = oc_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
                 (*kernel_)(&par_conv);
 
                 src_w += src_h_stride * jcp.stride_h;

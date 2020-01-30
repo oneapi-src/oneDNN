@@ -22,6 +22,7 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,12 +35,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
         : jit_generator(nullptr, ker_code_size)
         , jcp(ajcp)
         , attr_(attr)
-        , eltwise_injector_(nullptr)
         , bf16_emu_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
-
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
@@ -47,7 +43,13 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     }
 
     ~jit_avx512_core_bf16_1x1_conv_kernel() {
-        delete eltwise_injector_;
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
         delete bf16_emu_;
     }
 
@@ -89,7 +91,7 @@ private:
     reg64_t aux_reg_output_data = abi_not_param1;
     reg64_t reg_bcast_loop_iter = rdx;
     reg64_t reg_load_loop_work = r13;
-    reg64_t reduce_loop_iter = abi_param1;
+    reg64_t reduce_loop_iter = rsi;
     reg64_t reg_load_dim_tail_mask = aux_reg_load_data;
 
     reg64_t imm_addr64 = aux_reg_load_data;
@@ -126,8 +128,12 @@ private:
     Xbyak::Opmask half_mask = Xbyak::Opmask(6);
     Xbyak::Opmask half_mask_hi = Xbyak::Opmask(5);
     Xbyak::Label dst_prm_table;
+    reg64_t reg_oc_off = abi_param1;
+    reg64_t reg_d_weights = imm_addr64;
+    reg64_t reg_d_bias = rsi;
 
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+    nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;
 
     int bcast_loop_work_offt = 0;
     int reg_load_loop_work_off = 8;

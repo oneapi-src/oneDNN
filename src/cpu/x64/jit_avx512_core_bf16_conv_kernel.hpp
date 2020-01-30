@@ -24,6 +24,7 @@
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -38,11 +39,7 @@ struct _jit_avx512_core_bf16_fwd_kernel : public jit_generator {
         : jit_generator(nullptr, ker_code_size)
         , jcp(ajcp)
         , attr_(attr)
-        , eltwise_injector_(nullptr)
         , bf16_emu_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
@@ -50,8 +47,15 @@ struct _jit_avx512_core_bf16_fwd_kernel : public jit_generator {
     }
 
     ~_jit_avx512_core_bf16_fwd_kernel() {
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
         delete bf16_emu_;
-        delete eltwise_injector_;
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(_jit_avx512_core_bf16_fwd_kernel)
@@ -142,7 +146,12 @@ private:
     Xbyak::Opmask k_oc_tail_mask = Xbyak::Opmask(4);
     Xbyak::Opmask k_oc_tail_mask_extended = Xbyak::Opmask(5);
 
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+    reg64_t reg_d_weights = r15;
+    reg64_t reg_d_bias = reg_kj;
+
+    nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;
+
     bf16_emulation_t *bf16_emu_;
 
     inline void prepare_dst(int ur_w);

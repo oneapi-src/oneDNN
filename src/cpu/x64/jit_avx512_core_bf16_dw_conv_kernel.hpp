@@ -25,6 +25,7 @@
 #include "cpu/x64/jit_uni_eltwise_injector.hpp"
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_uni_depthwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,10 +36,7 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_dw_conv_fwd_kernel_bf16)
 
     jit_avx512_dw_conv_fwd_kernel_bf16(const jit_conv_conf_t &ajcp, const primitive_attr_t& attr)
-        : jcp(ajcp), attr_(attr), eltwise_injector_(nullptr), bf16_emu_(nullptr) {
-        if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
-                    this, jcp.eltwise);
+        : jcp(ajcp), attr_(attr), bf16_emu_(nullptr) {
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                     bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_reserv_4,
@@ -46,7 +44,14 @@ struct jit_avx512_dw_conv_fwd_kernel_bf16 : public jit_generator {
     }
 
     ~jit_avx512_dw_conv_fwd_kernel_bf16() {
-        delete eltwise_injector_;
+        for (auto inj : eltwise_injectors)
+            delete inj;
+        eltwise_injectors.clear();
+
+        for (auto inj : depthwise_injectors)
+            delete inj;
+        depthwise_injectors.clear();
+
         delete bf16_emu_;
     }
 
@@ -77,6 +82,9 @@ private:
     reg64_t reg_input_buffer_ptr = rdx;
     reg64_t aux_reg_input_buffer_ptr = rsi;
     reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
+
+    reg64_t reg_d_weights = abi_not_param1;
+    reg64_t reg_d_bias = iter_kh;
 
     Xbyak::Zmm zmm_ker_reg = Xbyak::Zmm(0);
     Xbyak::Zmm zmm_src_reg = Xbyak::Zmm(1);
@@ -123,10 +131,11 @@ private:
     inline void loop_ow(int ur_ch_blocks);
     inline void apply_filter_unrolled(
             int ur_ch_blocks, int ur_w, int pad_l, int pad_r);
-    inline void apply_activation(int ur_ch_blocks, int ur_w);
+    inline void apply_postprocess(int ur_ch_blocks, int ur_w);
     inline void store_dst(int ur_ch_blocks, int ur_w);
 
-    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
+    nstl::vector<jit_uni_eltwise_injector_f32<avx512_common>*> eltwise_injectors;
+    nstl::vector<jit_uni_depthwise_injector_f32<avx512_common>*> depthwise_injectors;
 
     bf16_emulation_t *bf16_emu_;
 

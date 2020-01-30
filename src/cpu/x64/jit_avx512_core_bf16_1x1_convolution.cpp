@@ -259,6 +259,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         p.store_buffer = store_buffer + ithr * str_size
                 + data_blk_off(dst_d, 0, 0, od, oh, ow);
 
+        p.oc_off = oc_off_idx * (is_dst_layout_nxc ? 1 : jcp.oc_block) * sizeof(float);
+
         (*kernel_)(&p);
     };
 
@@ -355,6 +357,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
+
+            par_conv_dw.oc_off = ch * jcp_dw->ch_block * sizeof(float);
 
             (*kernel_dw_)(&par_conv_dw);
 

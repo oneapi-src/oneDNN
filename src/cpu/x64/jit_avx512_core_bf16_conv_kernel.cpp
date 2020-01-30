@@ -149,14 +149,38 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::store_dst(int ur_w) {
         }
     }
 
-    if (jcp.with_eltwise) {
-        if (ur_w == jcp.ur_w) {
-            eltwise_injector_->compute_vector_range(
-                    0, jcp.nb_oc_blocking * jcp.ur_w);
-        } else {
-            for (int k = 0; k < jcp.nb_oc_blocking; k++)
-                eltwise_injector_->compute_vector_range(
-                        k * jcp.ur_w, k * jcp.ur_w + ur_w);
+    int eltwise_inj_idx = 0;
+    int depthwise_inj_idx = 0;
+    const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto& post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            if (ur_w == jcp.ur_w) {
+                eltwise_injectors[eltwise_inj_idx]->compute_vector_range(0,
+                                                        jcp.nb_oc_blocking * jcp.ur_w);
+            } else {
+                for (int k = 0; k < jcp.nb_oc_blocking; k++)
+                    eltwise_injectors[eltwise_inj_idx]->compute_vector_range(k * jcp.ur_w,
+                                                                                k * jcp.ur_w + ur_w);
+            }
+
+            eltwise_inj_idx++;
+        } else if (post_op.is_depthwise()) {
+            mov(reg_d_weights, reinterpret_cast<size_t>(post_op.depthwise.weights_data));
+            mov(reg_d_bias, reinterpret_cast<size_t>(post_op.depthwise.biases_data));
+
+            add(reg_d_weights, ptr[this->param1 + GET_OFF(oc_off)]);
+            add(reg_d_bias, ptr[this->param1 + GET_OFF(oc_off)]);
+
+            for (int k = 0; k < jcp.nb_oc_blocking; k++) {
+                depthwise_injectors[depthwise_inj_idx]->compute_vector_range(
+                        k*jcp.ur_w, k*jcp.ur_w + ur_w, reg_d_weights, reg_d_bias);
+
+                add(reg_d_weights, jcp.oc_block * sizeof(float));
+                add(reg_d_bias, jcp.oc_block * sizeof(float));
+            }
+
+            depthwise_inj_idx++;
         }
     }
 
@@ -455,6 +479,22 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::compute_loop(
 
 template <typename Vmm>
 void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
+    const auto &p = attr_.post_ops_;
+    for (int i = 0; i < p.len(); i++) {
+        auto &post_op = p.entry_[i];
+        if (post_op.is_eltwise()) {
+            eltwise_injectors.push_back(new jit_uni_eltwise_injector_f32<avx512_common>(
+                    this,
+                    post_op.eltwise
+            ));
+        } else if (post_op.is_depthwise()) {
+            depthwise_injectors.push_back(new jit_uni_depthwise_injector_f32<avx512_common>(
+                    this,
+                    post_op.depthwise.alg
+            ));
+        }
+    }
+
     int iw = jcp.iw;
     int ow = jcp.ow;
     int ow_block = jcp.ow_block;
@@ -678,22 +718,29 @@ void _jit_avx512_core_bf16_fwd_kernel<Vmm>::generate() {
     }
     postamble();
 
-    if (jcp.with_eltwise) eltwise_injector_->prepare_table();
+    for (auto& inj : eltwise_injectors)
+        inj->prepare_table();
 }
 
 bool jit_avx512_core_bf16_fwd_kernel::post_ops_ok(
         jit_conv_conf_t &jcp, const primitive_attr_t &attr) {
     const auto &p = attr.post_ops_;
 
-    auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
+    auto all_post_ops_supported = [&]() {
+        bool ok = true;
 
-    switch (p.len()) {
-        case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
-        default: return false;
-    }
+        for (int i = 0; i < p.len(); i++) {
+            ok = ok && utils::one_of(p.entry_[i].kind, primitive_kind::sum, primitive_kind::eltwise, primitive_kind::depthwise);
+        }
+        return ok;
+    };
+    auto contain = [&](dnnl::impl::primitive_kind_t kind) { return p.find(kind) != -1; };
+    auto position = [&](dnnl::impl::primitive_kind_t kind) { return p.find(kind); };
+    auto count = [&](dnnl::impl::primitive_kind_t kind) { return p.count(kind); };
+
+    return all_post_ops_supported() &&
+           count(primitive_kind::sum) <= 1 &&
+           IMPLICATION(contain(primitive_kind::sum), position(primitive_kind::sum) == 0);
 
     return false;
 }
