@@ -33,7 +33,7 @@ namespace dnnl {
 namespace impl {
 
 // Global zero memory descriptor. Mostly used for queries to return
-extern memory_desc_t glob_zero_md;
+extern memory_desc_t DNNL_API glob_zero_md;
 
 template <typename T>
 status_t safe_ptr_assign(T *&lhs, T *rhs) {
