@@ -76,8 +76,8 @@ add_subdirectory(common)
 add_subdirectory(compute)
 add_subdirectory(cpu)
 
-if(DNNL_GPU_RUNTIME STREQUAL "OCL")
-    add_subdirectory(ocl)
+if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
+    add_subdirectory(gpu)
 endif()
 
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)

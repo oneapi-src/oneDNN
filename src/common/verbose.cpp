@@ -47,7 +47,7 @@
 #include "sum_pd.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "ocl/verbose.hpp"
+#include "gpu/ocl/verbose.hpp"
 #endif
 
 /* DNNL CPU ISA info */
@@ -89,7 +89,7 @@ int get_verbose() {
         printf("dnnl_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        ocl::print_verbose_header();
+        gpu::ocl::print_verbose_header();
 #endif
         version_printed = true;
     }
