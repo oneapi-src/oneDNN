@@ -127,10 +127,6 @@ template void im2col_3d(
 template void im2col_3d(const jit_gemm_conv_conf_t &jcp, const bfloat16_t *im,
         bfloat16_t *col, int od);
 
-inline int saturate(int low, int upper, int value) {
-    return nstl::max(low, nstl::min(upper, value));
-}
-
 /* imtr[ic][od][oh][ow] <-- im[id][ih][iw][ic]*/
 template <typename T>
 void transpose_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,

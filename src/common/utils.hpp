@@ -272,6 +272,11 @@ inline void simultaneous_sort(
     }
 }
 
+template <typename T>
+inline const T &saturate(const T &low, const T &upper, const T &a) {
+    return nstl::max(low, nstl::min(upper, a));
+}
+
 template <typename T, typename U>
 inline typename remove_reference<T>::type div_up(const T a, const U b) {
     assert(b);

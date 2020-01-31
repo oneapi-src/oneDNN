@@ -26,17 +26,14 @@ namespace impl {
 namespace cpu {
 namespace bnorm_utils {
 
+using namespace dnnl::impl::utils;
+
 void cache_balance(size_t working_set_size, dim_t C_blks,
         dim_t &C_blks_per_iter, int64_t &iters) {
     int nthrs = dnnl_get_max_threads();
     int l3_size = get_cache_size(3, true) * nthrs / 2;
-
-    C_blks_per_iter = l3_size / working_set_size;
-
-    if (C_blks_per_iter == 0) C_blks_per_iter = 1;
-    if (C_blks_per_iter > C_blks) C_blks_per_iter = C_blks;
-
-    iters = (C_blks + C_blks_per_iter - 1) / C_blks_per_iter;
+    C_blks_per_iter = saturate<dim_t>(1, C_blks, l3_size / working_set_size);
+    iters = div_up(C_blks, C_blks_per_iter);
 }
 
 bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
