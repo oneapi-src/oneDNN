@@ -377,6 +377,7 @@ private:
     reg64_t scratch = r11;
 
     inline void maybe_zero_kernel();
+    inline void get_ur_w(int &ur_w, int &ur_w_tail, int &ur_w_trips);
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step);
     inline void od_step_comeback_pointers();
     inline void oh_step_comeback_pointers();
@@ -406,10 +407,13 @@ private:
 
     bf16_emulation_t *bf16_emu_;
 
-    void setup_stack_space();
+    inline int interleave_w_reorder_size(int ur_w);
+    inline int interleave_w_reorder_bytes(int ur_w);
+    inline int interleave_stack_size(int ur_w, int ic_block_step);
+
+    inline void setup_stack_space();
     static const int extern_ic_block_step_stack_size = 0;
     static const int vpermw_ic_block_step_stack_size = 256;
-    static const int interleave_ic_block_step_stack_size = 1152;
     int ic_block_step_stack_size;
     int stack_space_needed;
     int kd_count_offset;

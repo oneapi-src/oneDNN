@@ -1491,12 +1491,12 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 
                     auto inp = Zmm(zmm_inp_reg);
                     auto acc = zmm_ker(i_kw, i_ic);
-                    auto wei = zmm_out(i_ur);
+                    auto out = zmm_out(i_ur);
                     if (underflow || overflow || !isa_has_bf16(jcp.isa)) {
-                        assert(wei != inp);
+                        assert(out != inp);
                         assert(acc != inp);
                     }
-                    assert(wei != acc);
+                    assert(out != acc);
                     if (underflow || overflow) {
                         if (underflow && i_iw == underflow_boundary)
                             vpbroadcastw(inp | everyother_shift_mask | T_z,
@@ -1508,14 +1508,14 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                             continue;
 
                         if (!isa_has_bf16(jcp.isa))
-                            bf16_emu_->vdpbf16ps(acc, wei, inp);
+                            bf16_emu_->vdpbf16ps(acc, out, inp);
                         else
-                            vdpbf16ps(acc, wei, inp);
+                            vdpbf16ps(acc, out, inp);
                     } else if (!isa_has_bf16(jcp.isa)) {
                         vpbroadcastd(inp, inp_addr(i_iw, i_ic, 0));
-                        bf16_emu_->vdpbf16ps(acc, wei, inp);
+                        bf16_emu_->vdpbf16ps(acc, out, inp);
                     } else
-                        vdpbf16ps(acc, wei, inp_addr(i_iw, i_ic, 0, true));
+                        vdpbf16ps(acc, out, inp_addr(i_iw, i_ic, 0, true));
                 }
             }
         }
@@ -1530,6 +1530,19 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     }
 }
 
+int jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::interleave_w_reorder_size(
+        int ur_w) {
+    const int reorder_block = 16;
+    return rnd_up(jcp.stride_w * (ur_w - 1) + jcp.kw, reorder_block);
+}
+int jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
+        interleave_w_reorder_bytes(int ur_w) {
+    return 2 * jcp.typesize_in * interleave_w_reorder_size(ur_w);
+}
+int jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::interleave_stack_size(
+        int ur_w, int ic_block_step) {
+    return ic_block_step * interleave_w_reorder_bytes(ur_w);
+}
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
         compute_ic_block_step_interleave(int ur_w, int pad_l, int pad_r,
                 int ic_block_step, int input_offset, int kernel_offset,
@@ -1544,13 +1557,13 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
     //const int num_in_zmm_regs = 8;
     const int zmm_inp_reg = out_zmm_base_idx + num_out_zmm_regs;
     const int reorder_block = 16;
-    const int reorder_size
-            = rnd_up(jcp.stride_w * (ur_w - 1) + kw, reorder_block);
-    const int reorder_bytes = 2 * jcp.typesize_in * reorder_size;
-    const int stack_size = reorder_bytes * ic_block_step;
+    const int reorder_size = interleave_w_reorder_size(ur_w);
+    const int reorder_bytes = interleave_w_reorder_bytes(ur_w);
+    const int stack_size = interleave_stack_size(ur_w, ic_block_step);
     if (stack_size > ic_block_step_stack_size) {
         // This is a guard. Ideally it is never used, but is included to defend
         // against overlooked edge cases.
+        assert(stack_size <= ic_block_step_stack_size);
         sub(rsp, stack_size - ic_block_step_stack_size);
     }
 
@@ -1739,14 +1752,14 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
             for (int i_ic = 0; i_ic < ic_block_step; i_ic++) {
                 int i_iw = 2 * i_ur * str_w + i_kw;
                 auto acc = zmm_ker(i_kw, i_ic);
-                auto wei = zmm_out(i_ur);
+                auto out = zmm_out(i_ur);
 
                 if (!isa_has_bf16(jcp.isa)) {
                     auto inp = Zmm(zmm_inp_reg);
                     vpbroadcastd(inp, inp_addr(i_iw, i_ic, 0));
-                    bf16_emu_->vdpbf16ps(acc, wei, inp);
+                    bf16_emu_->vdpbf16ps(acc, out, inp);
                 } else
-                    vdpbf16ps(acc, wei, inp_addr(i_iw, i_ic, 0, true));
+                    vdpbf16ps(acc, out, inp_addr(i_iw, i_ic, 0, true));
             }
         }
     }
@@ -1957,6 +1970,48 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_ic_block_step(
         compute_ic_block_step_extern(ur_w, pad_l, pad_r, ic_block_step,
                 input_offset, kernel_offset, output_offset, is_tail);
 }
+
+void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::get_ur_w(
+        int &ur_w, int &ur_w_tail, int &ur_w_trips) {
+    if (jcp.tr_ow <= max_ur_w) {
+        ur_w = jcp.tr_ow;
+        ur_w_tail = 0;
+        ur_w_trips = 1;
+        return;
+    }
+
+    int r_pad = 0;
+    if (!jcp.transpose_src) {
+        // If jcp.transpose_src, the buffer has physical padding
+        int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
+        r_pad = nstl::max(0,
+                calculate_end_padding(
+                        jcp.l_pad, jcp.tr_ow, jcp.tr_iw, jcp.stride_w, ext_kw));
+    }
+    int l_pad = (jcp.transpose_src) ? 0 : jcp.l_pad;
+    ur_w = max_ur_w;
+    ur_w_trips = jcp.tr_ow / ur_w;
+    ur_w_tail = jcp.tr_ow % ur_w;
+    if ((ur_w_tail == 0 && jcp.r_pad != 0) || r_pad >= ur_w_tail) {
+        if (ur_w_trips > 1) {
+            ur_w_tail += ur_w;
+            ur_w_trips--;
+        } else {
+            int ur_w_tail_total = ur_w + ur_w_tail;
+            ur_w = (ur_w_tail_total % 4 == 0) ? ur_w_tail / 2
+                                              : ur_w_tail / 2 + 1;
+            ur_w_tail = ur_w_tail_total - ur_w;
+            if (l_pad > ur_w / 2) {
+                ur_w = (l_pad % 2 == 0) ? l_pad : l_pad + 1;
+                ur_w_tail = ur_w_tail_total - ur_w;
+            } else if (r_pad > ur_w_tail) {
+                ur_w_tail = (r_pad % 2 == 0) ? r_pad : r_pad + 1;
+                ur_w = ur_w_tail_total - ur_w_tail;
+            }
+        }
+    }
+}
+
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
         compute_oh_step_unroll_ow_icblock(int ic_block_step) {
     Label kh_label, kd_label;
@@ -1967,6 +2022,10 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
     int iw = jcp.tr_iw;
     int ow = jcp.tr_ow;
     int r_pad = 0;
+    int ur_w, ur_w_tail, ur_w_trips;
+    get_ur_w(ur_w, ur_w_tail, ur_w_trips);
+    assert(ur_w_tail == 0 && ur_w_trips == 1);
+
     if (!jcp.transpose_src) {
         // If jcp.transpose_src, the buffer has physical padding
         int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
@@ -1991,7 +2050,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
                     : (jcp.is_1stconv)
                             ? jcp.typesize_in * i_b_ic * jcp.id * jcp.ih * iw
                             : jcp.typesize_in * i_b_ic * iw;
-            compute_ic_block_step(jcp.ur_w, l_pad, r_pad, ic_block_step,
+            compute_ic_block_step(ur_w, l_pad, r_pad, ic_block_step,
                     input_offset, jcp.typesize_out * i_b_ic * jcp.oc_block, 0,
                     true);
         }
@@ -2023,6 +2082,10 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
     int ow = jcp.tr_ow;
 
     int r_pad = 0;
+    int ur_w, ur_w_tail, ur_w_trips;
+    get_ur_w(ur_w, ur_w_tail, ur_w_trips);
+    assert(ur_w_tail == 0 && ur_w_trips == 1);
+
     if (!jcp.transpose_src) {
         // If jcp.transpose_src, the buffer has physical padding
         int ext_kw = calculate_extended_filter_size(jcp.kw, jcp.dilate_w);
@@ -2051,7 +2114,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 ::
         L(ic_block_label);
         {
             compute_ic_block_step(
-                    ow, l_pad, r_pad, ic_block_step, 0, 0, 0, true);
+                    ur_w, l_pad, r_pad, ic_block_step, 0, 0, 0, true);
             assert(jcp.ic_block % jcp.ic_block_step == 0);
             safe_add(reg_input, input_offset, reg_long_offt);
             add(reg_kernel, jcp.typesize_out * ic_block_step * oc_block);
@@ -2112,27 +2175,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_oh_step_common(
 
     int stride_w = (jcp.transpose_src) ? 1 : jcp.stride_w;
 
-    int ur_w = nstl::min(ow, max_ur_w);
-    int ur_w_trips = ow / ur_w;
-    int ur_w_tail = ow % ur_w;
-    if ((ur_w_tail == 0 && r_pad != 0) || r_pad >= ur_w_tail) {
-        if (ur_w_trips > 1) {
-            ur_w_tail += ur_w;
-            ur_w_trips--;
-        } else {
-            int ur_w_tail_total = ur_w + ur_w_tail;
-            ur_w = (ur_w_tail_total % 4 == 0) ? ur_w_tail / 2
-                                              : ur_w_tail / 2 + 1;
-            ur_w_tail = ur_w_tail_total - ur_w;
-            if (l_pad > ur_w / 2) {
-                ur_w = (l_pad % 2 == 0) ? l_pad : l_pad + 1;
-                ur_w_tail = ur_w_tail_total - ur_w;
-            } else if (r_pad > ur_w_tail) {
-                ur_w_tail = (r_pad % 2 == 0) ? r_pad : r_pad + 1;
-                ur_w = ur_w_tail_total - ur_w_tail;
-            }
-        }
-    }
+    int ur_w, ur_w_trips, ur_w_tail;
+    get_ur_w(ur_w, ur_w_tail, ur_w_trips);
     assert(l_pad <= ur_w);
     assert(r_pad <= ur_w_tail);
     int inp_mult = (jcp.uses_permw_transposition) ? ic_block : 1;
@@ -2618,9 +2662,12 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::compute_loop() {
 
 void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::setup_stack_space() {
 
-    if (jcp.is_1stconv && jcp.stride_w > 1)
-        ic_block_step_stack_size = interleave_ic_block_step_stack_size;
-    else if (jcp.uses_permw_transposition)
+    if (jcp.is_1stconv && jcp.stride_w > 1) {
+        int ur_w, ur_w_tail, ur_w_trips;
+        get_ur_w(ur_w, ur_w_tail, ur_w_trips);
+        ic_block_step_stack_size = interleave_stack_size(
+                nstl::max(ur_w, ur_w_tail), jcp.ic_block_step);
+    } else if (jcp.uses_permw_transposition)
         ic_block_step_stack_size = vpermw_ic_block_step_stack_size;
     else
         ic_block_step_stack_size = extern_ic_block_step_stack_size;
@@ -2869,15 +2916,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
     if (jcp.is_1stconv) {
         jcp.ic_block_step = 24 / jcp.kw;
-        int channel_stack_size
-                = rnd_up(4 * (max_ur_w * jcp.stride_w + jcp.kw - 1), 64);
-        int max_strided_step
-                = interleave_ic_block_step_stack_size / channel_stack_size;
-        if (jcp.stride_w > 1 && jcp.ic_block_step > max_strided_step) {
-            if (max_strided_step == 0) return status::unimplemented;
-            jcp.ic_block_step = max_strided_step;
-        }
-
         while (jcp.ic_block % jcp.ic_block_step != 0)
             jcp.ic_block_step--;
     } else {
