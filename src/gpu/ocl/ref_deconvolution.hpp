@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_convolution_pd.hpp"
 #include "gpu/ocl/ocl_deconvolution_pd.hpp"

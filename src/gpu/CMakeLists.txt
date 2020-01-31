@@ -14,4 +14,5 @@
 # limitations under the License.
 #===============================================================================
 
+add_subdirectory(compute)
 add_subdirectory(ocl)

@@ -14,18 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_KERNEL_HPP
-#define COMPUTE_KERNEL_HPP
+#ifndef GPU_COMPUTE_KERNEL_HPP
+#define GPU_COMPUTE_KERNEL_HPP
 
 #include <memory>
 #include <utility>
 
 #include "common/stream.hpp"
-#include "compute/kernel_arg_list.hpp"
-#include "compute/utils.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 class kernel_impl_t;
@@ -67,7 +68,8 @@ inline status_t kernel_t::parallel_for(stream_t &stream,
 }
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // COMPUTE_KERNEL_HPP
+#endif // GPU_COMPUTE_KERNEL_HPP

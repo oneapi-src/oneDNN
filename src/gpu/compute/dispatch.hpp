@@ -14,19 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_DISPATCH_HPP
-#define COMPUTE_DISPATCH_HPP
+#ifndef GPU_COMPUTE_DISPATCH_HPP
+#define GPU_COMPUTE_DISPATCH_HPP
 
 #include <cassert>
 #include <string>
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
-#include "compute/kernel_ctx.hpp"
-#include "compute/utils.hpp"
+#include "gpu/compute/kernel_ctx.hpp"
+#include "gpu/compute/utils.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 class compute_engine_t;
@@ -135,6 +136,7 @@ private:
 };
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

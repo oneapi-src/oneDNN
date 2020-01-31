@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_KERNEL_ARG_LIST_HPP
-#define COMPUTE_KERNEL_ARG_LIST_HPP
+#ifndef GPU_COMPUTE_KERNEL_ARG_LIST_HPP
+#define GPU_COMPUTE_KERNEL_ARG_LIST_HPP
 
 #include <cassert>
 #include <cstddef>
@@ -28,6 +28,7 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 class kernel_arg_t {
@@ -130,7 +131,8 @@ private:
 };
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // COMPUTE_KERNEL_ARG_LIST_HPP
+#endif // GPU_COMPUTE_KERNEL_ARG_LIST_HPP

@@ -21,7 +21,7 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_ref_layer_normalization_kernel.hpp"
 #include "gpu/ocl/ocl_layer_normalization_pd.hpp"
 

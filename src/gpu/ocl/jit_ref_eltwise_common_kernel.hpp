@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/eltwise_pd.hpp"
 #include "common/memory.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_primitive_conf.hpp"
 
 namespace dnnl {

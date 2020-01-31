@@ -24,7 +24,7 @@
 #include "common/primitive_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"

@@ -19,11 +19,12 @@
 #include <sstream>
 
 #include "common/utils.hpp"
-#include "compute/compute_engine.hpp"
-#include "compute/dispatch.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/dispatch.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 // Compute optimal local work size for the given global work size.
@@ -305,5 +306,6 @@ void dispatch_t::define_dim_with_md_hint(
 }
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl

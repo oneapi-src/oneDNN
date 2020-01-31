@@ -14,16 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_HPP
-#define COMPUTE_HPP
+#ifndef GPU_COMPUTE_COMPUTE_HPP
+#define GPU_COMPUTE_COMPUTE_HPP
 
-#include "compute/compute_engine.hpp"
-#include "compute/compute_stream.hpp"
-#include "compute/device_info.hpp"
-#include "compute/dispatch.hpp"
-#include "compute/kernel.hpp"
-#include "compute/kernel_arg_list.hpp"
-#include "compute/kernel_ctx.hpp"
-#include "compute/utils.hpp"
+#include "gpu/compute/compute_engine.hpp"
+#include "gpu/compute/compute_stream.hpp"
+#include "gpu/compute/device_info.hpp"
+#include "gpu/compute/dispatch.hpp"
+#include "gpu/compute/kernel.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
+#include "gpu/compute/kernel_ctx.hpp"
+#include "gpu/compute/utils.hpp"
 
-#endif // COMPUTE_HPP
+#endif // GPU_COMPUTE_COMPUTE_HPP

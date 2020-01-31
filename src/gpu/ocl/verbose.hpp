@@ -22,7 +22,7 @@
 #include <vector>
 #include <CL/cl.h>
 
-#include "compute/device_info.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 

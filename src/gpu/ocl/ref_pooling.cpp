@@ -22,7 +22,7 @@
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 
 #include "gpu/ocl/ref_pooling.hpp"
 

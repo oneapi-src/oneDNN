@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_DEVICE_INFO_HPP
-#define COMPUTE_DEVICE_INFO_HPP
+#ifndef GPU_COMPUTE_DEVICE_INFO_HPP
+#define GPU_COMPUTE_DEVICE_INFO_HPP
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -26,6 +26,7 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 enum class device_ext_t : int64_t {
@@ -140,6 +141,7 @@ private:
 };
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_ref_bnorm_common_kernel.hpp"
 #include "gpu/ocl/ocl_batch_normalization_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"

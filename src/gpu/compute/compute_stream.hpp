@@ -14,16 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_STREAM_HPP
-#define COMPUTE_STREAM_HPP
+#ifndef GPU_COMPUTE_COMPUTE_STREAM_HPP
+#define GPU_COMPUTE_COMPUTE_STREAM_HPP
 
 #include <memory>
 
 #include "common/stream.hpp"
-#include "compute/kernel.hpp"
+#include "gpu/compute/kernel.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 class nd_range_t;
@@ -46,6 +47,7 @@ public:
 };
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 

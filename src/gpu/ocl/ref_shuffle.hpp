@@ -18,7 +18,7 @@
 #define GPU_OCL_REF_SHUFFLE_HPP
 
 #include "common/c_types_map.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_ref_shuffle_kernel.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_shuffle_pd.hpp"

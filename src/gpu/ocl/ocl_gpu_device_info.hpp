@@ -22,8 +22,8 @@
 #include <CL/cl.h>
 
 #include "common/z_magic.hpp"
-#include "compute/device_info.hpp"
 #include "cpu/cpu_isa_traits.hpp"
+#include "gpu/compute/device_info.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {

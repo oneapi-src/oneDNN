@@ -23,7 +23,7 @@
 #include "common/engine.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"

@@ -18,7 +18,7 @@
 #define GPU_OCL_JIT_SIMPLE_SUM_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_primitive_conf.hpp"
 
 namespace dnnl {

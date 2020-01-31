@@ -21,7 +21,7 @@
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
 #include "common/reorder_pd.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
 

@@ -21,7 +21,7 @@
 #include <string>
 #include <CL/cl.h>
 
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {

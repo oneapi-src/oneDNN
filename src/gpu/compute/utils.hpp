@@ -14,14 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_UTILS_HPP
-#define COMPUTE_UTILS_HPP
+#ifndef GPU_COMPUTE_UTILS_HPP
+#define GPU_COMPUTE_UTILS_HPP
 
 #include <cassert>
 #include <sstream>
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 // Stores global/local ranges to use for kernel enqueueing
@@ -99,7 +100,8 @@ private:
 };
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // COMPUTE_UTILS_HPP
+#endif // GPU_COMPUTE_UTILS_HPP

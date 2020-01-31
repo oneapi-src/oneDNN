@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_KERNEL_CTX_HPP
-#define COMPUTE_KERNEL_CTX_HPP
+#ifndef GPU_COMPUTE_KERNEL_CTX_HPP
+#define GPU_COMPUTE_KERNEL_CTX_HPP
 
 #include <cassert>
 #ifdef DEBUG_PRINT
@@ -31,6 +31,7 @@
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 class kernel_ctx_t {
@@ -133,7 +134,8 @@ inline int64_t kernel_ctx_t::get_scalar(const std::string &name) const {
 }
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif // COMPUTE_KERNEL_CTX_HPP
+#endif // GPU_COMPUTE_KERNEL_CTX_HPP

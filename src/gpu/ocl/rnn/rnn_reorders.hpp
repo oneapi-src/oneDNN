@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/ocl_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/jit_rnn_reorder_kernel.hpp"

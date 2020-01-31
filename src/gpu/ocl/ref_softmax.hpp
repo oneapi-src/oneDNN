@@ -19,7 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_softmax_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"

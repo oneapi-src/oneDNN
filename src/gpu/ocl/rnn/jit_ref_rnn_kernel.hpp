@@ -18,7 +18,7 @@
 #define GPU_OCL_RNN_JIT_REF_RNN_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/rnn/ocl_rnn_pd.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"

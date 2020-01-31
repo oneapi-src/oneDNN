@@ -22,7 +22,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/gemm/jit_gen9_gemm_kernel.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/gemm/ocl_gemm_pd.hpp"

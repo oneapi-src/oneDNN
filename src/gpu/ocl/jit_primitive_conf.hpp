@@ -23,7 +23,7 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "common/primitive_attr.hpp"
 #include "common/utils.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {

@@ -18,7 +18,7 @@
 #define GPU_OCL_REF_BINARY_HPP
 
 #include "common/c_types_map.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 #include "gpu/ocl/jit_ref_binary_common_kernel.hpp"
 #include "gpu/ocl/ocl_binary_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"

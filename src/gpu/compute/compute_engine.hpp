@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMPUTE_ENGINE_HPP
-#define COMPUTE_ENGINE_HPP
+#ifndef GPU_COMPUTE_COMPUTE_ENGINE_HPP
+#define GPU_COMPUTE_COMPUTE_ENGINE_HPP
 
 #include <cassert>
 #include <memory>
@@ -23,13 +23,14 @@
 
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
-#include "compute/device_info.hpp"
-#include "compute/dispatch.hpp"
-#include "compute/kernel.hpp"
-#include "compute/kernel_ctx.hpp"
+#include "gpu/compute/device_info.hpp"
+#include "gpu/compute/dispatch.hpp"
+#include "gpu/compute/kernel.hpp"
+#include "gpu/compute/kernel_ctx.hpp"
 
 namespace dnnl {
 namespace impl {
+namespace gpu {
 namespace compute {
 
 class compute_engine_t : public engine_t {
@@ -67,6 +68,7 @@ private:
 };
 
 } // namespace compute
+} // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
