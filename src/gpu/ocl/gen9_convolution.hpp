@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEN9_COMMON_CONVOLUTION_HPP
-#define GPU_OCL_GEN9_COMMON_CONVOLUTION_HPP
+#ifndef GPU_OCL_GEN9_CONVOLUTION_HPP
+#define GPU_OCL_GEN9_CONVOLUTION_HPP
 
 #include <assert.h>
 
@@ -46,7 +46,7 @@ status_t gen9_convolution_bwd_weights_init_conf(
 status_t gen9_convolution_bwd_weights_init_const_def(
         compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
 
-struct gen9_common_convolution_fwd_t : public primitive_impl_t {
+struct gen9_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -54,7 +54,7 @@ struct gen9_common_convolution_fwd_t : public primitive_impl_t {
             : gpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conf_() {}
 
-        DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_common_convolution_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_convolution_fwd_t);
 
         status_t init() {
             using namespace prop_kind;
@@ -101,11 +101,11 @@ struct gen9_common_convolution_fwd_t : public primitive_impl_t {
     status_t init() override {
         const char *kernel_name = nullptr;
         if (pd()->conf_.is_depthwise)
-            kernel_name = "gen9_common_conv_dw_fwd";
+            kernel_name = "gen9_conv_dw_fwd";
         else if (pd()->desc()->src_desc.data_type == data_type::f16)
-            kernel_name = "gen9_common_conv_fwd_f16";
+            kernel_name = "gen9_conv_fwd_f16";
         else if (pd()->desc()->src_desc.data_type == data_type::f32)
-            kernel_name = "gen9_common_conv_fwd_f32";
+            kernel_name = "gen9_conv_fwd_f32";
         else
             assert(!"not expected");
 
@@ -123,7 +123,7 @@ struct gen9_common_convolution_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    gen9_common_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gen9_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -135,14 +135,14 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct gen9_common_convolution_bwd_data_t : public primitive_impl_t {
+struct gen9_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : gpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_common_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_convolution_bwd_data_t);
 
         status_t init() {
             using namespace data_type;
@@ -186,9 +186,9 @@ struct gen9_common_convolution_bwd_data_t : public primitive_impl_t {
     status_t init() override {
         const char *kernel_name = nullptr;
         if (pd()->conf_.is_depthwise)
-            kernel_name = "gen9_common_conv_dw_bwd_data";
+            kernel_name = "gen9_conv_dw_bwd_data";
         else
-            kernel_name = "gen9_common_conv_bwd_data";
+            kernel_name = "gen9_conv_bwd_data";
 
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
@@ -204,8 +204,7 @@ struct gen9_common_convolution_bwd_data_t : public primitive_impl_t {
         return status::success;
     }
 
-    gen9_common_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_impl_t(apd) {}
+    gen9_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -217,7 +216,7 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
+struct gen9_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public gpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -225,8 +224,7 @@ struct gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
             : gpu_convolution_bwd_weights_pd_t(
                     engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(
-                "ocl:ncsp:any", gen9_common_convolution_bwd_weights_t);
+        DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_convolution_bwd_weights_t);
 
         status_t init() {
             using namespace data_type;
@@ -268,14 +266,13 @@ struct gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
-                &kernel_, "gen9_common_conv_bwd_weights", kernel_ctx);
+                &kernel_, "gen9_conv_bwd_weights", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
 
-    gen9_common_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_impl_t(apd) {}
+    gen9_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);

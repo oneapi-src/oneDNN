@@ -20,7 +20,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
-#include "gpu/ocl/gen9_common_convolution.hpp"
+#include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
@@ -1035,8 +1035,7 @@ status_t gen9_convolution_bwd_weights_init_const_def(
     return status::success;
 }
 
-status_t gen9_common_convolution_fwd_t::execute_forward(
-        const exec_ctx_t &ctx) const {
+status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -1062,7 +1061,7 @@ status_t gen9_common_convolution_fwd_t::execute_forward(
     return status;
 }
 
-status_t gen9_common_convolution_bwd_data_t::execute_backward_data(
+status_t gen9_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -1086,7 +1085,7 @@ status_t gen9_common_convolution_bwd_data_t::execute_backward_data(
     return status;
 }
 
-status_t gen9_common_convolution_bwd_weights_t::execute_backward_weights(
+status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
         const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());

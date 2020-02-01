@@ -45,7 +45,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_fwd_f16(const __global half *src, const __global half *wei,
+gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
         const __global half *bias, __global half *dst, float eltwise_alpha,
         float eltwise_beta, float sum_scale_) {
 

@@ -24,7 +24,7 @@
 #include "gpu/ocl/gemm_inner_product.hpp"
 #include "gpu/ocl/gemm_matmul.hpp"
 #include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
-#include "gpu/ocl/gen9_common_convolution.hpp"
+#include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/ocl_kernel_list.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -172,9 +172,9 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_deconvolution_bwd_data_t),
         INSTANCE(ref_deconvolution_bwd_weights_t),
         /*conv*/
-        INSTANCE(gen9_common_convolution_fwd_t),
-        INSTANCE(gen9_common_convolution_bwd_data_t),
-        INSTANCE(gen9_common_convolution_bwd_weights_t),
+        INSTANCE(gen9_convolution_fwd_t),
+        INSTANCE(gen9_convolution_bwd_data_t),
+        INSTANCE(gen9_convolution_bwd_weights_t),
         INSTANCE(ref_convolution_fwd_t),
         INSTANCE(ref_convolution_bwd_data_t),
         INSTANCE(ref_convolution_bwd_weights_t),

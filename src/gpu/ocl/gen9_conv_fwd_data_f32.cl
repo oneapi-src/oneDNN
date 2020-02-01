@@ -50,7 +50,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_common_conv_fwd_f32(const __global float *src,
+gen9_conv_fwd_f32(const __global float *src,
 #if USE_IMAGE == 1
         __read_only image2d_t wei,
 #else
