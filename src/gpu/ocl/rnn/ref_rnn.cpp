@@ -38,6 +38,17 @@
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
 
+#define DEBUGPRINT 0
+#if DEBUGPRINT
+#define DPRINT(fmt, ...) \
+    printf(fmt, __VA_ARGS__); \
+    fflush(0)
+#define WS_PRINT(s, w) ws_print(s, w)
+#else
+#define DPRINT(fmt, ...)
+#define WS_PRINT(s, w)
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -51,6 +62,640 @@ using namespace rnn_utils;
 using namespace dnnl::impl::memory_tracking::names;
 
 #define AOC array_offset_calculator
+
+static status_t init_conf(jit_rnn_conf_t &jrnn, const rnn_pd_t *rnn_pd,
+        const rnn_utils::rnn_conf_t &rnn,
+        const memory_desc_wrapper &src_layer_d,
+        const memory_desc_wrapper &src_iter_d,
+        const memory_desc_wrapper &src_iter_c_d,
+        const memory_desc_wrapper &weights_layer_d,
+        const memory_desc_wrapper &weights_iter_d,
+        const memory_desc_wrapper &bias_d,
+        const memory_desc_wrapper &dst_layer_d,
+        const memory_desc_wrapper &dst_iter_d,
+        const memory_desc_wrapper &dst_iter_c_d,
+        const memory_desc_wrapper &diff_src_layer_d,
+        const memory_desc_wrapper &diff_src_iter_d,
+        const memory_desc_wrapper &diff_src_iter_c_d,
+        const memory_desc_wrapper &diff_weights_layer_d,
+        const memory_desc_wrapper &diff_weights_iter_d,
+        const memory_desc_wrapper &diff_bias_d,
+        const memory_desc_wrapper &diff_dst_layer_d,
+        const memory_desc_wrapper &diff_dst_iter_d,
+        const memory_desc_wrapper &diff_dst_iter_c_d,
+        const memory_desc_wrapper &ws_d, jit_rnn_offsets &jit_off) {
+
+    using namespace rnn_utils;
+
+    jrnn.src_dt = src_layer_d.data_type();
+    jrnn.wei_dt = weights_layer_d.data_type();
+    jrnn.acc_dt = rnn.acc_data_type;
+    jrnn.aux_dt = rnn.aux_data_type;
+    jrnn.diff_dt = rnn.diff_data_type;
+    jrnn.input_dt = rnn.input_data_type;
+    jrnn.output_dt = rnn.output_data_type;
+    jrnn.dst_dt = rnn.dst_data_type;
+
+    jrnn.is_fwd = rnn.is_fwd;
+    jrnn.n_layer = rnn.n_layer;
+    jrnn.n_dir = rnn.n_dir;
+    jrnn.n_iter = rnn.n_iter;
+    jrnn.n_iter_scratch_gates = rnn.n_iter_scratch_gates;
+    jrnn.n_gates = rnn.n_gates;
+    jrnn.n_bias = rnn.n_bias;
+    jrnn.n_states = rnn.n_states;
+    jrnn.n_weights_input = weights_layer_d.dims()[2];
+    jrnn.n_weights_state = weights_iter_d.dims()[2];
+    jrnn.batch = rnn.mb;
+    jrnn.slc = rnn.slc;
+    jrnn.sic = rnn.sic;
+    jrnn.dic = rnn.dic;
+    jrnn.dlc = rnn.dlc;
+    jrnn.wic = nstl::max(jrnn.slc, nstl::max(jrnn.sic, jrnn.dic));
+
+    jrnn.n_parts_weights_iter = rnn.n_parts_weights_iter;
+    jrnn.n_parts_weights_layer = rnn.n_parts_weights_layer;
+
+    jrnn.with_bias = rnn_pd->with_bias();
+    jrnn.with_src_iter = rnn_pd->with_src_iter();
+    jrnn.with_src_iter_c = rnn_pd->with_src_iter_c();
+    jrnn.with_dst_iter = rnn_pd->with_dst_iter();
+    jrnn.with_dst_iter_c = rnn_pd->with_dst_iter_c();
+    jrnn.is_lbr = rnn.is_lbr;
+    jrnn.copy_bias = rnn.copy_bias;
+    jrnn.is_int8 = rnn.is_int8;
+    jrnn.is_training = rnn.is_training;
+
+    jrnn.states_ws_ld = rnn.states_ws_ld;
+    jrnn.diff_states_ws_ld = rnn.diff_states_ws_ld;
+    jrnn.gates_ws_ld = rnn.gates_ws_ld;
+    jrnn.scratch_gates_ld = rnn.scratch_gates_ld;
+
+    jrnn.src_layer_ndims = src_layer_d.ndims();
+    jrnn.src_iter_ndims = src_iter_d.ndims();
+    if (jrnn.with_src_iter_c) jrnn.src_iter_c_ndims = src_iter_c_d.ndims();
+    jrnn.weights_layer_ndims = weights_layer_d.ndims();
+    jrnn.weights_iter_ndims = weights_iter_d.ndims();
+    jrnn.dst_layer_ndims = dst_layer_d.ndims();
+    jrnn.dst_iter_ndims = dst_iter_d.ndims();
+    if (jrnn.with_dst_iter_c) jrnn.dst_iter_c_ndims = dst_iter_c_d.ndims();
+    jrnn.bias_ndims = bias_d.ndims();
+
+    set_offsets(src_layer_d, jit_off.src_layer_off);
+    set_offsets(src_iter_d, jit_off.src_iter_off);
+    if (jrnn.with_src_iter_c) set_offsets(src_iter_c_d, jit_off.src_iter_c_off);
+    set_offsets(weights_layer_d, jit_off.weights_layer_off);
+    set_offsets(weights_iter_d, jit_off.weights_iter_off);
+    set_offsets(bias_d, jit_off.bias_off);
+    set_offsets(dst_layer_d, jit_off.dst_layer_off);
+    set_offsets(dst_iter_d, jit_off.dst_iter_off);
+    if (jrnn.with_dst_iter_c) set_offsets(dst_iter_c_d, jit_off.dst_iter_c_off);
+
+    if (!jrnn.is_fwd) {
+        jrnn.diff_src_layer_ndims = diff_src_layer_d.ndims();
+        jrnn.diff_src_iter_ndims = diff_src_iter_d.ndims();
+        if (jrnn.with_src_iter_c)
+            jrnn.diff_src_iter_c_ndims = diff_src_iter_c_d.ndims();
+        jrnn.diff_weights_layer_ndims = diff_weights_layer_d.ndims();
+        jrnn.diff_weights_iter_ndims = diff_weights_iter_d.ndims();
+        jrnn.diff_dst_layer_ndims = diff_dst_layer_d.ndims();
+        jrnn.diff_dst_iter_ndims = diff_dst_iter_d.ndims();
+        if (jrnn.with_dst_iter_c)
+            jrnn.diff_dst_iter_c_ndims = diff_dst_iter_c_d.ndims();
+        jrnn.diff_bias_ndims = diff_bias_d.ndims();
+
+        set_offsets(diff_src_layer_d, jit_off.diff_src_layer_off);
+        set_offsets(diff_src_iter_d, jit_off.diff_src_iter_off);
+        if (jrnn.with_src_iter_c)
+            set_offsets(diff_src_iter_c_d, jit_off.diff_src_iter_c_off);
+        set_offsets(diff_weights_layer_d, jit_off.diff_weights_layer_off);
+        set_offsets(diff_weights_iter_d, jit_off.diff_weights_iter_off);
+        set_offsets(diff_bias_d, jit_off.diff_bias_off);
+        set_offsets(diff_dst_layer_d, jit_off.diff_dst_layer_off);
+        set_offsets(diff_dst_iter_d, jit_off.diff_dst_iter_off);
+        if (jrnn.with_dst_iter_c)
+            set_offsets(diff_dst_iter_c_d, jit_off.diff_dst_iter_c_off);
+    }
+
+    rnn_utils::set_offsets(rnn, jrnn.ws_gates_offset, jrnn.ws_states_offset,
+            jrnn.ws_c_state_offset, jrnn.ws_diff_states_offset,
+            jrnn.ws_grid_comp_offset, jrnn.ws_cell_comp_offset,
+            jrnn.ws_bias_offset, jrnn.scratch_gates_offset,
+            jrnn.scratchpad_size, jrnn.workspace_size);
+
+    jrnn.cell_kind = rnn_pd->cell_kind();
+    jrnn.activation_kind = rnn_pd->activation_kind();
+    jrnn.direction_kind = rnn_pd->direction();
+
+    jrnn.wei_qparam_mask = rnn_pd->attr()->rnn_weights_qparams_.mask_;
+    jrnn.is_testmode = rnn.is_testmode;
+
+    return status::success;
+}
+
+static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+        const jit_rnn_conf_t &jrnn, const jit_rnn_offsets &jit_off) {
+
+    kernel_ctx.define_int("IS_FWD", jrnn.is_fwd);
+    kernel_ctx.define_int("IS_TRAINING", jrnn.is_training);
+    kernel_ctx.define_int("WITH_BIAS", jrnn.with_bias);
+    kernel_ctx.define_int("WITH_SRC_ITER", jrnn.with_src_iter);
+    kernel_ctx.define_int("WITH_SRC_ITER_C", jrnn.with_src_iter_c);
+    kernel_ctx.define_int("WITH_DST_ITER", jrnn.with_dst_iter);
+    kernel_ctx.define_int("WITH_DST_ITER_C", jrnn.with_dst_iter_c);
+    kernel_ctx.define_int("IS_LBR", jrnn.is_lbr);
+
+    kernel_ctx.define_int("VANILLA_RNN", alg_kind::vanilla_rnn);
+    kernel_ctx.define_int("VANILLA_LSTM", alg_kind::vanilla_lstm);
+    kernel_ctx.define_int("VANILLA_GRU", alg_kind::vanilla_gru);
+    kernel_ctx.define_int("LBR_GRU", alg_kind::lbr_gru);
+    kernel_ctx.define_int("CELL_KIND", jrnn.cell_kind);
+
+    kernel_ctx.define_int("ELTWISE_RELU", alg_kind::eltwise_relu);
+    kernel_ctx.define_int("ELTWISE_TANH", alg_kind::eltwise_tanh);
+    kernel_ctx.define_int("ELTWISE_LOGISTIC", alg_kind::eltwise_logistic);
+    kernel_ctx.define_int("ACTIVATION_KIND", jrnn.activation_kind);
+
+    kernel_ctx.define_int("WS_GATES", rnn_utils::gates);
+    kernel_ctx.define_int("WS_STATES", rnn_utils::states);
+    kernel_ctx.define_int("WS_C_STATES", rnn_utils::c_states);
+    kernel_ctx.define_int("WS_DIFF_STATES", rnn_utils::diff_states);
+    kernel_ctx.define_int("WS_BIAS", rnn_utils::bias);
+
+    kernel_ctx.define_int("L2R", dnnl_unidirectional_left2right);
+    kernel_ctx.define_int("R2L", dnnl_unidirectional_right2left);
+    kernel_ctx.define_int("CONCAT", dnnl_bidirectional_concat);
+    kernel_ctx.define_int("SUM", dnnl_bidirectional_sum);
+    kernel_ctx.define_int("UNIDEF", dnnl_unidirectional);
+    kernel_ctx.define_int("DIRECTION_KIND", jrnn.direction_kind);
+
+    kernel_ctx.define_int("BATCH", jrnn.batch);
+    kernel_ctx.define_int("N_DIR", jrnn.n_dir);
+    kernel_ctx.define_int("N_LAYER", jrnn.n_layer);
+    kernel_ctx.define_int("N_ITER", jrnn.n_iter);
+    kernel_ctx.define_int("N_ITER_SCRATCH_GATES", jrnn.n_iter_scratch_gates);
+    kernel_ctx.define_int("N_GATES", jrnn.n_gates);
+    kernel_ctx.define_int("N_BIAS", jrnn.n_bias);
+    kernel_ctx.define_int("N_STATES", jrnn.n_states);
+
+    kernel_ctx.define_int("SLC", jrnn.slc);
+    kernel_ctx.define_int("SIC", jrnn.sic);
+    kernel_ctx.define_int("DIC", jrnn.dic);
+    kernel_ctx.define_int("WIC", jrnn.wic);
+
+    kernel_ctx.define_int("N_PARTS_WEI_ST", jrnn.n_parts_weights_iter);
+    kernel_ctx.define_int("N_PARTS_WEI_I", jrnn.n_parts_weights_layer);
+
+    def_offsets(
+            jit_off.src_layer_off, kernel_ctx, "SRC_L", jrnn.src_layer_ndims);
+    def_offsets(jit_off.src_iter_off, kernel_ctx, "SRC_I", jrnn.src_iter_ndims);
+    if (jrnn.with_src_iter_c)
+        def_offsets(jit_off.src_iter_c_off, kernel_ctx, "SRC_I_C",
+                jrnn.src_iter_c_ndims);
+    def_offsets(jit_off.weights_layer_off, kernel_ctx, "WEI_L",
+            jrnn.weights_layer_ndims);
+    def_offsets(jit_off.weights_iter_off, kernel_ctx, "WEI_I",
+            jrnn.weights_iter_ndims);
+    def_offsets(
+            jit_off.dst_layer_off, kernel_ctx, "DST_L", jrnn.dst_layer_ndims);
+    def_offsets(jit_off.dst_iter_off, kernel_ctx, "DST_I", jrnn.dst_iter_ndims);
+    if (jrnn.with_dst_iter_c)
+        def_offsets(jit_off.dst_iter_c_off, kernel_ctx, "DST_I_C",
+                jrnn.dst_iter_c_ndims);
+    def_offsets(jit_off.bias_off, kernel_ctx, "BIAS", jrnn.bias_ndims);
+
+    if (!jrnn.is_fwd) {
+        def_offsets(jit_off.diff_src_layer_off, kernel_ctx, "DIFF_SRC_L",
+                jrnn.diff_src_layer_ndims);
+        def_offsets(jit_off.diff_src_iter_off, kernel_ctx, "DIFF_SRC_I",
+                jrnn.diff_src_iter_ndims);
+        if (jrnn.with_src_iter_c)
+            def_offsets(jit_off.diff_src_iter_c_off, kernel_ctx, "DIFF_SRC_I_C",
+                    jrnn.diff_src_iter_c_ndims);
+        def_offsets(jit_off.diff_weights_layer_off, kernel_ctx, "DIFF_WEI_L",
+                jrnn.diff_weights_layer_ndims);
+        def_offsets(jit_off.diff_weights_iter_off, kernel_ctx, "DIFF_WEI_I",
+                jrnn.diff_weights_iter_ndims);
+        def_offsets(jit_off.diff_dst_layer_off, kernel_ctx, "DIFF_DST_L",
+                jrnn.diff_dst_layer_ndims);
+        def_offsets(jit_off.diff_dst_iter_off, kernel_ctx, "DIFF_DST_I",
+                jrnn.diff_dst_iter_ndims);
+        if (jrnn.with_dst_iter_c)
+            def_offsets(jit_off.diff_dst_iter_c_off, kernel_ctx, "DIFF_DST_I_C",
+                    jrnn.diff_dst_iter_c_ndims);
+        def_offsets(jit_off.diff_bias_off, kernel_ctx, "DIFF_BIAS",
+                jrnn.diff_bias_ndims);
+    }
+
+    kernel_ctx.define_int("WS_GATES_OFFSET", jrnn.ws_gates_offset);
+    kernel_ctx.define_int("WS_STATES_OFFSET", jrnn.ws_states_offset);
+    kernel_ctx.define_int("WS_C_STATE_OFFSET", jrnn.ws_c_state_offset);
+    kernel_ctx.define_int("WS_DIFF_STATES_OFFSET", jrnn.ws_diff_states_offset);
+    kernel_ctx.define_int("WS_GRID_COMP_OFFSET", jrnn.ws_grid_comp_offset);
+    kernel_ctx.define_int("WS_CELL_COMP_OFFSET", jrnn.ws_cell_comp_offset);
+    kernel_ctx.define_int("WS_BIAS_OFFSET", jrnn.ws_bias_offset);
+    kernel_ctx.define_int("SCRATCH_GATES_OFFSET", jrnn.scratch_gates_offset);
+    kernel_ctx.define_int("STATES_WS_LD", jrnn.states_ws_ld);
+    kernel_ctx.define_int("DIFF_STATES_WS_LD", jrnn.diff_states_ws_ld);
+    kernel_ctx.define_int("GATES_WS_LD", jrnn.gates_ws_ld);
+    kernel_ctx.define_int("SCRATCH_GATES_LD", jrnn.scratch_gates_ld);
+
+    if (jrnn.src_dt == data_type::f16) {
+        kernel_ctx.set_data_type(data_type::f16);
+    } else
+        kernel_ctx.set_data_type(data_type::f32);
+
+    def_data_type(kernel_ctx, jrnn.src_dt, "WS_STATE");
+    def_data_type(kernel_ctx, jrnn.src_dt, "SRC");
+    def_data_type(kernel_ctx, jrnn.wei_dt, "WEI");
+    def_data_type(kernel_ctx, jrnn.acc_dt, "ACC");
+    def_data_type(kernel_ctx, jrnn.aux_dt, "AUX");
+    def_data_type(kernel_ctx, jrnn.dst_dt, "DST");
+    def_data_type(kernel_ctx, jrnn.input_dt, "INPUT");
+    def_data_type(kernel_ctx, jrnn.output_dt, "OUTPUT");
+    def_data_type(kernel_ctx, jrnn.diff_dt, "DIFF");
+
+    kernel_ctx.define_int("IS_INT8", jrnn.is_int8);
+    kernel_ctx.define_int("COPY_BIAS", jrnn.copy_bias);
+    kernel_ctx.define_int("WEI_QPARAM_MASK", jrnn.wei_qparam_mask);
+    kernel_ctx.define_int("IS_TESTMODE", jrnn.is_testmode);
+
+    kernel_ctx.define_int("DEBUGPRINT", DEBUGPRINT);
+
+#if DEBUGPRINT
+    kernel_ctx.print_options();
+#endif
+    return status::success;
+}
+
+template <prop_kind_t aprop>
+inline status_t init_jit(jit_rnn_conf_t &jrnn, const rnn_utils::rnn_conf_t &rnn,
+        const rnn_pd_t *rnn_pd, jit_rnn_offsets &jit_off) {
+
+    const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
+    return init_conf(jrnn, rnn_pd, rnn, rnn_pd->src_md(0), rnn_pd->src_md(1),
+            rnn_pd->src_md(2), rnn_pd->weights_md(0), rnn_pd->weights_md(1),
+            rnn_pd->weights_md(2), rnn_pd->dst_md(0), rnn_pd->dst_md(1),
+            rnn_pd->dst_md(2), fakedesc, fakedesc, fakedesc, fakedesc, fakedesc,
+            fakedesc, fakedesc, fakedesc, fakedesc, rnn_pd->workspace_md(0),
+            jit_off);
+}
+
+template <>
+inline status_t init_jit<prop_kind::backward>(jit_rnn_conf_t &jrnn,
+        const rnn_utils::rnn_conf_t &rnn, const rnn_pd_t *rnn_pd,
+        jit_rnn_offsets &jit_off) {
+    return init_conf(jrnn, rnn_pd, rnn, rnn_pd->src_md(0), rnn_pd->src_md(1),
+            rnn_pd->src_md(2), rnn_pd->weights_md(0), rnn_pd->weights_md(1),
+            rnn_pd->weights_md(2), rnn_pd->dst_md(0), rnn_pd->dst_md(1),
+            rnn_pd->dst_md(2), rnn_pd->diff_src_md(0), rnn_pd->diff_src_md(1),
+            rnn_pd->diff_src_md(2), rnn_pd->diff_weights_md(0),
+            rnn_pd->diff_weights_md(1), rnn_pd->diff_weights_md(2),
+            rnn_pd->diff_dst_md(0), rnn_pd->diff_dst_md(1),
+            rnn_pd->diff_dst_md(2), rnn_pd->workspace_md(0), jit_off);
+}
+
+template <prop_kind_t aprop>
+status_t _ref_rnn_common_t<aprop>::pd_t::init() {
+    using namespace prop_kind;
+    using namespace utils;
+    using namespace rnn_utils;
+    using namespace format_tag;
+
+    assert(this->engine()->kind() == engine_kind::gpu);
+    auto *compute_engine = utils::downcast<const compute::compute_engine_t *>(
+            this->engine());
+
+    const alg_kind_t cell_kind = this->desc()->cell_kind;
+
+    data_type_t src_layer_dt = this->desc()->src_layer_desc.data_type;
+    data_type_t weights_iter_dt = this->desc()->weights_iter_desc.data_type;
+    data_type_t weights_layer_dt = this->desc()->weights_layer_desc.data_type;
+    bool src_is_u8 = src_layer_dt == data_type::u8;
+    bool src_is_f16 = src_layer_dt == data_type::f16;
+    if (src_is_u8 && !src_is_f16)
+        acc_data_t = data_type::s32;
+    else if (!src_is_u8 && src_is_f16)
+        acc_data_t = data_type::f16;
+    else if (!src_is_u8 && !src_is_f16)
+        acc_data_t = data_type::f32;
+    src_type = src_layer_dt;
+    weights_type = weights_layer_dt;
+
+    bool ok = true
+            && one_of(cell_kind, alg_kind::vanilla_rnn, alg_kind::vanilla_lstm)
+            && IMPLICATION(aprop == prop_kind::forward,
+                    one_of(this->desc()->prop_kind, forward_training,
+                            forward_inference))
+            && IMPLICATION(aprop == backward,
+                    one_of(this->desc()->prop_kind, backward))
+            && src_layer_dt == src_type
+            && ((aprop == prop_kind::forward && src_layer_dt == data_type::u8
+                        && weights_layer_dt == data_type::s8)
+                    || (aprop == prop_kind::forward
+                            && one_of(src_layer_dt, data_type::f16,
+                                    data_type::f32, data_type::bf16)
+                            && weights_layer_dt == src_layer_dt)
+                    || (aprop == prop_kind::backward
+                            && one_of(weights_layer_dt, data_type::f32,
+                                    data_type::bf16)
+                            && weights_layer_dt == src_layer_dt))
+            && weights_iter_dt == weights_layer_dt
+            && everyone_is(weights_type, weights_iter_dt, weights_layer_dt)
+            && this->set_default_params() == status::success
+            && this->with_bias()
+            && IMPLICATION(
+                    src_type == data_type::f16 || src_type == data_type::u8,
+                    this->desc()->prop_kind == forward_inference)
+            && compute_engine->mayiuse(compute::device_ext_t::intel_subgroups)
+            && IMPLICATION(src_type == data_type::f16,
+                    true
+                            && compute_engine->mayiuse(
+                                    compute::device_ext_t::khr_fp16)
+                            && compute_engine->mayiuse(compute::device_ext_t::
+                                            intel_subgroups_short));
+    if (!ok) return status::unimplemented;
+
+    init_rnn_conf(rnn_conf_, *this->desc(), this->src_md(0), this->src_md(1),
+            this->weights_md(0), this->weights_md(1), this->dst_md(0));
+    init_test_mode(rnn_conf_, *this->attr());
+
+    /* check that only supported attr have been passed */
+    primitive_attr_t::skip_mask_t attr_mask
+            = primitive_attr_t::skip_mask_t::rnn_tparams;
+    if (weights_layer_dt == data_type::s8)
+        attr_mask = attr_mask | primitive_attr_t::skip_mask_t::rnn_data_qparams
+                | primitive_attr_t::skip_mask_t::rnn_weights_qparams;
+    ok = ok && this->attr()->has_default_values(attr_mask);
+
+    // TODO: implement something like check layout consistency
+    switch (aprop) {
+        case (prop_kind::forward): break;
+        case (prop_kind::backward):
+            ok = ok && utils::one_of(this->desc()->prop_kind, backward);
+            ok = ok
+                    && memory_desc_matches_one_of_tag(
+                            this->weights_layer_md_, ldgoi)
+                    && memory_desc_matches_one_of_tag(
+                            this->weights_iter_md_, ldgoi);
+            break;
+        default: ok = false;
+    }
+    if (!ok) return status::unimplemented;
+
+    // Set weights descriptors to desired format
+    memory_desc_t new_weights_layer_md = *this->weights_md(0);
+    CHECK(set_expected_desc(rnn_conf_, new_weights_layer_md, false));
+
+    if (this->weights_layer_md_.format_kind == format_kind::any) {
+        this->weights_layer_md_ = new_weights_layer_md;
+    } else if (this->weights_layer_md_.format_kind == format_kind::rnn_packed) {
+        if (dnnl::impl::operator!=(
+                    this->weights_layer_md_, new_weights_layer_md))
+            return status::unimplemented;
+    }
+
+    memory_desc_t new_weights_iter_md = *this->weights_md(1);
+    CHECK(set_expected_desc(rnn_conf_, new_weights_iter_md, true));
+    if (this->weights_iter_md_.format_kind == format_kind::any) {
+        this->weights_iter_md_ = new_weights_iter_md;
+    } else if (this->weights_iter_md_.format_kind == format_kind::rnn_packed) {
+        if (dnnl::impl::operator!=(this->weights_iter_md_, new_weights_iter_md))
+            return status::unimplemented;
+    }
+
+    // Check dimensions consistency
+    int ls_multiplier
+            = (this->direction() == dnnl_bidirectional_concat) ? 2 : 1;
+
+    ok = ok && (ls_multiplier * this->DIC() == this->DLC())
+            && ((ls_multiplier * this->SLC()) == this->DLC()
+                    || (this->L() == 1))
+            && (this->SIC() == this->DIC() || (this->T() == 1));
+    if (!ok) return status::unimplemented;
+
+    set_rnn_conf(rnn_conf_, *this->desc(), this->weights_md(0),
+            this->weights_md(1), this->diff_weights_md(0),
+            this->diff_weights_md(1));
+
+    size_t scratchpad_sz {0}, ws_sz {0};
+    get_scratchpad_and_workspace_sizes(rnn_conf_, scratchpad_sz, ws_sz);
+
+    // initialize the workspace_pd if needed
+    if (rnn_conf_.use_workspace) {
+        dims_t ws_dims = {(dim_t)ws_sz};
+        dnnl_memory_desc_init_by_tag(
+                &this->ws_md_, 1, ws_dims, data_type::u8, x);
+    }
+
+    init_scratchpad(scratchpad_sz);
+
+    rnn_conf_.acc_data_type = acc_data_t;
+    rnn_conf_.acc_data_type_elsz = types::data_type_size(acc_data_t);
+    status_t status = init_jit<aprop>(jrnn_, rnn_conf_, this, this->jit_off_);
+    if (status != status::success) { return status; }
+
+    auto create_gemm_pd = [&](primitive_desc_t **gemm_pd, int m, int n, int k,
+                                  int lda, int ldb, int ldc, data_type_t a_dt,
+                                  data_type_t b_dt, data_type_t c_dt,
+                                  bool is_B_trans, float beta) -> status_t {
+        gemm_desc_t gemm_desc;
+        gemm_desc.primitive_kind = primitive_kind::gemm;
+        gemm_desc.transa = transpose::notrans;
+        gemm_desc.transb = is_B_trans ? transpose::trans : transpose::notrans;
+        gemm_desc.batch = 1;
+        gemm_desc.m = m;
+        gemm_desc.n = n;
+        gemm_desc.k = k;
+        gemm_desc.lda = lda;
+        gemm_desc.ldb = ldb;
+        gemm_desc.ldc = ldc;
+        gemm_desc.stride_a = lda;
+        gemm_desc.stride_b = ldb;
+        gemm_desc.stride_c = ldc;
+        gemm_desc.a_type = a_dt;
+        gemm_desc.b_type = b_dt;
+        gemm_desc.c_type = c_dt;
+        gemm_desc.acc_type = c_dt;
+
+        primitive_attr_t dummy_attr;
+        dummy_attr.post_ops_.append_sum(beta);
+
+        return dnnl_primitive_desc_create(gemm_pd, (op_desc_t *)&gemm_desc,
+                &dummy_attr, this->engine(), nullptr);
+    };
+
+    int batch = rnn_conf_.mb;
+    int n_gates = rnn_conf_.n_gates;
+    int slc = rnn_conf_.slc;
+    int sic = rnn_conf_.sic;
+    int dic = rnn_conf_.dic;
+
+    int layer_merged_size
+            = rnn_conf_.merge_gemm_layer ? batch * rnn_conf_.n_iter : batch;
+    int iter_merged_size
+            = rnn_conf_.merge_gemm_iter ? batch * rnn_conf_.n_iter : batch;
+
+    bool gemm_ok = true;
+
+    switch (aprop) {
+        case prop_kind::forward:
+            gemm_ok = true
+                    && utils::everyone_is(status::success,
+                            create_gemm_pd(&gemm_layer_fwd_pd_, n_gates * dic,
+                                    layer_merged_size, slc,
+                                    rnn_conf_.weights_layer_ld,
+                                    rnn_conf_.states_ws_ld,
+                                    rnn_conf_.gates_ws_ld, weights_type,
+                                    src_type, rnn_conf_.acc_data_type, false,
+                                    0.0),
+                            create_gemm_pd(&gemm_iter_fwd_pd_, n_gates * dic,
+                                    batch, sic, rnn_conf_.weights_iter_ld,
+                                    rnn_conf_.states_ws_ld,
+                                    rnn_conf_.gates_ws_ld, weights_type,
+                                    src_type, rnn_conf_.acc_data_type, false,
+                                    1.0));
+            break;
+        case prop_kind::backward:
+            gemm_ok = true
+                    && utils::everyone_is(status::success,
+                            create_gemm_pd(&gemm_iter_bwd_pd_, sic, batch,
+                                    n_gates * dic, rnn_conf_.weights_iter_ld,
+                                    rnn_conf_.scratch_gates_ld,
+                                    rnn_conf_.diff_states_ws_ld, weights_type,
+                                    src_type, rnn_conf_.acc_data_type, false,
+                                    0.0f),
+                            create_gemm_pd(&gemm_layer_bwd_pd_, slc,
+                                    layer_merged_size, n_gates * dic,
+                                    rnn_conf_.weights_layer_ld,
+                                    rnn_conf_.scratch_gates_ld,
+                                    rnn_conf_.diff_states_ws_ld, weights_type,
+                                    src_type, rnn_conf_.acc_data_type, false,
+                                    0.0f),
+                            create_gemm_pd(&gemm_diff_wei_layer_pd_,
+                                    n_gates * dic, slc, layer_merged_size,
+                                    rnn_conf_.scratch_gates_ld,
+                                    rnn_conf_.states_ws_ld,
+                                    rnn_conf_.diff_weights_layer_ld,
+                                    weights_type, src_type,
+                                    rnn_conf_.acc_data_type, true, 1.0f),
+                            create_gemm_pd(&gemm_diff_wei_iter_pd_,
+                                    n_gates * dic, sic, iter_merged_size,
+                                    rnn_conf_.scratch_gates_ld,
+                                    rnn_conf_.states_ws_ld,
+                                    rnn_conf_.diff_weights_iter_ld,
+                                    weights_type, src_type,
+                                    rnn_conf_.acc_data_type, true, 1.0f));
+            break;
+        default: assert(!"unknown prop_kind"); return status::invalid_arguments;
+    }
+
+    if (!gemm_ok) return status::unimplemented;
+    return status::success;
+}
+
+template <prop_kind_t aprop>
+status_t _ref_rnn_common_t<aprop>::init() {
+    auto *compute_engine
+            = utils::downcast<compute::compute_engine_t *>(engine());
+    compute::kernel_ctx_t kernel_ctx;
+
+    status_t status = init_const_def(kernel_ctx, pd()->jrnn_, pd()->jit_off_);
+    CHECK(status);
+
+    std::vector<const char *> kernel_names
+            = { "ref_rnn_bias_prepare",
+                  "ref_rnn_copy_init_layer",
+                  "ref_rnn_copy_init_iter",
+                  "ref_rnn_copy_res_layer",
+                  "ref_rnn_copy_res_iter",
+                  "ref_rnn_ws_set",
+                  "ref_rnn_elemwise_fwd",
+                  "ref_rnn_elemwise_bwd",
+                  "ref_rnn_gates_reduction"
+#if DEBUGPRINT
+                  ,
+                  "ref_rnn_ws_print"
+#endif
+              };
+
+    std::vector<compute::kernel_t> kernels;
+    status = compute_engine->create_kernels(&kernels, kernel_names, kernel_ctx);
+    CHECK(status);
+
+    bias_prepare_kernel_ = kernels[0];
+    copy_init_layer_kernel_ = kernels[1];
+    copy_init_iter_kernel_ = kernels[2];
+    copy_res_layer_kernel_ = kernels[3];
+    copy_res_iter_kernel_ = kernels[4];
+    ws_set_kernel_ = kernels[5];
+    elemwise_fwd_kernel_ = kernels[6];
+    elemwise_bwd_kernel_ = kernels[7];
+    gates_reduction_kernel_ = kernels[8];
+#if DEBUGPRINT
+    ws_print_kernel_ = kernels[9];
+#endif
+
+    if (pd()->rnn_conf_.is_int8) {
+        size_t size = pd()->rnn_conf_.n_gates * pd()->rnn_conf_.dic
+                * sizeof(float); // G * O * sizeof(float);
+        memory_storage_t *temp_buf_ptr;
+        engine()->create_memory_storage(&temp_buf_ptr, size);
+        scales_buf_.reset(temp_buf_ptr);
+        if (!scales_buf_) return status::runtime_error;
+    }
+
+    // Prepare testmode scales defined by attributes. Doesn't introduce
+    // primitive state, because it is a constant memory -- will not be
+    // changed during execution.
+    // TODO: add the testmode scales to ws
+    if (pd()->rnn_conf_.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
+        size_t size = pd()->rnn_conf_.tm_ngates
+                * sizeof(*pd_->attr()->rnn_tparams_.scales_);
+        memory_storage_t *temp_buf_ptr;
+        engine()->create_memory_storage(&temp_buf_ptr, size);
+        tm_scales_buf_.reset(temp_buf_ptr);
+        if (!tm_scales_buf_) return status::runtime_error;
+
+        void *tmp_ptr = nullptr;
+        status = tm_scales_buf_->map_data(&tmp_ptr);
+        if (status != status::success) return status;
+        utils::array_copy((float *)tmp_ptr, pd()->attr()->rnn_tparams_.scales_,
+                pd()->attr()->rnn_tparams_.ngates_);
+        status = tm_scales_buf_->unmap_data(tmp_ptr);
+        if (status != status::success) return status;
+    }
+
+    bool gemm_ok = true;
+
+    switch (aprop) {
+        case prop_kind::forward:
+            gemm_ok = true
+                    && utils::everyone_is(status::success,
+                            pd()->gemm_layer_fwd_pd_->create_primitive(
+                                    &gemm_layer_fwd_),
+                            pd()->gemm_iter_fwd_pd_->create_primitive(
+                                    &gemm_iter_fwd_));
+            break;
+        case prop_kind::backward:
+            gemm_ok = true
+                    && utils::everyone_is(status::success,
+                            pd()->gemm_layer_bwd_pd_->create_primitive(
+                                    &gemm_layer_bwd_),
+                            pd()->gemm_iter_bwd_pd_->create_primitive(
+                                    &gemm_iter_bwd_),
+                            pd()->gemm_diff_wei_layer_pd_->create_primitive(
+                                    &gemm_diff_wei_layer_),
+                            pd()->gemm_diff_wei_iter_pd_->create_primitive(
+                                    &gemm_diff_wei_iter_));
+            break;
+        default: assert(!"unknown prop_kind"); return status::invalid_arguments;
+    }
+
+    if (!gemm_ok) return status::runtime_error;
+
+    return status::success;
+}
 
 template <prop_kind_t aprop>
 gemm_sig((_ref_rnn_common_t<aprop>::packed_gemm)) {

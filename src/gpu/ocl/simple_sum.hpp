@@ -21,8 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_simple_sum_kernel.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_sum_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -55,29 +54,23 @@ struct simple_sum_t : public primitive_impl_t {
                 if (i_d != o_d) return status::unimplemented;
             }
 
-            return jit_simple_sum_kernel::init_conf(jss_, this);
+            return status::success;
         }
         jit_simple_sum_conf_t jss_;
     };
 
-    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
-        ker_ = new jit_simple_sum_kernel(pd()->jss_);
-    }
+    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t init() override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        jit_simple_sum_kernel::init_const_def(kernel_ctx, pd()->jss_);
-
         compute_engine->create_kernel(&kernel_, "simple_sum", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
-
-    ~simple_sum_t() { delete ker_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
@@ -86,7 +79,6 @@ struct simple_sum_t : public primitive_impl_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_simple_sum_kernel *ker_;
     compute::kernel_t kernel_;
 };
 

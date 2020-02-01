@@ -17,6 +17,11 @@
 #ifndef GPU_OCL_RNN_RNN_UTILS_HPP
 #define GPU_OCL_RNN_RNN_UTILS_HPP
 
+#include "dnnl_types.h"
+
+#include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
+
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
     ((((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4)) \
                     * (d5) \

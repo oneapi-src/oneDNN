@@ -20,14 +20,19 @@
 #include "common/c_types_map.hpp"
 
 #include "gpu/compute/compute.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_convolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ref_convolution_kernel.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t ref_convolution_init_def(
+        jit_conv_conf_t &conf, const convolution_pd_t *pd, jit_offsets &off);
+status_t ref_convolution_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+        const jit_conv_conf_t &conf, const jit_offsets &off);
 
 struct ref_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_fwd_pd_t {
@@ -67,7 +72,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
             auto scales_status = init_scales_md();
             if (scales_status != status::success) return scales_status;
 
-            return kernel_.init(this);
+            return ref_convolution_init_def(jcp_, this, jit_off_);
         }
 
         const memory_desc_t *scales_md() const { return &scales_md_; }
@@ -122,7 +127,8 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
             return with_scales() && attr()->output_scales_.mask_ == (1 << 1);
         }
 
-        const ref_convolution_kernel_t *kernel() const { return &kernel_; }
+        jit_conv_conf_t jcp_;
+        jit_offsets jit_off_;
 
     private:
         bool set_default_formats() {
@@ -145,7 +151,6 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
             return status::success;
         }
 
-        ref_convolution_kernel_t kernel_;
         memory_desc_t scales_md_;
     };
 
@@ -169,7 +174,8 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = pd()->kernel()->apply_const(kernel_ctx);
+        auto status = ref_convolution_init_const_def(
+                kernel_ctx, pd()->jcp_, pd()->jit_off_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
@@ -206,10 +212,11 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(this);
+            return ref_convolution_init_def(jcp_, this, jit_off_);
         }
 
-        const ref_convolution_kernel_t *kernel() const { return &kernel_; }
+        jit_conv_conf_t jcp_;
+        jit_offsets jit_off_;
 
     private:
         bool set_default_formats() {
@@ -220,8 +227,6 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
-
-        ref_convolution_kernel_t kernel_;
     };
 
     status_t init() override {
@@ -229,7 +234,8 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = pd()->kernel()->apply_const(kernel_ctx);
+        auto status = ref_convolution_init_const_def(
+                kernel_ctx, pd()->jcp_, pd()->jit_off_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
@@ -266,10 +272,11 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return kernel_.init(this);
+            return ref_convolution_init_def(jcp_, this, jit_off_);
         }
 
-        const ref_convolution_kernel_t *kernel() const { return &kernel_; }
+        jit_conv_conf_t jcp_;
+        jit_offsets jit_off_;
 
     private:
         bool set_default_formats() {
@@ -280,8 +287,6 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
                     : utils::pick(ndims() - 3, oiw, oihw, oidhw);
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
-
-        ref_convolution_kernel_t kernel_;
     };
 
     status_t init() override {
@@ -289,7 +294,8 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = pd()->kernel()->apply_const(kernel_ctx);
+        auto status = ref_convolution_init_const_def(
+                kernel_ctx, pd()->jcp_, pd()->jit_off_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(

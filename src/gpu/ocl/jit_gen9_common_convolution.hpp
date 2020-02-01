@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_gen9_common_conv_kernel.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_convolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -30,6 +30,21 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t jit_gen9_convolution_fwd_init_conf(
+        jit_conv_conf_t &jcp, const convolution_pd_t *pd);
+status_t jit_gen9_convolution_fwd_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp);
+
+status_t jit_gen9_convolution_bwd_data_init_conf(
+        jit_conv_conf_t &jcp, const convolution_pd_t *pd);
+status_t jit_gen9_convolution_bwd_data_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp);
+
+status_t jit_gen9_convolution_bwd_weights_init_conf(
+        jit_conv_conf_t &jcp, const convolution_pd_t *pd);
+status_t jit_gen9_convolution_bwd_weights_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp);
 
 struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_fwd_pd_t {
@@ -74,8 +89,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                     && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
-            status_t status
-                    = jit_gen9_common_conv_fwd_kernel::init_conf(jcp_, this);
+            status_t status = jit_gen9_convolution_fwd_init_conf(jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -100,7 +114,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        auto status = jit_gen9_common_conv_fwd_kernel::init_const_def(
+        status_t status = jit_gen9_convolution_fwd_init_const_def(
                 kernel_ctx, pd()->jcp_);
         if (status != status::success) return status;
 
@@ -111,10 +125,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
     }
 
     jit_gen9_common_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        ker_ = new jit_gen9_common_conv_fwd_kernel(pd()->jcp_);
     }
-
-    ~jit_gen9_common_convolution_fwd_t() { delete ker_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -123,7 +134,6 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_gen9_common_conv_fwd_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
@@ -166,8 +176,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_gen9_common_conv_bwd_data_kernel::init_conf(
-                    jcp_, this);
+            status_t status
+                    = jit_gen9_convolution_bwd_data_init_conf(jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -188,7 +198,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        auto status = jit_gen9_common_conv_bwd_data_kernel::init_const_def(
+        status_t status = jit_gen9_convolution_bwd_data_init_const_def(
                 kernel_ctx, pd()->jcp_);
         if (status != status::success) return status;
 
@@ -200,10 +210,7 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
 
     jit_gen9_common_convolution_bwd_data_t(const pd_t *apd)
         : primitive_impl_t(apd) {
-        ker_ = new jit_gen9_common_conv_bwd_data_kernel(pd()->jcp_);
     }
-
-    ~jit_gen9_common_convolution_bwd_data_t() { delete ker_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -212,7 +219,6 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_gen9_common_conv_bwd_data_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
@@ -246,9 +252,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status
-                    = jit_gen9_common_conv_bwd_weights_kernel::init_conf(
-                            jcp_, this);
-
+                    = jit_gen9_convolution_bwd_weights_init_conf(jcp_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
@@ -264,7 +268,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        auto status = jit_gen9_common_conv_bwd_weights_kernel::init_const_def(
+        status_t status = jit_gen9_convolution_bwd_weights_init_const_def(
                 kernel_ctx, pd()->jcp_);
         if (status != status::success) return status;
 
@@ -277,10 +281,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
 
     jit_gen9_common_convolution_bwd_weights_t(const pd_t *apd)
         : primitive_impl_t(apd) {
-        ker_ = new jit_gen9_common_conv_bwd_weights_kernel(pd()->jcp_);
     }
-
-    ~jit_gen9_common_convolution_bwd_weights_t() { delete ker_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
@@ -289,7 +290,6 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_gen9_common_conv_bwd_weights_kernel *ker_;
     compute::kernel_t kernel_;
 };
 

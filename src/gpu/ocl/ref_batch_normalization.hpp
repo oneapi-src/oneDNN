@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_ref_bnorm_common_kernel.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_batch_normalization_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -30,6 +30,14 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t ref_batch_normalization_init_conf(jit_bnorm_conf_t &jbn,
+        const batch_normalization_pd_t *pd, jit_offsets &jit_off);
+status_t ref_batch_normalization_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const jit_bnorm_conf_t &jbn,
+        const jit_offsets &jit_off);
+void ref_batch_normalization_init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const jit_bnorm_conf_t &jbn);
 
 struct ref_batch_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_batch_normalization_fwd_pd_t {
@@ -67,12 +75,12 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
-            status_t status = jit_ref_bnorm_common_kernel::init_conf(
-                    jbn_, this, jit_off_);
+            status_t status
+                    = ref_batch_normalization_init_conf(jbn_, this, jit_off_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_ref_bnorm_common_kernel::init_scratchpad(scratchpad, jbn_);
+            ref_batch_normalization_init_scratchpad(scratchpad, jbn_);
             return status::success;
         }
 
@@ -85,7 +93,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        jit_ref_bnorm_common_kernel::init_const_def(
+        ref_batch_normalization_init_const_def(
                 kernel_ctx, pd()->jbn_, pd()->jit_off_);
 
         std::vector<const char *> kernel_names
@@ -111,10 +119,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        ker_ = new jit_ref_bnorm_common_kernel(pd()->jbn_);
-    }
-    ~ref_batch_normalization_fwd_t() { delete ker_; }
+    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -123,7 +128,6 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_ref_bnorm_common_kernel *ker_;
     compute::kernel_t kernel_;
     compute::kernel_t calculate_mean_kernel_;
     compute::kernel_t reduce_mean_kernel_;
@@ -160,12 +164,12 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            status_t status = jit_ref_bnorm_common_kernel::init_conf(
-                    jbn_, this, jit_off_);
+            status_t status
+                    = ref_batch_normalization_init_conf(jbn_, this, jit_off_);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_ref_bnorm_common_kernel::init_scratchpad(scratchpad, jbn_);
+            ref_batch_normalization_init_scratchpad(scratchpad, jbn_);
             return status::success;
         }
 
@@ -178,8 +182,9 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        jit_ref_bnorm_common_kernel::init_const_def(
+        status_t status = ref_batch_normalization_init_const_def(
                 kernel_ctx, pd()->jbn_, pd()->jit_off_);
+        CHECK(status);
 
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_bwd", nullptr, nullptr};
@@ -190,7 +195,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         }
 
         std::vector<compute::kernel_t> kernels;
-        auto status = compute_engine->create_kernels(
+        status = compute_engine->create_kernels(
                 &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
@@ -201,10 +206,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        ker_ = new jit_ref_bnorm_common_kernel(pd()->jbn_);
-    }
-    ~ref_batch_normalization_bwd_t() { delete ker_; }
+    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
@@ -213,7 +215,6 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_ref_bnorm_common_kernel *ker_;
     compute::kernel_t kernel_;
     compute::kernel_t calculate_stats_kernel_;
     compute::kernel_t reduce_stats_kernel_;

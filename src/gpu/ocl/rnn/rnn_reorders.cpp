@@ -23,6 +23,98 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+status_t rnn_weights_reorder_init_conf(
+        jit_rnn_reorder_conf_t &jrp, const reorder_pd_t *pd) {
+
+    const memory_desc_wrapper input_md(pd->src_md());
+    const memory_desc_wrapper output_md(pd->dst_md());
+
+    status_t status = status::success;
+
+    const auto &dims = output_md.padded_dims();
+    jrp.with_sum_ab = (pd->alpha() != 1.f || pd->beta() != 0.f);
+    jrp.with_sum_a = jrp.with_sum_ab && pd->beta() == 0.f;
+    jrp.do_reorder = input_md != output_md;
+    jrp.has_padding = !input_md.is_dense() || !output_md.is_dense();
+    jrp.ndims = input_md.ndims();
+    jrp.nelems = utils::array_product(dims, jrp.ndims);
+
+    jrp.use_ref_impl = 1;
+    jrp.with_group = 0;
+    jrp.sub_group_size = 1;
+
+    // only for LDIGO
+    auto *compute_engine
+            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+
+    jrp.dispatch = compute_engine->create_dispatch(output_md.md_);
+    jrp.dispatch.define_dim("D0", 0, dims[0]);
+    jrp.dispatch.define_dim("D1", 1, dims[1]);
+    jrp.dispatch.define_dim("D3", 3, dims[3]);
+    jrp.dispatch.define_dim("D4", 4, dims[4]);
+    jrp.dispatch.generate();
+
+    jrp.mask = pd->attr()->rnn_weights_qparams_.mask_;
+    const auto &input_dims = input_md.dims();
+    jrp.scales_count = jrp.mask ? input_dims[3] * input_dims[4] : 1;
+
+    return status;
+}
+
+status_t rnn_weights_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+        const jit_rnn_reorder_conf_t &jrp, const memory_desc_wrapper &input_md,
+        const memory_desc_wrapper &output_md) {
+
+    kernel_ctx.define_int("NDIMS", jrp.ndims);
+    if (jrp.with_sum_a)
+        kernel_ctx.define_int("WITH_SUM_A", 1);
+    else if (jrp.with_sum_ab)
+        kernel_ctx.define_int("WITH_SUM_AB", 1);
+    kernel_ctx.define_int("WITH_GROUP", jrp.with_group);
+
+    auto input_type = input_md.data_type();
+    auto output_type = output_md.data_type();
+
+    switch (input_type) {
+        case dnnl_u8: kernel_ctx.define_int("IN_TYPE_U8", 1); break;
+        case dnnl_s8: kernel_ctx.define_int("IN_TYPE_S8", 1); break;
+        case dnnl_f16: kernel_ctx.define_int("IN_TYPE_F16", 1); break;
+        case dnnl_s32: kernel_ctx.define_int("IN_TYPE_S32", 1); break;
+        case dnnl_f32: kernel_ctx.define_int("IN_TYPE_F32", 1); break;
+        case dnnl_bf16: kernel_ctx.define_int("IN_TYPE_BF16", 1); break;
+        default: return status::invalid_arguments;
+    }
+    switch (output_type) {
+        case dnnl_u8: kernel_ctx.define_int("OUT_TYPE_U8", 1); break;
+        case dnnl_s8: kernel_ctx.define_int("OUT_TYPE_S8", 1); break;
+        case dnnl_f16: kernel_ctx.define_int("OUT_TYPE_F16", 1); break;
+        case dnnl_s32: kernel_ctx.define_int("OUT_TYPE_S32", 1); break;
+        case dnnl_f32: kernel_ctx.define_int("OUT_TYPE_F32", 1); break;
+        case dnnl_bf16: kernel_ctx.define_int("OUT_TYPE_BF16", 1); break;
+        default: return status::invalid_arguments;
+    }
+
+    kernel_ctx.define_int("REF_REORDER", jrp.use_ref_impl);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
+
+    set_offsets(kernel_ctx, input_md, "SRC");
+    set_offsets(kernel_ctx, output_md, "DST");
+
+    const auto &in_dims = input_md.dims();
+    const auto &out_dims = output_md.padded_dims();
+
+    kernel_ctx.define_int("PAD_FILL_ZERO", jrp.has_padding);
+    for (int d = 0; d < MAX_NDIMS; ++d)
+        kernel_ctx.define_int(utils::format("SRC_D%d", d),
+                (d < input_md.ndims()) ? in_dims[d] : 1);
+    for (int d = 0; d < MAX_NDIMS; ++d)
+        kernel_ctx.define_int(utils::format("DST_D%d", d),
+                (d < output_md.ndims()) ? out_dims[d] : 1);
+    kernel_ctx.define_int("MASK", jrp.mask);
+    def_dispatch(kernel_ctx, jrp.dispatch);
+    return status::success;
+}
+
 status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -30,7 +122,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto &input = CTX_IN_STORAGE(DNNL_ARG_FROM);
     auto &output = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
-    const auto &jrp = ker_->jrp;
+    const auto &jrp = pd()->jrp_;
     const bool do_reorder = jrp.do_reorder;
 
     auto ocl_reorder = [&](const memory_storage_t &in_storage,

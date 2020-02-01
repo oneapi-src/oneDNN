@@ -23,6 +23,62 @@ namespace ocl {
 
 using namespace format_tag;
 
+status_t ref_shuffle_init_conf(jit_shuffle_conf_t &jshfl,
+        const shuffle_pd_t *pd, jit_offsets &jit_off) {
+
+    const bool is_fwd = pd->is_fwd();
+
+    const memory_desc_wrapper input_md(
+            is_fwd ? pd->src_md() : pd->diff_dst_md());
+    jshfl.data_type = input_md.data_type();
+
+    const int axis = pd->axis();
+    jshfl.axis = axis;
+
+    const int axis_size = pd->axis_size();
+    const int group_size = pd->group_size();
+    jshfl.transpose_row = is_fwd ? group_size : axis_size / group_size;
+    jshfl.transpose_col = is_fwd ? axis_size / group_size : group_size;
+    jshfl.axis_size = axis_size;
+    jshfl.group_size = group_size;
+
+    auto dims = pd->desc()->data_desc.dims;
+    auto ndims = pd->desc()->data_desc.ndims;
+    const size_t outer_size = utils::array_product(dims, axis);
+    const size_t inner_size
+            = utils::array_product(dims + axis + 1, ndims - axis - 1);
+    const size_t dim = axis_size * inner_size;
+    jshfl.outer_size = outer_size;
+    jshfl.inner_size = inner_size;
+    jshfl.dim = dim;
+    jshfl.ndims = ndims;
+
+    jshfl.gws_d[0] = nstl::max(size_t(1), inner_size);
+    jshfl.gws_d[1] = nstl::max(1, axis_size);
+    jshfl.gws_d[2] = nstl::max(size_t(1), outer_size);
+
+    set_offsets(input_md, jit_off.src_off);
+
+    return status::success;
+}
+
+status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+        const jit_shuffle_conf_t &jshfl, const jit_offsets &jit_off) {
+
+    kernel_ctx.set_data_type(jshfl.data_type);
+    kernel_ctx.define_int("NDIMS", jshfl.ndims);
+    kernel_ctx.define_int("AXIS", jshfl.axis);
+    kernel_ctx.define_int("AXIS_SIZE", jshfl.axis_size);
+    kernel_ctx.define_int("GROUP_SIZE", jshfl.group_size);
+    kernel_ctx.define_int("TRANSPOSE_ROW", jshfl.transpose_row);
+    kernel_ctx.define_int("TRANSPOSE_COL", jshfl.transpose_col);
+    kernel_ctx.define_int("INNER_SIZE", jshfl.inner_size);
+    kernel_ctx.define_int("OUTER_SIZE", jshfl.outer_size);
+
+    def_offsets(jit_off.src_off, kernel_ctx, "SRC", jshfl.ndims);
+    return status::success;
+}
+
 template <dnnl_format_tag_t tag>
 status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     auto &src = pd()->is_fwd() ? CTX_IN_STORAGE(DNNL_ARG_SRC)

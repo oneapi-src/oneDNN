@@ -22,13 +22,18 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_ref_layer_normalization_kernel.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t ref_layer_normalization_init_conf(
+        jit_lnorm_conf_t &jln, const layer_normalization_pd_t *pd);
+status_t ref_layer_normalization_init_const_def(
+        const jit_lnorm_conf_t &jln, compute::kernel_ctx_t &kernel_ctx);
 
 struct ref_layer_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_layer_normalization_fwd_pd_t {
@@ -55,7 +60,7 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
-            return jit_ref_layer_normalization_kernel_t::init_conf(jln_, this);
+            return ref_layer_normalization_init_conf(jln_, this);
         }
 
         jit_lnorm_conf_t jln_;
@@ -68,7 +73,7 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = jit_ref_layer_normalization_kernel_t::init_const_def(
+        status_t status = ref_layer_normalization_init_const_def(
                 pd()->jln_, kernel_ctx);
         CHECK(status);
 
@@ -116,7 +121,7 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return jit_ref_layer_normalization_kernel_t::init_conf(jln_, this);
+            return ref_layer_normalization_init_conf(jln_, this);
         }
 
         jit_lnorm_conf_t jln_;
@@ -129,7 +134,7 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = jit_ref_layer_normalization_kernel_t::init_const_def(
+        status_t status = ref_layer_normalization_init_const_def(
                 pd()->jln_, kernel_ctx);
         CHECK(status);
 

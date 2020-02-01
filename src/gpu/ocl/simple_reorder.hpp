@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/jit_simple_reorder_kernel.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -28,6 +28,14 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t simple_reorder_init_conf(
+        jit_reorder_conf_t &jrp, const reorder_pd_t *pd);
+status_t simple_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+        const jit_reorder_conf_t &jrp, const memory_desc_wrapper &src_md,
+        const memory_desc_wrapper &dst_md);
+void simple_reorder_init_scratchpad(memory_tracking::registrar_t &scratchpad,
+        const jit_reorder_conf_t &jrp);
 
 struct simple_reorder_t : public primitive_impl_t {
     struct pd_t : public ocl_reorder_pd_t {
@@ -81,11 +89,11 @@ struct simple_reorder_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_simple_reorder_kernel::init_conf(jrp_, this);
+            status_t status = simple_reorder_init_conf(jrp_, this);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_simple_reorder_kernel::init_scratchpad(scratchpad, jrp_);
+            simple_reorder_init_scratchpad(scratchpad, jrp_);
             return status::success;
         }
 
@@ -97,7 +105,7 @@ struct simple_reorder_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = jit_simple_reorder_kernel::init_const_def(
+        auto status = simple_reorder_init_const_def(
                 kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
         if (status != status::success) return status;
 

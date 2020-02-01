@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_ref_pooling_common_kernel.hpp"
+#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_pooling_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -30,6 +30,11 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
+
+status_t ref_pooling_init_conf(
+        jit_pool_conf_t &jpp, const pooling_pd_t *_pd, jit_offsets &jit_off);
+status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+        const jit_pool_conf_t &jpp, const jit_offsets &jit_off);
 
 struct ref_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_pooling_fwd_pd_t {
@@ -86,7 +91,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            return jit_ref_pooling_fwd_kernel::init_conf(jpp_, this, jit_off_);
+            return ref_pooling_init_conf(jpp_, this, jit_off_);
         }
         jit_pool_conf_t jpp_;
         jit_offsets jit_off_;
@@ -97,8 +102,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        jit_ref_pooling_fwd_kernel::init_const_def(
-                kernel_ctx, pd()->jpp_, pd()->jit_off_);
+        ref_pooling_init_const_def(kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
         compute_engine->create_kernel(&kernel_, "ref_pooling_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
@@ -106,10 +110,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        ker_ = new jit_ref_pooling_fwd_kernel(pd()->jpp_);
-    }
-    ~ref_pooling_fwd_t() { delete ker_; }
+    ref_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -118,7 +119,6 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_ref_pooling_fwd_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
@@ -161,7 +161,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            return jit_ref_pooling_fwd_kernel::init_conf(jpp_, this, jit_off_);
+            return ref_pooling_init_conf(jpp_, this, jit_off_);
         }
         jit_pool_conf_t jpp_;
         jit_offsets jit_off_;
@@ -172,8 +172,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        jit_ref_pooling_fwd_kernel::init_const_def(
-                kernel_ctx, pd()->jpp_, pd()->jit_off_);
+        ref_pooling_init_const_def(kernel_ctx, pd()->jpp_, pd()->jit_off_);
 
         compute_engine->create_kernel(&kernel_, "ref_pooling_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
@@ -181,10 +180,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        ker_ = new jit_ref_pooling_fwd_kernel(pd()->jpp_);
-    }
-    ~ref_pooling_bwd_t() { delete ker_; }
+    ref_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
@@ -193,7 +189,6 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_ref_pooling_fwd_kernel *ker_;
     compute::kernel_t kernel_;
 };
 
