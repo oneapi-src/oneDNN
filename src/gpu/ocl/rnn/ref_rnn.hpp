@@ -305,7 +305,7 @@ private:
     compute::kernel_t elemwise_bwd_kernel_;
     compute::kernel_t gates_reduction_kernel_;
 
-    /* GEMM primitives */
+    // GEMM primitives.
     primitive_t *gemm_layer_fwd_ = nullptr;
     primitive_t *gemm_iter_fwd_ = nullptr;
     primitive_t *gemm_layer_bwd_ = nullptr;

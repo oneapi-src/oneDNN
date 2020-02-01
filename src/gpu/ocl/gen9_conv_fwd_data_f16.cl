@@ -54,7 +54,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 
 #if IC == 3 && OC % 32 == 0
 #if MB % 2 == 0
-    /* First convovution unrolled by MB2. */
+    // First convovution unrolled by MB2.
     const int oc = get_group_id(0) * 2;
     const int sp = get_group_id(1);
     const int local_id = get_local_id(0);
@@ -324,7 +324,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
     }
 
 #else // MB % 2 == 0
-    /* First convolution. */
+    // First convolution.
     const int oc = get_group_id(0) * 2;
     const int sp = get_group_id(1);
     const int local_id = get_local_id(0);
@@ -531,17 +531,15 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 #endif // IC == 3 && OC % 32 == 0
 #if VER_16MB16C == 1 && MB % 32 == 0
 
-/*
-  For now USE_32OC_UNROLL is always 0.
-  TODO: Find a proper cross point for both cases
-*/
+    // For now USE_32OC_UNROLL is always 0.
+    // TODO: Find a proper cross point for both cases
 #if OC % 32 == 0
 #define USE_32OC_UNROLL 0
 #else
 #define USE_32OC_UNROLL 0
 #endif
 
-    /* Regular convolution unrolled by MB32. */
+    // Regular convolution unrolled by MB32.
 #if USE_32OC_UNROLL
     const int oc = get_group_id(0) * 2;
 #else
@@ -809,7 +807,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 #endif // VER_16MB16C == 1 && MB % 32 == 0
 
 #if VER_8OW16C == 1 && IC % 16 == 0
-    /* Regular convolution. */
+    // Regular convolution.
 #define TRANSPOSE_1(_block, _col) intel_sub_group_shuffle(_block, _col)
 
 #define FMA(a, b, c) fma((half)(a), (half)b, (half)c)
@@ -882,7 +880,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
 
-    /* shift input pointers */
+    // Shift input pointers
     src += mb * IC * G * IDHW_SIZE + iw * IC_BLOCK + ih * IW * IC_BLOCK
             + id * IH * IW * IC_BLOCK + g * IC * IDHW_SIZE;
     wei += goc * KDHW_SIZE * IC * OC_BLOCK + g * IC * OC * KDHW_SIZE;

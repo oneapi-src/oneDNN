@@ -56,7 +56,6 @@ struct simple_sum_t : public primitive_impl_t {
 
             return status::success;
         }
-        simple_sum_conf_t jss_;
     };
 
     simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}

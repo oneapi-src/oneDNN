@@ -122,7 +122,7 @@ struct rnn_offsets {
     int ws_off[4][MAX_NDIMS];
 };
 
-/* convolution */
+// Convolution
 enum conv_version_t {
     ver_unused,
     ver_1stconv,
@@ -180,7 +180,7 @@ struct conv_conf_t {
     data_type_t acc_data_type;
 };
 
-/* pooling */
+// Pooling
 struct pool_conf_t {
     int ndims;
     int mb, c;
@@ -196,7 +196,7 @@ struct pool_conf_t {
     int sub_group_size;
 };
 
-/* inner_product */
+// Inner Product
 struct inner_product_conf_t {
     int ndims;
     int mb, oc, ic, ic_total;
@@ -213,7 +213,7 @@ struct inner_product_conf_t {
     data_type_t acc_dt;
 };
 
-/* rnn */
+// RNN
 struct rnn_conf_t {
     int cell_kind;
     int activation_kind;
@@ -303,7 +303,7 @@ struct rnn_reorder_conf_t {
     size_t scales_count;
 };
 
-/* bnorm */
+// Batch Normalization
 struct bnorm_conf_t {
     data_type_t data_type;
 
@@ -323,7 +323,7 @@ struct bnorm_conf_t {
     compute::dispatch_t dispatch;
 };
 
-/* lnorm */
+// Layer Normalization
 struct lnorm_conf_t {
     data_type_t data_type;
 
@@ -344,12 +344,7 @@ struct lnorm_conf_t {
     compute::dispatch_t dispatch;
 };
 
-/* simple sum */
-struct simple_sum_conf_t {
-    int ndims;
-};
-
-/* binary */
+// Binary
 struct binary_conf_t {
     int ndims;
     data_type_t data_type;
@@ -368,7 +363,7 @@ struct binary_conf_t {
     memory_desc_info_t dst_md_info;
 };
 
-/* simple reorder */
+// Reorder
 struct reorder_conf_t {
     bool do_reorder, with_group, has_padding;
     bool scale_quant, with_sum_ab, with_sum_a;
@@ -386,7 +381,7 @@ struct reorder_conf_t {
     memory_desc_info_t dst_md_info;
 };
 
-/* eltwise */
+// Elementwise
 struct eltwise_conf_t {
     int ndims;
     bool with_zero_padding;
@@ -396,7 +391,7 @@ struct eltwise_conf_t {
     compute::dispatch_t dispatch;
 };
 
-/* shuffle */
+// Shuffle
 struct shuffle_conf_t {
     data_type_t data_type;
     int axis;

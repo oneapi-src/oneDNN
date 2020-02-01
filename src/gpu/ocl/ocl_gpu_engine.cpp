@@ -160,34 +160,39 @@ status_t ocl_gpu_engine_t::create_kernels(
 using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
 
 namespace {
-using namespace dnnl::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f ocl_impl_list[] = {
-        /*eltwise*/
+        // Elementwise
         INSTANCE(ref_eltwise_fwd_t),
         INSTANCE(ref_eltwise_bwd_t),
-        /*deconv*/
+
+        // Deconvolution
         INSTANCE(ref_deconvolution_fwd_t),
         INSTANCE(ref_deconvolution_bwd_data_t),
         INSTANCE(ref_deconvolution_bwd_weights_t),
-        /*conv*/
+
+        // Convolution
         INSTANCE(gen9_convolution_fwd_t),
         INSTANCE(gen9_convolution_bwd_data_t),
         INSTANCE(gen9_convolution_bwd_weights_t),
         INSTANCE(ref_convolution_fwd_t),
         INSTANCE(ref_convolution_bwd_data_t),
         INSTANCE(ref_convolution_bwd_weights_t),
-        /*bnorm*/
+
+        // Batch Normalization
         INSTANCE(ref_batch_normalization_fwd_t),
         INSTANCE(ref_batch_normalization_bwd_t),
-        /*pool*/
+
+        // Pooling
         INSTANCE(ref_pooling_fwd_t),
         INSTANCE(ref_pooling_bwd_t),
-        /* lrn */
+
+        // LRN
         INSTANCE(ref_lrn_fwd_t),
         INSTANCE(ref_lrn_bwd_t),
-        /*inner_product*/
+
+        // Inner Product
         INSTANCE(gemm_x8s8s32x_inner_product_fwd_t),
         INSTANCE(gemm_inner_product_fwd_t),
         INSTANCE(gemm_inner_product_bwd_data_t),
@@ -196,27 +201,35 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_inner_product_fwd_t),
         INSTANCE(ref_inner_product_bwd_data_t),
         INSTANCE(ref_inner_product_bwd_weights_t),
-        /*softmax*/
+
+        // Softmax
         INSTANCE(ref_softmax_fwd_t),
         INSTANCE(ref_softmax_bwd_t),
-        /* gemm */
+
+        // GEMM (internal)
         INSTANCE(gen9_gemm_x8x8s32_t),
         INSTANCE(gen9_gemm_t),
         INSTANCE(ref_gemm_t),
-        /*rnn*/
+
+        // RNN
         INSTANCE(ref_rnn_fwd_t),
         INSTANCE(ref_rnn_bwd_t),
-        /* shuffle */
+
+        // Shuffle
         INSTANCE(ref_shuffle_t),
-        /*layer normalization */
+
+        // Layer Normalization
         INSTANCE(ref_layer_normalization_fwd_t),
         INSTANCE(ref_layer_normalization_bwd_t),
-        /* binary */
+
+        // Binary
         INSTANCE(ref_binary_t),
-        /* matmul */
+
+        // MatMul
         INSTANCE(gemm_matmul_t),
         INSTANCE(ref_matmul_t),
-        /*resampling*/
+
+        // Resampling
         INSTANCE(ref_resampling_fwd_t),
         INSTANCE(ref_resampling_bwd_t),
         nullptr,

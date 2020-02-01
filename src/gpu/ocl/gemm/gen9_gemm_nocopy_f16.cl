@@ -297,7 +297,7 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
             FMA_I_LOOP(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     global half *C2 = C + 16 * ldc;
 
@@ -442,7 +442,7 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
             FMA_I_LOOP(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     global half *C2 = C + 16 * ldc;
 
@@ -581,7 +581,7 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
             FMA_I_LOOP(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     global half *C2 = C + 16 * ldc;
 
@@ -729,7 +729,7 @@ gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
             FMA_I_LOOP(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     global half *C2 = C + 16 * ldc;
 

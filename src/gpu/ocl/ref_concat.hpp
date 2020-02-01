@@ -65,7 +65,7 @@ struct ref_concat_t : public primitive_impl_t {
                 auto r_impls = engine_->get_reorder_implementation_list(
                         src_md(i), src_image_md(i));
                 for (auto r = r_impls; *r; ++r) {
-                    const primitive_attr_t attr; /* alpha == 1. */
+                    const primitive_attr_t attr; // alpha == 1.
                     reorder_pd_t *r_pd = nullptr;
                     if ((*r)(&r_pd, engine_, &attr, engine_, src_md(i), engine_,
                                 src_image_md(i))

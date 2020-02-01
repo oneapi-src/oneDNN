@@ -344,7 +344,7 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
             FMA_I_LOOP_32_ROW(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     // Update C.
 #ifdef WITH_K_UNROLL
@@ -497,7 +497,7 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
             FMA_I_LOOP_32_ROW(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     // Update C.
 #ifdef WITH_K_UNROLL
@@ -768,7 +768,7 @@ gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
             FMA_I_LOOP_16_ROW(0);
         }
     }
-#endif /* ALLOW_READ_OVERRUNS */
+#endif // ALLOW_READ_OVERRUNS
 
     // Update C.
     global float *C_ptrs[2] = {C, C + 16 * ldc};

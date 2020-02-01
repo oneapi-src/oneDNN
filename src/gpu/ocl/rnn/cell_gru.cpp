@@ -13,9 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-/*
- * Common for RNN and LSTM cell execution
- */
+
+// Common for RNN and LSTM cell execution
+
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 
 namespace dnnl {

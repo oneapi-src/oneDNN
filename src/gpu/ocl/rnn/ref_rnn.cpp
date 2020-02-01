@@ -14,20 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-/*
-  General architecture
+// General architecture
+//
+// for diff states, we have n_states + 1 as we have n_states diff
+// to propagate to the previous iteration and 1 states to propagate
+// to the previous layer
+// index 0 is dh for cell(t-1, l) to consume
+// index 1 is dc for cell(t-1, l) to consume
+// index 2 is dh for cell(t, l-1) to consume
+// this indexing enables to have the same indexing for states in elemwise
+// function
+// only the cell execution function should be impacted
 
-  for diff states, we have n_states + 1 as we have n_states diff
-  to propagate to the previous iteration and 1 states to propagate
-  to the previous layer
-  index 0 is dh for cell(t-1, l) to consume
-  index 1 is dc for cell(t-1, l) to consume
-  index 2 is dh for cell(t, l-1) to consume
-  this indexing enables to have the same indexing for states in elemwise
-  function
-  only the cell execution function should be impacted
-
- */
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 
 #include "common/c_types_map.hpp"
@@ -507,7 +505,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
             this->weights_md(0), this->weights_md(1), this->dst_md(0));
     init_test_mode(rnn_conf_, *this->attr());
 
-    /* check that only supported attr have been passed */
+    // Check that only supported attr have been passed.
     primitive_attr_t::skip_mask_t attr_mask
             = primitive_attr_t::skip_mask_t::rnn_tparams;
     if (weights_layer_dt == data_type::s8)
@@ -1478,7 +1476,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     return status::success;
 };
 
-/* Fix for MSVS warning C4661 */
+// Fix for MSVS warning C4661.
 template <>
 cell_execution_sig(ref_rnn_fwd_t::cell_execution);
 template <>
