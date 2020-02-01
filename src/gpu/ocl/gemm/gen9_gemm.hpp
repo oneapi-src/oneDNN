@@ -72,7 +72,7 @@ struct gen9_gemm_t : public ocl_gemm_t {
                             d->lda, d->ldb, d->ldc)
                     && d->bias_type == data_type::undef;
 
-            bool ok = true && limits_ok
+            bool ok = limits_ok
                     && utils::one_of(d->a_type, data_type::f32, data_type::bf16,
                             data_type::f16)
                     && utils::one_of(d->b_type, data_type::f32, data_type::bf16,

@@ -60,12 +60,12 @@ struct gen9_gemm_x8x8s32_t : public ocl_gemm_t {
             // - batch is not supported
             // - runtime dims are not supported
             // - bias is not supported
-            bool limits_ok = true && d->batch == 1
+            bool limits_ok = d->batch == 1
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
                             d->lda, d->ldb, d->ldc)
                     && d->bias_type == data_type::undef;
 
-            bool ok = true && limits_ok
+            bool ok = limits_ok
                     && utils::one_of(d->a_type, data_type::u8, data_type::s8)
                     && utils::one_of(d->b_type, data_type::u8, data_type::s8)
                     && utils::one_of(d->c_type, data_type::s32)

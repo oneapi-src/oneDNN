@@ -25,7 +25,7 @@ using namespace dnnl::impl::gpu::ocl;
 
 status_t dnnl_engine_create_ocl(engine_t **engine, engine_kind_t kind,
         cl_device_id device, cl_context context) {
-    bool args_ok = true && (kind == engine_kind::gpu)
+    bool args_ok = (kind == engine_kind::gpu)
             && !utils::any_null(engine, device, context);
     if (!args_ok) return status::invalid_arguments;
 
@@ -34,7 +34,7 @@ status_t dnnl_engine_create_ocl(engine_t **engine, engine_kind_t kind,
 }
 
 status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
-    bool args_ok = true && !utils::any_null(engine, context)
+    bool args_ok = !utils::any_null(engine, context)
             && (engine->runtime_kind() == runtime_kind::ocl);
 
     if (!args_ok) return status::invalid_arguments;
@@ -45,7 +45,7 @@ status_t dnnl_engine_get_ocl_context(engine_t *engine, cl_context *context) {
 }
 
 status_t dnnl_engine_get_ocl_device(engine_t *engine, cl_device_id *device) {
-    bool args_ok = true && !utils::any_null(engine, device)
+    bool args_ok = !utils::any_null(engine, device)
             && (engine->runtime_kind() == runtime_kind::ocl);
 
     if (!args_ok) return status::invalid_arguments;

@@ -58,7 +58,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
             auto dst_data_t = dst_md()->data_type;
             auto acc_data_t = desc()->accum_data_type;
 
-            bool ok = true && set_default_params() == status::success
+            bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, forward_training,
                             forward_inference)
                     && utils::one_of(desc()->alg_kind, pooling_max,
@@ -140,7 +140,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
-            bool ok = true && set_default_params() == status::success
+            bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, backward_data)
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,

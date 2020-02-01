@@ -41,7 +41,7 @@ struct simple_sum_t : public primitive_impl_t {
         status_t init() {
             const int n = n_inputs();
 
-            bool ok = true && gpu_sum_pd_t::init() == status::success
+            bool ok = gpu_sum_pd_t::init() == status::success
                     && n <= max_num_arrs;
             if (!ok) return status::unimplemented;
 

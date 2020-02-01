@@ -41,7 +41,7 @@ struct ref_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
-            bool ok = true && set_default_params() == status::success
+            bool ok = set_default_params() == status::success
                     && (utils::everyone_is(f32, src_md(0)->data_type,
                                 src_md(1)->data_type, dst_md()->data_type)
                             || utils::everyone_is(bf16, src_md(0)->data_type,

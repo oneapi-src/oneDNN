@@ -30,7 +30,7 @@ using namespace dnnl::impl::gpu::ocl;
 
 status_t dnnl_stream_create_ocl(
         stream_t **stream, engine_t *engine, cl_command_queue queue) {
-    bool args_ok = true && !utils::any_null(stream, engine, queue)
+    bool args_ok = !utils::any_null(stream, engine, queue)
             && engine->runtime_kind() == runtime_kind::ocl;
 
     if (!args_ok) return status::invalid_arguments;
@@ -41,7 +41,7 @@ status_t dnnl_stream_create_ocl(
 
 status_t dnnl_stream_get_ocl_command_queue(
         stream_t *stream, cl_command_queue *queue) {
-    bool args_ok = true && !utils::any_null(queue, stream)
+    bool args_ok = !utils::any_null(queue, stream)
             && stream->engine()->runtime_kind() == runtime_kind::ocl;
 
     if (!args_ok) return status::invalid_arguments;

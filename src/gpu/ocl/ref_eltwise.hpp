@@ -125,7 +125,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
             assert(engine()->kind() == engine_kind::gpu);
 
             using namespace alg_kind;
-            bool ok = true && desc()->prop_kind == backward_data
+            bool ok = desc()->prop_kind == backward_data
                     && utils::one_of(desc()->alg_kind, eltwise_relu,
                             eltwise_linear, eltwise_bounded_relu, eltwise_abs,
                             eltwise_tanh, eltwise_elu, eltwise_square,

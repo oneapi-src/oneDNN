@@ -157,7 +157,7 @@ struct ref_softmax_bwd_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
         status_t init() {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+            bool ok = desc()->prop_kind == prop_kind::backward_data
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
                     && set_default_formats_common()

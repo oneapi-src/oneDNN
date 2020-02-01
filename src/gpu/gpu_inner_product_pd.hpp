@@ -33,7 +33,7 @@ inline bool dense_consitency_check(const memory_desc_wrapper &src_d,
         const memory_desc_wrapper &wei_d, const memory_desc_wrapper &dst_d) {
     using namespace format_tag;
     using namespace utils;
-    return true && IMPLICATION(src_d.matches_tag(ncw), wei_d.matches_tag(oiw))
+    return IMPLICATION(src_d.matches_tag(ncw), wei_d.matches_tag(oiw))
             && IMPLICATION(src_d.matches_tag(nchw), wei_d.matches_tag(oihw))
             && IMPLICATION(src_d.matches_tag(ncdhw), wei_d.matches_tag(oidhw))
             && IMPLICATION(
@@ -55,7 +55,7 @@ inline bool dense_gemm_consitency_check(const memory_desc_wrapper &src_d,
         }
         return ok && one_of(w_str[1] / d_str[1], 1, wei_d.padded_dims()[0]);
     };
-    return true && src_d.is_blocking_desc() && wei_d.is_blocking_desc()
+    return src_d.is_blocking_desc() && wei_d.is_blocking_desc()
             && src_d.ndims() == wei_d.ndims()
             && src_d.blocking_desc().inner_nblks
             == wei_d.blocking_desc().inner_nblks

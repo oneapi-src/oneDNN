@@ -92,8 +92,7 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
             bool with_sum = attr()->post_ops_.find(primitive_kind::sum) != -1;
 
-            bool ok = true && is_fwd()
-                    && set_default_params() == status::success
+            bool ok = is_fwd() && set_default_params() == status::success
                     && !has_zero_dim_memory()
                     && utils::one_of(true,
                             expect_data_types(f16, f16, f16, f16, f16),
@@ -192,7 +191,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
 
             assert(this->engine()->kind() == engine_kind::gpu);
 
-            bool ok = true && this->desc()->prop_kind == backward_data
+            bool ok = this->desc()->prop_kind == backward_data
                     && set_default_params() == status::success
                     && !has_zero_dim_memory()
                     && expect_data_types(f32, f32, data_type::undef, f32, f32)
@@ -273,7 +272,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
 
             assert(this->engine()->kind() == engine_kind::gpu);
 
-            bool ok = true && this->desc()->prop_kind == backward_weights
+            bool ok = this->desc()->prop_kind == backward_weights
                     && set_default_params() == status::success
                     && !has_zero_dim_memory()
                     && expect_data_types(f32, f32, f32, f32, f32)

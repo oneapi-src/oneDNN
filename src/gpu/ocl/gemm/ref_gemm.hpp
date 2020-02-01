@@ -75,7 +75,7 @@ struct ref_gemm_t : public ocl_gemm_t {
         }
 
         bool attr_zp_ok() const {
-            return true && this->attr()->zero_points_.common(DNNL_ARG_A)
+            return this->attr()->zero_points_.common(DNNL_ARG_A)
                     && this->attr()->zero_points_.common(DNNL_ARG_B)
                     && this->attr()->zero_points_.common(DNNL_ARG_C);
         }

@@ -47,7 +47,7 @@ struct simple_reorder_t : public primitive_impl_t {
         status_t init() {
             const auto &post_ops = attr()->post_ops_;
 
-            bool ok = true && (src_engine() == dst_engine())
+            bool ok = (src_engine() == dst_engine())
                     && (src_engine()->kind() == engine_kind::gpu)
                     && utils::one_of(src_md()->data_type, data_type::u8,
                             data_type::s8, data_type::f16, data_type::s32,

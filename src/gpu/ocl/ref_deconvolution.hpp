@@ -117,7 +117,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
         status_t init() {
             using namespace format_tag;
 
-            bool ok = true && is_fwd()
+            bool ok = is_fwd()
                     && desc()->alg_kind == alg_kind::deconvolution_direct
                     && attr()->has_default_values()
                     && (utils::everyone_is(data_type::f32,
@@ -226,7 +226,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
         }
 
         status_t init() {
-            bool ok = true && desc()->prop_kind == prop_kind::backward_data
+            bool ok = desc()->prop_kind == prop_kind::backward_data
                     && (utils::everyone_is(data_type::f32,
                                 desc()->diff_src_desc.data_type,
                                 desc()->weights_desc.data_type,
@@ -327,7 +327,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
         status_t init() {
             using namespace format_tag;
-            bool ok = true && desc()->prop_kind == prop_kind::backward_weights
+            bool ok = desc()->prop_kind == prop_kind::backward_weights
                     && (utils::everyone_is(data_type::f32,
                                 desc()->src_desc.data_type,
                                 desc()->diff_weights_desc.data_type,
