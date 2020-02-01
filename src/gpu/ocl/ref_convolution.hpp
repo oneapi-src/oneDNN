@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_convolution_pd.hpp"
+#include "gpu/gpu_convolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -35,8 +35,8 @@ status_t ref_convolution_init_const_def(compute::kernel_ctx_t &kernel_ctx,
         const conv_conf_t &conf, const offsets &off);
 
 struct ref_convolution_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_convolution_fwd_pd_t {
-        using ocl_convolution_fwd_pd_t::ocl_convolution_fwd_pd_t;
+    struct pd_t : public gpu_convolution_fwd_pd_t {
+        using gpu_convolution_fwd_pd_t::gpu_convolution_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_fwd_t);
 
@@ -199,8 +199,8 @@ private:
 };
 
 struct ref_convolution_bwd_data_t : public primitive_impl_t {
-    struct pd_t : public ocl_convolution_bwd_data_pd_t {
-        using ocl_convolution_bwd_data_pd_t::ocl_convolution_bwd_data_pd_t;
+    struct pd_t : public gpu_convolution_bwd_data_pd_t {
+        using gpu_convolution_bwd_data_pd_t::gpu_convolution_bwd_data_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_data_t);
 
@@ -258,9 +258,9 @@ private:
 };
 
 struct ref_convolution_bwd_weights_t : public primitive_impl_t {
-    struct pd_t : public ocl_convolution_bwd_weights_pd_t {
-        using ocl_convolution_bwd_weights_pd_t::
-                ocl_convolution_bwd_weights_pd_t;
+    struct pd_t : public gpu_convolution_bwd_weights_pd_t {
+        using gpu_convolution_bwd_weights_pd_t::
+                gpu_convolution_bwd_weights_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_convolution_bwd_weights_t);
 

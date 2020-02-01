@@ -14,26 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_REORDER_PD_HPP
-#define GPU_OCL_OCL_REORDER_PD_HPP
+#ifndef GPU_GPU_REORDER_PD_HPP
+#define GPU_GPU_REORDER_PD_HPP
 
 #include "common/reorder_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_reorder_pd_t : public reorder_pd_t {
+struct gpu_reorder_pd_t : public reorder_pd_t {
     using reorder_pd_t::reorder_pd_t;
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#define DECLARE_OCL_REORDER_CREATE() \
+#define DECLARE_GPU_REORDER_CREATE() \
     static status_t create(reorder_pd_t **reorder_pd, engine_t *engine, \
             const primitive_attr_t *attr, engine_t *src_engine, \
             const memory_desc_t *src_md, engine_t *dst_engine, \

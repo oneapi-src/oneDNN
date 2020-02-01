@@ -19,7 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_binary_pd.hpp"
+#include "gpu/gpu_binary_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -34,8 +34,8 @@ status_t ref_binary_init_const_def(
         compute::kernel_ctx_t &kernel_ctx, const binary_conf_t &conf);
 
 struct ref_binary_t : public primitive_impl_t {
-    struct pd_t : public ocl_binary_pd_t {
-        using ocl_binary_pd_t::ocl_binary_pd_t;
+    struct pd_t : public gpu_binary_pd_t {
+        using gpu_binary_pd_t::gpu_binary_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_binary_t);
 

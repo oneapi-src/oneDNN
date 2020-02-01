@@ -22,7 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_matmul_pd.hpp"
+#include "gpu/gpu_matmul_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -32,8 +32,8 @@ namespace gpu {
 namespace ocl {
 
 struct ref_matmul_t : public primitive_impl_t {
-    struct pd_t : public ocl_matmul_pd_t {
-        using ocl_matmul_pd_t::ocl_matmul_pd_t;
+    struct pd_t : public gpu_matmul_pd_t {
+        using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_matmul_t);
 

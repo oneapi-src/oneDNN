@@ -14,25 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_LAYER_NORMALIZATION_PD_HPP
-#define GPU_OCL_OCL_LAYER_NORMALIZATION_PD_HPP
+#ifndef GPU_GPU_LAYER_NORMALIZATION_PD_HPP
+#define GPU_GPU_LAYER_NORMALIZATION_PD_HPP
 
 #include "common/layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_layer_normalization_fwd_pd_t : public layer_normalization_fwd_pd_t {
+struct gpu_layer_normalization_fwd_pd_t : public layer_normalization_fwd_pd_t {
     using layer_normalization_fwd_pd_t::layer_normalization_fwd_pd_t;
 };
 
-struct ocl_layer_normalization_bwd_pd_t : public layer_normalization_bwd_pd_t {
+struct gpu_layer_normalization_bwd_pd_t : public layer_normalization_bwd_pd_t {
     using layer_normalization_bwd_pd_t::layer_normalization_bwd_pd_t;
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -15,9 +15,9 @@
 *******************************************************************************/
 
 #include "common/engine.hpp"
+#include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/cross_engine_reorder.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ocl_reorder_pd.hpp"
 #include "gpu/ocl/rnn/rnn_reorders.hpp"
 #include "gpu/ocl/simple_reorder.hpp"
 

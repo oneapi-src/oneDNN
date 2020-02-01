@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_batch_normalization_pd.hpp"
+#include "gpu/gpu_batch_normalization_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -40,11 +40,11 @@ void ref_batch_normalization_init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const bnorm_conf_t &conf);
 
 struct ref_batch_normalization_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_batch_normalization_fwd_pd_t {
+    struct pd_t : public gpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : ocl_batch_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_batch_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conf_()
             , off_() {}
 
@@ -136,11 +136,11 @@ private:
 };
 
 struct ref_batch_normalization_bwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_batch_normalization_bwd_pd_t {
+    struct pd_t : public gpu_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : ocl_batch_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_batch_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conf_()
             , off_() {}
 

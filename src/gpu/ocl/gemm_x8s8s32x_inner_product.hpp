@@ -22,9 +22,9 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
-#include "gpu/ocl/ocl_inner_product_pd.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
@@ -63,13 +63,13 @@ inline status_t create_gemm_x8s8s32x_pd(primitive_desc_t **gemm_pd,
 } // namespace
 
 struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_inner_product_fwd_pd_t {
+    struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        pd_t(const pd_t &rhs) : ocl_inner_product_fwd_pd_t(rhs) {
+        pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
             if (rhs.gemm_pd_) gemm_pd_ = rhs.gemm_pd_->clone();
             ip_scratchpad_md_ = rhs.ip_scratchpad_md_;
             scales_md_ = rhs.scales_md_;

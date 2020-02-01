@@ -23,9 +23,9 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/ocl/gemm/gen9_gemm_kernel.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/gemm/ocl_gemm_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -44,8 +44,8 @@ struct gen9_gemm_t : public ocl_gemm_t {
         no_copy_k_unroll
     };
 
-    struct pd_t : public ocl_gemm_pd_t {
-        using ocl_gemm_pd_t::ocl_gemm_pd_t;
+    struct pd_t : public gpu_gemm_pd_t {
+        using gpu_gemm_pd_t::gpu_gemm_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:gemm:any", gen9_gemm_t);
 

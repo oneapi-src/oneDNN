@@ -21,8 +21,8 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/ocl_inner_product_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,19 +59,19 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
 } // namespace
 
 struct gemm_inner_product_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_inner_product_fwd_pd_t {
+    struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) : ocl_inner_product_fwd_pd_t(rhs) {
+            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        pd_t(const pd_t &rhs) : gpu_inner_product_fwd_pd_t(rhs) {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            ocl_inner_product_fwd_pd_t::operator=(rhs);
+            gpu_inner_product_fwd_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -165,20 +165,20 @@ private:
 };
 
 struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
-    struct pd_t : public ocl_inner_product_bwd_data_pd_t {
+    struct pd_t : public gpu_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_inner_product_bwd_data_pd_t(
+            : gpu_inner_product_bwd_data_pd_t(
                     engine, adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) : ocl_inner_product_bwd_data_pd_t(rhs) {
+        pd_t(const pd_t &rhs) : gpu_inner_product_bwd_data_pd_t(rhs) {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            ocl_inner_product_bwd_data_pd_t::operator=(rhs);
+            gpu_inner_product_bwd_data_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;
@@ -246,20 +246,20 @@ private:
 };
 
 struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
-    using ocl_ip_bwd_weights_pd_t = ocl_inner_product_bwd_weights_pd_t;
-    struct pd_t : public ocl_ip_bwd_weights_pd_t {
+    using gpu_ip_bwd_weights_pd_t = gpu_inner_product_bwd_weights_pd_t;
+    struct pd_t : public gpu_ip_bwd_weights_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_ip_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd) {}
-        pd_t(const pd_t &rhs) : ocl_ip_bwd_weights_pd_t(rhs) {
+            : gpu_ip_bwd_weights_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+        pd_t(const pd_t &rhs) : gpu_ip_bwd_weights_pd_t(rhs) {
             gemm_pd_ = rhs.gemm_pd_->clone();
         }
         ~pd_t() { delete gemm_pd_; }
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            ocl_ip_bwd_weights_pd_t::operator=(rhs);
+            gpu_ip_bwd_weights_pd_t::operator=(rhs);
             delete gemm_pd_;
             gemm_pd_ = rhs.gemm_pd_->clone();
             return *this;

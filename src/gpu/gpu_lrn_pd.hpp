@@ -14,27 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_MATMUL_PD_HPP
-#define GPU_OCL_OCL_MATMUL_PD_HPP
-
-#include <assert.h>
+#ifndef GPU_GPU_LRN_PD_HPP
+#define GPU_GPU_LRN_PD_HPP
 
 #include "common/c_types_map.hpp"
-#include "common/matmul_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/lrn_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_matmul_pd_t : public matmul_pd_t {
-    using matmul_pd_t::matmul_pd_t;
+struct gpu_lrn_fwd_pd_t : public lrn_fwd_pd_t {
+    using lrn_fwd_pd_t::lrn_fwd_pd_t;
 };
 
-} // namespace ocl
+struct gpu_lrn_bwd_pd_t : public lrn_bwd_pd_t {
+    using lrn_bwd_pd_t::lrn_bwd_pd_t;
+};
+
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
 #endif

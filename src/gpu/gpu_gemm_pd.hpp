@@ -14,26 +14,24 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_RESAMPLING_PD_HPP
-#define GPU_OCL_OCL_RESAMPLING_PD_HPP
+#ifndef GPU_GPU_GEMM_PD_HPP
+#define GPU_GPU_GEMM_PD_HPP
+
+#include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "common/resampling_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/gemm_pd.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_resampling_fwd_pd_t : public resampling_fwd_pd_t {
-    using resampling_fwd_pd_t::resampling_fwd_pd_t;
+struct gpu_gemm_pd_t : public gemm_pd_t {
+    using gemm_pd_t::gemm_pd_t;
 };
 
-struct ocl_resampling_bwd_pd_t : public resampling_bwd_pd_t {
-    using resampling_bwd_pd_t::resampling_bwd_pd_t;
-};
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

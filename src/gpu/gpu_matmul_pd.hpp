@@ -14,29 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_POOLING_PD_HPP
-#define GPU_OCL_OCL_POOLING_PD_HPP
+#ifndef GPU_GPU_MATMUL_PD_HPP
+#define GPU_GPU_MATMUL_PD_HPP
 
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
-#include "common/pooling_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/matmul_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_pooling_fwd_pd_t : public pooling_fwd_pd_t {
-    using pooling_fwd_pd_t::pooling_fwd_pd_t;
+struct gpu_matmul_pd_t : public matmul_pd_t {
+    using matmul_pd_t::matmul_pd_t;
 };
 
-struct ocl_pooling_bwd_pd_t : public pooling_bwd_pd_t {
-    using pooling_bwd_pd_t::pooling_bwd_pd_t;
-};
-
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

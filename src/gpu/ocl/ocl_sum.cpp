@@ -15,8 +15,8 @@
 *******************************************************************************/
 
 #include "common/utils.hpp"
+#include "gpu/gpu_sum_pd.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ocl_sum_pd.hpp"
 #include "gpu/ocl/ref_sum.hpp"
 #include "gpu/ocl/simple_sum.hpp"
 

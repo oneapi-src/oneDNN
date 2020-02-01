@@ -19,7 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_eltwise_pd.hpp"
+#include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -35,8 +35,8 @@ status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
         const eltwise_conf_t &conf, const offsets &off);
 
 struct ref_eltwise_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_eltwise_fwd_pd_t {
-        using ocl_eltwise_fwd_pd_t::ocl_eltwise_fwd_pd_t;
+    struct pd_t : public gpu_eltwise_fwd_pd_t {
+        using gpu_eltwise_fwd_pd_t::gpu_eltwise_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_eltwise_fwd_t);
 
@@ -111,11 +111,11 @@ private:
 };
 
 struct ref_eltwise_bwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_eltwise_bwd_pd_t {
+    struct pd_t : public gpu_eltwise_bwd_pd_t {
         pd_t(engine_t *engine, const eltwise_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const eltwise_fwd_pd_t *hint_fwd_pd)
-            : ocl_eltwise_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_eltwise_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_eltwise_bwd_t);
 

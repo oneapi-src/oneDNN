@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_convolution_pd.hpp"
+#include "gpu/gpu_convolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -47,11 +47,11 @@ status_t gen9_convolution_bwd_weights_init_const_def(
         compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
 
 struct gen9_common_convolution_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_convolution_fwd_pd_t {
+    struct pd_t : public gpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : ocl_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conf_() {}
 
         DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_common_convolution_fwd_t);
@@ -136,11 +136,11 @@ private:
 };
 
 struct gen9_common_convolution_bwd_data_t : public primitive_impl_t {
-    struct pd_t : public ocl_convolution_bwd_data_pd_t {
+    struct pd_t : public gpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : ocl_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_common_convolution_bwd_data_t);
 
@@ -218,11 +218,11 @@ private:
 };
 
 struct gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
-    struct pd_t : public ocl_convolution_bwd_weights_pd_t {
+    struct pd_t : public gpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : ocl_convolution_bwd_weights_pd_t(
+            : gpu_convolution_bwd_weights_pd_t(
                     engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(

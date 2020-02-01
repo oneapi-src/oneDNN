@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_reorder_pd.hpp"
+#include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -37,12 +37,12 @@ void simple_reorder_init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const reorder_conf_t &conf);
 
 struct simple_reorder_t : public primitive_impl_t {
-    struct pd_t : public ocl_reorder_pd_t {
-        using ocl_reorder_pd_t::ocl_reorder_pd_t;
+    struct pd_t : public gpu_reorder_pd_t {
+        using gpu_reorder_pd_t::gpu_reorder_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:simple:any", simple_reorder_t);
 
-        DECLARE_OCL_REORDER_CREATE();
+        DECLARE_GPU_REORDER_CREATE();
 
         status_t init() {
             const auto &post_ops = attr()->post_ops_;

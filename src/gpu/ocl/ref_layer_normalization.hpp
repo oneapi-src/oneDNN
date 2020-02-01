@@ -22,7 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_layer_normalization_pd.hpp"
+#include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
@@ -36,9 +36,9 @@ status_t ref_layer_normalization_init_const_def(
         const lnorm_conf_t &conf, compute::kernel_ctx_t &kernel_ctx);
 
 struct ref_layer_normalization_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_layer_normalization_fwd_pd_t {
-        using ocl_layer_normalization_fwd_pd_t::
-                ocl_layer_normalization_fwd_pd_t;
+    struct pd_t : public gpu_layer_normalization_fwd_pd_t {
+        using gpu_layer_normalization_fwd_pd_t::
+                gpu_layer_normalization_fwd_pd_t;
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_fwd_t);
 
@@ -95,9 +95,9 @@ private:
 };
 
 struct ref_layer_normalization_bwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_layer_normalization_bwd_pd_t {
-        using ocl_layer_normalization_bwd_pd_t::
-                ocl_layer_normalization_bwd_pd_t;
+    struct pd_t : public gpu_layer_normalization_bwd_pd_t {
+        using gpu_layer_normalization_bwd_pd_t::
+                gpu_layer_normalization_bwd_pd_t;
 
         DECLARE_COMMON_PD_T("lnorm_ref:any", ref_layer_normalization_bwd_t);
 

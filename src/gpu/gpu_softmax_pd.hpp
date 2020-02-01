@@ -14,32 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/gpu_concat_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ref_concat.hpp"
+#ifndef GPU_GPU_SOFTMAX_PD_HPP
+#define GPU_GPU_SOFTMAX_PD_HPP
+
+#include "common/c_types_map.hpp"
+#include "common/softmax_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-using cpd_create_f = dnnl::impl::engine_t::concat_primitive_desc_create_f;
-
-namespace {
-#define INSTANCE(...) __VA_ARGS__::pd_t::create
-static const cpd_create_f ocl_concat_impl_list[] = {
-        INSTANCE(ref_concat_t),
-        nullptr,
+struct gpu_softmax_fwd_pd_t : public softmax_fwd_pd_t {
+    using softmax_fwd_pd_t::softmax_fwd_pd_t;
 };
-#undef INSTANCE
-} // namespace
 
-const cpd_create_f *
-ocl_gpu_engine_impl_list_t::get_concat_implementation_list() {
-    return ocl_concat_impl_list;
-}
+struct gpu_softmax_bwd_pd_t : public softmax_bwd_pd_t {
+    using softmax_bwd_pd_t::softmax_bwd_pd_t;
+};
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+#endif

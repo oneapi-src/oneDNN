@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_INNER_PRODUCT_PD_HPP
-#define GPU_OCL_OCL_INNER_PRODUCT_PD_HPP
+#ifndef GPU_GPU_INNER_PRODUCT_PD_HPP
+#define GPU_GPU_INNER_PRODUCT_PD_HPP
 
 #include <assert.h>
 
@@ -23,12 +23,10 @@
 #include "common/inner_product_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
 namespace {
 inline bool dense_consitency_check(const memory_desc_wrapper &src_d,
@@ -111,7 +109,7 @@ status_t template_set_default_params(memory_desc_t &src_md,
 
 } // namespace
 
-struct ocl_inner_product_fwd_pd_t : public inner_product_fwd_pd_t {
+struct gpu_inner_product_fwd_pd_t : public inner_product_fwd_pd_t {
     using inner_product_fwd_pd_t::inner_product_fwd_pd_t;
 
 protected:
@@ -138,7 +136,7 @@ protected:
     }
 };
 
-struct ocl_inner_product_bwd_data_pd_t : public inner_product_bwd_data_pd_t {
+struct gpu_inner_product_bwd_data_pd_t : public inner_product_bwd_data_pd_t {
     using inner_product_bwd_data_pd_t::inner_product_bwd_data_pd_t;
 
 protected:
@@ -148,7 +146,7 @@ protected:
     }
 };
 
-struct ocl_inner_product_bwd_weights_pd_t
+struct gpu_inner_product_bwd_weights_pd_t
     : public inner_product_bwd_weights_pd_t {
     using inner_product_bwd_weights_pd_t::inner_product_bwd_weights_pd_t;
 
@@ -159,7 +157,6 @@ protected:
     }
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

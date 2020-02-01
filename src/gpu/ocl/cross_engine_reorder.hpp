@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_reorder_pd.hpp"
+#include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
@@ -56,7 +56,7 @@ struct cross_engine_reorder_t : public primitive_impl_t {
 
         DECLARE_COMMON_PD_T("ocl:cross_engine::any", cross_engine_reorder_t);
 
-        DECLARE_OCL_REORDER_CREATE();
+        DECLARE_GPU_REORDER_CREATE();
 
         status_t init();
 

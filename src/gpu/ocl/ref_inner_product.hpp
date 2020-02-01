@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_inner_product_pd.hpp"
+#include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -38,11 +38,11 @@ status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
         bool with_sum, alg_kind_t alg);
 
 struct ref_inner_product_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_inner_product_fwd_pd_t {
+    struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , off_() {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_inner_product_fwd_t);
@@ -168,11 +168,11 @@ private:
 };
 
 struct ref_inner_product_bwd_data_t : public primitive_impl_t {
-    struct pd_t : public ocl_inner_product_bwd_data_pd_t {
+    struct pd_t : public gpu_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , off_() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_data_t);
@@ -230,11 +230,11 @@ private:
 };
 
 struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
-    struct pd_t : public ocl_inner_product_bwd_weights_pd_t {
+    struct pd_t : public gpu_inner_product_bwd_weights_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : ocl_inner_product_bwd_weights_pd_t(
+            : gpu_inner_product_bwd_weights_pd_t(
                     engine, adesc, attr, hint_fwd_pd)
             , off_() {}
 

@@ -21,7 +21,7 @@
 #include "common/memory.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_reorder_pd.hpp"
+#include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -42,7 +42,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
 
         DECLARE_COMMON_PD_T("cross_engine::rnn", rnn_weights_reorder_t);
 
-        DECLARE_OCL_REORDER_CREATE();
+        DECLARE_GPU_REORDER_CREATE();
 
         status_t init() {
             if (!(dst_md()->extra.flags

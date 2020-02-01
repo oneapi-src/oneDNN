@@ -21,7 +21,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_resampling_pd.hpp"
+#include "gpu/gpu_resampling_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -32,11 +32,11 @@ namespace gpu {
 namespace ocl {
 
 struct ref_resampling_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_resampling_fwd_pd_t {
+    struct pd_t : public gpu_resampling_fwd_pd_t {
         pd_t(engine_t *engine, const resampling_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const resampling_fwd_pd_t *hint_fwd_pd)
-            : ocl_resampling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_resampling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_fwd_t);
@@ -136,11 +136,11 @@ private:
 };
 
 struct ref_resampling_bwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_resampling_bwd_pd_t {
+    struct pd_t : public gpu_resampling_bwd_pd_t {
         pd_t(engine_t *engine, const resampling_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const resampling_fwd_pd_t *hint_fwd_pd)
-            : ocl_resampling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_resampling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
         virtual ~pd_t() {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_resampling_bwd_t);

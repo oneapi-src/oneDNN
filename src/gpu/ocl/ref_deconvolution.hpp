@@ -21,8 +21,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_convolution_pd.hpp"
-#include "gpu/ocl/ocl_deconvolution_pd.hpp"
+#include "gpu/gpu_convolution_pd.hpp"
+#include "gpu/gpu_deconvolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -83,20 +83,20 @@ static status_t conv_descr_create(
 }
 
 struct ref_deconvolution_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_deconvolution_fwd_pd_t {
+    struct pd_t : public gpu_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : ocl_deconvolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_deconvolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conv_pd_(nullptr) {}
 
         pd_t(const pd_t &other)
-            : ocl_deconvolution_fwd_pd_t(other)
+            : gpu_deconvolution_fwd_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            ocl_deconvolution_fwd_pd_t::operator=(other);
+            gpu_deconvolution_fwd_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
@@ -194,20 +194,20 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
 };
 
 struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
-    struct pd_t : public ocl_deconvolution_bwd_data_pd_t {
+    struct pd_t : public gpu_deconvolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : ocl_deconvolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_deconvolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conv_pd_(nullptr) {}
 
         pd_t(const pd_t &other)
-            : ocl_deconvolution_bwd_data_pd_t(other)
+            : gpu_deconvolution_bwd_data_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            ocl_deconvolution_bwd_data_pd_t::operator=(other);
+            gpu_deconvolution_bwd_data_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;
@@ -293,21 +293,21 @@ private:
 };
 
 struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
-    struct pd_t : public ocl_deconvolution_bwd_weights_pd_t {
+    struct pd_t : public gpu_deconvolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const deconvolution_fwd_pd_t *hint_fwd_pd)
-            : ocl_deconvolution_bwd_weights_pd_t(
+            : gpu_deconvolution_bwd_weights_pd_t(
                     engine, adesc, attr, hint_fwd_pd)
             , conv_pd_(nullptr) {}
 
         pd_t(const pd_t &other)
-            : ocl_deconvolution_bwd_weights_pd_t(other)
+            : gpu_deconvolution_bwd_weights_pd_t(other)
             , conv_pd_(other.conv_pd_->clone()) {}
 
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
-            ocl_deconvolution_bwd_weights_pd_t::operator=(other);
+            gpu_deconvolution_bwd_weights_pd_t::operator=(other);
             delete conv_pd_;
             conv_pd_ = other.conv_pd_->clone();
             return *this;

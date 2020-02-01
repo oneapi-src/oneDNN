@@ -20,7 +20,7 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "common/reorder_pd.hpp"
-#include "gpu/ocl/ocl_concat_pd.hpp"
+#include "gpu/gpu_concat_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -28,19 +28,19 @@ namespace gpu {
 namespace ocl {
 
 struct ref_concat_t : public primitive_impl_t {
-    struct pd_t : public ocl_concat_pd_t {
+    struct pd_t : public gpu_concat_pd_t {
         pd_t(engine_t *engine, const primitive_attr_t *attr,
                 const memory_desc_t *dst_md, int n, int concat_dim,
                 const memory_desc_t *src_mds)
-            : ocl_concat_pd_t(engine, attr, dst_md, n, concat_dim, src_mds)
+            : gpu_concat_pd_t(engine, attr, dst_md, n, concat_dim, src_mds)
             , tent_dst_md_(types::zero_md()) {}
-        pd_t(const pd_t &rhs) : ocl_concat_pd_t(rhs) { copy(rhs); }
+        pd_t(const pd_t &rhs) : gpu_concat_pd_t(rhs) { copy(rhs); }
 
         ~pd_t() { clear(); }
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            ocl_concat_pd_t::operator=(rhs);
+            gpu_concat_pd_t::operator=(rhs);
             clear();
             copy(rhs);
             return *this;
@@ -49,7 +49,7 @@ struct ref_concat_t : public primitive_impl_t {
         DECLARE_CONCAT_PD_T("ref:any", ref_concat_t);
 
         status_t init() {
-            status_t status = ocl_concat_pd_t::init();
+            status_t status = gpu_concat_pd_t::init();
             if (status != status::success) {
                 assert(dst_md_.format_kind != format_kind::undef);
                 status = dnnl_memory_desc_init_by_strides(&tent_dst_md_,
@@ -57,7 +57,7 @@ struct ref_concat_t : public primitive_impl_t {
                         nullptr);
                 if (status != status::success) return status::unimplemented;
 
-                status = ocl_concat_pd_t::init(&tent_dst_md_);
+                status = gpu_concat_pd_t::init(&tent_dst_md_);
                 if (status != status::success) return status::unimplemented;
             }
 

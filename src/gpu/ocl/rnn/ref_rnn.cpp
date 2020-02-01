@@ -352,6 +352,96 @@ inline status_t init_conf<prop_kind::backward>(rnn_conf_t &conf,
             rnn_pd->diff_dst_md(2), rnn_pd->workspace_md(0), off);
 }
 
+template <>
+status_t _ref_rnn_common_t<prop_kind::forward>::pd_t::set_default_params() {
+    using namespace format_tag;
+    if (src_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
+    if (dst_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
+
+    // Optional parameters
+    if ((!types::is_zero_md(&src_iter_md_))
+            && (src_iter_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
+    if ((!types::is_zero_md(&src_iter_c_md_))
+            && (src_iter_c_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
+    if ((!types::is_zero_md(&bias_md_))
+            && (bias_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
+    if ((!types::is_zero_md(&dst_iter_md_))
+            && (dst_iter_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(dst_iter_md_, ldnc));
+    if ((!types::is_zero_md(&dst_iter_c_md_))
+            && (dst_iter_c_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(dst_iter_c_md_, ldnc));
+
+    return status::success;
+}
+
+template <>
+status_t _ref_rnn_common_t<prop_kind::backward>::pd_t::set_default_params() {
+    using namespace format_tag;
+    if (src_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(src_layer_md_, tnc));
+    if (weights_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(weights_layer_md_, ldgoi));
+    if (dst_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(dst_layer_md_, tnc));
+
+    if (weights_iter_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(weights_iter_md_, ldgoi));
+
+    if (diff_src_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(diff_src_layer_md_, tnc));
+    if (diff_weights_layer_md_.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_weights_layer_md_, ldigo));
+        CHECK(rnn_utils::set_good_strides(diff_weights_layer_md_, ldigo));
+    }
+    if (diff_weights_iter_md_.format_kind == format_kind::any) {
+        CHECK(memory_desc_init_by_tag(diff_weights_iter_md_, ldigo));
+        CHECK(rnn_utils::set_good_strides(diff_weights_iter_md_, ldigo));
+    }
+    if (diff_dst_layer_md_.format_kind == format_kind::any)
+        CHECK(memory_desc_init_by_tag(diff_dst_layer_md_, tnc));
+
+    // Optional parameters
+    if ((!types::is_zero_md(&src_iter_md_))
+            && (src_iter_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
+    if ((!types::is_zero_md(&src_iter_c_md_))
+            && (src_iter_c_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
+    if ((!types::is_zero_md(&bias_md_))
+            && (bias_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
+    if ((!types::is_zero_md(&dst_iter_md_))
+            && (dst_iter_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(dst_iter_md_, ldnc));
+    if ((!types::is_zero_md(&dst_iter_c_md_))
+            && (dst_iter_c_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(dst_iter_c_md_, ldnc));
+
+    if ((!types::is_zero_md(&diff_src_iter_md_))
+            && (diff_src_iter_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(diff_src_iter_md_, ldnc));
+    if ((!types::is_zero_md(&diff_src_iter_c_md_))
+            && (diff_src_iter_c_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(diff_src_iter_c_md_, ldnc));
+    if ((!types::is_zero_md(&diff_bias_md_))
+            && (diff_bias_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(diff_bias_md_, ldgo));
+    if ((!types::is_zero_md(&diff_dst_iter_md_))
+            && (diff_dst_iter_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(diff_dst_iter_md_, ldnc));
+    if ((!types::is_zero_md(&diff_dst_iter_c_md_))
+            && (diff_dst_iter_c_md_.format_kind == format_kind::any))
+        CHECK(memory_desc_init_by_tag(diff_dst_iter_c_md_, ldnc));
+
+    return status::success;
+}
+
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::pd_t::init() {
     using namespace prop_kind;

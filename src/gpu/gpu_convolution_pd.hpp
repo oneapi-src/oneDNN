@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_CONVOLUTION_PD_HPP
-#define GPU_OCL_OCL_CONVOLUTION_PD_HPP
+#ifndef GPU_GPU_CONVOLUTION_PD_HPP
+#define GPU_GPU_CONVOLUTION_PD_HPP
 
 #include <assert.h>
 
@@ -23,14 +23,12 @@
 #include "common/convolution_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_convolution_fwd_pd_t : public convolution_fwd_pd_t {
+struct gpu_convolution_fwd_pd_t : public convolution_fwd_pd_t {
     using convolution_fwd_pd_t::convolution_fwd_pd_t;
 
 protected:
@@ -57,15 +55,14 @@ protected:
     }
 };
 
-struct ocl_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {
+struct gpu_convolution_bwd_data_pd_t : public convolution_bwd_data_pd_t {
     using convolution_bwd_data_pd_t::convolution_bwd_data_pd_t;
 };
 
-struct ocl_convolution_bwd_weights_pd_t : public convolution_bwd_weights_pd_t {
+struct gpu_convolution_bwd_weights_pd_t : public convolution_bwd_weights_pd_t {
     using convolution_bwd_weights_pd_t::convolution_bwd_weights_pd_t;
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

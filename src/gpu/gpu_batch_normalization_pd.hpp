@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_BATCH_NORMALIZATION_PD_HPP
-#define GPU_OCL_OCL_BATCH_NORMALIZATION_PD_HPP
+#ifndef GPU_GPU_BATCH_NORMALIZATION_PD_HPP
+#define GPU_GPU_BATCH_NORMALIZATION_PD_HPP
 
 #include <assert.h>
 
@@ -23,42 +23,39 @@
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
 namespace {
 template <typename pd_t>
-inline void ocl_init_default_ws(pd_t *self, memory_desc_t &ws_md) {
+inline void gpu_init_default_ws(pd_t *self, memory_desc_t &ws_md) {
     auto mdw = memory_desc_wrapper(self->src_md(0));
     ws_md = *mdw.md_;
     ws_md.data_type = data_type::s32;
 }
 } // namespace
 
-struct ocl_batch_normalization_fwd_pd_t : public batch_normalization_fwd_pd_t {
+struct gpu_batch_normalization_fwd_pd_t : public batch_normalization_fwd_pd_t {
     using batch_normalization_fwd_pd_t::batch_normalization_fwd_pd_t;
 
 protected:
     virtual void init_default_ws(size_t bits_per_element) override {
         UNUSED(bits_per_element);
-        ocl_init_default_ws(this, ws_md_);
+        gpu_init_default_ws(this, ws_md_);
     }
 };
 
-struct ocl_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
+struct gpu_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
     using batch_normalization_bwd_pd_t::batch_normalization_bwd_pd_t;
 
     virtual void init_default_ws(size_t bits_per_element) override {
         UNUSED(bits_per_element);
-        ocl_init_default_ws(this, ws_md_);
+        gpu_init_default_ws(this, ws_md_);
     }
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

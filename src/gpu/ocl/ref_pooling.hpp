@@ -21,7 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_pooling_pd.hpp"
+#include "gpu/gpu_pooling_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -37,11 +37,11 @@ status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
         const pool_conf_t &conf, const offsets &off);
 
 struct ref_pooling_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_pooling_fwd_pd_t {
+    struct pd_t : public gpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
-            : ocl_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conf_()
             , off_() {}
 
@@ -123,11 +123,11 @@ private:
 };
 
 struct ref_pooling_bwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_pooling_bwd_pd_t {
+    struct pd_t : public gpu_pooling_bwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
-            : ocl_pooling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
+            : gpu_pooling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , conf_()
             , off_() {}
 

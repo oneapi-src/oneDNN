@@ -19,7 +19,7 @@
 
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
-#include "gpu/ocl/ocl_sum_pd.hpp"
+#include "gpu/gpu_sum_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,15 +27,15 @@ namespace gpu {
 namespace ocl {
 
 struct ref_sum_t : public primitive_impl_t {
-    struct pd_t : public ocl_sum_pd_t {
-        using ocl_sum_pd_t::ocl_sum_pd_t;
-        pd_t(const pd_t &rhs) : ocl_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
+    struct pd_t : public gpu_sum_pd_t {
+        using gpu_sum_pd_t::gpu_sum_pd_t;
+        pd_t(const pd_t &rhs) : gpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
 
         ~pd_t() { clear(); }
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
-            ocl_sum_pd_t::operator=(rhs);
+            gpu_sum_pd_t::operator=(rhs);
             clear();
             clone_reorder_pds(rhs);
             return *this;
@@ -44,7 +44,7 @@ struct ref_sum_t : public primitive_impl_t {
         DECLARE_SUM_PD_T("ref:any", ref_sum_t);
 
         status_t init() {
-            bool ok = ocl_sum_pd_t::init() == status::success;
+            bool ok = gpu_sum_pd_t::init() == status::success;
             if (!ok) return status::unimplemented;
 
             for (int i = 0; i < n_; ++i) {

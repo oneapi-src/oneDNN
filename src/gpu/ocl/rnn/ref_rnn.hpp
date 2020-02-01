@@ -25,12 +25,12 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
-#include "gpu/ocl/rnn/ocl_rnn_pd.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 
 // not implemented
@@ -68,7 +68,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
-                    ocl_rnn_fwd_pd_t, ocl_rnn_bwd_pd_t>::type;
+                    gpu_rnn_fwd_pd_t, gpu_rnn_bwd_pd_t>::type;
 
     struct pd_t : public base_pd_t {
 
@@ -89,6 +89,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         DECLARE_COMMON_PD_T("ref:any", class_name);
 
         status_t init();
+
+        status_t set_default_params();
 
         rnn_conf_t conf_;
         rnn_offsets off_;

@@ -17,8 +17,8 @@
 #ifndef GPU_OCL_GEMM_MATMUL_HPP
 #define GPU_OCL_GEMM_MATMUL_HPP
 
+#include "gpu/gpu_matmul_pd.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/ocl_matmul_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,8 +59,8 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
 } // namespace
 
 struct gemm_matmul_t : public primitive_impl_t {
-    struct pd_t : public ocl_matmul_pd_t {
-        using ocl_matmul_pd_t::ocl_matmul_pd_t;
+    struct pd_t : public gpu_matmul_pd_t {
+        using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:gemm:any", gemm_matmul_t);
 

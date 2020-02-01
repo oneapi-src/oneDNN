@@ -14,32 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_DECONVOLUTION_PD_HPP
-#define GPU_OCL_OCL_DECONVOLUTION_PD_HPP
+#ifndef GPU_GPU_SHUFFLE_PD_HPP
+#define GPU_GPU_SHUFFLE_PD_HPP
 
-#include "common/deconvolution_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/c_types_map.hpp"
+#include "common/shuffle_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_deconvolution_fwd_pd_t : public deconvolution_fwd_pd_t {
-    using deconvolution_fwd_pd_t::deconvolution_fwd_pd_t;
+struct gpu_shuffle_pd_t : public shuffle_pd_t {
+    using shuffle_pd_t::shuffle_pd_t;
 };
 
-struct ocl_deconvolution_bwd_data_pd_t : public deconvolution_bwd_data_pd_t {
-    using deconvolution_bwd_data_pd_t::deconvolution_bwd_data_pd_t;
-};
-
-struct ocl_deconvolution_bwd_weights_pd_t
-    : public deconvolution_bwd_weights_pd_t {
-    using deconvolution_bwd_weights_pd_t::deconvolution_bwd_weights_pd_t;
-};
-
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
 #endif

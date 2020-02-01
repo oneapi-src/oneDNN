@@ -14,27 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_ELTWISE_PD_HPP
-#define GPU_OCL_OCL_ELTWISE_PD_HPP
+#ifndef GPU_GPU_CONCAT_PD_HPP
+#define GPU_GPU_CONCAT_PD_HPP
 
-#include "common/c_types_map.hpp"
-#include "common/eltwise_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/concat_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_eltwise_fwd_pd_t : public eltwise_fwd_pd_t {
-    using eltwise_fwd_pd_t::eltwise_fwd_pd_t;
+struct gpu_concat_pd_t : public concat_pd_t {
+    using concat_pd_t::concat_pd_t;
 };
 
-struct ocl_eltwise_bwd_pd_t : public eltwise_bwd_pd_t {
-    using eltwise_bwd_pd_t::eltwise_bwd_pd_t;
-};
-
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

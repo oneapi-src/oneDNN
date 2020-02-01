@@ -17,8 +17,8 @@
 #ifndef GPU_OCL_GEMM_REF_GEMM_HPP
 #define GPU_OCL_GEMM_REF_GEMM_HPP
 
+#include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/gemm/ocl_gemm_pd.hpp"
 #include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -28,8 +28,8 @@ namespace gpu {
 namespace ocl {
 
 struct ref_gemm_t : public ocl_gemm_t {
-    struct pd_t : public ocl_gemm_pd_t {
-        using ocl_gemm_pd_t::ocl_gemm_pd_t;
+    struct pd_t : public gpu_gemm_pd_t {
+        using gpu_gemm_pd_t::gpu_gemm_pd_t;
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_gemm_t);
 

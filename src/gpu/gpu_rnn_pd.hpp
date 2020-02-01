@@ -14,27 +14,23 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_OCL_GEMM_PD_HPP
-#define GPU_OCL_GEMM_OCL_GEMM_PD_HPP
+#ifndef GPU_GPU_RNN_PD_HPP
+#define GPU_GPU_RNN_PD_HPP
 
-#include <assert.h>
-
-#include "common/c_types_map.hpp"
-#include "common/gemm_pd.hpp"
-#include "common/type_helpers.hpp"
-#include "common/utils.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/rnn_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_gemm_pd_t : public gemm_pd_t {
-    using gemm_pd_t::gemm_pd_t;
+struct gpu_rnn_fwd_pd_t : public rnn_fwd_pd_t {
+    using rnn_fwd_pd_t::rnn_fwd_pd_t;
 };
 
-} // namespace ocl
+struct gpu_rnn_bwd_pd_t : public rnn_bwd_pd_t {
+    using rnn_bwd_pd_t::rnn_bwd_pd_t;
+};
+
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

@@ -14,23 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_SHUFFLE_PD_HPP
-#define GPU_OCL_OCL_SHUFFLE_PD_HPP
+#ifndef GPU_GPU_SUM_PD_HPP
+#define GPU_GPU_SUM_PD_HPP
 
 #include "common/c_types_map.hpp"
-#include "common/shuffle_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/sum_pd.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_shuffle_pd_t : public shuffle_pd_t {
-    using shuffle_pd_t::shuffle_pd_t;
+struct gpu_sum_pd_t : public sum_pd_t {
+    using sum_pd_t::sum_pd_t;
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

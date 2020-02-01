@@ -21,8 +21,8 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_sum_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/ocl_sum_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
 
@@ -33,15 +33,15 @@ namespace ocl {
 
 template <data_type_t data_type>
 struct simple_sum_t : public primitive_impl_t {
-    struct pd_t : public ocl_sum_pd_t {
-        using ocl_sum_pd_t::ocl_sum_pd_t;
+    struct pd_t : public gpu_sum_pd_t {
+        using gpu_sum_pd_t::gpu_sum_pd_t;
 
         DECLARE_SUM_PD_T("ocl:simple:any", simple_sum_t);
 
         status_t init() {
             const int n = n_inputs();
 
-            bool ok = true && ocl_sum_pd_t::init() == status::success
+            bool ok = true && gpu_sum_pd_t::init() == status::success
                     && n <= max_num_arrs;
             if (!ok) return status::unimplemented;
 

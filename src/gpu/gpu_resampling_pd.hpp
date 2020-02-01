@@ -14,25 +14,25 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_BINARY_PD_HPP
-#define GPU_OCL_OCL_BINARY_PD_HPP
+#ifndef GPU_GPU_RESAMPLING_PD_HPP
+#define GPU_GPU_RESAMPLING_PD_HPP
 
-#include "common/binary_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
+#include "common/c_types_map.hpp"
+#include "common/resampling_pd.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_binary_pd_t : public binary_pd_t {
-    using binary_pd_t::binary_pd_t;
+struct gpu_resampling_fwd_pd_t : public resampling_fwd_pd_t {
+    using resampling_fwd_pd_t::resampling_fwd_pd_t;
 };
-} // namespace ocl
+
+struct gpu_resampling_bwd_pd_t : public resampling_bwd_pd_t {
+    using resampling_bwd_pd_t::resampling_bwd_pd_t;
+};
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
 #endif
-
-// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

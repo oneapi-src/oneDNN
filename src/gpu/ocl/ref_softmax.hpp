@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_softmax_pd.hpp"
+#include "gpu/gpu_softmax_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/primitive_conf.hpp"
@@ -31,11 +31,11 @@ namespace gpu {
 namespace ocl {
 
 struct ref_softmax_fwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_softmax_fwd_pd_t {
+    struct pd_t : public gpu_softmax_fwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : ocl_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_softmax_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_fwd_t);
 
@@ -148,11 +148,11 @@ protected:
 };
 
 struct ref_softmax_bwd_t : public primitive_impl_t {
-    struct pd_t : public ocl_softmax_bwd_pd_t {
+    struct pd_t : public gpu_softmax_bwd_pd_t {
         pd_t(engine_t *engine, const softmax_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const softmax_fwd_pd_t *hint_fwd_pd)
-            : ocl_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
+            : gpu_softmax_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_softmax_bwd_t);
 
