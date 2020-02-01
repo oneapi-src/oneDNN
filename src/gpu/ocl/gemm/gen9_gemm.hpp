@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_JIT_GEN9_GEMM_HPP
-#define GPU_OCL_GEMM_JIT_GEN9_GEMM_HPP
+#ifndef GPU_OCL_GEMM_GEN9_GEMM_HPP
+#define GPU_OCL_GEMM_GEN9_GEMM_HPP
 
 #include <assert.h>
 #include <memory>
@@ -23,7 +23,7 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/gemm/jit_gen9_gemm_kernel.hpp"
+#include "gpu/ocl/gemm/gen9_gemm_kernel.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/gemm/ocl_gemm_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -34,7 +34,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct jit_gen9_gemm_t : public ocl_gemm_t {
+struct gen9_gemm_t : public ocl_gemm_t {
 
     enum class type {
         copy_based,
@@ -47,7 +47,7 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
     struct pd_t : public ocl_gemm_pd_t {
         using ocl_gemm_pd_t::ocl_gemm_pd_t;
 
-        DECLARE_COMMON_PD_T("ocl:gemm:any", jit_gen9_gemm_t);
+        DECLARE_COMMON_PD_T("ocl:gemm:any", gen9_gemm_t);
 
         status_t init() {
             using namespace prop_kind;
@@ -181,10 +181,9 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
             if (beta0 && pd()->beta() != 0) continue;
 
             compute::kernel_ctx_t kernel_ctx;
-            auto status = jit_gen9_gemm_compute_kernel::init_const_def(
-                    kernel_ctx, beta0, pd()->with_eltwise(),
-                    pd()->eltwise_alg_kind(), pd()->desc()->acc_type,
-                    pd()->desc()->c_type);
+            auto status = gen9_gemm_compute_kernel::init_const_def(kernel_ctx,
+                    beta0, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
+                    pd()->desc()->acc_type, pd()->desc()->c_type);
             if (status != status::success) return status;
 
             compute_engine->create_kernel(
@@ -196,11 +195,10 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
             compute::kernel_ctx_t kernel_ctx;
             auto trans = !outer ? !pd()->desc()->transa : pd()->desc()->transb;
             auto status = !outer
-                    ? jit_gen9_gemm_copy_kernel::init_const_def(kernel_ctx,
-                            false, trans, pd()->desc()->a_type,
-                            pd()->desc()->acc_type)
-                    : jit_gen9_gemm_copy_kernel::init_const_def(kernel_ctx,
-                            true, trans, pd()->desc()->b_type,
+                    ? gen9_gemm_copy_kernel::init_const_def(kernel_ctx, false,
+                            trans, pd()->desc()->a_type, pd()->desc()->acc_type)
+                    : gen9_gemm_copy_kernel::init_const_def(kernel_ctx, true,
+                            trans, pd()->desc()->b_type,
                             pd()->desc()->acc_type);
             if (status != status::success) return status;
 
@@ -210,7 +208,7 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
         }
 
         compute::kernel_ctx_t kernel_ctx;
-        auto status = jit_gen9_gemm_beta_kernel::init_const_def(
+        auto status = gen9_gemm_beta_kernel::init_const_def(
                 kernel_ctx, pd()->desc()->c_type, pd()->desc()->acc_type);
         if (status != status::success) return status;
 
@@ -234,8 +232,8 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
         bool transa = (pd()->desc()->transa == dnnl_trans);
         bool transb = (pd()->desc()->transb == dnnl_trans);
 
-        jit_gen9_gemm_nocopy_kernel::get_unrolls(transa, transb, unroll_m,
-                unroll_n, unroll_k, pd()->desc()->c_type);
+        gen9_gemm_nocopy_kernel::get_unrolls(transa, transb, unroll_m, unroll_n,
+                unroll_k, pd()->desc()->c_type);
         auto m = pd()->desc()->m;
         auto n = pd()->desc()->n;
 
@@ -251,7 +249,7 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = jit_gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx,
+        auto status = gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb, with_k_unroll,
                 unroll_k, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->c_type);
@@ -275,8 +273,8 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = jit_gen9_gemm_nocopy_superkernel::init_const_def(
-                kernel_ctx, pd()->desc()->transa, pd()->desc()->transb,
+        auto status = gen9_gemm_nocopy_superkernel::init_const_def(kernel_ctx,
+                pd()->desc()->transa, pd()->desc()->transb,
                 pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->c_type);
         if (status != status::success) return status;
@@ -288,7 +286,7 @@ struct jit_gen9_gemm_t : public ocl_gemm_t {
         return init_superkernel_plan();
     }
 
-    jit_gen9_gemm_t(const pd_t *apd) : ocl_gemm_t(apd) {}
+    gen9_gemm_t(const pd_t *apd) : ocl_gemm_t(apd) {}
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 

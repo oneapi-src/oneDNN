@@ -21,10 +21,10 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_sum_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -56,7 +56,7 @@ struct simple_sum_t : public primitive_impl_t {
 
             return status::success;
         }
-        jit_simple_sum_conf_t jss_;
+        simple_sum_conf_t jss_;
     };
 
     simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}

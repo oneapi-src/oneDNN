@@ -27,8 +27,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_inner_product_init_conf(jit_inner_product_conf_t &jip,
-        const inner_product_pd_t *pd, jit_offsets &jit_off) {
+status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
+        const inner_product_pd_t *pd, offsets &off) {
 
     const inner_product_desc_t &ipd = *pd->desc();
     const memory_desc_wrapper src_d(pd->invariant_src_md());
@@ -38,103 +38,103 @@ status_t ref_inner_product_init_conf(jit_inner_product_conf_t &jip,
 
     const int ndims = src_d.ndims();
 
-    jip.ndims = ndims;
-    jip.has_spatial = utils::one_of(jip.ndims, 3, 4, 5);
+    conf.ndims = ndims;
+    conf.has_spatial = utils::one_of(conf.ndims, 3, 4, 5);
 
-    jip.mb = pd->MB();
-    jip.ic = pd->IC();
+    conf.mb = pd->MB();
+    conf.ic = pd->IC();
 
-    jip.id = pd->ID();
-    jip.ih = pd->IH();
-    jip.iw = pd->IW();
+    conf.id = pd->ID();
+    conf.ih = pd->IH();
+    conf.iw = pd->IW();
 
     const auto &src_dims = src_d.padded_dims();
-    jip.ic_total = utils::array_product(&src_dims[1], jip.ndims - 1);
+    conf.ic_total = utils::array_product(&src_dims[1], conf.ndims - 1);
 
-    jip.oc = pd->OC();
+    conf.oc = pd->OC();
 
-    jip.od = pd->OD();
-    jip.oh = pd->OH();
-    jip.ow = pd->OW();
+    conf.od = pd->OD();
+    conf.oh = pd->OH();
+    conf.ow = pd->OW();
 
-    jip.kd = pd->KD();
-    jip.kh = pd->KH();
-    jip.kw = pd->KW();
+    conf.kd = pd->KD();
+    conf.kh = pd->KH();
+    conf.kw = pd->KW();
 
-    jip.src_dt = src_d.data_type();
-    jip.wei_dt = weights_d.data_type();
-    jip.dst_dt = dst_d.data_type();
-    jip.acc_dt = acc_data_type;
+    conf.src_dt = src_d.data_type();
+    conf.wei_dt = weights_d.data_type();
+    conf.dst_dt = dst_d.data_type();
+    conf.acc_dt = acc_data_type;
 
-    jip.is_forward = utils::one_of(
+    conf.is_forward = utils::one_of(
             ipd.prop_kind, prop_kind::forward, prop_kind::forward_inference);
-    jip.is_backward_data = ipd.prop_kind == prop_kind::backward_data;
-    jip.is_backward_weights = ipd.prop_kind == prop_kind::backward_weights;
+    conf.is_backward_data = ipd.prop_kind == prop_kind::backward_data;
+    conf.is_backward_weights = ipd.prop_kind == prop_kind::backward_weights;
 
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(pd->engine());
-    if (jip.is_forward) {
-        jip.with_bias = ipd.bias_desc.format_kind != format_kind::undef;
-        jip.bia_dt = jip.with_bias ? ipd.bias_desc.data_type : data_type::f32;
-        jip.dispatch = compute_engine->create_dispatch(dst_d.md_);
-        jip.dispatch.define_dim("MB", 0, jip.mb);
-        jip.dispatch.define_dim("OC", 1, jip.oc);
-        jip.dispatch.generate();
-    } else if (jip.is_backward_weights) {
-        jip.with_bias = ipd.diff_bias_desc.format_kind != format_kind::undef;
-        jip.bia_dt
-                = jip.with_bias ? ipd.diff_bias_desc.data_type : data_type::f32;
-        jip.dispatch = compute_engine->create_dispatch(weights_d.md_);
-        jip.dispatch.define_dim("OC", 0, jip.oc);
-        jip.dispatch.define_dim("IC", 1, jip.ic);
-        jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
-        jip.dispatch.define_dim("KH", nstl::max(1, ndims - 2), jip.kh);
-        jip.dispatch.define_dim("KW", nstl::max(1, ndims - 1), jip.kw);
-        jip.dispatch.generate();
+    if (conf.is_forward) {
+        conf.with_bias = ipd.bias_desc.format_kind != format_kind::undef;
+        conf.bia_dt = conf.with_bias ? ipd.bias_desc.data_type : data_type::f32;
+        conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
+        conf.dispatch.define_dim("MB", 0, conf.mb);
+        conf.dispatch.define_dim("OC", 1, conf.oc);
+        conf.dispatch.generate();
+    } else if (conf.is_backward_weights) {
+        conf.with_bias = ipd.diff_bias_desc.format_kind != format_kind::undef;
+        conf.bia_dt = conf.with_bias ? ipd.diff_bias_desc.data_type
+                                     : data_type::f32;
+        conf.dispatch = compute_engine->create_dispatch(weights_d.md_);
+        conf.dispatch.define_dim("OC", 0, conf.oc);
+        conf.dispatch.define_dim("IC", 1, conf.ic);
+        conf.dispatch.define_dim("KD", nstl::max(1, ndims - 3), conf.kd);
+        conf.dispatch.define_dim("KH", nstl::max(1, ndims - 2), conf.kh);
+        conf.dispatch.define_dim("KW", nstl::max(1, ndims - 1), conf.kw);
+        conf.dispatch.generate();
     } else {
-        jip.with_bias = 0;
-        jip.bia_dt = data_type::f32;
-        jip.dispatch = compute_engine->create_dispatch(src_d.md_);
-        jip.dispatch.define_dim("MB_IC", 0, jip.mb * jip.ic);
-        jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
-        jip.dispatch.define_dim("KH", nstl::max(1, ndims - 2), jip.kh);
-        jip.dispatch.define_dim("KW", nstl::max(1, ndims - 1), jip.kw);
-        jip.dispatch.generate();
+        conf.with_bias = 0;
+        conf.bia_dt = data_type::f32;
+        conf.dispatch = compute_engine->create_dispatch(src_d.md_);
+        conf.dispatch.define_dim("MB_IC", 0, conf.mb * conf.ic);
+        conf.dispatch.define_dim("KD", nstl::max(1, ndims - 3), conf.kd);
+        conf.dispatch.define_dim("KH", nstl::max(1, ndims - 2), conf.kh);
+        conf.dispatch.define_dim("KW", nstl::max(1, ndims - 1), conf.kw);
+        conf.dispatch.generate();
     }
 
-    set_offsets(src_d, jit_off.src_off);
-    set_offsets(weights_d, jit_off.wht_off);
-    set_offsets(dst_d, jit_off.dst_off);
+    set_offsets(src_d, off.src_off);
+    set_offsets(weights_d, off.wht_off);
+    set_offsets(dst_d, off.dst_off);
 
     return status::success;
 }
 
 status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_inner_product_conf_t &jip, const jit_offsets &jit_off,
-        bool with_eltwise, bool with_sum, alg_kind_t alg) {
+        const inner_product_conf_t &conf, const offsets &off, bool with_eltwise,
+        bool with_sum, alg_kind_t alg) {
 
-    kernel_ctx.define_int("NDIMS", jip.ndims);
-    kernel_ctx.define_int("MB", jip.mb);
-    kernel_ctx.define_int("OC", jip.oc);
-    kernel_ctx.define_int("IC", jip.ic);
-    kernel_ctx.define_int("IC_TOTAL", jip.ic_total);
-    kernel_ctx.define_int("ID", jip.id);
-    kernel_ctx.define_int("IH", jip.ih);
-    kernel_ctx.define_int("IW", jip.iw);
-    kernel_ctx.define_int("OD", jip.od);
-    kernel_ctx.define_int("OH", jip.oh);
-    kernel_ctx.define_int("OW", jip.ow);
-    kernel_ctx.define_int("KD", jip.kd);
-    kernel_ctx.define_int("KH", jip.kh);
-    kernel_ctx.define_int("KW", jip.kw);
-    if (jip.with_bias) kernel_ctx.define_int("WITH_BIAS", 1);
-    if (jip.has_spatial) kernel_ctx.define_int("HAS_SPATIAL", 1);
+    kernel_ctx.define_int("NDIMS", conf.ndims);
+    kernel_ctx.define_int("MB", conf.mb);
+    kernel_ctx.define_int("OC", conf.oc);
+    kernel_ctx.define_int("IC", conf.ic);
+    kernel_ctx.define_int("IC_TOTAL", conf.ic_total);
+    kernel_ctx.define_int("ID", conf.id);
+    kernel_ctx.define_int("IH", conf.ih);
+    kernel_ctx.define_int("IW", conf.iw);
+    kernel_ctx.define_int("OD", conf.od);
+    kernel_ctx.define_int("OH", conf.oh);
+    kernel_ctx.define_int("OW", conf.ow);
+    kernel_ctx.define_int("KD", conf.kd);
+    kernel_ctx.define_int("KH", conf.kh);
+    kernel_ctx.define_int("KW", conf.kw);
+    if (conf.with_bias) kernel_ctx.define_int("WITH_BIAS", 1);
+    if (conf.has_spatial) kernel_ctx.define_int("HAS_SPATIAL", 1);
 
-    if (jip.is_forward)
+    if (conf.is_forward)
         kernel_ctx.define_int("IS_FWD", 1);
-    else if (jip.is_backward_data)
+    else if (conf.is_backward_data)
         kernel_ctx.define_int("IS_BWD_D", 1);
-    else if (jip.is_backward_weights)
+    else if (conf.is_backward_weights)
         kernel_ctx.define_int("IS_BWD_W", 1);
 
     if (with_eltwise) { def_postops(kernel_ctx, alg); }
@@ -142,22 +142,22 @@ status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SUM", with_sum);
     kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
 
-    def_offsets(jit_off.src_off, kernel_ctx, "SRC", jip.ndims);
-    def_offsets(jit_off.wht_off, kernel_ctx, "WHT", jip.ndims);
-    def_offsets(jit_off.dst_off, kernel_ctx, "DST", jip.ndims);
+    def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
+    def_offsets(off.wht_off, kernel_ctx, "WHT", conf.ndims);
+    def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 
-    if (jip.src_dt == data_type::f16)
+    if (conf.src_dt == data_type::f16)
         kernel_ctx.set_data_type(data_type::f16);
     else
         kernel_ctx.set_data_type(data_type::f32);
 
-    def_data_type(kernel_ctx, jip.src_dt, "SRC");
-    def_data_type(kernel_ctx, jip.wei_dt, "WEI");
-    def_data_type(kernel_ctx, jip.bia_dt, "BIA");
-    def_data_type(kernel_ctx, jip.dst_dt, "DST");
-    def_data_type(kernel_ctx, jip.acc_dt, "ACC");
+    def_data_type(kernel_ctx, conf.src_dt, "SRC");
+    def_data_type(kernel_ctx, conf.wei_dt, "WEI");
+    def_data_type(kernel_ctx, conf.bia_dt, "BIA");
+    def_data_type(kernel_ctx, conf.dst_dt, "DST");
+    def_data_type(kernel_ctx, conf.acc_dt, "ACC");
 
-    def_dispatch(kernel_ctx, jip.dispatch);
+    def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
 }
@@ -172,7 +172,7 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    const auto &jip = pd()->jip_;
+    const auto &conf = pd()->conf_;
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
@@ -189,7 +189,7 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(6, sum_scale);
     arg_list.set(7, output_scales[0]);
 
-    auto nd_range = jip.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -205,14 +205,14 @@ status_t ref_inner_product_bwd_data_t::execute_backward_data(
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
-    const auto &jip = pd()->jip_;
+    const auto &conf = pd()->conf_;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, diff_src);
     arg_list.set(1, weights);
     arg_list.set(2, diff_dst);
 
-    auto nd_range = jip.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -229,7 +229,7 @@ status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
     auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
     auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const auto &jip = pd()->jip_;
+    const auto &conf = pd()->conf_;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -237,7 +237,7 @@ status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
     arg_list.set(2, diff_bias);
     arg_list.set(3, diff_dst);
 
-    auto nd_range = jip.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

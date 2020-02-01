@@ -14,19 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_JIT_GEN9_GEMM_KERNEL_X8X8S32_HPP
-#define GPU_OCL_GEMM_JIT_GEN9_GEMM_KERNEL_X8X8S32_HPP
+#ifndef GPU_OCL_GEMM_GEN9_GEMM_KERNEL_X8X8S32_HPP
+#define GPU_OCL_GEMM_GEN9_GEMM_KERNEL_X8X8S32_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct jit_gen9_int8_gemm_kernel {
+struct gen9_int8_gemm_kernel {
     static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t a_type, impl::data_type_t b_type,
             impl::data_type_t c_type) {
@@ -53,7 +53,7 @@ struct jit_gen9_int8_gemm_kernel {
     };
 };
 
-struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
+struct gen9_gemm_x8x8s32_kernel : public gen9_int8_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
@@ -109,7 +109,7 @@ struct jit_gen9_gemm_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
     }
 };
 
-struct jit_gen9_gemm_scale_x8x8s32_kernel : public jit_gen9_int8_gemm_kernel {
+struct gen9_gemm_scale_x8x8s32_kernel : public gen9_int8_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
             impl::data_type_t b_type, impl::data_type_t c_type) {

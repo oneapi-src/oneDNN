@@ -14,48 +14,47 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_JIT_GEN9_COMMON_CONVOLUTION_HPP
-#define GPU_OCL_JIT_GEN9_COMMON_CONVOLUTION_HPP
+#ifndef GPU_OCL_GEN9_COMMON_CONVOLUTION_HPP
+#define GPU_OCL_GEN9_COMMON_CONVOLUTION_HPP
 
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_convolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t jit_gen9_convolution_fwd_init_conf(
-        jit_conv_conf_t &jcp, const convolution_pd_t *pd);
-status_t jit_gen9_convolution_fwd_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp);
+status_t gen9_convolution_fwd_init_conf(
+        conv_conf_t &conf, const convolution_pd_t *pd);
+status_t gen9_convolution_fwd_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
 
-status_t jit_gen9_convolution_bwd_data_init_conf(
-        jit_conv_conf_t &jcp, const convolution_pd_t *pd);
-status_t jit_gen9_convolution_bwd_data_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp);
+status_t gen9_convolution_bwd_data_init_conf(
+        conv_conf_t &conf, const convolution_pd_t *pd);
+status_t gen9_convolution_bwd_data_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
 
-status_t jit_gen9_convolution_bwd_weights_init_conf(
-        jit_conv_conf_t &jcp, const convolution_pd_t *pd);
-status_t jit_gen9_convolution_bwd_weights_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const jit_conv_conf_t &jcp);
+status_t gen9_convolution_bwd_weights_init_conf(
+        conv_conf_t &conf, const convolution_pd_t *pd);
+status_t gen9_convolution_bwd_weights_init_const_def(
+        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
 
-struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
+struct gen9_common_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : ocl_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , jcp_() {}
+            , conf_() {}
 
-        DECLARE_COMMON_PD_T(
-                "ocl:gen9:blocked", jit_gen9_common_convolution_fwd_t);
+        DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_common_convolution_fwd_t);
 
         status_t init() {
             using namespace prop_kind;
@@ -89,19 +88,19 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                     && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
-            status_t status = jit_gen9_convolution_fwd_init_conf(jcp_, this);
+            status_t status = gen9_convolution_fwd_init_conf(conf_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
-                    jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
+                    conf_.src_tag, conf_.wei_tag, conf_.dst_tag);
             return ok ? status::success : status::unimplemented;
         }
-        jit_conv_conf_t jcp_;
+        conv_conf_t conf_;
     };
 
     status_t init() override {
         const char *kernel_name = nullptr;
-        if (pd()->jcp_.is_depthwise)
+        if (pd()->conf_.is_depthwise)
             kernel_name = "gen9_common_conv_dw_fwd";
         else if (pd()->desc()->src_desc.data_type == data_type::f16)
             kernel_name = "gen9_common_conv_fwd_f16";
@@ -114,8 +113,8 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = jit_gen9_convolution_fwd_init_const_def(
-                kernel_ctx, pd()->jcp_);
+        status_t status
+                = gen9_convolution_fwd_init_const_def(kernel_ctx, pd()->conf_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
@@ -124,8 +123,7 @@ struct jit_gen9_common_convolution_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    jit_gen9_common_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-    }
+    gen9_common_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -137,15 +135,14 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
+struct gen9_common_convolution_bwd_data_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
             : ocl_convolution_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
-        DECLARE_COMMON_PD_T(
-                "ocl:ncsp:any", jit_gen9_common_convolution_bwd_data_t);
+        DECLARE_COMMON_PD_T("ocl:ncsp:any", gen9_common_convolution_bwd_data_t);
 
         status_t init() {
             using namespace data_type;
@@ -176,20 +173,19 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status
-                    = jit_gen9_convolution_bwd_data_init_conf(jcp_, this);
+            status_t status = gen9_convolution_bwd_data_init_conf(conf_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
-                    jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
+                    conf_.src_tag, conf_.wei_tag, conf_.dst_tag);
             return ok ? status::success : status::unimplemented;
         }
-        jit_conv_conf_t jcp_;
+        conv_conf_t conf_;
     };
 
     status_t init() override {
         const char *kernel_name = nullptr;
-        if (pd()->jcp_.is_depthwise)
+        if (pd()->conf_.is_depthwise)
             kernel_name = "gen9_common_conv_dw_bwd_data";
         else
             kernel_name = "gen9_common_conv_bwd_data";
@@ -198,8 +194,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = jit_gen9_convolution_bwd_data_init_const_def(
-                kernel_ctx, pd()->jcp_);
+        status_t status = gen9_convolution_bwd_data_init_const_def(
+                kernel_ctx, pd()->conf_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
@@ -208,9 +204,8 @@ struct jit_gen9_common_convolution_bwd_data_t : public primitive_impl_t {
         return status::success;
     }
 
-    jit_gen9_common_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_impl_t(apd) {
-    }
+    gen9_common_convolution_bwd_data_t(const pd_t *apd)
+        : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -222,7 +217,7 @@ private:
     compute::kernel_t kernel_;
 };
 
-struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
+struct gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
     struct pd_t : public ocl_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -231,7 +226,7 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
                     engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T(
-                "ocl:ncsp:any", jit_gen9_common_convolution_bwd_weights_t);
+                "ocl:ncsp:any", gen9_common_convolution_bwd_weights_t);
 
         status_t init() {
             using namespace data_type;
@@ -252,15 +247,15 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status
-                    = jit_gen9_convolution_bwd_weights_init_conf(jcp_, this);
+                    = gen9_convolution_bwd_weights_init_conf(conf_, this);
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
-                    jcp_.src_tag, jcp_.wei_tag, jcp_.dst_tag);
+                    conf_.src_tag, conf_.wei_tag, conf_.dst_tag);
 
             return ok ? status::success : status::unimplemented;
         }
-        jit_conv_conf_t jcp_;
+        conv_conf_t conf_;
     };
 
     status_t init() override {
@@ -268,8 +263,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = jit_gen9_convolution_bwd_weights_init_const_def(
-                kernel_ctx, pd()->jcp_);
+        status_t status = gen9_convolution_bwd_weights_init_const_def(
+                kernel_ctx, pd()->conf_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(
@@ -279,9 +274,8 @@ struct jit_gen9_common_convolution_bwd_weights_t : public primitive_impl_t {
         return status::success;
     }
 
-    jit_gen9_common_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_impl_t(apd) {
-    }
+    gen9_common_convolution_bwd_weights_t(const pd_t *apd)
+        : primitive_impl_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);

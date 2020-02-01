@@ -23,8 +23,8 @@ namespace ocl {
 
 using namespace format_tag;
 
-status_t ref_shuffle_init_conf(jit_shuffle_conf_t &jshfl,
-        const shuffle_pd_t *pd, jit_offsets &jit_off) {
+status_t ref_shuffle_init_conf(
+        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets &off) {
 
     const bool is_fwd = pd->is_fwd();
 
@@ -57,13 +57,13 @@ status_t ref_shuffle_init_conf(jit_shuffle_conf_t &jshfl,
     jshfl.gws_d[1] = nstl::max(1, axis_size);
     jshfl.gws_d[2] = nstl::max(size_t(1), outer_size);
 
-    set_offsets(input_md, jit_off.src_off);
+    set_offsets(input_md, off.src_off);
 
     return status::success;
 }
 
 status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_shuffle_conf_t &jshfl, const jit_offsets &jit_off) {
+        const shuffle_conf_t &jshfl, const offsets &off) {
 
     kernel_ctx.set_data_type(jshfl.data_type);
     kernel_ctx.define_int("NDIMS", jshfl.ndims);
@@ -75,7 +75,7 @@ status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("INNER_SIZE", jshfl.inner_size);
     kernel_ctx.define_int("OUTER_SIZE", jshfl.outer_size);
 
-    def_offsets(jit_off.src_off, kernel_ctx, "SRC", jshfl.ndims);
+    def_offsets(off.src_off, kernel_ctx, "SRC", jshfl.ndims);
     return status::success;
 }
 

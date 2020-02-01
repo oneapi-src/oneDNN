@@ -18,14 +18,14 @@
 #include "common/dnnl_traits.hpp"
 #include "common/type_helpers.hpp"
 
-#include "gpu/ocl/gemm/jit_gen9_gemm_x8x8s32.hpp"
+#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct jit_gen9_gemm_x8x8s32_driver_params {
+struct gen9_gemm_x8x8s32_driver_params {
     //unroll_m = 32, unroll_n = 16
     static constexpr auto block_m = 6 * 32;
     static constexpr auto block_n = 4 * 16;
@@ -35,7 +35,7 @@ struct jit_gen9_gemm_x8x8s32_driver_params {
                     & ~3);
 };
 
-status_t jit_gen9_gemm_x8x8s32_t::launch_x8x8s32(
+status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int64_t lda, int64_t ldb,
@@ -48,9 +48,9 @@ status_t jit_gen9_gemm_x8x8s32_t::launch_x8x8s32(
     assert(kernel);
 
     int unroll_m, unroll_n, block_m, block_n;
-    jit_gen9_gemm_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
-    block_m = jit_gen9_gemm_x8x8s32_driver_params::block_m;
-    block_n = jit_gen9_gemm_x8x8s32_driver_params::block_n;
+    gen9_gemm_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
+    block_m = gen9_gemm_x8x8s32_driver_params::block_m;
+    block_n = gen9_gemm_x8x8s32_driver_params::block_n;
     int kk = ((k + 3) & ~3);
 
     int sizea = block_m * (kk + sizeof(int));
@@ -102,7 +102,7 @@ status_t jit_gen9_gemm_x8x8s32_t::launch_x8x8s32(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t jit_gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
+status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
         int64_t offset_c, int64_t m, int64_t n, int64_t ldc, float alpha,
@@ -132,7 +132,7 @@ status_t jit_gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
 
     int unroll_m, unroll_n;
 
-    jit_gen9_gemm_scale_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
+    gen9_gemm_scale_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
 
     size_t nthreads_x = (m + unroll_m - 1) / unroll_m;
     size_t nthreads_y = (n + unroll_n - 1) / unroll_n;
@@ -148,11 +148,11 @@ status_t jit_gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t jit_gen9_gemm_x8x8s32_t::execute(const gemm_exec_ctx_t &ctx) const {
+status_t gen9_gemm_x8x8s32_t::execute(const gemm_exec_ctx_t &ctx) const {
     return execute_standard(ctx);
 }
 
-status_t jit_gen9_gemm_x8x8s32_t::execute_standard(
+status_t gen9_gemm_x8x8s32_t::execute_standard(
         const gemm_exec_ctx_t &ctx) const {
     auto a_type = pd()->desc()->a_type;
     auto b_type = pd()->desc()->b_type;
@@ -221,11 +221,11 @@ status_t jit_gen9_gemm_x8x8s32_t::execute_standard(
     int block_m, block_n, block_k;
     int slices;
 
-    jit_gen9_gemm_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
+    gen9_gemm_x8x8s32_kernel::get_unrolls(unroll_m, unroll_n);
 
-    block_m = jit_gen9_gemm_x8x8s32_driver_params::block_m;
-    block_n = jit_gen9_gemm_x8x8s32_driver_params::block_n;
-    block_k = jit_gen9_gemm_x8x8s32_driver_params::block_k;
+    block_m = gen9_gemm_x8x8s32_driver_params::block_m;
+    block_n = gen9_gemm_x8x8s32_driver_params::block_n;
+    block_k = gen9_gemm_x8x8s32_driver_params::block_k;
 
     slices = eu_count_ / 24; //24EUs per slice
 

@@ -21,9 +21,9 @@
 #include "common/memory.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -31,9 +31,9 @@ namespace gpu {
 namespace ocl {
 
 status_t rnn_weights_reorder_init_conf(
-        jit_rnn_reorder_conf_t &jrp, const reorder_pd_t *pd);
+        rnn_reorder_conf_t &conf, const reorder_pd_t *pd);
 status_t rnn_weights_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_rnn_reorder_conf_t &jrp, const memory_desc_wrapper &input_md,
+        const rnn_reorder_conf_t &conf, const memory_desc_wrapper &input_md,
         const memory_desc_wrapper &output_md);
 
 struct rnn_weights_reorder_t : public primitive_impl_t {
@@ -71,10 +71,10 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            return rnn_weights_reorder_init_conf(jrp_, this);
+            return rnn_weights_reorder_init_conf(conf_, this);
         }
 
-        jit_rnn_reorder_conf_t jrp_;
+        rnn_reorder_conf_t conf_;
     };
 
     virtual status_t init() override {
@@ -83,20 +83,20 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = rnn_weights_reorder_init_const_def(
-                kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
+                kernel_ctx, pd()->conf_, pd()->src_md(), pd()->dst_md());
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "wei_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
-        if (pd()->jrp_.do_reorder) {
-            size_t size = pd()->jrp_.nelems * sizeof(float);
+        if (pd()->conf_.do_reorder) {
+            size_t size = pd()->conf_.nelems * sizeof(float);
             memory_storage_t *temp_buf_ptr;
             engine()->create_memory_storage(&temp_buf_ptr, size);
             temp_buf.reset(temp_buf_ptr);
             if (!temp_buf) return status::runtime_error;
 
-            size = pd()->jrp_.scales_count * sizeof(float);
+            size = pd()->conf_.scales_count * sizeof(float);
             engine()->create_memory_storage(&temp_buf_ptr, size);
             scales_buf.reset(temp_buf_ptr);
             if (!scales_buf) return status::runtime_error;

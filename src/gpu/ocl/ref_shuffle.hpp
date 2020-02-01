@@ -19,20 +19,20 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_shuffle_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_shuffle_init_conf(jit_shuffle_conf_t &jshfl,
-        const shuffle_pd_t *pd, jit_offsets &jit_off);
+status_t ref_shuffle_init_conf(
+        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets &off);
 status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_shuffle_conf_t &jshfl, const jit_offsets &jit_off);
+        const shuffle_conf_t &jshfl, const offsets &off);
 
 struct ref_shuffle_t : public primitive_impl_t {
     struct pd_t : public ocl_shuffle_pd_t {
@@ -58,11 +58,11 @@ struct ref_shuffle_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             dat_tag_ = any;
-            return ref_shuffle_init_conf(jshfl_, this, jit_off_);
+            return ref_shuffle_init_conf(jshfl_, this, off_);
         }
 
-        jit_shuffle_conf_t jshfl_;
-        jit_offsets jit_off_;
+        shuffle_conf_t jshfl_;
+        offsets off_;
         format_tag_t dat_tag_;
     };
 
@@ -74,7 +74,7 @@ struct ref_shuffle_t : public primitive_impl_t {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = ref_shuffle_init_const_def(
-                kernel_ctx, pd()->jshfl_, pd()->jit_off_);
+                kernel_ctx, pd()->jshfl_, pd()->off_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_shuffle", kernel_ctx);

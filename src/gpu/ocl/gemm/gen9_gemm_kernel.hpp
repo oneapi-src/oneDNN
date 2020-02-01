@@ -14,19 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_JIT_GEN9_GEMM_KERNEL_HPP
-#define GPU_OCL_GEMM_JIT_GEN9_GEMM_KERNEL_HPP
+#ifndef GPU_OCL_GEMM_GEN9_GEMM_KERNEL_HPP
+#define GPU_OCL_GEMM_GEN9_GEMM_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct jit_gen9_gemm_kernel {
+struct gen9_gemm_kernel {
     static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t type,
             impl::data_type_t src_type = impl::data_type::undef,
@@ -61,7 +61,7 @@ struct jit_gen9_gemm_kernel {
     };
 };
 
-struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
+struct gen9_gemm_beta_kernel : public gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t src_type,
             impl::data_type_t type = impl::data_type::undef) {
@@ -74,7 +74,7 @@ struct jit_gen9_gemm_beta_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
+struct gen9_gemm_copy_kernel : public gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool outer, bool trans, impl::data_type_t src_type,
             impl::data_type_t type = impl::data_type::undef) {
@@ -97,7 +97,7 @@ struct jit_gen9_gemm_copy_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
+struct gen9_gemm_compute_kernel : public gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool beta0, bool with_eltwise, alg_kind_t alg,
             impl::data_type_t type,
@@ -124,7 +124,7 @@ struct jit_gen9_gemm_compute_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
+struct gen9_gemm_nocopy_kernel : public gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_k_unroll, int unroll_k,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t type) {
@@ -163,14 +163,14 @@ struct jit_gen9_gemm_nocopy_kernel : public jit_gen9_gemm_kernel {
     }
 };
 
-struct jit_gen9_gemm_nocopy_superkernel : public jit_gen9_gemm_kernel {
+struct gen9_gemm_nocopy_superkernel : public gen9_gemm_kernel {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
             impl::data_type_t type) {
 
         if (trans_a) return status::unimplemented;
 
-        return jit_gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx, trans_a,
+        return gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx, trans_a,
                 trans_b, false, 32, with_eltwise, alg, type);
     }
 

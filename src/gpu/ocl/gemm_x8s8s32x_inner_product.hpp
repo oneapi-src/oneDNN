@@ -24,8 +24,8 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_inner_product_pd.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

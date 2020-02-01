@@ -18,13 +18,13 @@
 
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/gemm/jit_gen9_gemm.hpp"
-#include "gpu/ocl/gemm/jit_gen9_gemm_x8x8s32.hpp"
+#include "gpu/ocl/gemm/gen9_gemm.hpp"
+#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
 #include "gpu/ocl/gemm/ref_gemm.hpp"
 #include "gpu/ocl/gemm_inner_product.hpp"
 #include "gpu/ocl/gemm_matmul.hpp"
 #include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
-#include "gpu/ocl/jit_gen9_common_convolution.hpp"
+#include "gpu/ocl/gen9_common_convolution.hpp"
 #include "gpu/ocl/ocl_kernel_list.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -172,9 +172,9 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_deconvolution_bwd_data_t),
         INSTANCE(ref_deconvolution_bwd_weights_t),
         /*conv*/
-        INSTANCE(jit_gen9_common_convolution_fwd_t),
-        INSTANCE(jit_gen9_common_convolution_bwd_data_t),
-        INSTANCE(jit_gen9_common_convolution_bwd_weights_t),
+        INSTANCE(gen9_common_convolution_fwd_t),
+        INSTANCE(gen9_common_convolution_bwd_data_t),
+        INSTANCE(gen9_common_convolution_bwd_weights_t),
         INSTANCE(ref_convolution_fwd_t),
         INSTANCE(ref_convolution_bwd_data_t),
         INSTANCE(ref_convolution_bwd_weights_t),
@@ -200,8 +200,8 @@ static const pd_create_f ocl_impl_list[] = {
         INSTANCE(ref_softmax_fwd_t),
         INSTANCE(ref_softmax_bwd_t),
         /* gemm */
-        INSTANCE(jit_gen9_gemm_x8x8s32_t),
-        INSTANCE(jit_gen9_gemm_t),
+        INSTANCE(gen9_gemm_x8x8s32_t),
+        INSTANCE(gen9_gemm_t),
         INSTANCE(ref_gemm_t),
         /*rnn*/
         INSTANCE(ref_rnn_fwd_t),

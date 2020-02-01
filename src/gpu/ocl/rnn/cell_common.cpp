@@ -33,7 +33,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
     data_type_t src_t = this->pd()->src_type;
     data_type_t wei_t = this->pd()->weights_type;
 
-    const rnn_conf_t &rnn = this->pd()->rnn_conf_;
+    const conf_t &rnn = this->pd()->rnn_conf_;
 
     cl_ulong offset_scratch_gates
             = (rnn.merge_gemm_iter || rnn.merge_gemm_layer)

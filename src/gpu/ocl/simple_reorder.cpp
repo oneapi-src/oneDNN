@@ -28,44 +28,44 @@ namespace ocl {
 using namespace dnnl::impl::memory_tracking::names;
 
 status_t simple_reorder_init_conf(
-        jit_reorder_conf_t &jrp, const reorder_pd_t *pd) {
+        reorder_conf_t &conf, const reorder_pd_t *pd) {
     using namespace format_tag;
 
     const memory_desc_wrapper src_md(pd->src_md());
     const memory_desc_wrapper dst_md(pd->dst_md());
 
-    jrp.src_md_info = jit_memory_desc_info_t::create(src_md);
-    jrp.dst_md_info = jit_memory_desc_info_t::create(dst_md);
+    conf.src_md_info = memory_desc_info_t::create(src_md);
+    conf.dst_md_info = memory_desc_info_t::create(dst_md);
 
     status_t status = status::success;
 
     const auto &padded_dims = dst_md.padded_dims();
-    jrp.scale_quant = pd->attr()->output_scales_.mask_ != 0;
-    jrp.scale_mask = jrp.scale_quant ? pd->attr()->output_scales_.mask_ : 0;
-    jrp.scales_num = jrp.scale_quant ? pd->attr()->output_scales_.count_ : 0;
-    jrp.with_sum_ab = jrp.scale_quant
+    conf.scale_quant = pd->attr()->output_scales_.mask_ != 0;
+    conf.scale_mask = conf.scale_quant ? pd->attr()->output_scales_.mask_ : 0;
+    conf.scales_num = conf.scale_quant ? pd->attr()->output_scales_.count_ : 0;
+    conf.with_sum_ab = conf.scale_quant
             ? false
             : (pd->alpha() != 1.f || pd->beta() != 0.f);
-    jrp.with_sum_a = jrp.with_sum_ab && pd->beta() == 0.f;
-    jrp.do_reorder
-            = jrp.scale_quant || jrp.with_sum_ab ? true : src_md != dst_md;
-    jrp.has_padding = !src_md.is_dense() || !dst_md.is_dense();
-    jrp.ndims = src_md.ndims();
-    jrp.nelems = utils::array_product(padded_dims, jrp.ndims);
+    conf.with_sum_a = conf.with_sum_ab && pd->beta() == 0.f;
+    conf.do_reorder
+            = conf.scale_quant || conf.with_sum_ab ? true : src_md != dst_md;
+    conf.has_padding = !src_md.is_dense() || !dst_md.is_dense();
+    conf.ndims = src_md.ndims();
+    conf.nelems = utils::array_product(padded_dims, conf.ndims);
 
-    jrp.use_ref_impl = true;
-    jrp.with_group = 0;
-    jrp.sub_group_size = 1;
+    conf.use_ref_impl = true;
+    conf.with_group = 0;
+    conf.sub_group_size = 1;
 
-    if (jrp.nelems == 0) return status::success;
+    if (conf.nelems == 0) return status::success;
 
     if (src_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
                 gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i)
             || dst_md.matches_one_of_tag(gOIw8o16i2o, gOIhw8o16i2o, gOIw8i16o2i,
                     gOIhw8i16o2i, gOIdhw8i16o2i, gOIhw4o8i8o4i, gOIhw2o8i8o2i))
-        jrp.with_group = 1;
+        conf.with_group = 1;
 
-    bool has_padding_or_scale_quant = jrp.has_padding || jrp.scale_quant;
+    bool has_padding_or_scale_quant = conf.has_padding || conf.scale_quant;
 
     const bool type_s8_u8 = utils::one_of(src_md.data_type(), dnnl_s8, dnnl_u8)
             || utils::one_of(dst_md.data_type(), dnnl_s8, dnnl_u8);
@@ -98,65 +98,65 @@ status_t simple_reorder_init_conf(
     } else if (use_unroll_16b) {
         // No blocking.
     } else if (use_unroll_16b16c) {
-        jrp.with_group = 1;
+        conf.with_group = 1;
         blocks[2] = 16;
     }
 
     if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
-        jrp.use_ref_impl = false;
-        jrp.sub_group_size = 16;
+        conf.use_ref_impl = false;
+        conf.sub_group_size = 16;
     }
 
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(pd->engine());
-    jrp.dispatch = compute_engine->create_dispatch(dst_md.md_);
+    conf.dispatch = compute_engine->create_dispatch(dst_md.md_);
     for (int i = 0; i < 6; ++i) {
         auto dim_str = utils::format("D%d", i);
         if (i < dst_md.ndims()) {
-            dim_t block = jrp.use_ref_impl ? (i < 2) ? 1 : 0 : blocks[i];
-            jrp.dispatch.define_dim(dim_str, i, padded_dims[i], block);
+            dim_t block = conf.use_ref_impl ? (i < 2) ? 1 : 0 : blocks[i];
+            conf.dispatch.define_dim(dim_str, i, padded_dims[i], block);
         } else {
-            jrp.dispatch.define_dim(dim_str, 1);
+            conf.dispatch.define_dim(dim_str, 1);
         }
     }
 
     if (use_unroll_16a16b || use_unroll_16b || use_unroll_16b16c) {
-        jrp.dispatch.vectorize_dim("D1", 16);
+        conf.dispatch.vectorize_dim("D1", 16);
     }
 
-    jrp.dispatch.generate();
+    conf.dispatch.generate();
 
     return status;
 }
 
 status_t simple_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_reorder_conf_t &jrp, const memory_desc_wrapper &src_md,
+        const reorder_conf_t &conf, const memory_desc_wrapper &src_md,
         const memory_desc_wrapper &dst_md) {
     using namespace format_tag;
 
-    if (jrp.nelems == 0) return status::success;
+    if (conf.nelems == 0) return status::success;
 
-    kernel_ctx.define_int("NDIMS", jrp.ndims);
-    if (jrp.scale_quant) {
+    kernel_ctx.define_int("NDIMS", conf.ndims);
+    if (conf.scale_quant) {
         kernel_ctx.define_int("SCALE_QUANT", 1);
-        kernel_ctx.define_int("SCALE_MASK", jrp.scale_mask);
-    } else if (jrp.with_sum_a)
+        kernel_ctx.define_int("SCALE_MASK", conf.scale_mask);
+    } else if (conf.with_sum_a)
         kernel_ctx.define_int("WITH_SUM_A", 1);
-    else if (jrp.with_sum_ab)
+    else if (conf.with_sum_ab)
         kernel_ctx.define_int("WITH_SUM_AB", 1);
-    kernel_ctx.define_int("WITH_GROUP", jrp.with_group);
+    kernel_ctx.define_int("WITH_GROUP", conf.with_group);
 
-    def_dispatch(kernel_ctx, jrp.dispatch);
+    def_dispatch(kernel_ctx, conf.dispatch);
 
-    kernel_ctx.define_int("REF_REORDER", jrp.use_ref_impl);
-    kernel_ctx.define_int("SUB_GROUP_SIZE", jrp.sub_group_size);
+    kernel_ctx.define_int("REF_REORDER", conf.use_ref_impl);
+    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
-    kernel_ctx.define_int("PAD_FILL_ZERO", jrp.has_padding);
+    kernel_ctx.define_int("PAD_FILL_ZERO", conf.has_padding);
 
-    def_memory_desc_info(kernel_ctx, jrp.src_md_info, "SRC");
-    def_memory_desc_info(kernel_ctx, jrp.dst_md_info, "DST");
+    def_memory_desc_info(kernel_ctx, conf.src_md_info, "SRC");
+    def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    if (!jrp.use_ref_impl) {
+    if (!conf.use_ref_impl) {
         if (src_md.matches_one_of_tag(ABc16a16b, ABcd16a16b, ABcde16a16b,
                     BAc16a16b, BAcd16a16b)) {
             kernel_ctx.define_int("SRC_16A16B", 1);
@@ -187,7 +187,7 @@ status_t simple_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("SRC_OIHW2O8I8O2I", 1);
     }
 
-    if (!jrp.use_ref_impl) {
+    if (!conf.use_ref_impl) {
         if (dst_md.matches_one_of_tag(ABc16a16b, ABcd16a16b, ABcde16a16b,
                     BAc16a16b, BAcd16a16b)) {
             kernel_ctx.define_int("DST_16A16B", 1);
@@ -222,11 +222,11 @@ status_t simple_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
-void simple_reorder_init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        const jit_reorder_conf_t &jrp) {
-    if (jrp.scales_num > 0)
+void simple_reorder_init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const reorder_conf_t &conf) {
+    if (conf.scales_num > 0)
         scratchpad.book(memory_tracking::names::key_reorder_scales,
-                sizeof(float) * jrp.scales_num);
+                sizeof(float) * conf.scales_num);
 }
 
 status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
@@ -236,8 +236,8 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_FROM);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
-    const auto &jrp = pd()->jrp_;
-    if (jrp.nelems == 0) return status::success;
+    const auto &conf = pd()->conf_;
+    if (conf.nelems == 0) return status::success;
 
     float alpha = pd()->alpha();
     float beta = pd()->beta();
@@ -245,7 +245,7 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     std::unique_ptr<memory_storage_t> scales;
-    if (jrp.scale_quant) {
+    if (conf.scale_quant) {
         scales = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_reorder_scales);
 
@@ -266,7 +266,7 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(3, beta);
     arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
 
-    auto nd_range = jrp.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

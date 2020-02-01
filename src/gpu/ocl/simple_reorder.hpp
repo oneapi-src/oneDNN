@@ -20,22 +20,21 @@
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t simple_reorder_init_conf(
-        jit_reorder_conf_t &jrp, const reorder_pd_t *pd);
+status_t simple_reorder_init_conf(reorder_conf_t &conf, const reorder_pd_t *pd);
 status_t simple_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_reorder_conf_t &jrp, const memory_desc_wrapper &src_md,
+        const reorder_conf_t &conf, const memory_desc_wrapper &src_md,
         const memory_desc_wrapper &dst_md);
-void simple_reorder_init_scratchpad(memory_tracking::registrar_t &scratchpad,
-        const jit_reorder_conf_t &jrp);
+void simple_reorder_init_scratchpad(
+        memory_tracking::registrar_t &scratchpad, const reorder_conf_t &conf);
 
 struct simple_reorder_t : public primitive_impl_t {
     struct pd_t : public ocl_reorder_pd_t {
@@ -89,15 +88,15 @@ struct simple_reorder_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = simple_reorder_init_conf(jrp_, this);
+            status_t status = simple_reorder_init_conf(conf_, this);
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            simple_reorder_init_scratchpad(scratchpad, jrp_);
+            simple_reorder_init_scratchpad(scratchpad, conf_);
             return status::success;
         }
 
-        jit_reorder_conf_t jrp_;
+        reorder_conf_t conf_;
     };
 
     virtual status_t init() override {
@@ -106,11 +105,11 @@ struct simple_reorder_t : public primitive_impl_t {
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = simple_reorder_init_const_def(
-                kernel_ctx, pd()->jrp_, pd()->src_md(), pd()->dst_md());
+                kernel_ctx, pd()->conf_, pd()->src_md(), pd()->dst_md());
         if (status != status::success) return status;
 
-        const auto &jrp = pd()->jrp_;
-        if (jrp.nelems == 0) return status::success;
+        const auto &conf = pd()->conf_;
+        if (conf.nelems == 0) return status::success;
 
         compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;

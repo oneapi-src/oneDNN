@@ -108,7 +108,7 @@ enum data_type_conf_t {
 
 enum ws_part_t { gates, states, c_states, diff_states, cell, grid, bias };
 
-struct rnn_conf_t {
+struct conf_t {
     execution_direction_t exec_dir;
     data_type_conf_t dt_conf;
     int n_layer, n_iter, n_dir, n_gates, n_states;
@@ -146,7 +146,7 @@ struct rnn_conf_t {
     size_t ws_gates_size, ws_states_size, ws_c_states_size, ws_diff_states_size,
             ws_cell_comp_size, ws_grid_comp_size, ws_per_cell, ws_bias_size;
 
-    bool merge_gemm_iter, merge_gemm_layer, use_jit_gemm, use_layer_packed_gemm,
+    bool merge_gemm_iter, merge_gemm_layer, use_gemm, use_layer_packed_gemm,
             use_iter_packed_gemm;
 
     // Element size of each workspace part in bytes
@@ -170,28 +170,28 @@ bool is_ldigo(const memory_desc_wrapper &md);
 bool is_ldgoi(const memory_desc_wrapper &md);
 
 int get_good_ld(int dim, int sizeof_dt);
-void init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+void init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &dst_layer_d);
-void init_test_mode(rnn_conf_t &rnn, const primitive_attr_t &attr);
-void set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+void init_test_mode(conf_t &rnn, const primitive_attr_t &attr);
+void set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
         const memory_desc_wrapper &diff_weights_iter_d);
-void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
+void set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_h_state_offset, size_t &ws_c_state_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
         size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
         size_t &scratch_gates_offset, size_t &scratchpad_size,
         size_t &workspace_size);
 void get_scratchpad_and_workspace_sizes(
-        const rnn_conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
+        const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
 status_t set_expected_desc(
-        rnn_conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
+        conf_t &rnn, memory_desc_t &weights_md, bool is_iter);
 status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
 } // namespace rnn_utils
 

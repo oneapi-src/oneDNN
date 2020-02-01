@@ -26,10 +26,10 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 #include "gpu/ocl/rnn/ocl_rnn_pd.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
 
@@ -90,9 +90,9 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
         status_t init();
 
-        jit_rnn_conf_t jrnn_;
-        jit_rnn_offsets jit_off_;
-        rnn_utils::rnn_conf_t rnn_conf_;
+        rnn_conf_t conf_;
+        rnn_offsets off_;
+        rnn_utils::conf_t rnn_conf_;
         data_type_t acc_data_t;
         data_type_t src_type;
         data_type_t weights_type;
@@ -113,8 +113,8 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         }
 
         void copy_from(const pd_t &other) {
-            jrnn_ = other.jrnn_;
-            jit_off_ = other.jit_off_;
+            conf_ = other.conf_;
+            off_ = other.off_;
             rnn_conf_ = other.rnn_conf_;
             acc_data_t = other.acc_data_t;
             src_type = other.src_type;

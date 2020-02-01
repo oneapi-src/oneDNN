@@ -49,7 +49,7 @@ bool rnn_utils::is_ldgoi(const memory_desc_wrapper &md) {
             && str[0] == str[1] * dims[1];
 };
 
-void rnn_utils::init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &src_layer_d,
         const memory_desc_wrapper &src_iter_d,
         const memory_desc_wrapper &weights_layer_d,
@@ -170,13 +170,13 @@ void rnn_utils::init_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     }
 }
 
-void rnn_utils::init_test_mode(rnn_conf_t &rnn, const primitive_attr_t &attr) {
+void rnn_utils::init_test_mode(conf_t &rnn, const primitive_attr_t &attr) {
     rnn.is_testmode = attr.rnn_tparams_.test_mode_;
     rnn.tm_ngates = attr.rnn_tparams_.ngates_;
     rnn.tm_cscale = attr.rnn_tparams_.cscale_;
 }
 
-void rnn_utils::set_rnn_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
+void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
         const memory_desc_wrapper &weights_layer_d,
         const memory_desc_wrapper &weights_iter_d,
         const memory_desc_wrapper &diff_weights_layer_d,
@@ -279,7 +279,7 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
     return (ld % 256 == 0) ? ld + 64 / sizeof_dt : ld;
 }
 
-void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
+void rnn_utils::set_offsets(const conf_t &rnn, size_t &ws_gates_offset,
         size_t &ws_states_offset, size_t &ws_c_states_offset,
         size_t &ws_diff_states_offset, size_t &ws_grid_comp_offset,
         size_t &ws_cell_comp_offset, size_t &ws_bias_offset,
@@ -333,8 +333,8 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     scratchpad_size = current_offset;
 }
 
-void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
-        size_t &scratchpad_size, size_t &workspace_size) {
+void rnn_utils::get_scratchpad_and_workspace_sizes(
+        const conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size) {
     size_t ws_gates_offset, ws_states_offset, ws_c_states_offset,
             ws_diff_states_offset, ws_grid_comp_offset, ws_cell_comp_offset,
             ws_bias_offset, sratch_gates_offset;
@@ -368,7 +368,7 @@ status_t rnn_utils::set_good_strides(
 }
 
 status_t rnn_utils::set_expected_desc(
-        rnn_conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
+        conf_t &rnn, memory_desc_t &weights_md, bool is_iter) {
     using namespace format_tag;
     bool use_packed_gemm = false;
     if (use_packed_gemm) {

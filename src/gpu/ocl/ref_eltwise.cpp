@@ -22,7 +22,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_eltwise_init_conf(
-        jit_eltwise_conf_t &jel, const eltwise_pd_t *pd, jit_offsets &jit_off) {
+        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets &off) {
 
     alg_kind_t alg = pd->desc()->alg_kind;
     bool is_forward = utils::one_of(pd->desc()->prop_kind,
@@ -32,39 +32,39 @@ status_t ref_eltwise_init_conf(
             is_forward ? &glob_zero_md : pd->diff_src_md());
 
     const int ndims = data_d.ndims();
-    jel.ndims = ndims;
+    conf.ndims = ndims;
 
-    jel.data_type = data_d.data_type();
-    jel.alg = alg;
-    jel.is_forward = is_forward;
+    conf.data_type = data_d.data_type();
+    conf.alg = alg;
+    conf.is_forward = is_forward;
 
-    set_offsets(data_d, jit_off.src_off);
-    set_offsets(diff_data_d, jit_off.dst_off);
+    set_offsets(data_d, off.src_off);
+    set_offsets(diff_data_d, off.dst_off);
 
     const auto &dims = data_d.dims();
 
-    jel.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
+    conf.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
 
     int max_ndims = 6;
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(pd->engine());
-    jel.dispatch = compute_engine->create_dispatch(
+    conf.dispatch = compute_engine->create_dispatch(
             is_forward ? data_d.md_ : diff_data_d.md_);
     for (int i = 0; i < max_ndims; ++i) {
         if (i < ndims)
-            jel.dispatch.define_dim(utils::format("D%d", i), i, dims[i]);
+            conf.dispatch.define_dim(utils::format("D%d", i), i, dims[i]);
         else
-            jel.dispatch.define_dim(utils::format("D%d", i), 1);
+            conf.dispatch.define_dim(utils::format("D%d", i), 1);
     }
-    jel.dispatch.generate();
+    conf.dispatch.generate();
 
     return status::success;
 }
 
 status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_eltwise_conf_t &jel, const jit_offsets &jit_off) {
+        const eltwise_conf_t &conf, const offsets &off) {
 
-    kernel_ctx.set_data_type(jel.data_type);
+    kernel_ctx.set_data_type(conf.data_type);
     kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
     kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
     kernel_ctx.define_int("BOUNDED_RELU", alg_kind::eltwise_bounded_relu);
@@ -90,19 +90,19 @@ status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("SQRT_DST", alg_kind::eltwise_sqrt_use_dst_for_bwd);
     kernel_ctx.define_int("EXP_DST", alg_kind::eltwise_exp_use_dst_for_bwd);
 
-    kernel_ctx.define_int("ALG_KIND", jel.alg);
-    kernel_ctx.define_int("NDIMS", jel.ndims);
-    kernel_ctx.define_int("GWS0", jel.dispatch.nd_range().global_range()[0]);
-    kernel_ctx.define_int("GWS1", jel.dispatch.nd_range().global_range()[1]);
-    kernel_ctx.define_int("GWS2", jel.dispatch.nd_range().global_range()[2]);
+    kernel_ctx.define_int("ALG_KIND", conf.alg);
+    kernel_ctx.define_int("NDIMS", conf.ndims);
+    kernel_ctx.define_int("GWS0", conf.dispatch.nd_range().global_range()[0]);
+    kernel_ctx.define_int("GWS1", conf.dispatch.nd_range().global_range()[1]);
+    kernel_ctx.define_int("GWS2", conf.dispatch.nd_range().global_range()[2]);
 
-    kernel_ctx.define_int("ZERO_PADDING", jel.with_zero_padding);
+    kernel_ctx.define_int("ZERO_PADDING", conf.with_zero_padding);
 
-    def_offsets(jit_off.src_off, kernel_ctx, "DATA", jel.ndims);
-    def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA",
-            jel.is_forward ? 0 : jel.ndims);
+    def_offsets(off.src_off, kernel_ctx, "DATA", conf.ndims);
+    def_offsets(off.dst_off, kernel_ctx, "DIFF_DATA",
+            conf.is_forward ? 0 : conf.ndims);
 
-    def_dispatch(kernel_ctx, jel.dispatch);
+    def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
 }
@@ -117,7 +117,7 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    const auto &jel = pd()->jel_;
+    const auto &conf = pd()->conf_;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -125,7 +125,7 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     arg_list.set(2, alpha);
     arg_list.set(3, beta);
 
-    auto nd_range = jel.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     return compute_stream->parallel_for(nd_range, kernel_, arg_list);
 }
 
@@ -142,7 +142,7 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    const auto &jel = pd()->jel_;
+    const auto &conf = pd()->conf_;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -151,7 +151,7 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(3, alpha);
     arg_list.set(4, beta);
 
-    auto nd_range = jel.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

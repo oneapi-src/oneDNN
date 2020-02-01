@@ -21,7 +21,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_binary_init_conf(jit_binary_conf_t &jib, const binary_pd_t *pd) {
+status_t ref_binary_init_conf(binary_conf_t &conf, const binary_pd_t *pd) {
 
     const memory_desc_wrapper src0_d(pd->src_md(0));
     const memory_desc_wrapper src1_d(pd->src_md(1));
@@ -32,63 +32,63 @@ status_t ref_binary_init_conf(jit_binary_conf_t &jib, const binary_pd_t *pd) {
     bool is_tensor_op = pd->is_tensor_op();
 
     const int ndims = src0_d.ndims();
-    jib.src0_md_info = jit_memory_desc_info_t::create(src0_d);
-    jib.src1_md_info = jit_memory_desc_info_t::create(src1_d);
-    jib.dst_md_info = jit_memory_desc_info_t::create(dst_d);
-    jib.data_type = src0_d.data_type();
-    jib.ndims = ndims;
+    conf.src0_md_info = memory_desc_info_t::create(src0_d);
+    conf.src1_md_info = memory_desc_info_t::create(src1_d);
+    conf.dst_md_info = memory_desc_info_t::create(dst_d);
+    conf.data_type = src0_d.data_type();
+    conf.ndims = ndims;
     for (int i = 0; i < MAX_NDIMS; ++i) {
-        jib.bcast_dims[i] = i < ndims ? broadcast_dims[i] : 1;
+        conf.bcast_dims[i] = i < ndims ? broadcast_dims[i] : 1;
     }
-    jib.is_add = (alg == alg_kind::binary_add);
-    jib.is_mul = (alg == alg_kind::binary_mul);
-    jib.is_max = (alg == alg_kind::binary_max);
-    jib.is_min = (alg == alg_kind::binary_min);
-    jib.is_tensor_op = is_tensor_op;
-    jib.is_dense = dst_d.is_dense();
-    jib.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
+    conf.is_add = (alg == alg_kind::binary_add);
+    conf.is_mul = (alg == alg_kind::binary_mul);
+    conf.is_max = (alg == alg_kind::binary_max);
+    conf.is_min = (alg == alg_kind::binary_min);
+    conf.is_tensor_op = is_tensor_op;
+    conf.is_dense = dst_d.is_dense();
+    conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
 
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(pd->engine());
-    jib.dispatch = compute_engine->create_dispatch(dst_d.md_);
-    if (jib.is_tensor_op && jib.is_dense && jib.is_same_md) {
-        jib.dispatch.define_dim("IDX", 0, dst_d.nelems());
+    conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
+    if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
+        conf.dispatch.define_dim("IDX", 0, dst_d.nelems());
     } else {
         for (int i = 0; i < MAX_NDIMS; ++i) {
-            jib.dispatch.define_dim(utils::format("D%d", i),
+            conf.dispatch.define_dim(utils::format("D%d", i),
                     nstl::min(i, ndims - 1), i < ndims ? dst_d.dims()[i] : 1);
         }
     }
 
-    jib.dispatch.generate();
+    conf.dispatch.generate();
 
     return status::success;
 }
 
 status_t ref_binary_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const jit_binary_conf_t &jib) {
+        compute::kernel_ctx_t &kernel_ctx, const binary_conf_t &conf) {
 
-    kernel_ctx.set_data_type(jib.data_type);
-    kernel_ctx.define_int("NDIMS", jib.ndims);
-    kernel_ctx.define_int("IS_MUL", jib.is_mul);
-    kernel_ctx.define_int("IS_ADD", jib.is_add);
-    kernel_ctx.define_int("IS_MAX", jib.is_max);
-    kernel_ctx.define_int("IS_MIN", jib.is_min);
-    kernel_ctx.define_int("IS_TENSOR_OP", jib.is_tensor_op);
-    kernel_ctx.define_int("IS_DENSE", jib.is_dense);
-    kernel_ctx.define_int("IS_SAME_MD", jib.is_same_md);
-    kernel_ctx.define_int("BCAST_DIM0", jib.bcast_dims[0]);
-    kernel_ctx.define_int("BCAST_DIM1", jib.bcast_dims[1]);
-    kernel_ctx.define_int("BCAST_DIM2", jib.bcast_dims[2]);
-    kernel_ctx.define_int("BCAST_DIM3", jib.bcast_dims[3]);
-    kernel_ctx.define_int("BCAST_DIM4", jib.bcast_dims[4]);
-    kernel_ctx.define_int("BCAST_DIM5", jib.bcast_dims[5]);
+    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.define_int("NDIMS", conf.ndims);
+    kernel_ctx.define_int("IS_MUL", conf.is_mul);
+    kernel_ctx.define_int("IS_ADD", conf.is_add);
+    kernel_ctx.define_int("IS_MAX", conf.is_max);
+    kernel_ctx.define_int("IS_MIN", conf.is_min);
+    kernel_ctx.define_int("IS_TENSOR_OP", conf.is_tensor_op);
+    kernel_ctx.define_int("IS_DENSE", conf.is_dense);
+    kernel_ctx.define_int("IS_SAME_MD", conf.is_same_md);
+    kernel_ctx.define_int("BCAST_DIM0", conf.bcast_dims[0]);
+    kernel_ctx.define_int("BCAST_DIM1", conf.bcast_dims[1]);
+    kernel_ctx.define_int("BCAST_DIM2", conf.bcast_dims[2]);
+    kernel_ctx.define_int("BCAST_DIM3", conf.bcast_dims[3]);
+    kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
+    kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
 
-    def_memory_desc_info(kernel_ctx, jib.src0_md_info, "SRC0");
-    def_memory_desc_info(kernel_ctx, jib.src1_md_info, "SRC1");
-    def_memory_desc_info(kernel_ctx, jib.dst_md_info, "DST");
+    def_memory_desc_info(kernel_ctx, conf.src0_md_info, "SRC0");
+    def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
+    def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
 
-    def_dispatch(kernel_ctx, jib.dispatch);
+    def_dispatch(kernel_ctx, conf.dispatch);
 
     return status::success;
 }
@@ -106,9 +106,9 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(1, src1);
     arg_list.set(2, dst);
 
-    const auto &jib = pd()->jib_;
+    const auto &conf = pd()->conf_;
 
-    auto nd_range = jib.dispatch.nd_range();
+    auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
     return status;
 }

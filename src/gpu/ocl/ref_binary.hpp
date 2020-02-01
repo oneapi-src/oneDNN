@@ -19,19 +19,19 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_binary_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_binary_init_conf(jit_binary_conf_t &jib, const binary_pd_t *pd);
+status_t ref_binary_init_conf(binary_conf_t &conf, const binary_pd_t *pd);
 status_t ref_binary_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const jit_binary_conf_t &jib);
+        compute::kernel_ctx_t &kernel_ctx, const binary_conf_t &conf);
 
 struct ref_binary_t : public primitive_impl_t {
     struct pd_t : public ocl_binary_pd_t {
@@ -52,10 +52,10 @@ struct ref_binary_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            return ref_binary_init_conf(jib_, this);
+            return ref_binary_init_conf(conf_, this);
         }
 
-        jit_binary_conf_t jib_;
+        binary_conf_t conf_;
     };
 
     ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -67,7 +67,7 @@ struct ref_binary_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = ref_binary_init_const_def(kernel_ctx, pd()->jib_);
+        auto status = ref_binary_init_const_def(kernel_ctx, pd()->conf_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_binary", kernel_ctx);

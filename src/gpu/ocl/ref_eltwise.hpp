@@ -19,10 +19,10 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/jit_primitive_conf.hpp"
 #include "gpu/ocl/ocl_eltwise_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,9 +30,9 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_eltwise_init_conf(
-        jit_eltwise_conf_t &jel, const eltwise_pd_t *pd, jit_offsets &jit_off);
+        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets &off);
 status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_eltwise_conf_t &jel, const jit_offsets &jit_off);
+        const eltwise_conf_t &conf, const offsets &off);
 
 struct ref_eltwise_fwd_t : public primitive_impl_t {
     struct pd_t : public ocl_eltwise_fwd_pd_t {
@@ -75,11 +75,11 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return ref_eltwise_init_conf(jel_, this, jit_off_);
+            return ref_eltwise_init_conf(conf_, this, off_);
         }
 
-        jit_eltwise_conf_t jel_;
-        jit_offsets jit_off_;
+        eltwise_conf_t conf_;
+        offsets off_;
     };
 
     virtual status_t init() override {
@@ -88,7 +88,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = ref_eltwise_init_const_def(
-                kernel_ctx, pd()->jel_, pd()->jit_off_);
+                kernel_ctx, pd()->conf_, pd()->off_);
 
         if (status != status::success) return status;
 
@@ -144,11 +144,11 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return ref_eltwise_init_conf(jel_, this, jit_off_);
+            return ref_eltwise_init_conf(conf_, this, off_);
         }
 
-        jit_eltwise_conf_t jel_;
-        jit_offsets jit_off_;
+        eltwise_conf_t conf_;
+        offsets off_;
         bool use_dense_;
     };
 
@@ -158,7 +158,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = ref_eltwise_init_const_def(
-                kernel_ctx, pd()->jel_, pd()->jit_off_);
+                kernel_ctx, pd()->conf_, pd()->off_);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_eltwise_bwd", kernel_ctx);

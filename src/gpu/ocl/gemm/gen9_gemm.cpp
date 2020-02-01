@@ -19,7 +19,7 @@
 #include "common/float16.hpp"
 #include "common/type_helpers.hpp"
 
-#include "gpu/ocl/gemm/jit_gen9_gemm.hpp"
+#include "gpu/ocl/gemm/gen9_gemm.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -59,7 +59,7 @@ union plan_element_t {
 static_assert(sizeof(plan_element_t) == 8,
         "Plan element structure has been padded by the compiler.");
 
-status_t jit_gen9_gemm_t::launch_beta(compute::compute_stream_t *compute_stream,
+status_t gen9_gemm_t::launch_beta(compute::compute_stream_t *compute_stream,
         int64_t m, int64_t n, float alpha, const memory_storage_t &a,
         int64_t offset_a, int64_t lda) const {
     assert(beta_kernel_);
@@ -79,7 +79,7 @@ status_t jit_gen9_gemm_t::launch_beta(compute::compute_stream_t *compute_stream,
     return compute_stream->parallel_for(nd_range, beta_kernel_, arg_list);
 }
 
-status_t jit_gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
+status_t gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
         int64_t x, int64_t y, const memory_storage_t &a, int64_t offset_a,
         int64_t lda, float alpha, const memory_storage_t &b, int64_t offset_b,
         bool outer, bool trans) const {
@@ -97,7 +97,7 @@ status_t jit_gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
     arg_list.set(7, offset_b);
 
     int unroll_m, unroll_n;
-    jit_gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
+    gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
 
     auto unroll = outer ? unroll_n : unroll_m;
 
@@ -109,12 +109,11 @@ status_t jit_gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t jit_gen9_gemm_t::launch_compute(
-        compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
-        int64_t k, const memory_storage_t &base, int32_t offset_a,
-        int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
-        int64_t ldc, int last_k_block, float eltwise_alpha, float eltwise_beta,
-        bool beta0) const {
+status_t gen9_gemm_t::launch_compute(compute::compute_stream_t *compute_stream,
+        int64_t m, int64_t n, int64_t k, const memory_storage_t &base,
+        int32_t offset_a, int32_t offset_b, const memory_storage_t &c,
+        int64_t offset_c, int64_t ldc, int last_k_block, float eltwise_alpha,
+        float eltwise_beta, bool beta0) const {
     auto &kernel = compute_kernel_[beta0];
 
     assert(kernel);
@@ -133,7 +132,7 @@ status_t jit_gen9_gemm_t::launch_compute(
     arg_list.set(11, eltwise_beta);
 
     int unroll_m, unroll_n;
-    jit_gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
+    gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
 
     int nthreads_x = (m + unroll_m - 1) / unroll_m;
     int nthreads_y = (n + unroll_n - 1) / unroll_n;
@@ -150,13 +149,12 @@ status_t jit_gen9_gemm_t::launch_compute(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t jit_gen9_gemm_t::launch_nocopy(
-        compute::compute_stream_t *compute_stream, const memory_storage_t &a,
-        const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
-        int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
-        int last_k_block, float eltwise_alpha, float eltwise_beta,
-        memory_storage_t &flag) const {
+status_t gen9_gemm_t::launch_nocopy(compute::compute_stream_t *compute_stream,
+        const memory_storage_t &a, const memory_storage_t &b,
+        const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
+        int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
+        int32_t n, int32_t k, float alpha, float beta, int last_k_block,
+        float eltwise_alpha, float eltwise_beta, memory_storage_t &flag) const {
 
     auto &kernel = nocopy_kernel_;
     int64_t offset_f = 0;
@@ -190,7 +188,7 @@ status_t jit_gen9_gemm_t::launch_nocopy(
 
     int unroll_m, unroll_n, unroll_k;
 
-    jit_gen9_gemm_nocopy_kernel::get_unrolls(
+    gen9_gemm_nocopy_kernel::get_unrolls(
             transa, transb, unroll_m, unroll_n, unroll_k, pd()->desc()->c_type);
 
     size_t nthreads_x = (n + unroll_n - 1) / nstl::max(unroll_n, 1);
@@ -220,7 +218,7 @@ status_t jit_gen9_gemm_t::launch_nocopy(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t jit_gen9_gemm_t::launch_nocopy_superkernel(
+status_t gen9_gemm_t::launch_nocopy_superkernel(
         compute::compute_stream_t *compute_stream, const memory_storage_t &plan,
         int32_t threads, const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
@@ -262,7 +260,7 @@ status_t jit_gen9_gemm_t::launch_nocopy_superkernel(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-size_t jit_gen9_gemm_t::max_plan_size() const {
+size_t gen9_gemm_t::max_plan_size() const {
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -270,7 +268,7 @@ size_t jit_gen9_gemm_t::max_plan_size() const {
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel::get_unrolls(
+    gen9_gemm_nocopy_superkernel::get_unrolls(
             transa, transb, unroll_m, unroll_n);
 
     auto max_threads
@@ -279,7 +277,7 @@ size_t jit_gen9_gemm_t::max_plan_size() const {
     return sizeof(plan_element_t) * (max_threads + 1);
 }
 
-status_t jit_gen9_gemm_t::init_superkernel_plan() {
+status_t gen9_gemm_t::init_superkernel_plan() {
 
     auto m = pd()->desc()->m;
     auto n = pd()->desc()->n;
@@ -288,7 +286,7 @@ status_t jit_gen9_gemm_t::init_superkernel_plan() {
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
-    jit_gen9_gemm_nocopy_superkernel::get_unrolls(
+    gen9_gemm_nocopy_superkernel::get_unrolls(
             transa, transb, unroll_m, unroll_n);
 
     int km = utils::div_up(m, unroll_m[0]);
@@ -379,14 +377,14 @@ status_t jit_gen9_gemm_t::init_superkernel_plan() {
     return status::success;
 }
 
-status_t jit_gen9_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
+status_t gen9_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     if (gemm_type_ == type::no_copy_superkernel)
         return execute_superkernel(ctx);
     else
         return execute_standard(ctx);
 }
 
-status_t jit_gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
+status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     auto a_type = pd()->desc()->a_type;
     auto b_type = pd()->desc()->b_type;
     auto c_type = pd()->desc()->c_type;
@@ -515,8 +513,7 @@ status_t jit_gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     return status::success;
 }
 
-status_t jit_gen9_gemm_t::execute_superkernel(
-        const gemm_exec_ctx_t &ctx) const {
+status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
     auto a_type = pd()->desc()->a_type;
     auto b_type = pd()->desc()->b_type;
     auto c_type = pd()->desc()->c_type;

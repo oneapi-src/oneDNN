@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_JIT_PRIMITIVE_CONF_HPP
-#define GPU_OCL_JIT_PRIMITIVE_CONF_HPP
+#ifndef GPU_OCL_PRIMITIVE_CONF_HPP
+#define GPU_OCL_PRIMITIVE_CONF_HPP
 
 #include <stdint.h>
 
@@ -33,7 +33,7 @@ namespace ocl {
 
 #define MAX_NDIMS 6
 
-struct jit_memory_desc_info_t {
+struct memory_desc_info_t {
     // Max 2 levels of blocking
     static const int nlevels = 2;
 
@@ -46,26 +46,26 @@ struct jit_memory_desc_info_t {
     int blocks[MAX_NDIMS][nlevels + 1];
     int strides[MAX_NDIMS][nlevels + 1];
 
-    static jit_memory_desc_info_t create(const memory_desc_wrapper &mdw) {
-        auto jit_md_info = jit_memory_desc_info_t();
+    static memory_desc_info_t create(const memory_desc_wrapper &mdw) {
+        auto md_info = memory_desc_info_t();
 
-        jit_md_info.ndims = mdw.ndims();
-        jit_md_info.data_type = mdw.data_type();
-        jit_md_info.offset0 = mdw.offset0();
+        md_info.ndims = mdw.ndims();
+        md_info.data_type = mdw.data_type();
+        md_info.offset0 = mdw.offset0();
 
         auto &blk = mdw.blocking_desc();
         dim_t blk_stride
                 = utils::array_product(blk.inner_blks, blk.inner_nblks);
 
         for (int d = 0; d < mdw.ndims(); ++d) {
-            utils::array_set(jit_md_info.blocks[d], 1, nlevels + 1);
-            utils::array_set(jit_md_info.strides[d], 0, nlevels + 1);
+            utils::array_set(md_info.blocks[d], 1, nlevels + 1);
+            utils::array_set(md_info.strides[d], 0, nlevels + 1);
         }
 
         for (int d = 0; d < mdw.ndims(); ++d) {
-            jit_md_info.dims[d] = mdw.dims()[d];
-            jit_md_info.padded_dims[d] = mdw.padded_dims()[d];
-            jit_md_info.strides[d][0] = blk.strides[d];
+            md_info.dims[d] = mdw.dims()[d];
+            md_info.padded_dims[d] = mdw.padded_dims()[d];
+            md_info.strides[d][0] = blk.strides[d];
         }
 
         int levels[MAX_NDIMS] = {0};
@@ -73,9 +73,9 @@ struct jit_memory_desc_info_t {
             int d = blk.inner_idxs[iblk];
             ++levels[d];
 
-            jit_md_info.blocks[d][levels[d]] = blk.inner_blks[iblk];
+            md_info.blocks[d][levels[d]] = blk.inner_blks[iblk];
             blk_stride /= blk.inner_blks[iblk];
-            jit_md_info.strides[d][levels[d]] = blk_stride;
+            md_info.strides[d][levels[d]] = blk_stride;
         }
 
         // Permute inner blocks for O dimension in OIhw4o8i8o4i and
@@ -86,21 +86,21 @@ struct jit_memory_desc_info_t {
         if (mdw.matches_one_of_tag(
                     format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)) {
             int d = (levels[0] == 2) ? 0 : 1;
-            nstl::swap(jit_md_info.blocks[d][2], jit_md_info.blocks[d][1]);
-            nstl::swap(jit_md_info.strides[d][2], jit_md_info.strides[d][1]);
+            nstl::swap(md_info.blocks[d][2], md_info.blocks[d][1]);
+            nstl::swap(md_info.strides[d][2], md_info.strides[d][1]);
         }
-        return jit_md_info;
+        return md_info;
     }
 };
 
-struct jit_offsets {
+struct offsets {
     int src_off[4][MAX_NDIMS];
     int wht_off[4][MAX_NDIMS];
     int dst_off[4][MAX_NDIMS];
     int bias_off[4][MAX_NDIMS];
 };
 
-struct jit_rnn_offsets {
+struct rnn_offsets {
     int src_layer_off[4][MAX_NDIMS];
     int src_iter_off[4][MAX_NDIMS];
     int src_iter_c_off[4][MAX_NDIMS];
@@ -130,7 +130,7 @@ enum conv_version_t {
     ver_8ow16c,
 };
 
-struct jit_conv_conf_t {
+struct conv_conf_t {
     prop_kind_t prop_kind;
 
     int ndims;
@@ -181,7 +181,7 @@ struct jit_conv_conf_t {
 };
 
 /* pooling */
-struct jit_pool_conf_t {
+struct pool_conf_t {
     int ndims;
     int mb, c;
     int id, ih, iw, od, oh, ow;
@@ -197,7 +197,7 @@ struct jit_pool_conf_t {
 };
 
 /* inner_product */
-struct jit_inner_product_conf_t {
+struct inner_product_conf_t {
     int ndims;
     int mb, oc, ic, ic_total;
     int id, ih, iw, od, oh, ow;
@@ -214,7 +214,7 @@ struct jit_inner_product_conf_t {
 };
 
 /* rnn */
-struct jit_rnn_conf_t {
+struct rnn_conf_t {
     int cell_kind;
     int activation_kind;
     int direction_kind;
@@ -289,7 +289,8 @@ struct jit_rnn_conf_t {
     size_t scratchpad_size;
     size_t workspace_size;
 };
-struct jit_rnn_reorder_conf_t {
+
+struct rnn_reorder_conf_t {
     bool do_reorder, with_group, has_padding;
     bool with_sum_ab, with_sum_a;
     bool use_ref_impl;
@@ -303,7 +304,7 @@ struct jit_rnn_reorder_conf_t {
 };
 
 /* bnorm */
-struct jit_bnorm_conf_t {
+struct bnorm_conf_t {
     data_type_t data_type;
 
     int ndims;
@@ -323,16 +324,16 @@ struct jit_bnorm_conf_t {
 };
 
 /* lnorm */
-struct jit_lnorm_conf_t {
+struct lnorm_conf_t {
     data_type_t data_type;
 
     bool is_fwd;
     int ndims;
     int norm_axis;
 
-    jit_memory_desc_info_t src_md_info;
-    jit_memory_desc_info_t dst_md_info;
-    jit_memory_desc_info_t stat_md_info;
+    memory_desc_info_t src_md_info;
+    memory_desc_info_t dst_md_info;
+    memory_desc_info_t stat_md_info;
 
     bool use_scaleshift;
     bool calculate_stats;
@@ -344,12 +345,12 @@ struct jit_lnorm_conf_t {
 };
 
 /* simple sum */
-struct jit_simple_sum_conf_t {
+struct simple_sum_conf_t {
     int ndims;
 };
 
 /* binary */
-struct jit_binary_conf_t {
+struct binary_conf_t {
     int ndims;
     data_type_t data_type;
     bool is_mul;
@@ -362,13 +363,13 @@ struct jit_binary_conf_t {
     int bcast_dims[MAX_NDIMS];
     bool is_dense;
     bool is_same_md;
-    jit_memory_desc_info_t src0_md_info;
-    jit_memory_desc_info_t src1_md_info;
-    jit_memory_desc_info_t dst_md_info;
+    memory_desc_info_t src0_md_info;
+    memory_desc_info_t src1_md_info;
+    memory_desc_info_t dst_md_info;
 };
 
 /* simple reorder */
-struct jit_reorder_conf_t {
+struct reorder_conf_t {
     bool do_reorder, with_group, has_padding;
     bool scale_quant, with_sum_ab, with_sum_a;
     bool use_ref_impl;
@@ -381,12 +382,12 @@ struct jit_reorder_conf_t {
     int scale_mask;
     size_t scales_num;
 
-    jit_memory_desc_info_t src_md_info;
-    jit_memory_desc_info_t dst_md_info;
+    memory_desc_info_t src_md_info;
+    memory_desc_info_t dst_md_info;
 };
 
 /* eltwise */
-struct jit_eltwise_conf_t {
+struct eltwise_conf_t {
     int ndims;
     bool with_zero_padding;
     data_type_t data_type;
@@ -396,7 +397,7 @@ struct jit_eltwise_conf_t {
 };
 
 /* shuffle */
-struct jit_shuffle_conf_t {
+struct shuffle_conf_t {
     data_type_t data_type;
     int axis;
     int axis_size;
@@ -410,7 +411,7 @@ struct jit_shuffle_conf_t {
     size_t gws_d[3];
 };
 
-inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
+inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
         const memory_desc_t &src_md, const memory_desc_t &weights_md,
         const memory_desc_t &dst_md, const memory_desc_t &bias_md,
         const primitive_attr_t &attr) {
@@ -423,69 +424,71 @@ inline void set_default_conf(jit_conv_conf_t &jcp, const convolution_desc_t &cd,
     const bool with_groups = weights_mdw.ndims() == src_mdw.ndims() + 1;
     int ndims = src_mdw.ndims();
 
-    jcp = utils::zero<decltype(jcp)>();
-    jcp.with_groups = with_groups;
-    jcp.ndims = ndims;
-    jcp.prop_kind = cd.prop_kind;
-    jcp.ngroups = with_groups ? weights_mdw.dims()[0] : 1;
-    jcp.mb = src_mdw.dims()[0];
-    jcp.oc_without_padding = dst_mdw.dims()[1] / jcp.ngroups;
-    jcp.ic_without_padding = src_mdw.dims()[1] / jcp.ngroups;
-    jcp.id = (ndims == 5) ? src_mdw.dims()[2] : 1;
-    jcp.ih = (ndims == 3) ? 1 : src_mdw.dims()[ndims - 2];
-    jcp.iw = src_mdw.dims()[ndims - 1];
-    jcp.od = (ndims == 5) ? dst_mdw.dims()[2] : 1;
-    jcp.oh = (ndims == 3) ? 1 : dst_mdw.dims()[ndims - 2];
-    jcp.ow = dst_mdw.dims()[ndims - 1];
-    jcp.kd = (ndims == 5) ? weights_mdw.dims()[with_groups + 2] : 1;
-    jcp.kh = (ndims == 3) ? 1 : weights_mdw.dims()[with_groups + ndims - 2];
-    jcp.kw = weights_mdw.dims()[with_groups + ndims - 1];
+    conf = utils::zero<decltype(conf)>();
+    conf.with_groups = with_groups;
+    conf.ndims = ndims;
+    conf.prop_kind = cd.prop_kind;
+    conf.ngroups = with_groups ? weights_mdw.dims()[0] : 1;
+    conf.mb = src_mdw.dims()[0];
+    conf.oc_without_padding = dst_mdw.dims()[1] / conf.ngroups;
+    conf.ic_without_padding = src_mdw.dims()[1] / conf.ngroups;
+    conf.id = (ndims == 5) ? src_mdw.dims()[2] : 1;
+    conf.ih = (ndims == 3) ? 1 : src_mdw.dims()[ndims - 2];
+    conf.iw = src_mdw.dims()[ndims - 1];
+    conf.od = (ndims == 5) ? dst_mdw.dims()[2] : 1;
+    conf.oh = (ndims == 3) ? 1 : dst_mdw.dims()[ndims - 2];
+    conf.ow = dst_mdw.dims()[ndims - 1];
+    conf.kd = (ndims == 5) ? weights_mdw.dims()[with_groups + 2] : 1;
+    conf.kh = (ndims == 3) ? 1 : weights_mdw.dims()[with_groups + ndims - 2];
+    conf.kw = weights_mdw.dims()[with_groups + ndims - 1];
 
-    jcp.is_depthwise = jcp.with_groups && jcp.oc_without_padding == 1
-            && jcp.ic_without_padding == 1;
-    jcp.oc = dst_mdw.dims()[1] / jcp.ngroups;
-    jcp.ic = src_mdw.dims()[1] / jcp.ngroups;
+    conf.is_depthwise = conf.with_groups && conf.oc_without_padding == 1
+            && conf.ic_without_padding == 1;
+    conf.oc = dst_mdw.dims()[1] / conf.ngroups;
+    conf.ic = src_mdw.dims()[1] / conf.ngroups;
 
-    jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
-    jcp.back_pad = (ndims == 5) ? cd.padding[1][0] : 0;
-    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
-    jcp.b_pad = (ndims == 3) ? 0 : cd.padding[1][ndims - 4];
-    jcp.l_pad = cd.padding[0][ndims - 3];
-    jcp.r_pad = cd.padding[1][ndims - 3];
-    jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
-    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
-    jcp.stride_w = cd.strides[ndims - 3];
-    jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
-    jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
-    jcp.dilate_w = cd.dilates[ndims - 3];
+    conf.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    conf.back_pad = (ndims == 5) ? cd.padding[1][0] : 0;
+    conf.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
+    conf.b_pad = (ndims == 3) ? 0 : cd.padding[1][ndims - 4];
+    conf.l_pad = cd.padding[0][ndims - 3];
+    conf.r_pad = cd.padding[1][ndims - 3];
+    conf.stride_d = (ndims == 5) ? cd.strides[0] : 1;
+    conf.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
+    conf.stride_w = cd.strides[ndims - 3];
+    conf.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
+    conf.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
+    conf.dilate_w = cd.dilates[ndims - 3];
 
-    jcp.with_bias = bias_mdw.format_kind() != format_kind::undef;
+    conf.with_bias = bias_mdw.format_kind() != format_kind::undef;
 
-    jcp.src_data_type = src_mdw.data_type();
-    jcp.weights_data_type = weights_mdw.data_type();
-    jcp.dst_data_type = dst_mdw.data_type();
-    jcp.acc_data_type = cd.accum_data_type;
-    jcp.bias_data_type = jcp.with_bias ? bias_mdw.data_type() : data_type::f32;
+    conf.src_data_type = src_mdw.data_type();
+    conf.weights_data_type = weights_mdw.data_type();
+    conf.dst_data_type = dst_mdw.data_type();
+    conf.acc_data_type = cd.accum_data_type;
+    conf.bias_data_type
+            = conf.with_bias ? bias_mdw.data_type() : data_type::f32;
 
     const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
+    conf.with_sum = p.find(primitive_kind::sum) != -1;
     const int sum_idx = p.find(primitive_kind::sum);
-    jcp.sum_scale = (sum_idx != -1) ? p.entry_[sum_idx].sum.scale : 1.0;
+    conf.sum_scale = (sum_idx != -1) ? p.entry_[sum_idx].sum.scale : 1.0;
 
     const int eltwise_ind = p.find(primitive_kind::eltwise);
-    jcp.with_eltwise = eltwise_ind == 0;
-    jcp.with_post_sum_eltwise = eltwise_ind == 1;
-    if (jcp.with_eltwise || jcp.with_post_sum_eltwise)
-        jcp.eltwise = p.entry_[eltwise_ind].eltwise;
+    conf.with_eltwise = eltwise_ind == 0;
+    conf.with_post_sum_eltwise = eltwise_ind == 1;
+    if (conf.with_eltwise || conf.with_post_sum_eltwise)
+        conf.eltwise = p.entry_[eltwise_ind].eltwise;
 
-    jcp.eltwise_alg_relu
-            = (eltwise_ind != -1 && jcp.eltwise.alg == alg_kind::eltwise_relu);
-    if (jcp.eltwise_alg_relu) jcp.relu_negative_slope = jcp.eltwise.alpha;
+    conf.eltwise_alg_relu
+            = (eltwise_ind != -1 && conf.eltwise.alg == alg_kind::eltwise_relu);
+    if (conf.eltwise_alg_relu) conf.relu_negative_slope = conf.eltwise.alpha;
 
-    jcp.with_scales = !attr.output_scales_.has_default_values();
-    jcp.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
-    jcp.with_common_scales = jcp.with_scales && attr.output_scales_.mask_ == 0;
-    jcp.with_per_oc_scales = jcp.with_scales && jcp.scale_idx_mult;
+    conf.with_scales = !attr.output_scales_.has_default_values();
+    conf.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
+    conf.with_common_scales
+            = conf.with_scales && attr.output_scales_.mask_ == 0;
+    conf.with_per_oc_scales = conf.with_scales && conf.scale_idx_mult;
 }
 
 inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
@@ -604,24 +607,21 @@ inline void def_data_type(
 }
 
 inline void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
-        const jit_memory_desc_info_t &jit_md_info, const char *prefix) {
-    def_data_type(kernel_ctx, jit_md_info.data_type, prefix);
+        const memory_desc_info_t &md_info, const char *prefix) {
+    def_data_type(kernel_ctx, md_info.data_type, prefix);
 
-    kernel_ctx.define_int(
-            utils::format("%s_OFFSET0", prefix), jit_md_info.offset0);
-    kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), jit_md_info.ndims);
+    kernel_ctx.define_int(utils::format("%s_OFFSET0", prefix), md_info.offset0);
+    kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), md_info.ndims);
 
     for (int d = 0; d < MAX_NDIMS; ++d) {
-        int dim = (d < jit_md_info.ndims) ? jit_md_info.dims[d] : 0;
-        int padded_dim
-                = (d < jit_md_info.ndims) ? jit_md_info.padded_dims[d] : 0;
+        int dim = (d < md_info.ndims) ? md_info.dims[d] : 0;
+        int padded_dim = (d < md_info.ndims) ? md_info.padded_dims[d] : 0;
         kernel_ctx.define_int(utils::format("%s_D%d", prefix, d), dim);
         kernel_ctx.define_int(utils::format("%s_PD%d", prefix, d), padded_dim);
 
-        for (int l = 0; l < jit_md_info.nlevels + 1; ++l) {
-            int block = (d < jit_md_info.ndims) ? jit_md_info.blocks[d][l] : 1;
-            int stride
-                    = (d < jit_md_info.ndims) ? jit_md_info.strides[d][l] : 0;
+        for (int l = 0; l < md_info.nlevels + 1; ++l) {
+            int block = (d < md_info.ndims) ? md_info.blocks[d][l] : 1;
+            int stride = (d < md_info.ndims) ? md_info.strides[d][l] : 0;
             kernel_ctx.define_int(
                     utils::format("%s_B%d_%d", prefix, d, l), block);
             kernel_ctx.define_int(

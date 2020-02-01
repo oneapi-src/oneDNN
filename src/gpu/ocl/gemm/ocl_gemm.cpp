@@ -24,8 +24,8 @@
 #include "common/memory_storage.hpp"
 #include "common/nstl.hpp"
 #include "common/primitive_desc.hpp"
-#include "gpu/ocl/gemm/jit_gen9_gemm.hpp"
-#include "gpu/ocl/gemm/jit_gen9_gemm_x8x8s32.hpp"
+#include "gpu/ocl/gemm/gen9_gemm.hpp"
+#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -80,7 +80,7 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
     s.reset(s_ptr);
 
     // Create primitive descriptor
-    using pd_type = typename jit_gen9_gemm_t::pd_t;
+    using pd_type = typename gen9_gemm_t::pd_t;
 
     gemm_desc_t op_desc;
     op_desc.primitive_kind = dnnl_gemm;

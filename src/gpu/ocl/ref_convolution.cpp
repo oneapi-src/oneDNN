@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/ref_convolution.hpp"
 
-#include "gpu/ocl/jit_primitive_conf.hpp"
+#include "gpu/ocl/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -24,7 +24,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_convolution_init_def(
-        jit_conv_conf_t &conf, const convolution_pd_t *pd, jit_offsets &off) {
+        conv_conf_t &conf, const convolution_pd_t *pd, offsets &off) {
     const convolution_desc_t &cd = *pd->desc();
     const memory_desc_t &src_md = *pd->invariant_src_md();
     const memory_desc_t &weights_md = *pd->invariant_wei_md();
@@ -93,7 +93,7 @@ status_t ref_convolution_init_def(
 }
 
 status_t ref_convolution_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const jit_conv_conf_t &conf, const jit_offsets &off) {
+        const conv_conf_t &conf, const offsets &off) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("WITH_GROUPS", conf.with_groups);
@@ -205,7 +205,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         }
     }
 
-    auto nd_range = pd()->jcp_.dispatch.nd_range();
+    auto nd_range = pd()->conf_.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
     return status;
 }
@@ -227,7 +227,7 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(2, diff_dst);
     arg_list.set(3, bias);
 
-    auto nd_range = pd()->jcp_.dispatch.nd_range();
+    auto nd_range = pd()->conf_.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
@@ -250,7 +250,7 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights(
     arg_list.set(2, diff_bias);
     arg_list.set(3, diff_dst);
 
-    auto nd_range = pd()->jcp_.dispatch.nd_range();
+    auto nd_range = pd()->conf_.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
