@@ -3418,14 +3418,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     /* yet another common check */
     if (jcp.kw > 14) return status::unimplemented;
 
-    /* setting register strategy */
-    for (int ur_w = nstl::min(max_ur_w, jcp.ow); ur_w > 0; --ur_w) {
-        if (jcp.ow % ur_w == 0) {
-            jcp.ur_w = ur_w;
-            break;
-        }
-    }
-
     ok = true && jcp.src_tag == src_tag && jcp.dst_tag == dst_tag
             && jcp.wei_tag == wei_tag;
     if (!ok) return status::unimplemented;
@@ -3489,7 +3481,6 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
 
     jcp.tr_src_num_guard_elems = tr_pad; // upper bound
     jcp.tr_ow = jcp.transpose_dst ? rnd_up(jcp.ow, 2) : jcp.ow;
-    jcp.ur_w = jcp.transpose_dst ? jcp.tr_ow : jcp.ow;
 
     jcp.typesize_in = sizeof(bfloat16_t);
     jcp.typesize_out = sizeof(float);
