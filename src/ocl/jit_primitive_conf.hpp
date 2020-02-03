@@ -378,6 +378,7 @@ struct jit_reorder_conf_t {
 /* eltwise */
 struct jit_eltwise_conf_t {
     int ndims;
+    bool with_zero_padding;
     data_type_t data_type;
     alg_kind_t alg;
     bool is_forward;

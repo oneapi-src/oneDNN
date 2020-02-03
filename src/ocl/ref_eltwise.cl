@@ -42,7 +42,7 @@
 KERNEL_ATTR
 __kernel void ref_eltwise_fwd(
         __global DATA_T *src, __global DATA_T *dst, float alpha, float beta) {
-
+#if ZERO_PADDING
     int d0 = GWS_GET_D0();
     int d1 = GWS_GET_D1();
     int d2 = GWS_GET_D2();
@@ -51,7 +51,16 @@ __kernel void ref_eltwise_fwd(
     int d5 = GWS_GET_D5();
 
     const size_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
-
+#else
+    const size_t data_off = get_global_id(0)
+#if GWS1 > 1
+            + get_global_id(1) * GWS0
+#endif
+#if GWS2 > 1
+            + get_global_id(2) * GWS0 * GWS1
+#endif
+            ;
+#endif
     POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
 
     dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta));

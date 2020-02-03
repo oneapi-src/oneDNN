@@ -55,6 +55,8 @@ struct jit_ref_eltwise_common_kernel {
 
         const auto &dims = data_d.dims();
 
+        jel.with_zero_padding = data_d.nelems(false) != data_d.nelems(true);
+
         int max_ndims = 6;
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(pd->engine());
@@ -92,6 +94,14 @@ struct jit_ref_eltwise_common_kernel {
         kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);
         kernel_ctx.define_int("ALG_KIND", jel.alg);
         kernel_ctx.define_int("NDIMS", jel.ndims);
+        kernel_ctx.define_int(
+                "GWS0", jel.dispatch.nd_range().global_range()[0]);
+        kernel_ctx.define_int(
+                "GWS1", jel.dispatch.nd_range().global_range()[1]);
+        kernel_ctx.define_int(
+                "GWS2", jel.dispatch.nd_range().global_range()[2]);
+
+        kernel_ctx.define_int("ZERO_PADDING", jel.with_zero_padding);
 
         def_offsets(jit_off.src_off, kernel_ctx, "DATA", jel.ndims);
         def_offsets(jit_off.dst_off, kernel_ctx, "DIFF_DATA",
