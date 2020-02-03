@@ -105,7 +105,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
         if (do_blocking) {
             size_t working_set_size = N * SP * sizeof(data_t);
             bnorm_utils::cache_balance(
-                    working_set_size, C, C_blks_per_iter, iters);
+                    working_set_size, C, N, nthr, C_blks_per_iter, iters);
         } else
             C_blks_per_iter = C;
         int64_t last_iter_blks = C - (iters - 1) * C_blks_per_iter;
@@ -343,7 +343,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
         if (do_blocking) {
             size_t working_set_size = 2 * N * SP * sizeof(data_t);
             bnorm_utils::cache_balance(
-                    working_set_size, C, C_blks_per_iter, iters);
+                    working_set_size, C, N, nthr, C_blks_per_iter, iters);
         } else
             C_blks_per_iter = C;
         int64_t last_iter_blks = C - (iters - 1) * C_blks_per_iter;
