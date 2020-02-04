@@ -46,6 +46,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
 
     status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
 
     if (pd()->with_post_process()) {
         compute::kernel_arg_list_t arg_list;
@@ -60,7 +61,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
                 pd()->use_scratchpad() ? *scratchpad_
                                        : memory_storage_t::empty_storage());
         arg_list.set(8,
-                pd()->with_scales() ? *scales_mem_->memory_storage()
+                pd()->with_scales() ? *pr->get_memory_storage(SCALES_)
                                     : memory_storage_t::empty_storage());
 
         size_t mb = pd()->MB();
@@ -72,7 +73,6 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         const size_t gws[] = {1, mb, oc};
         const size_t lws[] = {1, 1, 1};
         auto nd_range = compute::nd_range_t(gws, lws);
-        const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
         const auto &post_process_kernel
                 = pr->get_kernel(post_process_binary_.get_id());
         status_t status = compute_stream->parallel_for(

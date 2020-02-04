@@ -96,24 +96,33 @@ struct rnn_weights_reorder_t : public primitive_t {
             engine->create_memory_storage(&temp_buf_ptr, size);
             temp_buf.reset(temp_buf_ptr);
             if (!temp_buf) return status::runtime_error;
-
-            size = pd()->conf.scales_count * sizeof(float);
-            engine->create_memory_storage(&temp_buf_ptr, size);
-            scales_buf.reset(temp_buf_ptr);
-            if (!scales_buf) return status::runtime_error;
         }
-
         return status::success;
     }
 
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
-        if (!mapper.has_resource(this)) {
-            auto r = new ocl_resource_t;
-            r->create_kernel_and_add(engine, binary_);
-            mapper.add(this, r);
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        if (pd()->conf.do_reorder) {
+            memory_storage_t *tmp_mem_storage_ptr = nullptr;
+            size_t size = pd()->conf.scales_count * sizeof(float);
+            CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, size));
+
+            void *scales_ptr = nullptr;
+            std::unique_ptr<memory_storage_t> tmp_mem_storage(
+                    tmp_mem_storage_ptr);
+            CHECK(tmp_mem_storage->map_data(&scales_ptr));
+            utils::array_copy((float *)scales_ptr,
+                    pd()->attr()->rnn_weights_qparams_.scales_,
+                    pd()->conf.scales_count);
+            CHECK(tmp_mem_storage->unmap_data(scales_ptr));
+            r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
         }
-        assert(mapper.has_resource(this));
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        mapper.add(this, std::move(r));
+        return status::success;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
@@ -122,7 +131,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::binary_t binary_;
     std::unique_ptr<memory_storage_t> temp_buf;
-    std::unique_ptr<memory_storage_t> scales_buf;
+    enum { SCALES_ = 0 };
 };
 
 } // namespace ocl

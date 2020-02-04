@@ -196,6 +196,8 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto eltwise_scale = pd()->eltwise_scale();
     auto sum_scale = pd()->sum_scale();
 
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, weights);
@@ -215,12 +217,11 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             if (pd()->with_runtime_scales())
                 arg_list.set(8, oscales);
             else
-                arg_list.set(8, *scales_mem_->memory_storage());
+                arg_list.set(8, *pr->get_memory_storage(SCALES_));
         }
     }
 
     auto nd_range = pd()->conf.dispatch.nd_range();
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
 
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);

@@ -332,9 +332,6 @@ private:
     std::shared_ptr<primitive_t> gemm_diff_wei_layer_;
     std::shared_ptr<primitive_t> gemm_diff_wei_iter_;
 
-    std::unique_ptr<memory_storage_t> scales_buf_;
-    std::unique_ptr<memory_storage_t> tm_scales_buf_;
-
     cl_ulong ws_gates_offset_;
     cl_ulong ws_states_offset_;
     cl_ulong ws_c_states_offset_;
@@ -359,6 +356,8 @@ private:
 
     free_packed_t weights_input_free_packed_func;
     free_packed_t weights_state_free_packed_func;
+
+    enum { SCALES_ = 0, TM_SCALES_ = 1 };
 };
 using ref_rnn_fwd_t = _ref_rnn_common_t<prop_kind::forward>;
 using ref_rnn_bwd_t = _ref_rnn_common_t<prop_kind::backward>;

@@ -195,22 +195,6 @@ struct ref_matmul_t : public primitive_t {
                 = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = handle_runtime_value(
-                engine, A0_, pd()->zero_points_md(A0_), a0_mem_storage_);
-        if (status != status::success) return status;
-
-        status = handle_runtime_value(
-                engine, B0_, pd()->zero_points_md(B0_), b0_mem_storage_);
-        if (status != status::success) return status;
-
-        status = handle_runtime_value(
-                engine, C0_, pd()->zero_points_md(C0_), c0_mem_storage_);
-        if (status != status::success) return status;
-
-        status = handle_runtime_value(
-                engine, SCALES_, pd()->scales_md(), s_mem_storage_);
-        if (status != status::success) return status;
-
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
         kernel_ctx.define_int("NON_DEFAULT_ATTRS", pd()->non_default_attrs_);
         kernel_ctx.define_int("DO_SUM",
@@ -233,12 +217,22 @@ struct ref_matmul_t : public primitive_t {
 
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
-        if (!mapper.has_resource(this)) {
-            auto r = new ocl_resource_t;
-            r->create_kernel_and_add(engine, binary_);
-            mapper.add(this, r);
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        std::unique_ptr<memory_storage_t> tmp_mem_storage;
+        for (const auto &idx : {A0_, B0_, C0_}) {
+            CHECK(handle_runtime_value(
+                    engine, idx, pd()->zero_points_md(idx), tmp_mem_storage));
+            r->add_memory_storage(idx, std::move(tmp_mem_storage));
         }
-        assert(mapper.has_resource(this));
+
+        CHECK(handle_runtime_value(
+                engine, SCALES_, pd()->scales_md(), tmp_mem_storage));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        mapper.add(this, std::move(r));
+        return status::success;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -247,7 +241,7 @@ struct ref_matmul_t : public primitive_t {
 
     status_t handle_runtime_value(engine_t *engine, int idx,
             const memory_desc_t *md,
-            std::unique_ptr<memory_storage_t> &mem_storage) {
+            std::unique_ptr<memory_storage_t> &mem_storage) const {
         const primitive_attr_t &attr = *pd()->attr();
         void *p;
         memory_desc_wrapper mdw(*md);
@@ -255,7 +249,10 @@ struct ref_matmul_t : public primitive_t {
         memory_storage_t *mem_s_ptr;
         status_t status
                 = engine->create_memory_storage(&mem_s_ptr, mdw.nelems() * sz);
-        if (status != status::success) return status;
+        if (status != status::success) {
+            mem_storage.reset();
+            return status;
+        }
         mem_storage.reset(mem_s_ptr);
         status = mem_storage->map_data(&p);
         if (status != status::success) return status;
@@ -296,11 +293,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
     compute::binary_t binary_;
-    std::unique_ptr<memory_storage_t> a0_mem_storage_;
-    std::unique_ptr<memory_storage_t> b0_mem_storage_;
-    std::unique_ptr<memory_storage_t> c0_mem_storage_;
-    std::unique_ptr<memory_storage_t> s_mem_storage_;
-    static const int SCALES_ = 0, A0_ = 1, B0_ = 2, C0_ = 3;
+    enum { SCALES_ = 0, A0_ = 1, B0_ = 2, C0_ = 3 };
 };
 
 } // namespace ocl

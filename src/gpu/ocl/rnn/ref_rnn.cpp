@@ -725,36 +725,6 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
     ws_print_binary_ = binaries[9];
 #endif
 
-    if (pd()->rnn_conf.is_int8) {
-        size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
-                * sizeof(float); // G * O * sizeof(float);
-        memory_storage_t *temp_buf_ptr;
-        engine->create_memory_storage(&temp_buf_ptr, size);
-        scales_buf_.reset(temp_buf_ptr);
-        if (!scales_buf_) return status::runtime_error;
-    }
-
-    // Prepare testmode scales defined by attributes. Doesn't introduce
-    // primitive state, because it is a constant memory -- will not be
-    // changed during execution.
-    // TODO: add the testmode scales to ws
-    if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
-        size_t size = pd()->rnn_conf.tm_ngates
-                * sizeof(*pd_->attr()->rnn_tparams_.scales_);
-        memory_storage_t *temp_buf_ptr;
-        engine->create_memory_storage(&temp_buf_ptr, size);
-        tm_scales_buf_.reset(temp_buf_ptr);
-        if (!tm_scales_buf_) return status::runtime_error;
-
-        void *tmp_ptr = nullptr;
-        status = tm_scales_buf_->map_data(&tmp_ptr);
-        if (status != status::success) return status;
-        utils::array_copy((float *)tmp_ptr, pd()->attr()->rnn_tparams_.scales_,
-                pd()->attr()->rnn_tparams_.ngates_);
-        status = tm_scales_buf_->unmap_data(tmp_ptr);
-        if (status != status::success) return status;
-    }
-
     bool gemm_ok = true;
 
     switch (aprop) {
@@ -789,27 +759,63 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::create_resource(
         engine_t *engine, resource_mapper_t &mapper) const {
-    if (!mapper.has_resource(this)) {
-        auto r = new ocl_resource_t;
-        r->create_kernels_and_add(engine, {
-            bias_prepare_binary_, copy_init_layer_binary_,
-                    copy_init_iter_binary_, copy_res_layer_binary_,
-                    copy_res_iter_binary_, ws_set_binary_, elemwise_fwd_binary_,
-                    elemwise_bwd_binary_, gates_reduction_binary_
-#if DEBUGPRINT
-                    ,
-                    ws_print_binary_
-#endif
-        });
-        mapper.add(this, r);
+    if (mapper.has_resource(this)) return status::success;
+    auto r = utils::make_unique<ocl_resource_t>();
+    if (!r) return status::out_of_memory;
+    if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
+        size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
+                * sizeof(float); // G * O * sizeof(float);
+        memory_storage_t *tmp_mem_storage_ptr = nullptr;
+        CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, size));
+        // copy bias to memory storage
+        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
+        void *scales_ptr = nullptr;
+        CHECK(tmp_mem_storage->map_data(&scales_ptr));
+        utils::array_copy((float *)scales_ptr,
+                pd()->attr()->rnn_weights_qparams_.scales_,
+                pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc);
+        CHECK(tmp_mem_storage->unmap_data(scales_ptr));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
     }
-    assert(mapper.has_resource(this));
+
+    // Prepare testmode scales defined by attributes. Doesn't introduce
+    // primitive state, because it is a constant memory -- will not be
+    // changed during execution.
+    // TODO: add the testmode scales to ws
+    if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
+        size_t size = pd()->rnn_conf.tm_ngates
+                * sizeof(*pd_->attr()->rnn_tparams_.scales_);
+        memory_storage_t *tmp_mem_storage_ptr = nullptr;
+        CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, size));
+
+        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
+        void *tm_scales_ptr = nullptr;
+        CHECK(tmp_mem_storage->map_data(&tm_scales_ptr));
+        utils::array_copy((float *)tm_scales_ptr,
+                pd()->attr()->rnn_tparams_.scales_,
+                pd()->attr()->rnn_tparams_.ngates_);
+        CHECK(tmp_mem_storage->unmap_data(tm_scales_ptr));
+        r->add_memory_storage(TM_SCALES_, std::move(tmp_mem_storage));
+    }
+
+    auto status = r->create_kernels_and_add(engine, {
+        bias_prepare_binary_, copy_init_layer_binary_, copy_init_iter_binary_,
+                copy_res_layer_binary_, copy_res_iter_binary_, ws_set_binary_,
+                elemwise_fwd_binary_, elemwise_bwd_binary_,
+                gates_reduction_binary_
+#if DEBUGPRINT
+                ,
+                ws_print_binary_
+#endif
+    });
+    if (status != status::success) return status;
+    mapper.add(this, std::move(r));
 
     const std::vector<const primitive_t *> gemms = {gemm_layer_fwd_.get(),
             gemm_iter_fwd_.get(), gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
             gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
     for (const auto &g : gemms) {
-        if (g) g->create_resource(engine, mapper);
+        if (g) CHECK(g->create_resource(engine, mapper));
     }
     return status::success;
 }
@@ -1323,11 +1329,11 @@ free_packed_sig((_ref_rnn_common_t<aprop>::free_no_packed_weights)) {
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
-    status_t status = status::success;
     engine_t *engine = ctx.stream()->engine();
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     auto rnn_pd = this->pd();
     const conf_t &rnn = this->pd()->rnn_conf;
 
@@ -1471,18 +1477,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     bool is_lr = !one_of(rnn.exec_dir, r2l, r2l);
     bool is_rl = !one_of(rnn.exec_dir, l2r, l2r);
 
-    // copy bias to memory storage
-    if (rnn.copy_bias && scales_buf_) {
-        void *tmp_ptr = nullptr;
-        status = scales_buf_->map_data(&tmp_ptr);
-        if (status != status::success) return status;
-        utils::array_copy((float *)tmp_ptr,
-                pd()->attr()->rnn_weights_qparams_.scales_,
-                rnn.n_gates * rnn.dhc);
-        status = scales_buf_->unmap_data(tmp_ptr);
-        if (status != status::success) return status;
-    }
-
     // XXX: this function is used for calculating offsets for buffers and not
     // used for packing weights
     (this->*weights_state_pack_func)(n_layer, n_dir, n_weights_state, n_gates,
@@ -1492,10 +1486,15 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             batch, dhc, slc, offset_wei_input_, n_parts_weights_layer,
             rnn.parts_weights_layer, w_input_native_);
 
+    const memory_storage_t *scales_buf = nullptr;
+    if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
+        scales_buf = pr->get_memory_storage(SCALES_);
+    }
+
     // bias prepare if needed
     if (rnn.copy_bias) {
         bias_prepare(ctx, compute_stream, n_layer, n_dir, n_bias, n_gates, dhc,
-                workspace_, *scales_buf_, w_input_native_, w_state_native_,
+                workspace_, *scales_buf, w_input_native_, w_state_native_,
                 bias_native_);
     }
     DPRINT("\n%s(%d) WS before copy init\n\n", __FUNCTION__, __LINE__);
@@ -1516,14 +1515,19 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);
 
+    const memory_storage_t *tm_scales_buf = nullptr;
+    if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
+        tm_scales_buf = pr->get_memory_storage(TM_SCALES_);
+    }
+
     // run the execution on the grid
     (this->*grid_computation)(engine, ctx, dhc, slc, sic, wic, batch, n_layer,
             n_dir, n_iter, n_gates, n_states, n_bias, offset_wei_input_,
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
             bias_native_, workspace_, scratch_gates, w_input_native_,
             w_state_native_, diff_weights_layer_native_,
-            diff_weights_iter_native_, diff_bias_native_, scales_buf_.get(),
-            tm_scales_buf_.get());
+            diff_weights_iter_native_, diff_bias_native_, scales_buf,
+            tm_scales_buf);
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);

@@ -71,7 +71,7 @@ class binary_impl_t;
 
 class binary_t {
 public:
-    using id_type = intptr_t;
+    using id_t = intptr_t;
     binary_t(binary_impl_t *impl) : impl_(impl) {}
 
     binary_t() = default;
@@ -84,7 +84,7 @@ public:
     size_t size() const;
     const char *name() const;
     const unsigned char *data() const;
-    id_type get_id() const;
+    id_t get_id() const;
 
 private:
     std::shared_ptr<binary_impl_t> impl_;
@@ -103,8 +103,8 @@ public:
     virtual const unsigned char *data() const = 0;
 };
 
-inline binary_t::id_type binary_t::get_id() const {
-    return reinterpret_cast<id_type>(impl_.get());
+inline binary_t::id_t binary_t::get_id() const {
+    return reinterpret_cast<id_t>(impl_.get());
 }
 inline size_t binary_t::size() const {
     return impl_->size();

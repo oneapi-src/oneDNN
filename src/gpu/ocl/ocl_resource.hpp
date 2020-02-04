@@ -29,8 +29,11 @@ namespace gpu {
 namespace ocl {
 
 struct ocl_resource_t : public resource_t {
-    using key_type = compute::binary_t::id_type;
-    using mapped_type = compute::kernel_t;
+    using key_kernel_t = compute::binary_t::id_t;
+    using mapped_kernel_t = compute::kernel_t;
+
+    using key_memory_t = int;
+    using mapped_memory_t = std::unique_ptr<memory_storage_t>;
 
     ocl_resource_t() = default;
 
@@ -55,15 +58,27 @@ struct ocl_resource_t : public resource_t {
         return create_kernels_and_add(engine, {binary});
     }
 
-    const compute::kernel_t &get_kernel(key_type id) const {
+    const compute::kernel_t &get_kernel(key_kernel_t id) const {
         assert(binary_id_to_kernel_.count(id));
         const auto &kernel = binary_id_to_kernel_.at(id);
         assert(kernel);
         return kernel;
     }
 
+    void add_memory_storage(key_memory_t idx, mapped_memory_t &&m) {
+        assert(idx_to_memory_storage_.count(idx) == 0);
+        if (!m) return;
+        idx_to_memory_storage_.emplace(idx, std::move(m));
+    }
+
+    const memory_storage_t *get_memory_storage(int idx) const {
+        assert(idx_to_memory_storage_.count(idx) != 0);
+        return idx_to_memory_storage_.at(idx).get();
+    }
+
 private:
-    std::unordered_map<key_type, mapped_type> binary_id_to_kernel_;
+    std::unordered_map<key_kernel_t, mapped_kernel_t> binary_id_to_kernel_;
+    std::unordered_map<key_memory_t, mapped_memory_t> idx_to_memory_storage_;
 };
 
 } // namespace ocl

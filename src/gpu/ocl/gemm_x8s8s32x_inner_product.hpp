@@ -274,24 +274,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
             if (!scratchpad_) return status::runtime_error;
         }
 
-        // Prepare output scales defined by attributes. Doesn't introduce
-        // primitive state, because it is a constant memory -- will not be
-        // changed during execution.
-        if (pd()->with_scales()) {
-            memory_desc_wrapper scales_mdw(pd()->scales_md());
-            scales_mem_.reset(new memory_t(
-                    engine, pd()->scales_md(), memory_flags_t::alloc, nullptr));
-            void *scales_ptr = nullptr;
-            status_t status
-                    = scales_mem_->memory_storage()->map_data(&scales_ptr);
-            if (status != status::success) return status;
-            utils::array_copy((float *)scales_ptr,
-                    pd()->attr()->output_scales_.scales_,
-                    pd()->attr()->output_scales_.count_);
-            status = scales_mem_->memory_storage()->unmap_data(scales_ptr);
-            if (status != status::success) return status;
-        }
-
         // Prepare post process kernel
         if (pd()->with_post_process()) {
             auto *compute_engine
@@ -339,6 +321,27 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, post_process_binary_));
+        if (pd()->with_scales()) {
+            memory_desc_wrapper scales_mdw(pd()->scales_md());
+            memory_storage_t *tmp_mem_storage_ptr;
+            CHECK(engine->create_memory_storage(
+                    &tmp_mem_storage_ptr, scales_mdw.nelems() * sizeof(float)));
+
+            std::unique_ptr<memory_storage_t> tmp_mem_storage(
+                    tmp_mem_storage_ptr);
+            void *scales_ptr = nullptr;
+            CHECK(tmp_mem_storage->map_data(&scales_ptr));
+            utils::array_copy((float *)scales_ptr,
+                    pd()->attr()->output_scales_.scales_,
+                    pd()->attr()->output_scales_.count_);
+            CHECK(tmp_mem_storage->unmap_data(scales_ptr));
+            r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        }
+        mapper.add(this, std::move(r));
         return gemm_->create_resource(engine, mapper);
     }
 
@@ -352,8 +355,8 @@ private:
 
     std::shared_ptr<primitive_t> gemm_;
     compute::binary_t post_process_binary_;
-    std::unique_ptr<memory_t> scales_mem_;
     std::unique_ptr<memory_storage_t> scratchpad_;
+    enum { SCALES_ = 0 };
 };
 
 } // namespace ocl

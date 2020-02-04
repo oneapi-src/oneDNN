@@ -29,6 +29,7 @@ namespace gemm_utils {
 
 inline status_t prepare_scales(const primitive_attr_t *attr, engine_t *engine,
         std::unique_ptr<memory_storage_t> &mem_storage) {
+    mem_storage.reset();
     status_t s = status::success;
     const bool is_defined = attr->output_scales_.defined();
 
@@ -56,6 +57,7 @@ inline status_t prepare_scales(const primitive_attr_t *attr, engine_t *engine,
 inline status_t prepare_zero_points(const primitive_attr_t *attr,
         engine_t *engine, int arg,
         std::unique_ptr<memory_storage_t> &mem_storage) {
+    mem_storage.reset();
     status_t s = status::success;
     const bool is_defined = attr->zero_points_.defined(arg);
 

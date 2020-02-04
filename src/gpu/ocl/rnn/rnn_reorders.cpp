@@ -124,6 +124,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
     const bool do_reorder = conf.do_reorder;
 
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     auto ocl_reorder = [&](const memory_storage_t &in_storage,
                                const memory_storage_t &scales_storage,
                                const memory_storage_t &out_storage) {
@@ -133,7 +134,6 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
         arg_list.set(2, out_storage);
 
         auto nd_range = conf.dispatch.nd_range();
-        const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
         const auto &kernel = pr->get_kernel(binary_.get_id());
 
         return compute_stream->parallel_for(nd_range, kernel, arg_list);
@@ -141,23 +141,15 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
 
     status_t status = status::success;
 
+    const memory_storage_t *scales_buf = nullptr;
+    if (do_reorder) {
+        scales_buf = pr->get_memory_storage(SCALES_);
+    }
+
     // Copy to gpu
     memory_desc_wrapper src_mdw(pd()->src_md());
     status = compute_stream->copy(
             input, do_reorder ? *temp_buf : output, src_mdw.size());
-
-    if (status == status::success && do_reorder) {
-        if (scales_buf) {
-            void *tmp_ptr = nullptr;
-            status = scales_buf->map_data(&tmp_ptr);
-            if (status != status::success) return status;
-            utils::array_copy((float *)tmp_ptr,
-                    pd()->attr()->rnn_weights_qparams_.scales_,
-                    conf.scales_count);
-            status = scales_buf->unmap_data(tmp_ptr);
-            if (status != status::success) return status;
-        }
-    }
 
     if (status == status::success && do_reorder)
         status = ocl_reorder(*temp_buf, *scales_buf, output);
