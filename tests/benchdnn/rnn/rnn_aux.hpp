@@ -66,8 +66,8 @@ void init_buffer(float *buf, int64_t size, float value);
 
 float logistic(float x);
 float dlogistic(float x);
-float relu(float x);
-float drelu(float x);
+float relu(float x, float alpha);
+float drelu(float x, float alpha);
 float dtanhf(float x);
 float one_m_square(float x);
 float x_m_square(float x);

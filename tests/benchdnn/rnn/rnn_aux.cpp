@@ -329,11 +329,11 @@ float dtanhf(float x) {
 float x_m_square(float x) {
     return x - x * x;
 }
-float relu(float x) {
-    return x > 0 ? x : 0;
+float relu(float x, float alpha) {
+    return x > 0 ? x : alpha * x;
 }
-float drelu(float x) {
-    return float(x > 0);
+float drelu(float x, float alpha) {
+    return x > 0 ? 1.0f : alpha;
 }
 float one_m_square(float x) {
     return 1 - x * x;
