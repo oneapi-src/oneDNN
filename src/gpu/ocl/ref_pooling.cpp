@@ -33,7 +33,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_pooling_init_conf(
-        pool_conf_t &conf, const pooling_pd_t *_pd, offsets &off) {
+        pool_conf_t &conf, const pooling_pd_t *_pd, offsets_t &off) {
     using namespace dnnl::impl::format_tag;
 
     const memory_desc_wrapper src_d(
@@ -129,7 +129,7 @@ status_t ref_pooling_init_conf(
 };
 
 status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const pool_conf_t &conf, const offsets &off) {
+        const pool_conf_t &conf, const offsets_t &off) {
     using namespace dnnl::impl::alg_kind;
     status_t status = status::success;
 

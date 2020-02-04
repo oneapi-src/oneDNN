@@ -24,7 +24,7 @@ namespace ocl {
 using namespace format_tag;
 
 status_t ref_shuffle_init_conf(
-        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets &off) {
+        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets_t &off) {
 
     const bool is_fwd = pd->is_fwd();
 
@@ -63,7 +63,7 @@ status_t ref_shuffle_init_conf(
 }
 
 status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const shuffle_conf_t &jshfl, const offsets &off) {
+        const shuffle_conf_t &jshfl, const offsets_t &off) {
 
     kernel_ctx.set_data_type(jshfl.data_type);
     kernel_ctx.define_int("NDIMS", jshfl.ndims);

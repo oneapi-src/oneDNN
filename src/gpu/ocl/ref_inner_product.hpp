@@ -31,11 +31,11 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_inner_product_init_conf(
-        inner_product_conf_t &conf, const inner_product_pd_t *pd, offsets &off);
+status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
+        const inner_product_pd_t *pd, offsets_t &off);
 status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const inner_product_conf_t &conf, const offsets &off, bool with_eltwise,
-        bool with_sum, alg_kind_t alg);
+        const inner_product_conf_t &conf, const offsets_t &off,
+        bool with_eltwise, bool with_sum, alg_kind_t alg);
 
 struct ref_inner_product_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
@@ -136,7 +136,7 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
         }
 
         inner_product_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     status_t init() override {
@@ -199,7 +199,7 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
             return ref_inner_product_init_conf(conf_, this, off_);
         }
         inner_product_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     virtual status_t init() override {
@@ -258,7 +258,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
             return ref_inner_product_init_conf(conf_, this, off_);
         }
         inner_product_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     status_t init() override {

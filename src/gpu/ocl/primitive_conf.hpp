@@ -93,14 +93,14 @@ struct memory_desc_info_t {
     }
 };
 
-struct offsets {
+struct offsets_t {
     int src_off[4][MAX_NDIMS];
     int wht_off[4][MAX_NDIMS];
     int dst_off[4][MAX_NDIMS];
     int bias_off[4][MAX_NDIMS];
 };
 
-struct rnn_offsets {
+struct rnn_offsets_t {
     int src_layer_off[4][MAX_NDIMS];
     int src_iter_off[4][MAX_NDIMS];
     int src_iter_c_off[4][MAX_NDIMS];

@@ -26,7 +26,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen9_gemm_kernel {
+struct gen9_gemm_kernel_t {
     static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t type,
             impl::data_type_t src_type = impl::data_type::undef,
@@ -55,13 +55,13 @@ struct gen9_gemm_kernel {
         return status::success;
     }
 
-    struct copy_params {
+    struct copy_params_t {
         static constexpr auto unroll_m = 16;
         static constexpr auto unroll_n = 32;
     };
 };
 
-struct gen9_gemm_beta_kernel : public gen9_gemm_kernel {
+struct gen9_gemm_beta_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t src_type,
             impl::data_type_t type = impl::data_type::undef) {
@@ -74,7 +74,7 @@ struct gen9_gemm_beta_kernel : public gen9_gemm_kernel {
     }
 };
 
-struct gen9_gemm_copy_kernel : public gen9_gemm_kernel {
+struct gen9_gemm_copy_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool outer, bool trans, impl::data_type_t src_type,
             impl::data_type_t type = impl::data_type::undef) {
@@ -83,7 +83,7 @@ struct gen9_gemm_copy_kernel : public gen9_gemm_kernel {
         if (status) return status;
 
         kernel_ctx.define_int("COPY_UNROLL",
-                !outer ? copy_params::unroll_m : copy_params::unroll_n);
+                !outer ? copy_params_t::unroll_m : copy_params_t::unroll_n);
 
         kernel_ctx.add_option(trans ? "-DUSE_TRANS" : "-DUSE_NOTRANS");
 
@@ -92,12 +92,12 @@ struct gen9_gemm_copy_kernel : public gen9_gemm_kernel {
     }
 
     static void get_unrolls(int &unroll_m, int &unroll_n) {
-        unroll_m = copy_params::unroll_m;
-        unroll_n = copy_params::unroll_n;
+        unroll_m = copy_params_t::unroll_m;
+        unroll_n = copy_params_t::unroll_n;
     }
 };
 
-struct gen9_gemm_compute_kernel : public gen9_gemm_kernel {
+struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool beta0, bool with_eltwise, alg_kind_t alg,
             impl::data_type_t type,
@@ -108,8 +108,8 @@ struct gen9_gemm_compute_kernel : public gen9_gemm_kernel {
 
         if (beta0) kernel_ctx.add_option("-DBETA_ZERO");
 
-        kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
-        kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
+        kernel_ctx.define_int("UNROLL_M", copy_params_t::unroll_m);
+        kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
 
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
         if (with_eltwise) def_postops(kernel_ctx, alg);
@@ -119,12 +119,12 @@ struct gen9_gemm_compute_kernel : public gen9_gemm_kernel {
     }
 
     static void get_unrolls(int &unroll_m, int &unroll_n) {
-        unroll_m = copy_params::unroll_m;
-        unroll_n = copy_params::unroll_n;
+        unroll_m = copy_params_t::unroll_m;
+        unroll_n = copy_params_t::unroll_n;
     }
 };
 
-struct gen9_gemm_nocopy_kernel : public gen9_gemm_kernel {
+struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_k_unroll, int unroll_k,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t type) {
@@ -163,14 +163,14 @@ struct gen9_gemm_nocopy_kernel : public gen9_gemm_kernel {
     }
 };
 
-struct gen9_gemm_nocopy_superkernel : public gen9_gemm_kernel {
+struct gen9_gemm_nocopy_superkernel_t : public gen9_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
             impl::data_type_t type) {
 
         if (trans_a) return status::unimplemented;
 
-        return gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx, trans_a,
+        return gen9_gemm_nocopy_kernel_t::init_const_def(kernel_ctx, trans_a,
                 trans_b, false, 32, with_eltwise, alg, type);
     }
 

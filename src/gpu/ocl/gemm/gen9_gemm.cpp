@@ -26,19 +26,19 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct driver_params_f32_copy {
+struct driver_params_f32_copy_t {
     static constexpr int block_m = 512 * 16;
     static constexpr int block_n = 64 * 32;
     static constexpr int block_k = 1024;
 };
 
-struct driver_params_f16_copy {
+struct driver_params_f16_copy_t {
     static constexpr int block_m = 512 * 16;
     static constexpr int block_n = 64 * 32;
     static constexpr int block_k = 2048;
 };
 
-struct driver_params_f32_nocopy {
+struct driver_params_f32_nocopy_t {
     static constexpr int block_m = 4096;
     static constexpr int block_n = 2048;
     static constexpr int block_k = 2048;
@@ -97,7 +97,7 @@ status_t gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
     arg_list.set(7, offset_b);
 
     int unroll_m, unroll_n;
-    gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
+    gen9_gemm_compute_kernel_t::get_unrolls(unroll_m, unroll_n);
 
     auto unroll = outer ? unroll_n : unroll_m;
 
@@ -132,7 +132,7 @@ status_t gen9_gemm_t::launch_compute(compute::compute_stream_t *compute_stream,
     arg_list.set(11, eltwise_beta);
 
     int unroll_m, unroll_n;
-    gen9_gemm_compute_kernel::get_unrolls(unroll_m, unroll_n);
+    gen9_gemm_compute_kernel_t::get_unrolls(unroll_m, unroll_n);
 
     int nthreads_x = (m + unroll_m - 1) / unroll_m;
     int nthreads_y = (n + unroll_n - 1) / unroll_n;
@@ -188,7 +188,7 @@ status_t gen9_gemm_t::launch_nocopy(compute::compute_stream_t *compute_stream,
 
     int unroll_m, unroll_n, unroll_k;
 
-    gen9_gemm_nocopy_kernel::get_unrolls(
+    gen9_gemm_nocopy_kernel_t::get_unrolls(
             transa, transb, unroll_m, unroll_n, unroll_k, pd()->desc()->c_type);
 
     size_t nthreads_x = (n + unroll_n - 1) / nstl::max(unroll_n, 1);
@@ -268,7 +268,7 @@ size_t gen9_gemm_t::max_plan_size() const {
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
-    gen9_gemm_nocopy_superkernel::get_unrolls(
+    gen9_gemm_nocopy_superkernel_t::get_unrolls(
             transa, transb, unroll_m, unroll_n);
 
     auto max_threads
@@ -286,7 +286,7 @@ status_t gen9_gemm_t::init_superkernel_plan() {
     bool transb = (pd()->desc()->transb == dnnl_trans);
 
     int unroll_m[2], unroll_n;
-    gen9_gemm_nocopy_superkernel::get_unrolls(
+    gen9_gemm_nocopy_superkernel_t::get_unrolls(
             transa, transb, unroll_m, unroll_n);
 
     int km = utils::div_up(m, unroll_m[0]);
@@ -434,18 +434,18 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     int block_m, block_n, block_k;
     if (!nocopy) {
         if (pd()->desc()->acc_type == data_type::f16) {
-            block_m = driver_params_f16_copy::block_m;
-            block_n = driver_params_f16_copy::block_n;
-            block_k = driver_params_f16_copy::block_k;
+            block_m = driver_params_f16_copy_t::block_m;
+            block_n = driver_params_f16_copy_t::block_n;
+            block_k = driver_params_f16_copy_t::block_k;
         } else {
-            block_m = driver_params_f32_copy::block_m;
-            block_n = driver_params_f32_copy::block_n;
-            block_k = driver_params_f32_copy::block_k;
+            block_m = driver_params_f32_copy_t::block_m;
+            block_n = driver_params_f32_copy_t::block_n;
+            block_k = driver_params_f32_copy_t::block_k;
         }
     } else {
-        block_m = driver_params_f32_nocopy::block_m;
-        block_n = driver_params_f32_nocopy::block_n;
-        block_k = driver_params_f32_nocopy::block_k;
+        block_m = driver_params_f32_nocopy_t::block_m;
+        block_n = driver_params_f32_nocopy_t::block_n;
+        block_k = driver_params_f32_nocopy_t::block_k;
     }
 
     if (!nocopy && beta != 0. && beta != 1.) {
@@ -550,7 +550,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
             = c.offset() / types::data_type_size(c_type) + pd()->dyn_offset_c;
 
     status_t status;
-    auto block_k = driver_params_f32_nocopy::block_k;
+    auto block_k = driver_params_f32_nocopy_t::block_k;
 
     for (int64_t Bk = 0; Bk < k; Bk += block_k) {
         int64_t size_k = k - Bk;

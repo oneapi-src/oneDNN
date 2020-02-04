@@ -32,9 +32,9 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_pooling_init_conf(
-        pool_conf_t &conf, const pooling_pd_t *_pd, offsets &off);
+        pool_conf_t &conf, const pooling_pd_t *_pd, offsets_t &off);
 status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const pool_conf_t &conf, const offsets &off);
+        const pool_conf_t &conf, const offsets_t &off);
 
 struct ref_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_pooling_fwd_pd_t {
@@ -94,7 +94,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
             return ref_pooling_init_conf(conf_, this, off_);
         }
         pool_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     status_t init() override {
@@ -164,7 +164,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
             return ref_pooling_init_conf(conf_, this, off_);
         }
         pool_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     status_t init() override {

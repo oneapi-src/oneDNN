@@ -415,7 +415,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
         memory_desc_wrapper diff_dst_mdw(pd()->diff_dst_md());
         kernel_ctx.set_data_type(pd()->diff_dst_md()->data_type);
-        offsets off;
+        offsets_t off;
         set_offsets(diff_dst_mdw, off.dst_off);
         def_offsets(off.dst_off, kernel_ctx, "DST",
                 pd()->desc()->diff_dst_desc.ndims);

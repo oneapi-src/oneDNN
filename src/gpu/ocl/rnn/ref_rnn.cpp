@@ -80,7 +80,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
         const memory_desc_wrapper &diff_dst_layer_d,
         const memory_desc_wrapper &diff_dst_iter_d,
         const memory_desc_wrapper &diff_dst_iter_c_d,
-        const memory_desc_wrapper &ws_d, rnn_offsets &off) {
+        const memory_desc_wrapper &ws_d, rnn_offsets_t &off) {
 
     using namespace rnn_utils;
 
@@ -191,7 +191,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
 }
 
 static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_conf_t &conf, const rnn_offsets &off) {
+        const rnn_conf_t &conf, const rnn_offsets_t &off) {
 
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
@@ -325,7 +325,7 @@ static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
 
 template <prop_kind_t aprop>
 inline status_t init_conf(rnn_conf_t &conf, const rnn_utils::conf_t &rnn,
-        const rnn_pd_t *rnn_pd, rnn_offsets &off) {
+        const rnn_pd_t *rnn_pd, rnn_offsets_t &off) {
 
     const memory_desc_wrapper fakedesc = rnn_pd->src_md(0);
     return init_conf(conf, rnn_pd, rnn, rnn_pd->src_md(0), rnn_pd->src_md(1),
@@ -339,7 +339,7 @@ inline status_t init_conf(rnn_conf_t &conf, const rnn_utils::conf_t &rnn,
 template <>
 inline status_t init_conf<prop_kind::backward>(rnn_conf_t &conf,
         const rnn_utils::conf_t &rnn, const rnn_pd_t *rnn_pd,
-        rnn_offsets &off) {
+        rnn_offsets_t &off) {
     return init_conf(conf, rnn_pd, rnn, rnn_pd->src_md(0), rnn_pd->src_md(1),
             rnn_pd->src_md(2), rnn_pd->weights_md(0), rnn_pd->weights_md(1),
             rnn_pd->weights_md(2), rnn_pd->dst_md(0), rnn_pd->dst_md(1),

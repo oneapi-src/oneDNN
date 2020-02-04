@@ -30,9 +30,9 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_convolution_init_def(
-        conv_conf_t &conf, const convolution_pd_t *pd, offsets &off);
+        conv_conf_t &conf, const convolution_pd_t *pd, offsets_t &off);
 status_t ref_convolution_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const conv_conf_t &conf, const offsets &off);
+        const conv_conf_t &conf, const offsets_t &off);
 
 struct ref_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
@@ -128,7 +128,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         }
 
         conv_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
 
     private:
         bool set_default_formats() {
@@ -216,7 +216,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         }
 
         conv_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
 
     private:
         bool set_default_formats() {
@@ -276,7 +276,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         }
 
         conv_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
 
     private:
         bool set_default_formats() {

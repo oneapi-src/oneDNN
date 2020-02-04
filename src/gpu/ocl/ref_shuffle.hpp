@@ -30,9 +30,9 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_shuffle_init_conf(
-        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets &off);
+        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets_t &off);
 status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const shuffle_conf_t &jshfl, const offsets &off);
+        const shuffle_conf_t &jshfl, const offsets_t &off);
 
 struct ref_shuffle_t : public primitive_impl_t {
     struct pd_t : public gpu_shuffle_pd_t {
@@ -62,7 +62,7 @@ struct ref_shuffle_t : public primitive_impl_t {
         }
 
         shuffle_conf_t jshfl_;
-        offsets off_;
+        offsets_t off_;
         format_tag_t dat_tag_;
     };
 

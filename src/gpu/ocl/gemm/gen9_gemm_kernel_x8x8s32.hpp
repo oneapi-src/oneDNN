@@ -26,7 +26,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen9_int8_gemm_kernel {
+struct gen9_int8_gemm_kernel_t {
     static status_t init_cl_options(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t a_type, impl::data_type_t b_type,
             impl::data_type_t c_type) {
@@ -46,14 +46,14 @@ struct gen9_int8_gemm_kernel {
         return status::success;
     }
 
-    struct copy_params {
+    struct copy_params_t {
         static constexpr auto unroll_m = 32;
         static constexpr auto unroll_n = 16;
         static constexpr auto unroll_k = 4;
     };
 };
 
-struct gen9_gemm_x8x8s32_kernel : public gen9_int8_gemm_kernel {
+struct gen9_gemm_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool fixed_c, bool column_c, bool row_c,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
@@ -92,9 +92,9 @@ struct gen9_gemm_x8x8s32_kernel : public gen9_int8_gemm_kernel {
         else
             return status::unimplemented;
 
-        kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
-        kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
-        kernel_ctx.define_int("UNROLL_K", copy_params::unroll_k);
+        kernel_ctx.define_int("UNROLL_M", copy_params_t::unroll_m);
+        kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
+        kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
         if (with_eltwise) def_postops(kernel_ctx, alg);
@@ -104,12 +104,12 @@ struct gen9_gemm_x8x8s32_kernel : public gen9_int8_gemm_kernel {
     }
 
     static void get_unrolls(int &unroll_m, int &unroll_n) {
-        unroll_m = copy_params::unroll_m;
-        unroll_n = copy_params::unroll_n;
+        unroll_m = copy_params_t::unroll_m;
+        unroll_n = copy_params_t::unroll_n;
     }
 };
 
-struct gen9_gemm_scale_x8x8s32_kernel : public gen9_int8_gemm_kernel {
+struct gen9_gemm_scale_x8x8s32_kernel_t : public gen9_int8_gemm_kernel_t {
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t a_type,
             impl::data_type_t b_type, impl::data_type_t c_type) {
@@ -117,9 +117,9 @@ struct gen9_gemm_scale_x8x8s32_kernel : public gen9_int8_gemm_kernel {
         auto status = init_cl_options(kernel_ctx, a_type, b_type, c_type);
         if (status) return status;
 
-        kernel_ctx.define_int("UNROLL_M", copy_params::unroll_m);
-        kernel_ctx.define_int("UNROLL_N", copy_params::unroll_n);
-        kernel_ctx.define_int("UNROLL_K", copy_params::unroll_k);
+        kernel_ctx.define_int("UNROLL_M", copy_params_t::unroll_m);
+        kernel_ctx.define_int("UNROLL_N", copy_params_t::unroll_n);
+        kernel_ctx.define_int("UNROLL_K", copy_params_t::unroll_k);
 
         kernel_ctx.define_int("WITH_ELTWISE", with_eltwise);
         if (with_eltwise) def_postops(kernel_ctx, alg);
@@ -129,8 +129,8 @@ struct gen9_gemm_scale_x8x8s32_kernel : public gen9_int8_gemm_kernel {
     }
 
     static void get_unrolls(int &unroll_m, int &unroll_n) {
-        unroll_m = copy_params::unroll_m;
-        unroll_n = copy_params::unroll_n;
+        unroll_m = copy_params_t::unroll_m;
+        unroll_n = copy_params_t::unroll_n;
     }
 };
 

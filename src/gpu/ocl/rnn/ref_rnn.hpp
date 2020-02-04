@@ -93,7 +93,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         status_t set_default_params();
 
         rnn_conf_t conf_;
-        rnn_offsets off_;
+        rnn_offsets_t off_;
         rnn_utils::conf_t rnn_conf_;
         data_type_t acc_data_t;
         data_type_t src_type;

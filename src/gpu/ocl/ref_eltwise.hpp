@@ -30,9 +30,9 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_eltwise_init_conf(
-        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets &off);
+        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets_t &off);
 status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const offsets &off);
+        const eltwise_conf_t &conf, const offsets_t &off);
 
 struct ref_eltwise_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_eltwise_fwd_pd_t {
@@ -79,7 +79,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
         }
 
         eltwise_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     virtual status_t init() override {
@@ -148,7 +148,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
         }
 
         eltwise_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
         bool use_dense_;
     };
 

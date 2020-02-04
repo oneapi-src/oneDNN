@@ -24,7 +24,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_convolution_init_def(
-        conv_conf_t &conf, const convolution_pd_t *pd, offsets &off) {
+        conv_conf_t &conf, const convolution_pd_t *pd, offsets_t &off) {
     const convolution_desc_t &cd = *pd->desc();
     const memory_desc_t &src_md = *pd->invariant_src_md();
     const memory_desc_t &weights_md = *pd->invariant_wei_md();
@@ -93,7 +93,7 @@ status_t ref_convolution_init_def(
 }
 
 status_t ref_convolution_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const conv_conf_t &conf, const offsets &off) {
+        const conv_conf_t &conf, const offsets_t &off) {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("WITH_GROUPS", conf.with_groups);

@@ -22,7 +22,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_eltwise_init_conf(
-        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets &off) {
+        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets_t &off) {
 
     alg_kind_t alg = pd->desc()->alg_kind;
     bool is_forward = utils::one_of(pd->desc()->prop_kind,
@@ -62,7 +62,7 @@ status_t ref_eltwise_init_conf(
 }
 
 status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const offsets &off) {
+        const eltwise_conf_t &conf, const offsets_t &off) {
 
     kernel_ctx.set_data_type(conf.data_type);
     kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);

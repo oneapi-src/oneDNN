@@ -181,7 +181,7 @@ struct gen9_gemm_t : public ocl_gemm_t {
             if (beta0 && pd()->beta() != 0) continue;
 
             compute::kernel_ctx_t kernel_ctx;
-            auto status = gen9_gemm_compute_kernel::init_const_def(kernel_ctx,
+            auto status = gen9_gemm_compute_kernel_t::init_const_def(kernel_ctx,
                     beta0, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                     pd()->desc()->acc_type, pd()->desc()->c_type);
             if (status != status::success) return status;
@@ -195,9 +195,9 @@ struct gen9_gemm_t : public ocl_gemm_t {
             compute::kernel_ctx_t kernel_ctx;
             auto trans = !outer ? !pd()->desc()->transa : pd()->desc()->transb;
             auto status = !outer
-                    ? gen9_gemm_copy_kernel::init_const_def(kernel_ctx, false,
+                    ? gen9_gemm_copy_kernel_t::init_const_def(kernel_ctx, false,
                             trans, pd()->desc()->a_type, pd()->desc()->acc_type)
-                    : gen9_gemm_copy_kernel::init_const_def(kernel_ctx, true,
+                    : gen9_gemm_copy_kernel_t::init_const_def(kernel_ctx, true,
                             trans, pd()->desc()->b_type,
                             pd()->desc()->acc_type);
             if (status != status::success) return status;
@@ -208,7 +208,7 @@ struct gen9_gemm_t : public ocl_gemm_t {
         }
 
         compute::kernel_ctx_t kernel_ctx;
-        auto status = gen9_gemm_beta_kernel::init_const_def(
+        auto status = gen9_gemm_beta_kernel_t::init_const_def(
                 kernel_ctx, pd()->desc()->c_type, pd()->desc()->acc_type);
         if (status != status::success) return status;
 
@@ -232,8 +232,8 @@ struct gen9_gemm_t : public ocl_gemm_t {
         bool transa = (pd()->desc()->transa == dnnl_trans);
         bool transb = (pd()->desc()->transb == dnnl_trans);
 
-        gen9_gemm_nocopy_kernel::get_unrolls(transa, transb, unroll_m, unroll_n,
-                unroll_k, pd()->desc()->c_type);
+        gen9_gemm_nocopy_kernel_t::get_unrolls(transa, transb, unroll_m,
+                unroll_n, unroll_k, pd()->desc()->c_type);
         auto m = pd()->desc()->m;
         auto n = pd()->desc()->n;
 
@@ -249,7 +249,7 @@ struct gen9_gemm_t : public ocl_gemm_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = gen9_gemm_nocopy_kernel::init_const_def(kernel_ctx,
+        auto status = gen9_gemm_nocopy_kernel_t::init_const_def(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb, with_k_unroll,
                 unroll_k, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->c_type);
@@ -273,7 +273,7 @@ struct gen9_gemm_t : public ocl_gemm_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = gen9_gemm_nocopy_superkernel::init_const_def(kernel_ctx,
+        auto status = gen9_gemm_nocopy_superkernel_t::init_const_def(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb,
                 pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->c_type);

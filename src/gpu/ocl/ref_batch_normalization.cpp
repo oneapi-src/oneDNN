@@ -30,8 +30,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_batch_normalization_init_conf(
-        bnorm_conf_t &conf, const batch_normalization_pd_t *pd, offsets &off) {
+status_t ref_batch_normalization_init_conf(bnorm_conf_t &conf,
+        const batch_normalization_pd_t *pd, offsets_t &off) {
     using namespace dnnl::impl::format_tag;
 
     const batch_normalization_desc_t &bd = *pd->desc();
@@ -127,7 +127,7 @@ status_t ref_batch_normalization_init_conf(
 
 status_t ref_batch_normalization_init_const_def(
         compute::kernel_ctx_t &kernel_ctx, const bnorm_conf_t &conf,
-        const offsets &off) {
+        const offsets_t &off) {
     kernel_ctx.set_data_type(conf.data_type);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);

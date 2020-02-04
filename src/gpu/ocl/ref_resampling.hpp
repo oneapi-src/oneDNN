@@ -111,7 +111,7 @@ struct ref_resampling_fwd_t : public primitive_impl_t {
         kernel_ctx.define_float("FH", pd()->FH());
         kernel_ctx.define_float("FW", pd()->FW());
 
-        offsets off;
+        offsets_t off;
         set_offsets(src_d, off.src_off);
         set_offsets(dst_d, off.dst_off);
         def_offsets(off.src_off, kernel_ctx, "SRC", ndims);
@@ -215,7 +215,7 @@ struct ref_resampling_bwd_t : public primitive_impl_t {
         kernel_ctx.define_float("FH", pd()->FH());
         kernel_ctx.define_float("FW", pd()->FW());
 
-        offsets off;
+        offsets_t off;
         set_offsets(diff_src_d, off.src_off);
         set_offsets(diff_dst_d, off.dst_off);
         def_offsets(off.src_off, kernel_ctx, "SRC", ndims);

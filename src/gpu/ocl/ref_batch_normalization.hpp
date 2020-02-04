@@ -32,10 +32,10 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_batch_normalization_init_conf(
-        bnorm_conf_t &conf, const batch_normalization_pd_t *pd, offsets &off);
+        bnorm_conf_t &conf, const batch_normalization_pd_t *pd, offsets_t &off);
 status_t ref_batch_normalization_init_const_def(
         compute::kernel_ctx_t &kernel_ctx, const bnorm_conf_t &conf,
-        const offsets &off);
+        const offsets_t &off);
 void ref_batch_normalization_init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const bnorm_conf_t &conf);
 
@@ -85,7 +85,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         }
 
         bnorm_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     status_t init() override {
@@ -174,7 +174,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         }
 
         bnorm_conf_t conf_;
-        offsets off_;
+        offsets_t off_;
     };
 
     status_t init() override {

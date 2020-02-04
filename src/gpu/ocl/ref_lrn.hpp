@@ -139,7 +139,7 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
 
-        offsets off;
+        offsets_t off;
         set_offsets(src_d, off.src_off);
         set_offsets(dst_d, off.dst_off);
         def_offsets(off.src_off, kernel_ctx, "SRC", ndims);
@@ -266,7 +266,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         kernel_ctx.define_float("LRN_BETA", desc->lrn_beta);
         kernel_ctx.define_float("LRN_K", desc->lrn_k);
 
-        offsets off;
+        offsets_t off;
         set_offsets(src_d, off.src_off);
         set_offsets(diff_dst_d, off.dst_off);
         def_offsets(off.src_off, kernel_ctx, "SRC", ndims);

@@ -28,7 +28,7 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
-        const inner_product_pd_t *pd, offsets &off) {
+        const inner_product_pd_t *pd, offsets_t &off) {
 
     const inner_product_desc_t &ipd = *pd->desc();
     const memory_desc_wrapper src_d(pd->invariant_src_md());
@@ -110,8 +110,8 @@ status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
 }
 
 status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const inner_product_conf_t &conf, const offsets &off, bool with_eltwise,
-        bool with_sum, alg_kind_t alg) {
+        const inner_product_conf_t &conf, const offsets_t &off,
+        bool with_eltwise, bool with_sum, alg_kind_t alg) {
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
