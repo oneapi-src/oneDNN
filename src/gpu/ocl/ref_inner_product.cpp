@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ref_inner_product.hpp"
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
-
-#include "gpu/ocl/ref_inner_product.hpp"
 
 namespace dnnl {
 namespace impl {

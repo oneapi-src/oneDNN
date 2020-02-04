@@ -18,8 +18,9 @@
 #include <string>
 #include <CL/cl.h>
 
-#include "common/utils.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
+
+#include "common/utils.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"

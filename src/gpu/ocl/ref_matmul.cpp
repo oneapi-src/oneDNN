@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/ref_matmul.hpp"
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
-
-#include "gpu/ocl/ref_matmul.hpp"
 
 namespace dnnl {
 namespace impl {

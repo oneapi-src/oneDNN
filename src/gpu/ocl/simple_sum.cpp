@@ -17,14 +17,14 @@
 #include <assert.h>
 #include <math.h>
 
+#include "gpu/ocl/simple_sum.hpp"
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
-
-#include "gpu/ocl/simple_sum.hpp"
 
 namespace dnnl {
 namespace impl {

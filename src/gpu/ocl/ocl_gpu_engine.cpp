@@ -16,6 +16,8 @@
 
 #include <CL/cl.h>
 
+#include "gpu/ocl/ocl_gpu_engine.hpp"
+
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
@@ -43,8 +45,6 @@
 #include "gpu/ocl/ref_shuffle.hpp"
 #include "gpu/ocl/ref_softmax.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
-
-#include "gpu/ocl/ocl_engine.hpp"
 
 namespace dnnl {
 namespace impl {

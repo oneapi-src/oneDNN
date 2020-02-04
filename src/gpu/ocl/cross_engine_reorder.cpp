@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/cross_engine_reorder.hpp"
+
 #include "common/utils.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"

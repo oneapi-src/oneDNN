@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/ocl/ocl_stream.hpp"
+#include "gpu/ocl/gemm_inner_product.hpp"
 
 #include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
-#include "gpu/ocl/gemm_inner_product.hpp"
+#include "gpu/ocl/ocl_stream.hpp"
 
 namespace dnnl {
 namespace impl {

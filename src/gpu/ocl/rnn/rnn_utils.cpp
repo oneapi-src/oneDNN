@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/rnn/rnn_utils.hpp"
+
 #include "common/c_types_map.hpp"
 #include "gpu/ocl/rnn/ref_rnn.hpp"
 

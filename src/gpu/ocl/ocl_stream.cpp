@@ -16,10 +16,10 @@
 
 #include <CL/cl.h>
 
+#include "gpu/ocl/ocl_stream.hpp"
+
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-
-#include "gpu/ocl/ocl_stream.hpp"
 
 namespace dnnl {
 namespace impl {

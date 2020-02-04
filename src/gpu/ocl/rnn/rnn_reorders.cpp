@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/rnn/rnn_reorders.hpp"
+
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 

@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "gpu/ocl/gemm/gen9_gemm.hpp"
+
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/float16.hpp"
 #include "common/type_helpers.hpp"
-
-#include "gpu/ocl/gemm/gen9_gemm.hpp"
 
 namespace dnnl {
 namespace impl {

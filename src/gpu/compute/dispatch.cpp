@@ -18,9 +18,10 @@
 #include <iomanip>
 #include <sstream>
 
+#include "gpu/compute/dispatch.hpp"
+
 #include "common/utils.hpp"
 #include "gpu/compute/compute_engine.hpp"
-#include "gpu/compute/dispatch.hpp"
 
 namespace dnnl {
 namespace impl {
