@@ -22,6 +22,7 @@
 
 #include "dnnl.h"
 
+#include "bit_cast.hpp"
 #include "c_types_map.hpp"
 #include "dnnl_traits.hpp"
 #include "math_utils.hpp"
@@ -591,11 +592,7 @@ format_tag_t memory_desc_matches_one_of_tag(
 
 /** returns true if fp32 value denotes DNNL_RUNTIME_F32_VAL */
 inline bool is_runtime_value(float val) {
-    union {
-        float f;
-        unsigned u;
-    } tmp {val};
-    return tmp.u == DNNL_RUNTIME_F32_VAL_REP.u;
+    return utils::bit_cast<unsigned>(val) == DNNL_RUNTIME_F32_VAL_REP.u;
 }
 
 /** returns true if s32 value denotes DNNL_RUNTIME_S32_VAL */

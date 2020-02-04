@@ -27,6 +27,8 @@
 #include <string>
 #include <type_traits>
 
+#include "common/bit_cast.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace compute {
@@ -44,13 +46,8 @@ public:
             oss << " -D" << int_var.first << "=" << int_var.second;
 
         for (auto &float_var : float_var_map_) {
-            union {
-                float f;
-                uint32_t u;
-            } f2u = {float_var.second};
-
             oss << " -D" << float_var.first << "=as_float(0x" << std::hex
-                << f2u.u << ")";
+                << utils::bit_cast<uint32_t>(float_var.second) << ")";
         }
         return oss.str();
     }

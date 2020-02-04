@@ -22,6 +22,8 @@
 #include <limits>
 #include <type_traits>
 
+#include "bit_cast.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace f16_support {
@@ -47,25 +49,8 @@ struct float16_t {
 
 static_assert(sizeof(float16_t) == 2, "float16_t must be 2 bytes");
 
-union float_raw {
-    float f;
-    uint32_t i;
-};
-
-static inline uint32_t float_to_raw(float f) {
-    float_raw r;
-    r.f = f;
-    return r.i;
-}
-
-static inline float raw_to_float(uint32_t i) {
-    float_raw r;
-    r.i = i;
-    return r.f;
-}
-
 inline float16_t &float16_t::operator=(float f) {
-    uint32_t i = float_to_raw(f);
+    uint32_t i = utils::bit_cast<uint32_t>(f);
     uint32_t s = i >> 31;
     uint32_t e = (i >> 23) & 0xFF;
     uint32_t m = i & 0x7FFFFF;
@@ -103,8 +88,8 @@ inline float16_t &float16_t::operator=(float f) {
     } else {
         // Underflow. Scale the input float, converting it
         // into an equivalent denormal.
-        float ff = f * raw_to_float(0x01000000);
-        uint32_t ii = float_to_raw(ff);
+        float ff = f * utils::bit_cast<float, uint32_t>(0x01000000);
+        uint32_t ii = utils::bit_cast<uint32_t>(ff);
         ee = 0;
         mm = ii;
     }
@@ -138,7 +123,7 @@ inline float16_t::operator float() const {
 
     uint32_t f = (s << 31) | (e << 23) | m;
 
-    return raw_to_float(f);
+    return utils::bit_cast<float>(f);
 }
 
 } // namespace f16_support
