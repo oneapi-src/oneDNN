@@ -71,12 +71,9 @@ protected:
         using op_desc_t = binary::desc;
         using pd_t = binary::primitive_desc;
         allows_attr_t aa {0};
-        // TODO: remove if when GPU adds support for post_ops
-        if (get_test_engine_kind() == engine::kind::cpu) {
-            aa.po_sum = 1;
-            aa.po_eltwise = 1;
-            aa.scales = 1;
-        }
+        aa.po_sum = 1;
+        aa.po_eltwise = 1;
+        aa.scales = 1;
 
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
