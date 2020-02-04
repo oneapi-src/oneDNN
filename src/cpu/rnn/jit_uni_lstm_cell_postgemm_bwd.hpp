@@ -92,7 +92,7 @@ protected:
 #ifdef _WIN32
         auto addr_diff_c_states_t_l_reg = r10;
         auto addr_diff_c_states_tp1_l_reg = r11;
-        auto addr_c_states_tm1_l_reg = r12;
+        auto addr_c_states_tm1_l_reg = rdi;
         auto addr_c_states_t_l_reg = rsi;
         auto base_args = get_stack_params_address();
         mov(addr_diff_c_states_t_l_reg, ptr[base_args]);
