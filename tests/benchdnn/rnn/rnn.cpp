@@ -69,7 +69,8 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
 
 int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, dnnl_data_type_t dt, float mean, float stddev,
-        float min, float max, const_dnnl_primitive_attr_t attr = nullptr) {
+        float min, float max, const_dnnl_primitive_attr_t attr = nullptr,
+        bool flip_sign = false) {
 #ifdef CALL_DNNL_RNN
     const auto nelems = mem_dt.nelems();
     assert(mem_dt.nelems() == mem_fp.nelems());
@@ -121,7 +122,13 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
                     : scale;
             val = (val - shift) / current_scale; // change only int8-case
-
+            /* we flip the sign of only a few value per mb to avoid
+             * too much cancellation in the bwd pass. Here we assume
+             * the p.slc/p.sic is not "too large" */
+            if (flip_sign) {
+                float sign = ((7 * idx + 3) % p.sic == 0) ? -1.0f : 1.0f;
+                val *= sign;
+            }
             mem_fp.set_elem(idx, val);
         }
     });
@@ -150,10 +157,26 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 }
 
 int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
+        dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr,
+        bool flip_sign = false) {
     dt_conf_t c = p.cfg[kind];
     return fill_memory(p, kind, mem_dt, mem_fp, c.dt, c.f_mean, c.f_stddev,
-            c.f_min, c.f_max, attr);
+            c.f_min, c.f_max, attr, flip_sign);
+}
+
+int fill_activation(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
+    // In general, we mostly want to use positive values to avoid
+    // cancellation from happening during computation.  The only case
+    // where we actually want negative values to appear is for 1 layer
+    // 1 iteration tests using vanilla_rnn and non-zero alpha. In that
+    // case, we want to check that alpha is applied accordingly. Here
+    // skip_nonlinear is checked as we want to test relu with non-zero
+    // alpha, and not the linear function that would replace it under
+    // skip_nonlinear=true.
+    bool flip_sign = p.skip_nonlinear == false && p.alg == VANILLA_RNN
+            && p.activation == RELU;
+    return fill_memory(p, kind, mem_dt, mem_fp, attr, flip_sign);
 }
 
 int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
@@ -682,8 +705,8 @@ int doit(const prb_t &p, res_t *r) {
     const_dnnl_primitive_attr_t rnn_attr;
     DNN_SAFE(dnnl_primitive_desc_get_attr(rpd[0], &rnn_attr), WARN);
 
-    SAFE(fill_memory(p, input, input_dt, input_fp, rnn_attr), WARN);
-    SAFE(fill_memory(p, states, states_dt, states_fp, rnn_attr), WARN);
+    SAFE(fill_activation(p, input, input_dt, input_fp, rnn_attr), WARN);
+    SAFE(fill_activation(p, states, states_dt, states_fp, rnn_attr), WARN);
     if (p.alg == VANILLA_LSTM)
         SAFE(fill_c_states(p, c_states_dt, c_states_fp, rnn_attr), WARN);
     SAFE(fill_weights(p, weights_input, weights_input_dt, weights_input_fp,
@@ -693,9 +716,10 @@ int doit(const prb_t &p, res_t *r) {
                  rnn_attr),
             WARN);
     SAFE(fill_memory(p, bias, bias_dt, bias_fp), WARN);
-    SAFE(fill_memory(p, dst_last_layer, dst_last_layer_dt, dst_last_layer_fp),
+    SAFE(fill_activation(
+                 p, dst_last_layer, dst_last_layer_dt, dst_last_layer_fp),
             WARN);
-    SAFE(fill_memory(p, dst_last_iteration, dst_last_iteration_dt,
+    SAFE(fill_activation(p, dst_last_iteration, dst_last_iteration_dt,
                  dst_last_iteration_fp),
             WARN);
     if (p.alg == VANILLA_LSTM)
@@ -706,10 +730,10 @@ int doit(const prb_t &p, res_t *r) {
     if (is_bwd) {
         SAFE(bwd_weights_states_dt.reorder(weights_states_dt), WARN);
         SAFE(bwd_weights_input_dt.reorder(weights_input_dt), WARN);
-        SAFE(fill_memory(
+        SAFE(fill_activation(
                      p, dst_diff_input, dst_diff_input_dt, dst_diff_input_fp),
                 WARN);
-        SAFE(fill_memory(p, dst_diff_states, dst_diff_states_dt,
+        SAFE(fill_activation(p, dst_diff_states, dst_diff_states_dt,
                      dst_diff_states_fp),
                 WARN);
         if (p.alg == VANILLA_LSTM)
@@ -724,10 +748,10 @@ int doit(const prb_t &p, res_t *r) {
                 WARN);
         SAFE(fill_bias(p, dst_diff_bias, dst_diff_bias_dt, dst_diff_bias_fp),
                 WARN);
-        SAFE(fill_memory(p, diff_last_layer, diff_last_layer_dt,
+        SAFE(fill_activation(p, diff_last_layer, diff_last_layer_dt,
                      diff_last_layer_fp),
                 WARN);
-        SAFE(fill_memory(p, diff_last_iteration, diff_last_iteration_dt,
+        SAFE(fill_activation(p, diff_last_iteration, diff_last_iteration_dt,
                      diff_last_iteration_fp),
                 WARN);
         if (p.alg == VANILLA_LSTM)
