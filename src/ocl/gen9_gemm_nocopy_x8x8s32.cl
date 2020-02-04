@@ -199,87 +199,18 @@ gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
     long i, j, l, ll;
     global FLOATC *c_ori;
 
-    long lid = get_local_id(0); // local ID
-    long idx = get_local_id(1);
-    long idy = get_local_id(2);
+    int lid = get_local_id(0);
+    int idx = get_local_id(1);
+    int idy = get_local_id(2);
     long gdx = get_group_id(1);
     long gdy = get_group_id(2);
+    long szx = get_local_size(1);
+    long szy = get_local_size(2);
 
-    long ctotal = get_local_size(0) * get_local_size(1) * get_local_size(2);
-    long cid = (idy * get_local_size(1) + idx) * get_local_size(0) + lid;
-    long mwidth = (m + ctotal - 1) / ctotal;
-    long nwidth = (n + ctotal - 1) / ctotal;
-    long moffset = ((cid * mwidth) & ~(UNROLL_M - 1)) * kk
-            + ((cid * mwidth) & (UNROLL_M - 1)) * UNROLL_K;
-    long noffset = ((cid * nwidth) & ~(UNROLL_N - 1)) * kk
-            + ((cid * nwidth) & (UNROLL_N - 1)) * UNROLL_K;
-
-    // Accumulation array for A and B
-    local FLOATA local_a[A_LOCAL_SIZE];
-    local FLOATA *sa = (__local FLOATA *)local_a;
-    local FLOATC *xa = (__local FLOATC *)sa;
-    sa += UNROLL_M * get_local_size(1) * sizeof(FLOATC);
-
-    local FLOATB local_b[B_LOCAL_SIZE];
-    local FLOATB *sb = (__local FLOATB *)local_b;
-    local FLOATC *xb = (__local FLOATC *)sb;
-    sb += UNROLL_N * get_local_size(2) * sizeof(FLOATC);
-
-    FLOATC sumA = 0, sumB = (FLOATC)bo * k;
-
-#if defined(NN) || defined(NT)
-    a += offsetA + (mwidth * cid + GROUPSIZE_M * gdx);
-#else
-    a += offsetA + (mwidth * cid + GROUPSIZE_M * gdx) * lda;
-#endif
-
-    for (l = 0; l < kk; l += UNROLL_K) {
-        for (ll = 0; ll < UNROLL_K; ll++) {
-            sa[moffset + l * UNROLL_M + ll]
-                    = (((cid < m) && (l + ll < k)) ? *a : 0);
-            sumA -= (FLOATC)sa[moffset + l * UNROLL_M + ll];
-#if defined(NN) || defined(NT)
-            a += lda;
-#else
-            a++;
-#endif
-        }
-    }
-
-    if (mwidth * cid < UNROLL_M * get_local_size(1))
-        xa[mwidth * cid] = (FLOATC)bo * sumA;
-
-#if defined(NN) || defined(TN)
-    b += offsetB + (nwidth * cid + GROUPSIZE_N * gdy) * ldb;
-#else
-    b += offsetB + (nwidth * cid + GROUPSIZE_N * gdy);
-#endif
-
-    for (l = 0; l < kk; l += UNROLL_K) {
-        for (ll = 0; ll < UNROLL_K; ll++) {
-            sb[noffset + l * UNROLL_N + ll]
-                    = (((cid < n) && (l + ll < k)) ? *b : 0);
-            sumB -= (FLOATC)sb[noffset + l * UNROLL_N + ll];
-
-#if defined(NN) || defined(TN)
-            b++;
-#else
-            b += ldb;
-#endif
-        }
-    }
-
-    if (nwidth * cid < UNROLL_N * get_local_size(2))
-        xb[nwidth * cid] = (FLOATC)ao * sumB;
-
-    m -= GROUPSIZE_M * gdx + UNROLL_M * idx;
-    if (m > UNROLL_M) m = UNROLL_M;
-    n -= GROUPSIZE_N * gdy + UNROLL_N * idy;
-    if (n > UNROLL_N) n = UNROLL_N;
-
+    a += offsetA;
+    b += offsetB;
     c += offsetC + UNROLL_M * idx + GROUPSIZE_M * gdx + UNROLL_M * lid / GRX
             + (UNROLL_N * idy + GROUPSIZE_N * gdy) * ldc;
-
     c_ori = c;
 
     if (apply_co) {
@@ -292,7 +223,84 @@ gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
 #endif
     }
 
+    // Accumulation array for A and B
+    local FLOATA local_a[A_LOCAL_SIZE];
+    local FLOATA *sa = (__local FLOATA *)local_a;
+    local FLOATC *xa = (__local FLOATC *)sa;
+    sa += UNROLL_M * szx * sizeof(FLOATC);
+
+    local FLOATB local_b[B_LOCAL_SIZE];
+    local FLOATB *sb = (__local FLOATB *)local_b;
+    local FLOATC *xb = (__local FLOATC *)sb;
+    sb += UNROLL_N * szy * sizeof(FLOATC);
+
+    int cid0 = (idy * szx + idx) * get_local_size(0) + lid;
+    int ctotal = get_local_size(0) * szx * szy;
+
+    for (int cid = cid0; cid < szx * UNROLL_M; cid += ctotal) {
+        long sa_moffset = (cid & ~(UNROLL_M - 1)) * kk
+                + (cid & (UNROLL_M - 1)) * UNROLL_K;
+        long i = cid + GROUPSIZE_M * gdx;
+        FLOATC sumA = 0;
+
+#if defined(NN) || defined(NT)
+        long a_offset = i;
+#else
+        long a_offset = i * lda;
+#endif
+
+        for (l = 0; l < kk; l += UNROLL_K) {
+            for (ll = 0; ll < UNROLL_K; ll++) {
+                FLOATA a_val = (((i < m) && (l + ll < k)) ? a[a_offset] : 0);
+                sa[sa_moffset + l * UNROLL_M + ll] = a_val;
+                sumA -= a_val;
+
+#if defined(NN) || defined(NT)
+                a_offset += lda;
+#else
+                a_offset++;
+#endif
+            }
+        }
+
+        xa[cid] = (FLOATC)bo * sumA;
+    }
+
+    for (int cid = cid0; cid < szy * UNROLL_N; cid += ctotal) {
+        long sb_noffset = (cid & ~(UNROLL_N - 1)) * kk
+                + (cid & (UNROLL_N - 1)) * UNROLL_K;
+        long j = cid + GROUPSIZE_N * gdy;
+        FLOATC sumB = (FLOATC)bo * k;
+
+#if defined(NN) || defined(TN)
+        long b_offset = j * ldb;
+#else
+        long b_offset = j;
+#endif
+
+        for (l = 0; l < kk; l += UNROLL_K) {
+            for (ll = 0; ll < UNROLL_K; ll++) {
+                FLOATB b_val = (((j < n) && (l + ll < k)) ? b[b_offset] : 0);
+                sb[sb_noffset + l * UNROLL_N + ll] = b_val;
+                sumB -= b_val;
+
+#if defined(NN) || defined(TN)
+                b_offset++;
+#else
+                b_offset += ldb;
+#endif
+            }
+        }
+
+        xb[cid] = (FLOATC)ao * sumB;
+    }
+
     barrier(CLK_LOCAL_MEM_FENCE);
+
+    m -= GROUPSIZE_M * gdx + UNROLL_M * idx;
+    if (m > UNROLL_M) m = UNROLL_M;
+    n -= GROUPSIZE_N * gdy + UNROLL_N * idy;
+    if (n > UNROLL_N) n = UNROLL_N;
 
     if ((m <= 0) || (n <= 0)) return;
     m -= UNROLL_M * lid / GRX;
