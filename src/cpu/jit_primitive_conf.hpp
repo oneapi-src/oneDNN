@@ -131,6 +131,12 @@ struct jit_conv_conf_t {
     int tr_iw, tr_ih;
     int tr_kw, tr_kh;
     int tr_src_num_guard_elems;
+
+    // Transpose buffer management
+    size_t tr_src_buf_size, tr_src_buf_count;
+    size_t tr_diff_dst_buf_size, tr_diff_dst_buf_count;
+    int nthr_mb_work;
+
     /* 1st conv: 4fma */
     int tr_ld;
     int kh_step;

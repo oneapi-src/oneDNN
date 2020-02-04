@@ -349,12 +349,12 @@ private:
     reg64_t reg_kh = r9;
     reg64_t reg_ur_w_trips = r10;
     reg64_t reg_oj = r15;
-    reg64_t reg_ih_count = rbx;
     reg64_t reg_tmp = r14;
     reg64_t reg_ih_shift = reg_tmp;
     reg64_t reg_long_offt = r14;
 
     reg64_t ki = r11;
+    reg64_t reg_oj_setup = r11;
     reg64_t reg_kd_count = r12;
     reg64_t reg_oi = r12;
     reg64_t reg_d_index = r13;
@@ -392,8 +392,8 @@ private:
     inline void compute_oh_step_common(int ic_block_step);
     inline void compute_oh_step_disp();
     inline void compute_loop();
-    inline void compute_oh_loop_common();
-    inline void compute_od_loop_common();
+    inline void compute_oh_loop_common(bool partial = false);
+    inline void compute_od_loop_common(bool partial = false);
     void compute_full_spat_loop();
     void convert_src_to_vnni_format(
             int ur_w, int pad_l, int pad_r, int input_offset);

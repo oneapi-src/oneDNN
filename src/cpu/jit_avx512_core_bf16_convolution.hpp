@@ -263,11 +263,20 @@ private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
     void prepare_scratchpad_data(const exec_ctx_t &ctx) const;
     struct thread_info_t;
+    void compute_diff_weights_2d(const thread_info_t *) const;
+    void compute_diff_weights_3d(const thread_info_t *) const;
     void compute_diff_weights(const thread_info_t *) const;
     void reduce_and_convert_diff_weights(const thread_info_t *) const;
     void compute_diff_bias(const thread_info_t *, const exec_ctx_t &ctx) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+
+    size_t tr_src_buf_number(const thread_info_t *ti, int g, int ic) const;
+    size_t tr_diff_dst_buf_number(const thread_info_t *ti, int g, int oc) const;
+    void trans_src(
+            src_data_t *tr_src1, const src_data_t *src1, int my_work) const;
+    void trans_dst(diff_dst_data_t *tr_diff_dst1,
+            const diff_dst_data_t *diff_dst1, int my_work) const;
 
     int nthr_, nthr_mb_, nthr_g_, nthr_oc_b_, nthr_ic_b_;
 
