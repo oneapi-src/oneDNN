@@ -3532,44 +3532,36 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
     if (!jcp.uses_permw_transposition) {
         // XXX: See the comment about tr_iw and guarding elements in
         // jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf()
-#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
-        const size_t max_nthr = jcp.nthr_mb * jcp.ngroups * jcp.nb_ic;
-#else
-        const size_t max_nthr = jcp.nthr;
-#endif // defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+        const size_t max_nthr = dnnl_thr_syncable()
+                ? jcp.nthr_mb * jcp.ngroups * jcp.nb_ic
+                : jcp.nthr;
         const size_t min_tr_src_size_per_thr
                 = jcp.id * jcp.ih * jcp.ic_block * jcp.tr_iw;
         const size_t tr_src_size = max_nthr * min_tr_src_size_per_thr
                 + jcp.tr_src_num_guard_elems;
         scratchpad.book(key_conv_tr_src, jcp.typesize_in * tr_src_size);
 
-#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
         /* prepare synchronization contexts */
-        if (jcp.nthr_oc_b > 1) {
+        if (dnnl_thr_syncable() && jcp.nthr_oc_b > 1) {
             const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
             scratchpad.book(key_conv_tr_src_bctx,
                     sizeof(simple_barrier::ctx_t) * tr_src_bctx_size);
         }
-#endif // !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
 
-#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
-        const size_t tr_diff_dst_size = jcp.nthr_mb * jcp.ngroups * jcp.nb_oc
-                * jcp.oc_block * jcp.tr_ow * jcp.oh * jcp.od;
-#else
-        const size_t tr_diff_dst_size
-                = jcp.nthr * jcp.oc_block * jcp.tr_ow * jcp.oh * jcp.od;
-#endif // defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+        const size_t tr_diff_dst_size = dnnl_thr_syncable()
+                ? jcp.nthr_mb * jcp.ngroups * jcp.nb_oc * jcp.oc_block
+                        * jcp.tr_ow * jcp.oh * jcp.od
+                : jcp.nthr * jcp.oc_block * jcp.tr_ow * jcp.oh * jcp.od;
+
         scratchpad.book(
                 key_conv_tr_diff_dst, jcp.typesize_in * tr_diff_dst_size);
 
-#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
         /* prepare synchronization contexts */
-        if (jcp.nthr_ic_b > 1) {
+        if (dnnl_thr_syncable() && jcp.nthr_ic_b > 1) {
             const size_t tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
             scratchpad.book(key_conv_tr_diff_dst_bctx,
                     sizeof(simple_barrier::ctx_t) * tr_diff_dst_bctx_size);
         }
-#endif // defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
     }
 
     if (jcp.nthr_mb > 1 || jcp.wei_dt == data_type::bf16) {
@@ -3585,10 +3577,9 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         scratchpad.book(key_conv_wei_bia_reduction,
                 sizeof(float) * wei_bia_reduction_size * num_wei_buffers);
 
-#if !defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
-        scratchpad.book(
-                key_conv_wei_bia_reduction_bctx, sizeof(simple_barrier::ctx_t));
-#endif // defined(BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS)
+        if (dnnl_thr_syncable())
+            scratchpad.book(key_conv_wei_bia_reduction_bctx,
+                    sizeof(simple_barrier::ctx_t));
     }
 
     if (jcp.with_bias) {

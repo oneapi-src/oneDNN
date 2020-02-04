@@ -25,10 +25,6 @@
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise_injector.hpp"
 
-#if !DNNL_THR_SYNC
-#define BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
