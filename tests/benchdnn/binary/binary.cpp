@@ -25,6 +25,7 @@
 #include "dnnl_memory.hpp"
 
 #include "binary/binary.hpp"
+#include "eltwise/eltwise.hpp"
 
 namespace binary {
 
@@ -81,6 +82,16 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
     return OK;
 }
 
+static inline int eltwise_index(const prb_t *p) {
+    using pk = attr_t::post_ops_t::kind_t;
+    const auto &po = p->attr.post_ops;
+    for (int i = 0; i < po.len; ++i) {
+        auto k = po.entry[i].kind;
+        if (k != pk::SUM && k < pk::KIND_TOTAL) return i;
+    }
+    return -1;
+}
+
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
     const auto nelems = dt_mem.nelems();
@@ -88,6 +99,8 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     r->total = nelems;
     const float trh = epsilon_dt(p->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
             * p->n_inputs();
+    const int eltwise_idx = eltwise_index(p);
+    const bool has_eltwise = eltwise_idx >= 0;
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -96,7 +109,10 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        if (!ok && has_eltwise)
+            ok = eltwise::check_extreme_values(
+                    fp, dt, p->attr.post_ops.entry[eltwise_idx].kind);
 
         r->errors += !ok;
 
