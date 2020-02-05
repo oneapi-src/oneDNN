@@ -121,7 +121,7 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
         float sum_scale() const {
             const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
             return with_sum() ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                              : 1.0f;
+                              : 0.0f;
         }
 
         alg_kind_t eltwise_alg_kind() const {
