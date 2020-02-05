@@ -15,7 +15,7 @@
 *******************************************************************************/
 #include "gpu/ocl/ocl_types.h"
 
-#if WITH_ELTWISE == 1 || WITH_POST_SUM_ELTWISE == 1
+#if WITH_ELTWISE == 1
 #include "ocl/ocl_post_ops.h"
 #endif
 
