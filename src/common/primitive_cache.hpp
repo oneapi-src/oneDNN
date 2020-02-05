@@ -28,13 +28,14 @@
 
 namespace dnnl {
 namespace impl {
+
 struct primitive_t;
 struct primitive_cache_t : public c_compatible {
-    using key_type = primitive_hashing::key_t;
-    using value_type = std::shared_ptr<primitive_t>;
+    using key_t = primitive_hashing::key_t;
+    using value_t = std::shared_ptr<primitive_t>;
 
-    virtual void add(const key_type &key, const value_type &impl) = 0;
-    virtual value_type get(const key_type &key) = 0;
+    virtual void add(const key_t &key, const value_t &impl) = 0;
+    virtual value_t get(const key_t &key) = 0;
 
     virtual ~primitive_cache_t() = default;
 };
@@ -43,7 +44,7 @@ struct primitive_cache_t : public c_compatible {
 struct lru_primitive_cache_t : public primitive_cache_t {
     lru_primitive_cache_t(size_t capacity) : capacity_(capacity) {}
 
-    virtual void add(const key_type &key, const value_type &impl) override {
+    virtual void add(const key_t &key, const value_t &impl) override {
         // cache is disabled
         if (capacity_ == 0) return;
 
@@ -57,7 +58,7 @@ struct lru_primitive_cache_t : public primitive_cache_t {
         cache_mapper_.insert(std::make_pair(key, cache_list_.begin()));
     }
 
-    virtual value_type get(const key_type &key) override {
+    virtual value_t get(const key_t &key) override {
         // cache is disabled
         if (capacity_ == 0) return nullptr;
 
@@ -70,10 +71,12 @@ struct lru_primitive_cache_t : public primitive_cache_t {
 
 private:
     size_t capacity_;
-    using cache_list_type = std::list<std::pair<key_type, value_type>>;
-    cache_list_type cache_list_;
-    std::unordered_map<key_type, cache_list_type::iterator> cache_mapper_;
+    using cache_list_t = std::list<std::pair<key_t, value_t>>;
+    cache_list_t cache_list_;
+    std::unordered_map<key_t, cache_list_t::iterator> cache_mapper_;
 };
+
+lru_primitive_cache_t &primitive_cache();
 
 } // namespace impl
 } // namespace dnnl

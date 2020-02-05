@@ -17,7 +17,6 @@
 #include <memory>
 
 #include "dnnl.h"
-#include "dnnl_thread.hpp"
 #include "engine.hpp"
 #include "nstl.hpp"
 #include "primitive.hpp"

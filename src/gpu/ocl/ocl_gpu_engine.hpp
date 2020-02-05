@@ -95,6 +95,10 @@ public:
     virtual cl_device_id device() const { return device_; }
     virtual cl_context context() const { return context_; }
 
+    virtual intptr_t device_id() const override {
+        return reinterpret_cast<intptr_t>(device());
+    }
+
     stream_t *service_stream() const { return service_stream_.get(); }
 
 private:

@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "dnnl.h"
+#include "primitive_attr.hpp"
 #include "type_helpers.hpp"
 
 namespace dnnl {
@@ -31,6 +32,10 @@ struct primitive_desc_t;
 namespace primitive_hashing {
 
 struct key_t {
+    key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr);
+
+    // XXX: this ctor is used to create keys to compare pds
+    // in 1x1 convolution + dw
     key_t(const primitive_desc_t *pd, int impl_nthr);
 
     bool operator==(const key_t &rhs) const;
@@ -41,6 +46,9 @@ struct key_t {
     std::type_index impl_id_;
     int impl_nthr_;
     std::vector<memory_desc_t> mds;
+    engine_kind_t kind_;
+    runtime_kind_t runtime_kind_;
+    intptr_t device_id_;
 
 private:
     template <typename T>
@@ -612,6 +620,12 @@ struct hash<dnnl::impl::primitive_hashing::key_t> {
         seed = hash_combine(seed, get_attr_hash(key.attr_));
         seed = hash_combine(seed, hash_combine(0, key.impl_id_));
         seed = hash_combine(seed, hash_combine(0, key.impl_nthr_));
+        seed = hash_combine(
+                seed, hash_combine(0, static_cast<size_t>(key.kind_)));
+        seed = hash_combine(
+                seed, hash_combine(0, static_cast<size_t>(key.runtime_kind_)));
+        seed = hash_combine(
+                seed, hash_combine(0, static_cast<size_t>(key.device_id_)));
         // Combine hash for op_desc with the computed hash
         switch (key.primitive_kind_) {
             case primitive_kind::batch_normalization:

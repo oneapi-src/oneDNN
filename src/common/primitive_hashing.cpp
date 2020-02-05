@@ -21,18 +21,27 @@
 #include "pooling_pd.hpp"
 #include "shuffle_pd.hpp"
 
+#include "engine.hpp"
 #include "primitive_hashing.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace primitive_hashing {
 
-key_t::key_t(const primitive_desc_t *pd, int impl_nthr)
+key_t::key_t(const primitive_desc_t *pd, const engine_t *engine, int impl_nthr)
     : primitive_kind_(pd->kind())
     , op_desc_(pd->op_desc())
     , attr_(pd->attr())
     , impl_id_(pd->impl_id())
-    , impl_nthr_(impl_nthr) {
+    , impl_nthr_(impl_nthr)
+    , kind_(engine ? engine->kind() : engine_kind::any_engine)
+    , runtime_kind_(engine ? engine->runtime_kind() : runtime_kind::none)
+    , device_id_(engine ? engine->device_id() : 0) {
+    init_mds(pd);
+}
+
+key_t::key_t(const primitive_desc_t *pd, int impl_nthr)
+    : key_t(pd, nullptr, impl_nthr) {
     init_mds(pd);
 }
 
@@ -125,7 +134,9 @@ bool key_t::operator==(const key_t &rhs) const {
 
     bool ret = true && primitive_kind_ == rhs.primitive_kind_
             && impl_id_ == rhs.impl_id_ && impl_nthr_ == rhs.impl_nthr_
-            && mds.size() == rhs.mds.size() && *attr_ == *rhs.attr_;
+            && mds.size() == rhs.mds.size() && *attr_ == *rhs.attr_
+            && kind_ == rhs.kind_ && runtime_kind_ == rhs.runtime_kind_
+            && device_id_ == rhs.device_id_;
 
     if (!ret) return false;
 
