@@ -156,11 +156,12 @@ struct attr_t {
             SRELU,
             LOGISTIC,
             EXP,
-            GELU,
+            GELU_TANH,
             SWISH,
             LOG,
             CLIP,
             POW,
+            GELU_ERF,
 
             RELU_DST,
             TANH_DST,

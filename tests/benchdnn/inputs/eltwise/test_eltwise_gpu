@@ -5,7 +5,7 @@
 --dir=FWD_D,BWD_D
 --dt=f32,bf16
 --tag=nchw
---alg=relu,tanh,gelu,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,swish,log,clip
+--alg=relu,tanh,gelu_tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,swish,log,clip,gelu_erf
         3x19x1x2
 --alg=relu_dst,tanh_dst,elu_dst,sqrt_dst,logistic_dst,exp_dst
         3x19x1x2
@@ -21,7 +21,7 @@
 --dir=FWD_I
 --dt=f16
 --tag=nchw
---alg=relu,tanh,gelu,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,swish,log,clip
+--alg=relu,tanh,gelu_tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,swish,log,clip,gelu_erf
         3x19x1x2
 --alg=relu_dst,tanh_dst,elu_dst,sqrt_dst,logistic_dst,exp_dst
         3x19x1x2

@@ -22,7 +22,8 @@ The following operations are supported:
 | clip         | #dnnl_eltwise_clip         | \f$ d = \begin{cases} \beta & \text{if}\ s > \beta \geq \alpha \\ s & \text{if}\ \alpha < s \leq \beta \\ \alpha & \text{if}\ s \leq \alpha \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ \alpha < s \leq \beta \\ 0 & \text{otherwise}\ \end{cases} \f$ | --
 | elu          | #dnnl_eltwise_elu <br> #dnnl_eltwise_elu_use_dst_for_bwd | \f$ d = \begin{cases} s & \text{if}\ s > 0 \\ \alpha (e^s - 1) & \text{if}\ s \leq 0 \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ s > 0 \\ dd \cdot \alpha e^s & \text{if}\ s \leq 0 \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ d > 0 \\ dd \cdot (d + \alpha) & \text{if}\ d \leq 0 \end{cases}. See\ (2). \f$
 | exp          | #dnnl_eltwise_exp <br> #dnnl_eltwise_exp_use_dst_for_bwd | \f$ d = e^s \f$ | \f$ ds = dd \cdot e^s \f$ | \f$ ds = dd \cdot d \f$
-| gelu         | #dnnl_eltwise_gelu         | \f$ d = 0.5 s (1 + tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)])\f$ | \f$ See\ (1). \f$ | --
+| gelu_erf     | #dnnl_eltwise_gelu_erf     | \f$ d = 0.5 s (1 + erf[\frac{s}{\sqrt{2}}])\f$ | \f$ ds = dd \cdot \left(0.5 + 0.5 \, \textrm{erf}\left({\frac{s}{\sqrt{2}}}\right) + \frac{s}{\sqrt{2\pi}}e^{-0.5s^{2}}\right) \f$ | --
+| gelu_tanh    | #dnnl_eltwise_gelu_tanh    | \f$ d = 0.5 s (1 + tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)])\f$ | \f$ See\ (1). \f$ | --
 | linear       | #dnnl_eltwise_linear       | \f$ d = \alpha s + \beta \f$ | \f$ ds = \alpha \cdot dd \f$ | --
 | log          | #dnnl_eltwise_log          | \f$ d = \log_{e}{s} \f$ | \f$ ds = \frac{dd}{s} \f$ | --
 | logistic     | #dnnl_eltwise_logistic <br> #dnnl_eltwise_logistic_use_dst_for_bwd | \f$ d = \frac{1}{1+e^{-s}} \f$ | \f$ ds = \frac{dd}{1+e^{-s}} \cdot (1 - \frac{1}{1+e^{-s}}) \f$ | \f$ ds = dd \cdot d \cdot (1 - d) \f$

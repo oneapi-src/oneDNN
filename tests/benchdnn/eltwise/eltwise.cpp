@@ -100,7 +100,7 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
     const float comp_err = approx_machine_eps / trh;
 
     switch (p->alg) {
-        case alg_t::GELU: {
+        case alg_t::GELU_TANH: {
             // catch catastrophic cancellation
             const float sqrt_2_over_pi = 0.797884;
             const float fitting_const = 0.044715;
@@ -113,6 +113,20 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
                         || (std::signbit(s)
                                 && fabsf(1.f + s * (1.f - v) * dg) <= comp_err);
         }
+        case alg_t::GELU_ERF: {
+            // catch catastrophic cancellation
+            // which occurs at large negative s
+            const float sqrt_2_over_2 = 0.707106769084930419921875f;
+            const float two_over_sqrt_pi = 1.12837922573089599609375f;
+            float v = s * sqrt_2_over_2;
+            if (p->dir & FLAG_FWD)
+                return fabsf(1.f + erff(v)) <= comp_err;
+            else
+                return fabsf(1.f + erff(v)
+                               + v * two_over_sqrt_pi * expf(-v * v))
+                        <= comp_err;
+        }
+
         case alg_t::TANH:
             // catch catastrophic cancellation, which occurs when err in tanh(s)
             // is high and tanh(s) is close to 1.
@@ -135,7 +149,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
     float trh = epsilon_dt(p->dt);
     if (p->dt == dnnl_f32) {
         // Tolerate bigger compute errors for complex algorithms.
-        if (p->alg == alg_t::GELU || p->alg == alg_t::ELU
+        if (p->alg == alg_t::GELU_TANH || p->alg == alg_t::ELU
                 || p->alg == alg_t::SWISH || p->alg == alg_t::TANH
                 || p->alg == alg_t::SRELU || p->alg == alg_t::LOG)
             trh *= 300; // 3e-5

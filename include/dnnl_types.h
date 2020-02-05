@@ -741,8 +741,10 @@ typedef enum {
     /// Eltwise: gelu
     ///
     /// @note Tanh approximation formula is used to approximate
-    /// cumulative distribution function of a Gaussian
-    dnnl_eltwise_gelu = 0xcf,
+    /// the cumulative distribution function of a Gaussian here
+    dnnl_eltwise_gelu_tanh = 0xcf,
+    /// Eltwise: tanh-based gelu (alias for dnnl_eltwise_gelu_tanh)
+    dnnl_eltwise_gelu = dnnl_eltwise_gelu_tanh,
     /// Eltwise: swish
     dnnl_eltwise_swish = 0xdf,
     /// Eltwise: natural logarithm
@@ -751,6 +753,8 @@ typedef enum {
     dnnl_eltwise_clip = 0xff,
     /// Eltwise: pow
     dnnl_eltwise_pow = 0x20,
+    /// Eltwise: erf-based gelu
+    dnnl_eltwise_gelu_erf = 0x30,
     /// Eltwise: ReLU (dst for backward)
     dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
     /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
@@ -1162,9 +1166,9 @@ typedef struct {
     /// #dnnl_eltwise_tanh, #dnnl_eltwise_elu, #dnnl_eltwise_square,
     /// #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
     /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
-    /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu,
+    /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu_tanh,
     /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
-    /// #dnnl_eltwise_pow.
+    /// #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf.
     /// Possible values for passing destination memory on backward:
     /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
     /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
@@ -1188,11 +1192,12 @@ typedef struct {
     ///  - #dnnl_eltwise_soft_relu: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_logistic: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_exp: @p alpha and @p beta ignored
-    ///  - #dnnl_eltwise_gelu: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_gelu_tanh: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
     ///  - #dnnl_eltwise_log: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_clip: @p alpha -- lower bound, @p beta -- upper bound
     ///  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
+    ///  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 

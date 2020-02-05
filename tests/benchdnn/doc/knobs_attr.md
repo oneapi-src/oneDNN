@@ -74,13 +74,14 @@ Currently supported post operations:
 Eltwise operations that support no alpha or beta:
   - `abs`
   - `exp`
-  - `gelu`
+  - `gelu_tanh`
   - `log`
   - `logistic`
   - `sqrt`
   - `square`
   - `srelu`
   - `tanh`
+  - `gelu_erf`
 
 Eltwise operations that support only alpha:
   - `brelu`

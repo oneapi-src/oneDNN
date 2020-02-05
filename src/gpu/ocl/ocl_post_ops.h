@@ -199,6 +199,19 @@ POST_OP_DATA_T pow_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s,
     return dd * v;
 }
 
+POST_OP_DATA_T gelu_erf_fwd(POST_OP_DATA_T s) {
+    const float sqrt_2_over_2 = 0.707106769084930419921875f;
+    float v = s * sqrt_2_over_2;
+    return 0.5f * s * (1.f + erf(v));
+}
+
+POST_OP_DATA_T gelu_erf_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+    const float two_over_sqrt_pi = 1.12837922573089599609375f;
+    const float sqrt_2_over_2 = 0.707106769084930419921875f;
+    float v = s * sqrt_2_over_2;
+    return dd * 0.5f * (1.f + erf(v) + v * two_over_sqrt_pi * exp(-v * v));
+}
+
 POST_OP_DATA_T fwd_eltwise(
         POST_OP_DATA_T x, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
 #ifdef ALG_KIND
@@ -214,11 +227,12 @@ POST_OP_DATA_T fwd_eltwise(
         case SQRT: return sqrt_fwd(x); break;
         case ABS: return abs_fwd(x); break;
         case EXP: return exp_fwd(x); break;
-        case GELU: return gelu_fwd(x); break;
+        case GELU_TANH: return gelu_fwd(x); break;
         case SWISH: return swish_fwd(x, alpha_); break;
         case LOG: return log_fwd(x); break;
         case CLIP: return clip_fwd(x, alpha_, beta_); break;
         case POW: return pow_fwd(x, alpha_, beta_); break;
+        case GELU_ERF: return gelu_erf_fwd(x); break;
 
         case RELU_DST: return relu_fwd(x, alpha_); break;
         case LOGISTIC_DST: return logistic_fwd(x); break;
@@ -249,11 +263,12 @@ POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
         case SQRT: return sqrt_bwd(x, y); break;
         case ABS: return abs_bwd(x, y); break;
         case EXP: return exp_bwd(x, y); break;
-        case GELU: return gelu_bwd(x, y); break;
+        case GELU_TANH: return gelu_bwd(x, y); break;
         case SWISH: return swish_bwd(x, y, alpha_); break;
         case LOG: return log_bwd(x, y); break;
         case CLIP: return clip_bwd(x, y, alpha_, beta_); break;
         case POW: return pow_bwd(x, y, alpha_, beta_); break;
+        case GELU_ERF: return gelu_erf_bwd(x, y); break;
 
         case RELU_DST: return relu_bwd_use_dst(x, y, alpha_); break;
         case LOGISTIC_DST: return logistic_bwd_use_dst(x, y); break;

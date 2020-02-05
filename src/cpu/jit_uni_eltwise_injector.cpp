@@ -821,6 +821,64 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector(
+        const Vmm &vmm_src) {
+
+    // Here we approximate erf(x) using the expression by
+    // Abramowitz and Stegun from ``Handbook of Mathematical
+    // Functions''
+    // NOTE: The performance of this kernel can be further improved
+    // with a minimax polynomial expansion, thereby avoiding division
+    // and exp. However, so far, this has costed larger accuracy
+    // differences with respect to glibc erf based GELU, in particular
+    // ~1.0e-5 -- 1.0e-3 absolute error at s = -5.
+
+    // x = s/sqrt(2)
+    h->uni_vmulps(vmm_src, vmm_src, table_val(32));
+
+    // save x
+    h->uni_vmovups(vmm_aux3, vmm_src);
+
+    // -exp(-x*x)
+    h->uni_vmulps(vmm_src, vmm_src, vmm_src);
+    h->uni_vxorps(vmm_src, vmm_src, table_val(12));
+    exp_compute_vector(vmm_src);
+    h->uni_vxorps(vmm_src, vmm_src, table_val(12));
+
+    // get sign
+    h->uni_vmovups(vmm_aux0, vmm_aux3);
+    h->uni_vandps(vmm_aux0, vmm_aux0, table_val(12));
+
+    // abs(x)
+    h->uni_vmovups(vmm_aux1, vmm_aux3);
+    h->uni_vandps(vmm_aux1, vmm_aux1, table_val(17));
+
+    // t = 1 / (p*x + 1)
+    h->uni_vmovups(vmm_aux2, table_val(30));
+    h->uni_vfmadd213ps(vmm_aux2, vmm_aux1, table_val(0));
+    h->uni_vmovups(vmm_aux4, table_val(0));
+    h->uni_vdivps(vmm_aux4, vmm_aux4, vmm_aux2);
+
+    // -exp(-x*x)*t
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux4);
+
+    // compute polynomial r
+    h->uni_vmovups(vmm_aux1, table_val(29));
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(28));
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(27));
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(26));
+    h->uni_vfmadd213ps(vmm_aux1, vmm_aux4, table_val(25));
+
+    // erf = sign * (1 - r * t * exp(-x*x))
+    h->uni_vfmadd213ps(vmm_src, vmm_aux1, table_val(0));
+    h->uni_vxorps(vmm_src, vmm_src, vmm_aux0);
+
+    // GELU = 0.5 s * (1 + erf)
+    h->uni_vmulps(vmm_aux3, vmm_aux3, table_val(32));
+    h->uni_vfmadd213ps(vmm_src, vmm_aux3, vmm_aux3);
+}
+
+template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_f32<isa>::relu_prepare_table() {
     for (size_t d = 0; d < vlen / sizeof(float); ++d)
         h->dd(float2int(alpha_));
@@ -1021,6 +1079,55 @@ void jit_uni_eltwise_injector_f32<isa>::linear_prepare_table() {
 }
 
 template <cpu_isa_t isa>
+void jit_uni_eltwise_injector_f32<isa>::gelu_erf_prepare_table() {
+    const unsigned int cvals[] = {
+            0x3f800000, // [0] 1.0f
+            0x3f000000, // [1] 0.5f
+            0x3fb8aa3b, // [2] log2ef = 1.44269502f
+            0x3f317218, // [3] ln2f =   0.69314718f
+            0x0000007f, // [4] 0x7f
+            // exp(x) polynom
+            0x3f7ffffb, // [5] p1 = 0.999999701f
+            0x3efffee3, // [6] p2 = 0.499991506f
+            0x3e2aad40, // [7] p3 = 0.166676521f
+            0x3d2b9d0d, // [8] p4 = 0.0418978221f
+            0x3c07cfce, // [9] p5 = 0.00828929059f
+            0x42b17218, //[10] logf(FLT_MAX)
+            0xc2aeac50, //[11] logf(FLT_MIN)
+            // tanh(x) constants,
+            0x80000000, //[12] mask to extract sign
+            0x39ddb3d7, //[13] arg below which tanh(x) = x
+            0x3f0c9f54, //[14] arg below which pol approx is valid
+            0x41102cb4, //[15] arg after which tanh(x) = 1
+            0xc0000000, //[16] -2.0f
+            0x7fffffff, //[17] mask to make positive
+            // tanh pol approx
+            0x3f7fffff, //[18] p0
+            0xbeaaa9cf, //[19] p1
+            0x3e085f1f, //[20] p2
+            0xbd572bda, //[21] p3
+            0x3c84fd08, //[22] p4
+            // gelu approx constants
+            0x3d372713, //[23] 0.044715
+            0x3f4c4229, //[24] sqrt(2/pi)
+            // gelu_erf related constants
+            0x3e827906, //[25] a1 = 0.254829592
+            0xbe91a98e, //[26] a2 = -0.284496736
+            0x3fb5f0e3, //[27] a3 = 1.421413741
+            0xbfba00e3, //[28] a4 = -1.453152027
+            0x3f87dc22, //[29] a5 = 1.061405429
+            0x3ea7ba05, //[30] p = 0.3275911
+            0xbf000000, //[31] -0.5f
+            0x3f3504f3, //[32] 1/sqrt(2.0)
+    };
+
+    for (size_t i = 0; i < sizeof(cvals) / sizeof(cvals[0]); ++i) {
+        for (size_t d = 0; d < vlen / sizeof(float); ++d)
+            h->dd(cvals[i]);
+    }
+}
+
+template <cpu_isa_t isa>
 size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
     using namespace alg_kind;
     switch (alg_) {
@@ -1046,6 +1153,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
         case eltwise_log: return 5;
         case eltwise_clip: return 0;
         case eltwise_pow: return 2;
+        case eltwise_gelu_erf: return 5;
         default: assert(!"unsupported eltwise algorithm");
     }
 
@@ -1087,6 +1195,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
             case eltwise_log: log_compute_vector(Vmm(idx)); break;
             case eltwise_clip: clip_compute_vector(Vmm(idx)); break;
             case eltwise_pow: pow_compute_vector(Vmm(idx)); break;
+            case eltwise_gelu_erf: gelu_erf_compute_vector(Vmm(idx)); break;
             default: assert(!"unsupported eltwise algorithm");
         }
         if (scale_ != 1.f) {
@@ -1137,6 +1246,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
             case eltwise_clip:
             case eltwise_pow:
             case eltwise_linear: linear_prepare_table(); break;
+            case eltwise_gelu_erf: gelu_erf_prepare_table(); break;
             case eltwise_log: log_prepare_table(); break;
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt:

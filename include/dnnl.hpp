@@ -488,7 +488,12 @@ enum class algorithm {
     /// Elementwise: exponent
     eltwise_exp = dnnl_eltwise_exp,
     /// Elementwise: gelu
+    /// alias for #dnnl::algorithm::eltwise_gelu_tanh
     eltwise_gelu = dnnl_eltwise_gelu,
+    /// Elementwise: tanh-based gelu
+    eltwise_gelu_tanh = dnnl_eltwise_gelu_tanh,
+    /// Elementwise: erf-based gelu
+    eltwise_gelu_erf = dnnl_eltwise_gelu_erf,
     /// Elementwise: natural logarithm
     eltwise_log = dnnl_eltwise_log,
     /// Elementwise: clip

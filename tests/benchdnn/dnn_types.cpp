@@ -313,11 +313,12 @@ static po_table_entry_t kind_table[] = {{pk_t::SUM, "sum", dnnl_alg_kind_undef},
         {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
         {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
         {pk_t::EXP, "exp", dnnl_eltwise_exp},
-        {pk_t::GELU, "gelu", dnnl_eltwise_gelu},
+        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu},
         {pk_t::SWISH, "swish", dnnl_eltwise_swish},
         {pk_t::LOG, "log", dnnl_eltwise_log},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
         {pk_t::POW, "pow", dnnl_eltwise_pow},
+        {pk_t::GELU_ERF, "gelu_erf", dnnl_eltwise_gelu_erf},
 
         {pk_t::RELU_DST, "relu_dst", dnnl_eltwise_relu_use_dst_for_bwd},
         {pk_t::TANH_DST, "tanh_dst", dnnl_eltwise_tanh_use_dst_for_bwd},
@@ -718,11 +719,12 @@ float compute_eltwise_fwd(
         case pk_t::SRELU: return scale * soft_relu_fwd(src);
         case pk_t::LOGISTIC: return scale * logistic_fwd(src);
         case pk_t::EXP: return scale * exp_fwd(src);
-        case pk_t::GELU: return scale * gelu_fwd(src);
+        case pk_t::GELU_TANH: return scale * gelu_fwd(src);
         case pk_t::SWISH: return scale * swish_fwd(src, alpha);
         case pk_t::LOG: return scale * log_fwd(src);
         case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
         case pk_t::POW: return scale * pow_fwd(src, alpha, beta);
+        case pk_t::GELU_ERF: return scale * gelu_erf_fwd(src);
 
         case pk_t::RELU_DST: return scale * relu_fwd(src, alpha);
         case pk_t::TANH_DST: return scale * tanh_fwd(src);
@@ -752,11 +754,12 @@ float compute_eltwise_bwd(
         case pk_t::SRELU: return soft_relu_bwd(d_dst, src);
         case pk_t::LOGISTIC: return logistic_bwd(d_dst, src);
         case pk_t::EXP: return exp_bwd(d_dst, src);
-        case pk_t::GELU: return gelu_bwd(d_dst, src);
+        case pk_t::GELU_TANH: return gelu_bwd(d_dst, src);
         case pk_t::SWISH: return swish_bwd(d_dst, src, alpha);
         case pk_t::LOG: return log_bwd(d_dst, src);
         case pk_t::CLIP: return clip_bwd(d_dst, src, alpha, beta);
         case pk_t::POW: return pow_bwd(d_dst, src, alpha, beta);
+        case pk_t::GELU_ERF: return gelu_erf_bwd(d_dst, src);
 
         case pk_t::RELU_DST: return relu_bwd_use_dst(d_dst, src, alpha);
         case pk_t::TANH_DST: return tanh_bwd_use_dst(d_dst, src);
