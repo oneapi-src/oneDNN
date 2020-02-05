@@ -1,0 +1,4 @@
+--batch=pool_ker_in_pad_1d
+--batch=pool_ker_in_pad_2d
+--batch=pool_ker_in_pad_3d
+

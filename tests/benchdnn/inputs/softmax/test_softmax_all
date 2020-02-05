@@ -3,5 +3,5 @@
 --dir=FWD_D,BWD_D
 --alg=SOFTMAX,LOGSOFTMAX
 --inplace=true,false
---tag=nc                       --axis=1,0     --batch=softmax_2d_all
---tag=nchw,nhwc,nChw8c,nChw16c --axis=1,0,2,3 --batch=softmax_4d
+--tag=abx                  --axis=1,0     --batch=softmax_2d_all
+--tag=abx,axb,aBx8b,aBx16b --axis=1,0,2,3 --batch=softmax_4d

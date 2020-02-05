@@ -2,21 +2,21 @@
 
 --cfg=f32
 --dir=FWD_B,FWD_I
---dtag=nc
+--dtag=abx
 --mb=16,17
 
---wtag=ABcde16a16b
+--wtag=ABx16a16b
 ic2048ih2id2iw1oc1000
 
---stag=aBcde16b
+--stag=aBx16b
 --wtag=any
 ic2048id2ih2iw2oc1000
 
---stag=ABcd16a16b,ABcd8a8b,aBcd16b,aBcd8b
+--stag=ABx16a16b,ABcd8a8b,aBx16b,aBx8b
 ic2048ih2iw2oc1000
 
---stag=aBc8b,aBc4b
+--stag=aBx8b,aBx4b
 ic2048iw2oc1000
 
---stag=aBcde16b
+--stag=aBx16b
 ic2048id2ih2iw2oc1000

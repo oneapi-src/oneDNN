@@ -4,19 +4,15 @@
 
 --dir=FWD_D
 --dt=f32,s32,s8,u8
---tag=nchw,nhwc                            --axis=1,2 1x68x56x56
---tag=nchw,nhwc,nChw8c                     --axis=1,2 1x136x56x56
---tag=nchw,nhwc,nChw4c,nChw8c,nChw16c      --axis=1,2 1x272x56x56
---tag=ncdhw,ndhwc,nCdhw4c,nCdhw8c,nCdhw16c --axis=1,3,4 1x272x2x56x56
+--tag=abx,axb,aBx4b,aBx8b,aBx16b
+--axis=1     1x12x56x56 1x24x56x56 1x36x56x56 1x68x56x56
+--axis=1,2   1x68x56x56 1x136x56x56 1x272x56x56
+--axis=1,3,4 1x272x2x56x56
 
 --dir=BWD_D
 --dt=f32
---tag=nchw,nhwc,nChw8c,nChw16c             --axis=1,2 1x272x56x56
-
-# blocked with tail
---dir=FWD_D,BWD_D
---dt=f32
---tag=nChw4c,nChw16c --axis=1 1x12x56x56 1x24x56x56 1x36x56x56 1x68x56x56
+--axis=1     1x12x56x56 1x24x56x56 1x36x56x56 1x68x56x56
+--axis=1,2   1x272x56x56
 
 # bf16
 --batch=test_shuffle_bfloat16

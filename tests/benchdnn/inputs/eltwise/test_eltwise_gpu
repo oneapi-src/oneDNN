@@ -4,23 +4,27 @@
 
 --dir=FWD_D,BWD_D
 --dt=f32,bf16
---tag=nchw
+--tag=abx,aBx16b,ABx16a16b
 --alg=relu,tanh,gelu_tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,swish,log,clip,gelu_erf
-        3x19x1x2
+        3x7x4x5 32x16x6x2 3x19x1x2
 --alg=relu_dst,tanh_dst,elu_dst,sqrt_dst,logistic_dst,exp_dst
-        3x19x1x2
+        3x7x4x5 32x16x6x2 3x19x1x2
 --alg=pow --beta=-1,0,0.5,1,1.5,2
-        3x19x1x2
+        3x7x4x5 32x16x6x2 3x19x1x2
+
+--reset
 
 --dir=FWD_I
 --dt=s32,s8
---tag=nchw,nChw16c,NChw16n16c
+--tag=axb
 --alg=relu --alpha=0
-        3x7x4x5 32x16x6x2 3x19x1x2
+        3x19x1x2
+
+--reset
 
 --dir=FWD_I
 --dt=f16
---tag=nchw
+--tag=axb
 --alg=relu,tanh,gelu_tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,swish,log,clip,gelu_erf
         3x19x1x2
 --alg=relu_dst,tanh_dst,elu_dst,sqrt_dst,logistic_dst,exp_dst

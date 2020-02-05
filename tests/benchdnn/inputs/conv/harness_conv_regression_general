@@ -166,25 +166,23 @@ ic32oc1_id5ih1iw1_od2oh1ow1_kd3kh1kw1_sd2sh1sw1n"ic-blocking_stride-d_test"
 ic32oc1_ih5iw1_oh2ow1_kh3kw1_sh2sw1n"ic-blocking_stride-h_test"
 
 # Test-case to ensure pre-condition for dispatching optimized channel blocking
---reset
---dir=BWD_D
+--reset --dir=BWD_D
 ic16ih7oc16oh5kh3ph0n"small_spatial_optimization"
 ic48ih7oc48oh5kh3ph0n"small_spatial_optimization"
 
 # False positives due to long accumulation chains
 --reset
 mb1_ic16oc16_id100od1kd100
---cfg=f32_full --dir=bwd_w mb28_ic16oc16_id10od10kd3
+--cfg=f32_full --dir=BWD_W mb28_ic16oc16_id10od10kd3
 
 # Int 3D Depthwise dispatch check
 --reset --skip-impl="ref:gemm" --cfg=u8s8u8
 g16mb1ic16id3ih3iw3oc16od3oh3ow3kd3kh3kw3sd1sh1sw1pd1ph1pw1n"check_int8_3d_depthwise_dispatch"
 
 # Incorrect input offset for dilated height executing 3D JIT-Kernel
---reset --allow-unimpl=true --skip-impl="ref:gemm"
---cfg=u8s8s32 mb1_ic16oc16_id2ih10iw1_kd2kh3kw1_dd0dh2dw0n"3d_dilated_check"
+--reset --allow-unimpl=true --skip-impl="ref:gemm" --cfg=u8s8s32
+mb1_ic16oc16_id2ih10iw1_kd2kh3kw1_dd0dh2dw0n"3d_dilated_check"
 
 # Test correctness of 1x1 strided convolution with different layouts src and dst
---reset --stag=nchw,nhwc
---dir=FWD_B,BWD_D,BWD_WB
+--reset --stag=abx,axb --dir=FWD_B,BWD_D,BWD_WB
 ic256ih56oc512oh28kh1sh2ph0n"strided_1x1_with_mixed_data_layouts"

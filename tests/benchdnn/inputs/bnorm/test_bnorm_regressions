@@ -1,5 +1,5 @@
 --skip-impl=ref
---tag=nhwc,nchw,nChw8c,nChw16c
+--tag=axb,abx,aBx8b,aBx16b
 
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_regressions
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_regressions

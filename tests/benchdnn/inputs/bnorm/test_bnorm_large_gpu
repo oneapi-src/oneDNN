@@ -1,14 +1,11 @@
 --reset
 
---tag=ncw,nCw16c,NCw16n16c
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d
+--tag=abx,aBx16b,ABx16a16b
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d --batch=bnorm_3d
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_1d
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_1d
 
---tag=ncdhw,nCdhw16c,NCdhw16n16c
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
-
---tag=nchw,nChw16c
+--tag=abx,aBx16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_gpu
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_gpu
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_gpu
@@ -21,7 +18,7 @@
 --reset
 
 --mb=48
---tag=NChw16n16c
+--tag=ABx16a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_gpu
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_gpu
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_gpu

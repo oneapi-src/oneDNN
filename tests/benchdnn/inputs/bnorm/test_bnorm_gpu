@@ -1,14 +1,11 @@
 --reset
 
---tag=ncw,nCw16c,NCw16n16c
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d
+--tag=abx,aBx16b,ABx16a16b
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d --batch=bnorm_3d
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_1d
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_1d
 
---tag=ncdhw,nCdhw16c,NCdhw16n16c
---dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
-
---tag=nchw,nChw16c
+--tag=abx,aBx16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
@@ -21,7 +18,7 @@
 --reset
 
 --mb=48
---tag=NChw16n16c
+--tag=ABx16a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
@@ -32,7 +29,7 @@
 
 --mb=1,2,32
 --dt=bf16
---tag=nchw,nChw16c,NChw16n16c
+--tag=abx,aBx16b,ABx16a16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                ic96ih35iw35
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' ic96ih35iw35
 --dir=BWD_D        --flags=        --attr=                ic96ih35iw35
@@ -40,9 +37,8 @@
 --dt=f16,bf16
 --mb=2
 --dir=FWD_I,FWD_D
---tag=ncw,nCw16c,NCw16n16c
---flags=,S                          --batch=bnorm_1d
---tag=nchw,nChw16c,NChw16n16c
---flags=,S                          --batch=bnorm_topo_small
---tag=ncdhw,nCdhw16c,NCdhw16n16c
---flags=,S                          --batch=bnorm_3d
+--tag=abx,aBx16b,ABx16a16b
+--flags=,S
+--batch=bnorm_1d
+--batch=bnorm_topo_small
+--batch=bnorm_3d
