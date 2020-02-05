@@ -24,7 +24,7 @@ namespace impl {
 namespace rnn {
 
 int get_gates_count(dnnl_alg_kind_t cell_kind);
-}
+} // namespace rnn
 } // namespace impl
 } // namespace dnnl
 

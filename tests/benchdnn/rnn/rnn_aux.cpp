@@ -201,6 +201,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     s << "--prop=" << prop2str(p.prop) << " ";
     s << "--alg=" << alg2str(p.alg) << " ";
     s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
+    if (canonical || p.alg == VANILLA_LSTM)
+        s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
     if (canonical || p.alg == VANILLA_RNN)
         s << "--activation=" << activation2str(p.activation) << " ";
 
@@ -217,8 +219,9 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
         dnnl_prop_kind_t prop_kind, dnnl_memory_desc_t *src_layer_d,
         dnnl_memory_desc_t *src_iter_d, dnnl_memory_desc_t *src_iter_c_d,
         dnnl_memory_desc_t *weights_layer_d, dnnl_memory_desc_t *weights_iter_d,
-        dnnl_memory_desc_t *bias_d, dnnl_memory_desc_t *dst_layer_d,
-        dnnl_memory_desc_t *dst_iter_d, dnnl_memory_desc_t *dst_iter_c_d) {
+        dnnl_memory_desc_t *weights_peephole_d, dnnl_memory_desc_t *bias_d,
+        dnnl_memory_desc_t *dst_layer_d, dnnl_memory_desc_t *dst_iter_d,
+        dnnl_memory_desc_t *dst_iter_c_d) {
     dnnl_alg_kind_t kind = alg2kind(p.alg);
     dnnl_alg_kind_t f = activation2kind(p.activation);
 
@@ -231,10 +234,10 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
                     p.alpha, p.beta);
             break;
         case dnnl_vanilla_lstm:
-            init_status = dnnl_lstm_forward_desc_init(rd, prop_kind,
+            init_status = dnnl_lstm_forward_desc_init_v2(rd, prop_kind,
                     p.direction, src_layer_d, src_iter_d, src_iter_c_d,
-                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                    dst_iter_d, dst_iter_c_d, p.flags);
+                    weights_layer_d, weights_iter_d, weights_peephole_d, bias_d,
+                    dst_layer_d, dst_iter_d, dst_iter_c_d, p.flags);
             break;
         case dnnl_vanilla_gru:
             init_status = dnnl_gru_forward_desc_init(rd, prop_kind, p.direction,
@@ -255,13 +258,14 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
         dnnl_prop_kind_t prop_kind, dnnl_memory_desc_t *src_layer_d,
         dnnl_memory_desc_t *src_iter_d, dnnl_memory_desc_t *src_iter_c_d,
         dnnl_memory_desc_t *weights_layer_d, dnnl_memory_desc_t *weights_iter_d,
-        dnnl_memory_desc_t *bias_d, dnnl_memory_desc_t *dst_layer_d,
-        dnnl_memory_desc_t *dst_iter_d, dnnl_memory_desc_t *dst_iter_c_d,
-        dnnl_memory_desc_t *diff_src_layer_d,
+        dnnl_memory_desc_t *weights_peephole_d, dnnl_memory_desc_t *bias_d,
+        dnnl_memory_desc_t *dst_layer_d, dnnl_memory_desc_t *dst_iter_d,
+        dnnl_memory_desc_t *dst_iter_c_d, dnnl_memory_desc_t *diff_src_layer_d,
         dnnl_memory_desc_t *diff_src_iter_d,
         dnnl_memory_desc_t *diff_src_iter_c_d,
         dnnl_memory_desc_t *diff_weights_layer_d,
         dnnl_memory_desc_t *diff_weights_iter_d,
+        dnnl_memory_desc_t *diff_weights_peephole_d,
         dnnl_memory_desc_t *diff_bias_d, dnnl_memory_desc_t *diff_dst_layer_d,
         dnnl_memory_desc_t *diff_dst_iter_d,
         dnnl_memory_desc_t *diff_dst_iter_c_d) {
@@ -279,13 +283,14 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
                     diff_dst_iter_d, p.flags, p.alpha, p.beta);
             break;
         case dnnl_vanilla_lstm:
-            init_status = dnnl_lstm_backward_desc_init(rd, prop_kind,
+            init_status = dnnl_lstm_backward_desc_init_v2(rd, prop_kind,
                     p.direction, src_layer_d, src_iter_d, src_iter_c_d,
-                    weights_layer_d, weights_iter_d, bias_d, dst_layer_d,
-                    dst_iter_d, dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
-                    diff_src_iter_c_d, diff_weights_layer_d,
-                    diff_weights_iter_d, diff_bias_d, diff_dst_layer_d,
-                    diff_dst_iter_d, diff_dst_iter_c_d, p.flags);
+                    weights_layer_d, weights_iter_d, weights_peephole_d, bias_d,
+                    dst_layer_d, dst_iter_d, dst_iter_c_d, diff_src_layer_d,
+                    diff_src_iter_d, diff_src_iter_c_d, diff_weights_layer_d,
+                    diff_weights_iter_d, diff_weights_peephole_d, diff_bias_d,
+                    diff_dst_layer_d, diff_dst_iter_d, diff_dst_iter_c_d,
+                    p.flags);
             break;
         case dnnl_vanilla_gru:
             init_status = dnnl_gru_backward_desc_init(rd, prop_kind,
@@ -489,9 +494,20 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     skind, l, d, w, ic, oc, fp, dt, diff,
                                     rel_diff);
                             break;
+                        case weights_peephole:
+                        case dst_diff_weights_peephole:
+                            inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
+                            print(0,
+                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                                    "," IFMT
+                                    "] "
+                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                                    (long)i, final_compare ? "" : "REORDER ",
+                                    skind, l, d, b, c, fp, dt, diff, rel_diff);
+                            break;
                         case bias:
                         case dst_diff_bias:
-                            inv_ldgo_off_f(p, i, l, d, b, c);
+                            inv_bias_ldgo_off_f(p, i, l, d, b, c);
                             print(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
                                     "," IFMT
@@ -510,8 +526,10 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, t, n, c, fp, dt, diff, rel_diff);
                             break;
+                        case c_states:
                         case dst_last_iteration:
                         case dst_c_last_iteration:
+                        case dst_diff_c_states:
                         case diff_last_iteration:
                         case diff_c_last_iteration:
                             inv_ldnc_off_f(p, i, l, d, n, c);
@@ -558,18 +576,25 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     break;
                 case weights_states:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
-                    break;
                     print(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, w, ic, oc, fp, dt);
-                case bias:
-                    inv_ldgo_off_f(p, i, l, d, b, c);
                     break;
+                case weights_peephole:
+                    inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
                     print(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, b, c, fp, dt);
+                    break;
+                case bias:
+                    inv_bias_ldgo_off_f(p, i, l, d, b, c);
+                    print(0,
+                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, b, c, fp, dt);
+                    break;
                 case dst_last_layer:
                     inv_tnc_off_f(p, i, t, n, c);
                     print(0,
@@ -577,6 +602,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
                     break;
+                case c_states:
                 case dst_last_iteration:
                 case dst_c_last_iteration:
                     inv_ldnc_off_f(p, i, l, d, n, c);

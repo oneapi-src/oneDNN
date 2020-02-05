@@ -3220,7 +3220,7 @@ struct convolution_forward : public primitive {
         /// primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3270,7 +3270,7 @@ struct convolution_forward : public primitive {
         /// primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3316,7 +3316,7 @@ struct convolution_forward : public primitive {
         /// propagation primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3369,7 +3369,7 @@ struct convolution_forward : public primitive {
         /// propagation primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3499,7 +3499,7 @@ struct convolution_backward_data : public primitive {
         /// primitive.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3541,7 +3541,7 @@ struct convolution_backward_data : public primitive {
         /// propagation primitive.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3669,7 +3669,7 @@ struct convolution_backward_weights : public primitive {
         /// with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3716,7 +3716,7 @@ struct convolution_backward_weights : public primitive {
         /// without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3758,7 +3758,7 @@ struct convolution_backward_weights : public primitive {
         /// primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3809,7 +3809,7 @@ struct convolution_backward_weights : public primitive {
         /// primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -3955,7 +3955,7 @@ struct deconvolution_forward : public primitive {
         /// primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4003,7 +4003,7 @@ struct deconvolution_forward : public primitive {
         /// primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4047,7 +4047,7 @@ struct deconvolution_forward : public primitive {
         /// propagation primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4098,7 +4098,7 @@ struct deconvolution_forward : public primitive {
         /// propagation primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4222,7 +4222,7 @@ struct deconvolution_backward_data : public primitive {
         /// primitive.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4263,7 +4263,7 @@ struct deconvolution_backward_data : public primitive {
         /// propagation primitive.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4390,7 +4390,7 @@ struct deconvolution_backward_weights : public primitive {
         /// with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4436,7 +4436,7 @@ struct deconvolution_backward_weights : public primitive {
         /// without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4477,7 +4477,7 @@ struct deconvolution_backward_weights : public primitive {
         /// primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -4527,7 +4527,7 @@ struct deconvolution_backward_weights : public primitive {
         /// primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -6519,7 +6519,7 @@ struct inner_product_forward : public primitive {
         /// primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -6552,7 +6552,7 @@ struct inner_product_forward : public primitive {
         /// primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -6659,7 +6659,7 @@ struct inner_product_backward_data : public primitive {
         /// primitive.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -6768,7 +6768,7 @@ struct inner_product_backward_weights : public primitive {
         /// update primitive with bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -6799,7 +6799,7 @@ struct inner_product_backward_weights : public primitive {
         /// update primitive without bias.
         ///
         /// @note
-        ///     Memory descriptors are allowed to be initialized with
+        ///     Memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -6965,6 +6965,12 @@ struct rnn_primitive_desc_base : public primitive_desc {
         return base::query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS_ITER);
     }
 
+    /// Returns weights peephole memory descriptor.
+    /// @returns Weights peephole memory descriptor.
+    memory::desc weights_peephole_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS_PEEPHOLE);
+    }
+
     /// Returns bias memory descriptor.
     /// @returns Bias memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
@@ -7023,6 +7029,13 @@ struct rnn_primitive_desc_base : public primitive_desc {
     /// @returns Diff weights iteration memory descriptor.
     memory::desc diff_weights_iter_desc() const {
         return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS_ITER);
+    }
+
+    /// Returns diff weights peephole memory descriptor.
+    /// @returns Diff weights peephole memory descriptor.
+    memory::desc diff_weights_peephole_desc() const {
+        return base::query_md(
+                query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
     }
 
     /// Returns diff bias memory descriptor.
@@ -7286,7 +7299,7 @@ struct vanilla_rnn_backward : public primitive {
         /// should use zero values instead.
         ///
         /// @note
-        ///     All memory descriptors are allowed to be initialized with
+        ///     All memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -7525,6 +7538,91 @@ struct lstm_forward : public primitive {
     struct desc {
         dnnl_rnn_desc_t data;
 
+        /// Constructs a descriptor for an LSTM (with or without peephole)
+        /// forward propagation primitive.
+        ///
+        /// The @p src_iter_desc, @p src_iter_c_desc, @p weights_peephole_desc,
+        /// @p bias_desc, @p dst_iter_desc, and @p dst_iter_c_desc may point to
+        /// a zero memory descriptor. This would then indicate that the LSTM
+        /// forward propagation primitive should not use them and should
+        /// default to zero values instead.
+        ///
+        /// @note
+        ///     All memory descriptors except @p src_iter_desc can be
+        ///     initialized with an #dnnl::memory::format_tag::any value of @p
+        ///     format_tag.
+        ///
+        /// Inputs:
+        ///  - src_layer (#dnnl::primitive_desc_base::src_desc (0))
+        ///  - src_iter (#dnnl::primitive_desc_base::src_desc (1)), if used
+        ///  - src_iter_c (#dnnl::primitive_desc_base::src_desc (2)), if used
+        ///  - weights_layer (#dnnl::primitive_desc_base::weights_desc (0))
+        ///  - weights_iter (#dnnl::primitive_desc_base::weights_desc (1))
+        ///  - weights_peephole (#dnnl::primitive_desc_base::weights_desc (2)),
+        ///    if used
+        ///  - bias (#dnnl::primitive_desc_base::weights_desc (2)), if used and
+        ///    LSTM is without peephole
+        ///  - bias (#dnnl::primitive_desc_base::weights_desc (3)), if used and
+        ///    LSTM is with peephole
+        ///
+        /// Outputs:
+        ///  - dst_layer (#dnnl::primitive_desc_base::dst_desc (0))
+        ///  - dst_iter (#dnnl::primitive_desc_base::dst_desc (1)), if used
+        ///  - dst_iter_c (#dnnl::primitive_desc_base::dst_desc (2)), if used
+        ///  - workspace (#dnnl::primitive_desc_base::workspace_desc (0)),
+        ///     if @p prop_kind equals #dnnl_forward_training; must be
+        ///     queried for using @ref dnnl_primitive_desc_query_md() after a
+        ///     corresponding primitive descriptor is created
+        ///
+        /// @param prop_kind Propagation kind. Possible values are
+        ///     #dnnl::prop_kind::forward_training, and
+        ///     #dnnl::prop_kind::forward_inference.
+        /// @param direction RNN direction. See @ref dnnl::rnn_direction for
+        ///     more info.
+        /// @param src_layer_desc Memory descriptor for the input vector.
+        /// @param src_iter_desc Memory descriptor for the input recurrent
+        ///     hidden state vector.
+        /// @param src_iter_c_desc Memory descriptor for the input recurrent
+        ///     cell state vector.
+        /// @param weights_layer_desc Memory descriptor for the weights
+        ///     applied to the layer input.
+        /// @param weights_iter_desc Memory descriptor for the weights applied
+        ///     to the recurrent input.
+        /// @param weights_peephole_desc Memory descriptor for the weights
+        ///     applied to the cell states (according to the Peephole LSTM
+        ///     formula).
+        /// @param bias_desc Bias memory descriptor.
+        /// @param dst_layer_desc Memory descriptor for the output vector.
+        /// @param dst_iter_desc Memory descriptor for the output recurrent
+        ///     hidden state vector.
+        /// @param dst_iter_c_desc Memory descriptor for the output recurrent
+        ///     cell state vector.
+        /// @param flags Unused.
+        desc(prop_kind prop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &src_iter_c_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &weights_peephole_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &dst_iter_c_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(
+                    dnnl_lstm_forward_desc_init_v2(&data,
+                            dnnl::convert_to_c(prop_kind),
+                            dnnl::convert_to_c(direction), &src_layer_desc.data,
+                            &src_iter_desc.data, &src_iter_c_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &weights_peephole_desc.data, &bias_desc.data,
+                            &dst_layer_desc.data, &dst_iter_desc.data,
+                            &dst_iter_c_desc.data, dnnl::convert_to_c(flags)),
+                    "could not create a descriptor for an LSTM forward "
+                    "propagation primitive");
+        }
+
         /// Constructs a descriptor for an LSTM forward propagation primitive.
         ///
         /// The @p src_iter_desc, @p src_iter_c_desc, @p bias_desc, @p
@@ -7669,6 +7767,11 @@ struct lstm_forward : public primitive {
             return rnn_base::weights_iter_desc();
         }
 
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_peephole_desc()const
+        memory::desc weights_peephole_desc() const {
+            return rnn_base::weights_peephole_desc();
+        }
+
         /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc()const
         memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
@@ -7706,6 +7809,150 @@ struct lstm_backward : public primitive {
     struct desc {
         dnnl_rnn_desc_t data;
 
+        /// Constructs an LSTM (with or without peephole) descriptor for
+        /// backward propagation using @p prop_kind, @p direction, and memory
+        /// descriptors.
+        ///
+        /// The @p src_iter_desc together with @p diff_iter_desc, @p
+        /// src_iter_c_desc together with @p src_iter_c_desc, @p
+        /// weights_peephole_desc together with @p diff_weights_peephole_desc,
+        /// @p bias_desc together with @p diff_bias_desc, @p dst_iter_desc
+        /// together with @p diff_dst_iter_desc, and @p dst_iter_c_desc
+        /// together with @p diff_dst_iter_c_desc, may point to a zero memory
+        /// descriptor. This would then indicate that the LSTM backward
+        /// propagation primitive should not use them and should default to
+        /// zero values instead.
+        ///
+        /// @note
+        ///     All memory descriptors can be initialized with
+        ///     #dnnl::memory::format_tag::any value of @p format_tag.
+        ///
+        /// Inputs:
+        ///  - src_layer (#dnnl::primitive_desc_base::src_desc (0))
+        ///  - src_iter (#dnnl::primitive_desc_base::src_desc (1)), if used
+        ///  - src_iter_c (#dnnl::primitive_desc_base::src_desc (2)), if used
+        ///  - weights_layer (#dnnl::primitive_desc_base::weights_desc (0))
+        ///  - weights_iter (#dnnl::primitive_desc_base::weights_desc (1))
+        ///  - weights_peephole (#dnnl::primitive_desc_base::weights_desc (2)),
+        ///    if used
+        ///  - bias (#dnnl::primitive_desc_base::weights_desc (2)), if used and
+        ///    LSTM is without peephole
+        ///  - bias (#dnnl::primitive_desc_base::weights_desc (3)), if used and
+        ///    LSTM is with peephole
+        ///  - dst_layer (#dnnl::primitive_desc_base::dst_desc (0))
+        ///  - dst_iter (#dnnl::primitive_desc_base::dst_desc (1)), if used
+        ///  - dst_iter_c (#dnnl::primitive_desc_base::dst_desc (2)), if used
+        ///  - diff_dst_layer (#dnnl::primitive_desc_base::diff_dst_desc (0))
+        ///  - diff_dst_iter
+        ///     (#dnnl::primitive_desc_base::diff_dst_desc (1)), if used
+        ///  - diff_dst_iter_c
+        ///     (#dnnl::primitive_desc_base::diff_dst_desc (2)), if used
+        ///  - workspace (#dnnl::primitive_desc_base::workspace_desc (0))
+        ///
+        /// Outputs:
+        ///  - diff_src_layer (#dnnl::primitive_desc_base::diff_src_desc (0))
+        ///  - diff_src_iter
+        ///     (#dnnl::primitive_desc_base::diff_src_desc (1)), if used
+        ///  - diff_src_iter_c
+        ///     (#dnnl::primitive_desc_base::diff_src_desc (2)), if used
+        ///  - diff_weights_layer
+        ///     (#dnnl::primitive_desc_base::diff_weights_desc (0))
+        ///  - diff_weights_iter
+        ///     (#dnnl::primitive_desc_base::diff_weights_desc (1))
+        ///  - diff_weights_peephole
+        ///    (#dnnl::primitive_desc_base::diff_weights_desc (2)), if used
+        ///  - diff_bias (#dnnl::primitive_desc_base::diff_weights_desc (2)),
+        ///    if used and LSTM is without peephole
+        ///  - diff_bias (#dnnl::primitive_desc_base::diff_weights_desc (3)),
+        ///    if used and LSTM is with peephole
+        ///
+        /// @param prop_kind Propagation kind. Must be
+        ///     #dnnl::prop_kind::backward.
+        /// @param direction RNN direction. See @ref dnnl::rnn_direction for
+        ///     more info.
+        /// @param src_layer_desc Memory descriptor for the input vector.
+        /// @param src_iter_desc Memory descriptor for the input recurrent
+        ///     hidden state vector.
+        /// @param src_iter_c_desc Memory descriptor for the input recurrent
+        ///     cell state vector.
+        /// @param weights_layer_desc Memory descriptor for the weights
+        ///     applied to the layer input.
+        /// @param weights_iter_desc Memory descriptor for the weights applied
+        ///     to the recurrent input.
+        /// @param weights_peephole_desc Memory descriptor for the weights
+        ///     applied to the cell states (according to the Peephole LSTM
+        ///     formula).
+        /// @param bias_desc Bias memory descriptor.
+        /// @param dst_layer_desc Memory descriptor for the output vector.
+        /// @param dst_iter_desc Memory descriptor for the output recurrent
+        ///     hidden state vector.
+        /// @param dst_iter_c_desc Memory descriptor for the output recurrent
+        ///     cell state vector.
+        /// @param diff_src_layer_desc Memory descriptor for the diff of input
+        ///     vector.
+        /// @param diff_src_iter_desc Memory descriptor for the diff of input
+        ///     recurrent hidden state vector.
+        /// @param diff_src_iter_c_desc Memory descriptor for the diff of
+        ///     input recurrent cell state vector.
+        /// @param diff_weights_layer_desc Memory descriptor for the diff of
+        ///     weights applied to the layer input.
+        /// @param diff_weights_iter_desc Memory descriptor for the diff of
+        ///     weights applied to the recurrent input.
+        /// @param diff_weights_peephole_desc Memory descriptor for the diff of
+        ///     weights applied to the cell states (according to the Peephole
+        ///     LSTM formula).
+        /// @param diff_bias_desc Diff bias memory descriptor.
+        /// @param diff_dst_layer_desc Memory descriptor for the diff of
+        ///     output vector.
+        /// @param diff_dst_iter_desc Memory descriptor for the diff of output
+        ///     recurrent hidden state vector.
+        /// @param diff_dst_iter_c_desc Memory descriptor for the diff of
+        ///     output recurrent cell state vector.
+        /// @param flags Unused.
+        desc(prop_kind prop_kind, rnn_direction direction,
+                const memory::desc &src_layer_desc,
+                const memory::desc &src_iter_desc,
+                const memory::desc &src_iter_c_desc,
+                const memory::desc &weights_layer_desc,
+                const memory::desc &weights_iter_desc,
+                const memory::desc &weights_peephole_desc,
+                const memory::desc &bias_desc,
+                const memory::desc &dst_layer_desc,
+                const memory::desc &dst_iter_desc,
+                const memory::desc &dst_iter_c_desc,
+                const memory::desc &diff_src_layer_desc,
+                const memory::desc &diff_src_iter_desc,
+                const memory::desc &diff_src_iter_c_desc,
+                const memory::desc &diff_weights_layer_desc,
+                const memory::desc &diff_weights_iter_desc,
+                const memory::desc &diff_weights_peephole_desc,
+                const memory::desc &diff_bias_desc,
+                const memory::desc &diff_dst_layer_desc,
+                const memory::desc &diff_dst_iter_desc,
+                const memory::desc &diff_dst_iter_c_desc,
+                rnn_flags flags = rnn_flags::undef) {
+            error::wrap_c_api(
+                    dnnl_lstm_backward_desc_init_v2(&data,
+                            dnnl::convert_to_c(prop_kind),
+                            dnnl::convert_to_c(direction), &src_layer_desc.data,
+                            &src_iter_desc.data, &src_iter_c_desc.data,
+                            &weights_layer_desc.data, &weights_iter_desc.data,
+                            &weights_peephole_desc.data, &bias_desc.data,
+                            &dst_layer_desc.data, &dst_iter_desc.data,
+                            &dst_iter_c_desc.data, &diff_src_layer_desc.data,
+                            &diff_src_iter_desc.data,
+                            &diff_src_iter_c_desc.data,
+                            &diff_weights_layer_desc.data,
+                            &diff_weights_iter_desc.data,
+                            &diff_weights_peephole_desc.data,
+                            &diff_bias_desc.data, &diff_dst_layer_desc.data,
+                            &diff_dst_iter_desc.data,
+                            &diff_dst_iter_c_desc.data,
+                            dnnl::convert_to_c(flags)),
+                    "could not create a descriptor for an LSTM backward "
+                    "propagation primitive");
+        }
+
         /// Constructs an LSTM descriptor for backward propagation using @p
         /// prop_kind, @p direction, and memory descriptors.
         ///
@@ -7718,7 +7965,7 @@ struct lstm_backward : public primitive {
         /// should not use them and should default to zero values instead.
         ///
         /// @note
-        ///     All memory descriptors are allowed to be initialized with
+        ///     All memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -7904,6 +8151,11 @@ struct lstm_backward : public primitive {
             return rnn_base::weights_iter_desc();
         }
 
+        /// @copydoc dnnl::rnn_primitive_desc_base::weights_peephole_desc()const
+        memory::desc weights_peephole_desc() const {
+            return rnn_base::weights_peephole_desc();
+        }
+
         /// @copydoc dnnl::rnn_primitive_desc_base::bias_desc()const
         memory::desc bias_desc() const { return rnn_base::bias_desc(); }
 
@@ -7948,6 +8200,11 @@ struct lstm_backward : public primitive {
         /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_iter_desc()const
         memory::desc diff_weights_iter_desc() const {
             return rnn_base::diff_weights_iter_desc();
+        }
+
+        /// @copydoc dnnl::rnn_primitive_desc_base::diff_weights_peephole_desc()const
+        memory::desc diff_weights_peephole_desc() const {
+            return rnn_base::diff_weights_peephole_desc();
         }
 
         /// @copydoc dnnl::rnn_primitive_desc_base::diff_bias_desc()const
@@ -8157,7 +8414,7 @@ struct gru_backward : public primitive {
         /// zero values instead.
         ///
         /// @note
-        ///     All memory descriptors are allowed to be initialized with
+        ///     All memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:
@@ -8558,7 +8815,7 @@ struct lbr_gru_backward : public primitive {
         /// zero values instead.
         ///
         /// @note
-        ///     All memory descriptors are allowed to be initialized with
+        ///     All memory descriptors can be initialized with
         ///     #dnnl::memory::format_tag::any value of @p format_tag.
         ///
         /// Inputs:

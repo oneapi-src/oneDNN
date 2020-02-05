@@ -164,11 +164,15 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             weights_layer_, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_layer);
     AOC<weights_data_t *, 3> weights_iter(
             weights_iter_, rnn.n_layer, rnn.n_dir, rnn.n_parts_weights_iter);
+    AOC<const float, 3> weights_peephole(
+            weights_peephole_, rnn.n_layer, rnn.n_dir, 3 * rnn.dic);
     AOC<float *, 3> bias(bias_, rnn.n_layer, rnn.n_dir, rnn.n_parts_bias);
     AOC<acc_data_t, 3> diff_weights_layer(diff_weights_layer_, rnn.n_layer,
             rnn.n_dir, rnn.diff_weights_layer_nld * rnn.diff_weights_layer_ld);
     AOC<acc_data_t, 3> diff_weights_iter(diff_weights_iter_, rnn.n_layer,
             rnn.n_dir, rnn.diff_weights_iter_nld * rnn.diff_weights_iter_ld);
+    AOC<float, 3> diff_weights_peephole(
+            diff_weights_peephole_, rnn.n_layer, rnn.n_dir, 3 * rnn.dic);
     AOC<acc_data_t, 3> diff_bias(
             diff_bias_, rnn.n_layer, rnn.n_dir, rnn.n_bias * rnn.dic);
     AOC<src_data_t, 4> ws_grid(
@@ -283,12 +287,14 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 (this->*cell_func)(rnn, cell_position, states_t_l, c_states_t_l,
                         &(ws_diff_states(lay, dir, 0, iter, 0)),
                         &(weights_layer(lay, dir, 0)),
-                        &(weights_iter(lay, dir, 0)), &(bias(lay, dir, 0)),
+                        &(weights_iter(lay, dir, 0)),
+                        &(weights_peephole(lay, dir, 0)), &(bias(lay, dir, 0)),
                         states_t_lm1, states_tm1_l, c_states_tm1_l,
                         &(ws_diff_states(lay + 1, dir, 0, iter, 0)),
                         &(ws_diff_states(lay, dir, 0, iter + 1, 0)),
                         &(diff_weights_layer(lay, dir, 0)),
                         &(diff_weights_iter(lay, dir, 0)),
+                        &(diff_weights_peephole(lay, dir, 0)),
                         &(diff_bias(lay, dir, 0)),
                         &(ws_gates(lay, dir, iter, 0)),
                         rnn.n_iter_scratch_gates == 1 ? scratch_gates_
@@ -972,6 +978,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     auto layer_weights_n_comp
             = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_LAYER);
     auto iter_weights_n_comp = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS_ITER);
+    auto weights_peephole
+            = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS_PEEPHOLE);
     auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
 
     auto dst_last_layer = rnn.is_fwd
@@ -1037,6 +1045,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_WEIGHTS_LAYER);
     auto diff_weights_iter
             = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_WEIGHTS_ITER);
+    auto diff_weights_peephole
+            = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
     auto diff_bias = CTX_OUT_MEM(acc_data_t *, DNNL_ARG_DIFF_BIAS);
 
     // Fetching extra buffers from scratchpad
@@ -1085,11 +1095,12 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     }
 
     // run the execution on the grid
-    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter, ptr_bias, input,
-            (const src_data_t *)states, c_states, (src_data_t *)dst_last_layer,
-            (src_data_t *)dst_last_iter, dst_last_iter_c, ws_states,
-            ws_c_states, ws_diff_states, ws_gates, ws_grid, scratch_gates,
-            scratch_cell, diff_weights_layer, diff_weights_iter, diff_bias);
+    (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter,
+            weights_peephole, ptr_bias, input, (const src_data_t *)states,
+            c_states, (src_data_t *)dst_last_layer, (src_data_t *)dst_last_iter,
+            dst_last_iter_c, ws_states, ws_c_states, ws_diff_states, ws_gates,
+            ws_grid, scratch_gates, scratch_cell, diff_weights_layer,
+            diff_weights_iter, diff_weights_peephole, diff_bias);
 
     // Finally we copy the results to the result buffers
     if (!(rnn.skip_dst_layer_copy() && rnn.is_fwd)) {

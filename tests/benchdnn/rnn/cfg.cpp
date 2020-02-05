@@ -39,6 +39,8 @@ dst_diff_bias,
 diff_last_iteration,
 diff_c_last_iteration,
 diff_last_layer,
+weights_peephole,
+dst_diff_weights_peephole,
 params: {data_type, min, max, f_min, f_max, f_mean, f_stddev, eps}
 */
 
@@ -75,6 +77,8 @@ const _dt_conf_t conf_f32 = {
         F32_ENTRY_INEXACT, //diff_last_iteration
         F32_ENTRY_INEXACT, //diff_c_last_iteration
         F32_ENTRY_INEXACT, //diff_last_layer
+        F32_ENTRY_INEXACT, //weights_peephole
+        F32_ENTRY_INEXACT, //dst_diff_weights_peephole
 };
 
 #define EPS_BF16 epsilon_dt(dnnl_bf16)
@@ -115,6 +119,8 @@ const _dt_conf_t conf_bf16 = {
         BF16_ENTRY_F32_INEXACT, //diff_last_iteration
         BF16_ENTRY_F32_INEXACT, //diff_c_last_iteration
         BF16_ENTRY_F32_INEXACT, //diff_last_layer
+        BF16_ENTRY_F32_INEXACT, //weights_peephole
+        BF16_ENTRY_F32_INEXACT, //dst_diff_weights_peephole
 };
 
 #define EPS_U8 4e-3

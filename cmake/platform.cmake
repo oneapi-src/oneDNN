@@ -73,6 +73,8 @@ if(MSVC)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:15009")
         # disable: disabling user-directed function packaging (COMDATs)
         append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:11031")
+        # disable: decorated name length exceeded, name was truncated
+        append(CMAKE_CCXX_NOWARN_FLAGS "-Qdiag-disable:2586")
         # disable: disabling optimization; runtime debug checks enabled
         append(CMAKE_CXX_FLAGS_DEBUG "-Qdiag-disable:10182")
     endif()

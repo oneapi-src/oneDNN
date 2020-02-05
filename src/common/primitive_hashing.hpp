@@ -511,8 +511,8 @@ size_t get_desc_hash<rnn_desc_t>(const op_desc_t *op_desc) {
     seed = hash_combine(seed, get_md_hash(desc->dst_layer_desc));
     seed = hash_combine(seed, get_md_hash(desc->dst_iter_desc));
     seed = hash_combine(seed, get_md_hash(desc->dst_iter_c_desc));
+    seed = hash_combine(seed, get_md_hash(desc->weights_peephole_desc));
     seed = hash_combine(seed, get_md_hash(desc->placeholder_desc));
-    seed = hash_combine(seed, get_md_hash(desc->placeholder2_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_src_layer_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_src_iter_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_src_iter_c_desc));
@@ -522,8 +522,8 @@ size_t get_desc_hash<rnn_desc_t>(const op_desc_t *op_desc) {
     seed = hash_combine(seed, get_md_hash(desc->diff_dst_layer_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_dst_iter_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_dst_iter_c_desc));
+    seed = hash_combine(seed, get_md_hash(desc->diff_weights_peephole_desc));
     seed = hash_combine(seed, get_md_hash(desc->diff_placeholder_desc));
-    seed = hash_combine(seed, get_md_hash(desc->diff_placeholder2_desc));
     // Flags
     seed = hash_combine(seed, desc->flags);
     // Activation kind

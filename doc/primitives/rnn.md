@@ -85,6 +85,8 @@ h_t &= activation(a_t)
 
 ## LSTM
 
+### LSTM (or Vanilla LSTM)
+
 A four-gate long short-term memory recurrent cell initialized with
 `lstm_forward::desc` or `lstm_backward::desc` as in the following example.
 
@@ -104,10 +106,11 @@ for the forward pass:
 \begin{align}
 i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + B_i) \\
 f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + B_f) \\
-\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
-o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + B_o) \\
 \\
+\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
 c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
+\\
+o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + B_o) \\
 h_t &= tanh(c_t) * o_t
 \end{align}
 \f]
@@ -120,6 +123,45 @@ In order for the dimensions to be consistent, we require
 \f$channels(src\_iter\_c) = channels(dst\_iter\_c) =
 channels(dst\_iter)\f$.
 
+### LSTM with Peephole
+
+A four-gate long short-term memory recurrent cell with peephole initialized with
+`lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+
+~~~cpp
+    auto lstm_desc = lstm_forward::desc(
+        aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
+        weights_layer_desc, weights_iter_desc, weights_peephole_desc,
+        bias_desc, dst_layer_desc, dst_iter_h_desc, dst_iter_c_desc);
+~~~
+
+Similarly to vanilla LSTM tensors with a dimension depending on the gates
+number, we implicitly require the order of these gates to be `i`, `f`,
+\f$\tilde c\f$, and `o`. For peephole weights, the gates order is `i`, `f`,
+`o`. The following equation gives the mathematical description of these gates
+and output for the forward pass:
+
+\f[
+\begin{align}
+i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1, l} + P_i \cdot c_{t-1} + B_i) \\
+f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1, l} + P_f \cdot c_{t-1} + B_f) \\
+\\
+\tilde c_t &= tanh(W_{\tilde c} \cdot h_{t,l-1} + U_{\tilde c} \cdot h_{t-1, l} + B_{\tilde c}) \\
+c_t &= f_t * c_{t-1} + i_t * \tilde c_t \\
+\\
+o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1, l} + P_o \cdot c_t + B_o) \\
+h_t &= tanh(c_t) * o_t
+\end{align}
+\f]
+
+where \f$P_*\f$ are stored in `weights_peephole`, and the other parameters are
+the same as in vanilla LSTM.
+
+@note
+If the `weights_peephole_desc` passed to the operation descriptor constructor
+is a zero memory desciptor, the primitive will behave the same as in LSTM
+without peephole.
+
 ## GRU
 
 A three-gate gated recurrent unit cell, initialized with
@@ -131,9 +173,9 @@ A three-gate gated recurrent unit cell, initialized with
         dst_layer_desc, dst_iter_desc);
 ~~~
 
-Note that for all tensors with a dimension depending on the gates
-number, we implicitly require the order of these gates to be `u`, `r`, and `o`.
-The following equation gives the mathematical definition of these gates.
+Note that for all tensors with a dimension depending on the gates number, we
+implicitly require the order of these gates to be `u`, `r`, and `o`. The
+following equation gives the mathematical definition of these gates.
 
 \f[
 
@@ -157,7 +199,8 @@ This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 
 ## Linear-Before-Reset GRU
 
-A three-gate gated recurrent unit cell with linear layer applied before the reset gate, initialized with or  as in the following example.
+A three-gate gated recurrent unit cell with linear layer applied before the
+reset gate, initialized with or  as in the following example.
 ~~~cpp
     auto lbr_gru_desc = lbr_gru_forward::desc(
         aprop, direction, src_layer_desc, src_iter_desc,
@@ -166,7 +209,8 @@ A three-gate gated recurrent unit cell with linear layer applied before the rese
 ~~~
 
 
-The following equation describes the mathematical behavior of the Linear-Before-Reset GRU cell.
+The following equation describes the mathematical behavior of the
+Linear-Before-Reset GRU cell.
 
 \f[
 
@@ -180,9 +224,9 @@ h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 \f]
 
 Note that for all tensors with a dimension depending on the gates number, except
-the bias, we implicitly require the order of these gates to be `u`, `r`, and `o`.
-For the `bias` tensor, we implicitly require the order of the
-gates to be `u`, `r`, `o`, and `u'`.
+the bias, we implicitly require the order of these gates to be `u`, `r`, and
+`o`. For the `bias` tensor, we implicitly require the order of the gates to be
+`u`, `r`, `o`, and `u'`.
 
 @note If you need to replace u_t by (1-u_t) when computing h_t, you can
 achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
@@ -194,11 +238,11 @@ This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
 
- Propagation                | Input data | Recurrent data | Weights | Bias | Output Data
---------------------------- | ---------- | -------------- | ------- | ---- | ------------
- Forward / Backward         | f32        | f32            | f32     | f32  | f32
- Forward                    | f16        | f16            | f16     | f16  | f16
- Forward inference          | u8         | u8             | s8      | f32  | u8, f32
+ Propagation                | Cell Function | Input data | Recurrent data | Weights | Bias | Output Data
+--------------------------- | ------------- | ---------- | -------------- | ------- | ---- | ------------
+ Forward / Backward         |  All          | f32        | f32            | f32     | f32  | f32
+ Forward                    |  All          | f16        | f16            | f16     | f16  | f16
+ Forward inference          |  Vanilla LSTM | u8         | u8             | s8      | f32  | u8, f32
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -214,10 +258,10 @@ on the primitive parameters.
 The following table summarizes the data layouts supported by the RNN
 primitive.
 
- Input/Output Data | Recurrent Data | Weights      | Bias
------------------- | -------------- | ------------ | -----
- any               | any            | any          | ldgo
- ntc, tnc          | ldnc           | ldigo, ldgoi | ldgo
+ Input/Output Data | Recurrent Data | Layer and Iteration Weights | Peephole Weights and Bias
+------------------ | -------------- | --------------------------- | ------------------------
+ any               | any            | any                         | ldgo
+ ntc, tnc          | ldnc           | ldigo, ldgoi                | ldgo
 
 While an RNN primitive can be created with memory formats specified
 explicitly, the performance is likely to be sub-optimal.  When using `any` it
@@ -246,3 +290,4 @@ once again by another forward pass.
 
 2. **GPU**
     - No support for GRU
+    - No support for Peephole LSTM

@@ -163,7 +163,8 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
 
 void rnn_cell_fwd(const prb_t &p, float *dst_iter_h, float *dst_iter_c,
         float *gates, const float *weights_layer, const float *weights_iter,
-        const float *bias, const float *src_layer, const float *src_iter_h,
+        const float *weights_peephole, const float *bias,
+        const float *src_layer, const float *src_iter_h,
         const float *src_iter_c, float *ws_local_) {
     switch (p.alg) {
         case VANILLA_GRU:
@@ -176,7 +177,8 @@ void rnn_cell_fwd(const prb_t &p, float *dst_iter_h, float *dst_iter_c,
             break;
         case VANILLA_LSTM:
             lstm_fwd(p, dst_iter_h, dst_iter_c, gates, weights_layer,
-                    weights_iter, bias, src_layer, src_iter_h, src_iter_c);
+                    weights_iter, weights_peephole, bias, src_layer, src_iter_h,
+                    src_iter_c);
             break;
         case VANILLA_RNN:
             rnn_fwd(p, dst_iter_h, gates, weights_layer, weights_iter, bias,
@@ -189,8 +191,8 @@ void rnn_cell_fwd(const prb_t &p, float *dst_iter_h, float *dst_iter_c,
 void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
         const float *src_iter_c_, const float *src_layer_,
         const float *weights_layer_, const float *weights_iter_h_,
-        const float *bias_, float *dst_iter_, float *dst_iter_c_,
-        float *dst_layer_, float *ws_, float *gates_) {
+        const float *weights_peephole_, const float *bias_, float *dst_iter_,
+        float *dst_iter_c_, float *dst_layer_, float *ws_, float *gates_) {
 
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));
     bool is_lbr = p.alg == LBR_GRU;
@@ -205,6 +207,8 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
         bias_ = bias_with_compensation;
     }
 
+    AOC<const float> weights_peephole(
+            weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dic);
     AOC<const float> bias(
             bias_, p.n_layer, p.n_dir(), (p.n_gates() + is_lbr) * p.dic);
     AOC<const float> weights_layer(
@@ -244,6 +248,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
                         &gates(lay - 1, dir_val, iter - 1, 0, 0, 0),
                         &weights_layer(lay - 1, dir_val, 0, 0),
                         &weights_iter(lay - 1, dir_val, 0, 0),
+                        &weights_peephole(lay - 1, dir_val, 0),
                         &bias(lay - 1, dir_val, 0),
                         &ws(lay - 1, dir_val, iter, H, 0, 0),
                         &ws(lay, dir_val, prev_iter, H, 0, 0),
@@ -281,8 +286,9 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
         dnn_mem_t &weights_src_layer_m, dnn_mem_t &weights_src_iter_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_last_layer_m,
-        dnn_mem_t &dst_last_iteration_m, dnn_mem_t &dst_c_last_iteration_m) {
+        dnn_mem_t &weights_peephole_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
+        dnn_mem_t &dst_c_last_iteration_m) {
 
     assert(p.direction == dnnl_unidirectional_left2right
             || p.direction == dnnl_unidirectional_right2left
@@ -299,9 +305,10 @@ void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
 
     rnn_linear_fwd(p, (float *)src_iter_m, (float *)src_iter_c_m,
             (float *)src_layer_m, (float *)weights_src_layer_m,
-            (float *)weights_src_iter_m, (float *)bias_m,
-            (float *)dst_last_iteration_m, (float *)dst_c_last_iteration_m,
-            (float *)dst_last_layer_m, ws, gates);
+            (float *)weights_src_iter_m, (float *)weights_peephole_m,
+            (float *)bias_m, (float *)dst_last_iteration_m,
+            (float *)dst_c_last_iteration_m, (float *)dst_last_layer_m, ws,
+            gates);
 
     delete[] ws;
     delete[] gates;

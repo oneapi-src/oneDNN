@@ -10,22 +10,30 @@
 --activation=relu,tanh,logistic
 --batch=rnn_small
 
---alg=vanilla_lstm,vanilla_gru,lbr_gru
 --activation=undef
+--alg=vanilla_lstm
+--with-peephole=false,true
+--batch=rnn_small
+--alg=vanilla_gru,lbr_gru
+--with-peephole=false
 --batch=rnn_small
 
 #larger test cases
 --prop=FWD_D,BWD_DW
 --mb=50
---batch=test_rnn_large
+--with-peephole=false,true
 --batch=test_lstm_large
+--with-peephole=false
 --batch=test_gru_large
+--batch=test_rnn_large
 
 --prop=FWD_D
 --mb=1
---batch=test_rnn_large
+--with-peephole=false,true
 --batch=test_lstm_large
+--with-peephole=false
 --batch=test_gru_large
+--batch=test_rnn_large
 
 # int8 (only LSTM)
 --reset

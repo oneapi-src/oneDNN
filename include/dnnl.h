@@ -1089,7 +1089,7 @@ dnnl_status_t DNNL_API dnnl_binary_desc_init(dnnl_binary_desc_t *binary_desc,
 /// Initializes a descriptor for a convolution forward propagation primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1132,7 +1132,7 @@ dnnl_status_t DNNL_API dnnl_convolution_forward_desc_init(
 /// primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1176,7 +1176,7 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_forward_desc_init(
 /// Initializes a descriptor for a convolution backward propagation primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1212,7 +1212,7 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_data_desc_init(
 /// primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1250,7 +1250,7 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_data_desc_init(
 /// Initializes a descriptor for a convolution weights gradient primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1291,7 +1291,7 @@ dnnl_status_t DNNL_API dnnl_convolution_backward_weights_desc_init(
 /// primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1339,7 +1339,7 @@ dnnl_status_t DNNL_API dnnl_dilated_convolution_backward_weights_desc_init(
 /// Initializes a descriptor for a deconvolution forward propagation primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1381,7 +1381,7 @@ dnnl_status_t DNNL_API dnnl_deconvolution_forward_desc_init(
 /// primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1424,7 +1424,7 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_forward_desc_init(
 /// Initializes a descriptor for a deconvolution backward propagation primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1459,7 +1459,7 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_data_desc_init(
 /// primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1496,7 +1496,7 @@ dnnl_status_t DNNL_API dnnl_dilated_deconvolution_backward_data_desc_init(
 /// Initializes a descriptor for a deconvolution weights gradient primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -1536,7 +1536,7 @@ dnnl_status_t DNNL_API dnnl_deconvolution_backward_weights_desc_init(
 /// primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2082,7 +2082,7 @@ dnnl_status_t DNNL_API dnnl_layer_normalization_backward_desc_init(
 /// Initializes descriptor for inner product forward propagation.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2114,7 +2114,7 @@ dnnl_status_t DNNL_API dnnl_inner_product_forward_desc_init(
 /// Initializes descriptor for inner product backward propagation.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2139,7 +2139,7 @@ dnnl_status_t DNNL_API dnnl_inner_product_backward_data_desc_init(
 /// Initializes descriptor for inner product weights gradient primitive.
 ///
 /// @note
-///     Memory descriptors are allowed to be initialized with
+///     Memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2258,7 +2258,7 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_weights_qparams(
 /// default to zero values instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2321,7 +2321,7 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_forward_desc_init(
 /// instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2404,8 +2404,11 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_desc_init(
 /// primitive should not use them and should default to zero values instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
+///
+/// @sa dnnl_lstm_forward_desc_init_v2 to initialize forward LSTM with and
+///     without peephole
 ///
 /// Inputs:
 ///  - src_layer (#dnnl_query_src_md, 0)
@@ -2459,7 +2462,77 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *dst_iter_desc,
         const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
 
-/// Initializes a descriptor for LSTM backward propagation primitive.
+/// Initializes a descriptor for an LSTM (with or without peephole) forward
+/// propagation primitive.
+///
+/// The @p src_iter_desc, @p src_iter_c_desc, @p weights_peephole_desc, @p
+/// bias_desc, @p dst_iter_desc, and @p dst_iter_c_desc may either be @c NULL
+/// or point to a zero memory descriptor. This would then indicate that the
+/// LSTM forward propagation primitive should not use them and should default
+/// to zero values instead.
+///
+/// @note
+///     All memory descriptors can be initialized with #dnnl_format_tag_any or
+///     with format_kind set to #dnnl_format_kind_any.
+///
+/// Inputs:
+///  - src_layer (#dnnl_query_src_md, 0)
+///  - src_iter (#dnnl_query_src_md, 1), if used
+///  - src_iter_c (#dnnl_query_src_md, 2), if used
+///  - weights_layer (#dnnl_query_weights_md, 0)
+///  - weights_iter (#dnnl_query_weights_md, 1)
+///  - weights_peephole (#dnnl_query_weights_md, 2), if used
+///  - bias (#dnnl_query_weights_md, 2), if used and LSTM is without peephole
+///  - bias (#dnnl_query_weights_md, 3), if used and LSTM is with peephole
+///
+/// Outputs:
+///  - dst_layer (#dnnl_query_dst_md, 0)
+///  - dst_iter (#dnnl_query_dst_md, 1), if used
+///  - dst_iter_c (#dnnl_query_dst_md, 2), if used
+///  - workspace (#dnnl_query_workspace_md, 0),
+///     if @p prop_kind equals #dnnl_forward_training; must be queried for
+///     using @ref dnnl_primitive_desc_query_md() after a corresponding
+///     primitive descriptor is created
+///
+/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
+///     info.
+/// @param src_layer_desc Memory descriptor for the input vector.
+/// @param src_iter_desc Memory descriptor for the input recurrent hidden
+///     state vector.
+/// @param src_iter_c_desc Memory descriptor for the input recurrent cell
+///     state vector.
+/// @param weights_layer_desc Memory descriptor for the weights applied to the
+///     layer input.
+/// @param weights_iter_desc Memory descriptor for the weights applied to the
+///     recurrent input.
+/// @param weights_peephole_desc Memory descriptor for the weights applied to
+///     the cell states (according to the Peephole LSTM formula).
+/// @param bias_desc Bias memory descriptor.
+/// @param dst_layer_desc Memory descriptor for the output vector.
+/// @param dst_iter_desc Memory descriptor for the output recurrent hidden
+///     state vector.
+/// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
+///     state vector.
+/// @param flags Unused.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *weights_peephole_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
+
+/// Initializes a descriptor for an LSTM backward propagation primitive.
 ///
 /// The @p src_iter_desc together with @p diff_iter_desc, @p src_iter_c_desc
 /// together with @p src_iter_c_desc, @p bias_desc together with @p
@@ -2470,8 +2543,11 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// default to zero values instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
+///
+/// @sa dnnl_lstm_backward_desc_init_v2 to initialize backward LSTM with and
+///     without peephole
 ///
 /// Inputs:
 ///  - src_layer (#dnnl_query_src_md, 0)
@@ -2555,6 +2631,117 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *diff_dst_iter_desc,
         const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags);
 
+/// Initializes a descriptor for an LSTM (with or without peephole) backward
+/// propagation primitive.
+///
+/// The @p src_iter_desc together with @p diff_iter_desc, @p src_iter_c_desc
+/// together with @p diff_src_iter_c_desc, @p weights_peephole_desc together
+/// with @p diff_weights_peephole_desc, @p bias_desc together with @p
+/// diff_bias_desc, @p dst_iter_desc together with @p diff_dst_iter_desc, and
+/// @p dst_iter_c_desc together with @p diff_dst_iter_c_desc, may either be @c
+/// NULL or point to a zero memory descriptor. This would then indicate that
+/// the LSTM backward propagation primitive should not use them and should
+/// default to zero values instead.
+///
+/// @note
+///     All memory descriptors can be initialized with #dnnl_format_tag_any or
+///     with format_kind set to #dnnl_format_kind_any.
+///
+/// Inputs:
+///  - src_layer (#dnnl_query_src_md, 0)
+///  - src_iter (#dnnl_query_src_md, 1), if used
+///  - src_iter_c (#dnnl_query_src_md, 2), if used
+///  - weights_layer (#dnnl_query_weights_md, 0)
+///  - weights_iter (#dnnl_query_weights_md, 1)
+///  - weights_peephole (#dnnl_query_weights_md, 2), if used
+///  - bias (#dnnl_query_weights_md, 2), if used and LSTM is without peephole
+///  - bias (#dnnl_query_weights_md, 3), if used and LSTM is with peephole
+///  - dst_layer (#dnnl_query_dst_md, 0)
+///  - dst_iter (#dnnl_query_dst_md, 1), if used
+///  - dst_iter_c (#dnnl_query_dst_md, 2), if used
+///  - diff_dst_layer (#dnnl_query_diff_dst_md, 0)
+///  - diff_dst_iter (#dnnl_query_diff_dst_md, 1), if used
+///  - diff_dst_iter_c (#dnnl_query_diff_dst_md, 2), if used
+///  - workspace (#dnnl_query_workspace_md, 0)
+///
+/// Outputs:
+///  - diff_src_layer (#dnnl_query_diff_src_md, 0)
+///  - diff_src_iter (#dnnl_query_diff_src_md, 1), if used
+///  - diff_src_iter_c (#dnnl_query_diff_src_md, 2), if used
+///  - diff_weights_layer (#dnnl_query_diff_weights_md, 0)
+///  - diff_weights_iter (#dnnl_query_diff_weights_md, 1)
+///  - diff_weights_peephole (#dnnl_query_weights_md, 2), if used
+///  - diff_bias (#dnnl_query_diff_weights_md, 2), if used and LSTM is without
+///     peephole
+///  - diff_bias (#dnnl_query_diff_weights_md, 3), if used and LSTM is with
+///     peephole
+///
+/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param prop_kind Propagation kind. Must be #dnnl_backward.
+/// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
+///     info.
+/// @param src_layer_desc Memory descriptor for the input vector.
+/// @param src_iter_desc Memory descriptor for the input recurrent hidden
+///     state vector.
+/// @param src_iter_c_desc Memory descriptor for the input recurrent cell
+///     state vector.
+/// @param weights_layer_desc Memory descriptor for the weights applied to the
+///     layer input.
+/// @param weights_iter_desc Memory descriptor for the weights applied to the
+///     recurrent input.
+/// @param weights_peephole_desc Memory descriptor for the weights applied to
+///     the cell states (according to the Peephole LSTM formula).
+/// @param bias_desc Bias memory descriptor.
+/// @param dst_layer_desc Memory descriptor for the output vector.
+/// @param dst_iter_desc Memory descriptor for the output recurrent hidden
+///     state vector.
+/// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
+///     state vector.
+/// @param diff_src_layer_desc Memory descriptor for the diff of input vector.
+/// @param diff_src_iter_desc Memory descriptor for the diff of input recurrent
+///     hidden state vector.
+/// @param diff_src_iter_c_desc Memory descriptor for the diff of input
+/// recurrent cell state vector.
+/// @param diff_weights_layer_desc Memory descriptor for the diff of weights
+///     applied to the layer input.
+/// @param diff_weights_iter_desc Memory descriptor for the diff of weights
+///     applied to the recurrent input.
+/// @param diff_weights_peephole_desc Memory descriptor for the diff of weights
+///     applied to the cell states (according to the Peephole LSTM formula).
+/// @param diff_bias_desc Diff bias memory descriptor.
+/// @param diff_dst_layer_desc Memory descriptor for the diff of output
+///     vector.
+/// @param diff_dst_iter_desc Memory descriptor for the diff of output
+///     recurrent hidden state vector.
+/// @param diff_dst_iter_c_desc Memory descriptor for the diff of output
+///     recurrent cell state vector.
+/// @param flags Unused.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
+        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
+        dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *weights_peephole_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_src_iter_c_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_weights_peephole_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags);
+
 /// Initializes a descriptor for GRU forward propagation primitive.
 ///
 /// The @p src_iter_desc, @p bias_desc, and @p dst_iter, may either be @c NULL
@@ -2563,7 +2750,7 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// to zero values instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2619,7 +2806,7 @@ dnnl_status_t DNNL_API dnnl_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// should not use them and should default to zero values instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:
@@ -2748,7 +2935,7 @@ dnnl_status_t DNNL_API dnnl_lbr_gru_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 /// should not use them and should default to zero values instead.
 ///
 /// @note
-///     All memory descriptors are allowed to be initialized with
+///     All memory descriptors can be initialized with
 ///     #dnnl_format_tag_any or with format_kind set to #dnnl_format_kind_any.
 ///
 /// Inputs:

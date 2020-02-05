@@ -28,7 +28,8 @@
             float *c_states_t_l_, const src_data_t *states_tm1_l_, \
             const float *c_states_tm1_l_, acc_data_t *diff_states_t_l_, \
             acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_, \
-            float *bias_, src_data_t *ws_grid_, scratch_data_t *scratch_cell_, \
+            const float *weights_peephole_, float *bias_, \
+            src_data_t *ws_grid_, scratch_data_t *scratch_cell_, \
             src_data_t *states_t_l_copy_) const
 
 #define rnn_cell_execution_sig(f) \
@@ -36,24 +37,26 @@
             rnn_utils::cell_position_t cell_position, src_data_t *states_t_l_, \
             float *c_states_t_l_, acc_data_t *diff_states_t_l_, \
             weights_data_t **w_layer_, weights_data_t **w_iter_, \
-            float **bias_, const src_data_t *states_t_lm1_, \
-            const src_data_t *states_tm1_l_, const float *c_states_tm1_l_, \
-            acc_data_t *diff_states_t_lp1_, acc_data_t *diff_states_tp1_l_, \
-            acc_data_t *diff_w_layer_, acc_data_t *diff_w_iter_, \
+            const float *weights_peephole_, float **bias_, \
+            const src_data_t *states_t_lm1_, const src_data_t *states_tm1_l_, \
+            const float *c_states_tm1_l_, acc_data_t *diff_states_t_lp1_, \
+            acc_data_t *diff_states_tp1_l_, acc_data_t *diff_w_layer_, \
+            acc_data_t *diff_w_iter_, float *diff_weights_peephole_, \
             acc_data_t *diff_bias_, src_data_t *ws_gates_, \
             scratch_data_t *scratch_gates_, src_data_t *ws_grid_, \
             scratch_data_t *scratch_cell_, src_data_t *states_t_l_copy_) const
 
 #define rnn_grid_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, weights_data_t **weights_layer_, \
-            weights_data_t **weights_iter_, float **bias_, \
-            const src_data_t *src_layer_, const src_data_t *src_iter_, \
-            const float *src_iter_c_, src_data_t *dst_layer_, \
-            src_data_t *dst_iter_, float *dst_iter_c_, src_data_t *ws_states_, \
-            float *ws_c_states_, acc_data_t *ws_diff_states_, \
-            src_data_t *ws_gates_, src_data_t *ws_grid_, \
-            scratch_data_t *scratch_gates_, scratch_data_t *scratch_cell_, \
-            acc_data_t *diff_weights_layer_, acc_data_t *diff_weights_iter_, \
+            weights_data_t **weights_iter_, const float *weights_peephole_, \
+            float **bias_, const src_data_t *src_layer_, \
+            const src_data_t *src_iter_, const float *src_iter_c_, \
+            src_data_t *dst_layer_, src_data_t *dst_iter_, float *dst_iter_c_, \
+            src_data_t *ws_states_, float *ws_c_states_, \
+            acc_data_t *ws_diff_states_, src_data_t *ws_gates_, \
+            src_data_t *ws_grid_, scratch_data_t *scratch_gates_, \
+            scratch_data_t *scratch_cell_, acc_data_t *diff_weights_layer_, \
+            acc_data_t *diff_weights_iter_, float *diff_weights_peephole_, \
             acc_data_t *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
@@ -144,7 +147,7 @@ struct rnn_conf_t {
     int states_nld, states_ws_ld, src_layer_ld_, src_iter_ld_, src_iter_c_ld_,
             dst_layer_ld_, dst_iter_ld_, dst_iter_c_ld_;
     int weights_iter_compensation_size, weights_layer_compensation_size;
-    bool is_fwd, is_training, is_lbr;
+    bool is_fwd, is_training, is_lbr, is_lstm_peephole;
     bool use_workspace;
 
     /* Size of workspace for each tensor in bytes */
@@ -293,6 +296,16 @@ private:
 };
 using ws_gates_aoc_t = ws_gates_aoc<float>;
 using ws_gates_aoc_s32_t = ws_gates_aoc<int32_t>;
+
+template <typename T>
+struct weights_peephole_aoc_t {
+    weights_peephole_aoc_t(const rnn_conf_t &rnn, T *data)
+        : weights_peephole_(data, 3, rnn.dic) {}
+    T &operator()(int g, int dic) { return weights_peephole_(g, dic); }
+
+private:
+    utils::array_offset_calculator<T, 2> weights_peephole_;
+};
 
 struct bias_aoc_t {
     bias_aoc_t(const rnn_conf_t &rnn, const float *data)

@@ -36,6 +36,7 @@ std::vector<alg_t> alg {VANILLA_RNN};
 std::vector<dnnl_rnn_direction_t> direction {dnnl_unidirectional_left2right};
 std::vector<activation_t> activation {RELU};
 std::vector<bool> skip_nonlinear {false};
+std::vector<bool> with_peephole {false};
 std::vector<int64_t> mb {0};
 std::vector<policy_t> scale_policy {policy_t::NONE};
 
@@ -58,6 +59,8 @@ void reset_parameters() {
     alg = {VANILLA_RNN};
     direction = {dnnl_unidirectional_left2right};
     activation = {RELU};
+    skip_nonlinear = {false};
+    with_peephole = {false};
     mb = {0};
     attr = attr_t();
     scale_policy = {policy_t::NONE};
@@ -70,16 +73,19 @@ void check_correctness(const desc_t *c) {
     for_(const auto &i_prop : prop)
     for_(const auto &i_cfg : cfg)
     for_(const auto &i_alg : alg)
+    for_(const auto &i_with_peephole : with_peephole)
     for_(const auto &i_scale_policy : scale_policy)
     for_(const auto &i_direction : direction)
     for_(const auto &i_activation : activation)
     for_(const auto &i_skip_nonlinear : skip_nonlinear)
     for (const auto &i_mb : mb) {
+        if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
+
         check_case_validity(i_cfg, i_scale_policy);
         dnnl_prop_kind_t prop_kind = prop2prop_kind(i_prop);
 
-        const prb_t p(*c, i_cfg, prop_kind, i_alg, i_direction, attr,
-                i_scale_policy, flags, i_activation, alpha, beta,
+        const prb_t p(*c, i_cfg, prop_kind, i_alg, i_with_peephole, i_direction,
+                attr, i_scale_policy, flags, i_activation, alpha, beta,
                 i_skip_nonlinear, i_mb);
         std::stringstream ss;
         ss << p;
@@ -118,6 +124,8 @@ int bench(int argc, char **argv) {
                 || parse_scale_policy(scale_policy, argv[0])
                 || parse_mb(mb, argv[0])
                 || parse_skip_nonlinear(skip_nonlinear, argv[0])
+                || parse_vector_option(
+                        with_peephole, str2bool, argv[0], "with-peephole")
                 || parse_attr(attr, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,

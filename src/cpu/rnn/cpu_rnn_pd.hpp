@@ -46,6 +46,9 @@ protected:
             CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
         if (with_src_iter_c() && src_iter_c_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
+        if (is_lstm_peephole()
+                && weights_peephole_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(weights_peephole_md_, ldgo));
         if (with_bias() && bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if (with_dst_iter() && dst_iter_md_.format_kind == format_kind::any)
@@ -96,6 +99,10 @@ protected:
             ok = ok && rnn_utils::is_ldigo(&weights_iter_md_);
 
         ok = ok
+                && IMPLICATION(!is_zero_md(&weights_peephole_md_),
+                        memory_desc_matches_tag(weights_peephole_md_, ldgo));
+
+        ok = ok
                 && IMPLICATION(!is_zero_md(&bias_md_),
                         memory_desc_matches_tag(bias_md_, ldgo));
 
@@ -144,6 +151,9 @@ protected:
             CHECK(memory_desc_init_by_tag(src_iter_md_, ldnc));
         if (with_src_iter_c() && src_iter_c_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(src_iter_c_md_, ldnc));
+        if (is_lstm_peephole()
+                && weights_peephole_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(weights_peephole_md_, ldgo));
         if (with_bias() && bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if (with_dst_iter() && dst_iter_md_.format_kind == format_kind::any)
@@ -157,6 +167,9 @@ protected:
         if (with_src_iter_c()
                 && diff_src_iter_c_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(diff_src_iter_c_md_, ldnc));
+        if (is_lstm_peephole()
+                && diff_weights_peephole_md_.format_kind == format_kind::any)
+            CHECK(memory_desc_init_by_tag(diff_weights_peephole_md_, ldgo));
         if (with_bias() && diff_bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(diff_bias_md_, ldgo));
         if (with_dst_iter()
@@ -208,6 +221,9 @@ protected:
             ok = ok && rnn_utils::is_ldgoi(&weights_iter_md_);
 
         ok = ok
+                && IMPLICATION(!is_zero_md(&weights_peephole_md_),
+                        memory_desc_matches_tag(weights_peephole_md_, ldgo));
+        ok = ok
                 && IMPLICATION(!is_zero_md(&bias_md_),
                         memory_desc_matches_tag(bias_md_, ldgo));
 
@@ -225,6 +241,10 @@ protected:
 
         ok = ok && rnn_utils::is_ldigo(&diff_weights_layer_md_)
                 && rnn_utils::is_ldigo(&diff_weights_iter_md_);
+        ok = ok
+                && IMPLICATION(!is_zero_md(&diff_weights_peephole_md_),
+                        memory_desc_matches_tag(
+                                diff_weights_peephole_md_, ldgo));
         ok = ok
                 && IMPLICATION(!is_zero_md(&diff_bias_md_),
                         memory_desc_matches_tag(diff_bias_md_, ldgo));

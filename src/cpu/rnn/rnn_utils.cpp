@@ -70,6 +70,8 @@ bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.is_training = utils::one_of(
             rd.prop_kind, prop_kind::forward_training, prop_kind::backward);
     rnn.is_lbr = rd.cell_kind == dnnl_lbr_gru;
+    rnn.is_lstm_peephole = rd.cell_kind == dnnl_vanilla_lstm
+            && !memory_desc_wrapper(rd.weights_peephole_desc).is_zero();
 
     switch (rd.direction) {
         case dnnl_unidirectional_left2right: rnn.exec_dir = l2r; break;

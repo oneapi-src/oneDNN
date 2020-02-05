@@ -138,6 +138,17 @@ enum rnn_data_kind_t {
     diff_last_iteration,
     diff_c_last_iteration,
     diff_last_layer,
+
+    // FIXME: adding peephole related weights to the appropriate places will
+    // cause false-positive accuracy check failures in unrelated test cases
+    // (e.g.  backward vanilla RNN for bf16) due to the data fill seed being
+    // dependent on the position of the tensor kind in the enum: adding
+    // `weights_peephole` before `dst_*` and `*diff_*` results in initializing
+    // the corresponding tensors differently.
+    // We need a more robust way of testing RNN.
+    weights_peephole,
+    dst_diff_weights_peephole,
+
     data_kind_total // should be last to provide the total number of data kinds
 };
 
@@ -148,6 +159,7 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
         case c_states: return "STATES";
         case weights_input: return "WEIGHTS_INPUT";
         case weights_states: return "WEIGHTS_STATES";
+        case weights_peephole: return "WEIGHTS_PEEPHOLE";
         case bias: return "BIAS";
         case dst_last_layer: return "DST_LAST_LAYER";
         case dst_last_iteration: return "DST_LAST_ITERATION";
@@ -158,6 +170,7 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
         case dst_diff_c_states: return "DST_DIFF_C_STATES";
         case dst_diff_weights_input: return "DST_DIFF_WEIGHTS_INPUT";
         case dst_diff_weights_states: return "DST_DIFF_WEIGHTS_STATES";
+        case dst_diff_weights_peephole: return "DST_DIFF_WEIGHTS_PEEPHOLE";
         case dst_diff_bias: return "DST_DIFF_BIAS";
         case diff_last_layer: return "DIFF_LAST_LAYER";
         case diff_last_iteration: return "DIFF_LAST_ITERATION";
@@ -209,13 +222,15 @@ inline bool is_cfg_u8(const dt_conf_t *cfg) {
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,
-            alg_t alg, dnnl_rnn_direction_t direction, const attr_t &attr,
-            policy_t scale_policy, unsigned int flags, activation_t activation,
-            float alpha, float beta, bool skip_nonlinear, int mb = 0)
+            alg_t alg, bool with_peephole, dnnl_rnn_direction_t direction,
+            const attr_t &attr, policy_t scale_policy, unsigned int flags,
+            activation_t activation, float alpha, float beta,
+            bool skip_nonlinear, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop)
         , alg(alg)
+        , with_peephole(with_peephole)
         , direction(direction)
         , flags(flags)
         , activation(activation)
@@ -276,10 +291,12 @@ struct prb_t : public desc_t {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
     bool is_int8() const { return cfg[input].dt == dnnl_u8; }
+    bool is_lstm_peephole() const { return with_peephole; }
 
     const dt_conf_t *cfg;
     dnnl_prop_kind_t prop;
     alg_t alg;
+    bool with_peephole;
     dnnl_rnn_direction_t direction;
     unsigned int flags;
     activation_t activation;
@@ -351,24 +368,26 @@ private:
 void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
         const float *src_iter_c_, const float *src_layer_,
         const float *weights_layer_, const float *weights_iter_h_,
-        const float *bias_, float *dst_iter_, float *dst_iter_c_,
-        float *dst_layer_, float *ws_, float *gates_);
+        const float *weights_peephole_, const float *bias_, float *dst_iter_,
+        float *dst_iter_c_, float *dst_layer_, float *ws_, float *gates_);
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
         dnn_mem_t &c_states_m, dnn_mem_t &weights_input_m,
-        dnn_mem_t &weights_states_m, dnn_mem_t &bias_m,
-        dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
-        dnn_mem_t &dst_c_last_iteration_m);
+        dnn_mem_t &weights_states_m, dnn_mem_t &weights_peephole_m,
+        dnn_mem_t &bias_m, dnn_mem_t &dst_last_layer_m,
+        dnn_mem_t &dst_last_iteration_m, dnn_mem_t &dst_c_last_iteration_m);
 
 void compute_ref_bwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
         dnn_mem_t &c_states_m, dnn_mem_t &diff_last_layer_m,
         dnn_mem_t &diff_last_iteration_m, dnn_mem_t &diff_c_last_iteration_m,
         dnn_mem_t &weights_input_m, dnn_mem_t &weights_states_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_last_layer_m,
-        dnn_mem_t &dst_last_iteration_m, dnn_mem_t &dst_c_last_iteration_m,
-        dnn_mem_t &dst_diff_input_m, dnn_mem_t &dst_diff_states_m,
-        dnn_mem_t &dst_diff_c_states_m, dnn_mem_t &dst_diff_weights_input_m,
-        dnn_mem_t &dst_diff_weights_states_m, dnn_mem_t &dst_diff_bias_m);
+        dnn_mem_t &weights_peephole_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
+        dnn_mem_t &dst_c_last_iteration_m, dnn_mem_t &dst_diff_input_m,
+        dnn_mem_t &dst_diff_states_m, dnn_mem_t &dst_diff_c_states_m,
+        dnn_mem_t &dst_diff_weights_input_m,
+        dnn_mem_t &dst_diff_weights_states_m,
+        dnn_mem_t &dst_diff_weights_peephole_m, dnn_mem_t &dst_diff_bias_m);
 
 // dnnl_ntc
 inline size_t ntc_off_f(const prb_t &p, int64_t n, int64_t t, int64_t c) {
@@ -451,23 +470,44 @@ inline void inv_ldwOcIc_off_f(const prb_t &p, size_t off, int64_t &l,
     assert(off == 0);
 }
 
-// bias: dnnl_ldgo
-inline size_t ldgo_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ((l * p.n_dir() + d) * p.n_bias() + b) * p.sic + c;
+inline size_t ldgo_off_with_G_f(
+        const prb_t &p, int64_t G, int64_t l, int64_t d, int64_t b, int64_t c) {
+    return ((l * p.n_dir() + d) * G + b) * p.sic + c;
 }
 
-inline void inv_ldgo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
-        int64_t &b, int64_t &c) {
+inline void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off,
+        int64_t &l, int64_t &d, int64_t &b, int64_t &c) {
     c = off % p.dic;
     off /= p.dic;
-    b = off % p.n_bias();
-    off /= p.n_bias();
+    b = off % G;
+    off /= G;
     d = off % p.n_dir();
     off /= p.n_dir();
     l = off % p.n_layer;
     off /= p.n_layer;
     assert(off == 0);
+}
+
+// weights peephole: dnnl_ldgo, g = 3
+inline size_t weights_peephole_ldgo_off_f(
+        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
+    return ldgo_off_with_G_f(p, 3, l, d, b, c);
+}
+
+inline void inv_weights_peephole_ldgo_off_f(const prb_t &p, size_t off,
+        int64_t &l, int64_t &d, int64_t &b, int64_t &c) {
+    return inv_ldgo_off_with_G_f(p, 3, off, l, d, b, c);
+}
+
+// bias: dnnl_ldgo
+inline size_t bias_ldgo_off_f(
+        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
+    return ldgo_off_with_G_f(p, p.n_bias(), l, d, b, c);
+}
+
+inline void inv_bias_ldgo_off_f(const prb_t &p, size_t off, int64_t &l,
+        int64_t &d, int64_t &b, int64_t &c) {
+    return inv_ldgo_off_with_G_f(p, p.n_bias(), off, l, d, b, c);
 }
 
 // dst_last_layer: dnnl_tnc

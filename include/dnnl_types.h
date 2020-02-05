@@ -1457,9 +1457,12 @@ typedef struct {
     dnnl_memory_desc_t dst_iter_desc;
     /// Destination iter memory descriptor for cell state.
     dnnl_memory_desc_t dst_iter_c_desc;
+    /// Weights peephole memory descriptor
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-peephole LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t weights_peephole_desc;
     /// Placeholders
     dnnl_memory_desc_t placeholder_desc;
-    dnnl_memory_desc_t placeholder2_desc;
 
     /// Source gradient layer memory descriptor.
     dnnl_memory_desc_t diff_src_layer_desc;
@@ -1479,9 +1482,12 @@ typedef struct {
     dnnl_memory_desc_t diff_dst_iter_desc;
     /// Destination gradient iteration memory descriptor for cell state.
     dnnl_memory_desc_t diff_dst_iter_c_desc;
+    /// Weights gradient peephole memory descriptor
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-peephole LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t diff_weights_peephole_desc;
     /// Placeholders
     dnnl_memory_desc_t diff_placeholder_desc;
-    dnnl_memory_desc_t diff_placeholder2_desc;
 
     /// RNN cell flags
     unsigned int flags;
@@ -1774,6 +1780,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// An alias for #DNNL_ARG_WEIGHTS_1.
 #define DNNL_ARG_WEIGHTS_ITER DNNL_ARG_WEIGHTS_1
 
+/// Weights argument #2.
+#define DNNL_ARG_WEIGHTS_2 35
+/// A special mnemonic for RNN weights applied to the peephole weights.
+/// An alias for #DNNL_ARG_WEIGHTS_2.
+#define DNNL_ARG_WEIGHTS_PEEPHOLE DNNL_ARG_WEIGHTS_2
+
 /// Bias tensor argument.
 #define DNNL_ARG_BIAS 41
 
@@ -1847,6 +1859,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for diff of RNN weights applied to the recurrent input.
 /// An alias for #DNNL_ARG_DIFF_WEIGHTS_1.
 #define DNNL_ARG_DIFF_WEIGHTS_ITER DNNL_ARG_DIFF_WEIGHTS_1
+
+/// Gradient (diff) of the weights argument #2.
+#define DNNL_ARG_DIFF_WEIGHTS_2 163
+/// A special mnemonic for diff of RNN weights applied to the peephole weights.
+/// An alias for #DNNL_ARG_DIFF_WEIGHTS_2.
+#define DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE DNNL_ARG_DIFF_WEIGHTS_2
 
 /// Gradient (diff) of the bias tensor argument.
 #define DNNL_ARG_DIFF_BIAS 169

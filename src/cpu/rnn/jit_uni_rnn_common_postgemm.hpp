@@ -79,13 +79,15 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     cell_position, ws_gates_, scratch_gates_, states_t_l_,
                     c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
                     diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                    bias_, ws_grid_, scratch_cell_, states_t_l_copy_);
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    states_t_l_copy_);
         else
             execute_fwd<src_data_t, acc_data_t, scratch_data_t>(rnn,
                     cell_position, ws_gates_, scratch_gates_, states_t_l_,
                     c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
                     diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
-                    bias_, ws_grid_, scratch_cell_, states_t_l_copy_);
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    states_t_l_copy_);
     }
 
     template <typename src_data_t, typename acc_data_t, typename scratch_data_t>
@@ -94,6 +96,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         rnn_utils::ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_gates(
                 rnn, scratch_gates_);
+        rnn_utils::weights_peephole_aoc_t<const float> weights_peephole(
+                rnn, weights_peephole_);
         rnn_utils::bias_aoc_t bias(rnn, bias_);
         auto src_iter_ld = rnn.src_iter_ld(cell_position);
         auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
@@ -132,7 +136,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                 case alg_kind::vanilla_lstm:
                     param6_ = &c_states_tm1_l(i, 0);
                     param7_ = &c_states_t_l(i, 0);
-                    param8_ = nullptr;
+                    param8_ = (void *)&weights_peephole(0, 0);
                     break;
                 case alg_kind::lbr_gru:
                     param6_ = &states_tm1_l(i, 0);
@@ -162,6 +166,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
         auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
+        rnn_utils::weights_peephole_aoc_t<const float> weights_peephole(
+                rnn, weights_peephole_);
         rnn_utils::ws_gates_aoc<src_data_t> ws_gates(rnn, ws_gates_);
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_gates(
                 rnn, scratch_gates_);
@@ -200,7 +206,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
                     param6_ = &diff_states_tp1_l(1, i, 0);
                     param7_ = (float *)&c_states_tm1_l(i, 0);
                     param8_ = &c_states_t_l(i, 0);
-                    param9_ = nullptr;
+                    param9_ = (void *)&weights_peephole(0, 0);
                     break;
                 case alg_kind::lbr_gru:
                     param1_ = &ws_gates(i, 0, 0);

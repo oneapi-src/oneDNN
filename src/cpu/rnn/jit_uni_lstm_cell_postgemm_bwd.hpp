@@ -59,6 +59,7 @@ protected:
     size_t hstate_dt_size = sizeof(float);
     size_t gate_dt_size = types::data_type_size(scratch_data_t);
     size_t scratch_dt_size = types::data_type_size(scratch_data_t);
+    size_t weights_peephole_dt_size = sizeof(float);
 
     void generate() {
         using namespace Xbyak;
@@ -89,6 +90,7 @@ protected:
         auto addr_scratch_gates_reg = abi_param2;
         auto addr_diff_states_t_lp1_reg = abi_param3;
         auto addr_diff_states_tp1_l_reg = abi_param4;
+        auto addr_weights_peephole_reg = r12;
 #ifdef _WIN32
         auto addr_diff_c_states_t_l_reg = r10;
         auto addr_diff_c_states_tp1_l_reg = r11;
@@ -99,6 +101,7 @@ protected:
         mov(addr_diff_c_states_tp1_l_reg, ptr[base_args + 8]);
         mov(addr_c_states_tm1_l_reg, ptr[base_args + 16]);
         mov(addr_c_states_t_l_reg, ptr[base_args + 24]);
+        mov(addr_weights_peephole_reg, ptr[base_args + 32]);
 #else
         auto addr_diff_c_states_t_l_reg = abi_param5;
         auto addr_diff_c_states_tp1_l_reg = abi_param6;
@@ -107,13 +110,17 @@ protected:
         auto base_args = get_stack_params_address();
         mov(addr_c_states_tm1_l_reg, ptr[base_args]);
         mov(addr_c_states_t_l_reg, ptr[base_args + 8]);
+        mov(addr_weights_peephole_reg, ptr[base_args + 16]);
 #endif
 
         // helper lambda to address the gates and biases
         auto sg_addr = [&](int i) {
             return ptr[addr_scratch_gates_reg + i * rnn_.dic * scratch_dt_size];
         };
-
+        auto weights_peephole_addr = [&](int i) {
+            return ptr[addr_weights_peephole_reg
+                    + i * rnn_.dic * weights_peephole_dt_size];
+        };
         auto wg_addr = [&](int i) {
             return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
         };
@@ -162,6 +169,19 @@ protected:
             uni_vmovups(dCt, ptr[addr_diff_c_states_tp1_l_reg]);
             uni_vaddps(dCt, dCt, tmp1);
 
+            // compute dG3
+            to_float<src_data_t>(dG3, wg_addr(3), vlen);
+            uni_vmovups(tmp1, dG3);
+            uni_vfnmadd231ps(dG3, tmp1, tmp1);
+            uni_vmulps(dG3, dG3, dHt);
+            uni_vmulps(dG3, dG3, tanhCt);
+
+            // update dCt if lstm_peephole
+            if (rnn_.is_lstm_peephole) {
+                uni_vmovups(tmp1, weights_peephole_addr(2));
+                uni_vfmadd231ps(dCt, tmp1, dG3);
+            }
+
             // compute dG0
             // we will reuse G0 and G2 later for dG2
             to_float<src_data_t>(G0, wg_addr(0), vlen);
@@ -189,15 +209,14 @@ protected:
             uni_vmulps(tmp1, tmp1, G0);
             uni_vmovups(dG2, tmp1);
 
-            // compute dG3
-            to_float<src_data_t>(dG3, wg_addr(3), vlen);
-            uni_vmovups(tmp1, dG3);
-            uni_vfnmadd231ps(dG3, tmp1, tmp1);
-            uni_vmulps(dG3, dG3, dHt);
-            uni_vmulps(dG3, dG3, tanhCt);
-
             // compute diff_state_t_l
             uni_vmulps(dCt, dCt, G1);
+            if (rnn_.is_lstm_peephole) {
+                uni_vmovups(tmp1, weights_peephole_addr(1));
+                uni_vfmadd231ps(dCt, tmp1, dG1);
+                uni_vmovups(tmp1, weights_peephole_addr(0));
+                uni_vfmadd231ps(dCt, tmp1, dG0);
+            }
             uni_vmovups(ptr[addr_diff_c_states_t_l_reg], dCt);
 
             to_src<scratch_data_t>(sg_addr(0), dG0, vlen);
@@ -214,6 +233,7 @@ protected:
             add(addr_diff_c_states_tp1_l_reg, vlen);
             add(addr_c_states_tm1_l_reg, vlen);
             add(addr_c_states_t_l_reg, vlen);
+            if (rnn_.is_lstm_peephole) add(addr_weights_peephole_reg, vlen);
             inc_regs(vlen);
 
             // increment loop counter
@@ -253,6 +273,19 @@ protected:
             uni_vmovss(dCt, ptr[addr_diff_c_states_tp1_l_reg]);
             uni_vaddss(dCt, dCt, tmp1);
 
+            // compute dG3
+            to_float<src_data_t>(dG3, wg_addr(3), hstate_dt_size);
+            uni_vmovss(tmp1, dG3);
+            uni_vfnmadd231ps(dG3, tmp1, tmp1);
+            uni_vmulss(dG3, dG3, dHt);
+            uni_vmulss(dG3, dG3, tanhCt);
+
+            // update dCt if lstm_peephole
+            if (rnn_.is_lstm_peephole) {
+                uni_vmovss(tmp1, weights_peephole_addr(2));
+                uni_vfmadd231ss(dCt, tmp1, dG3);
+            }
+
             // compute dG0
             // we will reuse G0 and G2 later for dG2
             to_float<src_data_t>(G0, wg_addr(0), hstate_dt_size);
@@ -280,15 +313,14 @@ protected:
             uni_vmulss(tmp1, tmp1, G0);
             uni_vmovss(dG2, tmp1);
 
-            // compute dG3
-            to_float<src_data_t>(dG3, wg_addr(3), hstate_dt_size);
-            uni_vmovss(tmp1, dG3);
-            uni_vfnmadd231ps(dG3, tmp1, tmp1);
-            uni_vmulss(dG3, dG3, dHt);
-            uni_vmulss(dG3, dG3, tanhCt);
-
             // compute diff_state_t_l
             uni_vmulss(dCt, dCt, G1);
+            if (rnn_.is_lstm_peephole) {
+                uni_vmovss(tmp1, weights_peephole_addr(1));
+                uni_vfmadd231ss(dCt, tmp1, dG1);
+                uni_vmovss(tmp1, weights_peephole_addr(0));
+                uni_vfmadd231ss(dCt, tmp1, dG0);
+            }
             uni_vmovss(ptr[addr_diff_c_states_t_l_reg], dCt);
 
             to_src<scratch_data_t>(sg_addr(0), dG0, hstate_dt_size);
@@ -305,6 +337,8 @@ protected:
             add(addr_diff_c_states_tp1_l_reg, cstate_dt_size);
             add(addr_c_states_tm1_l_reg, cstate_dt_size);
             add(addr_c_states_t_l_reg, cstate_dt_size);
+            if (rnn_.is_lstm_peephole)
+                add(addr_weights_peephole_reg, weights_peephole_dt_size);
             inc_regs(hstate_dt_size);
 
             // increment loop counter
