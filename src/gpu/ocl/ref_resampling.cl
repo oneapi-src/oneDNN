@@ -25,9 +25,10 @@ __kernel void ref_resampling_fwd(
     const uint od = GWS_GET_OD();
     const uint oh = GWS_GET_OH();
     const uint ow = GWS_GET_OW();
-    const float id = (od + .5) * (1 / FD);
-    const float ih = (oh + .5) * (1 / FH);
-    const float iw = (ow + .5) * (1 / FW);
+    //use fma() to ensure consistency in rounding with ref implementation
+    const float id = fma(od + .5f, 1 / FD, 0.f);
+    const float ih = fma(oh + .5f, 1 / FH, 0.f);
+    const float iw = fma(ow + .5f, 1 / FW, 0.f);
 #if NEAREST
     for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
         const uint src_index = SRC_OFF(mb, c, (uint)id, (uint)ih, (uint)iw);
@@ -76,8 +77,8 @@ __kernel void ref_resampling_fwd(
 #endif
 #if IS_BWD == 1
 float linear(uint x, float f) {
-    volatile float s = (x + .5f) * f;
-    return s - .5f;
+    //use fma() to ensure consistency in rounding with ref implementation
+    return fma(x + .5f, f, 0.f) - .5f;
 }
 KERNEL_ATTR
 __kernel void ref_resampling_bwd(
