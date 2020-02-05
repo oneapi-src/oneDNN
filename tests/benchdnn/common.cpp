@@ -152,10 +152,10 @@ benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
 /* result structure */
 const char *state2str(res_state_t state, bool allow_unimpl) {
     if (state == UNIMPLEMENTED && !allow_unimpl) return "UNIMPLEMENTED_FAILED";
+    if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
 
 #define CASE(x) \
     if (state == x) return STRINGIFY(x)
-    CASE(UNTESTED);
     CASE(PASSED);
     CASE(SKIPPED);
     CASE(MISTRUSTED);
