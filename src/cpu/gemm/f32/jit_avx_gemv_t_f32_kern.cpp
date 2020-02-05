@@ -120,8 +120,7 @@ void jit_avx_gemv_t_f32_kern::innerloop(int unroll_m, int unroll_n) {
 // Outer loop.
 void jit_avx_gemv_t_f32_kern::outerloop(
         int unroll_x, int unroll_y, Label *&cur_outerloop_label) {
-    if ((unroll_x > M_UNROLL_) || (unroll_y > N_UNROLL_) || (unroll_y < 0)
-            || (unroll_y < 0))
+    if ((unroll_x > M_UNROLL_) || (unroll_y > N_UNROLL_) || (unroll_y < 0))
         return;
 
     Label label_m_loop, label_n_loop, label_m_remainder_loops[5];
