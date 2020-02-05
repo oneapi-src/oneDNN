@@ -24,20 +24,18 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t rnn_weights_reorder_init_conf(
-        rnn_reorder_conf_t &conf, const reorder_pd_t *pd) {
-
-    const memory_desc_wrapper input_md(pd->src_md());
-    const memory_desc_wrapper output_md(pd->dst_md());
+status_t rnn_weights_reorder_t::pd_t::init_conf() {
+    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper dst_mdw(dst_md());
 
     status_t status = status::success;
 
-    const auto &dims = output_md.padded_dims();
-    conf.with_sum_ab = (pd->alpha() != 1.f || pd->beta() != 0.f);
-    conf.with_sum_a = conf.with_sum_ab && pd->beta() == 0.f;
-    conf.do_reorder = input_md != output_md;
-    conf.has_padding = !input_md.is_dense() || !output_md.is_dense();
-    conf.ndims = input_md.ndims();
+    const auto &dims = dst_mdw.padded_dims();
+    conf.with_sum_ab = (alpha() != 1.f || beta() != 0.f);
+    conf.with_sum_a = conf.with_sum_ab && beta() == 0.f;
+    conf.do_reorder = src_mdw != dst_mdw;
+    conf.has_padding = !src_mdw.is_dense() || !dst_mdw.is_dense();
+    conf.ndims = src_mdw.ndims();
     conf.nelems = utils::array_product(dims, conf.ndims);
 
     conf.use_ref_impl = 1;
@@ -46,26 +44,24 @@ status_t rnn_weights_reorder_init_conf(
 
     // only for LDIGO
     auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+            = utils::downcast<compute::compute_engine_t *>(engine());
 
-    conf.dispatch = compute_engine->create_dispatch(output_md.md_);
+    conf.dispatch = compute_engine->create_dispatch(dst_mdw.md_);
     conf.dispatch.define_dim("D0", 0, dims[0]);
     conf.dispatch.define_dim("D1", 1, dims[1]);
     conf.dispatch.define_dim("D3", 3, dims[3]);
     conf.dispatch.define_dim("D4", 4, dims[4]);
     conf.dispatch.generate();
 
-    conf.mask = pd->attr()->rnn_weights_qparams_.mask_;
-    const auto &input_dims = input_md.dims();
+    conf.mask = attr()->rnn_weights_qparams_.mask_;
+    const auto &input_dims = src_mdw.dims();
     conf.scales_count = conf.mask ? input_dims[3] * input_dims[4] : 1;
 
     return status;
 }
 
-status_t rnn_weights_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_reorder_conf_t &conf, const memory_desc_wrapper &input_md,
-        const memory_desc_wrapper &output_md) {
-
+status_t rnn_weights_reorder_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("NDIMS", conf.ndims);
     if (conf.with_sum_a)
         kernel_ctx.define_int("WITH_SUM_A", 1);
@@ -73,8 +69,11 @@ status_t rnn_weights_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
         kernel_ctx.define_int("WITH_SUM_AB", 1);
     kernel_ctx.define_int("WITH_GROUP", conf.with_group);
 
-    auto input_type = input_md.data_type();
-    auto output_type = output_md.data_type();
+    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper dst_mdw(dst_md());
+
+    auto input_type = src_mdw.data_type();
+    auto output_type = dst_mdw.data_type();
 
     switch (input_type) {
         case dnnl_u8: kernel_ctx.define_int("IN_TYPE_U8", 1); break;
@@ -98,19 +97,19 @@ status_t rnn_weights_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("REF_REORDER", conf.use_ref_impl);
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
 
-    set_offsets(kernel_ctx, input_md, "SRC");
-    set_offsets(kernel_ctx, output_md, "DST");
+    set_offsets(kernel_ctx, src_mdw, "SRC");
+    set_offsets(kernel_ctx, dst_mdw, "DST");
 
-    const auto &in_dims = input_md.dims();
-    const auto &out_dims = output_md.padded_dims();
+    const auto &in_dims = src_mdw.dims();
+    const auto &out_dims = dst_mdw.padded_dims();
 
     kernel_ctx.define_int("PAD_FILL_ZERO", conf.has_padding);
     for (int d = 0; d < MAX_NDIMS; ++d)
         kernel_ctx.define_int(utils::format("SRC_D%d", d),
-                (d < input_md.ndims()) ? in_dims[d] : 1);
+                (d < src_mdw.ndims()) ? in_dims[d] : 1);
     for (int d = 0; d < MAX_NDIMS; ++d)
         kernel_ctx.define_int(utils::format("DST_D%d", d),
-                (d < output_md.ndims()) ? out_dims[d] : 1);
+                (d < dst_mdw.ndims()) ? out_dims[d] : 1);
     kernel_ctx.define_int("MASK", conf.mask);
     def_dispatch(kernel_ctx, conf.dispatch);
     return status::success;
@@ -123,7 +122,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     auto &input = CTX_IN_STORAGE(DNNL_ARG_FROM);
     auto &output = CTX_OUT_STORAGE(DNNL_ARG_TO);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
     const bool do_reorder = conf.do_reorder;
 
     auto ocl_reorder = [&](const memory_storage_t &in_storage,

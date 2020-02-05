@@ -32,21 +32,18 @@ namespace ocl {
 
 using math::saturate;
 
-status_t gen9_convolution_fwd_init_conf(
-        conv_conf_t &conf, const convolution_pd_t *pd) {
+status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     using namespace dnnl::impl::format_tag;
     using namespace data_type;
 
-    const convolution_desc_t &cd = *pd->desc();
-    const memory_desc_wrapper src_mdw(pd->src_md());
-    const memory_desc_wrapper weights_mdw(pd->weights_md());
-    const memory_desc_wrapper dst_mdw(pd->dst_md());
-    const memory_desc_wrapper bias_mdw(pd->weights_md(1));
+    const convolution_desc_t &cd = *desc();
+    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper weights_mdw(weights_md());
+    const memory_desc_wrapper dst_mdw(dst_md());
+    const memory_desc_wrapper bias_mdw(weights_md(1));
 
-    const primitive_attr_t &attr = *pd->attr();
-
-    set_default_conf(conf, cd, *pd->src_md(), *pd->weights_md(), *pd->dst_md(),
-            *pd->weights_md(1), attr);
+    set_default_conf(conf, cd, *src_md(), *weights_md(), *dst_md(),
+            *weights_md(1), *attr());
 
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
@@ -373,8 +370,8 @@ status_t gen9_convolution_fwd_init_conf(
     return status;
 }
 
-status_t gen9_convolution_fwd_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf) {
+status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("IS_DW", conf.is_depthwise);
     kernel_ctx.define_int("G", conf.ngroups);
     kernel_ctx.define_int("MB", conf.mb);
@@ -456,21 +453,18 @@ status_t gen9_convolution_fwd_init_const_def(
     return status::success;
 }
 
-status_t gen9_convolution_bwd_data_init_conf(
-        conv_conf_t &conf, const convolution_pd_t *pd) {
+status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
     using namespace dnnl::impl::format_tag;
     using namespace data_type;
 
-    const convolution_desc_t &cd = *pd->desc();
-    const memory_desc_wrapper src_mdw(pd->diff_src_md());
-    const memory_desc_wrapper weights_mdw(pd->weights_md());
-    const memory_desc_wrapper dst_mdw(pd->diff_dst_md());
-    const memory_desc_wrapper bias_mdw(pd->weights_md(1));
+    const convolution_desc_t &cd = *desc();
+    const memory_desc_wrapper src_mdw(diff_src_md());
+    const memory_desc_wrapper weights_mdw(weights_md());
+    const memory_desc_wrapper dst_mdw(diff_dst_md());
+    const memory_desc_wrapper bias_mdw(weights_md(1));
 
-    const primitive_attr_t &attr = *pd->attr();
-
-    set_default_conf(conf, cd, *pd->diff_src_md(), *pd->weights_md(),
-            *pd->diff_dst_md(), *pd->weights_md(1), attr);
+    set_default_conf(conf, cd, *diff_src_md(), *weights_md(), *diff_dst_md(),
+            *weights_md(1), *attr());
 
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
@@ -633,8 +627,8 @@ status_t gen9_convolution_bwd_data_init_conf(
     return status::success;
 }
 
-status_t gen9_convolution_bwd_data_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf) {
+status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("IS_DW", conf.is_depthwise);
     kernel_ctx.define_int("BWD_DATA", 1);
     kernel_ctx.define_int("G", conf.ngroups);
@@ -815,21 +809,18 @@ static void bwd_w_compute_block_sizes(
     conf.nchunk = conf.mb_chunk * conf.osp_chunk;
 }
 
-status_t gen9_convolution_bwd_weights_init_conf(
-        conv_conf_t &conf, const convolution_pd_t *pd) {
+status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     using namespace dnnl::impl::format_tag;
     using namespace data_type;
 
-    const convolution_desc_t &cd = *pd->desc();
-    const memory_desc_wrapper src_mdw(pd->src_md());
-    const memory_desc_wrapper weights_mdw(pd->diff_weights_md());
-    const memory_desc_wrapper dst_mdw(pd->diff_dst_md());
-    const memory_desc_wrapper bias_mdw(pd->diff_weights_md(1));
+    const convolution_desc_t &cd = *desc();
+    const memory_desc_wrapper src_mdw(src_md());
+    const memory_desc_wrapper weights_mdw(diff_weights_md());
+    const memory_desc_wrapper dst_mdw(diff_dst_md());
+    const memory_desc_wrapper bias_mdw(diff_weights_md(1));
 
-    const primitive_attr_t &attr = *pd->attr();
-
-    set_default_conf(conf, cd, *pd->src_md(), *pd->diff_weights_md(),
-            *pd->diff_dst_md(), *pd->diff_weights_md(1), attr);
+    set_default_conf(conf, cd, *src_md(), *diff_weights_md(), *diff_dst_md(),
+            *diff_weights_md(1), *attr());
 
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
@@ -879,14 +870,14 @@ status_t gen9_convolution_bwd_weights_init_conf(
             conf.oc_block = 16;
             conf.ic_block = conf.ver == ver_8ow16c ? 16 : 1;
             conf.ow_block = 8;
-            bwd_w_compute_block_sizes(conf, pd);
+            bwd_w_compute_block_sizes(conf, this);
             break;
         case ver_16mb16c:
             conf.mb_block = 16;
             conf.oc_block = 16;
             conf.ic_block = 16;
             conf.ow_block = 1;
-            bwd_w_compute_block_sizes(conf, pd);
+            bwd_w_compute_block_sizes(conf, this);
             break;
         default: status = status::unimplemented;
     }
@@ -967,8 +958,8 @@ status_t gen9_convolution_bwd_weights_init_conf(
     return status::success;
 }
 
-status_t gen9_convolution_bwd_weights_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf) {
+status_t gen9_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.define_int("IS_DW", conf.is_depthwise);
     kernel_ctx.define_int("BWD_WEIGHTS", 1);
     kernel_ctx.define_int("G", conf.ngroups);
@@ -1044,7 +1035,7 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -1071,7 +1062,7 @@ status_t gen9_convolution_bwd_data_t::execute_backward_data(
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, diff_src);
@@ -1095,7 +1086,7 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
     auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
     auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     const float zero = 0;
     memory_desc_wrapper wei_mdw(pd()->diff_weights_md());

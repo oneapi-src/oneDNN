@@ -29,11 +29,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_eltwise_init_conf(
-        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets_t &off);
-status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const eltwise_conf_t &conf, const offsets_t &off);
-
 struct ref_eltwise_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_eltwise_fwd_pd_t {
         using gpu_eltwise_fwd_pd_t::gpu_eltwise_fwd_pd_t;
@@ -75,11 +70,14 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return ref_eltwise_init_conf(conf_, this, off_);
+            return init_conf();
         }
 
-        eltwise_conf_t conf_;
-        offsets_t off_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        eltwise_conf_t conf;
+        offsets_t off;
     };
 
     virtual status_t init() override {
@@ -87,9 +85,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = ref_eltwise_init_const_def(
-                kernel_ctx, pd()->conf_, pd()->off_);
-
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_eltwise_fwd", kernel_ctx);
@@ -144,12 +140,15 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return ref_eltwise_init_conf(conf_, this, off_);
+            return init_conf();
         }
 
-        eltwise_conf_t conf_;
-        offsets_t off_;
-        bool use_dense_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        eltwise_conf_t conf;
+        offsets_t off;
+        bool use_dense;
     };
 
     status_t init() override {
@@ -157,8 +156,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = ref_eltwise_init_const_def(
-                kernel_ctx, pd()->conf_, pd()->off_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_eltwise_bwd", kernel_ctx);

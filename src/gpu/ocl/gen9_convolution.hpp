@@ -31,28 +31,12 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t gen9_convolution_fwd_init_conf(
-        conv_conf_t &conf, const convolution_pd_t *pd);
-status_t gen9_convolution_fwd_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
-
-status_t gen9_convolution_bwd_data_init_conf(
-        conv_conf_t &conf, const convolution_pd_t *pd);
-status_t gen9_convolution_bwd_data_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
-
-status_t gen9_convolution_bwd_weights_init_conf(
-        conv_conf_t &conf, const convolution_pd_t *pd);
-status_t gen9_convolution_bwd_weights_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const conv_conf_t &conf);
-
 struct gen9_convolution_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const convolution_fwd_pd_t *hint_fwd_pd)
-            : gpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , conf_() {}
+            : gpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:gen9:blocked", gen9_convolution_fwd_t);
 
@@ -88,19 +72,23 @@ struct gen9_convolution_fwd_t : public primitive_impl_t {
                     && post_ops_ok(attr());
             if (!ok) return status::unimplemented;
 
-            status_t status = gen9_convolution_fwd_init_conf(conf_, this);
+            status_t status = init_conf();
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
-                    conf_.src_tag, conf_.wei_tag, conf_.dst_tag);
+                    conf.src_tag, conf.wei_tag, conf.dst_tag);
             return ok ? status::success : status::unimplemented;
         }
-        conv_conf_t conf_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        conv_conf_t conf;
     };
 
     status_t init() override {
         const char *kernel_name = nullptr;
-        if (pd()->conf_.is_depthwise)
+        if (pd()->conf.is_depthwise)
             kernel_name = "gen9_conv_dw_fwd";
         else if (pd()->desc()->src_desc.data_type == data_type::f16)
             kernel_name = "gen9_conv_fwd_f16";
@@ -113,8 +101,7 @@ struct gen9_convolution_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        status_t status
-                = gen9_convolution_fwd_init_const_def(kernel_ctx, pd()->conf_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
@@ -173,19 +160,23 @@ struct gen9_convolution_bwd_data_t : public primitive_impl_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status = gen9_convolution_bwd_data_init_conf(conf_, this);
+            status_t status = init_conf();
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
-                    conf_.src_tag, conf_.wei_tag, conf_.dst_tag);
+                    conf.src_tag, conf.wei_tag, conf.dst_tag);
             return ok ? status::success : status::unimplemented;
         }
-        conv_conf_t conf_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        conv_conf_t conf;
     };
 
     status_t init() override {
         const char *kernel_name = nullptr;
-        if (pd()->conf_.is_depthwise)
+        if (pd()->conf.is_depthwise)
             kernel_name = "gen9_conv_dw_bwd_data";
         else
             kernel_name = "gen9_conv_bwd_data";
@@ -194,8 +185,7 @@ struct gen9_convolution_bwd_data_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = gen9_convolution_bwd_data_init_const_def(
-                kernel_ctx, pd()->conf_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
@@ -244,16 +234,19 @@ struct gen9_convolution_bwd_weights_t : public primitive_impl_t {
                     && !has_zero_dim_memory() && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            status_t status
-                    = gen9_convolution_bwd_weights_init_conf(conf_, this);
+            status_t status = init_conf();
             if (status != status::success) return status;
 
             ok = set_default_formats_common(
-                    conf_.src_tag, conf_.wei_tag, conf_.dst_tag);
+                    conf.src_tag, conf.wei_tag, conf.dst_tag);
 
             return ok ? status::success : status::unimplemented;
         }
-        conv_conf_t conf_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        conv_conf_t conf;
     };
 
     status_t init() override {
@@ -261,8 +254,7 @@ struct gen9_convolution_bwd_weights_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = gen9_convolution_bwd_weights_init_const_def(
-                kernel_ctx, pd()->conf_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(

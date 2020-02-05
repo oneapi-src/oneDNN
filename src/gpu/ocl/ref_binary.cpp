@@ -21,15 +21,12 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_binary_init_conf(binary_conf_t &conf, const binary_pd_t *pd) {
+status_t ref_binary_t::pd_t::init_conf() {
+    const memory_desc_wrapper src0_d(src_md(0));
+    const memory_desc_wrapper src1_d(src_md(1));
+    const memory_desc_wrapper dst_d(dst_md());
 
-    const memory_desc_wrapper src0_d(pd->src_md(0));
-    const memory_desc_wrapper src1_d(pd->src_md(1));
-    const memory_desc_wrapper dst_d(pd->dst_md());
-
-    alg_kind_t alg = pd->desc()->alg_kind;
-    const dims_t &broadcast_dims = pd->broadcast_dims();
-    bool is_tensor_op = pd->is_tensor_op();
+    alg_kind_t alg = desc()->alg_kind;
 
     const int ndims = src0_d.ndims();
     conf.src0_md_info = memory_desc_info_t::create(src0_d);
@@ -38,18 +35,18 @@ status_t ref_binary_init_conf(binary_conf_t &conf, const binary_pd_t *pd) {
     conf.data_type = src0_d.data_type();
     conf.ndims = ndims;
     for (int i = 0; i < MAX_NDIMS; ++i) {
-        conf.bcast_dims[i] = i < ndims ? broadcast_dims[i] : 1;
+        conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
     }
     conf.is_add = (alg == alg_kind::binary_add);
     conf.is_mul = (alg == alg_kind::binary_mul);
     conf.is_max = (alg == alg_kind::binary_max);
     conf.is_min = (alg == alg_kind::binary_min);
-    conf.is_tensor_op = is_tensor_op;
+    conf.is_tensor_op = is_tensor_op();
     conf.is_dense = dst_d.is_dense();
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
 
     auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(pd->engine());
+            = utils::downcast<compute::compute_engine_t *>(engine());
     conf.dispatch = compute_engine->create_dispatch(dst_d.md_);
     if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
         conf.dispatch.define_dim("IDX", 0, dst_d.nelems());
@@ -65,9 +62,8 @@ status_t ref_binary_init_conf(binary_conf_t &conf, const binary_pd_t *pd) {
     return status::success;
 }
 
-status_t ref_binary_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const binary_conf_t &conf) {
-
+status_t ref_binary_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
     kernel_ctx.set_data_type(conf.data_type);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("IS_MUL", conf.is_mul);
@@ -106,7 +102,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(1, src1);
     arg_list.set(2, dst);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);

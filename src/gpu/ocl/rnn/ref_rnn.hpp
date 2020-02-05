@@ -92,9 +92,9 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
         status_t set_default_params();
 
-        rnn_conf_t conf_;
-        rnn_offsets_t off_;
-        rnn_utils::conf_t rnn_conf_;
+        rnn_conf_t conf;
+        rnn_offsets_t off;
+        rnn_utils::conf_t rnn_conf;
         data_type_t acc_data_t;
         data_type_t src_type;
         data_type_t weights_type;
@@ -111,13 +111,13 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, scratchpad_sz, 4096);
-            scratchpad.book(key_rnn_gates, rnn_conf_.scratch_gates_size, 4096);
+            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 4096);
         }
 
         void copy_from(const pd_t &other) {
-            conf_ = other.conf_;
-            off_ = other.off_;
-            rnn_conf_ = other.rnn_conf_;
+            conf = other.conf;
+            off = other.off;
+            rnn_conf = other.rnn_conf;
             acc_data_t = other.acc_data_t;
             src_type = other.src_type;
             weights_type = other.weights_type;
@@ -203,7 +203,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
         grid_computation = &class_name::linear_execution;
 
         size_t scratchpad_size, workspace_size;
-        rnn_utils::set_offsets(pd()->rnn_conf_, ws_gates_offset_,
+        rnn_utils::set_offsets(pd()->rnn_conf, ws_gates_offset_,
                 ws_states_offset_, ws_c_states_offset_, ws_diff_states_offset_,
                 ws_grid_comp_offset_, ws_cell_comp_offset_, ws_bias_offset_,
                 scratch_gates_offset_, scratchpad_size, workspace_size);

@@ -30,11 +30,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_layer_normalization_init_conf(
-        lnorm_conf_t &conf, const layer_normalization_pd_t *pd);
-status_t ref_layer_normalization_init_const_def(
-        const lnorm_conf_t &conf, compute::kernel_ctx_t &kernel_ctx);
-
 struct ref_layer_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_layer_normalization_fwd_pd_t {
         using gpu_layer_normalization_fwd_pd_t::
@@ -60,10 +55,13 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
                     && set_default_formats_common();
             if (!ok) return status::unimplemented;
 
-            return ref_layer_normalization_init_conf(conf_, this);
+            return init_conf();
         }
 
-        lnorm_conf_t conf_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        lnorm_conf_t conf;
     };
 
     ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -73,8 +71,7 @@ struct ref_layer_normalization_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = ref_layer_normalization_init_const_def(
-                pd()->conf_, kernel_ctx);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
         compute_engine->create_kernel(&kernel_, "ref_lnorm_fwd", kernel_ctx);
@@ -121,10 +118,13 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return ref_layer_normalization_init_conf(conf_, this);
+            return init_conf();
         }
 
-        lnorm_conf_t conf_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        lnorm_conf_t conf;
     };
 
     ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -134,12 +134,11 @@ struct ref_layer_normalization_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = ref_layer_normalization_init_const_def(
-                pd()->conf_, kernel_ctx);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
         compute_engine->create_kernel(&kernel_, "ref_lnorm_bwd", kernel_ctx);
-        if (pd()->conf_.use_scaleshift) {
+        if (pd()->conf.use_scaleshift) {
             compute_engine->create_kernel(&kernel_scaleshift_,
                     "ref_lnorm_bwd_scaleshift", kernel_ctx);
             if (!kernel_scaleshift_) return status::runtime_error;

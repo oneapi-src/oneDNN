@@ -190,7 +190,7 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     return status::success;
 }
 
-static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
         const rnn_conf_t &conf, const rnn_offsets_t &off) {
 
     kernel_ctx.define_int("IS_FWD", conf.is_fwd);
@@ -501,9 +501,9 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
                                             intel_subgroups_short));
     if (!ok) return status::unimplemented;
 
-    init_rnn_conf(rnn_conf_, *this->desc(), this->src_md(0), this->src_md(1),
+    init_rnn_conf(rnn_conf, *this->desc(), this->src_md(0), this->src_md(1),
             this->weights_md(0), this->weights_md(1), this->dst_md(0));
-    init_test_mode(rnn_conf_, *this->attr());
+    init_test_mode(rnn_conf, *this->attr());
 
     // Check that only supported attr have been passed.
     primitive_attr_t::skip_mask_t attr_mask
@@ -530,7 +530,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
 
     // Set weights descriptors to desired format
     memory_desc_t new_weights_layer_md = *this->weights_md(0);
-    CHECK(set_expected_desc(rnn_conf_, new_weights_layer_md, false));
+    CHECK(set_expected_desc(rnn_conf, new_weights_layer_md, false));
 
     if (this->weights_layer_md_.format_kind == format_kind::any) {
         this->weights_layer_md_ = new_weights_layer_md;
@@ -541,7 +541,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
     }
 
     memory_desc_t new_weights_iter_md = *this->weights_md(1);
-    CHECK(set_expected_desc(rnn_conf_, new_weights_iter_md, true));
+    CHECK(set_expected_desc(rnn_conf, new_weights_iter_md, true));
     if (this->weights_iter_md_.format_kind == format_kind::any) {
         this->weights_iter_md_ = new_weights_iter_md;
     } else if (this->weights_iter_md_.format_kind == format_kind::rnn_packed) {
@@ -559,15 +559,15 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
             && (this->SIC() == this->DIC() || (this->T() == 1));
     if (!ok) return status::unimplemented;
 
-    set_rnn_conf(rnn_conf_, *this->desc(), this->weights_md(0),
+    set_rnn_conf(rnn_conf, *this->desc(), this->weights_md(0),
             this->weights_md(1), this->diff_weights_md(0),
             this->diff_weights_md(1));
 
     size_t scratchpad_sz {0}, ws_sz {0};
-    get_scratchpad_and_workspace_sizes(rnn_conf_, scratchpad_sz, ws_sz);
+    get_scratchpad_and_workspace_sizes(rnn_conf, scratchpad_sz, ws_sz);
 
     // initialize the workspace_pd if needed
-    if (rnn_conf_.use_workspace) {
+    if (rnn_conf.use_workspace) {
         dims_t ws_dims = {(dim_t)ws_sz};
         dnnl_memory_desc_init_by_tag(
                 &this->ws_md_, 1, ws_dims, data_type::u8, x);
@@ -575,9 +575,9 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
 
     init_scratchpad(scratchpad_sz);
 
-    rnn_conf_.acc_data_type = acc_data_t;
-    rnn_conf_.acc_data_type_elsz = types::data_type_size(acc_data_t);
-    status_t status = init_conf<aprop>(conf_, rnn_conf_, this, this->off_);
+    rnn_conf.acc_data_type = acc_data_t;
+    rnn_conf.acc_data_type_elsz = types::data_type_size(acc_data_t);
+    status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
     auto create_gemm_pd = [&](primitive_desc_t **gemm_pd, int m, int n, int k,
@@ -610,16 +610,16 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
                 &dummy_attr, this->engine(), nullptr);
     };
 
-    int batch = rnn_conf_.mb;
-    int n_gates = rnn_conf_.n_gates;
-    int slc = rnn_conf_.slc;
-    int sic = rnn_conf_.sic;
-    int dic = rnn_conf_.dic;
+    int batch = rnn_conf.mb;
+    int n_gates = rnn_conf.n_gates;
+    int slc = rnn_conf.slc;
+    int sic = rnn_conf.sic;
+    int dic = rnn_conf.dic;
 
     int layer_merged_size
-            = rnn_conf_.merge_gemm_layer ? batch * rnn_conf_.n_iter : batch;
+            = rnn_conf.merge_gemm_layer ? batch * rnn_conf.n_iter : batch;
     int iter_merged_size
-            = rnn_conf_.merge_gemm_iter ? batch * rnn_conf_.n_iter : batch;
+            = rnn_conf.merge_gemm_iter ? batch * rnn_conf.n_iter : batch;
 
     bool gemm_ok = true;
 
@@ -629,48 +629,46 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
                     && utils::everyone_is(status::success,
                             create_gemm_pd(&gemm_layer_fwd_pd_, n_gates * dic,
                                     layer_merged_size, slc,
-                                    rnn_conf_.weights_layer_ld,
-                                    rnn_conf_.states_ws_ld,
-                                    rnn_conf_.gates_ws_ld, weights_type,
-                                    src_type, rnn_conf_.acc_data_type, false,
-                                    0.0),
+                                    rnn_conf.weights_layer_ld,
+                                    rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
+                                    weights_type, src_type,
+                                    rnn_conf.acc_data_type, false, 0.0),
                             create_gemm_pd(&gemm_iter_fwd_pd_, n_gates * dic,
-                                    batch, sic, rnn_conf_.weights_iter_ld,
-                                    rnn_conf_.states_ws_ld,
-                                    rnn_conf_.gates_ws_ld, weights_type,
-                                    src_type, rnn_conf_.acc_data_type, false,
-                                    1.0));
+                                    batch, sic, rnn_conf.weights_iter_ld,
+                                    rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
+                                    weights_type, src_type,
+                                    rnn_conf.acc_data_type, false, 1.0));
             break;
         case prop_kind::backward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
                             create_gemm_pd(&gemm_iter_bwd_pd_, sic, batch,
-                                    n_gates * dic, rnn_conf_.weights_iter_ld,
-                                    rnn_conf_.scratch_gates_ld,
-                                    rnn_conf_.diff_states_ws_ld, weights_type,
-                                    src_type, rnn_conf_.acc_data_type, false,
+                                    n_gates * dic, rnn_conf.weights_iter_ld,
+                                    rnn_conf.scratch_gates_ld,
+                                    rnn_conf.diff_states_ws_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, false,
                                     0.0f),
                             create_gemm_pd(&gemm_layer_bwd_pd_, slc,
                                     layer_merged_size, n_gates * dic,
-                                    rnn_conf_.weights_layer_ld,
-                                    rnn_conf_.scratch_gates_ld,
-                                    rnn_conf_.diff_states_ws_ld, weights_type,
-                                    src_type, rnn_conf_.acc_data_type, false,
+                                    rnn_conf.weights_layer_ld,
+                                    rnn_conf.scratch_gates_ld,
+                                    rnn_conf.diff_states_ws_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, false,
                                     0.0f),
                             create_gemm_pd(&gemm_diff_wei_layer_pd_,
                                     n_gates * dic, slc, layer_merged_size,
-                                    rnn_conf_.scratch_gates_ld,
-                                    rnn_conf_.states_ws_ld,
-                                    rnn_conf_.diff_weights_layer_ld,
+                                    rnn_conf.scratch_gates_ld,
+                                    rnn_conf.states_ws_ld,
+                                    rnn_conf.diff_weights_layer_ld,
                                     weights_type, src_type,
-                                    rnn_conf_.acc_data_type, true, 1.0f),
+                                    rnn_conf.acc_data_type, true, 1.0f),
                             create_gemm_pd(&gemm_diff_wei_iter_pd_,
                                     n_gates * dic, sic, iter_merged_size,
-                                    rnn_conf_.scratch_gates_ld,
-                                    rnn_conf_.states_ws_ld,
-                                    rnn_conf_.diff_weights_iter_ld,
-                                    weights_type, src_type,
-                                    rnn_conf_.acc_data_type, true, 1.0f));
+                                    rnn_conf.scratch_gates_ld,
+                                    rnn_conf.states_ws_ld,
+                                    rnn_conf.diff_weights_iter_ld, weights_type,
+                                    src_type, rnn_conf.acc_data_type, true,
+                                    1.0f));
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }
@@ -685,7 +683,7 @@ status_t _ref_rnn_common_t<aprop>::init() {
             = utils::downcast<compute::compute_engine_t *>(engine());
     compute::kernel_ctx_t kernel_ctx;
 
-    status_t status = init_const_def(kernel_ctx, pd()->conf_, pd()->off_);
+    status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off);
     CHECK(status);
 
     std::vector<const char *> kernel_names
@@ -721,8 +719,8 @@ status_t _ref_rnn_common_t<aprop>::init() {
     ws_print_kernel_ = kernels[9];
 #endif
 
-    if (pd()->rnn_conf_.is_int8) {
-        size_t size = pd()->rnn_conf_.n_gates * pd()->rnn_conf_.dic
+    if (pd()->rnn_conf.is_int8) {
+        size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dic
                 * sizeof(float); // G * O * sizeof(float);
         memory_storage_t *temp_buf_ptr;
         engine()->create_memory_storage(&temp_buf_ptr, size);
@@ -734,8 +732,8 @@ status_t _ref_rnn_common_t<aprop>::init() {
     // primitive state, because it is a constant memory -- will not be
     // changed during execution.
     // TODO: add the testmode scales to ws
-    if (pd()->rnn_conf_.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
-        size_t size = pd()->rnn_conf_.tm_ngates
+    if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
+        size_t size = pd()->rnn_conf.tm_ngates
                 * sizeof(*pd_->attr()->rnn_tparams_.scales_);
         memory_storage_t *temp_buf_ptr;
         engine()->create_memory_storage(&temp_buf_ptr, size);
@@ -809,7 +807,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
 
-    if (pd()->rnn_conf_.use_workspace) {
+    if (pd()->rnn_conf.use_workspace) {
         workspace->memory_storage()->get_data_handle(&scratchpad_ptr);
     } else {
         auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
@@ -937,16 +935,16 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             int lay = (aprop == prop_kind::forward) ? j : n_layer - j - 1;
 
             if (aprop == prop_kind::forward
-                    && pd()->rnn_conf_.merge_gemm_layer) {
+                    && pd()->rnn_conf.merge_gemm_layer) {
                 cl_ulong wei_offset
                         = OFF3(lay, n_layer, dir, n_dir, 0,
-                                  pd()->rnn_conf_.weights_layer_nld
-                                          * pd()->rnn_conf_.weights_layer_ld)
+                                  pd()->rnn_conf.weights_layer_nld
+                                          * pd()->rnn_conf.weights_layer_ld)
                         * types::data_type_size(wei_t);
 
                 cl_ulong offset_input = (cl_ulong)(ws_states_offset_
                         + OFF4(lay, n_layer + 1, dir, n_dir, 1, n_iter + 1, 0,
-                                  batch * pd()->rnn_conf_.states_ws_ld)
+                                  batch * pd()->rnn_conf.states_ws_ld)
                                 * types::data_type_size(src_t));
 
                 gemm_primitive(ctx, w_input, wei_offset, workspace,
@@ -965,25 +963,25 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             }
 
             if (aprop == prop_kind::backward
-                    && pd()->rnn_conf_.merge_gemm_layer) {
+                    && pd()->rnn_conf.merge_gemm_layer) {
                 AOC<size_t, 3> off_weights_i(
                         weights_input, n_layer, n_dir, n_parts_weights_layer);
                 cl_ulong offset_w_input = (cl_ulong)(off_weights_i(lay, dir, 0))
                         * types::data_type_size(wei_t);
                 cl_ulong offset_ws_states = ws_states_offset_
                         + OFF4(lay, n_layer + 1, dir, n_dir, 1, n_iter + 1, 0,
-                                  batch * pd()->rnn_conf_.states_ws_ld)
+                                  batch * pd()->rnn_conf.states_ws_ld)
                                 * types::data_type_size(src_t);
                 cl_ulong offset_workspace_layer = ws_diff_states_offset_
                         + OFF5(lay, n_layer + 1, dir, n_dir, n_states,
                                   n_states + 1, 0, n_iter + 1, 0,
-                                  pd()->rnn_conf_.states_nld
-                                          * pd()->rnn_conf_.diff_states_ws_ld)
+                                  pd()->rnn_conf.states_nld
+                                          * pd()->rnn_conf.diff_states_ws_ld)
                                 * sizeof(float);
                 cl_ulong offset_weights_layer
                         = OFF3(lay, n_layer, dir, n_dir, 0,
-                                  pd()->rnn_conf_.diff_weights_layer_nld
-                                          * pd()->rnn_conf_
+                                  pd()->rnn_conf.diff_weights_layer_nld
+                                          * pd()->rnn_conf
                                                     .diff_weights_layer_ld)
                         * sizeof(float);
 
@@ -995,16 +993,15 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
             }
 
             if (aprop == prop_kind::backward
-                    && pd()->rnn_conf_.merge_gemm_iter) {
+                    && pd()->rnn_conf.merge_gemm_iter) {
                 cl_ulong offset_workspace_iter = ws_states_offset_
                         + OFF4(lay + 1, n_layer + 1, dir, n_dir, 0, n_iter + 1,
-                                  0, batch * pd()->rnn_conf_.states_ws_ld)
+                                  0, batch * pd()->rnn_conf.states_ws_ld)
                                 * types::data_type_size(src_t);
                 cl_ulong offset_weights_iter
                         = OFF3(lay, n_layer, dir, n_dir, 0,
-                                  pd()->rnn_conf_.diff_weights_iter_nld
-                                          * pd()->rnn_conf_
-                                                    .diff_weights_iter_ld)
+                                  pd()->rnn_conf.diff_weights_iter_nld
+                                          * pd()->rnn_conf.diff_weights_iter_ld)
                         * sizeof(float);
                 gemm_primitive(ctx, scratch_gates, 0, workspace,
                         offset_workspace_iter, diff_weights_iter,
@@ -1250,7 +1247,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto rnn_pd = this->pd();
-    const conf_t &rnn = this->pd()->rnn_conf_;
+    const conf_t &rnn = this->pd()->rnn_conf;
 
     int n_layer = rnn.n_layer;
 

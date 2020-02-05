@@ -39,10 +39,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     arg_list.set(6, pd()->desc()->alpha);
     // for test mode
     arg_list.set(7,
-            pd()->rnn_conf_.is_testmode ? tm_scales
-                                        : memory_storage_t::empty_storage());
+            pd()->rnn_conf.is_testmode ? tm_scales
+                                       : memory_storage_t::empty_storage());
     arg_list.set(
-            8, pd()->rnn_conf_.is_testmode ? pd()->rnn_conf_.tm_cscale : 0.0f);
+            8, pd()->rnn_conf.is_testmode ? pd()->rnn_conf.tm_cscale : 0.0f);
     compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::rnn_elemwise);
@@ -66,10 +66,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     arg_list.set(6, pd()->desc()->alpha);
     // for test mode
     arg_list.set(7,
-            pd()->rnn_conf_.is_testmode ? tm_scales
-                                        : memory_storage_t::empty_storage());
+            pd()->rnn_conf.is_testmode ? tm_scales
+                                       : memory_storage_t::empty_storage());
     arg_list.set(
-            8, pd()->rnn_conf_.is_testmode ? pd()->rnn_conf_.tm_cscale : 0.0f);
+            8, pd()->rnn_conf.is_testmode ? pd()->rnn_conf.tm_cscale : 0.0f);
     compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise);
@@ -98,10 +98,10 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     arg_list.set(9, data_scale);
     // for test mode
     arg_list.set(10,
-            pd()->rnn_conf_.is_testmode ? tm_scales
-                                        : memory_storage_t::empty_storage());
+            pd()->rnn_conf.is_testmode ? tm_scales
+                                       : memory_storage_t::empty_storage());
     arg_list.set(
-            11, pd()->rnn_conf_.is_testmode ? pd()->rnn_conf_.tm_cscale : 0.0f);
+            11, pd()->rnn_conf.is_testmode ? pd()->rnn_conf.tm_cscale : 0.0f);
     compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 template elemwise_sig(ref_rnn_fwd_t::lstm_elemwise_u8s8);

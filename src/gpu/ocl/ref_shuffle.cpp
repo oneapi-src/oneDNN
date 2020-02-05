@@ -23,59 +23,52 @@ namespace ocl {
 
 using namespace format_tag;
 
-status_t ref_shuffle_init_conf(
-        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets_t &off) {
+status_t ref_shuffle_t::pd_t::init_conf() {
+    const memory_desc_wrapper input_md(is_fwd() ? src_md() : diff_dst_md());
+    conf.data_type = input_md.data_type();
 
-    const bool is_fwd = pd->is_fwd();
+    conf.axis = axis();
+    conf.axis_size = axis_size();
+    conf.group_size = group_size();
 
-    const memory_desc_wrapper input_md(
-            is_fwd ? pd->src_md() : pd->diff_dst_md());
-    jshfl.data_type = input_md.data_type();
+    conf.transpose_row
+            = is_fwd() ? conf.group_size : conf.axis_size / conf.group_size;
+    conf.transpose_col
+            = is_fwd() ? conf.axis_size / conf.group_size : conf.group_size;
 
-    const int axis = pd->axis();
-    jshfl.axis = axis;
-
-    const int axis_size = pd->axis_size();
-    const int group_size = pd->group_size();
-    jshfl.transpose_row = is_fwd ? group_size : axis_size / group_size;
-    jshfl.transpose_col = is_fwd ? axis_size / group_size : group_size;
-    jshfl.axis_size = axis_size;
-    jshfl.group_size = group_size;
-
-    auto dims = pd->desc()->data_desc.dims;
-    auto ndims = pd->desc()->data_desc.ndims;
-    const size_t outer_size = utils::array_product(dims, axis);
+    auto dims = desc()->data_desc.dims;
+    auto ndims = desc()->data_desc.ndims;
+    const size_t outer_size = utils::array_product(dims, conf.axis);
     const size_t inner_size
-            = utils::array_product(dims + axis + 1, ndims - axis - 1);
-    const size_t dim = axis_size * inner_size;
-    jshfl.outer_size = outer_size;
-    jshfl.inner_size = inner_size;
-    jshfl.dim = dim;
-    jshfl.ndims = ndims;
+            = utils::array_product(dims + conf.axis + 1, ndims - conf.axis - 1);
+    const size_t dim = conf.axis_size * inner_size;
+    conf.outer_size = outer_size;
+    conf.inner_size = inner_size;
+    conf.dim = dim;
+    conf.ndims = ndims;
 
-    jshfl.gws_d[0] = nstl::max(size_t(1), inner_size);
-    jshfl.gws_d[1] = nstl::max(1, axis_size);
-    jshfl.gws_d[2] = nstl::max(size_t(1), outer_size);
+    conf.gws_d[0] = nstl::max(size_t(1), inner_size);
+    conf.gws_d[1] = nstl::max(1, conf.axis_size);
+    conf.gws_d[2] = nstl::max(size_t(1), outer_size);
 
     set_offsets(input_md, off.src_off);
 
     return status::success;
 }
 
-status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const shuffle_conf_t &jshfl, const offsets_t &off) {
+status_t ref_shuffle_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.define_int("NDIMS", conf.ndims);
+    kernel_ctx.define_int("AXIS", conf.axis);
+    kernel_ctx.define_int("AXIS_SIZE", conf.axis_size);
+    kernel_ctx.define_int("GROUP_SIZE", conf.group_size);
+    kernel_ctx.define_int("TRANSPOSE_ROW", conf.transpose_row);
+    kernel_ctx.define_int("TRANSPOSE_COL", conf.transpose_col);
+    kernel_ctx.define_int("INNER_SIZE", conf.inner_size);
+    kernel_ctx.define_int("OUTER_SIZE", conf.outer_size);
 
-    kernel_ctx.set_data_type(jshfl.data_type);
-    kernel_ctx.define_int("NDIMS", jshfl.ndims);
-    kernel_ctx.define_int("AXIS", jshfl.axis);
-    kernel_ctx.define_int("AXIS_SIZE", jshfl.axis_size);
-    kernel_ctx.define_int("GROUP_SIZE", jshfl.group_size);
-    kernel_ctx.define_int("TRANSPOSE_ROW", jshfl.transpose_row);
-    kernel_ctx.define_int("TRANSPOSE_COL", jshfl.transpose_col);
-    kernel_ctx.define_int("INNER_SIZE", jshfl.inner_size);
-    kernel_ctx.define_int("OUTER_SIZE", jshfl.outer_size);
-
-    def_offsets(off.src_off, kernel_ctx, "SRC", jshfl.ndims);
+    def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     return status::success;
 }
 
@@ -86,13 +79,13 @@ status_t ref_shuffle_t::execute_(const exec_ctx_t &ctx) const {
     auto &dst = pd()->is_fwd() ? CTX_OUT_STORAGE(DNNL_ARG_DST)
                                : CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
-    const auto &jshfl = pd()->jshfl_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
     arg_list.set(1, dst);
 
-    auto nd_range = compute::nd_range_t(jshfl.gws_d);
+    auto nd_range = compute::nd_range_t(conf.gws_d);
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);

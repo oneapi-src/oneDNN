@@ -23,7 +23,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_layer_normalization_init_conf(
+static status_t init_conf_common(
         lnorm_conf_t &conf, const layer_normalization_pd_t *pd) {
     memory_desc_wrapper src_mdw(pd->src_md());
     memory_desc_wrapper stat_mdw(pd->stat_md());
@@ -78,8 +78,8 @@ status_t ref_layer_normalization_init_conf(
     return status::success;
 }
 
-status_t ref_layer_normalization_init_const_def(
-        const lnorm_conf_t &conf, compute::kernel_ctx_t &kernel_ctx) {
+static status_t init_kernel_ctx_common(
+        compute::kernel_ctx_t &kernel_ctx, const lnorm_conf_t &conf) {
     kernel_ctx.set_data_type(conf.data_type);
 
     kernel_ctx.define_int("C", conf.norm_axis);
@@ -100,6 +100,15 @@ status_t ref_layer_normalization_init_const_def(
     return status::success;
 }
 
+status_t ref_layer_normalization_fwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, this);
+}
+
+status_t ref_layer_normalization_fwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf);
+}
+
 status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
@@ -115,7 +124,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     auto &scaleshift = CTX_IN_STORAGE(DNNL_ARG_SCALE_SHIFT);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -132,6 +141,15 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     return status;
 }
 
+status_t ref_layer_normalization_bwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, this);
+}
+
+status_t ref_layer_normalization_bwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf);
+}
+
 status_t ref_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
@@ -146,7 +164,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
     auto &diff_scaleshift = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     if (conf.use_scaleshift) {
         compute::kernel_arg_list_t arg_list;

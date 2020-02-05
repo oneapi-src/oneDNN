@@ -27,9 +27,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
-        const inner_product_pd_t *pd, offsets_t &off) {
-
+static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
+        const inner_product_pd_t *pd) {
     const inner_product_desc_t &ipd = *pd->desc();
     const memory_desc_wrapper src_d(pd->invariant_src_md());
     const memory_desc_wrapper weights_d(pd->invariant_wei_md());
@@ -109,10 +108,9 @@ status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
     return status::success;
 }
 
-status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const inner_product_conf_t &conf, const offsets_t &off,
         bool with_eltwise, bool with_sum, alg_kind_t alg) {
-
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
     kernel_ctx.define_int("OC", conf.oc);
@@ -162,6 +160,16 @@ status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
+status_t ref_inner_product_fwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_inner_product_fwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off, with_eltwise(),
+            with_sum(), eltwise_alg_kind());
+}
+
 status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     compute::compute_stream_t *compute_stream
@@ -172,7 +180,7 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
@@ -195,6 +203,16 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     return status;
 }
 
+status_t ref_inner_product_bwd_data_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_inner_product_bwd_data_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, off, false, false, dnnl_alg_kind_undef);
+}
+
 status_t ref_inner_product_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
 
@@ -205,7 +223,7 @@ status_t ref_inner_product_bwd_data_t::execute_backward_data(
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, diff_src);
@@ -216,6 +234,16 @@ status_t ref_inner_product_bwd_data_t::execute_backward_data(
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
+}
+
+status_t ref_inner_product_bwd_weights_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_inner_product_bwd_weights_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(
+            kernel_ctx, conf, off, false, false, dnnl_alg_kind_undef);
 }
 
 status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
@@ -229,7 +257,7 @@ status_t ref_inner_product_bwd_weights_t::execute_backward_weights(
     auto &diff_weights = CTX_OUT_STORAGE(DNNL_ARG_DIFF_WEIGHTS);
     auto &diff_bias = CTX_OUT_STORAGE(DNNL_ARG_DIFF_BIAS);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);

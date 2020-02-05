@@ -176,7 +176,7 @@ struct gen9_gemm_x8x8s32_t : public ocl_gemm_t {
         bool column_c = (1 << 0 == cmask);
         bool row_c = (1 << 1 == cmask);
 
-        auto status = gen9_gemm_x8x8s32_kernel_t::init_const_def(kernel_ctx,
+        auto status = gen9_gemm_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
                 pd()->desc()->transa, pd()->desc()->transb, fixed_c, column_c,
                 row_c, pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->a_type, pd()->desc()->b_type,
@@ -190,7 +190,7 @@ struct gen9_gemm_x8x8s32_t : public ocl_gemm_t {
         //scale kernel
         kernel_name = "gen9_gemm_scale_x8x8s32";
 
-        status = gen9_gemm_scale_x8x8s32_kernel_t::init_const_def(kernel_ctx,
+        status = gen9_gemm_scale_x8x8s32_kernel_t::init_kernel_ctx(kernel_ctx,
                 pd()->with_eltwise(), pd()->eltwise_alg_kind(),
                 pd()->desc()->a_type, pd()->desc()->b_type,
                 pd()->desc()->c_type);

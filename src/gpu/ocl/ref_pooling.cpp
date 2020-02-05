@@ -32,16 +32,16 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_pooling_init_conf(
-        pool_conf_t &conf, const pooling_pd_t *_pd, offsets_t &off) {
+static status_t init_conf_common(
+        pool_conf_t &conf, offsets_t &off, const pooling_pd_t *pd) {
     using namespace dnnl::impl::format_tag;
 
     const memory_desc_wrapper src_d(
-            _pd->is_fwd() ? _pd->src_md() : _pd->diff_src_md());
+            pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
     const memory_desc_wrapper dst_d(
-            _pd->is_fwd() ? _pd->dst_md() : _pd->diff_dst_md());
+            pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
 
-    const pooling_desc_t &pd = *_pd->desc();
+    const pooling_desc_t &desc = *pd->desc();
     const int ndims = src_d.ndims();
     const auto &src_dims = src_d.padded_dims();
     const auto &dst_dims = dst_d.padded_dims();
@@ -57,29 +57,29 @@ status_t ref_pooling_init_conf(
     conf.oh = (ndims == 3) ? 1 : dst_dims[ndims - 2];
     conf.ow = dst_dims[ndims - 1];
 
-    conf.stride_d = (ndims == 5) ? pd.strides[0] : 1;
-    conf.stride_h = (ndims == 3) ? 1 : pd.strides[ndims - 4];
-    conf.stride_w = pd.strides[ndims - 3];
-    conf.kd = (ndims == 5) ? pd.kernel[0] : 1;
-    conf.kh = (ndims == 3) ? 1 : pd.kernel[ndims - 4];
-    conf.kw = pd.kernel[ndims - 3];
+    conf.stride_d = (ndims == 5) ? desc.strides[0] : 1;
+    conf.stride_h = (ndims == 3) ? 1 : desc.strides[ndims - 4];
+    conf.stride_w = desc.strides[ndims - 3];
+    conf.kd = (ndims == 5) ? desc.kernel[0] : 1;
+    conf.kh = (ndims == 3) ? 1 : desc.kernel[ndims - 4];
+    conf.kw = desc.kernel[ndims - 3];
 
-    conf.f_pad = (ndims == 5) ? pd.padding[0][0] : 0;
-    conf.t_pad = (ndims == 3) ? 0 : pd.padding[0][ndims - 4];
-    conf.l_pad = pd.padding[0][ndims - 3];
+    conf.f_pad = (ndims == 5) ? desc.padding[0][0] : 0;
+    conf.t_pad = (ndims == 3) ? 0 : desc.padding[0][ndims - 4];
+    conf.l_pad = desc.padding[0][ndims - 3];
 
-    conf.alg = pd.alg_kind;
+    conf.alg = desc.alg_kind;
 
     conf.src_dt = src_d.data_type();
 
-    conf.is_training = pd.prop_kind == prop_kind::forward_training;
-    conf.is_backward = pd.prop_kind == prop_kind::backward_data;
+    conf.is_training = desc.prop_kind == prop_kind::forward_training;
+    conf.is_backward = desc.prop_kind == prop_kind::backward_data;
 
     set_offsets(src_d, off.src_off);
     set_offsets(dst_d, off.dst_off);
 
     auto *compute_engine
-            = utils::downcast<compute::compute_engine_t *>(_pd->engine());
+            = utils::downcast<compute::compute_engine_t *>(pd->engine());
     conf.dispatch = compute_engine->create_dispatch(
             conf.is_backward ? src_d.md_ : dst_d.md_);
 
@@ -128,7 +128,7 @@ status_t ref_pooling_init_conf(
     return status::success;
 };
 
-status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const pool_conf_t &conf, const offsets_t &off) {
     using namespace dnnl::impl::alg_kind;
     status_t status = status::success;
@@ -181,6 +181,15 @@ status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
+status_t ref_pooling_fwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_pooling_fwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
+}
+
 status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -194,10 +203,19 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, ws);
     arg_list.set(2, dst);
 
-    auto nd_range = pd()->conf_.dispatch.nd_range();
+    auto nd_range = pd()->conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;
+}
+
+status_t ref_pooling_bwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_pooling_bwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
 status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
@@ -213,7 +231,7 @@ status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     arg_list.set(1, ws);
     arg_list.set(2, diff_dst);
 
-    auto nd_range = pd()->conf_.dispatch.nd_range();
+    auto nd_range = pd()->conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
 
     return status;

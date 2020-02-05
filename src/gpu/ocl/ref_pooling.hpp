@@ -31,19 +31,12 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_pooling_init_conf(
-        pool_conf_t &conf, const pooling_pd_t *_pd, offsets_t &off);
-status_t ref_pooling_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const pool_conf_t &conf, const offsets_t &off);
-
 struct ref_pooling_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
-            : gpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , conf_()
-            , off_() {}
+            : gpu_pooling_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref", ref_pooling_fwd_t);
 
@@ -91,10 +84,14 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
             if (desc()->alg_kind == pooling_max && is_training)
                 init_default_ws(s32);
 
-            return ref_pooling_init_conf(conf_, this, off_);
+            return init_conf();
         }
-        pool_conf_t conf_;
-        offsets_t off_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        pool_conf_t conf;
+        offsets_t off;
     };
 
     status_t init() override {
@@ -102,7 +99,8 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        ref_pooling_init_const_def(kernel_ctx, pd()->conf_, pd()->off_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(status);
 
         compute_engine->create_kernel(&kernel_, "ref_pooling_fwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;
@@ -127,9 +125,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
-            : gpu_pooling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , conf_()
-            , off_() {}
+            : gpu_pooling_bwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_pooling_bwd_t);
 
@@ -161,10 +157,14 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            return ref_pooling_init_conf(conf_, this, off_);
+            return init_conf();
         }
-        pool_conf_t conf_;
-        offsets_t off_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        pool_conf_t conf;
+        offsets_t off;
     };
 
     status_t init() override {
@@ -172,7 +172,8 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
         compute::kernel_ctx_t kernel_ctx;
-        ref_pooling_init_const_def(kernel_ctx, pd()->conf_, pd()->off_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(status);
 
         compute_engine->create_kernel(&kernel_, "ref_pooling_bwd", kernel_ctx);
         if (!kernel_) return status::runtime_error;

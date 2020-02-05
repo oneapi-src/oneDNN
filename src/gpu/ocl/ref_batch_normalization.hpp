@@ -31,22 +31,13 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_batch_normalization_init_conf(
-        bnorm_conf_t &conf, const batch_normalization_pd_t *pd, offsets_t &off);
-status_t ref_batch_normalization_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const bnorm_conf_t &conf,
-        const offsets_t &off);
-void ref_batch_normalization_init_scratchpad(
-        memory_tracking::registrar_t &scratchpad, const bnorm_conf_t &conf);
-
 struct ref_batch_normalization_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : gpu_batch_normalization_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , conf_()
-            , off_() {}
+            : gpu_batch_normalization_fwd_pd_t(
+                    engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_fwd_t);
 
@@ -75,17 +66,20 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 
             if (is_training() && fuse_norm_relu()) init_default_ws(8);
 
-            status_t status
-                    = ref_batch_normalization_init_conf(conf_, this, off_);
+            status_t status = init_conf();
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            ref_batch_normalization_init_scratchpad(scratchpad, conf_);
-            return status::success;
+            return init_scratchpad(scratchpad);
         }
 
-        bnorm_conf_t conf_;
-        offsets_t off_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        status_t init_scratchpad(
+                memory_tracking::registrar_t &scratchpad) const;
+
+        bnorm_conf_t conf;
+        offsets_t off;
     };
 
     status_t init() override {
@@ -93,12 +87,12 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        ref_batch_normalization_init_const_def(
-                kernel_ctx, pd()->conf_, pd()->off_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
+        CHECK(status);
 
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
-        if (pd()->conf_.use_16mb_unroll && pd()->conf_.calculate_stats) {
+        if (pd()->conf.use_16mb_unroll && pd()->conf.calculate_stats) {
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
             kernel_names[3] = "reduce_mean";
@@ -106,7 +100,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         }
 
         std::vector<compute::kernel_t> kernels;
-        auto status = compute_engine->create_kernels(
+        status = compute_engine->create_kernels(
                 &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
@@ -140,9 +134,8 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const batch_normalization_fwd_pd_t *hint_fwd_pd)
-            : gpu_batch_normalization_bwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , conf_()
-            , off_() {}
+            : gpu_batch_normalization_bwd_pd_t(
+                    engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_batch_normalization_bwd_t);
 
@@ -164,17 +157,20 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
 
-            status_t status
-                    = ref_batch_normalization_init_conf(conf_, this, off_);
+            status_t status = init_conf();
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            ref_batch_normalization_init_scratchpad(scratchpad, conf_);
-            return status::success;
+            return init_scratchpad(scratchpad);
         }
 
-        bnorm_conf_t conf_;
-        offsets_t off_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+        status_t init_scratchpad(
+                memory_tracking::registrar_t &scratchpad) const;
+
+        bnorm_conf_t conf;
+        offsets_t off;
     };
 
     status_t init() override {
@@ -182,14 +178,13 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = ref_batch_normalization_init_const_def(
-                kernel_ctx, pd()->conf_, pd()->off_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_bwd", nullptr, nullptr};
 
-        if (pd()->conf_.use_16mb_unroll) {
+        if (pd()->conf.use_16mb_unroll) {
             kernel_names[1] = "calculate_stats";
             kernel_names[2] = "reduce_stats";
         }

@@ -62,7 +62,7 @@ struct gen9_gemm_kernel_t {
 };
 
 struct gen9_gemm_beta_kernel_t : public gen9_gemm_kernel_t {
-    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+    static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             impl::data_type_t src_type,
             impl::data_type_t type = impl::data_type::undef) {
         if (type == impl::data_type::undef) type = src_type;
@@ -75,7 +75,7 @@ struct gen9_gemm_beta_kernel_t : public gen9_gemm_kernel_t {
 };
 
 struct gen9_gemm_copy_kernel_t : public gen9_gemm_kernel_t {
-    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+    static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool outer, bool trans, impl::data_type_t src_type,
             impl::data_type_t type = impl::data_type::undef) {
         if (type == impl::data_type::undef) type = src_type;
@@ -98,7 +98,7 @@ struct gen9_gemm_copy_kernel_t : public gen9_gemm_kernel_t {
 };
 
 struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
-    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+    static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool beta0, bool with_eltwise, alg_kind_t alg,
             impl::data_type_t type,
             impl::data_type_t dst_type = impl::data_type::undef) {
@@ -125,7 +125,7 @@ struct gen9_gemm_compute_kernel_t : public gen9_gemm_kernel_t {
 };
 
 struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
-    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+    static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_k_unroll, int unroll_k,
             bool with_eltwise, alg_kind_t alg, impl::data_type_t type) {
 
@@ -164,13 +164,13 @@ struct gen9_gemm_nocopy_kernel_t : public gen9_gemm_kernel_t {
 };
 
 struct gen9_gemm_nocopy_superkernel_t : public gen9_gemm_kernel_t {
-    static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
+    static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
             bool trans_a, bool trans_b, bool with_eltwise, alg_kind_t alg,
             impl::data_type_t type) {
 
         if (trans_a) return status::unimplemented;
 
-        return gen9_gemm_nocopy_kernel_t::init_const_def(kernel_ctx, trans_a,
+        return gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx, trans_a,
                 trans_b, false, 32, with_eltwise, alg, type);
     }
 

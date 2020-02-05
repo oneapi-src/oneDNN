@@ -21,9 +21,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_eltwise_init_conf(
-        eltwise_conf_t &conf, const eltwise_pd_t *pd, offsets_t &off) {
-
+static status_t init_conf_common(
+        eltwise_conf_t &conf, offsets_t &off, const eltwise_pd_t *pd) {
     alg_kind_t alg = pd->desc()->alg_kind;
     bool is_forward = utils::one_of(pd->desc()->prop_kind,
             prop_kind::forward_training, prop_kind::forward_inference);
@@ -61,9 +60,8 @@ status_t ref_eltwise_init_conf(
     return status::success;
 }
 
-status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
+static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const eltwise_conf_t &conf, const offsets_t &off) {
-
     kernel_ctx.set_data_type(conf.data_type);
     kernel_ctx.define_int("RELU", alg_kind::eltwise_relu);
     kernel_ctx.define_int("LINEAR", alg_kind::eltwise_linear);
@@ -107,6 +105,15 @@ status_t ref_eltwise_init_const_def(compute::kernel_ctx_t &kernel_ctx,
     return status::success;
 }
 
+status_t ref_eltwise_fwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_eltwise_fwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
+}
+
 status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
@@ -117,7 +124,7 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);
@@ -127,6 +134,15 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
 
     auto nd_range = conf.dispatch.nd_range();
     return compute_stream->parallel_for(nd_range, kernel_, arg_list);
+}
+
+status_t ref_eltwise_bwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_eltwise_bwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
 status_t ref_eltwise_bwd_t::execute_backward_dense(
@@ -142,7 +158,7 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src);

@@ -29,11 +29,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_shuffle_init_conf(
-        shuffle_conf_t &jshfl, const shuffle_pd_t *pd, offsets_t &off);
-status_t ref_shuffle_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const shuffle_conf_t &jshfl, const offsets_t &off);
-
 struct ref_shuffle_t : public primitive_impl_t {
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
@@ -57,13 +52,14 @@ struct ref_shuffle_t : public primitive_impl_t {
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;
 
-            dat_tag_ = any;
-            return ref_shuffle_init_conf(jshfl_, this, off_);
+            return init_conf();
         }
 
-        shuffle_conf_t jshfl_;
-        offsets_t off_;
-        format_tag_t dat_tag_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        shuffle_conf_t conf;
+        offsets_t off;
     };
 
     ref_shuffle_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -73,8 +69,7 @@ struct ref_shuffle_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        status_t status = ref_shuffle_init_const_def(
-                kernel_ctx, pd()->jshfl_, pd()->off_);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_shuffle", kernel_ctx);

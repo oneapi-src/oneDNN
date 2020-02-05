@@ -30,8 +30,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_batch_normalization_init_conf(bnorm_conf_t &conf,
-        const batch_normalization_pd_t *pd, offsets_t &off) {
+static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
+        const batch_normalization_pd_t *pd) {
     using namespace dnnl::impl::format_tag;
 
     const batch_normalization_desc_t &bd = *pd->desc();
@@ -125,9 +125,8 @@ status_t ref_batch_normalization_init_conf(bnorm_conf_t &conf,
     return status::success;
 }
 
-status_t ref_batch_normalization_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const bnorm_conf_t &conf,
-        const offsets_t &off) {
+static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
+        const bnorm_conf_t &conf, const offsets_t &off) {
     kernel_ctx.set_data_type(conf.data_type);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
@@ -165,23 +164,25 @@ status_t ref_batch_normalization_init_const_def(
     return status::success;
 }
 
-void ref_batch_normalization_init_scratchpad(
-        memory_tracking::registrar_t &scratchpad, const bnorm_conf_t &conf) {
-    if (conf.is_forward) {
-        if (conf.use_16mb_unroll && conf.calculate_stats) {
-            size_t size = 2 * conf.reduce_stat_nblocks * conf.ic
-                    * types::data_type_size(data_type::f32);
+status_t ref_batch_normalization_fwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
 
-            scratchpad.book(memory_tracking::names::key_bnorm_reduction, size);
-        }
+status_t ref_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
+}
+
+status_t ref_batch_normalization_fwd_t::pd_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad) const {
+    if (conf.use_16mb_unroll && conf.calculate_stats) {
+        size_t size = 2 * conf.reduce_stat_nblocks * conf.ic
+                * types::data_type_size(data_type::f32);
+
+        scratchpad.book(memory_tracking::names::key_bnorm_reduction, size);
     }
-    if (conf.is_backward) {
-        if (conf.use_16mb_unroll) {
-            size_t size = 2 * conf.reduce_stat_nblocks * conf.ic
-                    * types::data_type_size(data_type::f32);
-            scratchpad.book(memory_tracking::names::key_bnorm_reduction, size);
-        }
-    }
+
+    return status::success;
 }
 
 status_t ref_batch_normalization_fwd_t::execute_forward(
@@ -203,7 +204,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
     auto &ws = CTX_OUT_STORAGE(DNNL_ARG_WORKSPACE);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     auto *mean_ptr = &mean_;
     auto *variance_ptr = &variance_;
@@ -278,6 +279,25 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     return status;
 }
 
+status_t ref_batch_normalization_bwd_t::pd_t::init_conf() {
+    return init_conf_common(conf, off, this);
+}
+
+status_t ref_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
+        compute::kernel_ctx_t &kernel_ctx) const {
+    return init_kernel_ctx_common(kernel_ctx, conf, off);
+}
+
+status_t ref_batch_normalization_bwd_t::pd_t::init_scratchpad(
+        memory_tracking::registrar_t &scratchpad) const {
+    if (conf.use_16mb_unroll) {
+        size_t size = 2 * conf.reduce_stat_nblocks * conf.ic
+                * types::data_type_size(data_type::f32);
+        scratchpad.book(memory_tracking::names::key_bnorm_reduction, size);
+    }
+    return status::success;
+}
+
 status_t ref_batch_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
 
@@ -294,7 +314,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
     auto &diff_scaleshift_ = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
 
-    const auto &conf = pd()->conf_;
+    const auto &conf = pd()->conf;
 
     std::unique_ptr<memory_storage_t> temp_reduce;
     if (conf.use_16mb_unroll) {

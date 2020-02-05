@@ -29,13 +29,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t simple_reorder_init_conf(reorder_conf_t &conf, const reorder_pd_t *pd);
-status_t simple_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const reorder_conf_t &conf, const memory_desc_wrapper &src_md,
-        const memory_desc_wrapper &dst_md);
-void simple_reorder_init_scratchpad(
-        memory_tracking::registrar_t &scratchpad, const reorder_conf_t &conf);
-
 struct simple_reorder_t : public primitive_impl_t {
     struct pd_t : public gpu_reorder_pd_t {
         using gpu_reorder_pd_t::gpu_reorder_pd_t;
@@ -88,15 +81,19 @@ struct simple_reorder_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            status_t status = simple_reorder_init_conf(conf_, this);
+            status_t status = init_conf();
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
-            simple_reorder_init_scratchpad(scratchpad, conf_);
-            return status::success;
+            return init_scratchpad(scratchpad);
         }
 
-        reorder_conf_t conf_;
+        status_t init_conf();
+        status_t init_scratchpad(
+                memory_tracking::registrar_t &scratchpad) const;
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        reorder_conf_t conf;
     };
 
     virtual status_t init() override {
@@ -104,11 +101,10 @@ struct simple_reorder_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = simple_reorder_init_const_def(
-                kernel_ctx, pd()->conf_, pd()->src_md(), pd()->dst_md());
+        auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        const auto &conf = pd()->conf_;
+        const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
 
         compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);

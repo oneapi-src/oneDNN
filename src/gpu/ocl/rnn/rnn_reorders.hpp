@@ -30,12 +30,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t rnn_weights_reorder_init_conf(
-        rnn_reorder_conf_t &conf, const reorder_pd_t *pd);
-status_t rnn_weights_reorder_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const rnn_reorder_conf_t &conf, const memory_desc_wrapper &input_md,
-        const memory_desc_wrapper &output_md);
-
 struct rnn_weights_reorder_t : public primitive_impl_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
@@ -71,10 +65,13 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            return rnn_weights_reorder_init_conf(conf_, this);
+            return init_conf();
         }
 
-        rnn_reorder_conf_t conf_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        rnn_reorder_conf_t conf;
     };
 
     virtual status_t init() override {
@@ -82,21 +79,20 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = rnn_weights_reorder_init_const_def(
-                kernel_ctx, pd()->conf_, pd()->src_md(), pd()->dst_md());
+        auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "wei_reorder", kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
-        if (pd()->conf_.do_reorder) {
-            size_t size = pd()->conf_.nelems * sizeof(float);
+        if (pd()->conf.do_reorder) {
+            size_t size = pd()->conf.nelems * sizeof(float);
             memory_storage_t *temp_buf_ptr;
             engine()->create_memory_storage(&temp_buf_ptr, size);
             temp_buf.reset(temp_buf_ptr);
             if (!temp_buf) return status::runtime_error;
 
-            size = pd()->conf_.scales_count * sizeof(float);
+            size = pd()->conf.scales_count * sizeof(float);
             engine()->create_memory_storage(&temp_buf_ptr, size);
             scales_buf.reset(temp_buf_ptr);
             if (!scales_buf) return status::runtime_error;

@@ -31,19 +31,12 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_inner_product_init_conf(inner_product_conf_t &conf,
-        const inner_product_pd_t *pd, offsets_t &off);
-status_t ref_inner_product_init_const_def(compute::kernel_ctx_t &kernel_ctx,
-        const inner_product_conf_t &conf, const offsets_t &off,
-        bool with_eltwise, bool with_sum, alg_kind_t alg);
-
 struct ref_inner_product_fwd_t : public primitive_impl_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , off_() {}
+            : gpu_inner_product_fwd_pd_t(engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ocl:ref:any", ref_inner_product_fwd_t);
 
@@ -95,8 +88,12 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                                     compute::device_ext_t::khr_fp16));
             if (!ok) return status::unimplemented;
 
-            return ref_inner_product_init_conf(conf_, this, off_);
+            return init_conf();
         }
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
         bool with_eltwise() const {
             return attr()->post_ops_.find(primitive_kind::eltwise) != -1;
         }
@@ -135,17 +132,15 @@ struct ref_inner_product_fwd_t : public primitive_impl_t {
                     : dnnl_alg_kind_undef;
         }
 
-        inner_product_conf_t conf_;
-        offsets_t off_;
+        inner_product_conf_t conf;
+        offsets_t off;
     };
 
     status_t init() override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = ref_inner_product_init_const_def(kernel_ctx,
-                pd()->conf_, pd()->off_, pd()->with_eltwise(), pd()->with_sum(),
-                pd()->eltwise_alg_kind());
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
         compute_engine->create_kernel(
@@ -172,8 +167,8 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
-            : gpu_inner_product_bwd_data_pd_t(engine, adesc, attr, hint_fwd_pd)
-            , off_() {}
+            : gpu_inner_product_bwd_data_pd_t(
+                    engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_data_t);
 
@@ -196,18 +191,21 @@ struct ref_inner_product_bwd_data_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return ref_inner_product_init_conf(conf_, this, off_);
+            return init_conf();
         }
-        inner_product_conf_t conf_;
-        offsets_t off_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        inner_product_conf_t conf;
+        offsets_t off;
     };
 
     virtual status_t init() override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = ref_inner_product_init_const_def(kernel_ctx,
-                pd()->conf_, pd()->off_, false, false, dnnl_alg_kind_undef);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
         compute_engine->create_kernel(
@@ -235,8 +233,7 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
                 const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
             : gpu_inner_product_bwd_weights_pd_t(
-                    engine, adesc, attr, hint_fwd_pd)
-            , off_() {}
+                    engine, adesc, attr, hint_fwd_pd) {}
 
         DECLARE_COMMON_PD_T("ref:any", ref_inner_product_bwd_weights_t);
 
@@ -255,18 +252,21 @@ struct ref_inner_product_bwd_weights_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            return ref_inner_product_init_conf(conf_, this, off_);
+            return init_conf();
         }
-        inner_product_conf_t conf_;
-        offsets_t off_;
+
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        inner_product_conf_t conf;
+        offsets_t off;
     };
 
     status_t init() override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
-        status_t status = ref_inner_product_init_const_def(kernel_ctx,
-                pd()->conf_, pd()->off_, false, false, dnnl_alg_kind_undef);
+        status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
         compute_engine->create_kernel(

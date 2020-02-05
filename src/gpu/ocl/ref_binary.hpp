@@ -29,10 +29,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t ref_binary_init_conf(binary_conf_t &conf, const binary_pd_t *pd);
-status_t ref_binary_init_const_def(
-        compute::kernel_ctx_t &kernel_ctx, const binary_conf_t &conf);
-
 struct ref_binary_t : public primitive_impl_t {
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
@@ -52,10 +48,13 @@ struct ref_binary_t : public primitive_impl_t {
 
             if (!ok) return status::unimplemented;
 
-            return ref_binary_init_conf(conf_, this);
+            return init_conf();
         }
 
-        binary_conf_t conf_;
+        status_t init_conf();
+        status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
+
+        binary_conf_t conf;
     };
 
     ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {}
@@ -67,7 +66,7 @@ struct ref_binary_t : public primitive_impl_t {
                 = utils::downcast<compute::compute_engine_t *>(engine());
         compute::kernel_ctx_t kernel_ctx;
 
-        auto status = ref_binary_init_const_def(kernel_ctx, pd()->conf_);
+        auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
         compute_engine->create_kernel(&kernel_, "ref_binary", kernel_ctx);
