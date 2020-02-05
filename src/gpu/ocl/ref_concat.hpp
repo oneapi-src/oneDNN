@@ -135,14 +135,19 @@ struct ref_concat_t : public primitive_t {
 
     ref_concat_t(const pd_t *apd) : primitive_t(apd) {}
 
-    ~ref_concat_t() = default;
-
     status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i) {
             pd()->reorder_pds_[i]->create_primitive(reorders_[i], engine);
         }
+        return status::success;
+    }
+
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        for (const auto &reorder : reorders_)
+            CHECK(reorder->create_resource(engine, mapper));
         return status::success;
     }
 

@@ -133,7 +133,10 @@ status_t ref_eltwise_fwd_t::execute_forward_dense(const exec_ctx_t &ctx) const {
     arg_list.set(3, beta);
 
     auto nd_range = conf.dispatch.nd_range();
-    return compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+
+    return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
 status_t ref_eltwise_bwd_t::pd_t::init_conf(engine_t *engine) {
@@ -168,7 +171,10 @@ status_t ref_eltwise_bwd_t::execute_backward_dense(
     arg_list.set(4, beta);
 
     auto nd_range = conf.dispatch.nd_range();
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }

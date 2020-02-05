@@ -23,6 +23,7 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -74,9 +75,19 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_kernel(&kernel_, "ref_lnorm_fwd", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
+        compute_engine->create_binary(&binary_, "ref_lnorm_fwd", kernel_ctx);
+        if (!binary_) return status::runtime_error;
 
+        return status::success;
+    }
+
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        mapper.add(this, std::move(r));
         return status::success;
     }
 
@@ -88,7 +99,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    compute::kernel_t kernel_;
+    compute::binary_t binary_;
 };
 
 struct ref_layer_normalization_bwd_t : public primitive_t {
@@ -137,14 +148,24 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_kernel(&kernel_, "ref_lnorm_bwd", kernel_ctx);
+        compute_engine->create_binary(&binary_, "ref_lnorm_bwd", kernel_ctx);
         if (pd()->conf.use_scaleshift) {
-            compute_engine->create_kernel(&kernel_scaleshift_,
+            compute_engine->create_binary(&binary_scaleshift_,
                     "ref_lnorm_bwd_scaleshift", kernel_ctx);
-            if (!kernel_scaleshift_) return status::runtime_error;
+            if (!binary_scaleshift_) return status::runtime_error;
         }
-        if (!kernel_) return status::runtime_error;
+        if (!binary_) return status::runtime_error;
 
+        return status::success;
+    }
+
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernels_and_add(engine, {binary_, binary_scaleshift_}));
+        mapper.add(this, std::move(r));
         return status::success;
     }
 
@@ -156,8 +177,8 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    compute::kernel_t kernel_scaleshift_;
-    compute::kernel_t kernel_;
+    compute::binary_t binary_scaleshift_;
+    compute::binary_t binary_;
 };
 
 } // namespace ocl

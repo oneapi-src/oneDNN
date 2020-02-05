@@ -23,6 +23,7 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -76,6 +77,8 @@ struct rnn_weights_reorder_t : public primitive_t {
         rnn_reorder_conf_t conf;
     };
 
+    rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -84,8 +87,8 @@ struct rnn_weights_reorder_t : public primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(&kernel_, "wei_reorder", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
+        compute_engine->create_binary(&binary_, "wei_reorder", kernel_ctx);
+        if (!binary_) return status::runtime_error;
 
         if (pd()->conf.do_reorder) {
             size_t size = pd()->conf.nelems * sizeof(float);
@@ -103,13 +106,21 @@ struct rnn_weights_reorder_t : public primitive_t {
         return status::success;
     }
 
-    rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (!mapper.has_resource(this)) {
+            auto r = new ocl_resource_t;
+            r->create_kernel_and_add(engine, binary_);
+            mapper.add(this, r);
+        }
+        assert(mapper.has_resource(this));
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    compute::binary_t binary_;
     std::unique_ptr<memory_storage_t> temp_buf;
     std::unique_ptr<memory_storage_t> scales_buf;
 };

@@ -29,6 +29,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
@@ -171,6 +172,8 @@ struct _ref_rnn_common_t : public primitive_t {
     }; // struct pd_t : public base_pd_t
 
     virtual status_t init(engine_t *engine) override;
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override;
 
     _ref_rnn_common_t(const pd_t *apd) : primitive_t(apd) {
         using namespace rnn_utils;
@@ -265,30 +268,34 @@ private:
     free_packed_sig(free_no_packed_weights);
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
-    void bias_prepare(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int n_bias, int n_gates, int dhc,
-            const memory_storage_t &ws, const memory_storage_t &scales,
-            const memory_storage_t &wei_layer, const memory_storage_t &wei_iter,
+    void bias_prepare(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+            int n_bias, int n_gates, int dhc, const memory_storage_t &ws,
+            const memory_storage_t &scales, const memory_storage_t &wei_layer,
+            const memory_storage_t &wei_iter,
             const memory_storage_t &bias) const;
-    void copy_init_layer(compute::compute_stream_t *compute_stream, bool lr,
-            bool rl, int n_iter, int batch, int slc, const memory_storage_t &ws,
+    void copy_init_layer(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, bool lr, bool rl,
+            int n_iter, int batch, int slc, const memory_storage_t &ws,
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
-    void copy_init_iter(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int batch, int sic, int dhc, const memory_storage_t &ws,
+    void copy_init_iter(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+            int batch, int sic, int dhc, const memory_storage_t &ws,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
             const memory_storage_t &diff_dst_iter_c, const float shift,
             const float scale, const bool quantize) const;
-    void copy_res_layer(compute::compute_stream_t *compute_stream, bool lr,
-            bool rl, int n_iter, int batch, int slc, int dlc,
+    void copy_res_layer(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, bool lr, bool rl,
+            int n_iter, int batch, int slc, int dlc,
             const memory_storage_t &dst_last_layer,
             const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
             const float shift, const float scale, const bool dequantize) const;
-    void copy_res_iter(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int batch, int sic, int dhc,
-            const memory_storage_t &dst_last_iter,
+    void copy_res_iter(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
+            int batch, int sic, int dhc, const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
             const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
@@ -296,7 +303,8 @@ private:
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
             int n_gates, int dhc, int batch, const memory_storage_t &gates,
             const memory_storage_t &diff_bias) const;
-    void ws_set(compute::compute_stream_t *compute_stream,
+    void ws_set(const exec_ctx_t &ctx,
+            compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,
             const int ws_part, const float val, const size_t size) const;
 #if DEBUGPRINT
@@ -305,16 +313,16 @@ private:
     compute::kernel_t ws_print_kernel_;
 #endif
 
-    compute::kernel_t bias_prepare_kernel_;
-    compute::kernel_t copy_init_layer_kernel_;
-    compute::kernel_t copy_init_iter_kernel_;
-    compute::kernel_t copy_res_layer_kernel_;
-    compute::kernel_t copy_res_iter_kernel_;
+    compute::binary_t bias_prepare_binary_;
+    compute::binary_t copy_init_layer_binary_;
+    compute::binary_t copy_init_iter_binary_;
+    compute::binary_t copy_res_layer_binary_;
+    compute::binary_t copy_res_iter_binary_;
 
-    compute::kernel_t ws_set_kernel_;
-    compute::kernel_t elemwise_fwd_kernel_;
-    compute::kernel_t elemwise_bwd_kernel_;
-    compute::kernel_t gates_reduction_kernel_;
+    compute::binary_t ws_set_binary_;
+    compute::binary_t elemwise_fwd_binary_;
+    compute::binary_t elemwise_bwd_binary_;
+    compute::binary_t gates_reduction_binary_;
 
     // GEMM primitives.
     std::shared_ptr<primitive_t> gemm_layer_fwd_;

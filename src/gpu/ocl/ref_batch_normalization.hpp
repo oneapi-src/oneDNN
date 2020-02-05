@@ -23,6 +23,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -82,6 +83,8 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
         offsets_t off;
     };
 
+    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -99,21 +102,31 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
             kernel_names[4] = "reduce_variance";
         }
 
-        std::vector<compute::kernel_t> kernels;
-        status = compute_engine->create_kernels(
-                &kernels, kernel_names, kernel_ctx);
+        std::vector<compute::binary_t> binaries;
+        status = compute_engine->create_binaries(
+                &binaries, kernel_names, kernel_ctx);
         CHECK(status);
 
-        kernel_ = kernels[0];
-        calculate_mean_kernel_ = kernels[1];
-        calculate_variance_kernel_ = kernels[2];
-        reduce_mean_kernel_ = kernels[3];
-        reduce_variance_kernel_ = kernels[4];
+        binary_ = binaries[0];
+        calculate_mean_binary_ = binaries[1];
+        calculate_variance_binary_ = binaries[2];
+        reduce_mean_binary_ = binaries[3];
+        reduce_variance_binary_ = binaries[4];
 
         return status::success;
     }
 
-    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernels_and_add(engine,
+                {binary_, calculate_mean_binary_, reduce_mean_binary_,
+                        calculate_variance_binary_, reduce_variance_binary_}));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -122,11 +135,11 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
-    compute::kernel_t calculate_mean_kernel_;
-    compute::kernel_t reduce_mean_kernel_;
-    compute::kernel_t calculate_variance_kernel_;
-    compute::kernel_t reduce_variance_kernel_;
+    compute::binary_t binary_;
+    compute::binary_t calculate_mean_binary_;
+    compute::binary_t reduce_mean_binary_;
+    compute::binary_t calculate_variance_binary_;
+    compute::binary_t reduce_variance_binary_;
 };
 
 struct ref_batch_normalization_bwd_t : public primitive_t {
@@ -172,6 +185,8 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         offsets_t off;
     };
 
+    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -183,19 +198,28 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
 
-        std::vector<compute::kernel_t> kernels;
-        status = compute_engine->create_kernels(
-                &kernels, kernel_names, kernel_ctx);
+        std::vector<compute::binary_t> binaries;
+        status = compute_engine->create_binaries(
+                &binaries, kernel_names, kernel_ctx);
         CHECK(status);
 
-        kernel_ = kernels[0];
-        calculate_stats_kernel_ = kernels[1];
-        reduce_stats_kernel_ = kernels[2];
+        binary_ = binaries[0];
+        calculate_stats_binary_ = binaries[1];
+        reduce_stats_binary_ = binaries[2];
 
         return status::success;
     }
 
-    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernels_and_add(engine,
+                {binary_, calculate_stats_binary_, reduce_stats_binary_}));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
@@ -204,9 +228,9 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
-    compute::kernel_t calculate_stats_kernel_;
-    compute::kernel_t reduce_stats_kernel_;
+    compute::binary_t binary_;
+    compute::binary_t calculate_stats_binary_;
+    compute::binary_t reduce_stats_binary_;
 };
 
 } // namespace ocl

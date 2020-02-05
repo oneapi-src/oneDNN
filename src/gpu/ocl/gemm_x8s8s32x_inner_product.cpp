@@ -72,8 +72,11 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         const size_t gws[] = {1, mb, oc};
         const size_t lws[] = {1, 1, 1};
         auto nd_range = compute::nd_range_t(gws, lws);
+        const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+        const auto &post_process_kernel
+                = pr->get_kernel(post_process_binary_.get_id());
         status_t status = compute_stream->parallel_for(
-                nd_range, post_process_kernel_, arg_list);
+                nd_range, post_process_kernel, arg_list);
         if (status != status::success) return status;
     }
 

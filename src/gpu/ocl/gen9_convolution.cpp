@@ -802,7 +802,9 @@ status_t gen9_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(3, bias);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }
@@ -1211,7 +1213,10 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(7, conf.sum_scale);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }
@@ -1244,8 +1249,10 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
     arg_list.set(2, diff_bias);
     arg_list.set(3, diff_dst);
 
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
     status_t status = compute_stream->parallel_for(
-            compute::nd_range_t(conf.gws_d, conf.lws_d), kernel_, arg_list);
+            compute::nd_range_t(conf.gws_d, conf.lws_d), kernel, arg_list);
     if (status != status::success) return status;
 
     return status::success;

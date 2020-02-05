@@ -26,9 +26,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
     auto nd_range = compute::nd_range_t({dhc, batch});
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? pr->get_kernel(elemwise_fwd_binary_.get_id())
+            : pr->get_kernel(elemwise_bwd_binary_.get_id());
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dir);
     arg_list.set(1, lay);
@@ -50,9 +52,11 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
     auto nd_range = compute::nd_range_t({dhc, batch});
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
-            ? elemwise_fwd_kernel_
-            : elemwise_bwd_kernel_;
+            ? pr->get_kernel(elemwise_fwd_binary_.get_id())
+            : pr->get_kernel(elemwise_bwd_binary_.get_id());
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dir);
     arg_list.set(1, lay);
@@ -74,7 +78,9 @@ elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
     auto nd_range = compute::nd_range_t({dhc, batch});
-    const compute::kernel_t &kernel = elemwise_fwd_kernel_;
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel
+            = pr->get_kernel(elemwise_fwd_binary_.get_id());
 
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;
     float data_scale = pd()->attr()->rnn_data_qparams_.scale_;

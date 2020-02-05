@@ -707,21 +707,22 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 #endif
               };
 
-    std::vector<compute::kernel_t> kernels;
-    status = compute_engine->create_kernels(&kernels, kernel_names, kernel_ctx);
+    std::vector<compute::binary_t> binaries;
+    status = compute_engine->create_binaries(
+            &binaries, kernel_names, kernel_ctx);
     CHECK(status);
 
-    bias_prepare_kernel_ = kernels[0];
-    copy_init_layer_kernel_ = kernels[1];
-    copy_init_iter_kernel_ = kernels[2];
-    copy_res_layer_kernel_ = kernels[3];
-    copy_res_iter_kernel_ = kernels[4];
-    ws_set_kernel_ = kernels[5];
-    elemwise_fwd_kernel_ = kernels[6];
-    elemwise_bwd_kernel_ = kernels[7];
-    gates_reduction_kernel_ = kernels[8];
+    bias_prepare_binary_ = binaries[0];
+    copy_init_layer_binary_ = binaries[1];
+    copy_init_iter_binary_ = binaries[2];
+    copy_res_layer_binary_ = binaries[3];
+    copy_res_iter_binary_ = binaries[4];
+    ws_set_binary_ = binaries[5];
+    elemwise_fwd_binary_ = binaries[6];
+    elemwise_bwd_binary_ = binaries[7];
+    gates_reduction_binary_ = binaries[8];
 #if DEBUGPRINT
-    ws_print_kernel_ = kernels[9];
+    ws_print_binary_ = binaries[9];
 #endif
 
     if (pd()->rnn_conf.is_int8) {
@@ -782,6 +783,34 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
     if (!gemm_ok) return status::runtime_error;
 
+    return status::success;
+}
+
+template <prop_kind_t aprop>
+status_t _ref_rnn_common_t<aprop>::create_resource(
+        engine_t *engine, resource_mapper_t &mapper) const {
+    if (!mapper.has_resource(this)) {
+        auto r = new ocl_resource_t;
+        r->create_kernels_and_add(engine, {
+            bias_prepare_binary_, copy_init_layer_binary_,
+                    copy_init_iter_binary_, copy_res_layer_binary_,
+                    copy_res_iter_binary_, ws_set_binary_, elemwise_fwd_binary_,
+                    elemwise_bwd_binary_, gates_reduction_binary_
+#if DEBUGPRINT
+                    ,
+                    ws_print_binary_
+#endif
+        });
+        mapper.add(this, r);
+    }
+    assert(mapper.has_resource(this));
+
+    const std::vector<const primitive_t *> gemms = {gemm_layer_fwd_.get(),
+            gemm_iter_fwd_.get(), gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
+            gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
+    for (const auto &g : gemms) {
+        if (g) g->create_resource(engine, mapper);
+    }
     return status::success;
 }
 
@@ -944,7 +973,11 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(4, scratch_gates);
 
     auto nd_range = compute::nd_range_t({n_gates, dhc});
-    compute_stream->parallel_for(nd_range, gates_reduction_kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &gates_reduction_kernel
+            = pr->get_kernel(gates_reduction_binary_.get_id());
+
+    compute_stream->parallel_for(nd_range, gates_reduction_kernel, arg_list);
 }
 
 //*************** Grid computations strategy: linear ***************//
@@ -1040,7 +1073,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 //********* GRID computations strategy: utility functions **********//
 
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::bias_prepare(
+void _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int n_bias, int n_gates, int dhc, const memory_storage_t &ws,
         const memory_storage_t &scales, const memory_storage_t &wei_layer,
@@ -1057,17 +1090,24 @@ void _ref_rnn_common_t<aprop>::bias_prepare(
     arg_list.set(4, bias);
     arg_list.set(5, data_shift);
     arg_list.set(6, data_scale);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &bias_prepare_kernel
+            = pr->get_kernel(bias_prepare_binary_.get_id());
+
     compute_stream->parallel_for(
             compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
-            bias_prepare_kernel_, arg_list);
+            bias_prepare_kernel, arg_list);
 }
 
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::copy_init_layer(
+void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
         int batch, int slc, const memory_storage_t &ws,
         const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &copy_init_layer_kernel
+            = pr->get_kernel(copy_init_layer_binary_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1075,21 +1115,23 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(
         arg_list.set(1, input);
         arg_list.set(2, (cl_int)lr);
         arg_list.set(3, (cl_int)rl);
+
         compute_stream->parallel_for(compute::nd_range_t({slc, batch, n_iter}),
-                copy_init_layer_kernel_, arg_list);
+                copy_init_layer_kernel, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_dst_layer);
         arg_list.set(2, (cl_int)0);
         arg_list.set(3, (cl_int)0);
+
         compute_stream->parallel_for(compute::nd_range_t({batch, n_iter}),
-                copy_init_layer_kernel_, arg_list);
+                copy_init_layer_kernel, arg_list);
     }
 }
 
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::copy_init_iter(
+void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int batch, int sic, int dhc, const memory_storage_t &ws,
         const memory_storage_t &firstit_states,
@@ -1097,6 +1139,9 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(
         const memory_storage_t &diff_dst_iter,
         const memory_storage_t &diff_dst_iter_c, const float shift,
         const float scale, const bool quantize) const {
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &copy_init_iter_kernel
+            = pr->get_kernel(copy_init_iter_binary_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1108,7 +1153,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(
         arg_list.set(5, (int)quantize);
         compute_stream->parallel_for(
                 compute::nd_range_t({sic, batch, n_layer * n_dir}),
-                copy_init_iter_kernel_, arg_list);
+                copy_init_iter_kernel, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
@@ -1116,16 +1161,19 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(
         arg_list.set(2, diff_dst_iter_c);
         compute_stream->parallel_for(
                 compute::nd_range_t({dhc, batch, n_layer * n_dir}),
-                copy_init_iter_kernel_, arg_list);
+                copy_init_iter_kernel, arg_list);
     }
 }
 
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::copy_res_layer(
+void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
         int batch, int slc, int dhc, const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
         const float shift, const float scale, const bool dequantize) const {
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &copy_res_layer_kernel
+            = pr->get_kernel(copy_res_layer_binary_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1137,7 +1185,7 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(
         arg_list.set(5, scale);
         arg_list.set(6, (int)dequantize);
         compute_stream->parallel_for(compute::nd_range_t({dhc, batch, n_iter}),
-                copy_res_layer_kernel_, arg_list);
+                copy_res_layer_kernel, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
@@ -1145,18 +1193,21 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(
         arg_list.set(2, (cl_int)lr);
         arg_list.set(3, (cl_int)rl);
         compute_stream->parallel_for(compute::nd_range_t({slc, batch, n_iter}),
-                copy_res_layer_kernel_, arg_list);
+                copy_res_layer_kernel, arg_list);
     }
 }
 
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::copy_res_iter(
+void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
         int batch, int sic, int dhc, const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
         const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
         const float shift, const float scale, const bool dequantize) const {
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &copy_res_iter_kernel
+            = pr->get_kernel(copy_res_iter_binary_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1168,7 +1219,7 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(
         arg_list.set(5, (int)dequantize);
         compute_stream->parallel_for(
                 compute::nd_range_t({dhc, batch, n_layer * n_dir}),
-                copy_res_iter_kernel_, arg_list);
+                copy_res_iter_kernel, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
@@ -1176,22 +1227,25 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(
         arg_list.set(2, diff_src_iter_c);
         compute_stream->parallel_for(
                 compute::nd_range_t({sic, batch, n_layer * n_dir}),
-                copy_res_iter_kernel_, arg_list);
+                copy_res_iter_kernel, arg_list);
     }
 }
 
 template <prop_kind_t aprop>
-void _ref_rnn_common_t<aprop>::ws_set(compute::compute_stream_t *compute_stream,
+void _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
+        compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_, const cl_ulong ws_offset,
         const int ws_part, const float val, const size_t size) const {
-
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, workspace_);
     arg_list.set(1, ws_offset);
     arg_list.set(2, val);
     arg_list.set(3, ws_part);
     auto nd_range = compute::nd_range_t({size});
-    compute_stream->parallel_for(nd_range, ws_set_kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &ws_set_kernel = pr->get_kernel(ws_set_binary_.get_id());
+
+    compute_stream->parallel_for(nd_range, ws_set_kernel, arg_list);
 }
 
 #if DEBUGPRINT
@@ -1199,11 +1253,13 @@ template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::ws_print(
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &workspace_) const {
-
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, workspace_);
     auto nd_range = compute::nd_range_t({1});
-    compute_stream->parallel_for(nd_range, ws_print_kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &ws_print_kernel = pr->get_kernel(ws_print_binary_.get_id());
+
+    compute_stream->parallel_for(nd_range, ws_print_kernel, arg_list);
 }
 #endif
 
@@ -1404,7 +1460,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // initialize diff_state to 0
     if (aprop == prop_kind::backward) {
-        ws_set(compute_stream, workspace_, ws_diff_states_offset_,
+        ws_set(ctx, compute_stream, workspace_, ws_diff_states_offset_,
                 rnn_utils::diff_states, 0.0f, rnn.ws_diff_states_size);
     }
 
@@ -1438,7 +1494,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     // bias prepare if needed
     if (rnn.copy_bias) {
-        bias_prepare(compute_stream, n_layer, n_dir, n_bias, n_gates, dhc,
+        bias_prepare(ctx, compute_stream, n_layer, n_dir, n_bias, n_gates, dhc,
                 workspace_, *scales_buf_, w_input_native_, w_state_native_,
                 bias_native_);
     }
@@ -1449,12 +1505,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     float scale = (pd()->attr()->rnn_data_qparams_.scale_);
 
     // we first need to copy the initial states and input into ws
-    copy_init_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc,
+    copy_init_layer(ctx, compute_stream, is_lr, is_rl, n_iter, batch, slc,
             workspace_, input_native_, diff_dst_layer_native_);
     const bool quantize = pd()->with_src_iter()
             && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
-    copy_init_iter(compute_stream, n_layer, n_dir, batch, sic, dhc, workspace_,
-            states_native_, c_states_native_, diff_dst_iter_native_,
+    copy_init_iter(ctx, compute_stream, n_layer, n_dir, batch, sic, dhc,
+            workspace_, states_native_, c_states_native_, diff_dst_iter_native_,
             diff_dst_iter_c_native_, shift, scale, quantize);
 
     DPRINT("\n%s(%d) WS before grid\n\n", __FUNCTION__, __LINE__);
@@ -1476,12 +1532,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const bool dequantize_l
             = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
-    copy_res_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc, dhc,
+    copy_res_layer(ctx, compute_stream, is_lr, is_rl, n_iter, batch, slc, dhc,
             dst_last_layer_native_, diff_src_layer_native_, workspace_, shift,
             scale, dequantize_l);
     const bool dequantize_i = pd()->with_dst_iter()
             && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
-    copy_res_iter(compute_stream, n_layer, n_dir, batch, sic, dhc,
+    copy_res_iter(ctx, compute_stream, n_layer, n_dir, batch, sic, dhc,
             dst_last_iter_native_, dst_last_iter_c_native_,
             diff_src_iter_native_, diff_src_iter_c_native_, workspace_, shift,
             scale, dequantize_i);

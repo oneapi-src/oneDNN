@@ -26,6 +26,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/ocl/gemm/gen9_gemm_kernel_x8x8s32.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -167,6 +168,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         return status::invalid_arguments;
     }
 
+    gen9_gemm_x8x8s32_t(const pd_t *apd) : gpu_gemm_t(apd) {}
+
     status_t init_nocopy(engine_t *engine) {
         const char *kernel_name = nullptr;
 
@@ -200,9 +203,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &compute_x8x8s32_kernel_, kernel_name, kernel_ctx);
-        if (!compute_x8x8s32_kernel_) return status::runtime_error;
+        compute_engine->create_binary(
+                &compute_x8x8s32_binary_, kernel_name, kernel_ctx);
+        if (!compute_x8x8s32_binary_) return status::runtime_error;
 
         //scale kernel
         kernel_name = "gen9_gemm_scale_x8x8s32";
@@ -213,38 +216,55 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &scale_x8x8s32_kernel_, kernel_name, kernel_ctx);
-        if (!scale_x8x8s32_kernel_) return status::runtime_error;
+        compute_engine->create_binary(
+                &scale_x8x8s32_binary_, kernel_name, kernel_ctx);
+        if (!scale_x8x8s32_binary_) return status::runtime_error;
 
         return status::success;
     }
 
-    gen9_gemm_x8x8s32_t(const pd_t *apd) : gpu_gemm_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernels_and_add(
+                engine, {compute_x8x8s32_binary_, scale_x8x8s32_binary_}));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
-    status_t launch_x8x8s32(compute::compute_stream_t *s,
-            const memory_storage_t &a, const memory_storage_t &b,
-            const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int64_t lda, int64_t ldb, int64_t ldc, int64_t m,
-            int64_t n, int64_t k, int64_t beta, int32_t ao, int32_t bo,
-            const memory_storage_t &co, int64_t offset_co, bool apply_co,
+    status_t launch_x8x8s32(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, const memory_storage_t &a,
+            const memory_storage_t &b, const memory_storage_t &c,
+            int64_t offset_a, int64_t offset_b, int64_t offset_c, int64_t lda,
+            int64_t ldb, int64_t ldc, int64_t m, int64_t n, int64_t k,
+            int64_t beta, int32_t ao, int32_t bo, const memory_storage_t &co,
+            int64_t offset_co, bool apply_co, bool apply_eltwise,
+            float eltwise_alpha, float eltwise_beta, float eltwise_scale) const;
+
+    status_t launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, const memory_storage_t &c_temp,
+            const memory_storage_t &c, char offsetc, int64_t offset_c,
+            int64_t m, int64_t n, int64_t ldc, float alpha, float beta,
+            const memory_storage_t &co, int64_t offset_co, bool alpha_is_zero,
             bool apply_eltwise, float eltwise_alpha, float eltwise_beta,
             float eltwise_scale) const;
 
-    status_t launch_scale_x8x8s32(compute::compute_stream_t *s,
-            const memory_storage_t &c_temp, const memory_storage_t &c,
-            char offsetc, int64_t offset_c, int64_t m, int64_t n, int64_t ldc,
-            float alpha, float beta, const memory_storage_t &co,
-            int64_t offset_co, bool alpha_is_zero, bool apply_eltwise,
-            float eltwise_alpha, float eltwise_beta, float eltwise_scale) const;
+    status_t launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, const memory_storage_t &c_temp,
+            const memory_storage_t &c, char offsetc, int64_t offset_c,
+            int64_t m, int64_t n, int64_t ldc, float alpha, float beta,
+            const memory_storage_t &co, int64_t offset_co, bool alpha_is_zero,
+            bool apply_eltwise, float eltwise_alpha, float eltwise_beta) const;
 
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
 
-    compute::kernel_t compute_x8x8s32_kernel_;
-    compute::kernel_t scale_x8x8s32_kernel_;
+    compute::binary_t compute_x8x8s32_binary_;
+    compute::binary_t scale_x8x8s32_binary_;
 
     std::unique_ptr<memory_storage_t> temp_buf_;
 

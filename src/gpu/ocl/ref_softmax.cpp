@@ -33,8 +33,10 @@ status_t ref_softmax_fwd_t::execute_generic(const exec_ctx_t &ctx) const {
     arg_list.set(1, dst);
 
     auto nd_range = compute::nd_range_t(pd()->gws, pd()->lws);
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
 
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;
 }
 
@@ -51,7 +53,10 @@ status_t ref_softmax_bwd_t::execute_generic(const exec_ctx_t &ctx) const {
     auto nd_range = compute::nd_range_t(pd()->gws);
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }

@@ -43,8 +43,10 @@ struct primitive_t : public c_compatible {
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
 
-    virtual void create_resource(
-            engine_t *engine, resource_mapper_t &resource_mapper) const {}
+    virtual status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const {
+        return status::success;
+    }
 
 protected:
     std::shared_ptr<primitive_desc_t> pd_;
@@ -104,7 +106,7 @@ struct resource_t : public c_compatible {
 // destroying them as well.
 struct resource_mapper_t {
     using key_t = const primitive_t;
-    using mapped_t = resource_t;
+    using mapped_t = std::unique_ptr<resource_t>;
 
     resource_mapper_t() = default;
 
@@ -112,10 +114,9 @@ struct resource_mapper_t {
         return primitive_to_resource_.count(p);
     }
 
-    void add(key_t *p, mapped_t *r) {
+    void add(key_t *p, mapped_t &&r) {
         assert(primitive_to_resource_.count(p) == 0);
-        primitive_to_resource_.emplace(std::piecewise_construct,
-                std::forward_as_tuple(p), std::forward_as_tuple(r));
+        primitive_to_resource_.emplace(p, std::move(r));
     }
 
     template <typename T>
@@ -127,8 +128,7 @@ struct resource_mapper_t {
     DNNL_DISALLOW_COPY_AND_ASSIGN(resource_mapper_t);
 
 private:
-    std::unordered_map<key_t *, std::unique_ptr<mapped_t>>
-            primitive_to_resource_;
+    std::unordered_map<key_t *, mapped_t> primitive_to_resource_;
 };
 
 } // namespace impl
@@ -147,6 +147,7 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
             dnnl::impl::engine_t *engine, bool use_global_scratchpad = false);
 
+    dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
     const dnnl::impl::primitive_desc_iface_t *pd() const;
     const std::shared_ptr<dnnl::impl::primitive_t> &get_primitive() const;

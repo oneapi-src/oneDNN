@@ -268,7 +268,10 @@ status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(4, scales ? *scales : memory_storage_t::empty_storage());
 
     auto nd_range = conf.dispatch.nd_range();
-    status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
+
+    status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }

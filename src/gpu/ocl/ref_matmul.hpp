@@ -24,6 +24,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -225,10 +226,19 @@ struct ref_matmul_t : public primitive_t {
         def_data_type(kernel_ctx, pd()->dst_dt_, "DST");
         def_data_type(kernel_ctx, pd()->bia_dt_, "BIA");
         def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "ACC");
-        compute_engine->create_kernel(&kernel_, "ref_matmul", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
-
+        compute_engine->create_binary(&binary_, "ref_matmul", kernel_ctx);
+        if (!binary_) return status::runtime_error;
         return status::success;
+    }
+
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (!mapper.has_resource(this)) {
+            auto r = new ocl_resource_t;
+            r->create_kernel_and_add(engine, binary_);
+            mapper.add(this, r);
+        }
+        assert(mapper.has_resource(this));
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -285,7 +295,7 @@ struct ref_matmul_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    compute::kernel_t kernel_;
+    compute::binary_t binary_;
     std::unique_ptr<memory_storage_t> a0_mem_storage_;
     std::unique_ptr<memory_storage_t> b0_mem_storage_;
     std::unique_ptr<memory_storage_t> c0_mem_storage_;

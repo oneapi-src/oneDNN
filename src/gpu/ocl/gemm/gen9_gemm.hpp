@@ -26,6 +26,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/ocl/gemm/gen9_gemm_kernel.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -152,6 +153,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
         size_t dyn_offset_c = 0;
     };
 
+    gen9_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -179,6 +182,27 @@ struct gen9_gemm_t : public gpu_gemm_t {
         return status::invalid_arguments;
     }
 
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        for (bool beta0 : {false, true})
+            CHECK(r->create_kernel_and_add(engine, compute_binary_[beta0]));
+
+        for (bool outer : {false, true}) {
+            for (bool trans : {false, true}) {
+                CHECK(r->create_kernel_and_add(
+                        engine, copy_binary_[outer][trans]));
+            }
+        }
+
+        CHECK(r->create_kernels_and_add(
+                engine, {beta_binary_, nocopy_binary_, nocopy_superbinary_}));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
+
     status_t init_copy_based(engine_t *engine) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -197,9 +221,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     pd()->desc()->c_type);
             if (status != status::success) return status;
 
-            compute_engine->create_kernel(
-                    &compute_kernel_[beta0], "gen9_gemm_compute", kernel_ctx);
-            if (!compute_kernel_[beta0]) return status::runtime_error;
+            compute_engine->create_binary(
+                    &compute_binary_[beta0], "gen9_gemm_compute", kernel_ctx);
+            if (!compute_binary_[beta0]) return status::runtime_error;
         }
 
         for (bool outer : {false, true}) {
@@ -214,9 +238,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             pd()->desc()->acc_type);
             if (status != status::success) return status;
 
-            compute_engine->create_kernel(
-                    &copy_kernel_[outer][trans], "gen9_gemm_copy", kernel_ctx);
-            if (!copy_kernel_[outer][trans]) return status::runtime_error;
+            compute_engine->create_binary(
+                    &copy_binary_[outer][trans], "gen9_gemm_copy", kernel_ctx);
+            if (!copy_binary_[outer][trans]) return status::runtime_error;
         }
 
         compute::kernel_ctx_t kernel_ctx;
@@ -224,9 +248,9 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 kernel_ctx, pd()->desc()->c_type, pd()->desc()->acc_type);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &beta_kernel_, "gen9_gemm_beta", kernel_ctx);
-        if (!beta_kernel_) return status::runtime_error;
+        compute_engine->create_binary(
+                &beta_binary_, "gen9_gemm_beta", kernel_ctx);
+        if (!beta_binary_) return status::runtime_error;
 
         return status::success;
     }
@@ -267,8 +291,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(&nocopy_kernel_, kernel_name, kernel_ctx);
-        if (!nocopy_kernel_) return status::runtime_error;
+        compute_engine->create_binary(&nocopy_binary_, kernel_name, kernel_ctx);
+        if (!nocopy_binary_) return status::runtime_error;
 
         return status::success;
     }
@@ -291,14 +315,12 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(&nocopy_superkernel_,
+        compute_engine->create_binary(&nocopy_superbinary_,
                 "gen9_gemm_nocopy_superkernel_f32", kernel_ctx);
-        if (!nocopy_superkernel_) return status::runtime_error;
+        if (!nocopy_superbinary_) return status::runtime_error;
 
         return init_superkernel_plan();
     }
-
-    gen9_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
@@ -310,36 +332,40 @@ protected:
 #endif
 
 private:
-    status_t launch_beta(compute::compute_stream_t *s, int64_t m, int64_t n,
-            float alpha, const memory_storage_t &a, int64_t offseta,
-            int64_t lda) const;
+    status_t launch_beta(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, int64_t m, int64_t n, float alpha,
+            const memory_storage_t &a, int64_t offseta, int64_t lda) const;
 
-    status_t launch_copy(compute::compute_stream_t *s, int64_t m, int64_t n,
+    status_t launch_copy(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, int64_t m, int64_t n,
             const memory_storage_t &a, int64_t offseta, int64_t lda,
             float alpha, const memory_storage_t &b, int64_t offsetb, bool outer,
             bool trans) const;
 
-    status_t launch_compute(compute::compute_stream_t *s, int64_t m, int64_t n,
-            int64_t k, const memory_storage_t &base, int32_t offset_a,
-            int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
-            int64_t ldc, int last_k_block, float eltwise_alpha,
-            float eltwise_beta, float eltwise_scale, bool beta0) const;
+    status_t launch_compute(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, int64_t m, int64_t n, int64_t k,
+            const memory_storage_t &base, int32_t offset_a, int32_t offset_b,
+            const memory_storage_t &c, int64_t offset_c, int64_t ldc,
+            int last_k_block, float eltwise_alpha, float eltwise_beta,
+            float eltwise_scale, bool beta0) const;
 
-    status_t launch_nocopy(compute::compute_stream_t *s,
-            const memory_storage_t &a, const memory_storage_t &b,
-            const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-            int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-            float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+    status_t launch_nocopy(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, const memory_storage_t &a,
+            const memory_storage_t &b, const memory_storage_t &c,
+            int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t lda,
+            int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
+            float alpha, float beta, int last_k_block, float eltwise_alpha,
+            float eltwise_beta, float eltwise_scale,
             memory_storage_t &flag) const;
 
-    status_t launch_nocopy_superkernel(compute::compute_stream_t *s,
-            const memory_storage_t &plan, int32_t threads,
-            const memory_storage_t &a, const memory_storage_t &b,
-            const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
-            int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-            int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-            float eltwise_alpha, float eltwise_beta, float eltwise_scale) const;
+    status_t launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
+            compute::compute_stream_t *s, const memory_storage_t &plan,
+            int32_t threads, const memory_storage_t &a,
+            const memory_storage_t &b, const memory_storage_t &c,
+            int64_t offset_a, int64_t offset_b, int64_t offset_c, int32_t lda,
+            int32_t ldb, int32_t ldc, int32_t m, int32_t n, int32_t k,
+            float alpha, float beta, int last_k_block, float eltwise_alpha,
+            float eltwise_beta, float eltwise_scale) const;
 
     size_t max_plan_size() const;
     status_t init_superkernel_plan();
@@ -347,11 +373,11 @@ private:
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
     virtual status_t execute_superkernel(const gemm_exec_ctx_t &ctx) const;
 
-    compute::kernel_t compute_kernel_[2];
-    compute::kernel_t copy_kernel_[2][2];
-    compute::kernel_t beta_kernel_;
-    compute::kernel_t nocopy_kernel_;
-    compute::kernel_t nocopy_superkernel_;
+    compute::binary_t compute_binary_[2];
+    compute::binary_t copy_binary_[2][2];
+    compute::binary_t beta_binary_;
+    compute::binary_t nocopy_binary_;
+    compute::binary_t nocopy_superbinary_;
 
     std::unique_ptr<memory_storage_t> temp_buf_;
     std::unique_ptr<memory_storage_t> flag_;

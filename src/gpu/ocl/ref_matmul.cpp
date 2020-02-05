@@ -124,9 +124,13 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     size_t gws[3] = {1, (size_t)N, (size_t)MB};
     auto nd_range = compute::nd_range_t(gws);
+
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;
 }
 

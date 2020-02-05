@@ -112,7 +112,10 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const auto nd_range = compute::nd_range_t(gws);
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }

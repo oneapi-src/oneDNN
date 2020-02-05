@@ -32,8 +32,10 @@ status_t ref_resampling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(1, dst);
 
     auto nd_range = pd()->dispatch.nd_range();
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
 
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;
 }
 
@@ -48,8 +50,10 @@ status_t ref_resampling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     auto nd_range = pd()->dispatch.nd_range();
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(binary_.get_id());
 
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;
 }
 

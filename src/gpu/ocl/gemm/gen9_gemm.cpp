@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"
@@ -59,10 +60,13 @@ union plan_element_t {
 static_assert(sizeof(plan_element_t) == 8,
         "Plan element structure has been padded by the compiler.");
 
-status_t gen9_gemm_t::launch_beta(compute::compute_stream_t *compute_stream,
-        int64_t m, int64_t n, float alpha, const memory_storage_t &a,
-        int64_t offset_a, int64_t lda) const {
-    assert(beta_kernel_);
+status_t gen9_gemm_t::launch_beta(const gemm_exec_ctx_t &ctx,
+        compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
+        float alpha, const memory_storage_t &a, int64_t offset_a,
+        int64_t lda) const {
+
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &beta_kernel = pr->get_kernel(beta_binary_.get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, m);
@@ -76,16 +80,18 @@ status_t gen9_gemm_t::launch_beta(compute::compute_stream_t *compute_stream,
     size_t lws[3] = {1, 1, 1};
     auto nd_range = compute::nd_range_t(gws, lws);
 
-    return compute_stream->parallel_for(nd_range, beta_kernel_, arg_list);
+    return compute_stream->parallel_for(nd_range, beta_kernel, arg_list);
 }
 
-status_t gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
-        int64_t x, int64_t y, const memory_storage_t &a, int64_t offset_a,
-        int64_t lda, float alpha, const memory_storage_t &b, int64_t offset_b,
-        bool outer, bool trans) const {
-    auto &kernel = copy_kernel_[outer][trans];
+status_t gen9_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
+        compute::compute_stream_t *compute_stream, int64_t x, int64_t y,
+        const memory_storage_t &a, int64_t offset_a, int64_t lda, float alpha,
+        const memory_storage_t &b, int64_t offset_b, bool outer,
+        bool trans) const {
 
-    assert(kernel);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(copy_binary_[outer][trans].get_id());
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, x);
     arg_list.set(1, y);
@@ -109,14 +115,16 @@ status_t gen9_gemm_t::launch_copy(compute::compute_stream_t *compute_stream,
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t gen9_gemm_t::launch_compute(compute::compute_stream_t *compute_stream,
-        int64_t m, int64_t n, int64_t k, const memory_storage_t &base,
-        int32_t offset_a, int32_t offset_b, const memory_storage_t &c,
-        int64_t offset_c, int64_t ldc, int last_k_block, float eltwise_alpha,
-        float eltwise_beta, float eltwise_scale, bool beta0) const {
-    auto &kernel = compute_kernel_[beta0];
+status_t gen9_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
+        compute::compute_stream_t *compute_stream, int64_t m, int64_t n,
+        int64_t k, const memory_storage_t &base, int32_t offset_a,
+        int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
+        int64_t ldc, int last_k_block, float eltwise_alpha, float eltwise_beta,
+        float eltwise_scale, bool beta0) const {
 
-    assert(kernel);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(compute_binary_[beta0].get_id());
+
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, m);
     arg_list.set(1, n);
@@ -150,18 +158,19 @@ status_t gen9_gemm_t::launch_compute(compute::compute_stream_t *compute_stream,
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t gen9_gemm_t::launch_nocopy(compute::compute_stream_t *compute_stream,
-        const memory_storage_t &a, const memory_storage_t &b,
-        const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
-        int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
-        memory_storage_t &flag) const {
+status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
+        compute::compute_stream_t *compute_stream, const memory_storage_t &a,
+        const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
+        int64_t offset_b, int64_t offset_c, int32_t lda, int32_t ldb,
+        int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
+        int last_k_block, float eltwise_alpha, float eltwise_beta,
+        float eltwise_scale, memory_storage_t &flag) const {
 
-    auto &kernel = nocopy_kernel_;
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(nocopy_binary_.get_id());
+
     int64_t offset_f = 0;
 
-    assert(kernel);
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, a);
     arg_list.set(1, b);
@@ -221,7 +230,7 @@ status_t gen9_gemm_t::launch_nocopy(compute::compute_stream_t *compute_stream,
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t gen9_gemm_t::launch_nocopy_superkernel(
+status_t gen9_gemm_t::launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &plan,
         int32_t threads, const memory_storage_t &a, const memory_storage_t &b,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
@@ -229,9 +238,9 @@ status_t gen9_gemm_t::launch_nocopy_superkernel(
         int32_t n, int32_t k, float alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale) const {
 
-    auto &kernel = nocopy_superkernel_;
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(nocopy_superbinary_.get_id());
 
-    assert(kernel);
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, plan);
     arg_list.set(1, threads);
@@ -454,7 +463,8 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
     }
 
     if (!nocopy && beta != 0. && beta != 1.) {
-        status = launch_beta(compute_stream, m, n, beta_native, c, off_c0, ldc);
+        status = launch_beta(
+                ctx, compute_stream, m, n, beta_native, c, off_c0, ldc);
         if (status) return status;
     }
 
@@ -475,7 +485,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                     = off_a0 + (!transa ? (Bm + Bk * lda) : (Bk + Bm * lda));
 
             if (!nocopy) {
-                status = launch_copy(compute_stream, size_k, size_m, a,
+                status = launch_copy(ctx, compute_stream, size_k, size_m, a,
                         off_a_src, lda, alpha_native, *temp_buf_, off_a_packed,
                         false, !transa);
                 if (status) return status;
@@ -489,7 +499,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                         + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
 
                 if (!nocopy && ((Bn == 0) || (n > block_n))) {
-                    status = launch_copy(compute_stream, size_k, size_n, b,
+                    status = launch_copy(ctx, compute_stream, size_k, size_n, b,
                             off_b_src, ldb, one_native, *temp_buf_,
                             off_b_packed, true, transb);
                     if (status) return status;
@@ -499,13 +509,13 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
                 if (nocopy) {
                     float eff_beta = (Bk == 0) ? beta : 1.0f;
-                    status = launch_nocopy(compute_stream, a, b, c, off_a_src,
-                            off_b_src, off_c, lda, ldb, ldc, size_m, size_n,
-                            size_k, alpha, eff_beta, (int)last_k_block,
+                    status = launch_nocopy(ctx, compute_stream, a, b, c,
+                            off_a_src, off_b_src, off_c, lda, ldb, ldc, size_m,
+                            size_n, size_k, alpha, eff_beta, (int)last_k_block,
                             eltwise_alpha, eltwise_beta, eltwise_scale, *flag_);
                 } else {
                     bool beta0 = (beta == 0) && (Bk == 0);
-                    status = launch_compute(compute_stream, size_m, size_n,
+                    status = launch_compute(ctx, compute_stream, size_m, size_n,
                             size_k, *temp_buf_, off_a_packed, off_b_packed, c,
                             off_c, ldc, (int)last_k_block, eltwise_alpha,
                             eltwise_beta, eltwise_scale, beta0);
@@ -568,9 +578,9 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
 
         auto this_beta = (Bk == 0) ? beta : 1.0f;
 
-        status = launch_nocopy_superkernel(compute_stream, *temp_buf_, threads_,
-                a, b, c, off_a, off_b, off_c, lda, ldb, ldc, m, n, size_k,
-                alpha, this_beta, (int)last_k_block, eltwise_alpha,
+        status = launch_nocopy_superkernel(ctx, compute_stream, *temp_buf_,
+                threads_, a, b, c, off_a, off_b, off_c, lda, ldb, ldc, m, n,
+                size_k, alpha, this_beta, (int)last_k_block, eltwise_alpha,
                 eltwise_beta, eltwise_scale);
 
         if (status) return status;

@@ -35,7 +35,7 @@ struct gen9_gemm_x8x8s32_driver_params_t {
                     & ~3);
 };
 
-status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
+status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream, const memory_storage_t &a,
         const memory_storage_t &b, const memory_storage_t &c, int64_t offset_a,
         int64_t offset_b, int64_t offset_c, int64_t lda, int64_t ldb,
@@ -44,8 +44,8 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
         bool apply_co, bool apply_eltwise, float eltwise_alpha,
         float eltwise_beta, float eltwise_scale) const {
 
-    auto &kernel = compute_x8x8s32_kernel_;
-    assert(kernel);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(compute_x8x8s32_binary_.get_id());
 
     int unroll_m, unroll_n, block_m, block_n;
     gen9_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
@@ -103,7 +103,7 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
     return compute_stream->parallel_for(nd_range, kernel, arg_list);
 }
 
-status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
+status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
         compute::compute_stream_t *compute_stream,
         const memory_storage_t &c_temp, const memory_storage_t &c, char offsetc,
         int64_t offset_c, int64_t m, int64_t n, int64_t ldc, float alpha,
@@ -111,9 +111,9 @@ status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
         bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
         float eltwise_beta, float eltwise_scale) const {
 
-    auto &kernel = scale_x8x8s32_kernel_;
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const auto &kernel = pr->get_kernel(scale_x8x8s32_binary_.get_id());
 
-    assert(kernel);
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, c_temp);
     arg_list.set(1, c);
@@ -259,7 +259,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                             : 0;
                     if (!do_scale) {
                         auto off_c = off_c0 + Bm + Bn * ldc;
-                        status = launch_x8x8s32(compute_stream, a, b, c,
+                        status = launch_x8x8s32(ctx, compute_stream, a, b, c,
                                 off_a_src, off_b_src, off_c, lda, ldb, ldc,
                                 size_m, size_n, size_k, eff_beta, ao, bo, co,
                                 offset_co_src, (int)apply_co,
@@ -268,7 +268,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                         if (status) return status;
                     } else if (do_scale) {
                         auto off_c = 0 + Bm + Bn * m;
-                        status = launch_x8x8s32(compute_stream, a, b,
+                        status = launch_x8x8s32(ctx, compute_stream, a, b,
                                 *temp_buf_, off_a_src, off_b_src, off_c, lda,
                                 ldb, m, size_m, size_n, size_k, eff_beta, ao,
                                 bo, co, offset_co_src, apply_co, 0,
@@ -281,7 +281,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     }
     bool alpha_is_zero = false;
     if (do_scale) {
-        status = launch_scale_x8x8s32(compute_stream, *temp_buf_, c,
+        status = launch_scale_x8x8s32(ctx, compute_stream, *temp_buf_, c,
                 offsetc_char, off_c0, m, n, ldc, alpha, beta, co, offset_co,
                 (int)alpha_is_zero, 1, eltwise_alpha, eltwise_beta,
                 eltwise_scale);

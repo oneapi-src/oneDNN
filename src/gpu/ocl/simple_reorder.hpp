@@ -22,6 +22,7 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -98,6 +99,8 @@ struct simple_reorder_t : public primitive_t {
         reorder_conf_t conf;
     };
 
+    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -109,19 +112,26 @@ struct simple_reorder_t : public primitive_t {
         const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
 
-        compute_engine->create_kernel(&kernel_, "simple_reorder", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
-
+        compute_engine->create_binary(&binary_, "simple_reorder", kernel_ctx);
+        if (!binary_) return status::runtime_error;
         return status::success;
     }
 
-    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    compute::binary_t binary_;
 };
 
 } // namespace ocl

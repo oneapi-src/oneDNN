@@ -137,7 +137,11 @@ dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
                 pd_->engine(), scratchpad_size, use_global_scratchpad);
         scratchpad_.reset(scratchpad_ptr);
     }
-    primitive_->create_resource(pd()->engine(), resource_mapper_);
+}
+
+status_t dnnl_primitive::init() {
+    // TODO: move scratchpad creation here from ctor
+    return primitive_->create_resource(pd()->engine(), resource_mapper_);
 }
 
 engine_t *dnnl_primitive::engine() const {

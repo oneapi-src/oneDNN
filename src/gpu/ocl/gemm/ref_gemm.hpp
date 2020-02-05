@@ -20,6 +20,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -137,6 +138,8 @@ struct ref_gemm_t : public gpu_gemm_t {
         bool with_bias() const { return desc()->bias_type != data_type::undef; }
     };
 
+    ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
+
     status_t init(engine_t *engine) override {
         using namespace gemm_utils;
 
@@ -179,20 +182,26 @@ struct ref_gemm_t : public gpu_gemm_t {
         def_data_type(kernel_ctx, d->c_type, "C");
         def_data_type(kernel_ctx, d->acc_type, "ACC");
         def_data_type(kernel_ctx, bias_type, "BIAS");
-        compute_engine->create_kernel(&kernel_, "ref_gemm", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
+        compute_engine->create_binary(&binary_, "ref_gemm", kernel_ctx);
+        if (!binary_) return status::runtime_error;
 
         return status::success;
     }
 
-    ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        return status::success;
+    }
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
 private:
-    compute::kernel_t kernel_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    compute::binary_t binary_;
     std::unique_ptr<memory_storage_t> a0_mem_storage_;
     std::unique_ptr<memory_storage_t> b0_mem_storage_;
     std::unique_ptr<memory_storage_t> c0_mem_storage_;

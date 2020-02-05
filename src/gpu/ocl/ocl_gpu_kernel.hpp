@@ -43,6 +43,25 @@ private:
     cl_kernel ocl_kernel_;
 };
 
+class ocl_gpu_binary_t : public compute::binary_impl_t {
+public:
+    ocl_gpu_binary_t() = default;
+    ocl_gpu_binary_t(const std::vector<unsigned char> &binary,
+            const std::string &binary_name)
+        : binary_(binary), binary_name_(binary_name) {}
+
+    virtual ~ocl_gpu_binary_t() = default;
+
+    const unsigned char *data() const override { return binary_.data(); }
+
+    size_t size() const override { return binary_.size(); }
+    const char *name() const override { return binary_name_.c_str(); }
+
+private:
+    std::vector<unsigned char> binary_;
+    std::string binary_name_;
+};
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl

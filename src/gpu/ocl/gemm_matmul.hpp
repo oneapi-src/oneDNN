@@ -197,18 +197,22 @@ struct gemm_matmul_t : public primitive_t {
         }
     };
 
+    gemm_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         return gemm_status;
     }
 
-    gemm_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        return gemm_->create_resource(engine, mapper);
+    }
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
 private:
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> gemm_;
 };
 

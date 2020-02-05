@@ -220,7 +220,10 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     }
 
     auto nd_range = pd()->conf.dispatch.nd_range();
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;
 }
 
@@ -251,7 +254,10 @@ status_t ref_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(3, bias);
 
     auto nd_range = pd()->conf.dispatch.nd_range();
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }
@@ -283,7 +289,10 @@ status_t ref_convolution_bwd_weights_t::execute_backward_weights(
     arg_list.set(3, diff_dst);
 
     auto nd_range = pd()->conf.dispatch.nd_range();
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+
+    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;
 }

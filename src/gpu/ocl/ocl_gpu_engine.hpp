@@ -64,6 +64,9 @@ public:
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
+            const std::vector<compute::binary_t> &binaries) const override;
+
+    virtual status_t create_binaries(std::vector<compute::binary_t> *binaries,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const override;
 

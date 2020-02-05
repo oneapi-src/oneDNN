@@ -21,6 +21,7 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_sum_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -100,7 +101,12 @@ struct ref_sum_t : public primitive_t {
         return status::success;
     }
 
-    ~ref_sum_t() = default;
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        for (const auto &reorder : reorders_)
+            CHECK(reorder->create_resource(engine, mapper));
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;

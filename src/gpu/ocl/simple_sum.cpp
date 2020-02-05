@@ -54,8 +54,10 @@ status_t simple_sum_t<data_type>::execute(const exec_ctx_t &ctx) const {
         arg_list.set(3, a);
 
         auto nd_range = compute::nd_range_t({nelems});
+        const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+        const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
         status_t status
-                = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+                = compute_stream->parallel_for(nd_range, kernel, arg_list);
         if (status != status::success) return status;
     }
     return status::success;

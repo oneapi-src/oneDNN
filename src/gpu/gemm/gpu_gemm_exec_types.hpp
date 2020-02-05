@@ -69,9 +69,13 @@ struct gemm_exec_ctx_t {
         return *scratchpad_grantor_;
     }
 
-    const resource_mapper_t *resource_mapper() const {
+    const resource_mapper_t *get_resource_mapper() const {
         assert(resource_mapper_);
         return resource_mapper_;
+    }
+
+    void set_resource_mapper(const resource_mapper_t *resource_mapper) {
+        resource_mapper_ = resource_mapper;
     }
 
 private:

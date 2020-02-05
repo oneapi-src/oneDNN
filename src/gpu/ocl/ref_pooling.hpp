@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -80,6 +81,8 @@ struct ref_pooling_fwd_t : public primitive_t {
         offsets_t off;
     };
 
+    ref_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -88,13 +91,21 @@ struct ref_pooling_fwd_t : public primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_kernel(&kernel_, "ref_pooling_fwd", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
+        compute_engine->create_binary(&binary_, "ref_pooling_fwd", kernel_ctx);
+        if (!binary_) return status::runtime_error;
 
         return status::success;
     }
 
-    ref_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -103,7 +114,7 @@ struct ref_pooling_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    compute::binary_t binary_;
 };
 
 struct ref_pooling_bwd_t : public primitive_t {
@@ -147,6 +158,8 @@ struct ref_pooling_bwd_t : public primitive_t {
         offsets_t off;
     };
 
+    ref_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -155,13 +168,21 @@ struct ref_pooling_bwd_t : public primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_kernel(&kernel_, "ref_pooling_bwd", kernel_ctx);
-        if (!kernel_) return status::runtime_error;
+        compute_engine->create_binary(&binary_, "ref_pooling_bwd", kernel_ctx);
+        if (!binary_) return status::runtime_error;
 
         return status::success;
     }
 
-    ref_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, binary_));
+        mapper.add(this, std::move(r));
+        return status::success;
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
@@ -170,7 +191,7 @@ struct ref_pooling_bwd_t : public primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::kernel_t kernel_;
+    compute::binary_t binary_;
 };
 
 } // namespace ocl

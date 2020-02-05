@@ -25,6 +25,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -142,6 +143,8 @@ struct gemm_inner_product_fwd_t : public primitive_t {
         }
     };
 
+    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
@@ -155,15 +158,23 @@ struct gemm_inner_product_fwd_t : public primitive_t {
             kernel_ctx.define_int("MB", pd()->MB());
             kernel_ctx.define_int("OC", pd()->OC());
 
-            compute_engine->create_kernel(&bias_kernel_,
+            compute_engine->create_binary(&bias_binary_,
                     "gemm_inner_product_forward_bias", kernel_ctx);
-            if (!bias_kernel_) return status::runtime_error;
+            if (!bias_binary_) return status::runtime_error;
         }
 
         return status::success;
     }
 
-    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, bias_binary_));
+        mapper.add(this, std::move(r));
+        return gemm_->create_resource(engine, mapper);
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -174,7 +185,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::shared_ptr<primitive_t> gemm_;
-    compute::kernel_t bias_kernel_;
+    compute::binary_t bias_binary_;
 };
 
 struct gemm_inner_product_bwd_data_t : public primitive_t {
@@ -243,13 +254,18 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
         }
     };
 
+    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         return gemm_status;
         return status::success;
     }
 
-    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        return gemm_->create_resource(engine, mapper);
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -340,6 +356,8 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
         }
     };
 
+    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         if (gemm_status != status::success) return gemm_status;
@@ -353,15 +371,23 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
             kernel_ctx.define_int("MB", pd()->MB());
             kernel_ctx.define_int("OC", pd()->OC());
 
-            compute_engine->create_kernel(&bias_kernel_,
+            compute_engine->create_binary(&bias_binary_,
                     "gemm_inner_product_backward_weights_bias", kernel_ctx);
-            if (!bias_kernel_) return status::runtime_error;
+            if (!bias_binary_) return status::runtime_error;
         }
 
         return status::success;
     }
 
-    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        CHECK(r->create_kernel_and_add(engine, bias_binary_));
+        mapper.add(this, std::move(r));
+        return gemm_->create_resource(engine, mapper);
+    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
@@ -371,7 +397,7 @@ private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> gemm_;
-    compute::kernel_t bias_kernel_;
+    compute::binary_t bias_binary_;
 };
 
 } // namespace ocl
