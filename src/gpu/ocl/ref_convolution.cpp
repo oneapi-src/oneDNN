@@ -35,7 +35,7 @@ static status_t init_conf_common(
     set_default_conf(conf, cd, src_md, weights_md, dst_md, bias_md, attr);
 
     set_offsets(src_md, off.src_off);
-    set_offsets(weights_md, off.wht_off);
+    set_offsets(weights_md, off.wei_off);
     set_offsets(dst_md, off.dst_off);
 
     int oc_idx = (int)conf.with_groups;
@@ -133,7 +133,7 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
             "IS_BWD_W", conf.prop_kind == prop_kind::backward_weights);
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
-    def_offsets(off.wht_off, kernel_ctx, "WHT", conf.ndims + conf.with_groups);
+    def_offsets(off.wei_off, kernel_ctx, "WEI", conf.ndims + conf.with_groups);
     def_offsets(off.bias_off, kernel_ctx, "BIA", 1);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
 

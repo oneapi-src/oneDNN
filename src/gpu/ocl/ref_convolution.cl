@@ -56,8 +56,8 @@ __kernel void ref_convolution_fwd(
                         continue;
 
                     const uint src_off = SRC_OFF(n, g * IC + ic, id, ih, iw);
-                    const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
-                    d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wht_off]);
+                    const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
+                    d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wei_off]);
                 }
     POST_OP_DATA_T tmp = d;
 
@@ -124,8 +124,8 @@ __kernel void ref_convolution_bwd_data(__global SRC_DATA_T *diff_src,
         od /= SD;
         if (oh < OH && ow < OW && od < OD) {
             const uint dst_off = DST_OFF(n, g * OC + oc, od, oh, ow);
-            const uint wht_off = WHT_OFF(g, oc, ic, kd, kh, kw);
-            d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wht_off]);
+            const uint wei_off = WEI_OFF(g, oc, ic, kd, kh, kw);
+            d += DST_TO_REF(diff_dst[dst_off]) * WEI_TO_REF(wei[wei_off]);
         }
     }
     diff_src[SRC_OFF(n, g * IC + ic, id, ih, iw)] = TO_SRC(d);
@@ -179,6 +179,6 @@ __kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
                             * SRC_TO_REF(
                                     src[SRC_OFF(n, g * IC + ic, id, ih, iw)]);
                 }
-    diff_wei[WHT_OFF(g, oc, ic, kd, kh, kw)] = TO_WEI(dw);
+    diff_wei[WEI_OFF(g, oc, ic, kd, kh, kw)] = TO_WEI(dw);
 }
 #endif

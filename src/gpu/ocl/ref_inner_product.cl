@@ -23,7 +23,7 @@
 
 KERNEL_ATTR
 __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
-        __global WEI_DATA_T *wht, __global BIA_DATA_T *bias,
+        __global WEI_DATA_T *wei, __global BIA_DATA_T *bias,
         __global DST_DATA_T *dst, float eltwise_alpha, float eltwise_beta,
         float sum_scale, float output_scale) {
 
@@ -37,13 +37,13 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
             for (int kh = 0; kh < KH; ++kh)
                 for (int kw = 0; kw < KW; ++kw) {
                     const uint src_off = SRC_OFF(mb, ic, kd, kh, kw);
-                    const uint wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
+                    const uint wei_off = WEI_OFF(0, oc, ic, kd, kh, kw);
 #else
     for (int ic = 0; ic < IC_TOTAL; ++ic) {
         const uint src_off = mb * IC_TOTAL + ic;
-        const uint wht_off = oc * IC_TOTAL + ic;
+        const uint wei_off = oc * IC_TOTAL + ic;
 #endif
-                    d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wht[wht_off]);
+                    d += SRC_TO_REF(src[src_off]) * WEI_TO_REF(wei[wei_off]);
                 }
     DATA_T tmp = d;
 #if WITH_BIAS
@@ -70,7 +70,7 @@ __kernel void ref_inner_product_fwd(__global SRC_DATA_T *src,
 #if IS_BWD_D == 1
 KERNEL_ATTR
 __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
-        __global WEI_DATA_T *wht, __global DST_DATA_T *diff_dst) {
+        __global WEI_DATA_T *wei, __global DST_DATA_T *diff_dst) {
 
     const int mb = GWS_GET_MB_IC() / IC;
     const int ic = GWS_GET_MB_IC() % IC;
@@ -81,8 +81,8 @@ __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
     float ds = 0.0f;
     for (int oc = 0; oc < OC; ++oc) {
         const uint diff_dst_off = DST_OFF(mb, oc, 0, 0, 0);
-        const uint wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
-        ds += DST_TO_REF(diff_dst[diff_dst_off]) * WEI_TO_REF(wht[wht_off]);
+        const uint wei_off = WEI_OFF(0, oc, ic, kd, kh, kw);
+        ds += DST_TO_REF(diff_dst[diff_dst_off]) * WEI_TO_REF(wei[wei_off]);
     }
     const uint diff_src_off = SRC_OFF(mb, ic, kd, kh, kw);
     diff_src[diff_src_off] = REF_TO_SRC(ds);
@@ -92,7 +92,7 @@ __kernel void ref_inner_product_bwd_data(__global SRC_DATA_T *diff_src,
 #if IS_BWD_W == 1
 KERNEL_ATTR
 __kernel void ref_inner_product_bwd_weights(__global SRC_DATA_T *src,
-        __global WEI_DATA_T *diff_wht, __global BIA_DATA_T *diff_bias,
+        __global WEI_DATA_T *diff_wei, __global BIA_DATA_T *diff_bias,
         __global DST_DATA_T *diff_dst) {
 
     const int oc = GWS_GET_OC();
@@ -107,8 +107,8 @@ __kernel void ref_inner_product_bwd_weights(__global SRC_DATA_T *src,
         const uint src_off = SRC_OFF(mb, ic, kd, kh, kw);
         ds += DST_TO_REF(diff_dst[diff_dst_off]) * SRC_TO_REF(src[src_off]);
     }
-    const uint diff_wht_off = WHT_OFF(0, oc, ic, kd, kh, kw);
-    diff_wht[diff_wht_off] = REF_TO_WEI(ds);
+    const uint diff_wei_off = WEI_OFF(0, oc, ic, kd, kh, kw);
+    diff_wei[diff_wei_off] = REF_TO_WEI(ds);
 #if WITH_BIAS == 1
     if (ic == 0) {
         float db = 0.0f;

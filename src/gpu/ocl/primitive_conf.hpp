@@ -95,7 +95,7 @@ struct memory_desc_info_t {
 
 struct offsets_t {
     int src_off[4][MAX_NDIMS];
-    int wht_off[4][MAX_NDIMS];
+    int wei_off[4][MAX_NDIMS];
     int dst_off[4][MAX_NDIMS];
     int bias_off[4][MAX_NDIMS];
 };
@@ -151,7 +151,7 @@ struct conv_conf_t {
     int icb;
     int ocb;
     int osp_chunk, mb_chunk, mb_block, slm_ic;
-    size_t wht_slm_size, src_slm_size;
+    size_t wei_slm_size, src_slm_size;
     int sub_group_size;
     size_t gws_d[3], lws_d[3];
     compute::dispatch_t dispatch;
