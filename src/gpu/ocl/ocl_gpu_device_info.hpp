@@ -22,7 +22,6 @@
 #include <CL/cl.h>
 
 #include "common/z_magic.hpp"
-#include "cpu/platform.hpp"
 #include "gpu/compute/device_info.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -163,17 +162,15 @@ private:
         }
 
         hw_threads_ = eu_count_ * threads_per_eu;
-
-        // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
-        size_t cache_size = cpu::platform::get_per_core_cache_size(3)
-                * cpu::platform::get_num_cores();
-        llc_cache_size_ = (size_t)cache_size;
+        llc_cache_size_ = get_llc_cache_size();
         return status::success;
     }
 
     bool has(uint64_t extensions, compute::device_ext_t ext) const {
         return extensions & (uint64_t)ext;
     }
+
+    size_t get_llc_cache_size() const;
 
     cl_device_id device_ = nullptr;
 
