@@ -31,13 +31,17 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
         const inner_product_pd_t *pd) {
     const inner_product_desc_t &ipd = *pd->desc();
     const memory_desc_wrapper src_d(pd->invariant_src_md());
-    const memory_desc_wrapper weights_d(pd->invariant_wei_md());
+    const memory_desc_wrapper wei_d(pd->invariant_wei_md());
     const memory_desc_wrapper dst_d(pd->invariant_dst_md());
     data_type_t acc_data_type = pd->desc()->accum_data_type;
 
     const int ndims = src_d.ndims();
 
     conf.ndims = ndims;
+    conf.src_ndims = src_d.ndims();
+    conf.wei_ndims = wei_d.ndims();
+    conf.dst_ndims = dst_d.ndims();
+
     conf.has_spatial = utils::one_of(conf.ndims, 3, 4, 5);
 
     conf.mb = pd->MB();
@@ -61,7 +65,7 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
     conf.kw = pd->KW();
 
     conf.src_dt = src_d.data_type();
-    conf.wei_dt = weights_d.data_type();
+    conf.wei_dt = wei_d.data_type();
     conf.dst_dt = dst_d.data_type();
     conf.acc_dt = acc_data_type;
 
@@ -83,7 +87,7 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
         conf.with_bias = ipd.diff_bias_desc.format_kind != format_kind::undef;
         conf.bia_dt = conf.with_bias ? ipd.diff_bias_desc.data_type
                                      : data_type::f32;
-        conf.dispatch = compute_engine->create_dispatch(weights_d.md_);
+        conf.dispatch = compute_engine->create_dispatch(wei_d.md_);
         conf.dispatch.define_dim("OC", 0, conf.oc);
         conf.dispatch.define_dim("IC", 1, conf.ic);
         conf.dispatch.define_dim("KD", nstl::max(1, ndims - 3), conf.kd);
@@ -102,7 +106,7 @@ static status_t init_conf_common(inner_product_conf_t &conf, offsets_t &off,
     }
 
     set_offsets(src_d, off.src_off);
-    set_offsets(weights_d, off.wht_off);
+    set_offsets(wei_d, off.wht_off);
     set_offsets(dst_d, off.dst_off);
 
     return status::success;
@@ -140,9 +144,9 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("WITH_SUM", with_sum);
     kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
 
-    def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
-    def_offsets(off.wht_off, kernel_ctx, "WHT", conf.ndims);
-    def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);
+    def_offsets(off.src_off, kernel_ctx, "SRC", conf.src_ndims);
+    def_offsets(off.wht_off, kernel_ctx, "WHT", conf.wei_ndims);
+    def_offsets(off.dst_off, kernel_ctx, "DST", conf.dst_ndims);
 
     if (conf.src_dt == data_type::f16)
         kernel_ctx.set_data_type(data_type::f16);
