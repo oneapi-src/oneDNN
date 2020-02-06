@@ -73,7 +73,7 @@ protected:
         allows_attr_t aa {0};
         aa.po_sum = 1;
         aa.po_eltwise = 1;
-        aa.scales = 1;
+        if (get_test_engine_kind() == engine::kind::cpu) { aa.scales = 1; }
 
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);
