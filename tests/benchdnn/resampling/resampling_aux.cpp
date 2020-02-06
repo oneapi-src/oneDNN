@@ -53,8 +53,6 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
 }
 
 int str2desc(desc_t *desc, const char *str) {
-    desc_t d {0};
-
     /* canonical form:
      * mbXicXidXihXiwXodXohXowXnS
      *
@@ -66,8 +64,8 @@ int str2desc(desc_t *desc, const char *str) {
      *      mb = 2, ih = oh = id = od = 1, S="wip"
      */
 
+    desc_t d {0};
     d.mb = 2;
-    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -106,31 +104,14 @@ int str2desc(desc_t *desc, const char *str) {
 #undef CASE_N
 
     if (d.ic == 0) return FAIL;
-
     if ((d.id && !d.od) || (!d.id && d.od)) return FAIL;
+    if ((d.ih && !d.oh) || (!d.ih && d.oh)) return FAIL;
+    if ((d.iw && !d.ow) || (!d.iw && d.ow)) return FAIL;
 
-    if (d.id == 0 && d.od == 0) {
-        d.ndims--;
-        if ((d.ih && !d.oh) || (!d.ih && d.oh)) return FAIL;
-        if (d.ih == 0 && d.oh == 0) {
-            d.ndims--;
-            if (d.iw == 0 || d.ow == 0) return FAIL;
-        }
-    }
-
-    // square shape
-    if (d.ih == 0 && d.id != 0) d.ih = d.id;
-    if (d.iw == 0 && d.ih != 0) d.iw = d.ih;
-    if (d.oh == 0 && d.od != 0) d.oh = d.od;
-    if (d.ow == 0 && d.oh != 0) d.ow = d.oh;
-
-    // to keep logic when treating unspecified dimension as it's of length 1.
-    if (d.id == 0) d.id = 1;
-    if (d.ih == 0) d.ih = 1;
-    if (d.iw == 0) d.iw = 1;
-    if (d.od == 0) d.od = 1;
-    if (d.oh == 0) d.oh = 1;
-    if (d.ow == 0) d.ow = 1;
+    if (sanitize_desc(
+                d.ndims, {d.od, d.id}, {d.oh, d.ih}, {d.ow, d.iw}, {1, 1}, true)
+            != OK)
+        return FAIL;
 
     *desc = d;
 
@@ -138,14 +119,9 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool square_form = (d.ih == d.iw) && (d.oh == d.ow);
-    const bool cubic_form = square_form && (d.id == d.ih) && (d.od == d.oh);
-
-    const bool print_d = d.ndims == 5;
-    const bool print_h
-            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
-    const bool print_w
-            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+    bool print_d = true, print_h = true, print_w = true;
+    print_dhw(print_d, print_h, print_w, d.ndims, {d.od, d.id}, {d.oh, d.ih},
+            {d.ow, d.iw});
 
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 

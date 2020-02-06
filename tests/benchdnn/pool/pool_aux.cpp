@@ -56,8 +56,6 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
 }
 
 int str2desc(desc_t *desc, const char *str) {
-    desc_t d {0};
-
     /* canonical form:
      * mbXicX_odXihXiwX_odXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_nS
      *
@@ -70,10 +68,10 @@ int str2desc(desc_t *desc, const char *str) {
      *  - if padding is undefined => compute trivial padding
      */
 
+    desc_t d {0};
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
     d.pd = d.ph = d.pw = -1;
-    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -133,7 +131,6 @@ int str2desc(desc_t *desc, const char *str) {
     const bool no_d = (d.id | d.kd | d.od) == 0 && d.sd == 1 && d.pd < 1;
     const bool no_h = (d.ih | d.kh | d.oh) == 0 && d.sh == 1 && d.ph < 1;
     const bool no_w = (d.iw | d.kw | d.ow) == 0 && d.sw == 1 && d.pw < 1;
-    if (no_d && no_h && no_w) return FAIL;
 
     if (!no_d) {
         if (!d.id || !d.kd) return FAIL;
@@ -142,8 +139,7 @@ int str2desc(desc_t *desc, const char *str) {
             d.od = compute_out(d.id, d.kd, d.sd, d.pd);
         } else if (d.pd < 0)
             d.pd = compute_pad(d.od, d.id, d.kd, d.sd);
-    } else
-        d.ndims--;
+    }
 
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
@@ -152,8 +148,6 @@ int str2desc(desc_t *desc, const char *str) {
             d.oh = compute_out(d.ih, d.kh, d.sh, d.ph);
         } else if (d.ph < 0)
             d.ph = compute_pad(d.oh, d.ih, d.kh, d.sh);
-    } else {
-        if (no_d) d.ndims--;
     }
 
     if (!no_w) {
@@ -165,40 +159,11 @@ int str2desc(desc_t *desc, const char *str) {
             d.pw = compute_pad(d.ow, d.iw, d.kw, d.sw);
     }
 
-    if (d.ndims == 5 && no_w && no_h) {
-        // User specified values for the d dimension but not values for h and w
-        // dimensions. Propagate d values to h and w dimensions.
-        d.iw = d.ih = d.id;
-        d.kw = d.kh = d.kd;
-        d.ow = d.oh = d.od;
-        d.pw = d.ph = d.pd;
-        d.sw = d.sh = d.sd;
-    } else if (d.ndims == 4 && no_w) {
-        // User specified values for the h dimension but not values for the w
-        // dimension. Propagate h values to the w dimension.
-        d.iw = d.ih;
-        d.kw = d.kh;
-        d.ow = d.oh;
-        d.pw = d.ph;
-        d.sw = d.sh;
-    }
-
-    if (d.ndims < 5) {
-        // User did not specify values for the d dimension, set them to default.
-        d.id = 1;
-        d.kd = 1;
-        d.od = 1;
-        d.pd = 0;
-        d.sd = 1;
-    }
-    if (d.ndims < 4) {
-        // User did not specify values for the h dimension, set them to default.
-        d.ih = 1;
-        d.kh = 1;
-        d.oh = 1;
-        d.ph = 0;
-        d.sh = 1;
-    }
+    if (sanitize_desc(d.ndims, {d.od, d.id, d.kd, d.sd, d.pd},
+                {d.oh, d.ih, d.kh, d.sh, d.ph}, {d.ow, d.iw, d.kw, d.sw, d.pw},
+                {1, 1, 1, 1, 0}, true)
+            != OK)
+        return FAIL;
 
     *desc = d;
 
@@ -206,16 +171,10 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool square_form = (d.ih == d.iw) && (d.kh == d.kw) && (d.oh == d.ow)
-            && (d.sh == d.sw) && (d.ph == d.pw);
-    const bool cubic_form = square_form && (d.id == d.ih) && (d.kd == d.kh)
-            && (d.od == d.oh) && (d.pd == d.ph) && (d.sd == d.sh);
-
-    const bool print_d = d.ndims == 5;
-    const bool print_h
-            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
-    const bool print_w
-            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+    bool print_d = true, print_h = true, print_w = true;
+    print_dhw(print_d, print_h, print_w, d.ndims,
+            {d.od, d.id, d.kd, d.sd, d.pd}, {d.oh, d.ih, d.kh, d.sh, d.ph},
+            {d.ow, d.iw, d.kw, d.sw, d.pw});
 
     auto print_spatial
             = [&](const char *d_str, int64_t d_val, const char *h_str,

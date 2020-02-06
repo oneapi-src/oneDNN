@@ -57,8 +57,6 @@ alg_t alg_kind2alg(dnnl_alg_kind_t alg) {
 }
 
 int str2desc(desc_t *desc, const char *str, bool is_deconv) {
-    desc_t d {0};
-
     /* canonical form:
      * gXmbX_icXidXihXiwX_ocXodXohXowX_kdXkhXkwX_sdXshXswX_pdXphXpwX_ddXdhXdwXnS
      *
@@ -71,13 +69,11 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
      *  - if padding is undefined => compute trivial padding;
      */
 
+    desc_t d {0};
     d.g = 1;
     d.mb = 2;
     d.sd = d.sh = d.sw = 1;
-    d.dd = d.dh = d.dw = 0;
     d.pd = d.ph = d.pw = -1;
-    d.has_groups = false;
-    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -153,7 +149,6 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
     const bool no_d = (d.id | d.kd | d.od | d.dd) == 0 && d.sd == 1 && d.pd < 1;
     const bool no_h = (d.ih | d.kh | d.oh | d.dh) == 0 && d.sh == 1 && d.ph < 1;
     const bool no_w = (d.iw | d.kw | d.ow | d.dw) == 0 && d.sw == 1 && d.pw < 1;
-    if (no_d && no_h && no_w) return FAIL;
 
     if (!no_d) {
         if (!d.id || !d.kd) return FAIL;
@@ -162,8 +157,7 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.od = compute_out(is_deconv, d.id, d.kd, d.sd, d.pd, d.dd);
         } else if (d.pd < 0)
             d.pd = compute_pad(is_deconv, d.od, d.id, d.kd, d.sd, d.dd);
-    } else
-        d.ndims--;
+    }
 
     if (!no_h) {
         if (!d.ih || !d.kh) return FAIL;
@@ -172,8 +166,6 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.oh = compute_out(is_deconv, d.ih, d.kh, d.sh, d.ph, d.dh);
         } else if (d.ph < 0)
             d.ph = compute_pad(is_deconv, d.oh, d.ih, d.kh, d.sh, d.dh);
-    } else {
-        if (no_d) d.ndims--;
     }
 
     if (!no_w) {
@@ -185,44 +177,11 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
             d.pw = compute_pad(is_deconv, d.ow, d.iw, d.kw, d.sw, d.dw);
     }
 
-    if (d.ndims == 5 && no_w && no_h) {
-        // User specified values for the d dimension but not values for h and w
-        // dimensions. Propagate d values to h and w dimensions.
-        d.iw = d.ih = d.id;
-        d.kw = d.kh = d.kd;
-        d.ow = d.oh = d.od;
-        d.pw = d.ph = d.pd;
-        d.sw = d.sh = d.sd;
-        d.dw = d.dh = d.dd;
-    } else if (d.ndims == 4 && no_w) {
-        // User specified values for the h dimension but not values for the w
-        // dimension. Propagate h values to the w dimension.
-        d.iw = d.ih;
-        d.kw = d.kh;
-        d.ow = d.oh;
-        d.pw = d.ph;
-        d.sw = d.sh;
-        d.dw = d.dh;
-    }
-
-    if (d.ndims < 5) {
-        // User did not specify values for the d dimension, set them to default.
-        d.id = 1;
-        d.kd = 1;
-        d.od = 1;
-        d.pd = 0;
-        d.sd = 1;
-        d.dd = 0;
-    }
-    if (d.ndims < 4) {
-        // User did not specify values for the h dimension, set them to default.
-        d.ih = 1;
-        d.kh = 1;
-        d.oh = 1;
-        d.ph = 0;
-        d.sh = 1;
-        d.dh = 0;
-    }
+    if (sanitize_desc(d.ndims, {d.od, d.id, d.kd, d.sd, d.pd, d.dd},
+                {d.oh, d.ih, d.kh, d.sh, d.ph, d.dh},
+                {d.ow, d.iw, d.kw, d.sw, d.pw, d.dw}, {1, 1, 1, 1, 0, 0}, true)
+            != OK)
+        return FAIL;
 
     *desc = d;
 
@@ -230,17 +189,11 @@ int str2desc(desc_t *desc, const char *str, bool is_deconv) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool square_form = (d.ih == d.iw) && (d.kh == d.kw) && (d.oh == d.ow)
-            && (d.sh == d.sw) && (d.ph == d.pw) && (d.dh == d.dw);
-    const bool cubic_form = square_form && (d.id == d.ih) && (d.kd == d.kh)
-            && (d.od == d.oh) && (d.pd == d.ph) && (d.sd == d.sh)
-            && (d.dd == d.dh);
-
-    const bool print_d = d.ndims == 5;
-    const bool print_h
-            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
-    const bool print_w
-            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+    bool print_d = true, print_h = true, print_w = true;
+    print_dhw(print_d, print_h, print_w, d.ndims,
+            {d.od, d.id, d.kd, d.sd, d.pd, d.dd},
+            {d.oh, d.ih, d.kh, d.sh, d.ph, d.dh},
+            {d.ow, d.iw, d.kw, d.sw, d.pw, d.dw});
 
     auto print_spatial
             = [&](const char *d_str, int64_t d_val, const char *h_str,
