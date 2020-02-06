@@ -24,6 +24,8 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     )
 
+add_definitions(-DDNNL_DLL_EXPORTS)
+
 # propagate SRC specific flags
 append(CMAKE_C_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")

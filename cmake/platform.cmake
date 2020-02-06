@@ -24,7 +24,7 @@ set(platform_cmake_included true)
 
 include("cmake/utils.cmake")
 
-add_definitions(-DDNNL_DLL -DDNNL_DLL_EXPORTS)
+add_definitions(-DDNNL_DLL)
 
 # UNIT8_MAX-like macros are a part of the C99 standard and not a part of the
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
