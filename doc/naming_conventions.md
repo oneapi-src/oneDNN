@@ -50,18 +50,15 @@ DNNL uses the following notations in the documentation formulas and
 verbose output.
 
 | Name                                     | Semantics
-| :--------------------------------------- | :-
-| n                                        | number of image in a batch
-| g                                        | number of a group
-| oc, od, oh, ow                           | number of output channels, depth, height, and width
-| ic, id, ih, iw                           | input channels, depth, height, and width
-| kd, kh, kw                               | kernel (filter) depth, height, and width
-| sd, sh, sw                               | stride by depth, height, and width
-| dd, dh, dw                               | kernel (filter) height, width and depth
-| pd, ph, pw                               | padding by depth, height, and width
-| \f$pd_0\f$, \f$ph_0\f$, \f$pw_0\f$       | padding by depth, height, and width on the lower index side
-| \f$pd_1\f$, \f$ph_1\f$, \f$pw_1\f$       | padding by depth, height, and width on the higher index side
-
+| :--------------------------------------- | :----------------------------------------
+| `n` (or `mb`)                            | number of image in a batch
+| `g`                                      | groups
+| `oc`, `od`, `oh`, `ow`                   | output channels, depth, height, and width
+| `ic`, `id`, `ih`, `iw`                   | input channels, depth, height, and width
+| `kd`, `kh, `kw`                          | kernel (filter) depth, height, and width
+| `sd`, `sh, `sw`                          | stride by depth, height, and width
+| `dd`, `dh`, `dw`                         | dilation by depth, height, and width
+| `pd`, `ph`, `pw`                         | padding by depth, height, and width
 
 ## RNN-Specific Notation
 
