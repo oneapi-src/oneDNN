@@ -69,13 +69,14 @@ vectors of the same type (either s8/s8 or u8/u8). The details for the s8/s8
 case are covered in the
 [2. Inputs of the same type: s8](@ref dg_i8_comp_s12) section below.
 
-#### 1.1. Processors with the Intel AVX512 Instruction Set
+#### 1.1. Processors with the Intel AVX2 or Intel AVX512 Instruction Set
 
-*System examples: Intel Xeon Scalable processor x1xx series (formerly Skylake).*
+*System examples: Intel Xeon Processor E7 v3 Family (formerly Haswell),
+Intel Xeon Scalable processor x1xx series (formerly Skylake).*
 
 DNNL implements matrix multiplication such as operations with u8 and s8
-operands on the Intel AVX512 Instruction Set by using a sequence of
-`VPMADDUBSW, VPMADDWD, VPADDD` instructions [[1]](@ref dg_i8_ref_sdm):
+operands on the Intel AVX2 and Intel AVX512 Instruction Set by using a sequence
+of `VPMADDUBSW, VPMADDWD, VPADDD` instructions [[1]](@ref dg_i8_ref_sdm):
 
 1. `VPMADDUBSW` multiplies two pairs of u8/s8 values and accumulates the
    result into s16 (`int16_t`) with potential saturation.
@@ -134,7 +135,7 @@ assumes that it is the user's responsibility to choose the quantization
 parameters so that no overflow/saturation occurs. For instance, a user can use
 u7 `[0, 127]` instead of u8 for the unsigned input, or s7 `[-64, 63]` instead
 of the s8 one. It is worth mentioning that this is required only when the Intel
-AVX512 Instruction Set is used.
+AVX2 or Intel AVX512 Instruction Set is used.
 
 The **LSTM** primitive behaves slightly differently than the convolution and
 inner product primitives, or u8/s8 GEMM. Even though its hidden state is
@@ -214,9 +215,9 @@ depending on the problem sizes, hardware, and environment, but is expected to be
 in a range from 0% to 15% in most cases.
 
 Since s8/s8 implementations are based on u8/s8 ones, they have the same
-potential issue with overflow/saturation when the Intel AVX512 Instruction Set
-is used. The difference between the expected and actual results might be much
-greater though in this case. Consider the following example:
+potential issue with overflow/saturation when the Intel AVX2 or Intel AVX512
+Instruction Set is used. The difference between the expected and actual results
+might be much greater though in this case. Consider the following example:
 
 ~~~cpp
     int8_t  a_s8[4] = {127, 127, 0, 0};
@@ -244,9 +245,9 @@ greater though in this case. Consider the following example:
     // While one might expect 32258 !!!
 ~~~
 
-Note that processors with no support of the Intel AVX512 Instruction Set or
-with support of the Intel DL Boost Instruction Set are not affected by
-these issues due to the reasons described in
+Note that processors with no support of the Intel AVX2 and Intel AVX512
+Instruction Set or with support of the Intel DL Boost Instruction Set are not
+affected by these issues due to the reasons described in
 [1. Inputs of mixed type: u8 and s8](@ref dg_i8_comp_s11) section above.
 
 Different primitives solve the potential overflow differently. The overview of
@@ -255,9 +256,9 @@ the implementations are given below:
 1. **Convolution** primitive. The source is treated as `X_s8`, which would be
   shifted during the execution. The compensation is precomputed by a reorder
   during quantization of the weights, and embedded into them. Finally, when the
-  Intel AVX512 Instruction Set is used the reorder additionally scales the
-  weights by 0.5 to overcome the potential overflow issue. During the
-  convolution execution, the result would be re-scaled back. This rescaling
+  Intel AVX2 or Intel AVX512 Instruction Set is used the reorder additionally
+  scales the weights by 0.5 to overcome the potential overflow issue. During
+  the convolution execution, the result would be re-scaled back. This rescaling
   introduces an error that might insignificantly affect the inference accuracy
   (compared to a platform with the Intel DL Boost Instruction Set).
 
