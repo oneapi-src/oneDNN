@@ -38,13 +38,17 @@ struct jit_ref_inner_product_kernel {
 
         const inner_product_desc_t &ipd = *pd->desc();
         const memory_desc_wrapper src_d(pd->invariant_src_md());
-        const memory_desc_wrapper weights_d(pd->invariant_wei_md());
+        const memory_desc_wrapper wei_d(pd->invariant_wei_md());
         const memory_desc_wrapper dst_d(pd->invariant_dst_md());
         data_type_t acc_data_type = pd->desc()->accum_data_type;
 
         const int ndims = src_d.ndims();
 
         jip.ndims = ndims;
+        jip.src_ndims = src_d.ndims();
+        jip.wei_ndims = wei_d.ndims();
+        jip.dst_ndims = dst_d.ndims();
+
         jip.has_spatial = utils::one_of(jip.ndims, 3, 4, 5);
 
         jip.mb = pd->MB();
@@ -68,7 +72,7 @@ struct jit_ref_inner_product_kernel {
         jip.kw = pd->KW();
 
         jip.src_dt = src_d.data_type();
-        jip.wei_dt = weights_d.data_type();
+        jip.wei_dt = wei_d.data_type();
         jip.dst_dt = dst_d.data_type();
         jip.acc_dt = acc_data_type;
 
@@ -92,7 +96,7 @@ struct jit_ref_inner_product_kernel {
                     = ipd.diff_bias_desc.format_kind != format_kind::undef;
             jip.bia_dt = jip.with_bias ? ipd.diff_bias_desc.data_type
                                        : data_type::f32;
-            jip.dispatch = compute_engine->create_dispatch(weights_d.md_);
+            jip.dispatch = compute_engine->create_dispatch(wei_d.md_);
             jip.dispatch.define_dim("OC", 0, jip.oc);
             jip.dispatch.define_dim("IC", 1, jip.ic);
             jip.dispatch.define_dim("KD", nstl::max(1, ndims - 3), jip.kd);
@@ -111,11 +115,11 @@ struct jit_ref_inner_product_kernel {
         }
 
         set_offsets(src_d, jit_off.src_off);
-        set_offsets(weights_d, jit_off.wht_off);
+        set_offsets(wei_d, jit_off.wht_off);
         set_offsets(dst_d, jit_off.dst_off);
 
         return status::success;
-    };
+    }
 
     static status_t init_const_def(compute::kernel_ctx_t &kernel_ctx,
             const jit_inner_product_conf_t &jip, const jit_offsets &jit_off,
@@ -150,9 +154,9 @@ struct jit_ref_inner_product_kernel {
         kernel_ctx.define_int("WITH_SUM", with_sum);
         kernel_ctx.define_int("WITH_SUM_ELTWISE", with_sum && with_eltwise);
 
-        def_offsets(jit_off.src_off, kernel_ctx, "SRC", jip.ndims);
-        def_offsets(jit_off.wht_off, kernel_ctx, "WHT", jip.ndims);
-        def_offsets(jit_off.dst_off, kernel_ctx, "DST", jip.ndims);
+        def_offsets(jit_off.src_off, kernel_ctx, "SRC", jip.src_ndims);
+        def_offsets(jit_off.wht_off, kernel_ctx, "WHT", jip.wei_ndims);
+        def_offsets(jit_off.dst_off, kernel_ctx, "DST", jip.dst_ndims);
 
         if (jip.src_dt == data_type::f16)
             kernel_ctx.set_data_type(data_type::f16);

@@ -196,6 +196,7 @@ struct jit_pool_conf_t {
 /* inner_product */
 struct jit_inner_product_conf_t {
     int ndims;
+    int src_ndims, wei_ndims, dst_ndims;
     int mb, oc, ic, ic_total;
     int id, ih, iw, od, oh, ow;
     int kd, kh, kw;
@@ -491,7 +492,7 @@ inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(utils::format("%s_OFFSET_PAD", str), md.md_->offset0);
 }
 
-inline void set_offsets(const memory_desc_wrapper &md, int offs[3][MAX_NDIMS]) {
+inline void set_offsets(const memory_desc_wrapper &md, int offs[4][MAX_NDIMS]) {
     dim_t block_dims[DNNL_MAX_NDIMS];
     dim_t strides_compat[2][DNNL_MAX_NDIMS];
 
