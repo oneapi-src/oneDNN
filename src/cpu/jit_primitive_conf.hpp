@@ -128,7 +128,8 @@ struct jit_conv_conf_t {
     /* fma avx512_core */
     conv_kernel_kind_t kernel_kind;
     /* 4fma */
-    int tr_iw;
+    int tr_iw, tr_ih;
+    int tr_kw, tr_kh;
     int tr_src_num_guard_elems;
     /* 1st conv: 4fma */
     int tr_ld;
@@ -175,6 +176,7 @@ struct jit_conv_conf_t {
     cpu_isa_t isa;
     // bf16 bwdw conv
     int tr_ow;
+    bool is_hw_transp; // spatial dim height-width transposed
 };
 
 // calculates filter size taking into account dilation
