@@ -6935,91 +6935,123 @@ struct rnn_primitive_desc_base : public primitive_desc {
 
     /// Returns source layer memory descriptor.
     /// @returns Source layer memory descriptor.
-    memory::desc src_layer_desc() const { return base::src_desc(0); }
+    memory::desc src_layer_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_SRC_LAYER);
+    }
 
     /// Returns source iteration memory descriptor.
     /// @returns Source iteration memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
     ///          source iteration parameter.
-    memory::desc src_iter_desc() const { return base::src_desc(1); }
+    memory::desc src_iter_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_SRC_ITER);
+    }
 
     /// Returns source recurrent cell state memory descriptor.
     /// @returns Source recurrent cell state memory descriptor.
-    memory::desc src_iter_c_desc() const { return base::src_desc(2); }
+    memory::desc src_iter_c_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_SRC_ITER_C);
+    }
 
     /// Returns weights layer memory descriptor.
     /// @returns Weights layer memory descriptor.
-    memory::desc weights_layer_desc() const { return base::weights_desc(0); }
+    memory::desc weights_layer_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS_LAYER);
+    }
 
     /// Returns weights iteration memory descriptor.
     /// @returns Weights iteration memory descriptor.
-    memory::desc weights_iter_desc() const { return base::weights_desc(1); }
+    memory::desc weights_iter_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_WEIGHTS_ITER);
+    }
 
     /// Returns bias memory descriptor.
     /// @returns Bias memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
     ///          bias parameter.
-    memory::desc bias_desc() const { return base::weights_desc(2); }
+    memory::desc bias_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_BIAS);
+    }
 
     /// Returns destination layer memory descriptor.
     /// @returns Destination layer memory descriptor.
-    memory::desc dst_layer_desc() const { return base::dst_desc(0); }
+    memory::desc dst_layer_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DST_LAYER);
+    }
 
     /// Returns destination iteration memory descriptor.
     /// @returns Destination iteration memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
     ///          destination iteration parameter.
-    memory::desc dst_iter_desc() const { return base::dst_desc(1); }
+    memory::desc dst_iter_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DST_ITER);
+    }
 
     /// Returns destination recurrent cell state memory descriptor.
     /// @returns Destination recurrent cell state memory descriptor.
-    memory::desc dst_iter_c_desc() const { return base::dst_desc(2); }
+    memory::desc dst_iter_c_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DST_ITER_C);
+    }
 
     /// Returns diff source layer memory descriptor.
     /// @returns Diff source layer memory descriptor.
-    memory::desc diff_src_layer_desc() const { return base::diff_src_desc(0); }
+    memory::desc diff_src_layer_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC_LAYER);
+    }
 
     /// Returns diff source iteration memory descriptor.
     /// @returns Diff source iteration memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
     ///          diff source iteration parameter.
-    memory::desc diff_src_iter_desc() const { return base::diff_src_desc(1); }
+    memory::desc diff_src_iter_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC_ITER);
+    }
 
     /// Returns diff source recurrent cell state memory descriptor.
     /// @returns Diff source recurrent cell state memory descriptor.
-    memory::desc diff_src_iter_c_desc() const { return base::diff_src_desc(2); }
+    memory::desc diff_src_iter_c_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC_ITER_C);
+    }
 
     /// Returns diff weights layer memory descriptor.
     /// @returns Diff weights layer memory descriptor.
     memory::desc diff_weights_layer_desc() const {
-        return base::diff_weights_desc(0);
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS_LAYER);
     }
 
     /// Returns diff weights iteration memory descriptor.
     /// @returns Diff weights iteration memory descriptor.
     memory::desc diff_weights_iter_desc() const {
-        return base::diff_weights_desc(1);
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_WEIGHTS_ITER);
     }
 
     /// Returns diff bias memory descriptor.
     /// @returns Diff bias memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
     ///          diff bias parameter.
-    memory::desc diff_bias_desc() const { return base::diff_weights_desc(2); }
+    memory::desc diff_bias_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_BIAS);
+    }
 
     /// Returns diff destination layer memory descriptor.
     /// @returns Diff destination layer memory descriptor.
-    memory::desc diff_dst_layer_desc() const { return base::diff_dst_desc(0); }
+    memory::desc diff_dst_layer_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST_LAYER);
+    }
 
     /// Returns diff destination iteration memory descriptor.
     /// @returns Diff destination iteration memory descriptor.
     /// @returns A zero memory descriptor if the primitive does not have a
     ///          diff destination iteration parameter.
-    memory::desc diff_dst_iter_desc() const { return base::diff_dst_desc(1); }
+    memory::desc diff_dst_iter_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST_ITER);
+    }
 
     /// Returns diff destination recurrent cell state memory descriptor.
     /// @returns Diff destination recurrent cell state memory descriptor.
-    memory::desc diff_dst_iter_c_desc() const { return base::diff_dst_desc(2); }
+    memory::desc diff_dst_iter_c_desc() const {
+        return base::query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST_ITER_C);
+    }
 
 protected:
     using rnn_base = rnn_primitive_desc_base;
