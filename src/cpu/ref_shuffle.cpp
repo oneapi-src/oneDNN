@@ -86,6 +86,7 @@ void ref_shuffle_t<data_type_size>::execute_(const exec_ctx_t &ctx) const {
                     const size_t off = mb * stride_mb + sp * blksize;
                     const int cb = c * blksize;
                     const size_t output_off = off + cb * SP;
+                    PRAGMA_OMP_SIMD()
                     for (int cc = 0; cc < nstl::min(blksize, C - cb); ++cc) {
                         int input_c = rev_transposed_[cb + cc];
                         const size_t input_off = off
