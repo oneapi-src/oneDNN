@@ -15,7 +15,7 @@
 /src/cpu/gemm/ @dnnl-team/blas @dnnl-team/arch
 
 # GPU-specific optimizations
-/src/ocl/ @dnnl-team/gpu
+/src/gpu/ @dnnl-team/gpu
 
 # Tests
 /tests/benchdnn/inputs/ @dnnl-team/arch @dnnl-team/cpu @dnnl-team/gpu
