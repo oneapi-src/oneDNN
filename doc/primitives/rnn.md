@@ -233,22 +233,40 @@ achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
 This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 + B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
-# Data Types
+# Considerations for Training
+
+When using the RNN API for training, the forward pass should use the
+`forward_training` propagation kind, and a workspace should be passed to
+both the forward pass and the backward pass. Note that after executing the
+backward pass, the workspace is no more valid and should be populated
+once again by another forward pass.
+
+@anchor dg_rnn_impl_limits
+
+# Implementation details
+
+## Data Types
 
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
 
- Propagation                | Cell Function | Input data | Recurrent data | Weights | Bias | Output Data
---------------------------- | ------------- | ---------- | -------------- | ------- | ---- | ------------
- Forward / Backward         |  All          | f32        | f32            | f32     | f32  | f32
- Forward                    |  All          | f16        | f16            | f16     | f16  | f16
- Forward inference          |  Vanilla LSTM | u8         | u8             | s8      | f32  | u8, f32
+
+ Propagation                | Cell Function | Input data | Recurrent data (1) | Weights | Bias | Output Data
+--------------------------- | ------------- | ---------- | ------------------ | ------- | ---- | ------------
+ Forward / Backward         |  All          | f32        | f32                | f32     | f32  | f32
+ Forward / Backward (2)     |  All          | bf16       | bf16               | bf16    | f32  | bf16
+ Forward                    |  All          | f16        | f16                | f16     | f16  | f16
+ Forward inference          |  Vanilla LSTM | u8         | u8                 | s8      | f32  | u8, f32
+
+(1) With LSTM and Peephole LSTM cells, the cell state datatype is always f32.
+
+(2) In backward propagation, all `diff_*` tensors are in f32.
 
 @warning
     There might be hardware and/or implementation specific restrictions.
     Check [Implementation Limitations](@ref dg_rnn_impl_limits) section below.
 
-# Data and Weights Formats
+## Data Representation
 
 In the DNNL programming model, the RNN primitive is one of a few that
 support the placeholder memory format memory::format::any (shortened
@@ -273,16 +291,12 @@ The RNN primitive supports padded tensors and views. So even if
 two memory descriptors share the same data layout, they might still be
 different.
 
+## Post-ops and Attributes
 
-# Considerations for Training
+Currently post-ops and attributes are only used by the int8 variant of
+LSTM. See the markdown @ref cpu_rnn_inference_int8_cpp for more
+details on how to use and set these quantization parameters.
 
-When using the RNN API for training, the forward pass should use the
-`forward_training` propagation kind, and a workspace should be passed to
-both the forward pass and the backward pass. Note that after executing the
-backward pass, the workspace is no more valid and should be populated
-once again by another forward pass.
-
-@anchor dg_rnn_impl_limits
 # Implementation Limitations
 
 1. Refer to @ref dev_guide_data_types for limitations related to data types
