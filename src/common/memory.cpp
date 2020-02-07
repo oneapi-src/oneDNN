@@ -76,7 +76,6 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     memory_storage_t *memory_storage_ptr;
     status_t status = engine->create_memory_storage(
             &memory_storage_ptr, flags, size, handle);
-    assert(status == status::success);
     if (status != status::success) return;
 
     memory_storage_.reset(memory_storage_ptr);
@@ -95,9 +94,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         memory_storage_t *memory_storage_ptr;
         status_t status = engine->create_memory_storage(
                 &memory_storage_ptr, use_runtime_ptr, 0, nullptr);
-
-        assert(status == status::success);
-        MAYBE_UNUSED(status);
+        if (status != status::success) return;
 
         memory_storage_.reset(memory_storage_ptr);
     }
