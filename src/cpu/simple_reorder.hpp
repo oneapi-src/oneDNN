@@ -950,11 +950,11 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                                   ib::_8b8a, ib::_8b8c, ib::_8c8b, ib::_2c8b4c)
                                 ? 8
                                 : one_of(tag_traits<tag_o>::inner_blks,
-                                          ib::_16a16b, ib::_16a4b, ib::_16b16a,
-                                          ib::_16b4c, ib::_16b16c, ib::_16c16b,
-                                          ib::_8a16b2a, ib::_4b16a4b,
-                                          ib::_8b16a2b, ib::_8b16c2b,
-                                          ib::_4c16b4c, ib::_8c16b2c)
+                                          ib::_16a16b, ib::_16b16a, ib::_16b16c,
+                                          ib::_16c16b, ib::_8a16b2a,
+                                          ib::_4b16a4b, ib::_8b16a2b,
+                                          ib::_8b16c2b, ib::_4c16b4c,
+                                          ib::_8c16b2c)
                                         ? 16
                                         : INT_MIN;
 
@@ -968,7 +968,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                           ib::_4c16b4c, ib::_8c16b2c)
                         ? 16
                         : one_of(tag_traits<tag_o>::inner_blks, ib::_4b4a,
-                                  ib::_4b4c, ib::_4c4b, ib::_16a4b, ib::_16b4c)
+                                  ib::_4b4c, ib::_4c4b)
                                 ? 4
                                 : INT_MIN;
 
