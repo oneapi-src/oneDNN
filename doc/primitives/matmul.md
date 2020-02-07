@@ -32,6 +32,16 @@ its dimensions can be 1 and the same value would be used across the
 corresponding dimension. However, \f$bias\f$ must have the same number of
 dimensions as the \f$dst\f$.
 
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output | Execution argument index |
+| ---                     | ---                      |
+| \src                    | DNNL_ARG_SRC             |
+| \weights                | DNNL_ARG_WEIGHTS         |
+| \bias                   | DNNL_ARG_BIAS            |
+| \dst                    | DNNL_ARG_DST             |
+
 ## Implementation Details
 
 ### General Notes

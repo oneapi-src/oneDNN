@@ -22,6 +22,15 @@ data between the memory formats.
 Using the attributes and post-ops users can also use reorder primitive to
 quantize the data (and if necessary change the memory format simultaneously).
 
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output | Execution argument index |
+| ---                     | ---                      |
+| \f$src\f$               | DNNL_ARG_FROM            |
+| \f$dst\f$               | DNNL_ARG_TO              |
+
+
 ## Implementation Details
 
 ### General Notes

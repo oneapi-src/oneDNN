@@ -17,6 +17,14 @@ The sum primitive sums \f$N\f$ tensors:
 The sum primitive doesn't have a notion of forward or backward propagations.
 The backward propagation for the sum operation is simply an identity operation.
 
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| primitive intput/output        | execution argument index |
+| ---                            | ---                      |
+| \f$src\f$                      | DNNL_ARG_MULTIPLE_SRC    |
+| \f$dst\f$                      | DNNL_ARG_DST             |
+
 ## Implementation Details
 
 ### General Notes

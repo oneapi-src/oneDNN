@@ -45,6 +45,16 @@ The backward propagation computes
 based on
 \f$\operatorname{diff\_dst}(n, c, h, w)\f$ and \f$src(n, c, h, w)\f$.
 
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output | Execution argument index |
+| ---                     | ---                      |
+| \src                    | DNNL_ARG_SRC             |
+| \dst                    | DNNL_ARG_DST             |
+| \diffsrc                | DNNL_ARG_DIFF_SRC        |
+| \diffdst                | DNNL_ARG_DIFF_DST        |
+
 
 ## Implementation Details
 

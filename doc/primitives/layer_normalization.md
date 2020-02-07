@@ -78,17 +78,18 @@ requires different inputs and outputs. For clarity, a summary is shown below.
 | #dnnl_use_scaleshift                           | *Inputs*: \f$src\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$                            | *Inputs*: \f$src\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$, \f$\mu\f$, \f$\sigma^2\f$                                       | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$, \f$diff\_\gamma\f$, \f$diff\_\beta\f$ | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                |
 | #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$ | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$                                       | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$, \f$diff\_\gamma\f$, \f$diff\_\beta\f$ | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                |
 
-When executed, the inputs and outputs should be mapped to an execution argument index as specified by the following table.
-| primitive intput/output                                       | execution argument index  |
-| ---                                                           | ---                       |
-| src                                                           | DNNL_ARG_SRC              |
-| \f$\gamma, \beta\f$                                           | DNNL_ARG_SCALE_SHIFT      |
-| mean (\f$\mu\f$)                                              | DNNL_ARG_MEAN             |
-| variance (\f$\sigma\f$)                                       | DNNL_ARG_VARIANCE         |
-| dst                                                           | DNNL_ARG_DST              |
-| \f$\operatorname{diff\_dst}\f$                                | DNNL_ARG_DIFF_DST         |
-| \f$\operatorname{diff\_src}\f$                                | DNNL_ARG_DIFF_SRC         |
-| \f$\operatorname{diff\_\gamma}, \operatorname{diff\_\beta}\f$ | DNNL_ARG_DIFF_SCALE_SHIFT |
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output | Execution argument index  |
+| ---                     | ---                       |
+| \src                    | DNNL_ARG_SRC              |
+| \f$\gamma, \beta\f$     | DNNL_ARG_SCALE_SHIFT      |
+| mean (\f$\mu\f$)        | DNNL_ARG_MEAN             |
+| variance (\f$\sigma\f$) | DNNL_ARG_VARIANCE         |
+| \dst                    | DNNL_ARG_DST              |
+| \diffdst                | DNNL_ARG_DIFF_DST         |
+| \diffsrc                | DNNL_ARG_DIFF_SRC         |
+| \diffgamma, \diffbeta   | DNNL_ARG_DIFF_SCALE_SHIFT |
 
 
 ## Implementation Details

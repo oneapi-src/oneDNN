@@ -243,6 +243,29 @@ once again by another forward pass.
 
 @anchor dg_rnn_impl_limits
 
+# Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output                   | Execution argument index    |
+| ---                                       | ---                         |
+| \f$\operatorname{src\_layer}\f$           | DNNL_ARG_SRC_LAYER          |
+| \f$\operatorname{src\_iter}\f$            | DNNL_ARG_SRC_ITER           |
+| \f$\operatorname{src\_iter\_c}\f$         | DNNL_ARG_SRC_ITER_C         |
+| \f$\operatorname{weights\_layer}\f$       | DNNL_ARG_WEIGHTS_LAYER      |
+| \f$\operatorname{bias}\f$                 | DNNL_ARG_BIAS               |
+| \f$\operatorname{dst\_layer}\f$           | DNNL_ARG_DST_LAYER          |
+| \f$\operatorname{dst\_iter}\f$            | DNNL_ARG_DST_ITER           |
+| \f$\operatorname{dst\_iter\_c}\f$         | DNNL_ARG_DST_ITER_C         |
+| \f$\operatorname{diff\_src\_layer}\f$     | DNNL_ARG_DIFF_SRC_LAYER     |
+| \f$\operatorname{diff\_src\_iter}\f$      | DNNL_ARG_DIFF_SRC_ITER      |
+| \f$\operatorname{diff\_src\_iter\_c}\f$   | DNNL_ARG_DIFF_SRC_ITER_C    |
+| \f$\operatorname{diff\_weights\_layer}\f$ | DNNL_ARG_DIFF_WEIGHTS_LAYER |
+| \f$\operatorname{diff\_bias}\f$           | DNNL_ARG_DIFF_BIAS          |
+| \f$\operatorname{diff\_dst\_layer}\f$     | DNNL_ARG_DIFF_DST_LAYER     |
+| \f$\operatorname{diff\_dst\_iter}\f$      | DNNL_ARG_DIFF_DST_ITER      |
+| \f$\operatorname{diff\_dst\_iter\_c}\f$   | DNNL_ARG_DIFF_DST_ITER_C    |
+
+
 # Implementation details
 
 ## Data Types

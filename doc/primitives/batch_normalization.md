@@ -100,6 +100,22 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 | #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$ | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$                                       | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$, \f$diff\_\gamma\f$, \f$diff\_\beta\f$ | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                |
 | `flags` \|  #dnnl_fuse_norm_relu               | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`                                 | *Inputs*: same as with `flags` <br><br> *Outputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags`                         | *Inputs*: same as with `flags`, [Workspace](@ref dev_guide_inference_and_training_aspects_workspace) <br><br> *Outputs*: same as with `flags` |
 
+
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output     | Execution argument index  |
+| ---                         | ---                       |
+| \src                        | DNNL_ARG_SRC              |
+| \f$\gamma, \beta\f$         | DNNL_ARG_SCALE_SHIFT      |
+| mean (\f$\mu\f$)            | DNNL_ARG_MEAN             |
+| variance (\f$\sigma\f$)     | DNNL_ARG_VARIANCE         |
+| \dst                        | DNNL_ARG_DST              |
+| workspace                   | DNNL_ARG_WORKSPACE        |
+| \diffdst                    | DNNL_ARG_DIFF_DST         |
+| \diffsrc                    | DNNL_ARG_DIFF_SRC         |
+| \f$\diffgamma, \diffbeta\f$ | DNNL_ARG_DIFF_SCALE_SHIFT |
+
+
 ## Implementation Details
 
 ### General Notes

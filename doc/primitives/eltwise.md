@@ -52,6 +52,17 @@ operations support a computation using \f$dst(\overline{s})\f$ memory produced
 during forward propagation. Refer to the table above for a list of operations
 supporting destination as input memory and the corresponding formulas.
 
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive intput/output | Execution argument index |
+| ---                     | ---                      |
+| \src                    | DNNL_ARG_SRC             |
+| \dst                    | DNNL_ARG_DST             |
+| \diffsrc                | DNNL_ARG_DIFF_SRC        |
+| \diffdst                | DNNL_ARG_DIFF_DST        |
+
+
 ## Implementation Details
 
 ### General Notes
