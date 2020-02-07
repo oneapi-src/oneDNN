@@ -116,11 +116,11 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$diff\_src\f$
-based on \f$diff\_dst\f$ and \f$weights\f$.
+The backward propagation computes \f$\operatorname{diff\_src}\f$
+based on \f$\operatorname{diff\_dst}\f$ and \f$weights\f$.
 
-The weights update computes \f$diff\_weights\f$ and \f$diff\_bias\f$
-based on \f$diff\_dst\f$ and \f$src\f$.
+The weights update computes \f$\operatorname{diff\_weights}\f$ and \f$\operatorname{diff\_bias}\f$
+based on \f$\operatorname{diff\_dst}\f$ and \f$src\f$.
 
 @note The *optimized* memory formats \f$src\f$ and \f$weights\f$ might be
 different on forward propagation, backward propagation, and weights update.

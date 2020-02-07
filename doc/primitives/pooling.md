@@ -53,10 +53,9 @@ Average pooling supports two algorithms:
 
 ### Backward
 
-The backward propagation computes
-\f$diff\_src(n, c, h, w)\f$,
-based on
-\f$diff\_dst(n, c, h, w)\f$ and (in case of max pooling) `workspace`.
+The backward propagation computes \f$\operatorname{diff\_src}(n, c, h,
+w)\f$, based on \f$\operatorname{diff\_dst}(n, c, h, w)\f$ and (in
+case of max pooling) `workspace`.
 
 ## Implementation Details
 

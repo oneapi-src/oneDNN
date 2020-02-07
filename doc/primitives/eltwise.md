@@ -46,8 +46,8 @@ There is no difference between the #dnnl_forward_training and
 
 ### Backward
 
-The backward propagation computes \f$diff\_src(\overline{s})\f$, based on
-\f$diff\_dst(\overline{s})\f$ and \f$src(\overline{s})\f$. However, some
+The backward propagation computes \f$\operatorname{diff\_src}(\overline{s})\f$, based on
+\f$\operatorname{diff\_dst}(\overline{s})\f$ and \f$src(\overline{s})\f$. However, some
 operations support a computation using \f$dst(\overline{s})\f$ memory produced
 during forward propagation. Refer to the table above for a list of operations
 supporting destination as input memory and the corresponding formulas.

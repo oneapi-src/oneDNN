@@ -41,9 +41,10 @@ data case.
 ### Backward
 
 The backward propagation computes
-\f$diff\_src(n, c, h, w)\f$,
+\f$\operatorname{diff\_src}(n, c, h, w)\f$,
 based on
-\f$diff\_dst(n, c, h, w)\f$ and \f$src(n, c, h, w)\f$.
+\f$\operatorname{diff\_dst}(n, c, h, w)\f$ and \f$src(n, c, h, w)\f$.
+
 
 ## Implementation Details
 

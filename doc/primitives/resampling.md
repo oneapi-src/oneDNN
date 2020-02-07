@@ -70,8 +70,8 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$diff\_src\f$
-based on \f$diff\_dst\f$.
+The backward propagation computes \f$\operatorname{diff\_src}\f$
+based on \f$\operatorname{diff\_dst}\f$.
 
 ## Implementation Details
 

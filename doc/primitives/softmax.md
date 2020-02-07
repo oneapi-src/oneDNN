@@ -43,9 +43,9 @@ and #dnnl_forward_inference propagation kinds.
 ### Backward
 
 The backward propagation computes
-\f$diff\_src(ou, c, in)\f$,
+\f$\operatorname{diff\_src}(ou, c, in)\f$,
 based on
-\f$diff\_dst(ou, c, in)\f$ and \f$dst(ou, c, in)\f$.
+\f$\operatorname{diff\_dst}(ou, c, in)\f$ and \f$dst(ou, c, in)\f$.
 
 ## Implementation Details
 
