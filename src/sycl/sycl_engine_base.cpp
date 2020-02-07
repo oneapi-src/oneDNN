@@ -27,8 +27,15 @@ namespace sycl {
 
 status_t sycl_engine_base_t::create_memory_storage(
         memory_storage_t **storage, unsigned flags, size_t size, void *handle) {
-    return safe_ptr_assign<memory_storage_t>(*storage,
-            new sycl_buffer_memory_storage_t(this, flags, size, handle));
+    std::unique_ptr<memory_storage_t> _storage(
+            new sycl_buffer_memory_storage_t(this));
+    if (!_storage) return status::out_of_memory;
+
+    status_t status = _storage->init(flags, size, handle);
+    if (status != status::success) return status;
+
+    *storage = _storage.release();
+    return status::success;
 }
 
 status_t sycl_engine_base_t::create_stream(stream_t **stream, unsigned flags) {

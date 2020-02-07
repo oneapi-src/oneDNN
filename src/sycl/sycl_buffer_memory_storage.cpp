@@ -20,6 +20,7 @@
 
 #include "common/guard_manager.hpp"
 #include "common/memory.hpp"
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -27,22 +28,8 @@ namespace sycl {
 
 struct map_tag;
 
-sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(
-        engine_t *engine, unsigned flags, size_t size, void *handle)
-    : sycl_memory_storage_base_t(engine), buffer_(nullptr) {
-    // Do not allocate memory if one of these is true:
-    // 1) size is 0
-    // 2) handle is nullptr and flags have use_runtime_ptr
-    if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc))) return;
-    if (flags & memory_flags_t::alloc) {
-        buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
-    } else if (flags & memory_flags_t::use_runtime_ptr) {
-        auto &buf_u8 = *static_cast<buffer_u8_t *>(handle);
-        buffer_.reset(new buffer_u8_t(buf_u8));
-    } else {
-        assert(!"not expected");
-    }
-}
+sycl_buffer_memory_storage_t::sycl_buffer_memory_storage_t(engine_t *engine)
+    : sycl_memory_storage_base_t(engine) {}
 
 status_t sycl_buffer_memory_storage_t::map_data(void **mapped_ptr) const {
     if (!buffer_) {
@@ -68,8 +55,13 @@ status_t sycl_buffer_memory_storage_t::unmap_data(void *mapped_ptr) const {
 
 std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         size_t offset, size_t size) const {
-    auto storage = new sycl_buffer_memory_storage_t(
-            this->engine(), memory_flags_t::use_runtime_ptr, 0, nullptr);
+    auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(engine());
+    if (!storage) return nullptr;
+
+    status_t status
+            = storage->init(memory_flags_t::use_runtime_ptr, 0, nullptr);
+    if (status != status::success) return nullptr;
+
     if (engine()->kind() == engine_kind::cpu) {
         storage->buffer_ = buffer_;
         storage->base_offset_ = offset;
@@ -94,15 +86,25 @@ std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::get_sub_storage(
         storage->base_offset_ = 0;
     }
 
-    return std::unique_ptr<memory_storage_t>(storage);
+    return storage;
 }
 
 std::unique_ptr<memory_storage_t> sycl_buffer_memory_storage_t::clone() const {
-    auto storage = new sycl_buffer_memory_storage_t(
-            engine(), memory_flags_t::use_runtime_ptr, 0, nullptr);
+    auto storage = utils::make_unique<sycl_buffer_memory_storage_t>(engine());
+    if (!storage) return nullptr;
+
+    status_t status
+            = storage->init(memory_flags_t::use_runtime_ptr, 0, nullptr);
+    if (status != status::success) return nullptr;
+
     storage->buffer_ = buffer_;
     storage->base_offset_ = base_offset_;
-    return std::unique_ptr<memory_storage_t>(storage);
+    return storage;
+}
+
+status_t sycl_buffer_memory_storage_t::init_allocate(size_t size) {
+    buffer_.reset(new buffer_u8_t(cl::sycl::range<1>(size)));
+    return status::success;
 }
 
 } // namespace sycl

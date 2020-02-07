@@ -31,8 +31,7 @@ namespace sycl {
 
 class sycl_buffer_memory_storage_t : public sycl_memory_storage_base_t {
 public:
-    sycl_buffer_memory_storage_t(
-            engine_t *engine, unsigned flags, size_t size, void *handle);
+    sycl_buffer_memory_storage_t(engine_t *engine);
 
     buffer_u8_t &buffer() const { return *buffer_; }
 
@@ -46,6 +45,8 @@ public:
     }
 
     virtual status_t set_data_handle(void *handle) override {
+        if (!handle) return status::success;
+
         auto *buf_u8_ptr = static_cast<buffer_u8_t *>(handle);
         buffer_.reset(new buffer_u8_t(*buf_u8_ptr));
         return status::success;
@@ -62,6 +63,9 @@ public:
             size_t offset, size_t size) const override;
 
     virtual std::unique_ptr<memory_storage_t> clone() const override;
+
+protected:
+    virtual status_t init_allocate(size_t size) override;
 
 private:
     std::shared_ptr<buffer_u8_t> buffer_;

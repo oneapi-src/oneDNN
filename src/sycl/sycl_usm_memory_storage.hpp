@@ -35,29 +35,8 @@ namespace sycl {
 
 class sycl_usm_memory_storage_t : public sycl_memory_storage_base_t {
 public:
-    sycl_usm_memory_storage_t(
-            engine_t *engine, unsigned flags, size_t size, void *handle)
-        : sycl_memory_storage_base_t(engine) {
-        // Do not allocate memory if one of these is true:
-        // 1) size is 0
-        // 2) handle is nullptr and flags have use_runtime_ptr
-        if ((size == 0) || (!handle && !(flags & memory_flags_t::alloc)))
-            return;
-        if (flags & memory_flags_t::alloc) {
-            auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine);
-            auto &sycl_dev = sycl_engine->device();
-            auto &sycl_ctx = sycl_engine->context();
-
-            void *usm_ptr_alloc
-                    = cl::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
-            usm_ptr_ = decltype(usm_ptr_)(usm_ptr_alloc,
-                    [&](void *ptr) { cl::sycl::free(ptr, sycl_ctx); });
-        } else if (flags & memory_flags_t::use_runtime_ptr) {
-            usm_ptr_ = decltype(usm_ptr_)(handle, [](void *) {});
-        } else {
-            assert(!"not expected");
-        }
-    }
+    sycl_usm_memory_storage_t(engine_t *engine)
+        : sycl_memory_storage_base_t(engine) {}
 
     void *usm_ptr() const { return usm_ptr_.get(); }
 
@@ -82,16 +61,36 @@ public:
         void *sub_ptr = usm_ptr_.get()
                 ? reinterpret_cast<uint8_t *>(usm_ptr_.get()) + offset
                 : nullptr;
-        auto storage = new sycl_usm_memory_storage_t(
-                this->engine(), memory_flags_t::use_runtime_ptr, size, sub_ptr);
-        return std::unique_ptr<memory_storage_t>(storage);
+        auto storage = utils::make_unique<sycl_usm_memory_storage_t>(engine());
+        if (!storage) return nullptr;
+        storage->init(memory_flags_t::use_runtime_ptr, size, sub_ptr);
+        return storage;
     }
 
     virtual std::unique_ptr<memory_storage_t> clone() const override {
-        auto storage = new sycl_usm_memory_storage_t(
-                engine(), memory_flags_t::use_runtime_ptr, 0, nullptr);
+        auto storage = utils::make_unique<sycl_usm_memory_storage_t>(engine());
+        if (!storage) return nullptr;
+
+        status_t status
+                = storage->init(memory_flags_t::use_runtime_ptr, 0, nullptr);
+        if (status != status::success) return nullptr;
+
         storage->usm_ptr_ = decltype(usm_ptr_)(usm_ptr_.get(), [](void *) {});
-        return std::unique_ptr<memory_storage_t>(storage);
+        return storage;
+    }
+
+protected:
+    virtual status_t init_allocate(size_t size) override {
+        auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
+        auto &sycl_dev = sycl_engine->device();
+        auto &sycl_ctx = sycl_engine->context();
+
+        void *usm_ptr_alloc = cl::sycl::malloc_shared(size, sycl_dev, sycl_ctx);
+        if (!usm_ptr_alloc) return status::out_of_memory;
+
+        usm_ptr_ = decltype(usm_ptr_)(usm_ptr_alloc,
+                [&](void *ptr) { cl::sycl::free(ptr, sycl_ctx); });
+        return status::success;
     }
 
 private:

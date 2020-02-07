@@ -46,13 +46,22 @@ struct create_memory_t<memory_api_kind_t::buffer> {
                 const_cast<void *>(handle));
         auto buf_u8 = buf->template reinterpret<uint8_t>(
                 cl::sycl::range<1>(buf->get_size()));
+
         std::unique_ptr<memory_storage_t> mem_storage(
-                new sycl_buffer_memory_storage_t(eng,
-                        memory_flags_t::use_runtime_ptr,
-                        memory_desc_wrapper(mem_desc).size(), &buf_u8));
+                new sycl_buffer_memory_storage_t(eng));
+        if (!mem_storage)
+            error::wrap_c_api(
+                    impl::status::out_of_memory, "memory allocation failed");
+
+        status_t status = mem_storage->init(memory_flags_t::use_runtime_ptr,
+                memory_desc_wrapper(mem_desc).size(), &buf_u8);
+        error::wrap_c_api(status, "internal error");
+
         std::unique_ptr<memory_t> mem(
                 new memory_t(eng, mem_desc, std::move(mem_storage)));
-
+        if (!mem)
+            error::wrap_c_api(
+                    impl::status::out_of_memory, "memory allocation failed");
         mem->memory_storage()->set_offset(offset * sizeof(T));
         return mem;
     }
@@ -65,12 +74,21 @@ struct create_memory_t<memory_api_kind_t::usm> {
             dnnl_memory_desc_t *mem_desc, dim_t offset, const void *handle) {
 #ifdef DNNL_SYCL_DPCPP
         std::unique_ptr<memory_storage_t> mem_storage(
-                new sycl_usm_memory_storage_t(eng,
-                        memory_flags_t::use_runtime_ptr,
-                        memory_desc_wrapper(mem_desc).size(),
-                        const_cast<void *>(handle)));
+                new sycl_usm_memory_storage_t(eng));
+        if (!mem_storage)
+            error::wrap_c_api(
+                    impl::status::out_of_memory, "memory allocation failed");
+
+        status_t status = mem_storage->init(memory_flags_t::use_runtime_ptr,
+                memory_desc_wrapper(mem_desc).size(),
+                const_cast<void *>(handle));
+        error::wrap_c_api(status, "internal error");
+
         std::unique_ptr<memory_t> mem(
                 new memory_t(eng, mem_desc, std::move(mem_storage)));
+        if (!mem)
+            error::wrap_c_api(
+                    impl::status::out_of_memory, "memory allocation failed");
         mem->memory_storage()->set_offset(offset * sizeof(T));
         return mem;
 #else
