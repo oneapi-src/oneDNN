@@ -52,11 +52,13 @@ void cache_balance(size_t working_set_size, dim_t C_blks, dim_t N, int nthr,
     iters = div_up(C_blks, C_blks_per_iter);
 }
 
-bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
-        int nthr, dim_t N, dim_t C_blks, dim_t SP, int &C_ithr, int &C_nthr,
-        dim_t &C_blk_s, dim_t &C_blk_e, int &N_ithr, int &N_nthr, dim_t &N_s,
-        dim_t &N_e, int &S_ithr, int &S_nthr, dim_t &S_s, dim_t &S_e) {
-    if (nthr <= C_blks || !dnnl_thr_syncable()) {
+bool thread_balance(bool do_blocking, bool spatial_thr_allowed, bool is_nspc,
+        int ithr, int nthr, dim_t N, dim_t C_blks, dim_t SP, int &C_ithr,
+        int &C_nthr, dim_t &C_blk_s, dim_t &C_blk_e, int &N_ithr, int &N_nthr,
+        dim_t &N_s, dim_t &N_e, int &S_ithr, int &S_nthr, dim_t &S_s,
+        dim_t &S_e) {
+    if (((nthr <= C_blks) && IMPLICATION(is_nspc, N == 1))
+            || !dnnl_thr_syncable()) {
         C_ithr = ithr;
         C_nthr = nthr;
         N_ithr = 0;
@@ -69,14 +71,28 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
         S_e = SP;
         balance211(C_blks, C_nthr, C_ithr, C_blk_s, C_blk_e);
     } else {
-        if (do_blocking) {
-            N_nthr = (int)nstl::min<dim_t>(N, nthr);
-            C_nthr = (int)nstl::min<dim_t>(C_blks, nthr / N_nthr);
-            S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
-        } else {
-            C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+        if (is_nspc) {
+            if ((nthr <= C_blks && nthr == 1) || C_blks <= 8)
+                C_nthr = 1;
+            else if (C_blks <= 32)
+                C_nthr = 8;
+            else {
+                C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                // Unroll by channels in JIT kernel
+                if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
+            }
             N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
             S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
+        } else {
+            if (do_blocking) {
+                N_nthr = (int)nstl::min<dim_t>(N, nthr);
+                C_nthr = (int)nstl::min<dim_t>(C_blks, nthr / N_nthr);
+                S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
+            } else {
+                C_nthr = (int)math::gcd((dim_t)nthr, C_blks);
+                N_nthr = (int)nstl::min<dim_t>(N, nthr / C_nthr);
+                S_nthr = (int)nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
+            }
         }
 
         if (!spatial_thr_allowed) S_nthr = 1;
@@ -106,8 +122,8 @@ bool thread_balance(bool do_blocking, bool spatial_thr_allowed, int ithr,
     return spatial_thr_allowed;
 }
 
-bool is_spatial_thr(
-        const batch_normalization_pd_t *bdesc, int simd_w, int data_size) {
+bool is_spatial_thr(const batch_normalization_pd_t *bdesc, bool is_nspc,
+        int simd_w, int data_size) {
     if (!dnnl_thr_syncable()) return false;
 
     dim_t nthr = dnnl_get_max_threads();
@@ -115,35 +131,56 @@ bool is_spatial_thr(
     dim_t C_PADDED = memory_desc_wrapper(bdesc->src_md()).padded_dims()[1];
     assert(C_PADDED % simd_w == 0);
 
-    dim_t N = bdesc->MB();
-    size_t data = N * C_PADDED * SP * data_size;
-    size_t l3_size_ = get_per_core_cache_size(3) * nthr / 2;
-    bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
-    dim_t C_blks_per_iter {1}, iters {1};
     dim_t C_blks = C_PADDED / simd_w;
+    dim_t N = bdesc->MB();
+    dim_t S_nthr {1};
 
-    if (do_blocking) {
-        int num_tensors = bdesc->is_fwd() ? 1 : 2;
-        size_t working_set_size = (N * SP * simd_w * data_size) * num_tensors;
-        cache_balance(
-                working_set_size, C_blks, N, nthr, C_blks_per_iter, iters);
-    }
+    if (is_nspc) {
+        if (nthr <= C_blks && N == 1) return false;
 
-    // Spatial threading decision made in this function shall be consistent
-    // with thread_balance() behavior.
-    C_blks = do_blocking ? C_blks_per_iter : C_blks;
+        dim_t C_nthr;
 
-    if (nthr <= C_blks) return false;
+        if ((nthr <= C_blks && nthr == 1) || C_blks <= 8)
+            C_nthr = 1;
+        else if (C_blks <= 32)
+            C_nthr = 8;
+        else {
+            C_nthr = math::gcd((dim_t)nthr, C_blks);
+            if ((C_nthr == C_blks) || (C_nthr == nthr)) C_nthr = 1;
+        }
 
-    dim_t S_nthr = 1;
-    if (do_blocking) {
-        dim_t N_nthr = nstl::min(N, nthr);
-        dim_t C_nthr = nstl::min(C_blks, nthr / N_nthr);
-        S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
+        dim_t N_nthr = nstl::min<dim_t>(N, nthr / C_nthr);
+        S_nthr = nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
     } else {
-        dim_t C_nthr = math::gcd(nthr, C_blks);
-        dim_t N_nthr = nstl::min(N, nthr / C_nthr);
-        S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
+        size_t data = N * C_PADDED * SP * data_size;
+        size_t l3_size_
+                = get_per_core_cache_size(3) * dnnl_get_max_threads() / 2;
+        bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
+        dim_t C_blks_per_iter {1}, iters {1};
+
+        if (do_blocking) {
+            int num_tensors = bdesc->is_fwd() ? 1 : 2;
+            size_t working_set_size
+                    = (N * SP * simd_w * data_size) * num_tensors;
+            cache_balance(
+                    working_set_size, C_blks, N, nthr, C_blks_per_iter, iters);
+        }
+
+        // Spatial threading decision made in this function shall be consistent
+        // with thread_balance() behavior.
+        C_blks = do_blocking ? C_blks_per_iter : C_blks;
+
+        if (nthr <= C_blks) return false;
+
+        if (do_blocking) {
+            dim_t N_nthr = nstl::min(N, nthr);
+            dim_t C_nthr = nstl::min(C_blks, nthr / N_nthr);
+            S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
+        } else {
+            dim_t C_nthr = math::gcd(nthr, C_blks);
+            dim_t N_nthr = nstl::min(N, nthr / C_nthr);
+            S_nthr = nstl::min(SP, nthr / (C_nthr * N_nthr));
+        }
     }
 
     return S_nthr > 1;
