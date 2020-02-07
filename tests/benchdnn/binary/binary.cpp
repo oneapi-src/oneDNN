@@ -21,6 +21,7 @@
 
 #include "src/common/dnnl_thread.hpp"
 
+#include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
@@ -82,16 +83,6 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
     return OK;
 }
 
-static inline int eltwise_index(const prb_t *p) {
-    using pk = attr_t::post_ops_t::kind_t;
-    const auto &po = p->attr.post_ops;
-    for (int i = 0; i < po.len; ++i) {
-        auto k = po.entry[i].kind;
-        if (k != pk::SUM && k < pk::KIND_TOTAL) return i;
-    }
-    return -1;
-}
-
 static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
         const dnn_mem_t &dt_mem, res_t *r) {
     const auto nelems = dt_mem.nelems();
@@ -99,7 +90,8 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     r->total = nelems;
     const float trh = epsilon_dt(p->ddt == dnnl_f16 ? dnnl_f16 : dnnl_f32)
             * p->n_inputs();
-    const int eltwise_idx = eltwise_index(p);
+    const int eltwise_idx = p->attr.post_ops.eltwise_index();
+
     const bool has_eltwise = eltwise_idx >= 0;
 
     for (int64_t i = 0; i < nelems; i++) {

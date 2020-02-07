@@ -73,6 +73,7 @@ protected:
         allows_attr_t aa {0};
         aa.po_sum = 1;
         aa.po_eltwise = 1;
+        // TODO: remove condition when GPU adds int8, scales support
         if (get_test_engine_kind() == engine::kind::cpu) { aa.scales = 1; }
 
         auto eng = engine(get_test_engine_kind(), 0);

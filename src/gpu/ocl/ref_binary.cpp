@@ -28,7 +28,7 @@ status_t ref_binary_t::pd_t::init_conf() {
 
     alg_kind_t alg = desc()->alg_kind;
 
-    const auto &po = pd->attr()->post_ops_;
+    const auto &po = attr()->post_ops_;
     bool with_sum = po.contain(primitive_kind::sum, 0)
             && po.entry_[0].sum.scale != 0.f;
     float sum_scale = with_sum ? po.entry_[0].sum.scale : 1;

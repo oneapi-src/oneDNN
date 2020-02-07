@@ -16,7 +16,7 @@
 #include "gpu/ocl/ocl_types.h"
 
 #if WITH_ELTWISE == 1
-#include "ocl/ocl_post_ops.h"
+#include "gpu/ocl/ocl_post_ops.h"
 #endif
 
 #undef DST_OFF

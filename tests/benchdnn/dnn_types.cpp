@@ -787,3 +787,12 @@ void maybe_post_ops(float &d, float dst, const attr_t &attr) {
             d = compute_eltwise_fwd(e.kind, d, s, a, b);
     }
 }
+
+int attr_t::post_ops_t::eltwise_index() const {
+    using pk = kind_t;
+    for (int i = 0; i < len; ++i) {
+        auto k = entry[i].kind;
+        if (k != pk::SUM && k < pk::KIND_TOTAL) return i;
+    }
+    return -1;
+}
