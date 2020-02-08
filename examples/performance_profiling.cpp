@@ -60,7 +60,7 @@
 ///
 /// After compilation, you can execute each implementation with:
 /// ~~~sh
-/// ./program.exe implementation
+/// ./program.exe [cpu|gpu] [implementation]
 /// ~~~
 ///
 /// Before you run the program, set your `DNNL_VERBOSE` environment
@@ -83,7 +83,6 @@
 /// and are meant to be read in order.
 ///
 
-#include <chrono>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -147,7 +146,7 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
     /// @section performance_profiling_cpp_implementation1 Naive Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
-    /// ./program.exe naive
+    /// ./program.exe cpu naive
     /// ~~~
     /// The program will call the implementation defined in the function
     /// `conv_relu_naive()`.
@@ -211,18 +210,14 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
     /// the input data format is at the time it is called.
     ///
     /// Using NCHW data format may result in suboptimal performance for compute
-    /// intensives primitives, as shown in the following DNNL_VERBOSE output
+    /// intensive primitives, as shown in the following DNNL_VERBOSE output
     /// by the convolution and relu execution
-    /// times of 235.9 and 100.3 milliseconds, respectively.
+    /// times of 38.3 and 2.9 milliseconds, respectively.
     ///
     /// *DNNL_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
-    /// dnnl_verbose,exec,convolution,gemm:jit,forward_inference,src_f32::
-    ///         blocked:abcd:f0 wei_f32::blocked:abcd:f0 dst_f32::
-    ///         blocked:abcd:f0,alg:convolution_direct,
-    ///         mb1000_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,235.86
-    /// dnnl_verbose,exec,eltwise,jit:avx512_common,forward_inference,
-    ///         data_f32::blocked:abcd:f0,alg:eltwise_relu,1000x96x55x55,100.264
+    /// dnnl_verbose,exec,cpu,convolution,gemm:jit,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:abcd:f0 bia_undef::undef::f0 dst_f32::blocked:abcd:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,38.314
+    /// dnnl_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:abcd:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.87695
     /// ~~~
     /// In *Blocked format implementation*, we will incorporate the best
     /// practice of letting DNNL determine the optimal format
@@ -237,7 +232,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// @section performance_profiling_cpp_implementation2 Blocked format implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
-    /// ./program.exe blocked
+    /// ./program.exe cpu blocked
     /// ~~~
     /// The program will call the implementation defined in the function
     /// `conv_relu_blocked()`.
@@ -246,7 +241,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// the dnnl::memory::format_tag for each md to `ANY`. Then it uses those
     /// md to create the convolution descriptor conv_d, which tells Intel
     /// DNNL to use whatever format it recommends for the convolution.
-    /// DNNL will choose the a friendly blocked format.
+    /// DNNL will choose a friendly blocked format.
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create mem_desc with tag=any
     // [Create mem_desc with tag=any]
@@ -340,7 +335,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// Blocked memory format is recommended for DNNL primitive
     /// execution and provides better performance, as shown in the
     /// DNNL_VERBOSE output by the convolution and relu execution times of
-    /// 119.6 and 34.4 milliseconds (down from 235.9 and 100.3 in
+    /// 18.3 and 2.7 milliseconds (down from 38.3 and 2.9 in
     /// *naive implementation*), respectively.
     /// In this implementation, there is an additional reorder operation that
     /// executes before and after the the conv + relu. This small cost is worth
@@ -352,16 +347,10 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     ///
     /// *DNNL_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
-    /// dnnl_verbose,exec,reorder,jit:uni,undef,src_f32::blocked:abcd:f0
-    ///         dst_f32::blocked:Acdb16a:f0,num:1,96x3x11x11,3.71387
-    /// dnnl_verbose,exec,convolution,jit:avx512_common,forward_inference,
-    ///         src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0
-    ///         dst_f32::blocked:aBcd16b:f0,alg:convolution_direct,
-    ///         mb1000_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,119.649
-    /// dnnl_verbose,exec,eltwise,jit:avx512_common,forward_inference,
-    ///         data_f32::blocked:aBcd16b:f0,alg:eltwise_relu,1000x96x55x55,34.417
-    /// dnnl_verbose,exec,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0
-    ///         dst_f32::blocked:abcd:f0,num:1,1000x96x55x55,97.3352
+    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0310059
+    /// dnnl_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,18.3101
+    /// dnnl_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:aBcd16b:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.66895
+    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.80396
     /// ~~~
     /// This inference implementation is closer to best practices than
     /// *naive implementation* because it uses DNNL recommended memory
@@ -379,7 +368,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     /// @section performance_profiling_cpp_implementation3 Fused Implementation
     /// This implementation is launched with the following shell code:
     /// ~~~sh
-    /// ./program.exe fused
+    /// ./program.exe cpu fused
     /// ~~~
     /// The program will call the implementation defined in the function
     /// `conv_relu_fused()`.
@@ -468,14 +457,13 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     /// using the DNNL recommended blocked format for convolution and
     /// adding ReLU as a post-op to execute a fused version of conv + ReLU.
     /// The consequence to following best practices can be seen in the execution
-    /// time of the fused primitive of 103.9 milliseconds.
+    /// time of the fused primitive of 18.0 milliseconds.
     ///
     /// *DNNL_VERBOSE output (see configuration notice\*):*
     /// ~~~sh
-    /// dnnl_verbose,exec,convolution,jit:avx512_common,forward_inference,
-    ///         src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0
-    ///         dst_f32::blocked:aBcd16b:f0,alg:convolution_direct,
-    ///         mb1000_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,103.916
+    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:abcd:f0 dst_f32::blocked:Acdb16a:f0,,,96x3x11x11,0.0148926
+    /// dnnl_verbose,exec,cpu,convolution,jit:avx512_common,forward_inference,src_f32::blocked:abcd:f0 wei_f32::blocked:Acdb16a:f0 bia_undef::undef::f0 dst_f32::blocked:aBcd16b:f0,post_ops:'eltwise_relu;';,alg:convolution_direct,mb128_ic3oc96_ih227oh55kh11sh4dh0ph0_iw227ow55kw11sw4dw0pw0,17.968
+    /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.66797
     /// ~~~
 }
 
@@ -484,9 +472,9 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 ///
 /// | Implementation | Time, ms | Cumulative speedup |
 /// | :--            |      --: |                --: |
-/// | Naive          |    336.1 |                1.0 |
-/// | Blocked format |    154.0 |                2.2 |
-/// | Fused          |    103.9 |                3.2 |
+/// | Naive          |     41.2 |                1.0 |
+/// | Blocked format |     21.0 |                2.0 |
+/// | Fused          |     18.0 |                2.3 |
 ///
 /// **  **
 /// @page performance_profiling_cpp
@@ -498,15 +486,15 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 ///
 /// Runtime Settings:
 /// * OMP_NUM_THREADS=14
-/// * KMP_AFFINITY=granularity=fine,compact,1,0
+/// * KMP_AFFINITY=granularity=fine,compact
 ///
 /// Platform:
-/// * CPU: Intel(R) Xeon(R) Platinum 8180M CPU @ 2.50GHz
-/// * Thread(s) per core:    2
+/// * CPU: Intel(R) Xeon(R) Platinum 8180 CPU @ 2.50GHz
+/// * Thread(s) per core:    1
 /// * Core(s) per socket:    28
 /// * Socket(s):             2
 /// * NUMA node(s):          2
-/// * RAM (DDR4): 1.45 TB
+/// * RAM (DDR4): 192 GB
 
 void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
     // Initialize engine
@@ -516,7 +504,7 @@ void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
     stream s(eng);
     // [Set dimensions]
     // set dimensions for synthetic data and weights
-    const memory::dim BATCH = 1000;
+    const memory::dim BATCH = 128;
     const memory::dim IC = 3, OC = 96;
     const memory::dim IH = 227, KH = 11, OH = 55;
     const memory::dim IW = 227, KW = 11, OW = 55;
