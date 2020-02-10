@@ -180,7 +180,7 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         msr.seed(idx_start + kind);
         std::normal_distribution<float> gen(mean, stddev);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            float val = (dt == dnnl_f32) ? gen(msr) : round(gen(msr));
+            float val = round_to_nearest_representable(dt, gen(msr));
             val = MAX2(MIN2(val, max), min);
 
             const float current_scale = need_recompute_scale
@@ -337,10 +337,12 @@ int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         for (int64_t d = 0; d < D; d++)
             for (int64_t g = 0; g < G; g++)
                 for (int64_t o = 0; o < O; o++) {
+                    const float val = round_to_nearest_representable(
+                            c.dt, 1.f / p.n_gates());
                     auto i_off = ((o + g * 7 + d * 11 + l * 13) % I);
                     mem_fp.set_elem(l * D * I * G * O + d * I * G * O
                                     + i_off * G * O + g * O + o,
-                            1.0f / p.n_gates());
+                            val);
                 }
     mem_dt.reorder(mem_fp);
     return OK;
@@ -366,7 +368,8 @@ int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     for_(int64_t g = 0; g < G; g++)
     for (int64_t o = 0; o < O; o++) {
         auto idx = l * D * G * O + d * G * O + g * O + o;
-        auto val = gen(msr) * flip_coin(idx, 0.05f);
+        auto val = round_to_nearest_representable(
+                p.cfg[kind].dt, gen(msr) * flip_coin(idx, 0.05f));
         mem_fp.set_elem(idx, val);
     }
     mem_dt.reorder(mem_fp);
