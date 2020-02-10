@@ -187,12 +187,13 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
                     : scale;
             val = (val - shift) / current_scale; // change only int8-case
-            /* we flip the sign of only a few value per mb to avoid
-             * too much cancellation in the bwd pass. Here we assume
-             * the p.slc/p.sic is not "too large" */
+
+            // Vanilla RNN with RELU testing related only: flip the sign of
+            // inputs for `mb` == 0 to test RELU part
             if (flip_sign) {
-                float sign = ((7 * idx + 3) % p.sic == 0) ? -1.0f : 1.0f;
-                val *= sign;
+                assert(kind == input || kind == states);
+                auto ld = kind == input ? p.slc : p.sic;
+                if (idx % (p.mb * ld) < ld) val *= -1;
             }
             mem_fp.set_elem(idx, val);
         }
@@ -242,7 +243,7 @@ int fill_activation(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     // alpha, and not the linear function that would replace it under
     // skip_nonlinear=true.
     bool flip_sign = p.skip_nonlinear == false && p.alg == VANILLA_RNN
-            && p.activation == RELU;
+            && p.activation == RELU && (kind == input || kind == states);
     return fill_memory(p, kind, mem_dt, mem_fp, attr, flip_sign);
 }
 
