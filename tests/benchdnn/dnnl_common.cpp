@@ -20,6 +20,20 @@
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 
+float round_to_nearest_representable(dnnl_data_type_t dt, float value) {
+    switch (dt) {
+        case dnnl_f32: break;
+        case dnnl_bf16: value = (float)dnnl::impl::bfloat16_t(value); break;
+        case dnnl_f16: value = (float)dnnl::impl::float16_t(value); break;
+        case dnnl_s32:
+        case dnnl_s8:
+        case dnnl_u8: value = maybe_saturate(dt, mxcsr_round(value)); break;
+        default: SAFE_V(FAIL);
+    }
+
+    return value;
+}
+
 // Engine kind used to run DNNL primitives for testing
 dnnl_engine_kind_t engine_tgt_kind = dnnl_cpu;
 
