@@ -199,18 +199,22 @@ const _dt_conf_t conf_f32u8f32f32 = {
 };
 
 const int int_max_exact_half = 1 << 11;
+#define F16_ENTRY_INEXACT \
+    { \
+        dnnl_f16, -int_max_exact_half, int_max_exact_half, 0.0f, 0.999999f, \
+                0.5f, 0.01f, epsilon_dt(dnnl_f16) \
+    }
+
 const _dt_conf_t conf_f16 = {
-#define EPS epsilon_dt(dnnl_f16)
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, EPS},
-#undef EPS
+        F16_ENTRY_INEXACT, //input
+        F16_ENTRY_INEXACT, //states
+        F16_ENTRY_INEXACT, //c_states
+        F16_ENTRY_INEXACT, //weights_input
+        F16_ENTRY_INEXACT, //weights_states
+        F16_ENTRY_INEXACT, //bias
+        F16_ENTRY_INEXACT, //dst_last_iteration
+        F16_ENTRY_INEXACT, //dst_c_last_iteration
+        F16_ENTRY_INEXACT, //dst_last_layer
 };
 
 const dt_conf_t *str2cfg(const char *str) {
