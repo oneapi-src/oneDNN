@@ -52,7 +52,7 @@
 # f16 tests
 --cfg=f16
 --prop=FWD_D
---skip-nonlinear=false
+--skip-nonlinear=true
 --mb=50
 --alg=VANILLA_RNN
 --activation=RELU
