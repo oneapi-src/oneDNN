@@ -2059,8 +2059,8 @@ struct memory : public handle<dnnl_memory_t> {
             : data() {
             validate_dims(dims);
             dnnl_status_t status = dnnl_memory_desc_init_by_tag(&data,
-                    (int)dims.size(), dims.size() == 0 ? nullptr : &dims[0],
-                    convert_to_c(data_type), convert_to_c(format_tag));
+                    (int)dims.size(), dims.data(), convert_to_c(data_type),
+                    convert_to_c(format_tag));
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not construct a memory descriptor using a "
@@ -2086,9 +2086,8 @@ struct memory : public handle<dnnl_memory_t> {
             : data() {
             validate_dims(dims);
             dnnl_status_t status = dnnl_memory_desc_init_by_strides(&data,
-                    (int)dims.size(), dims.size() == 0 ? nullptr : &dims[0],
-                    convert_to_c(data_type),
-                    strides.size() == 0 ? nullptr : &strides[0]);
+                    (int)dims.size(), dims.data(), convert_to_c(data_type),
+                    strides.empty() ? nullptr : &strides[0]);
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not construct a memory descriptor using "
@@ -2115,7 +2114,7 @@ struct memory : public handle<dnnl_memory_t> {
                 const memory::dims &offsets, bool allow_empty = false) const {
             dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_init_submemory(
-                    &sub_md, &data, &dims[0], &offsets[0]);
+                    &sub_md, &data, dims.data(), offsets.data());
             if (!allow_empty)
                 error::wrap_c_api(status, "could not construct a sub-memory");
             return desc(sub_md);
@@ -2168,7 +2167,7 @@ struct memory : public handle<dnnl_memory_t> {
         desc reshape(const memory::dims &dims, bool allow_empty = false) const {
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_reshape(
-                    &out_md, &data, (int)dims.size(), &dims[0]);
+                    &out_md, &data, (int)dims.size(), dims.data());
             if (!allow_empty)
                 error::wrap_c_api(
                         status, "could not reshape a memory descriptor");
@@ -2215,7 +2214,7 @@ struct memory : public handle<dnnl_memory_t> {
                 bool allow_empty = false) const {
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_permute_axes(
-                    &out_md, &data, &permutation[0]);
+                    &out_md, &data, permutation.data());
             if (!allow_empty)
                 error::wrap_c_api(status,
                         "could not permute axes of a memory descriptor");
