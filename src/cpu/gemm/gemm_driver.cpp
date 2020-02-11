@@ -1070,7 +1070,7 @@ static inline void set_thread_opts_pack(int nthrs,
               };
 
     auto choose_m_blocking = [&]() {
-        auto align = is_int8 ? 16 : get_vector_length<a_type>();
+        auto align = get_vector_length<c_type>();
         align = do_m_blocking_only ? arg->um : align;
         choose_blocking(m, thread_m, nthr_m, arg->bm, block_m, align);
     };
