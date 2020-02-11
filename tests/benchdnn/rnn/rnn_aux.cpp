@@ -623,7 +623,6 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     diff_norm.done();
 
     if (!check_norm0) {
-        auto rel_eps = 16 * p.cfg[kind].eps;
         if ((diff_norm.rel_diff(norm_t::L1) > rel_eps)
                 || (diff_norm.rel_diff(norm_t::L2) > rel_eps)
                 || (diff_norm.rel_diff(norm_t::L8) > rel_eps))
