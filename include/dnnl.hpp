@@ -108,6 +108,16 @@ struct error : public std::exception {
     }
 };
 
+/// @cond DO_NOT_DOCUMENT_THIS
+template <typename T>
+void validate_container_size(const T &v, const char *error_message,
+        int min_size = 1, int max_size = -1) {
+    const int size = (int)v.size();
+    if (size < min_size || (max_size >= 0 && size > max_size))
+        DNNL_THROW_ERROR(dnnl_invalid_arguments, error_message);
+}
+/// @endcond
+
 /// A class that provides the destructor for a DNNL C API handle.
 template <typename T>
 struct handle_traits {};
@@ -1025,8 +1035,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     the output scaling factors must be passed at execution time as an
     ///     argument with index #DNNL_ARG_ATTR_OUTPUT_SCALES.
     void set_output_scales(int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(dnnl_primitive_attr_set_output_scales(get(),
-                                  (dnnl_dim_t)scales.size(), mask, &scales[0]),
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_output_scales(
+                        get(), (dnnl_dim_t)scales.size(), mask, scales.data()),
                 "could not set primitive output scales attribute");
     }
 
@@ -1072,8 +1083,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     must hold:
     ///     \f[scales.size() = \prod\limits_{d \in mask} argument.dims[d].\f]
     void set_scales(int arg, int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(dnnl_primitive_attr_set_scales(get(), arg,
-                                  (dnnl_dim_t)scales.size(), mask, &scales[0]),
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_scales(get(), arg,
+                        (dnnl_dim_t)scales.size(), mask, scales.data()),
                 "could not set scales");
     }
 
@@ -1124,9 +1136,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     index #DNNL_ARG_ATTR_ZERO_POINTS.
     void set_zero_points(
             int arg, int mask, const std::vector<int32_t> &zero_points) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_zero_points(get(), arg,
-                        (dnnl_dim_t)zero_points.size(), mask, &zero_points[0]),
+        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg,
+                                  (dnnl_dim_t)zero_points.size(), mask,
+                                  zero_points.data()),
                 "could not set primitive zero points attribute");
     }
 
@@ -1222,8 +1234,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     ///     Violations can only be detected when the attributes are used to
     ///     create a primitive descriptor.
     void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(
-                                  get(), (int)scales.size(), mask, &scales[0]),
+        error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(get(),
+                                  (int)scales.size(), mask, scales.data()),
                 "could not get primitive RNN weights quantization parameters "
                 "attributes");
     }
@@ -1544,10 +1556,11 @@ struct memory : public handle<dnnl_memory_t> {
     /// validation fails.
     ///
     /// @param v Vector of dimensions.
+    /// @param min_size Minimum expected size of the vector.
     template <typename T>
-    static void validate_dims(const std::vector<T> &v) {
-        if (v.size() > DNNL_MAX_NDIMS)
-            DNNL_THROW_ERROR(dnnl_invalid_arguments, "dimensions are invalid");
+    static void validate_dims(const std::vector<T> &v, int min_size = 0) {
+        validate_container_size(
+                v, "dimensions are invalid", min_size, DNNL_MAX_NDIMS);
     }
 
     /// Data type specification.
@@ -2085,6 +2098,7 @@ struct memory : public handle<dnnl_memory_t> {
                 const memory::dims &strides, bool allow_empty = false)
             : data() {
             validate_dims(dims);
+            if (!strides.empty()) validate_dims(strides, (int)dims.size());
             dnnl_status_t status = dnnl_memory_desc_init_by_strides(&data,
                     (int)dims.size(), dims.data(), convert_to_c(data_type),
                     strides.empty() ? nullptr : &strides[0]);
@@ -2112,6 +2126,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A memory descriptor for the region.
         desc submemory_desc(const memory::dims &dims,
                 const memory::dims &offsets, bool allow_empty = false) const {
+            validate_dims(dims, data.ndims);
+            validate_dims(offsets, data.ndims);
             dnnl_memory_desc_t sub_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_init_submemory(
                     &sub_md, &data, dims.data(), offsets.data());
@@ -2165,6 +2181,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///     and defaults to false.
         /// @returns A new memory descriptor with new dimensions.
         desc reshape(const memory::dims &dims, bool allow_empty = false) const {
+            if (data.ndims) validate_dims(dims, 1);
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_reshape(
                     &out_md, &data, (int)dims.size(), dims.data());
@@ -2212,6 +2229,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A new memory descriptor with new dimensions.
         desc permute_axes(const std::vector<int> &permutation,
                 bool allow_empty = false) const {
+            validate_dims(permutation, data.ndims);
             dnnl_memory_desc_t out_md = dnnl_memory_desc_t();
             dnnl_status_t status = dnnl_memory_desc_permute_axes(
                     &out_md, &data, permutation.data());
@@ -2924,7 +2942,7 @@ struct concat : public primitive {
             dnnl_primitive_desc_t result;
             error::wrap_c_api(
                     dnnl_concat_primitive_desc_create(&result, &dst.data,
-                            (int)c_srcs.size(), concat_dimension, &c_srcs[0],
+                            (int)c_srcs.size(), concat_dimension, c_srcs.data(),
                             attr.get(), engine.get()),
                     "could not create a primitive descriptor for a concat "
                     "primitive");
@@ -2952,7 +2970,7 @@ struct concat : public primitive {
             error::wrap_c_api(
                     dnnl_concat_primitive_desc_create(&result, nullptr,
                             (int)c_api_srcs.size(), concat_dimension,
-                            &c_api_srcs[0], attr.get(), engine.get()),
+                            c_api_srcs.data(), attr.get(), engine.get()),
                     "could not create a primitive descriptor for a concat "
                     "primitive");
             reset(result);
@@ -3020,17 +3038,17 @@ struct sum : public primitive {
                 const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs, const engine &engine,
                 const primitive_attr &attr = primitive_attr()) {
-            error::wrap_c_api(scales.size() == srcs.size()
-                            ? dnnl_success
-                            : dnnl_invalid_arguments,
-                    "counts of scales and sources are not equal");
+            validate_container_size(scales,
+                    "counts of scales and sources are not equal",
+                    (int)srcs.size(), (int)srcs.size());
 
             auto c_api_srcs = convert_to_c(srcs);
 
             dnnl_primitive_desc_t result;
-            error::wrap_c_api(dnnl_sum_primitive_desc_create(&result, &dst.data,
-                                      (int)c_api_srcs.size(), &scales[0],
-                                      &c_api_srcs[0], attr.get(), engine.get()),
+            error::wrap_c_api(
+                    dnnl_sum_primitive_desc_create(&result, &dst.data,
+                            (int)c_api_srcs.size(), scales.data(),
+                            c_api_srcs.data(), attr.get(), engine.get()),
                     "could not create a primitive descriptor for a sum "
                     "primitive");
             reset(result);
@@ -3049,16 +3067,16 @@ struct sum : public primitive {
         primitive_desc(const std::vector<float> &scales,
                 const std::vector<memory::desc> &srcs, const engine &engine,
                 const primitive_attr &attr = primitive_attr()) {
-            error::wrap_c_api(scales.size() == srcs.size()
-                            ? dnnl_success
-                            : dnnl_invalid_arguments,
-                    "counts of scales and sources are not equal");
+            validate_container_size(scales,
+                    "counts of scales and sources are not equal",
+                    (int)srcs.size(), (int)srcs.size());
 
             auto c_api_srcs = convert_to_c(srcs);
             dnnl_primitive_desc_t result;
-            error::wrap_c_api(dnnl_sum_primitive_desc_create(&result, nullptr,
-                                      (int)c_api_srcs.size(), &scales[0],
-                                      &c_api_srcs[0], attr.get(), engine.get()),
+            error::wrap_c_api(
+                    dnnl_sum_primitive_desc_create(&result, nullptr,
+                            (int)c_api_srcs.size(), scales.data(),
+                            c_api_srcs.data(), attr.get(), engine.get()),
                     "could not create a primitive descriptor for a sum "
                     "primitive");
             reset(result);
@@ -3217,9 +3235,9 @@ struct convolution_forward : public primitive {
                 const memory::desc &bias_desc, const memory::desc &dst_desc,
                 const memory::dims &strides, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_convolution_forward_desc_init(&data,
                             dnnl::convert_to_c(prop_kind),
@@ -3263,9 +3281,9 @@ struct convolution_forward : public primitive {
                 const memory::desc &src_desc, const memory::desc &weights_desc,
                 const memory::desc &dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_convolution_forward_desc_init(&data,
                             dnnl::convert_to_c(prop_kind),
@@ -3315,10 +3333,10 @@ struct convolution_forward : public primitive {
                 const memory::desc &bias_desc, const memory::desc &dst_desc,
                 const memory::dims &strides, const memory::dims &dilates,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_dilated_convolution_forward_desc_init(&data,
                                       dnnl::convert_to_c(prop_kind),
                                       convert_to_c(algorithm), &src_desc.data,
@@ -3365,10 +3383,10 @@ struct convolution_forward : public primitive {
                 const memory::desc &dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_dilated_convolution_forward_desc_init(&data,
                                       dnnl::convert_to_c(prop_kind),
                                       convert_to_c(algorithm), &src_desc.data,
@@ -3489,9 +3507,9 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_convolution_backward_data_desc_init(&data,
                             convert_to_c(algorithm), &diff_src_desc.data,
@@ -3534,10 +3552,10 @@ struct convolution_backward_data : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_dilated_convolution_backward_data_desc_init(&data,
                             convert_to_c(algorithm), &diff_src_desc.data,
@@ -3663,9 +3681,9 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_convolution_backward_weights_desc_init(&data,
                             convert_to_c(algorithm), &src_desc.data,
@@ -3706,9 +3724,9 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_convolution_backward_weights_desc_init(&data,
                                       convert_to_c(algorithm), &src_desc.data,
                                       &diff_weights_desc.data, nullptr,
@@ -3755,10 +3773,10 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_dilated_convolution_backward_weights_desc_init(&data,
                             convert_to_c(algorithm), &src_desc.data,
@@ -3802,10 +3820,10 @@ struct convolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_dilated_convolution_backward_weights_desc_init(&data,
                             convert_to_c(algorithm), &src_desc.data,
@@ -3951,9 +3969,9 @@ struct deconvolution_forward : public primitive {
                 const memory::desc &bias_desc, const memory::desc &dst_desc,
                 const memory::dims &strides, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_deconvolution_forward_desc_init(&data,
                             dnnl::convert_to_c(prop_kind),
@@ -3996,9 +4014,9 @@ struct deconvolution_forward : public primitive {
                 const memory::desc &src_desc, const memory::desc &weights_desc,
                 const memory::desc &dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_deconvolution_forward_desc_init(&data,
                             dnnl::convert_to_c(prop_kind),
@@ -4047,10 +4065,10 @@ struct deconvolution_forward : public primitive {
                 const memory::desc &bias_desc, const memory::desc &dst_desc,
                 const memory::dims &strides, const memory::dims &dilates,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_dilated_deconvolution_forward_desc_init(
                                       &data, dnnl::convert_to_c(prop_kind),
                                       convert_to_c(algorithm), &src_desc.data,
@@ -4096,10 +4114,10 @@ struct deconvolution_forward : public primitive {
                 const memory::desc &dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_dilated_deconvolution_forward_desc_init(
                                       &data, dnnl::convert_to_c(prop_kind),
                                       convert_to_c(algorithm), &src_desc.data,
@@ -4215,9 +4233,9 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_deconvolution_backward_data_desc_init(&data,
                             convert_to_c(algorithm), &diff_src_desc.data,
@@ -4259,10 +4277,10 @@ struct deconvolution_backward_data : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_dilated_deconvolution_backward_data_desc_init(&data,
                             convert_to_c(algorithm), &diff_src_desc.data,
@@ -4387,9 +4405,9 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_bias_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_deconvolution_backward_weights_desc_init(&data,
                             convert_to_c(algorithm), &src_desc.data,
@@ -4429,9 +4447,9 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_weights_desc,
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_deconvolution_backward_weights_desc_init(
                                       &data, convert_to_c(algorithm),
                                       &src_desc.data, &diff_weights_desc.data,
@@ -4477,10 +4495,10 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_dilated_deconvolution_backward_weights_desc_init(&data,
                             convert_to_c(algorithm), &src_desc.data,
@@ -4523,10 +4541,10 @@ struct deconvolution_backward_weights : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &dilates, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(dilates);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(dilates, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_dilated_deconvolution_backward_weights_desc_init(&data,
                             convert_to_c(algorithm), &src_desc.data,
@@ -4898,10 +4916,10 @@ struct pooling_forward : public primitive {
                 const memory::desc &src_desc, const memory::desc &dst_desc,
                 const memory::dims &strides, const memory::dims &kernel,
                 const memory::dims &padding_l, const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(kernel);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, src_desc.data.ndims - 2);
+            memory::validate_dims(kernel, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_pooling_forward_desc_init(&data,
                                       dnnl::convert_to_c(prop_kind),
                                       convert_to_c(algorithm), &src_desc.data,
@@ -5011,10 +5029,10 @@ struct pooling_backward : public primitive {
                 const memory::desc &diff_dst_desc, const memory::dims &strides,
                 const memory::dims &kernel, const memory::dims &padding_l,
                 const memory::dims &padding_r) {
-            memory::validate_dims(strides);
-            memory::validate_dims(kernel);
-            memory::validate_dims(padding_l);
-            memory::validate_dims(padding_r);
+            memory::validate_dims(strides, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(kernel, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_l, diff_src_desc.data.ndims - 2);
+            memory::validate_dims(padding_r, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(
                     dnnl_pooling_backward_desc_init(&data,
                             convert_to_c(algorithm), &diff_src_desc.data,
@@ -9502,6 +9520,7 @@ struct resampling_forward : public primitive {
         desc(prop_kind prop_kind, algorithm algorithm,
                 const std::vector<float> &factors,
                 const memory::desc &src_desc) {
+            memory::validate_dims(factors, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_resampling_forward_desc_init(&data,
                                       dnnl::convert_to_c(prop_kind),
                                       convert_to_c(algorithm), &factors[0],
@@ -9534,9 +9553,11 @@ struct resampling_forward : public primitive {
         desc(prop_kind prop_kind, algorithm algorithm,
                 const std::vector<float> &factors, const memory::desc &src_desc,
                 const memory::desc &dst_desc) {
+            if (!factors.empty())
+                memory::validate_dims(factors, src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_resampling_forward_desc_init(&data,
                                       dnnl::convert_to_c(prop_kind),
-                                      convert_to_c(algorithm), &factors[0],
+                                      convert_to_c(algorithm), factors.data(),
                                       &src_desc.data, &dst_desc.data),
                     "could not create a resampling forward descriptor");
         }
@@ -9651,8 +9672,10 @@ struct resampling_backward : public primitive {
         desc(algorithm algorithm, const std::vector<float> &factors,
                 const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc) {
+            if (!factors.empty())
+                memory::validate_dims(factors, diff_src_desc.data.ndims - 2);
             error::wrap_c_api(dnnl_resampling_backward_desc_init(&data,
-                                      convert_to_c(algorithm), &factors[0],
+                                      convert_to_c(algorithm), factors.data(),
                                       &diff_src_desc.data, &diff_dst_desc.data),
                     "could not create a resampling backward data descriptor");
         }
