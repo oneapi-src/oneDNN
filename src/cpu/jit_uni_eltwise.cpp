@@ -106,7 +106,7 @@ struct jit_bf16_eltwise_injector {
         Ymm ymm_bf16 = Ymm(idx);
         Zmm zmm_f32 = Zmm(idx);
         if (!is_tail)
-            h->vmovups(ymm_bf16, h->ptr[reg_from]);
+            h->vmovups(ymm_bf16, h->ptr[reg_from + offset]);
         else
             h->vmovdqu16(ymm_bf16 | k_tail_mask_, h->ptr[reg_from + offset]);
         h->vpermw(zmm_f32 | k_mask_cvt_ | Xbyak::util::T_z, zmm_idx_, zmm_f32);
@@ -251,12 +251,6 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
                     k_mask_cvt, k_tail_mask, k_full_mask, bf16_emu_);
         }
 
-        const int loop_dec[] = {simd_w(), 1};
-        const int uf[] = {1, 1};
-
-        const int shift[] = {vlen(), dtype_size()};
-        const bool loop_vectorize[] = {true, false};
-
         preamble();
 
         if (is_bf16()) {
@@ -277,9 +271,26 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
 
         uni_vpxor(vmm_zero, vmm_zero, vmm_zero);
 
-        Label loop_label[3];
+        const int loop_dec_unr[] = {simd_w(), simd_w(), simd_w(), 1};
+        const int uf_unr[] = {4, 2, 1, 1};
+        const int shift_unr[] = {vlen(), vlen(), vlen(), dtype_size()};
+        const bool loop_vectorize_unr[] = {true, true, true, false};
 
-        for (int id = 0; id < 2; id++) {
+        const int loop_dec_def[] = {simd_w(), 1};
+        const int uf_def[] = {1, 1};
+        const int shift_def[] = {vlen(), dtype_size()};
+        const bool loop_vectorize_def[] = {true, false};
+
+        const int mid = is_bf16() ? 4 : 2;
+        const int *loop_dec = is_bf16() ? loop_dec_unr : loop_dec_def;
+        const int *uf = is_bf16() ? uf_unr : uf_def;
+        const int *shift = is_bf16() ? shift_unr : shift_def;
+        const bool *loop_vectorize
+                = is_bf16() ? loop_vectorize_unr : loop_vectorize_def;
+
+        Label loop_label[5];
+
+        for (int id = 0; id < mid; id++) {
             L(loop_label[id]);
             cmp(reg_work_amount, uf[id] * loop_dec[id] - 1);
             jle(loop_label[id + 1], T_NEAR);
@@ -294,7 +305,7 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
             jmp(loop_label[id]);
         }
 
-        L(loop_label[2]);
+        L(loop_label[mid]);
         postamble();
 
         if (is_bf16()) bf16_injector_->write_idx_table();
@@ -925,11 +936,10 @@ void jit_uni_eltwise_bwd_t<isa, d_type>::execute_backward(
     src += data_d.offset0();
     diff_dst += diff_data_d.offset0();
     diff_src += diff_data_d.offset0();
+    const int cache_line = 64 / data_d.data_type_size();
 
     parallel(0, [&](const int ithr, const int nthr) {
         size_t start {0}, end {0};
-
-        const int cache_line = 16;
 
         balance211(utils::div_up(nelems, cache_line), nthr, ithr, start, end);
         start = nstl::min(nelems, start * cache_line);
