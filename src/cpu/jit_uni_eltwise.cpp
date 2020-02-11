@@ -81,6 +81,7 @@ struct jit_bf16_eltwise_injector {
         for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
             h->dw(_idx[i]);
     }
+
     void load_idx_table() {
         Reg64 p_idx_table = Xbyak::util::r13;
         h->push(p_idx_table);
@@ -101,28 +102,45 @@ struct jit_bf16_eltwise_injector {
         h->kmovd(k_full_mask_, mask_reg.cvt32());
         h->pop(mask_reg);
     }
+
     void load_bf16_cvt_to_f32(size_t idx, Reg64 reg_from, bool is_tail = false,
             size_t offset = 0) {
-        Ymm ymm_bf16 = Ymm(idx);
         Zmm zmm_f32 = Zmm(idx);
-        if (!is_tail)
-            h->vmovups(ymm_bf16, h->ptr[reg_from + offset]);
-        else
-            h->vmovdqu16(ymm_bf16 | k_tail_mask_, h->ptr[reg_from + offset]);
-        h->vpermw(zmm_f32 | k_mask_cvt_ | Xbyak::util::T_z, zmm_idx_, zmm_f32);
+        zmm_f32 = is_tail ? zmm_f32 | k_tail_mask_ | Xbyak::util::T_z : zmm_f32;
+        h->vpmovzxwd(zmm_f32, h->ptr[reg_from + offset]);
+        h->vpslld(zmm_f32, zmm_f32, 16);
     }
-    void cvt_f32_to_bf16_store(
-            size_t idx, Reg64 reg_to, bool is_tail = false, size_t offset = 0) {
-        Ymm ymm_bf16 = Ymm(idx);
-        Zmm zmm_f32 = Zmm(idx);
-        if (emu_)
-            emu_->vcvtneps2bf16(ymm_bf16, zmm_f32);
-        else
-            h->vcvtneps2bf16(ymm_bf16, zmm_f32);
-        if (!is_tail)
-            h->vmovdqu16(h->ptr[reg_to + offset] | k_full_mask_, ymm_bf16);
-        else
-            h->vmovdqu16(h->ptr[reg_to + offset] | k_tail_mask_, ymm_bf16);
+
+    void cvt_f32_to_bf16_store(int step, size_t idx, Reg64 reg_to,
+            bool is_tail = false, size_t offset = 0) {
+        assert(step >= 1 && step <= 2
+                && IMPLICATION(step == 2, is_tail == false));
+        if (step == 2 && !is_tail) {
+            Ymm ymm_bf16_0 = Ymm(idx);
+            Ymm ymm_bf16_1 = Ymm(idx + 1);
+            Zmm zmm_f32_0 = Zmm(idx);
+            Zmm zmm_f32_1 = Zmm(idx + 1);
+            if (emu_) {
+                emu_->vcvtneps2bf16(ymm_bf16_0, zmm_f32_0);
+                emu_->vcvtneps2bf16(ymm_bf16_1, zmm_f32_1);
+                h->vinserti64x4(zmm_f32_0, zmm_f32_0, ymm_bf16_1, 1);
+                h->vmovups(h->ptr[reg_to + offset], zmm_f32_0);
+            } else {
+                h->vcvtne2ps2bf16(zmm_f32_1, zmm_f32_1, zmm_f32_0);
+                h->vmovups(h->ptr[reg_to + offset], zmm_f32_1);
+            }
+        } else {
+            Ymm ymm_bf16 = Ymm(idx);
+            Zmm zmm_f32 = Zmm(idx);
+            if (emu_)
+                emu_->vcvtneps2bf16(ymm_bf16, zmm_f32);
+            else
+                h->vcvtneps2bf16(ymm_bf16, zmm_f32);
+            if (!is_tail)
+                h->vmovdqu16(h->ptr[reg_to + offset] | k_full_mask_, ymm_bf16);
+            else
+                h->vmovdqu16(h->ptr[reg_to + offset] | k_tail_mask_, ymm_bf16);
+        }
     }
 
 private:
@@ -210,18 +228,22 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
             }
         }
 
-        for (int i = 0; i < uf; i++) {
+        const int i_step = (mayiuse(avx512_core_bf16) && is_bf16() && vectorize
+                                   && uf % 2 == 0)
+                ? 2
+                : 1;
+        for (int i = 0; i < uf; i += i_step) {
             size_t idx = 2 * uf + i + 1;
             size_t offset = i * shift;
             if (vectorize)
                 if (is_bf16())
                     bf16_injector_->cvt_f32_to_bf16_store(
-                            idx, reg_to, false, i * shift);
+                            i_step, idx, reg_to, false, i * shift);
                 else
                     uni_vmovups(ptr[reg_to + offset], Vmm(idx));
             else if (is_bf16())
                 bf16_injector_->cvt_f32_to_bf16_store(
-                        idx, reg_to, true, offset);
+                        i_step, idx, reg_to, true, offset);
             else
                 movss(ptr[reg_to + offset], Xmm(idx));
         }
@@ -694,19 +716,19 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         L(vectorized_loop_start);
 
         // TODO: consider improving.
-        // This piece of code is responsinble why preserve_zero function is a
-        // natural restriction of this implementation. It works with any dense
-        // and blocked layout, but the problem raises when blocking dimension
-        // is not divisible by block size. For such case, the code below should
-        // save the mask, where zero padding should be preserved and apply it
-        // on register before storing into dst memory. Until there's a
-        // restriction on certain blocked layouts, when this behavoir can be
-        // relevantly easy controlled, this will cost much from code perspective
-        // and will complicate the compute logic significantly.
+        // This piece of code is responsible for the preserve_zero function
+        // being a natural restriction of this implementation. It works with any
+        // dense and blocked layout, but the problem raises when blocking
+        // dimension is not divisible by block size. For such case, the code
+        // below should save the mask, where zero padding should be preserved
+        // and apply it on register before storing into dst memory. Until
+        // there's a restriction on certain blocked layouts, when this behavior
+        // can be relevantly easy controlled, this will cost much from code
+        // perspective and will complicate the compute logic significantly.
         if (is_bf16()) {
             bf16_injector_->load_bf16_cvt_to_f32(vmm_src.getIdx(), reg_from);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
-            bf16_injector_->cvt_f32_to_bf16_store(vmm_src.getIdx(), reg_to);
+            bf16_injector_->cvt_f32_to_bf16_store(1, vmm_src.getIdx(), reg_to);
         } else {
             uni_vmovups(vmm_src, ptr[reg_from]);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
@@ -731,7 +753,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
                     vmm_src.getIdx(), reg_from, true);
             eltwise_injector_->compute_vector(vmm_src.getIdx());
             bf16_injector_->cvt_f32_to_bf16_store(
-                    vmm_src.getIdx(), reg_to, true);
+                    1, vmm_src.getIdx(), reg_to, true);
         } else {
             movss(xmm_src, ptr[reg_from]);
             eltwise_injector_->compute_vector(xmm_src.getIdx());
