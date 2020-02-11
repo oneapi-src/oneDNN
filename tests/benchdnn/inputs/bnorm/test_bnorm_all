@@ -8,7 +8,7 @@
 --tag=nChw8c,nChw16c
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo
+--dir=FWD_I,BWD_D  --flags=        --attr=                --batch=bnorm_topo
 
 --inplace=true
 --tag=nCdhw16c

@@ -483,8 +483,8 @@ int check_fwd_ws(const dnn_mem_t &dst_dt, const dnn_mem_t &ws_dt, res_t *r) {
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_batch_normalization_desc_t &bd,
-        dnnl_primitive_desc_t &bpd, res_t *r) {
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
+    dnnl_batch_normalization_desc_t bd;
     dnnl_memory_desc_t data_d;
 
     dnnl_dims_t data_dims_0d = {p->mb, p->ic};
@@ -620,48 +620,56 @@ static int cvt_mask_to_ws(
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_batch_normalization_desc_t bd;
     dnnl_primitive_desc_t bpd;
-    dnnl_primitive_t b;
-
-    SAFE(init_pd(p, bd, bpd, r), WARN);
+    SAFE(init_pd(p, bpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(bd.data_desc.ndims);
-    const auto &data_desc = bd.data_desc;
+    dnnl_primitive_t b;
+    DNN_SAFE(dnnl_primitive_create(&b, bpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
 
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
-    dnn_mem_t src_dt(data_desc, engine_tgt);
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_pd), CRIT);
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
+    };
+
+    const auto &data_md = q(DNNL_ARG_SRC);
+    const auto &mean_md = q(DNNL_ARG_MEAN);
+    const auto &var_md = q(DNNL_ARG_VARIANCE);
+    const auto &ss_md = q(DNNL_ARG_SCALE_SHIFT);
+    const auto &ws_md = q(DNNL_ARG_WORKSPACE);
+
+    const auto fp = dnnl_f32;
+    const auto tag = get_default_tag(p->ndims);
+
+    dnn_mem_t src_fp(data_md, fp, tag, engine_tgt);
+    dnn_mem_t src_dt(data_md, engine_tgt);
 
     dnn_mem_t &dst_fp = src_fp; // in-place in ref code
     dnn_mem_t placeholder_dst_dt;
-    if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt); }
+    if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, engine_tgt); }
     dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
 
+    // On inference w/o global stats the batch norm doesn't require stat
+    // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
     const dnnl_dims_t dims1d = {p->ic};
-    dnn_mem_t mean_fp(1, dims1d, fp, dnnl_x, engine_tgt),
-            mean_dt(mean_fp.md_, engine_tgt);
-    dnn_mem_t var_fp(1, dims1d, fp, dnnl_x, engine_tgt),
-            var_dt(var_fp.md_, engine_tgt);
+    dnn_mem_t mean_fp(1, dims1d, fp, get_default_tag(1), engine_tgt);
+    dnn_mem_t mean_dt(mean_md, engine_tgt);
+    dnn_mem_t var_fp(1, dims1d, fp, get_default_tag(1), engine_tgt);
+    dnn_mem_t var_dt(var_md, engine_tgt);
 
-    const dnnl_dims_t dims2d = {2, p->ic};
-    dnn_mem_t ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
-            ss_dt(ss_fp.md_, engine_tgt);
-    dnn_mem_t d_ss_fp(2, dims2d, fp, dnnl_nc, engine_tgt),
-            d_ss_dt(d_ss_fp.md_, engine_tgt);
+    dnn_mem_t ss_fp(ss_md, fp, get_default_tag(ss_md.ndims), engine_tgt);
+    dnn_mem_t ss_dt(ss_md, engine_tgt);
+    dnn_mem_t d_ss_fp(ss_md, fp, get_default_tag(ss_md.ndims), engine_tgt);
+    dnn_mem_t d_ss_dt(ss_md, engine_tgt);
 
+    if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF))
+        SAFE(ws_md.ndims != 0 ? OK : FAIL, WARN);
     dnn_mem_t ws_fp(src_fp.md_, engine_tgt);
-    dnn_mem_t ws_dt;
-    if ((p->flags & FUSE_NORM_RELU) && !(p->dir & FLAG_INF)) {
-        const auto ws_md
-                = dnnl_primitive_desc_query_md(bpd, dnnl_query_workspace_md, 0);
-        SAFE(ws_md != NULL ? OK : FAIL, WARN);
-        ws_dt = dnn_mem_t(*ws_md, engine_tgt);
-    }
-
-    DNN_SAFE(dnnl_primitive_create(&b, bpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(bpd), CRIT);
+    dnn_mem_t ws_dt(ws_md, engine_tgt);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
@@ -669,14 +677,14 @@ int doit(const prb_t *p, res_t *r) {
 
     if (p->dir & FLAG_FWD) {
         if (prepare_fwd(p, src_fp, mean_fp, var_fp, ss_fp) != OK) {
-            r->state = MISTRUSTED;
-            goto out;
+            DNN_SAFE_V(dnnl_primitive_destroy(b));
+            return r->state = MISTRUSTED, OK;
         }
 
         SAFE(src_dt.reorder(src_fp), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
-        args.set(DNNL_ARG_DST, p->inplace ? src_dt : dst_dt);
+        args.set(DNNL_ARG_DST, dst_dt);
 
         if (p->flags & GLOB_STATS) {
             /* prepare mean & var if they are inputs */
@@ -686,12 +694,9 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
 
-        if (p->flags & USE_SCALESHIFT) {
-            SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
-        }
-
-        if (p->flags & FUSE_NORM_RELU) args.set(DNNL_ARG_WORKSPACE, ws_dt);
+        if (p->flags & USE_SCALESHIFT) { SAFE(ss_dt.reorder(ss_fp), WARN); }
+        args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+        args.set(DNNL_ARG_WORKSPACE, ws_dt);
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
@@ -699,7 +704,6 @@ int doit(const prb_t *p, res_t *r) {
             compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
             if (!(p->flags & GLOB_STATS) && !(p->dir & FLAG_INF)) {
                 SAFE(compare(p, MEAN, mean_fp, mean_dt, r), WARN);
-
                 SAFE(compare(p, VAR, var_fp, var_dt, r), WARN);
             }
             dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
@@ -709,31 +713,27 @@ int doit(const prb_t *p, res_t *r) {
             }
         }
     } else {
-        const_dnnl_primitive_desc_t const_bpd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(b, &const_bpd), CRIT);
-        const auto &d_data_desc = *dnnl_primitive_desc_query_md(
-                const_bpd, dnnl_query_diff_src_md, 0);
+        const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
 
-        dnn_mem_t d_dst_fp(d_data_desc, fp, tag, engine_tgt);
-        d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
+        dnn_mem_t d_dst_fp(d_data_md, fp, tag, engine_tgt);
+        d_dst_dt = dnn_mem_t(d_data_md, engine_tgt);
 
         dnn_mem_t &d_src_fp = d_dst_fp; // in-place in ref code
         if (!p->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
+            placeholder_d_src_dt = dnn_mem_t(d_data_md, engine_tgt);
         }
         dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
         if (prepare_bwd(p, src_fp, d_dst_fp, mean_fp, var_fp, ss_fp, ws_fp)
                 != OK) {
-            r->state = MISTRUSTED;
-            goto out;
+            DNN_SAFE_V(dnnl_primitive_destroy(b));
+            return r->state = MISTRUSTED, OK;
         }
 
         SAFE(src_dt.reorder(src_fp), WARN);
         SAFE(d_dst_dt.reorder(d_dst_fp), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
-
         args.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
 
@@ -742,16 +742,14 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
 
-        if (p->flags & USE_SCALESHIFT) {
-            SAFE(ss_dt.reorder(ss_fp), WARN);
-            args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
-            args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
-        }
+        if (p->flags & USE_SCALESHIFT) { SAFE(ss_dt.reorder(ss_fp), WARN); }
+        args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+        args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
 
         if (p->flags & FUSE_NORM_RELU) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
-            args.set(DNNL_ARG_WORKSPACE, ws_dt);
         }
+        args.set(DNNL_ARG_WORKSPACE, ws_dt);
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
@@ -768,8 +766,8 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, b, args);
 
-out:
-    DNN_SAFE(dnnl_primitive_destroy(b), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(b));
+
     return OK;
 }
 
