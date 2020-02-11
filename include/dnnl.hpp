@@ -9649,7 +9649,7 @@ struct resampling_backward : public primitive {
         /// @param factors Vector of scaling factors for spatial dimension.
         /// @param diff_src_desc Diff source memory descriptor.
         /// @param diff_dst_desc Diff destination memory descriptor.
-        desc(algorithm algorithm, std::vector<float> factors,
+        desc(algorithm algorithm, const std::vector<float> &factors,
                 const memory::desc &diff_src_desc,
                 const memory::desc &diff_dst_desc) {
             error::wrap_c_api(dnnl_resampling_backward_desc_init(&data,
