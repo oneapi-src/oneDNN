@@ -55,10 +55,11 @@ struct prb_t {
         , flags(flags)
         , inplace(inplace)
         , attr(attr)
-        , ops(0) {
+        , ops(0)
+        , ndims((int)dims.size()) {
         n = std::accumulate(
                 dims.begin(), dims.end() - 1, 1, std::multiplies<int64_t>());
-        c = dims[dims.size() - 1];
+        c = dims[ndims - 1];
         eps = 1.f / 16;
         count_ops();
     }
@@ -75,6 +76,7 @@ struct prb_t {
     attr_t attr;
     float eps;
     double ops;
+    int ndims;
 
     void count_ops() {
         if (ops > 0) return;
