@@ -29,14 +29,12 @@
 
 namespace eltwise {
 
-static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
-        dnnl_primitive_desc_t &epd, res_t *r) {
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &epd, res_t *r) {
+    dnnl_eltwise_desc_t ed;
     dnnl_memory_desc_t data_d;
 
-    const int ndims = (int)p->dims.size();
-
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, ndims, p->dims.data(), p->dt, p->tag),
+                     &data_d, p->ndims, p->dims.data(), p->dt, p->tag),
             WARN);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(p->alg);
@@ -50,7 +48,7 @@ static int init_pd(const prb_t *p, dnnl_eltwise_desc_t &ed,
                 WARN);
     } else {
         dnnl_memory_desc_t diff_data_d;
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, ndims,
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_data_d, p->ndims,
                          p->dims.data(), p->dt, dnnl_format_tag_any),
                 WARN);
         DNN_SAFE(dnnl_eltwise_backward_desc_init(
@@ -295,37 +293,39 @@ int fill_data_bwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_eltwise_desc_t ed;
     dnnl_primitive_desc_t epd;
-    dnnl_primitive_t e;
-
-    SAFE(init_pd(p, ed, epd, r), WARN);
+    SAFE(init_pd(p, epd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
+    dnnl_primitive_t e;
     DNN_SAFE(dnnl_primitive_create(&e, epd), WARN);
     DNN_SAFE(dnnl_primitive_desc_destroy(epd), CRIT);
 
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(e, &const_pd), CRIT);
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
+    };
+
+    const auto &data_md = q(DNNL_ARG_SRC);
+
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag((int)p->dims.size());
-    auto &data_desc = ed.data_desc;
+    const auto tag = get_default_tag(p->ndims);
 
-    dnn_mem_t src_fp(data_desc, fp, tag, engine_tgt);
-    dnn_mem_t src_dt(data_desc, engine_tgt);
+    dnn_mem_t src_fp(data_md, fp, tag, engine_tgt);
+    dnn_mem_t src_dt(data_md, engine_tgt);
 
-    dnn_mem_t dst_fp(data_desc, fp, tag, engine_tgt);
+    // we need src_fp for proper comparison, => no in-place reference
+    dnn_mem_t dst_fp(data_md, fp, tag, engine_tgt);
     dnn_mem_t placeholder_dst_dt;
-    if (!p->inplace) {
-        placeholder_dst_dt = dnn_mem_t(data_desc, engine_tgt);
-        SAFE(placeholder_dst_dt.reorder(dst_fp), WARN);
-    }
-    dnn_mem_t &dst_dt = !p->inplace ? placeholder_dst_dt : src_dt;
+    if (!p->inplace) { placeholder_dst_dt = dnn_mem_t(data_md, engine_tgt); }
+    dnn_mem_t &dst_dt = p->inplace ? src_dt : placeholder_dst_dt;
+
+    dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
     SAFE(fill_data_fwd(p, src_dt, src_fp), WARN);
-
-    dnn_mem_t d_dst_fp, d_dst_dt;
-    dnn_mem_t d_src_fp, d_src_dt;
-
-    dnn_mem_t placeholder_d_src_dt;
 
     args_t args;
 
@@ -342,20 +342,16 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(compare_padded_area_for_zeros(p, dst_dt, r), WARN);
         }
     } else {
-        const_dnnl_primitive_desc_t const_epd;
-        DNN_SAFE(dnnl_primitive_get_primitive_desc(e, &const_epd), CRIT);
-        const auto &d_data_desc = *dnnl_primitive_desc_query_md(
-                const_epd, dnnl_query_diff_src_md, 0);
+        const auto &d_data_md = q(DNNL_ARG_DIFF_DST);
 
-        d_dst_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
-        d_dst_dt = dnn_mem_t(d_data_desc, engine_tgt);
+        dnn_mem_t d_dst_fp = dnn_mem_t(d_data_md, fp, tag, engine_tgt);
+        d_dst_dt = dnn_mem_t(d_data_md, engine_tgt);
 
-        d_src_fp = dnn_mem_t(d_data_desc, fp, tag, engine_tgt);
+        dnn_mem_t &d_src_fp = d_dst_fp; // in-place reference
         if (!p->inplace) {
-            placeholder_d_src_dt = dnn_mem_t(d_data_desc, engine_tgt);
-            SAFE(placeholder_d_src_dt.reorder(d_src_fp), WARN);
+            placeholder_d_src_dt = dnn_mem_t(d_data_md, engine_tgt);
         }
-        dnn_mem_t &d_src_dt = !p->inplace ? placeholder_d_src_dt : d_dst_dt;
+        dnn_mem_t &d_src_dt = p->inplace ? d_dst_dt : placeholder_d_src_dt;
 
         SAFE(fill_data_bwd(p, d_dst_dt, d_dst_fp), WARN);
 
@@ -385,7 +381,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, e, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(e), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(e));
 
     return OK;
 }

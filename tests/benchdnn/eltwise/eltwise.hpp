@@ -42,7 +42,8 @@ struct prb_t {
         , alg(alg)
         , alpha(alpha)
         , beta(beta)
-        , inplace(inplace) {
+        , inplace(inplace)
+        , ndims((int)dims.size()) {
         if (mb) this->dims[0] = mb;
     }
     ~prb_t() {}
@@ -54,6 +55,7 @@ struct prb_t {
     alg_t alg;
     float alpha, beta;
     bool inplace;
+    int ndims;
 
     bool use_dst() const {
         return alg == alg_t::RELU_DST || alg == alg_t::TANH_DST
