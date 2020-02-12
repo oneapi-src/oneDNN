@@ -92,6 +92,52 @@ protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<
                 test_convolution_params_t>::GetParam();
+        auto data_type_src = data_traits<data_t_diff_src>::data_type;
+        auto data_type_dst = data_traits<data_t_diff_dst>::data_type;
+        auto data_type_wei = data_traits<data_t_wei>::data_type;
+        auto supported_cuda_format = [&](memory::format_tag tag) {
+            return impl::utils::one_of(tag, memory::format_tag::ab,
+                    memory::format_tag::abc, memory::format_tag::abcd,
+                    memory::format_tag::abcde, memory::format_tag::abcdef,
+                    memory::format_tag::acb, memory::format_tag::acdb,
+                    memory::format_tag::acdeb);
+        };
+        auto supported_cuda_alg_format = [&](memory::format_tag dst_fmt,
+                                                 memory::format_tag wei_fmt,
+                                                 dnnl::algorithm alg) {
+            bool res = dst_fmt == wei_fmt;
+            if (alg == dnnl::algorithm::convolution_winograd) {
+                res = res
+                        && impl::utils::one_of(wei_fmt, memory::format_tag::ab,
+                                memory::format_tag::abc,
+                                memory::format_tag::abcd,
+                                memory::format_tag::abcde,
+                                memory::format_tag::abcdef);
+            }
+            return res;
+        };
+
+        auto supported_data_type = [&](memory::data_type dt) {
+            return impl::utils::one_of(dt, memory::data_type::f32);
+        };
+        SKIP_IF_CUDA(!(supported_cuda_format(p.formats.src_format)
+                             && supported_cuda_format(p.formats.dst_format)
+                             && (supported_cuda_format(p.formats.weights_format)
+                                     || (impl::utils::one_of(
+                                             p.formats.weights_format,
+                                             /* weights formats */
+                                             memory::format_tag::gowi,
+                                             memory::format_tag::gohwi,
+                                             memory::format_tag::godhwi,
+                                             memory::format_tag::owi,
+                                             memory::format_tag::ohwi,
+                                             memory::format_tag::odhwi)))
+                             && supported_data_type(data_type_src)
+                             && supported_data_type(data_type_dst)
+                             && supported_data_type(data_type_wei)
+                             && supported_cuda_alg_format(p.formats.dst_format,
+                                     p.formats.weights_format, p.aalgorithm)),
+                "format is not supported.");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }

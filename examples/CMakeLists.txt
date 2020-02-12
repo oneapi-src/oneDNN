@@ -63,6 +63,27 @@ if(DNNL_CPU_SYCL)
     endforeach()
 endif()
 
+# Skip examples that do not work with Nvidia backend
+if(DNNL_SYCL_CUDA)
+    foreach(f
+            cnn_inference_f32.c
+            cnn_inference_f32.cpp
+            cnn_training_f32.cpp
+            rnn_training_f32.cpp
+            sycl_interop.cpp
+            sycl_interop_usm.cpp
+            primitives/layer_normalization.cpp
+            primitives/lstm.cpp
+            primitives/shuffle.cpp
+            primitives/binary.cpp
+            primitives/reorder.cpp
+            )
+        get_filename_component(f_path
+                ${CMAKE_CURRENT_LIST_DIR}/${f} ABSOLUTE)
+        list(REMOVE_ITEM sources "${f_path}")
+    endforeach()
+endif()
+
 # Skip USM example with ComputeCpp
 if(DNNL_SYCL_COMPUTECPP)
     list(REMOVE_ITEM sources "${CMAKE_CURRENT_LIST_DIR}/sycl_interop_usm.cpp")
@@ -115,7 +136,7 @@ foreach(src ${sources})
             # Adding test for GPU
             add_test("gpu-${example_name}" "${example_name}" gpu)
             maybe_configure_windows_test("gpu-${example_name}" TEST)
-            if(should_add_usm_target)
+            if(should_add_usm_target AND NOT DNNL_SYCL_CUDA)
                 add_test("gpu-usm-${example_name}" "usm-${example_name}" gpu)
                 maybe_configure_windows_test("gpu-usm-${example_name}" TEST)
             endif()

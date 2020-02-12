@@ -133,6 +133,40 @@ protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<
                 deconvolution_test_params>::GetParam();
+        auto src_wei_compatible
+                = [&](memory::format_tag src, memory::format_tag wei,
+                          bool is_grouped) {
+                      if (src == memory::format_tag::abcd) return true;
+                      if (src == memory::format_tag::acdb)
+                          return wei
+                                  != (is_grouped ? memory::format_tag::abcde
+                                                 : memory::format_tag::abcd);
+                  };
+        auto supported_cuda_format = [&](memory::format_tag tag,
+                                             memory::data_type dt) {
+            return ((impl::utils::one_of(tag, memory::format_tag::ab,
+                            memory::format_tag::abc, memory::format_tag::abcd,
+                            memory::format_tag::abcde,
+                            memory::format_tag::abcdef, memory::format_tag::acb,
+                            memory::format_tag::acdb,
+                            memory::format_tag::acdeb))
+                    || (dt == memory::data_type::s8
+                            && impl::utils::one_of(tag,
+                                    memory::format_tag::aBcd4b,
+                                    memory::format_tag::aBcde4b)));
+        };
+        auto supported_data_type = [&](memory::data_type dt) {
+            return impl::utils::one_of(dt, memory::data_type::f32,
+                    memory::data_type::f16, memory::data_type::s8);
+        };
+        memory::data_type data_type = data_traits<data_t>::data_type;
+        SKIP_IF_CUDA(!(supported_cuda_format(p.formats.src_format, data_type)
+                             && supported_cuda_format(
+                                     p.formats.dst_format, data_type)
+                             && supported_data_type(data_type)
+                             && src_wei_compatible(p.formats.src_format,
+                                     p.formats.weights_format, p.sizes.ng > 1)),
+                "format is not supported.");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -190,6 +224,8 @@ protected:
 
         padR = {right_padding(dd.oh, dd.ih, dd.kh, dd.padh, dd.strh, dd.dilh),
                 right_padding(dd.ow, dd.iw, dd.kw, dd.padw, dd.strw, dd.dilw)};
+        SKIP_IF_CUDA(p.sizes.padh < padR[0] || p.sizes.padw < padR[1],
+                "Padding not supported");
         Forward();
         BackwardData();
         BackwardWeights();
@@ -523,6 +559,16 @@ GPU_INST_TEST_CASE(SimpleSmall_NCHW,
         PARAMS(nhwc, hwio, x, nhwc, 2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
         PARAMS(nhwc, goihw, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 0, 0, 1, 1),
         PARAMS(nhwc, hwigo, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)
+
+);
+
+GPU_INST_TEST_CASE(SimpleSmall_NHWC,
+        PARAMS(nchw, oihw, x, nhwc, 2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
+        PARAMS(nhwc, ohwi, x, nhwc, 2, 1, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
+        PARAMS(nhwc, ohwi, x, nhwc, 2, 1, 6, 2, 2, 4, 4, 4, 3, 3, 0, 0, 1, 1),
+        PARAMS(nchw, goihw, x, nchw, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
+        PARAMS(nchw, goihw, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1),
+        PARAMS(nhwc, gohwi, x, nhwc, 2, 2, 6, 4, 4, 4, 4, 4, 3, 3, 1, 1, 1, 1)
 
 );
 

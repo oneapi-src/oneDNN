@@ -1389,6 +1389,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// plain 6D tensor
         acbdef = dnnl_acbdef,
         /// plain 6D tensor
+        abdefc = dnnl_abdefc,
+        /// plain 6D tensor
         defcab = dnnl_defcab,
 
         /// 1D tensor; an alias for #dnnl::memory::format_tag::a
@@ -1451,8 +1453,12 @@ struct memory : public handle<dnnl_memory_t> {
 
         /// 4D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::abcd
         goiw = abcd,
+        /// 4D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::acdb
+        gowi = abdc,
         /// 4D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::dcab
         wigo = dcab,
+        /// 5D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::acdeb
+        gohwi = abdec,
         /// 5D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::abcde
         goihw = abcde,
         /// 5D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::decab
@@ -1463,6 +1469,8 @@ struct memory : public handle<dnnl_memory_t> {
         goidhw = abcdef,
         /// 6D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::abcdef
         giodhw = acbdef,
+        /// 6D CNN weights tensor (incl. groups), an alias to #dnnl_abcdefc
+        godhwi = abdefc,
         /// 6D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::defcab
         dhwigo = defcab,
 

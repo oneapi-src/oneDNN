@@ -1,0 +1,31 @@
+# f32
+--reset
+--mb=2
+--allow-unimpl=true
+--dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
+
+# f16
+--reset
+--cfg=f16
+--mb=2
+--allow-unimpl=true
+--dir=FWD_B,BWD_D,BWD_WB --batch=deconv_all
+
+# NCHW
+--reset
+--allow-unimpl=true
+--cfg=f32,f16
+--mb=2
+--dir=FWD_B,BWD_D,BWD_WB
+
+--stag=abcd
+--wtag=abcd
+--dtag=abcd
+--batch=deconv_2d_no_groups
+
+#NHWC
+--stag=acdb
+--wtag=acdb
+--dtag=acdb
+--cfg=f32
+--batch=deconv_2d_no_groups

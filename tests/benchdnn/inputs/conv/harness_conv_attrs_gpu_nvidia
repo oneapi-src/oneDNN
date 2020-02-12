@@ -1,0 +1,35 @@
+# i8
+--reset
+--allow-unimpl=true # only symmetric padding is supported so far
+--mb=2
+
+--cfg=s8s8s8,s8s8f32
+--attr=oscale=common:2.25;post_ops='sum:1.5;relu:0.0'
+
+--dir=FWD_B,FWD_D
+--batch=shapes_resnet_50
+
+--attr=oscale=common:2.25;post_ops='sum:1.5'
+--dir=FWD_D
+--batch=shapes_resnet_50
+
+--attr=post_ops='relu:0.0'
+--batch=shapes_resnet_50
+
+--attr=post_ops='relu:0.0;sum'
+--batch=shapes_resnet_50
+
+
+# f32
+--reset --cfg=f32,f16
+--allow-unimpl=true # only symmetric padding is supported so far
+--mb=2,16
+
+--dir=FWD_B
+--attr=post_ops='sum' --batch=shapes_resnet_50
+--attr=post_ops='relu' --batch=shapes_resnet_50
+--attr=post_ops='sum;relu' --batch=shapes_resnet_50
+--attr=post_ops='sum:2.5;relu:0.0' --batch=shapes_resnet_50
+
+--cfg=f32
+--attr=post_ops='sum;tanh' --batch=shapes_resnet_50

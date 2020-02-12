@@ -68,6 +68,7 @@ TEST_F(pd_iter_test, TestReLUImpls) {
 }
 
 TEST(pd_next_impl, TestEltwiseImpl) {
+    SKIP_IF_CUDA(true, "Unsupported memory format for CUDA");
     auto eng = get_test_engine();
     memory::desc md(
             {8, 32, 4, 4}, memory::data_type::f32, memory::format_tag::nChw8c);

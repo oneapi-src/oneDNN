@@ -1,0 +1,11 @@
+--alg=ADD,MUL,MAX,MIN
+--stag=nchw:nchw       3x5x6x9:3x5x6x9 5x3x2x9:1x3x1x9 4x4x4x4:4x4x1x4
+--stag=nchw:nhwc    1x16x5x7:1x16x5x7 1x15x5x7:1x15x5x7
+--stag=nchw:nc         3x7x5x1:3x7 2x16x4x3:1x16
+--stag=nchw:x          7x2x1x8:7 3x2x3x2:1
+
+--stag=nhwc:nhwc       3x5x6x9:3x5x6x9 5x3x2x9:1x3x1x9 4x4x4x4:4x4x1x4
+--stag=nhwc:nc         3x7x5x1:3x7 2x16x4x3:1x16
+--stag=nhwc:x          7x2x1x8:7 3x2x3x2:1
+
+--stag=x:x             256:256 127:1

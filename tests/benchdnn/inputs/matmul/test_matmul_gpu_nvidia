@@ -1,0 +1,47 @@
+--reset
+
+--cfg=f32,f16,s8s8f32
+--stag=ab,ba --wtag=ab,ba
+--runtime_m=0 --runtime_n=0 --runtime_k=0
+--bia_dt=undef,f32
+--bia_mask=2,3                                        m128n1024k512
+                                                      m64n4096k3584
+                                                      m32n1000k192
+                                                      m32n1000k2560
+                                                      m256n128k640
+
+--attr=oscale=common:1.25;post_ops='sum:2.0'          m128n1024k512
+--attr=oscale=common:1.25;post_ops='sum:2.0'          m64n4096k256
+--attr=oscale=common:1.25;post_ops='sum:2.0'          m32n1000k192
+--attr=oscale=common:1.25;post_ops='sum:2.0'          m32n1000k512
+--attr=oscale=common:1.25;post_ops='sum:2.0'          m256n128k192
+--attr=oscale=common:1.25;post_ops='relu'             m784n1024k512
+
+# test any
+--reset
+--cfg=f32,f16,s8s8f32,s8s8s8
+--runtime_m=0,1 --runtime_n=0,1 --runtime_k=0,1
+--bia_dt=undef
+--stag=any --wtag=any --dtag=any
+--attr=oscale=common:1.5;post_ops='relu'            m512n1024k512
+--attr=oscale=common:1.25;post_ops='sum:2.0'        m512n1024k512
+--attr=oscale=common:1.25;post_ops='relu'           m512n1024k512
+
+## 3d
+--reset
+--cfg=f32,f16,s8s8f32,s8s8s8
+--stag=abc,acb --wtag=abc,acb --dtag=abc
+--runtime_mb=0,1 --runtime_m=0 --runtime_n=0 --runtime_k=0
+--bia_dt=undef,f32
+--bia_mask=4,6
+                                                     mb16m128n1024k512
+                                                     mb16m64n4096k3584
+                                                     mb16m32n1000k192
+                                                     mb16m256n128k640
+
+
+--attr=oscale=common:1.25;post_ops='relu:0.0:0.0'   mb16m128n1024k512
+--attr=oscale=common:1.25;post_ops='relu:0.0:0.0'   mb16m64n4096k256
+--attr=oscale=common:1.25;post_ops='relu:0.0:0.0'   mb16m32n1000k192
+--attr=oscale=common:1.25;post_ops='relu:0.0:0.0'   mb16m32n1000k512
+--attr=oscale=common:1.25;post_ops='relu:0.0:0.0'   mb16m256n128k192

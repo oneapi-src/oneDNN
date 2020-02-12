@@ -84,18 +84,18 @@
 
 #if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL) \
         || (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL)
-#    define DNNL_WITH_SYCL 1
+#define DNNL_WITH_SYCL 1
 #else
-#    define DNNL_WITH_SYCL 0
+#define DNNL_WITH_SYCL 0
 #endif
 
 // For SYCL CPU, a primitive may be created and executed in different threads
 // hence the global scratchpad does not work. This enables concurrent execution
 // when CPU runtime is SYCL to avoid the issue.
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
-#    ifndef DNNL_ENABLE_CONCURRENT_EXEC
-#        define DNNL_ENABLE_CONCURRENT_EXEC
-#    endif
+#ifndef DNNL_ENABLE_CONCURRENT_EXEC
+#define DNNL_ENABLE_CONCURRENT_EXEC
+#endif
 #endif
 
 // When defined, oneAPI DPC++ Compiler is used.
@@ -106,6 +106,9 @@
 
 // When defined, Level Zero is supported.
 #cmakedefine DNNL_WITH_LEVEL_ZERO
+
+// When defined, SYCL CUDA backend is used.
+#cmakedefine DNNL_SYCL_CUDA
 
 // Use SYCL buffers by default
 #if !defined(DNNL_USE_DPCPP_USM)

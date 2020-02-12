@@ -1,18 +1,18 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2016-2020 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 
 #ifndef DNNL_TEST_COMMON_HPP
 #define DNNL_TEST_COMMON_HPP
@@ -68,6 +68,20 @@ dnnl::engine::kind get_test_engine_kind();
 dnnl::engine get_test_engine();
 #endif
 
+inline bool is_nvidia_gpu(const dnnl::engine &eng) {
+    bool ret = false;
+
+#if DNNL_WITH_SYCL
+    constexpr int nvidia_vendor_id = 0x10DE;
+    const auto eng_vendor_id
+            = eng.get_sycl_device()
+                      .get_info<cl::sycl::info::device::vendor_id>();
+    ret = (eng_vendor_id == nvidia_vendor_id);
+#endif
+
+    return ret;
+}
+
 inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
     dnnl::engine::kind kind = eng.get_kind();
 
@@ -75,7 +89,17 @@ inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
     if (kind == dnnl::engine::kind::cpu)
         supported = dnnl::impl::cpu::platform::has_data_type_support(
                 memory::convert_to_c(dt));
+#ifdef DNNL_SYCL_CUDA
+    if (is_nvidia_gpu(eng)) {
 
+        switch (dt) {
+            case memory::data_type::f32: return false;
+            case memory::data_type::f16: return false;
+            case memory::data_type::s8: return false;
+            default: return true;
+        }
+    }
+#endif
     return !supported;
 }
 

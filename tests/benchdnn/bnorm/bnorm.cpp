@@ -214,8 +214,20 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 
     const int f32_mant_digits = 24;
     const float eps_coeff = (1 << (f32_mant_digits - digits_dt(p->dt)));
-    float eps = eps_coeff * (kind == DATA ? 5e-7 : 0);
+    float eps = eps_coeff
+            * (p->dir & FLAG_FWD ? (kind == DATA ? 5e-7 : 0)
+                                 : (kind == DATA ? 2e-7 : 0));
     if (kind == SS && p->dir & FLAG_BWD) eps = eps_coeff * 5e-6;
+
+#ifdef DNNL_SYCL_CUDA
+    // cuDNN stores unbiased variance which requires rescaling by (N - 1) / N,
+    // where N = MB * Spatial. Hence, we cannot set the threshold to 0...
+    // Also the mean could also be rounded incorrectly (how?!)
+    if (engine_tgt_kind == dnnl_gpu) {
+        if (kind == MEAN) eps = 1e-7;
+        if (kind == VAR) eps = 4e-7;
+    }
+#endif
 
     // Since bwd testing is done using results from forward which are random
     // fp32 values, diff_ss starts fluctuating, so we check norm for both data

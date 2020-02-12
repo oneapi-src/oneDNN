@@ -1,0 +1,134 @@
+--sdt=f32
+--ddt=f32
+
+### shuffle dims
+--stag=a
+--dtag=a
+11
+
+--stag=ab,ba
+--dtag=ab,ba
+7x11
+
+--stag=abc,acb,bac
+--dtag=abc,acb,bac
+5x7x11
+
+--stag=abcd,acdb
+--dtag=abcd,acdb
+3x5x7x11
+
+--stag=abcde,acdeb
+--dtag=abcde,acdeb
+2x3x5x7x11
+
+### test types
+--reset
+#--sdt=f32,s8,f16
+#--ddt=f32,s8,f16
+--sdt=f32,f16
+--ddt=f32,f16
+
+--stag=abcd
+--dtag=abcd
+32x32x2x2
+
+### test scale
+# axis type
+--reset
+--sdt=f32
+--ddt=f32
+
+--attr=oscale=common:0.
+--stag=abcd,cdba
+--dtag=abcd,cdba
+3x5x7x11
+
+# data types
+--reset
+--sdt=f32,s8,f16
+--ddt=f32,s8,f16
+
+--attr=oscale=common:0.5
+--stag=abcd,cdba
+--dtag=abcd,cdba
+3x5x7x11
+
+# layouts
+--reset
+--sdt=s8
+--ddt=s8
+--attr=oscale=common:0.5
+--stag=a
+--dtag=a
+128
+
+--attr=oscale=common:0.5
+--stag=ab,ba
+--dtag=ab,ba
+7x11
+
+--attr=oscale=common:0.5
+--stag=abc,bac
+--dtag=abc,bac
+5x7x11
+
+--attr=oscale=common:0.5
+--stag=abcd,aBcd4b
+--dtag=abcd,aBcd4b
+32x32x2x2
+
+--attr=oscale=common:0.5
+--stag=abcde,aBcde4b
+--dtag=abcde,aBcde4b
+32x32x2x2x2
+
+--attr=oscale=common:0.5
+--stag=abcdef,aBcdef4b
+--dtag=abcdef,aBcdef4b
+2x32x32x2x2x2
+
+### test blocking
+--reset
+--sdt=s8
+--ddt=s8
+
+# data
+--attr=oscale=common:1
+--stag=abc,aBc4b
+--dtag=abc,aBc4b
+2x64x3 2x24x5
+
+--stag=abcd,aBcd4b
+--dtag=abcd,aBcd4b
+2x64x3x2 2x24x3x5
+
+--stag=abcde,aBcde4b
+--dtag=abcde,aBcde4b
+2x64x3x2x2 2x24x2x3x5
+
+# weights
+--stag=abc
+--dtag=abc
+16x32x3 32x16x3 11x17x3
+--stag=abcd
+--dtag=abcd
+16x32x3x2 32x16x2x3 11x17x2x3
+
+--stag=abcde
+--dtag=abcde
+16x32x3x2x4 32x16x2x3x4 11x17x2x3x4
+
+--stag=abcdef,aBcdef4b
+--dtag=abcdef,aBcdef4b
+3x16x32x3x2x4 5x32x16x2x3x4 4x20x17x2x2x3
+
+# test unimplemented
+# TODO: fix benchdnn to all reorder being unimplemented
+# --allow-unimpl=true
+# --attr=oscale=per_dim_1:0.5
+# --sdt=f32
+# --ddt=f32
+# --stag=abc,acb,bac
+# --dtag=abc,acb,bac
+# 5x7x11

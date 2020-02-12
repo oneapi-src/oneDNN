@@ -1,18 +1,18 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain src copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2019-2020 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain src copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
@@ -94,6 +94,29 @@ protected:
 
         SKIP_IF(unsupported_data_type(p.base.src.dt),
                 "Engine does not support this data type.");
+        SKIP_IF_CUDA((p.base.src.dt == memory::data_type::bf16
+                             || p.base.dst.dt == memory::data_type::bf16
+                             || p.base.weights.dt == memory::data_type::bf16
+                             || p.base.bia_dt == memory::data_type::bf16),
+                "Unsupported datatype for CUDA");
+        SKIP_IF_CUDA(
+                (p.base.src.dt == memory::data_type::s8
+                        && p.base.weights.dt == memory::data_type::s8
+                        && (p.base.dst.dt != memory::data_type::f32
+                                && p.base.dst.dt != memory::data_type::s8)),
+                "Unsupported datatype for CUDA");
+        SKIP_IF_CUDA((p.base.src.dt == memory::data_type::u8
+                             || p.base.dst.dt == memory::data_type::u8
+                             || p.base.weights.dt == memory::data_type::u8),
+                "Unsupported datatype for CUDA");
+
+        SKIP_IF_CUDA((p.attr.zero_points.src != 0 || p.attr.zero_points.dst != 0
+                             || p.attr.zero_points.weights != 0),
+                "Zero points not supported for CUDA");
+
+        auto scale_mask = p.attr.scale_flags & P::MASK_MASK;
+        SKIP_IF_CUDA(scale_mask == P::PER_N,
+                "Per dimensional scaling is not supported for CUDA");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
@@ -351,7 +374,8 @@ static auto cases_ef = []() {
                      {{10, 20}, data_type::f32, tag::ab}, data_type::u8},
                     {}, true, dnnl_unimplemented});
     // XXX: disable assert in type_helpers.hpp: default_accum_data_type(...)
-    //cases.push_back({{{{10, 1}, data_type::u8, tag::ab}, {{1, 20}, data_type::u8, tag::ab},
+    // cases.push_back({{{{10, 1}, data_type::u8, tag::ab}, {{1, 20},
+    // data_type::u8, tag::ab},
     //                           {{10, 20}, data_type::u8, tag::ab}},
     //        {}, true, dnnl_unimplemented});
 

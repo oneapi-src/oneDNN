@@ -62,6 +62,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(acb);
     CASE(acbde);
     CASE(acbdef);
+    CASE(abdefc);
     CASE(acdb);
     CASE(acdeb);
     CASE(ba);
@@ -460,6 +461,8 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(gOIdhw4i8o2i);
     CASE(gOIdhw2o4i2o);
     CASE(gOIdhw4o8i2o);
+    CASE(gohwi);
+    CASE(godhwi);
 #undef CASE
     if (!strcmp("undef", str) || !strcmp("dnnl_format_tag_undef", str))
         return dnnl_format_tag_undef;

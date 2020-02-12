@@ -123,8 +123,47 @@ class inner_product_test_bwd_weights
 protected:
     virtual void SetUp() {
         auto p = ::testing::TestWithParam<inprod_test_params>::GetParam();
+        SKIP_IF_CUDA(
+                !cuda_check_format_tags(p.src_format, p.diff_weights_format,
+                        p.diff_bias_format, p.diff_dst_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(p.ndims > 5, "Unsupported number of dimensions");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
+    }
+
+    bool cuda_check_format_tags(memory::format_tag src_format,
+            memory::format_tag diff_wei_format,
+            memory::format_tag diff_bia_format,
+            memory::format_tag diff_dst_format) {
+        bool src_ok = src_format == memory::format_tag::ncdhw
+                || src_format == memory::format_tag::ndhwc
+                || src_format == memory::format_tag::nchw
+                || src_format == memory::format_tag::nhwc
+                || src_format == memory::format_tag::ncw
+                || src_format == memory::format_tag::nwc
+                || src_format == memory::format_tag::nc
+                || src_format == memory::format_tag::any;
+        bool diff_wei_ok = diff_wei_format == memory::format_tag::oidhw
+                || diff_wei_format == memory::format_tag::odhwi
+                || diff_wei_format == memory::format_tag::dhwio
+                || diff_wei_format == memory::format_tag::oihw
+                || diff_wei_format == memory::format_tag::ohwi
+                || diff_wei_format == memory::format_tag::hwio
+                || diff_wei_format == memory::format_tag::oiw
+                || diff_wei_format == memory::format_tag::owi
+                || diff_wei_format == memory::format_tag::wio
+                || diff_wei_format == memory::format_tag::io
+                || diff_wei_format == memory::format_tag::oi
+                || diff_wei_format == memory::format_tag::any;
+        bool diff_bia_ok = diff_bia_format == memory::format_tag::undef
+                || diff_bia_format == memory::format_tag::any
+                || diff_bia_format == memory::format_tag::a
+                || diff_bia_format == memory::format_tag::x;
+        bool diff_dst_ok = diff_dst_format == memory::format_tag::any
+                || diff_dst_format == memory::format_tag::nc;
+
+        return src_ok && diff_wei_ok && diff_bia_ok && diff_dst_ok;
     }
 
     void Test() {
@@ -323,12 +362,14 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeightsNoBias,
                         memory::format_tag::any, memory::format_tag::undef,
                         memory::format_tag::any,
                         EXPAND_SIZES_2D(2, 1024, 48, 2, 2)},
-                inprod_test_params_float {memory::format_tag::nhwc,
-                        memory::format_tag::hwio, memory::format_tag::undef,
-                        memory::format_tag::nc,
-                        EXPAND_SIZES_2D(2, 32, 48, 6, 6)},
+                inprod_test_params_float {memory::format_tag::nwc,
+                        memory::format_tag::owi, memory::format_tag::undef,
+                        memory::format_tag::nc, EXPAND_SIZES_1D(2, 32, 48, 6)},
                 inprod_test_params_float {memory::format_tag::nwc,
                         memory::format_tag::wio, memory::format_tag::undef,
+                        memory::format_tag::nc, EXPAND_SIZES_1D(2, 32, 48, 6)},
+                inprod_test_params_float {memory::format_tag::nwc,
+                        memory::format_tag::oiw, memory::format_tag::undef,
                         memory::format_tag::nc, EXPAND_SIZES_1D(2, 32, 48, 6)},
                 inprod_test_params_float {memory::format_tag::ncw,
                         memory::format_tag::oiw, memory::format_tag::undef,
@@ -336,6 +377,9 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeightsNoBias,
                 inprod_test_params_float {memory::format_tag::ncw,
                         memory::format_tag::wio, memory::format_tag::undef,
                         memory::format_tag::nc, EXPAND_SIZES_1D(2, 32, 48, 6)},
+                inprod_test_params_float {memory::format_tag::ncw,
+                        memory::format_tag::owi, memory::format_tag::undef,
+                        memory::format_tag::nc, EXPAND_SIZES_1D(2, 32, 48, 6)},
                 inprod_test_params_float {memory::format_tag::nhwc,
                         memory::format_tag::hwio, memory::format_tag::undef,
                         memory::format_tag::nc,
@@ -344,8 +388,20 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeightsNoBias,
                         memory::format_tag::oihw, memory::format_tag::undef,
                         memory::format_tag::nc,
                         EXPAND_SIZES_2D(2, 32, 48, 6, 6)},
+                inprod_test_params_float {memory::format_tag::nhwc,
+                        memory::format_tag::ohwi, memory::format_tag::undef,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_2D(2, 32, 48, 6, 6)},
                 inprod_test_params_float {memory::format_tag::nchw,
                         memory::format_tag::oihw, memory::format_tag::undef,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_2D(2, 32, 48, 6, 6)},
+                inprod_test_params_float {memory::format_tag::nchw,
+                        memory::format_tag::ohwi, memory::format_tag::undef,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_2D(2, 32, 48, 6, 6)},
+                inprod_test_params_float {memory::format_tag::nchw,
+                        memory::format_tag::hwio, memory::format_tag::undef,
                         memory::format_tag::nc,
                         EXPAND_SIZES_2D(2, 32, 48, 6, 6)},
                 inprod_test_params_float {memory::format_tag::nChw8c,
@@ -438,6 +494,14 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeights3D,
                         memory::format_tag::oidhw, memory::format_tag::x,
                         memory::format_tag::nc,
                         EXPAND_SIZES_3D(2, 32, 48, 6, 6, 6)},
+                inprod_test_params_float {memory::format_tag::ncdhw,
+                        memory::format_tag::dhwio, memory::format_tag::x,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_3D(2, 32, 48, 6, 6, 6)},
+                inprod_test_params_float {memory::format_tag::ncdhw,
+                        memory::format_tag::odhwi, memory::format_tag::x,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_3D(2, 32, 48, 6, 6, 6)},
                 inprod_test_params_float {memory::format_tag::nCdhw8c,
                         memory::format_tag::aBcde8b, memory::format_tag::x,
                         memory::format_tag::nc,
@@ -448,6 +512,14 @@ INSTANTIATE_TEST_SUITE_P(TestInnerProductBackwardWeights3D,
                         EXPAND_SIZES_3D(2, 32, 1000, 6, 6, 6)},
                 inprod_test_params_float {memory::format_tag::ndhwc,
                         memory::format_tag::dhwio, memory::format_tag::x,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_3D(2, 16, 48, 3, 3, 3)},
+                inprod_test_params_float {memory::format_tag::ndhwc,
+                        memory::format_tag::odhwi, memory::format_tag::x,
+                        memory::format_tag::nc,
+                        EXPAND_SIZES_3D(2, 16, 48, 3, 3, 3)},
+                inprod_test_params_float {memory::format_tag::ndhwc,
+                        memory::format_tag::oidhw, memory::format_tag::x,
                         memory::format_tag::nc,
                         EXPAND_SIZES_3D(2, 16, 48, 3, 3, 3)}));
 } // namespace dnnl

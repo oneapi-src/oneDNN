@@ -16,6 +16,9 @@
 
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
+#if DNNL_X64
+#include "src/cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 #include "dnnl.hpp"
 
@@ -90,12 +93,35 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
     }
 
 protected:
+    bool cuda_supported_format_tag(memory::format_tag tag) {
+        return impl::utils::one_of(tag, dnnl_a, dnnl_ab, dnnl_abc, dnnl_abcd,
+                dnnl_abcde, dnnl_abcdef, dnnl_abdec, dnnl_acb, dnnl_acbde,
+                dnnl_acbdef, dnnl_acdb, dnnl_acdeb, dnnl_ba, dnnl_bac,
+                dnnl_bacd, dnnl_bca, dnnl_bcda, dnnl_bcdea, dnnl_cba, dnnl_cdba,
+                dnnl_cdeba, dnnl_decab, dnnl_defcab, dnnl_aBc4b, dnnl_aBcd4b,
+                dnnl_aBcde4b);
+    }
     virtual void SetUp() {
         auto data_type = data_traits<data_t>::data_type;
         SKIP_IF(unsupported_data_type(data_type),
                 "Engine does not support this data type.");
+        SKIP_IF_CUDA(
+                data_type == impl::data_type::bf16, "Unsupported data type");
+#if DNNL_X64
+        SKIP_IF(data_type == impl::data_type::bf16
+                        && !impl::cpu::x64::mayiuse(impl::cpu::x64::avx512_core)
+                        && get_test_engine_kind() == engine::kind::cpu,
+                "current ISA doesn't support bfloat16 data type");
+#endif
         concat_test_params p
                 = ::testing::TestWithParam<decltype(p)>::GetParam();
+        for (int i = 0; i < p.srcs_cds.size(); i++) {
+            SKIP_IF_CUDA(!cuda_supported_format_tag(p.srcs_format[i]),
+                    "Unsupported format tag");
+        }
+
+        SKIP_IF_CUDA(!cuda_supported_format_tag(p.dst_format),
+                "Unsupported format tag");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status, false);
     }
@@ -344,6 +370,9 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_bf16, concat_test_bf16, cases_concat());
 
 INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_s8,
         ::testing::Values(
+                concat_test_params {1, {fmt::nCdhw4c, fmt::nCdhw4c},
+                        fmt::nCdhw4c, {{2, 8, 3, 4, 5}, {2, 8, 3, 4, 5}},
+                        {2, 16, 3, 4, 5}},
                 concat_test_params {1, {fmt::nhwc, fmt::nhwc}, fmt::nhwc,
                         {{2, 8, 3, 4}, {2, 8, 3, 4}}, {2, 16, 3, 4}},
                 concat_test_params {1, {fmt::nchw, fmt::nchw}, fmt::nchw,

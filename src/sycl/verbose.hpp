@@ -30,7 +30,7 @@ namespace sycl {
 
 void print_verbose_header(
         cl::sycl::info::device_type dev_type, const char *dev_type_str) {
-    auto devices = get_intel_sycl_devices(dev_type);
+    auto devices = get_sycl_devices(dev_type);
     for (size_t i = 0; i < devices.size(); ++i) {
         sycl_device_info_t dev_info(devices[i]);
         status_t status = dev_info.init();

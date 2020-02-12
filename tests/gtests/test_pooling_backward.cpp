@@ -39,6 +39,19 @@ struct pool_bwd_test_params {
     dnnl_status_t expected_status;
 };
 
+bool cuda_check_format_tags(memory::format_tag format) {
+    bool format_ok = format == memory::format_tag::ncdhw
+            || format == memory::format_tag::ndhwc
+            || format == memory::format_tag::nchw
+            || format == memory::format_tag::nhwc
+            || format == memory::format_tag::ncw
+            || format == memory::format_tag::nwc
+            || format == memory::format_tag::any
+            || format == memory::format_tag::nCdhw4c;
+
+    return format_ok;
+}
+
 template <typename data_t>
 void check_pool_fwd(
         const pool_bwd_test_params &p, const memory &src, const memory &dst) {
@@ -242,6 +255,12 @@ private:
 protected:
     virtual void SetUp() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.diff_src_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.diff_dst_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(p.aalgorithm == algorithm::pooling_max,
+                "Unsupported algorithm MAX");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
