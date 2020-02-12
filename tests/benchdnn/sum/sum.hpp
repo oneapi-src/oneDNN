@@ -38,7 +38,8 @@ struct prb_t {
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
-        , scales(sdt.size()) {
+        , scales(sdt.size())
+        , ndims((int)dims.size()) {
         // if there is a single scale then broadcast it
         for (int i_input = 0; i_input < n_inputs(); i_input++)
             this->scales[i_input]
@@ -52,6 +53,7 @@ struct prb_t {
     std::vector<dnnl_format_tag_t> stag;
     dnnl_format_tag_t dtag;
     std::vector<float> scales;
+    int ndims;
 
     int n_inputs() const { return (int)sdt.size(); }
 };
