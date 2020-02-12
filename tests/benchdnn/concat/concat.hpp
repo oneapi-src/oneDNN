@@ -33,7 +33,13 @@ struct prb_t {
     prb_t(const std::vector<dims_t> &sdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::vector<dnnl_format_tag_t> &stag,
             dnnl_format_tag_t dtag, int axis)
-        : sdims(sdims), sdt(sdt), ddt(ddt), stag(stag), dtag(dtag), axis(axis) {
+        : sdims(sdims)
+        , sdt(sdt)
+        , ddt(ddt)
+        , stag(stag)
+        , dtag(dtag)
+        , axis(axis)
+        , ndims((int)sdims[0].size()) {
         generate_ddims();
     }
     ~prb_t() {}
@@ -44,6 +50,7 @@ struct prb_t {
     std::vector<dnnl_format_tag_t> stag;
     dnnl_format_tag_t dtag;
     int axis;
+    int ndims;
 
     int n_inputs() const { return (int)sdims.size(); }
 
@@ -56,8 +63,6 @@ struct prb_t {
 
     void generate_ddims() {
         const dims_t &sdims0 = sdims[0];
-        const int ndims = (int)sdims0.size();
-
         ddims.resize(ndims);
 
         for (int i = 0; i < ndims; ++i)
