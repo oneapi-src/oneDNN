@@ -35,7 +35,13 @@ namespace shuffle {
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
             dnnl_format_tag_t tag, int axis, int64_t group)
-        : dims(dims), dir(dir), dt(dt), tag(tag), axis(axis), group(group) {}
+        : dims(dims)
+        , dir(dir)
+        , dt(dt)
+        , tag(tag)
+        , axis(axis)
+        , group(group)
+        , ndims((int)dims.size()) {}
     ~prb_t() {}
 
     dims_t dims;
@@ -44,6 +50,7 @@ struct prb_t {
     dnnl_format_tag_t tag;
     int axis;
     int64_t group;
+    int ndims;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
