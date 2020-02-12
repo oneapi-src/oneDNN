@@ -1,0 +1,19 @@
+--reset
+
+--dt=f32
+--dir=FWD_D
+--alg=SOFTMAX,LOGSOFTMAX
+--inplace=true,false
+--tag=nc           --axis=1     --batch=softmax_2d
+--dir=FWD_D,BWD_D
+--tag=abcde --axis=1 --batch=softmax_5d
+--tag=abcdef --axis=1 --batch=softmax_6d
+
+--reset
+--dir=FWD_D,FWD_I
+--alg=SOFTMAX,LOGSOFTMAX
+--dt=f16
+--inplace=true,false
+--tag=nc --axis=1 --batch=softmax_2d
+
+--tag=nchw,nhwc --axis=1 --batch=softmax_4d

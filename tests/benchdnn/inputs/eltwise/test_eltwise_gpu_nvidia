@@ -1,0 +1,26 @@
+--reset
+
+--inplace=true,false
+
+--dt=f32
+--tag=nchw,nhwc
+--dir=FWD_D
+--alpha=0 --alg=relu,tanh,elu,logistic 4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+--alpha=5 --alg=brelu,logistic 4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+--dir=BWD_D
+--alpha=0
+--alg=relu
+4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+
+--dir=FWD_I
+--dt=s8
+--tag=nchw,nhwc
+--alg=relu --alpha=0
+4x8x3x3 3x7x4x5 32x16x6x2 3x19x1x2
+
+--dir=FWD_I
+--dt=f16
+--tag=nchw,nhwc
+--alpha=0 --alg=relu,tanh,elu,brelu,logistic 4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+--alpha=5 --alg=brelu 4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+

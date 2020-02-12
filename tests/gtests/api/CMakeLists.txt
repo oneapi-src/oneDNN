@@ -22,7 +22,8 @@ list(APPEND TEST_SOURCES ${MAIN_SRC_GTEST})
 register_exe(${TEST_EXE} "${TEST_SOURCES}" "test" "dnnl_gtest")
 
 # Create DPC++ USM target.
-if(DNNL_SYCL_DPCPP)
+# USM is currently not supported for Nvidia backend
+if(DNNL_SYCL_DPCPP AND NOT DNNL_SYCL_CUDA)
     register_exe(${TEST_EXE}_usm "${TEST_SOURCES}" "test" "dnnl_gtest")
     target_compile_definitions(${TEST_EXE}_usm PUBLIC -DDNNL_USE_DPCPP_USM)
 endif()

@@ -18,7 +18,9 @@
 
 #include <assert.h>
 #include <atomic>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "dnnl_test_common.hpp"
 
@@ -113,11 +115,40 @@ inline dnnl::engine::kind to_engine_kind(const std::string &str) {
     return dnnl::engine::kind::cpu;
 }
 
+inline int get_vendor_id(const std::string &vendor) {
+    if (vendor == "nvidia") {
+        return 0x10DE;
+    } else if (vendor == "intel") {
+        return 0x8086;
+    } else {
+        return -1;
+    }
+}
+
 // test_engine can be accessed only from tests compiled with
 // DNNL_TEST_WITH_ENGINE_PARAM macro
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
 static dnnl::engine::kind test_engine_kind;
 static std::unique_ptr<dnnl::engine> test_engine;
+
+#if DNNL_WITH_SYCL
+static int test_vendor_id;
+static int test_device_index = 0;
+static bool is_vendor_provided = false;
+
+static cl::sycl::device get_sycl_devices(cl::sycl::info::device_type dev_type,
+        const int vendor_id, const int index) {
+    auto devices = cl::sycl::device::get_devices(dev_type);
+    devices.erase(
+            std::remove_if(devices.begin(), devices.end(),
+                    [=](const cl::sycl::device &dev) {
+                        return dev.get_info<cl::sycl::info::device::vendor_id>()
+                                != vendor_id;
+                    }),
+            devices.end());
+    return devices[index];
+}
+#endif
 
 dnnl::engine::kind get_test_engine_kind() {
     return test_engine_kind;
@@ -127,8 +158,64 @@ dnnl::engine get_test_engine() {
     return *test_engine;
 }
 
+void split_string(const std::string &str, std::vector<std::string> &words,
+        char delim = ':') {
+    std::stringstream ss(str);
+    std::string token;
+    while (std::getline(ss, token, delim)) {
+        words.push_back(token);
+    }
+}
+
+// The engine param is of the form engine_kind:vendor:index
+// Example: gpu:intel:1
+static void parse_engine_param(const std::string &param) {
+    // Default values
+    test_engine_kind = dnnl::engine::kind::cpu;
+    if (!param.empty()) {
+        std::vector<std::string> engine_params;
+        split_string(param, engine_params, ':');
+        if (engine_params.size() >= 1) {
+            test_engine_kind = to_engine_kind(engine_params[0]);
+
+#if DNNL_WITH_SYCL
+            if (engine_params.size() >= 2) {
+                test_vendor_id = get_vendor_id(engine_params[1]);
+                // Check if a valid vendor was passed
+                assert(test_vendor_id != -1);
+                if (engine_params.size() == 3) {
+                    test_device_index = std::stoi(engine_params[2]);
+                    // Check if test_device_index value provided is valid
+                    assert(dnnl::engine::get_count(get_test_engine_kind())
+                            > test_device_index);
+                }
+            }
+#endif
+        }
+    }
+}
+
 void dnnl_environment_t::SetUp() {
+#if DNNL_WITH_SYCL
+    // Check if vendor is specified.
+    if (is_vendor_provided) {
+        auto dev_type = (test_engine_kind == dnnl::engine::kind::cpu)
+                ? cl::sycl::info::device_type::cpu
+                : cl::sycl::info::device_type::gpu;
+        // Get the device of the index specified.
+        // If no index is specified, it is 0 by default
+        cl::sycl::device dev
+                = get_sycl_devices(dev_type, test_vendor_id, test_device_index);
+        cl::sycl::context ctx(dev);
+        // Create engine
+        test_engine.reset(new dnnl::engine(get_test_engine_kind(), dev, ctx));
+    } else {
+        test_engine.reset(
+                new dnnl::engine(get_test_engine_kind(), test_device_index));
+    }
+#else
     test_engine.reset(new dnnl::engine(get_test_engine_kind(), 0));
+#endif
 }
 
 void dnnl_environment_t::TearDown() {
@@ -142,7 +229,7 @@ void dnnl_environment_t::TearDown() {}
 void test_init(int argc, char *argv[]) {
     auto engine_str = find_cmd_option(argv, argv + argc, "--engine=");
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
-    test_engine_kind = to_engine_kind(engine_str);
+    parse_engine_param(engine_str);
 
     std::string filter_str = ::testing::GTEST_FLAG(filter);
     if (test_engine_kind == dnnl::engine::kind::cpu) {

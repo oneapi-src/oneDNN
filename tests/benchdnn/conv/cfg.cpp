@@ -34,19 +34,17 @@ namespace conv {
  */
 
 const int int_max_exact_half = 1 << 11;
+const int int_max_exact = 1 << 24;
 const _dt_conf_t conf_f16 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
                 0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, -2, 1, 1.0,
-                0.},
-        {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, 1, 1.0,
-                0.},
+        {dnnl_f16, -int_max_exact, int_max_exact, -2, 2, -2, 1, 1.0, 1e-2},
+        {dnnl_f16, -int_max_exact, int_max_exact, -8, 8, 0, 1, 1.0, 1e-2},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, 1, .25,
                 0.},
         {dnnl_f16},
 };
 
-const int int_max_exact = 1 << 24;
 const _dt_conf_t conf_f32 = {
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, .25, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -32, 32, 0, 1, 1.0, 0.},

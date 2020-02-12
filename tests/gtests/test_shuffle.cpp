@@ -90,6 +90,7 @@ private:
 
 protected:
     virtual void SetUp() {
+        SKIP_IF_CUDA(true, "Shuffle primitive not supported by CUDA");
         data_type = data_traits<data_t>::data_type;
         SKIP_IF(data_type == memory::data_type::f16
                         && get_test_engine_kind() == engine::kind::cpu,

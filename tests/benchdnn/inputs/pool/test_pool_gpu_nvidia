@@ -1,0 +1,30 @@
+--reset
+--mb=2,16
+
+# f32
+--cfg=f32
+--dir=FWD_D,FWD_I,BWD_D
+--alg=MAX,AVG_NP,AVG_P
+--tag=ncw,nwc   --batch=pool_1d
+--tag=nchw,nhwc --batch=pool_2d_small
+
+--dir=FWD_D,BWD_D
+--alg=MAX,AVG_P
+--tag=nchw,nhwc   --batch=pool_ker_in_pad_2d_small
+--tag=ncdhw,ndhwc --batch=pool_3d_small
+--tag=ncdhw,ndhwc --batch=pool_ker_in_pad_3d_small
+
+# s8, f16
+--mb=2,16
+--cfg=s8,f16
+
+--dir=FWD_I
+--alg=MAX,AVG_NP,AVG_P
+--tag=ncw,nwc          --batch=pool_1d
+--tag=nchw,nhwc,nChw4c --batch=pool_2d_small
+
+--tag=nchw,nhwc,nChw4c --batch=pool_2d_small
+--alg=MAX,AVG_P
+--tag=nchw,nhwc,nChw4c --batch=pool_ker_in_pad_2d_small
+--tag=ncdhw,ndhwc      --batch=pool_3d_small
+--tag=ncdhw,ndhwc      --batch=pool_ker_in_pad_3d_small

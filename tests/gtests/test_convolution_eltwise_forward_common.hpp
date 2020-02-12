@@ -128,6 +128,53 @@ protected:
         memory::data_type data_type_dst = data_traits<data_t_dst>::data_type;
         memory::data_type data_type_wei = data_traits<data_t_wei>::data_type;
 
+        auto supported_cuda_format = [&](memory::format_tag tag,
+                                             memory::data_type dt) {
+            return ((impl::utils::one_of(tag, memory::format_tag::ab,
+                            memory::format_tag::abc, memory::format_tag::abcd,
+                            memory::format_tag::abcde,
+                            memory::format_tag::abcdef, memory::format_tag::acb,
+                            memory::format_tag::acdb,
+                            memory::format_tag::acdeb))
+                    || (dt == memory::data_type::s8
+                            && impl::utils::one_of(tag,
+                                    memory::format_tag::aBcd4b,
+                                    memory::format_tag::aBcde4b)));
+        };
+
+        auto supported_data_type = [&](memory::data_type dt) {
+            return impl::utils::one_of(dt, memory::data_type::f32,
+                    memory::data_type::f16, memory::data_type::s8);
+        };
+        SKIP_IF_CUDA(
+                !(supported_cuda_format(p.formats.src_format, data_type_src)
+                        && supported_cuda_format(
+                                p.formats.dst_format, data_type_dst)
+                        && (supported_cuda_format(
+                                    p.formats.weights_format, data_type_wei)
+                                || (impl::utils::one_of(
+                                        p.formats.weights_format,
+                                        /* weights formats */
+                                        memory::format_tag::gowi,
+                                        memory::format_tag::gohwi,
+                                        memory::format_tag::godhwi,
+                                        memory::format_tag::owi,
+                                        memory::format_tag::ohwi,
+                                        memory::format_tag::odhwi)))
+                        && supported_data_type(data_type_src)
+                        && supported_data_type(data_type_dst)
+                        && supported_data_type(data_type_wei)),
+                "format is not supported.");
+
+        SKIP_IF_CUDA(p.alg != algorithm::eltwise_relu
+                        && p.alg != algorithm::eltwise_bounded_relu
+                        && p.alg != algorithm::eltwise_tanh
+                        && p.alg != algorithm::eltwise_elu
+                        && p.alg != algorithm::eltwise_logistic,
+                "Unsupported algorithm type for CUDA");
+        SKIP_IF_CUDA(p.alg == algorithm::eltwise_relu && p.eltwise_alpha != 0.0,
+                "DNNL only supports relu w/ slope=0 for integers");
+
         test_convolution_sizes_t cd = p.sizes;
 
         auto c_src_desc = create_md({cd.mb, cd.ic, cd.ih, cd.iw}, data_type_src,
@@ -179,6 +226,8 @@ protected:
                     != cd.ow)
                 ++padR[1];
         }
+
+        SKIP_IF_CUDA(cd.padh < padR[0] || cd.padw < padR[1], "Unsupported padding for CUDA.");
 
         auto test = [&]() {
             dnnl::post_ops ops;

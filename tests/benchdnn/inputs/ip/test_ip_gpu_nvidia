@@ -1,0 +1,34 @@
+#int8
+--reset
+--mb=2
+--dir=FWD_B,FWD_D
+--cfg=s8s8s8
+--allow-unimpl=true # ic % 4 != 0
+--batch=ip_all
+--attr=oscale=common:2.25;post_ops='relu:0' --batch=ip_all
+--attr=oscale=common:2.25;post_ops='tanh' --batch=ip_all
+
+#f32
+--reset
+--cfg=f32
+--mb=2
+--dir=FWD_D,FWD_B,BWD_D,BWD_WB --batch=ip_all
+
+--reset
+--batch=harness_tag_nvidia
+
+#f32 + post_ops
+--reset
+--cfg=f32
+--mb=2
+--dir=FWD_B,FWD_D
+--attr=post_ops='sum:1.0' --batch=ip_all
+--attr=post_ops='sum:1.0;relu:0.0' --batch=ip_1d
+--attr=post_ops='relu:0.0:0.0' --batch=ip_all
+
+#f16
+--reset
+--cfg=f16
+--mb=2
+--dir=FWD_B,FWD_D
+--attr=post_ops='relu:0.0:0.0' --batch=ip_1d

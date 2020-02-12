@@ -1,0 +1,19 @@
+--reset
+
+--tag=ncw
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_1d
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_1d
+--dir=BWD_D        --flags=        --attr=                --batch=bnorm_1d
+
+--tag=ncdhw
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
+
+--tag=nchw,nhwc
+--dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small
+--dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo_small
+
+--mb=2
+--dt=f16
+--dir=FWD_I        --flags=GS      --attr=                --batch=bnorm_topo_small
+--dir=FWD_I        --flags=GS      --attr=post_ops='relu' --batch=bnorm_topo_small

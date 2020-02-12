@@ -1,18 +1,18 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*******************************************************************************/
+ * Copyright 2016-2020 Intel Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 
 #include <cmath>
 
@@ -208,6 +208,9 @@ protected:
     virtual void SetUp() {
         data_type = data_traits<data_t>::data_type;
 
+        SKIP_IF_CUDA(data_type != memory::data_type::f32,
+                "Engine only supports f32 for backward.");
+
         SKIP_IF(data_type == memory::data_type::bf16
                         && get_test_engine_kind() == engine::kind::gpu,
                 "GPU does not support bf16 data type.");
@@ -215,14 +218,33 @@ protected:
                 "Engine does not support this data type.");
 
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
-
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.data_format, p.diff_data_format),
+                "Unsupported format tag");
+        SKIP_IF_CUDA(p.aalgorithm != algorithm::lrn_across_channels,
+                "Unsupported algorithm");
         ASSERT_TRUE(p.aalgorithm == algorithm::lrn_across_channels
                 || p.aalgorithm == algorithm::lrn_within_channel);
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
+    bool cuda_check_format_tags(memory::format_tag data_format,
+            memory::format_tag diff_data_format) {
+        bool data_ok = data_format == memory::format_tag::ncdhw
+                || data_format == memory::format_tag::nchw
+                || data_format == memory::format_tag::nhwc
+                || data_format == memory::format_tag::ncw
+                || data_format == memory::format_tag::nwc
+                || data_format == memory::format_tag::any;
+        bool diff_data_ok = diff_data_format == memory::format_tag::ncdhw
+                || diff_data_format == memory::format_tag::nchw
+                || diff_data_format == memory::format_tag::nhwc
+                || diff_data_format == memory::format_tag::ncw
+                || diff_data_format == memory::format_tag::nwc
+                || diff_data_format == memory::format_tag::any;
 
+        return data_ok && diff_data_ok;
+    }
     void Test() {
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 

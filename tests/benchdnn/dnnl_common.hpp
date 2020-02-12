@@ -26,6 +26,10 @@
 #include "src/common/float16.hpp"
 #include "src/common/nstl.hpp"
 
+#if DNNL_WITH_SYCL
+#include "dnnl.hpp"
+#endif
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_debug.hpp"
@@ -279,5 +283,20 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
 
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);
+
+inline bool is_nvidia_gpu(const engine_t &engine_tgt) {
+    bool ret = false;
+
+#if DNNL_WITH_SYCL
+    constexpr int nvidia_vendor_id = 0x10DE;
+    auto eng = dnnl::engine(engine_tgt, true);
+    const auto eng_vendor_id
+            = eng.get_sycl_device()
+                      .get_info<cl::sycl::info::device::vendor_id>();
+    ret = (eng_vendor_id == nvidia_vendor_id);
+#endif
+
+    return ret;
+}
 
 #endif

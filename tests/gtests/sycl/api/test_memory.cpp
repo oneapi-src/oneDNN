@@ -134,7 +134,10 @@ TEST_P(sycl_memory_test, BasicInteropGetSet) {
 TEST_P(sycl_memory_test, InteropReorder) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
-
+#ifdef DNNL_SYCL_CUDA
+    SKIP_IF(eng_kind == engine::kind::gpu,
+            "SYCL CUDA primitives have not been implemented yet.");
+#endif
     const size_t N = 2;
     const size_t C = 3;
     const size_t H = 4;
@@ -261,6 +264,11 @@ TEST_P(sycl_memory_test, InteropReorderAndUserKernel) {
 TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
     engine::kind eng_kind = GetParam();
     SKIP_IF(engine::get_count(eng_kind) == 0, "Engine not found.");
+
+#ifdef DNNL_SYCL_CUDA
+    SKIP_IF(eng_kind == engine::kind::gpu,
+            "SYCL CUDA primitives have not been implemented yet.");
+#endif
 
     memory::dims tz = {2, 3, 4, 5};
     const size_t N = tz.size();

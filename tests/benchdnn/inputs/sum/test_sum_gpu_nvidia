@@ -1,0 +1,32 @@
+# f32
+--reset
+
+--ddt=f32,s8
+--sdt=f32:f32,s8:s8
+--dtag=undef,nchw
+--stag=nchw:nchw,nchw:nhwc       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
+
+--sdt=f32:f32:f32
+--dtag=undef,ncdhw
+--stag=ncdhw:ncdhw:ncdhw,ncdhw:ncdhw:ndhwc
+--scales=0.5:2:0.5    16x2x6x4x3
+
+--reset
+--ddt=s8
+--sdt=s8:s8:s8:s8:s8
+--stag=abcd:aBcd4b:aBcd4b:aBcd4b:aBcd4b
+--dtag=abcd,aBcd4b
+--scales=0.25:0.15:0.25:0.25:0.25    16x32x48x5
+
+# f16
+--reset
+
+--ddt=f16
+--sdt=f16:f16
+--dtag=undef,nchw
+--stag=nchw:nchw       3x3x16x4 4x4x2x16 5x5x1x15 2x8x3x10 1x9x4x7 1x16x5x11 2x15x6x3
+
+--sdt=f16:f16:f16
+--dtag=undef,ncdhw
+--stag=ncdhw:ncdhw:ncdhw
+--scales=1.25:3:0.5    16x2x6x4x3

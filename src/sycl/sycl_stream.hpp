@@ -155,14 +155,12 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
     std::vector<cl::sycl::event> &get_deps() { return deps_; }
     void set_deps(const std::vector<cl::sycl::event> &deps) { deps_ = deps; }
 
-private:
+protected:
     sycl_stream_t(engine_t *engine, unsigned flags)
         : gpu::compute::compute_stream_t(engine, flags, nullptr) {}
     sycl_stream_t(engine_t *engine, unsigned flags, cl::sycl::queue &queue)
         : gpu::compute::compute_stream_t(engine, flags, nullptr)
         , queue_(new cl::sycl::queue(queue)) {}
-
-    status_t init();
 
     static status_t init_flags(unsigned *flags, unsigned generic_flags) {
         *flags = 0;
@@ -179,11 +177,14 @@ private:
         return status::success;
     }
 
-private:
     std::unique_ptr<cl::sycl::queue> queue_;
+
     // XXX: This is a temporary solution, ideally events should be a part of
     // execution context.
     std::vector<cl::sycl::event> deps_;
+
+private:
+    status_t init();
 };
 
 } // namespace sycl

@@ -157,6 +157,13 @@ endif()
 
 if(DNNL_GPU_RUNTIME STREQUAL "DPCPP" OR DNNL_GPU_RUNTIME STREQUAL "SYCL")
     set(DNNL_GPU_SYCL true)
+    # This is required to disable the Nvidia path in the code by the user
+    # when there is no Nvidia GPU or cuBLAS or cuDNN involved
+    if(DNNL_GPU_VENDOR STREQUAL "NVIDIA")
+      set(DNNL_SYCL_CUDA ON)
+    else()
+      set(DNNL_SYCL_CUDA OFF)
+    endif()
 else()
     set(DNNL_GPU_SYCL false)
 endif()

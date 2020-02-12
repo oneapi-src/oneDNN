@@ -38,6 +38,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     r->total = nelems;
 
     float trh = 0;
+    float eps = 1e-5;
     if (p->alg == nearest) {
         // On forward, `dst` consists of exact `src` elements, hence the result
         // shall be exact (no matter what data type is). On backward, the
@@ -53,6 +54,14 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     } else {
         assert(p->alg == linear);
         trh = p->dt == dnnl_f32 ? 1e-6 : 1e-2;
+#ifdef DNNL_SYCL_CUDA
+        // cuDNN precision is different from ref one due to different
+        // computation algorithm used for resampling.
+        if (engine_tgt_kind == dnnl_gpu) {
+            trh = p->dt == dnnl_f16 ? 4e-1 : 8e-4;
+            eps = p->dt == dnnl_f16 ? 1e-1 : 8e-5;
+        }
+#endif
     }
 
     for (int64_t i = 0; i < nelems; ++i) {
@@ -62,7 +71,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
         const float diff = fabsf(fp - dt);
         const float rel_diff = diff / (fabsf(fp) > FLT_MIN ? fabsf(fp) : 1);
-        const bool ok = (fabsf(fp) > 1e-5 ? rel_diff : diff) <= trh;
+        const bool ok = (fabsf(fp) > eps ? rel_diff : diff) <= trh;
 
         r->errors += !ok;
 
@@ -146,7 +155,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
             : p->ndims == 4 ? dst_2d_dims : dst_1d_dims;
 
     std::string src_tag = (p->dir & FLAG_FWD) ? p->tag : tag::any;
-    std::string dst_tag = tag::any;
+    std::string dst_tag = (p->dir & FLAG_BWD) ? p->tag : tag::any;
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims, p->dt,
                      convert_tag(src_tag, p->ndims)),

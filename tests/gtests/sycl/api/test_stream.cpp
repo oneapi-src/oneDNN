@@ -34,6 +34,9 @@ protected:
         eng.reset(new engine(engine::kind::gpu, 0));
         dev.reset(new device(eng->get_sycl_device()));
         ctx.reset(new context(eng->get_sycl_context()));
+#ifdef DNNL_SYCL_CUDA
+        SKIP_IF(true, "OpenCL features are not supported on CUDA backend");
+#endif
     }
 
     std::unique_ptr<engine> eng;

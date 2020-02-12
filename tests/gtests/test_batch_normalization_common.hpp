@@ -60,6 +60,7 @@ class bnorm_test_common : public ::testing::TestWithParam<test_bnorm_params_t> {
 private:
     std::shared_ptr<test_memory> src, dst, diff_src, diff_dst;
     memory weights, diff_weights, mean, variance;
+    std::shared_ptr<test_memory> ws;
 
     std::shared_ptr<memory::desc> data_d;
     std::shared_ptr<memory::desc> diff_d;
@@ -79,7 +80,30 @@ protected:
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
 
+    bool cuda_check_format_tags(
+            memory::format_tag src_format, memory::format_tag diff_format) {
+        bool src_ok = src_format == memory::format_tag::ncdhw
+                || src_format == memory::format_tag::ndhwc
+                || src_format == memory::format_tag::nchw
+                || src_format == memory::format_tag::nhwc
+                || src_format == memory::format_tag::ncw
+                || src_format == memory::format_tag::nwc
+                || src_format == memory::format_tag::any;
+        bool diff_ok = diff_format == memory::format_tag::oidhw
+                || diff_format == memory::format_tag::odhwi
+                || diff_format == memory::format_tag::oihw
+                || diff_format == memory::format_tag::hwio
+                || diff_format == memory::format_tag::oiw
+                || diff_format == memory::format_tag::oiw
+                || diff_format == memory::format_tag::any;
+
+        return src_ok && diff_ok;
+    }
+
     void Test() {
+        SKIP_IF_CUDA(!cuda_check_format_tags(p.tags.data_tag, p.tags.diff_tag),
+                "Unsupported format tag");
+
         using bf = normalization_flags;
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
@@ -169,6 +193,9 @@ protected:
                 bnorm_fwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_fwd_pd.workspace_desc());
 
+        auto ws_desc = bnorm_fwd_pd.query_md(dnnl::query::workspace_md);
+        ws.reset(new test_memory(ws_desc, eng));
+
         weights = memory(bnorm_fwd_pd.weights_desc(), eng);
         if (isTraining || useGlobalStats) {
             mean = memory(bnorm_fwd_pd.mean_desc(), eng);
@@ -195,9 +222,13 @@ protected:
 
     void Backward(prop_kind pk,
             normalization_flags flags = normalization_flags::none) {
+        SKIP_IF_CUDA((bool)(flags & normalization_flags::use_global_stats),
+                "Global stats not supported");
+
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
-
+        bool useGlobalStats
+                = (bool)(flags & normalization_flags::use_global_stats);
         auto bnorm_fwd_d = batch_normalization_forward::desc(
                 prop_kind::forward_training, *data_d, p.epsilon, flags);
         bnorm_fwd_pd
@@ -229,7 +260,8 @@ protected:
         ASSERT_TRUE(
                 bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_WORKSPACE)
                 == bnorm_bwd_pd.workspace_desc());
-
+        auto ws_desc = bnorm_bwd_pd.query_md(dnnl::query::workspace_md);
+        ws.reset(new test_memory(ws_desc, eng));
         if (useScaleShift) weights = memory(bnorm_bwd_pd.weights_desc(), eng);
         diff_weights = memory(bnorm_bwd_pd.diff_weights_desc(), eng);
         mean = memory(bnorm_bwd_pd.mean_desc(), eng);
@@ -243,6 +275,9 @@ protected:
         check_zero_tail<data_t>(1, diff_src->get());
         check_zero_tail<data_t>(1, diff_dst->get());
 
+        // Run a forward pass first to generate the workspace
+        // needed by the backward pass
+        execBnormFwd(true, useGlobalStats, useScaleShift);
         execBnormBwd(useScaleShift, pk);
 
         check_bnorm_bwd(p, src->get(), diff_dst->get(), mean, variance, weights,
@@ -272,6 +307,8 @@ protected:
             args.insert({DNNL_ARG_VARIANCE, variance});
         }
 
+        args.insert({DNNL_ARG_WORKSPACE, ws->get()});
+
         batch_normalization_forward(bnorm_fwd_pd).execute(strm, args);
         strm.wait();
     }
@@ -290,6 +327,8 @@ protected:
             if (pk == prop_kind::backward)
                 args.insert({DNNL_ARG_DIFF_SCALE_SHIFT, diff_weights});
         }
+
+        args.insert({DNNL_ARG_WORKSPACE, ws->get()});
 
         batch_normalization_backward(bnorm_bwd_pd).execute(strm, args);
         strm.wait();

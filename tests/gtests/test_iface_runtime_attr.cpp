@@ -87,6 +87,8 @@ TEST_F(runtime_attr_test, TestConcat) {
 }
 
 TEST_F(runtime_attr_test, TestConv) {
+    // Datatype u8 is not supported in the Nvidia backend
+    SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 3, 3}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32, 7, 7}, data_type::s32, tag::any};
@@ -132,6 +134,8 @@ TEST_F(runtime_attr_test, TestEltwise) {
 }
 
 TEST_F(runtime_attr_test, TestInnerProduct) {
+    // Datatype u8 is not supported in the Nvidia backend
+    SKIP_IF_CUDA(true, "Unsupported datatype for CUDA");
     memory::desc src_md {{1, 16, 7, 7}, data_type::u8, tag::any};
     memory::desc wei_md {{32, 16, 7, 7}, data_type::s8, tag::any};
     memory::desc dst_md {{1, 32}, data_type::s32, tag::any};
@@ -144,6 +148,7 @@ TEST_F(runtime_attr_test, TestInnerProduct) {
 }
 
 TEST_F(runtime_attr_test, TestLNorm) {
+    SKIP_IF_CUDA(true, "Layer normalization primitive not supported for CUDA");
     for (auto dt : {data_type::f32}) {
         memory::desc md {{1, 16, 16}, dt, tag::abc};
         memory::desc stat_md {{1, 16}, data_type::f32, tag::ab};
@@ -206,6 +211,8 @@ CPU_TEST_F(runtime_attr_test, TestReorder) {
 }
 
 TEST_F(runtime_attr_test, TestRNN) {
+    SKIP_IF_CUDA(true, "RNN primitive not supported for CUDA");
+
 #if !DNNL_X64
     return;
 #endif
@@ -243,6 +250,7 @@ TEST_F(runtime_attr_test, TestRNN) {
 }
 
 TEST_F(runtime_attr_test, TestShuffle) {
+    SKIP_IF_CUDA(true, "Shuffle primitive not supported for CUDA");
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};
     shuffle_forward::desc op_d(prop_kind::forward, md, 1, 4);
     CHECK_OK(shuffle_forward::primitive_desc(op_d, eng));

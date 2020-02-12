@@ -78,12 +78,17 @@ if(NOT DNNL_GPU_RUNTIME STREQUAL "NONE")
 endif()
 
 if(DNNL_WITH_SYCL)
+    if(DNNL_SYCL_CUDA)
+        add_subdirectory(nvidia)
+    endif()
     add_subdirectory(sycl)
 endif()
 
 get_property(LIB_DEPS GLOBAL PROPERTY DNNL_LIB_DEPS)
 add_library(${LIB_NAME} ${DNNL_LIBRARY_TYPE}
     ${VERSION_RESOURCE_FILE} ${HEADERS} ${LIB_DEPS})
+# LINK_PRIVATE for cmake 2.8.11 compatibility
+target_link_libraries(${LIB_NAME} LINK_PRIVATE ${${LIB_NAME}_INTERFACE})
 
 set_property(TARGET ${LIB_NAME} PROPERTY VERSION "${DNNL_VERSION_MAJOR}.${DNNL_VERSION_MINOR}")
 set_property(TARGET ${LIB_NAME} PROPERTY SOVERSION "${DNNL_VERSION_MAJOR}")
