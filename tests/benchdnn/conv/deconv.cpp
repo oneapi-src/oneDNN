@@ -193,6 +193,11 @@ int doit(const prb_t *p, res_t *r) {
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(d, &const_pd), CRIT);
 
+    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+        DNN_SAFE_V(dnnl_primitive_destroy(d));
+        return r->state = SKIPPED, OK;
+    }
+
     const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(
                 const_pd, dnnl_query_exec_arg_md, index);

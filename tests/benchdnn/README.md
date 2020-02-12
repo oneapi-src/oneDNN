@@ -65,6 +65,10 @@ where:
             as an error. Default is `false`.
  - `--canonical=true|false` -- If `true`, print all problem and descriptor
             settings with default values. Default is `false`.
+ - `--mem-check=true|false` -- When `true` (the default) a driver checks if
+            problem memory requirement fits a device RAM capability. When
+            verbose level with value `2` or higher is specified, driver gives a
+            correspondent message if problem was skipped by RAM fit criteria.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
             [performance report](doc/knobs_perf_report.md) for details.

@@ -181,8 +181,9 @@ struct dnn_mem_t {
         mapped_ptr_ = NULL;
     }
 
-    /* fields */
+    static int check_mem_size(const_dnnl_primitive_desc_t const_pd);
 
+    /* fields */
     dnnl_memory_desc_t md_ {};
     dnnl_memory_t m_ {};
 

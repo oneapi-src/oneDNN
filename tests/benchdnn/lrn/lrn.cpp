@@ -178,6 +178,11 @@ int doit(const prb_t *p, res_t *r) {
     const_dnnl_primitive_desc_t const_fpd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_fpd), CRIT);
 
+    if (dnn_mem_t::check_mem_size(const_fpd) != OK) {
+        DNN_SAFE_V(dnnl_primitive_destroy(l));
+        return r->state = SKIPPED, OK;
+    }
+
     const auto q = [](const_dnnl_primitive_desc_t pd,
                            int index = 0) -> const dnnl_memory_desc_t & {
         return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
@@ -229,6 +234,11 @@ int doit(const prb_t *p, res_t *r) {
 
         const_dnnl_primitive_desc_t const_bpd;
         DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_bpd), CRIT);
+
+        if (dnn_mem_t::check_mem_size(const_bpd) != OK) {
+            DNN_SAFE_V(dnnl_primitive_destroy(l));
+            return r->state = SKIPPED, OK;
+        }
 
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
 

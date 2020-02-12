@@ -703,6 +703,11 @@ int doit(const prb_t &p, res_t *r) {
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
 
+    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+        return r->state = SKIPPED, OK;
+    }
+
     input_dt = dnn_mem_t(input_dt_d, p.cfg[input].dt, engine_tgt);
     states_dt = dnn_mem_t(states_dt_d, p.cfg[states].dt, engine_tgt);
     c_states_dt = dnn_mem_t(c_states_dt_d, p.cfg[c_states].dt, engine_tgt);
@@ -903,6 +908,11 @@ int doit(const prb_t &p, res_t *r) {
         DNN_SAFE(dnnl_primitive_create(&c, rpd[1]), WARN);
         DNN_SAFE(dnnl_primitive_desc_destroy(rpd[1]), CRIT);
         DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
+
+        if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+            DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+            return r->state = SKIPPED, OK;
+        }
 
         args.set(DNNL_ARG_SRC_LAYER, input_dt);
         args.set(DNNL_ARG_SRC_ITER, states_dt);
