@@ -1104,8 +1104,9 @@ static inline void set_thread_opts_pack(int nthrs,
     min_mblk = do_m_blocking_only ? arg->um : min_mblk;
     auto min_nblk = do_n_blocking ? NBLK / 2 : n;
 
-    std::tie(nthr_m, nthr_n) = partition_2d_minblk(
-            m, n, MBLK, NBLK, min_mblk, min_nblk, nthrs / nthr_k);
+    std::tie(nthr_m, nthr_n) = partition_2d_minblk(m, n, MBLK, NBLK, min_mblk,
+            min_nblk, arg->um, arg->un, nthrs / nthr_k,
+            do_m_blocking && do_n_blocking && do_k_blocking);
 
     auto nthr_m_init = nthr_m, nthr_n_init = nthr_n;
 
