@@ -313,7 +313,7 @@ static po_table_entry_t kind_table[] = {{pk_t::SUM, "sum", dnnl_alg_kind_undef},
         {pk_t::SRELU, "srelu", dnnl_eltwise_soft_relu},
         {pk_t::LOGISTIC, "logistic", dnnl_eltwise_logistic},
         {pk_t::EXP, "exp", dnnl_eltwise_exp},
-        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu},
+        {pk_t::GELU_TANH, "gelu_tanh", dnnl_eltwise_gelu_tanh},
         {pk_t::SWISH, "swish", dnnl_eltwise_swish},
         {pk_t::LOG, "log", dnnl_eltwise_log},
         {pk_t::CLIP, "clip", dnnl_eltwise_clip},
@@ -719,7 +719,7 @@ float compute_eltwise_fwd(
         case pk_t::SRELU: return scale * soft_relu_fwd(src);
         case pk_t::LOGISTIC: return scale * logistic_fwd(src);
         case pk_t::EXP: return scale * exp_fwd(src);
-        case pk_t::GELU_TANH: return scale * gelu_fwd(src);
+        case pk_t::GELU_TANH: return scale * gelu_tanh_fwd(src);
         case pk_t::SWISH: return scale * swish_fwd(src, alpha);
         case pk_t::LOG: return scale * log_fwd(src);
         case pk_t::CLIP: return scale * clip_fwd(src, alpha, beta);
@@ -754,7 +754,7 @@ float compute_eltwise_bwd(
         case pk_t::SRELU: return soft_relu_bwd(d_dst, src);
         case pk_t::LOGISTIC: return logistic_bwd(d_dst, src);
         case pk_t::EXP: return exp_bwd(d_dst, src);
-        case pk_t::GELU_TANH: return gelu_bwd(d_dst, src);
+        case pk_t::GELU_TANH: return gelu_tanh_bwd(d_dst, src);
         case pk_t::SWISH: return swish_bwd(d_dst, src, alpha);
         case pk_t::LOG: return log_bwd(d_dst, src);
         case pk_t::CLIP: return clip_bwd(d_dst, src, alpha, beta);

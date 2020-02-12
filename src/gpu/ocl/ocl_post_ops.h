@@ -145,13 +145,13 @@ POST_OP_DATA_T exp_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
     return dd * d;
 }
 
-POST_OP_DATA_T gelu_fwd(POST_OP_DATA_T s) {
+POST_OP_DATA_T gelu_tanh_fwd(POST_OP_DATA_T s) {
     const float a = 0.797884f;
     const float b = 0.044715f;
     const float g = a * s * (1.0f + b * s * s);
     return (0.5f * s * (1.0f + tanh_fwd(g)));
 }
-POST_OP_DATA_T gelu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
+POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     const float a = 0.797884f;
     const float b = 0.044715f;
     const float g = a * s * (1.0f + b * s * s);
@@ -227,7 +227,7 @@ POST_OP_DATA_T fwd_eltwise(
         case SQRT: return sqrt_fwd(x); break;
         case ABS: return abs_fwd(x); break;
         case EXP: return exp_fwd(x); break;
-        case GELU_TANH: return gelu_fwd(x); break;
+        case GELU_TANH: return gelu_tanh_fwd(x); break;
         case SWISH: return swish_fwd(x, alpha_); break;
         case LOG: return log_fwd(x); break;
         case CLIP: return clip_fwd(x, alpha_, beta_); break;
@@ -263,7 +263,7 @@ POST_OP_DATA_T bwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T y,
         case SQRT: return sqrt_bwd(x, y); break;
         case ABS: return abs_bwd(x, y); break;
         case EXP: return exp_bwd(x, y); break;
-        case GELU_TANH: return gelu_bwd(x, y); break;
+        case GELU_TANH: return gelu_tanh_bwd(x, y); break;
         case SWISH: return swish_bwd(x, y, alpha_); break;
         case LOG: return log_bwd(x, y); break;
         case CLIP: return clip_bwd(x, y, alpha_, beta_); break;

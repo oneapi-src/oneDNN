@@ -1149,7 +1149,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count(alg_kind_t alg_) {
         case eltwise_logistic: return 4;
         case eltwise_exp_use_dst_for_bwd:
         case eltwise_exp: return 3;
-        case eltwise_gelu: return 5;
+        case eltwise_gelu_tanh: return 5;
         case eltwise_log: return 5;
         case eltwise_clip: return 0;
         case eltwise_pow: return 2;
@@ -1191,7 +1191,7 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
             case eltwise_logistic: logistic_compute_vector(Vmm(idx)); break;
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp: exp_compute_vector(Vmm(idx)); break;
-            case eltwise_gelu: gelu_compute_vector(Vmm(idx)); break;
+            case eltwise_gelu_tanh: gelu_compute_vector(Vmm(idx)); break;
             case eltwise_log: log_compute_vector(Vmm(idx)); break;
             case eltwise_clip: clip_compute_vector(Vmm(idx)); break;
             case eltwise_pow: pow_compute_vector(Vmm(idx)); break;
@@ -1240,7 +1240,7 @@ void jit_uni_eltwise_injector_f32<isa>::prepare_table(bool gen_table) {
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp:
             case eltwise_swish:
-            case eltwise_gelu: elu_prepare_table(); break;
+            case eltwise_gelu_tanh: elu_prepare_table(); break;
             case eltwise_soft_relu: soft_relu_prepare_table(); break;
             case eltwise_abs: abs_prepare_table(); break;
             case eltwise_clip:

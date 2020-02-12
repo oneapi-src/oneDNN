@@ -50,7 +50,7 @@ T elu_bwd(T dd, T s, A alpha) {
 }
 
 template <typename T>
-T gelu_fwd(T s) {
+T gelu_tanh_fwd(T s) {
     const float a = 0.797884;
     const float b = 0.044715;
     const float g = a * s * (1 + b * s * s);
@@ -58,7 +58,7 @@ T gelu_fwd(T s) {
 }
 
 template <typename T>
-T gelu_bwd(T dd, T s) {
+T gelu_tanh_bwd(T dd, T s) {
     const float a = 0.797884;
     const float b = 0.044715;
     const float g = a * s * (1 + b * s * s);
@@ -212,7 +212,7 @@ void check_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
             case algorithm::eltwise_soft_relu: ref_d = soft_relu_fwd(s); break;
             case algorithm::eltwise_logistic: ref_d = logistic_fwd(s); break;
             case algorithm::eltwise_exp: ref_d = exp_fwd(s); break;
-            case algorithm::eltwise_gelu: ref_d = gelu_fwd(s); break;
+            case algorithm::eltwise_gelu_tanh: ref_d = gelu_tanh_fwd(s); break;
             case algorithm::eltwise_swish: ref_d = swish_fwd(s, p.alpha); break;
             case algorithm::eltwise_gelu_erf: ref_d = gelu_erf_fwd(s); break;
             default: assert(!"unknown alg_kind");
@@ -235,7 +235,7 @@ void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
                                 == memory::data_type::bf16)
                         ? 5e-2
                         : (p.alg_kind == algorithm::eltwise_elu
-                                  || p.alg_kind == algorithm::eltwise_gelu
+                                  || p.alg_kind == algorithm::eltwise_gelu_tanh
                                   || p.alg_kind == algorithm::eltwise_gelu_erf)
                                 ? 2e-5
                                 : p.alg_kind == algorithm::eltwise_soft_relu
@@ -261,7 +261,7 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
         eps_f = 2e-6f;
     } else if (p.alg_kind == algorithm::eltwise_tanh) {
         eps_f = (get_test_engine_kind() == engine::kind::gpu) ? 2e-5f : 2e-6f;
-    } else if (p.alg_kind == algorithm::eltwise_gelu
+    } else if (p.alg_kind == algorithm::eltwise_gelu_tanh
             || p.alg_kind == algorithm::eltwise_gelu_erf) {
         eps_f = 1e-5f;
     } else {
@@ -301,8 +301,8 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
                 ref_ds = logistic_bwd(ref_dd, ref_s);
                 break;
             case algorithm::eltwise_exp: ref_ds = exp_bwd(ref_dd, ref_s); break;
-            case algorithm::eltwise_gelu:
-                ref_ds = gelu_bwd(ref_dd, ref_s);
+            case algorithm::eltwise_gelu_tanh:
+                ref_ds = gelu_tanh_bwd(ref_dd, ref_s);
                 break;
             case algorithm::eltwise_swish:
                 ref_ds = swish_bwd(ref_dd, ref_s, p.alpha);
@@ -470,7 +470,7 @@ TEST_P(eltwise_test_s8, TestsEltwise) {}
     }
 
 #define PARAMS_ALL_ALG(...) \
-    EXPAND(PARAMS(eltwise_gelu, __VA_ARGS__)), \
+    EXPAND(PARAMS(eltwise_gelu_tanh, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_relu, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_tanh, __VA_ARGS__)), \
             EXPAND(PARAMS(eltwise_elu, __VA_ARGS__)), \

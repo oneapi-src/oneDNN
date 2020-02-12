@@ -558,7 +558,7 @@ inline void def_postops(compute::kernel_ctx_t &kernel_ctx, alg_kind_t alg) {
     kernel_ctx.define_int("SQRT", alg_kind::eltwise_sqrt);
     kernel_ctx.define_int("ABS", alg_kind::eltwise_abs);
     kernel_ctx.define_int("EXP", alg_kind::eltwise_exp);
-    kernel_ctx.define_int("GELU_TANH", alg_kind::eltwise_gelu);
+    kernel_ctx.define_int("GELU_TANH", alg_kind::eltwise_gelu_tanh);
     kernel_ctx.define_int("SWISH", alg_kind::eltwise_swish);
     kernel_ctx.define_int("LOG", alg_kind::eltwise_log);
     kernel_ctx.define_int("CLIP", alg_kind::eltwise_clip);

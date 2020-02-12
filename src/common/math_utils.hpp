@@ -315,14 +315,14 @@ inline U exp_bwd_use_dst(T dd, T d) {
 }
 
 template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U gelu_fwd(T s) {
+inline U gelu_tanh_fwd(T s) {
     const float sqrt_2_over_pi = 0.797884;
     const float fitting_const = 0.044715;
     float v = tanh_fwd(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
     return (U)(0.5 * s * (1. + v));
 }
 template <typename T, typename U = typename utils::remove_reference<T>::type>
-inline U gelu_bwd(T dd, T s) {
+inline U gelu_tanh_bwd(T dd, T s) {
     const float sqrt_2_over_pi = 0.797884;
     const float fitting_const = 0.044715;
     float g = s * sqrt_2_over_pi * (1 + fitting_const * s * s);
@@ -391,8 +391,8 @@ inline bool is_eltwise_ok(
             = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
                       eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
                       eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-                      eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-                      eltwise_clip, eltwise_pow, eltwise_gelu_erf)
+                      eltwise_exp, eltwise_gelu_tanh, eltwise_swish,
+                      eltwise_log, eltwise_clip, eltwise_pow, eltwise_gelu_erf)
             && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
             && IMPLICATION(alg == eltwise_clip, beta >= alpha)
             && IMPLICATION(one_of(dt, dnnl_s32, dnnl_s8, dnnl_u8),
@@ -417,7 +417,7 @@ inline bool eltwise_fwd_preserves_zero(
     using namespace utils;
     return one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu, eltwise_square,
                    eltwise_abs, eltwise_sqrt, eltwise_swish,
-                   eltwise_bounded_relu, eltwise_gelu, eltwise_gelu_erf)
+                   eltwise_bounded_relu, eltwise_gelu_tanh, eltwise_gelu_erf)
             || one_of(alg, eltwise_relu_use_dst_for_bwd,
                     eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
                     eltwise_sqrt_use_dst_for_bwd)
