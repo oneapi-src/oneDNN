@@ -44,7 +44,8 @@ struct prb_t {
         , tag(tag)
         , alg(alg)
         , axis(axis)
-        , inplace(inplace) {
+        , inplace(inplace)
+        , ndims((int)dims.size()) {
         if (mb) this->dims[0] = mb;
     }
     ~prb_t() {}
@@ -56,6 +57,7 @@ struct prb_t {
     alg_t alg;
     int axis;
     bool inplace;
+    int ndims;
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
@@ -90,7 +92,7 @@ extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 inline void map_off_to_mb_ic(
         const prb_t *p, int64_t off, int64_t &mb, int64_t &ic) {
-    for (int i = (int)p->dims.size() - 1; i > 1; i--)
+    for (int i = p->ndims - 1; i > 1; i--)
         off /= p->dims[i];
 
     ic = off % p->dims[1];
@@ -105,7 +107,7 @@ inline void get_sizes(const prb_t *p, int64_t &outer_size, int64_t &inner_size,
     outer_size = inner_size = axis_size = 1;
     for (int i = 0; i < p->axis; i++)
         outer_size *= p->dims[i];
-    for (int i = p->axis + 1; i < (int)p->dims.size(); i++)
+    for (int i = p->axis + 1; i < p->ndims; i++)
         inner_size *= p->dims[i];
     axis_size = p->dims[p->axis];
 }
