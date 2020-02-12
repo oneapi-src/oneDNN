@@ -38,14 +38,15 @@ struct prb_t {
     prb_t(const std::vector<dims_t> &sdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
             const std::vector<dnnl_format_tag_t> &stag, alg_t alg, bool inplace,
-            attr_t attr)
+            const attr_t &attr)
         : sdims(sdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , alg(alg)
         , inplace(inplace)
-        , attr(attr) {
+        , attr(attr)
+        , ndims({(int)sdims[0].size(), (int)sdims[1].size()}) {
         get_broadcast_dims();
     }
     ~prb_t() {}
@@ -57,6 +58,7 @@ struct prb_t {
     alg_t alg;
     bool inplace;
     attr_t attr;
+    std::vector<int> ndims;
 
     dims_t broadcast_dims;
 
@@ -65,11 +67,9 @@ struct prb_t {
     void get_broadcast_dims() {
         const dims_t &dims_A = this->sdims[0];
         const dims_t &dims_B = this->sdims[1];
-        const auto ndims_A = dims_A.size();
-        const auto ndims_B = dims_B.size();
 
-        broadcast_dims.resize(ndims_A, 1);
-        for (size_t d = 0; d < ndims_B; ++d)
+        broadcast_dims.resize(ndims[0], 1);
+        for (int d = 0; d < ndims[1]; ++d)
             broadcast_dims[d] = dims_A[d] == dims_B[d] ? 0 : 1;
     }
 };
@@ -123,8 +123,8 @@ inline int64_t dims_off(const dims_t &dims, const dims_t &dims_idx) {
     return off;
 }
 
-void compute_ref(
-        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
+void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
+        dnn_mem_t &dst);
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);

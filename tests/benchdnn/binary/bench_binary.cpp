@@ -61,7 +61,7 @@ void check_correctness() {
     for_(const auto &i_stag : stag)
     for_(const auto &i_alg : alg)
     for (const auto &i_inplace : inplace) {
-        const bool ok = true && sdims.size() == i_sdt.size()
+        const bool ok = sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
                 && sdims.size() == 2; // expect just two inputs
         if (!ok) SAFE_V(FAIL);
