@@ -181,18 +181,15 @@ int init_pd(const prb_t *p, dnnl_primitive_desc_t &rpd, res_t *r) {
                 &hint, &rd_fwd, NULL, engine_tgt, NULL);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
-        else
-            SAFE(init_fwd_status, WARN);
+        SAFE(init_fwd_status, WARN);
     }
 
-    dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(&rpd, &pd, NULL, engine_tgt, hint);
+    dnnl_status_t init_status
+            = dnnl_primitive_desc_create(&rpd, &pd, NULL, engine_tgt, hint);
     dnnl_primitive_desc_destroy(hint);
 
-    if (init_status == dnnl_unimplemented)
-        return r->state = UNIMPLEMENTED, OK;
-    else
-        SAFE(init_status, WARN);
+    if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
+    SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(rpd);
     if (maybe_skip(skip_impl, impl_str)) {
@@ -210,53 +207,51 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
     dnnl_primitive_desc_t rpd;
-    dnnl_primitive_t rp;
-
     SAFE(init_pd(p, rpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) { return OK; }
 
+    dnnl_primitive_t rp;
     DNN_SAFE(dnnl_primitive_create(&rp, rpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
 
-    auto q_md = [](const_dnnl_primitive_desc_t pd, dnnl_query_t what) {
-        const dnnl_memory_desc_t *md
-                = dnnl_primitive_desc_query_md(pd, what, 0);
-        SAFE_V(md != nullptr ? OK : FAIL);
-        return md;
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
     };
 
-    const auto &src_desc = p->dir == BWD_D ? *q_md(rpd, dnnl_query_diff_src_md)
-                                           : *q_md(rpd, dnnl_query_src_md);
-    const auto &dst_desc = p->dir == BWD_D ? *q_md(rpd, dnnl_query_diff_dst_md)
-                                           : *q_md(rpd, dnnl_query_dst_md);
-    dnn_mem_t src_dt(src_desc, p->dt, engine_tgt);
-    dnn_mem_t dst_dt(dst_desc, p->dt, engine_tgt);
-    dnn_mem_t d_src_dt, d_dst_dt;
+    const auto &src_md
+            = p->dir == BWD_D ? q(DNNL_ARG_DIFF_SRC) : q(DNNL_ARG_SRC);
+    const auto &dst_md
+            = p->dir == BWD_D ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
 
-    const auto tag = get_default_tag(src_dt.md_.ndims);
     const auto fp = dnnl_f32;
+    const auto tag = get_default_tag(p->ndims);
 
-    dnn_mem_t src_fp(src_desc, fp, tag, engine_tgt);
-    dnn_mem_t dst_fp(dst_desc, fp, tag, engine_tgt);
-    dnn_mem_t d_dst_fp, d_src_fp;
+    dnn_mem_t src_fp(src_md, fp, tag, engine_tgt);
+    dnn_mem_t src_dt(src_md, engine_tgt);
 
-    SAFE(fill_src(p, src_dt, src_fp, r), WARN);
-    SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
+    dnn_mem_t dst_fp(dst_md, fp, tag, engine_tgt);
+    dnn_mem_t dst_dt(dst_md, engine_tgt);
 
-    args_t args_fwd, args_bwd;
     args_t args;
 
     if (p->dir & FLAG_FWD) {
+        SAFE(fill_src(p, src_dt, src_fp, r), WARN);
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DST, dst_dt);
+
         DNN_SAFE(execute_and_wait(rp, stream_tgt, args), WARN);
+
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
-            if (p->dir & FLAG_FWD) {
-                dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
-                SAFE(compare_dst(p, dst, dst_fp, r), WARN);
-            }
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
+            SAFE(compare_dst(p, dst, dst_fp, r), WARN);
         }
     } else {
+        SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
 
@@ -271,8 +266,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, rp, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(rp), CRIT);
-    DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(rp));
 
     return OK;
 }
