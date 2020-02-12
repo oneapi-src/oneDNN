@@ -354,11 +354,13 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, dnnl_x, engine_tgt);
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
+    const size_t nelems = mem_00.nelems();
+    if (nelems == 0) return OK;
+
     const auto &c = p->cfg[BIA];
     const int range = c.f_max - c.f_min + 1;
 
-    const size_t sz = mem_00.nelems();
-    for (size_t i = 0; i < sz; ++i) {
+    for (size_t i = 0; i < nelems; ++i) {
         const int gen = (int)(151 * i);
         const bool non_base = flip_coin(gen, c.f_sparsity);
         const float value
@@ -372,7 +374,6 @@ int fill_bia(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
         SAFE(mem_fp.reorder(mem_dt), WARN);
         SAFE(compare_bia(p, mem_fp, mem_00, r), WARN);
     }
-
     return OK;
 }
 
@@ -409,7 +410,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 }
 
 inline int init_pd(dnnl_engine_t eng, const prb_t *p,
-        dnnl_convolution_desc_t &cd, dnnl_primitive_desc_t &cpd, res_t *r,
+        dnnl_primitive_desc_t &cpd, res_t *r,
         dnnl_data_type_t src_dt = dnnl_data_type_undef,
         dnnl_data_type_t wei_dt = dnnl_data_type_undef,
         dnnl_data_type_t bia_dt = dnnl_data_type_undef,
@@ -419,6 +420,7 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
         dnnl_format_tag_t wei_tag = dnnl_format_tag_undef,
         dnnl_format_tag_t bia_tag = dnnl_format_tag_undef,
         dnnl_format_tag_t dst_tag = dnnl_format_tag_undef) {
+    dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
@@ -524,17 +526,16 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
 
     auto dnnl_attr = create_dnnl_attr(p->attr, p->oc, p->scales);
 
-    dnnl_status_t init_status = dnnl_success;
-    init_status = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, eng, NULL);
+    dnnl_status_t init_status
+            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, eng, NULL);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented) {
         if (r) r->state = UNIMPLEMENTED;
         return OK;
-    } else {
-        SAFE(init_status, WARN);
     }
+    SAFE(init_status, WARN);
 
     if (r) {
         const char *impl_str = query_impl_info(cpd);
@@ -547,115 +548,93 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
         }
     }
 
-    auto q = [=](dnnl_query_t query, int index = 0) {
-        return *dnnl_primitive_desc_query_md(cpd, query, index);
-    };
-
-    if (p->alg == AUTO) {
-        dnnl_convolution_desc_t *temp_conv_desc = {0};
-        DNN_SAFE(dnnl_primitive_desc_query(
-                         cpd, dnnl_query_convolution_d, 0, &temp_conv_desc),
-                CRIT);
-        cd.alg_kind = temp_conv_desc->alg_kind;
-    }
-
-    if (p->dir == BWD_D)
-        cd.diff_src_desc = q(dnnl_query_diff_src_md);
-    else
-        cd.src_desc = q(dnnl_query_src_md);
-
-    if (p->dir & FLAG_WEI)
-        cd.diff_weights_desc = q(dnnl_query_diff_weights_md);
-    else
-        cd.weights_desc = q(dnnl_query_weights_md);
-
-    if (p->dir & FLAG_BIA) {
-        if (p->dir & FLAG_BWD)
-            cd.diff_bias_desc = q(dnnl_query_diff_weights_md, 1);
-        else
-            cd.bias_desc = q(dnnl_query_weights_md, 1);
-    }
-
-    if (p->dir & FLAG_BWD)
-        cd.diff_dst_desc = q(dnnl_query_diff_dst_md);
-    else
-        cd.dst_desc = q(dnnl_query_dst_md);
-
     return OK;
 }
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_convolution_desc_t cd;
     dnnl_primitive_desc_t cpd;
-    dnnl_primitive_t c;
-
-    SAFE(init_pd(engine_tgt, p, cd, cpd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, cpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
-    // Try to use CPU primitive as the reference in GPU testing to reduce
-    // testing time
-    dnnl_convolution_desc_t cd_ref;
-    dnnl_primitive_desc_t cpd_ref = nullptr;
-    dnnl_primitive_t c_ref = nullptr;
-    dnnl_engine_t engine_ref = nullptr;
+    dnnl_primitive_t c;
+    DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
 
-    const auto fp = dnnl_f32;
-    auto src_tag = get_default_tag(p->ndims);
-    auto wei_tag = get_default_tag(p->ndims + p->has_groups);
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
 
-    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
-        SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), WARN);
-        SAFE(init_pd(engine_ref, p, cd_ref, cpd_ref, nullptr, fp, fp, fp, fp,
-                     fp, src_tag, wei_tag, dnnl_x, src_tag),
-                WARN);
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
+    };
+
+    alg_t alg = p->alg;
+    if (alg == AUTO) {
+        dnnl_convolution_desc_t *temp_conv_desc = {0};
+        DNN_SAFE(dnnl_primitive_desc_query(const_pd, dnnl_query_convolution_d,
+                         0, &temp_conv_desc),
+                CRIT);
+        alg = alg_kind2alg(temp_conv_desc->alg_kind);
     }
-
-    const auto alg = alg_kind2alg(cd.alg_kind);
     const auto cfg = auto_cfg(alg, p->cfg);
     prb_t p_new((desc_t)*p, p->dir, cfg, p->stag, p->wtag, p->dtag, alg,
             p->attr, p->mb);
     p = &p_new;
 
-    DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
-    if (cpd_ref) {
-        DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
-        print(5, "%s\n", "benchdnn: use CPU primitive as the reference");
+    const auto &src_md
+            = p->dir == BWD_D ? q(DNNL_ARG_DIFF_SRC) : q(DNNL_ARG_SRC);
+    const auto &wei_md = p->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_WEIGHTS)
+                                           : q(DNNL_ARG_WEIGHTS);
+    const auto &bia_md
+            = p->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_BIAS) : q(DNNL_ARG_BIAS);
+    const auto &dst_md
+            = p->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
+
+    const auto fp = dnnl_f32;
+    const auto src_tag = get_default_tag(p->ndims);
+    const auto wei_tag = get_default_tag(p->ndims + p->has_groups);
+
+    // Try to use CPU primitive as the reference in GPU testing to reduce
+    // testing time
+    dnnl_primitive_t c_ref = nullptr;
+    dnnl_engine_t engine_ref = nullptr;
+
+    if (bench_mode & CORR && engine_tgt_kind == dnnl_gpu && fast_ref_gpu) {
+        dnnl_primitive_desc_t cpd_ref = nullptr;
+        SAFE(dnnl_engine_create(&engine_ref, dnnl_cpu, 0), WARN);
+        SAFE(init_pd(engine_ref, p, cpd_ref, nullptr, fp, fp, fp, fp, fp,
+                     src_tag, wei_tag, dnnl_x, src_tag),
+                WARN);
+        if (cpd_ref) {
+            DNN_SAFE(dnnl_primitive_create(&c_ref, cpd_ref), WARN);
+            print(5, "%s\n", "benchdnn: use CPU primitive as the reference");
+            DNN_SAFE(dnnl_primitive_desc_destroy(cpd_ref), CRIT);
+        }
     }
 
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd_ref), CRIT);
+    dnn_mem_t src_dt(src_md, engine_tgt);
+    dnn_mem_t wei_dt(wei_md, engine_tgt);
+    dnn_mem_t dst_dt(dst_md, engine_tgt);
+    dnn_mem_t bia_dt(bia_md, engine_tgt);
 
-    auto &src_dt_d = p->dir == BWD_D ? cd.diff_src_desc : cd.src_desc;
-    auto &wei_dt_d = p->dir & FLAG_WEI ? cd.diff_weights_desc : cd.weights_desc;
-    auto &bia_dt_d = p->dir & FLAG_BWD ? cd.diff_bias_desc : cd.bias_desc;
-    auto &dst_dt_d = p->dir & FLAG_BWD ? cd.diff_dst_desc : cd.dst_desc;
-
-    dnn_mem_t src_dt(src_dt_d, p->cfg[SRC].dt, engine_tgt);
-    dnn_mem_t wei_dt(wei_dt_d, p->cfg[WEI].dt, engine_tgt);
-    dnn_mem_t dst_dt(dst_dt_d, p->cfg[DST].dt, engine_tgt);
-    dnn_mem_t bia_dt;
-    if (p->dir & FLAG_BIA)
-        bia_dt = dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt);
-
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_tgt);
-    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_tgt);
-    dnn_mem_t dst_fp(dst_dt_d, fp, src_tag, engine_tgt);
-    dnn_mem_t bia_fp;
-    if (p->dir & FLAG_BIA) bia_fp = dnn_mem_t(bia_dt_d, fp, dnnl_x, engine_tgt);
+    dnn_mem_t src_fp(src_md, fp, src_tag, engine_tgt);
+    dnn_mem_t wei_fp(wei_md, fp, wei_tag, engine_tgt);
+    dnn_mem_t dst_fp(dst_md, fp, src_tag, engine_tgt);
+    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
 
     SAFE(fill_src(p, src_dt, src_fp, r), WARN);
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
     SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
-    if (p->dir & FLAG_BIA) SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
+    SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
 
     args_t args;
 
     if (p->dir & FLAG_FWD) {
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
-        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_BIAS, bia_dt);
+        args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
 
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
@@ -681,7 +660,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
-        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
+        args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
 
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 
@@ -700,10 +679,9 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, c, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(c_ref), CRIT);
-
-    SAFE(dnnl_engine_destroy(engine_ref), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(c));
+    DNN_SAFE_V(dnnl_primitive_destroy(c_ref));
+    DNN_SAFE_V(dnnl_engine_destroy(engine_ref));
 
     return OK;
 }
