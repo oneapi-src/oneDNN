@@ -208,6 +208,12 @@ void format_prb_desc_str(
 }
 
 void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
+    // scratchpad mode is not a part of has_default_values(). Check it first.
+    const scratchpad_mode_t &spm = attr->scratchpad_mode_;
+    if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
+        DPRINT(str, len, written, "scratchpad_mode:%d;", (int)spm);
+    }
+
     if (attr->has_default_values()) return;
 
     const scales_t &os = attr->output_scales_;
@@ -223,12 +229,37 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
         DPRINT(str, len, written, "scales:'");
         for (const auto &map_entry : as.scales_) {
             const auto &val = map_entry.second;
-            if (!val.has_default_values()) {
-                DPRINT(str, len, written, "%ssrc:%d", delim, val.mask_);
-                if (val.mask_ == 0)
-                    DPRINT(str, len, written, ":%g", val.scales_[0]);
-                delim = "_";
+            if (val.has_default_values()) continue;
+
+            DPRINT(str, len, written, "%ssrc:%d", delim, val.mask_);
+            if (val.mask_ == 0)
+                DPRINT(str, len, written, ":%g", val.scales_[0]);
+            delim = "_";
+        }
+        DPRINT(str, len, written, "';");
+    }
+
+    const zero_points_t &zp = attr->zero_points_;
+    if (!zp.has_default_values()) {
+        const char *delim = "";
+        DPRINT(str, len, written, "zero_points:'");
+        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (zp.has_default_values(arg)) continue;
+
+            int mask = 0;
+            const int *zpp = nullptr;
+            zp.get(arg, nullptr, &mask, &zpp);
+            const char *arg_name = arg == DNNL_ARG_SRC
+                    ? "src"
+                    : arg == DNNL_ARG_WEIGHTS ? "wei" : "dst";
+            DPRINT(str, len, written, "%s%s:%d", delim, arg_name, mask);
+            if (mask == 0) {
+                if (is_runtime_value(*zpp))
+                    DPRINT(str, len, written, ":*");
+                else
+                    DPRINT(str, len, written, ":%d", *zpp);
             }
+            delim = "_";
         }
         DPRINT(str, len, written, "';");
     }
@@ -263,11 +294,6 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
             }
         }
         DPRINT(str, len, written, "';");
-    }
-
-    const scratchpad_mode_t &spm = attr->scratchpad_mode_;
-    if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        DPRINT(str, len, written, "scratchpad_mode:%d;", (int)spm);
     }
 
     const rnn_data_qparams_t &rnn_qp = attr->rnn_data_qparams_;

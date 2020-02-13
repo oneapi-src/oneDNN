@@ -134,9 +134,21 @@ int dnnl_md2dim_str(
 
     memory_desc_wrapper md(mdesc);
 
-    for (int d = 0; d < md.ndims() - 1; ++d)
-        DPRINT("%" PRId64 "x", md.dims()[d]);
-    DPRINT("%" PRId64, md.dims()[md.ndims() - 1]);
+#define DPRINT_RT(val) \
+    do { \
+        if ((val) == DNNL_RUNTIME_DIM_VAL) \
+            DPRINT("*"); \
+        else \
+            DPRINT("%" PRId64, (val)); \
+    } while (0)
+
+    for (int d = 0; d < md.ndims() - 1; ++d) {
+        DPRINT_RT(md.dims()[d]);
+        DPRINT("x");
+    }
+    DPRINT_RT(md.dims()[md.ndims() - 1]);
+
+#undef DPRINT_RT
 
     return written_len;
 }
