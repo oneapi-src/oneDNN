@@ -76,7 +76,8 @@ struct prb_t {
         , alg(alg)
         , oflag(oflag)
         , runtime_dim_mask(runtime_dim_mask)
-        , ops(0) {
+        , ops(0)
+        , ndims((int)reorder.dims.size()) {
         if (scale != 0.f) this->attr.oscale.scale = scale;
         count_ops();
     }
@@ -89,12 +90,13 @@ struct prb_t {
     flag_t oflag;
     unsigned runtime_dim_mask;
     double ops;
+    int ndims;
 
     void count_ops() {
         if (ops > 0) return;
 
         ops = 1;
-        for (size_t d = 0; d < reorder.dims.size(); ++d)
+        for (int d = 0; d < ndims; ++d)
             ops *= reorder.dims[d];
     };
 };
