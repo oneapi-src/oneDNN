@@ -38,6 +38,10 @@ if(DOXYGEN_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/doc/footer.html
         DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
         )
+    file(COPY
+        ${CMAKE_CURRENT_SOURCE_DIR}/doc/dnnl.js
+        DESTINATION ${DOXYGEN_OUTPUT_DIR}/html/assets/mathjax/config/
+        )
     file(GLOB_RECURSE HEADERS
         ${PROJECT_SOURCE_DIR}/include/*.h
         ${PROJECT_SOURCE_DIR}/include/*.hpp
