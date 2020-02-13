@@ -9,13 +9,13 @@ The inner product primitive (sometimes called fully connected) treats each
 activation in the minibatch as a vector and computes its product with a
 weights 2D tensor producing a 2D tensor as an output.
 
-More precisely, let \f$src\f$, \f$weights\f$, \f$bias\f$ and \f$dst\f$ be \f$N
+More precisely, let \src, \weights, \bias and \dst be \f$N
 \times IC\f$, \f$OC \times IC\f$, \f$OC\f$, \f$N \times OC\f$ tensors (the
 variable names follow the standard @ref dev_guide_conventions). Then:
 
-\f[dst(n, oc) = bias(oc) + \sum_{ic=0}^{IC-1} src(n, ic) \cdot weights(oc, ic)\f]
+\f[\dst(n, oc) = \bias(oc) + \sum_{ic=0}^{IC-1} \src(n, ic) \cdot \weights(oc, ic)\f]
 
-In case when the \f$src\f$ tensor has spatial dimension it is flattened to 2D.
+In case when the \src tensor has spatial dimension it is flattened to 2D.
 For example, if it is a 4D \f$N \times IC' \times IH \times IW\f$ tensor, then
 the formula above is applied with \f$IC = IC' \cdot IH \cdot IW\f$.
 
@@ -26,15 +26,15 @@ and @ref dnnl::prop_kind::forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$\operatorname{diff\_src}\f$
-based on \f$\operatorname{diff\_dst}\f$ and \f$weights\f$.
+The backward propagation computes \diffsrc based on \diffdst and
+\weights.
 
-The weights update computes \f$\operatorname{diff\_weights}\f$ and
-\f$\operatorname{diff\_bias}\f$ based on
-\f$\operatorname{diff\_dst}\f$ and \f$src\f$.
+The weights update computes \diffweights and \diffbias based on
+\diffdst and \src.
 
-@note The *optimized* memory formats \f$src\f$ and \f$weights\f$ might be
-different on forward propagation, backward propagation, and weights update.
+@note The *optimized* memory formats \src and \weights might be
+different on forward propagation, backward propagation, and weights
+update.
 
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution

@@ -8,7 +8,7 @@ Eltwise {#dev_guide_eltwise}
 The eltwise primitive applies an operation to every element of the tensor:
 
 \f[
-    dst(\overline{s}) = Operation(src(\overline{s})),
+    \dst(\overline{s}) = Operation(\src(\overline{s})),
 \f]
 
 where \f$\overline{s} = (s_n, .., s_0)\f$.
@@ -46,9 +46,9 @@ There is no difference between the #dnnl_forward_training and
 
 ### Backward
 
-The backward propagation computes \f$\operatorname{diff\_src}(\overline{s})\f$, based on
-\f$\operatorname{diff\_dst}(\overline{s})\f$ and \f$src(\overline{s})\f$. However, some
-operations support a computation using \f$dst(\overline{s})\f$ memory produced
+The backward propagation computes \f$\diffsrc(\overline{s})\f$, based on
+\f$\diffdst(\overline{s})\f$ and \f$\src(\overline{s})\f$. However, some
+operations support a computation using \f$\dst(\overline{s})\f$ memory produced
 during forward propagation. Refer to the table above for a list of operations
 supporting destination as input memory and the corresponding formulas.
 
@@ -72,23 +72,23 @@ argument index as specified by the following table.
    \f$\alpha\f$, and \f$\beta\f$. These parameters are ignored if they are
    unused.
 
-2. The memory format and data type for `src` and `dst` are assumed to be the
+2. The memory format and data type for \src and \dst are assumed to be the
    same, and in the API are typically referred as `data` (e.g., see `data_desc`
    in dnnl::eltwise_forward::desc::desc()). The same holds for
-   `diff_src` and `diff_dst`. The corresponding memory descriptors are referred
+   \diffsrc and \diffdst. The corresponding memory descriptors are referred
    to as `diff_data_desc`.
 
 3. Both forward and backward propagation support in-place operations, meaning
-   that `src` can be used as input and output for forward propagation, and
-   `diff_dst` can be used as input and output for backward propagation. In case
+   that \src can be used as input and output for forward propagation, and
+   \diffdst can be used as input and output for backward propagation. In case
    of in-place operation, the original data will be overwritten.
 
 4. For some operations it might be performance beneficial to compute backward
-   propagation based on \f$dst(\overline{s})\f$, rather than on
-   \f$src(\overline{s})\f$.
+   propagation based on \f$\dst(\overline{s})\f$, rather than on
+   \f$\src(\overline{s})\f$.
 
-@note For operations supporting destination memory as input, \f$dst\f$ can be
-used instead of \f$src\f$ when backward propagation is computed. This enables
+@note For operations supporting destination memory as input, \dst can be
+used instead of \src when backward propagation is computed. This enables
 several performance optimizations (see the tips below).
 
 ### Data Type Support
@@ -128,21 +128,21 @@ The eltwise primitive doesn't support any post-ops or attributes.
 
 ## Performance Tips
 
-1. For backward propagation, use the same memory format for `src`, `diff_dst`,
-   and `diff_src` (the format of the `diff_dst` and `diff_src` are always the
+1. For backward propagation, use the same memory format for \src, \diffdst,
+   and \diffsrc (the format of the \diffdst and \diffsrc are always the
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
 
 2. Use in-place operations whenever possible.
 
 3. As mentioned above for all operations supporting destination memory as input,
-   one can use the \f$dst\f$ tensor instead of \f$src\f$. This enables the
+   one can use the \dst tensor instead of \src. This enables the
    following potential optimizations for training:
 
     - Such operations can be safely done in-place.
 
     - Moreover, such operations can be fused as a
       [post-op](@ref dev_guide_attributes) with the previous operation if that
-      operation doesn't require its \f$dst\f$ to compute the backward
+      operation doesn't require its \dst to compute the backward
       propagation (e.g., if the convolution operation satisfies these
       conditions).

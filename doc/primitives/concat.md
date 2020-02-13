@@ -9,8 +9,8 @@ The concat primitive concatenates \f$N\f$ tensors over `concat_axis` (here
 designated as \f$C\f$ axis) and defined as:
 
 \f[
-    dst(\overline{ou}, c, \overline{in}) =
-        src_i(\overline{ou}, c', \overline{in}),
+    \dst(\overline{ou}, c, \overline{in}) =
+        \src_i(\overline{ou}, c', \overline{in}),
 \f]
 
 where \f$c = C_1 + .. + C_{i-1} {}_{} + c'\f$.
@@ -23,14 +23,14 @@ operation.
 When executed, the inputs and outputs should be mapped to an execution argument index as specified by the following table.
 | Primitive intput/output | Execution argument index |
 | ---                     | ---                      |
-| src                     | DNNL_ARG_MULTIPLE_SRC    |
-| dst                     | DNNL_ARG_DST             |
+| \src                    | DNNL_ARG_MULTIPLE_SRC    |
+| \dst                    | DNNL_ARG_DST             |
 
 ## Implementation Details
 
 ### General Notes
 
-1. The \f$dst\f$ memory format can be either specified by a user or derived by
+1. The \dst memory format can be either specified by a user or derived by
    the primitive. The recommended way is to allow the primitive to choose the
    most appropriate format.
 

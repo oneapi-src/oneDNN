@@ -7,14 +7,14 @@ conventions for variables. This section describes these conventions.
 ## Variable (Tensor) Names
 
 Neural network models consist of operations of the following form:
-\f[ dst = f(src, weights), \f]
-where \f$dst\f$ and \f$src\f$ are activation tensors, and \f$weights\f$ are
+\f[ \dst = f(\src, \weights), \f]
+where \dst and \src are activation tensors, and \weights are
 learnable tensors.
 
 The backward propagation consists then in computing the gradients with respect
-to the \f$src\f$ and \f$weights\f$ respectively:
-\f[ diff\_src = df_{src}(diff\_dst, src, weights, dst), \f] and
-\f[ diff\_weights = df_{weights}(diff\_dst, src, weights, dst). \f]
+to the \src and \weights respectively:
+\f[ \diffsrc = df_{\src}(\diffdst, \src, \weights, \dst), \f] and
+\f[ \diffweights = df_{\weights}(\diffdst, \src, \weights, \dst). \f]
 
 While DNNL uses _src_, _dst_, and _weights_ as generic names for the
 activations and learnable tensors, for a specific operation there might be

@@ -88,16 +88,16 @@ The `alg`, `alpha`, and `beta` parameters are the same as in @ref dev_guide_eltw
 
 The Eltwise post-op replaces:
 \f[
-    dst(:) = Op(...)
+    \dst(:) = \operatorname{Op}(...)
 \f]
 
 with
 
 \f[
-    dst(:) = scale \cdot Eltwise( Op(...) )
+    \dst(:) = scale \cdot \operatorname{Eltwise}( \operatorname{Op}(...) )
 \f]
 
-The intermediate result of \f$Op(...)\f$ is not stored. Hence in most of the
+The intermediate result of \f$\operatorname{Op}(...)\f$ is not stored. Hence in most of the
 case this kind of fusion cannot be used with the training.
 
 The \f$scale\f$ factor is supported in
@@ -120,13 +120,13 @@ and previous activations have different logical scaling factors.
 
 The sum post-op replaces
 \f[
-    dst(:) = Op(...)
+    \dst(:) = \operatorname{Op}(...)
 \f]
 
 with
 
 \f[
-    dst(:) = scale \cdot dst(:) + Op(...)
+    \dst(:) = scale \cdot \dst(:) + \operatorname{Op}(...)
 \f]
 
 @warning
@@ -166,7 +166,7 @@ convolution_forward::primitive_desc(conv_d, attr, engine);
 This will lead to the following primitive behavior:
 
 \f[
-    dst(:) = ReLU(dst(:) + conv(src(:), weights(:))
+    \dst(:) = \operatorname{ReLU}(\dst(:) + \operatorname{conv}(\src(:), \weights(:))
 \f]
 
 
@@ -206,17 +206,17 @@ This will lead to the following primitive behavior (for better readability
 the tensors are designated by their names only; i.e., `(:)` is omitted):
 
 \f[
-    dst
+    \dst
         =
         s_{linear} \cdot
         (
             \alpha \cdot
             (
-                s_{sum} \cdot dst
+                s_{sum} \cdot \dst
                 +
                 s_{tanh} \cdot \tanh
                 (
-                    s_{conv} \cdot conv(src, weights)
+                    s_{conv} \cdot \operatorname{conv}(\src, \weights)
                 )
             )
             + \beta

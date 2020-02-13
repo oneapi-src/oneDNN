@@ -17,9 +17,9 @@ cases of higher dimensions. Variable names follow the standard
 ### Forward
 
 \f[
-    dst(t, n, c) =
+    \dst(t, n, c) =
        \gamma(c) \cdot
-       \frac{src(t, n, c) - \mu(t, n)} {\sqrt{\sigma^2(t, n) + \varepsilon}}
+       \frac{\src(t, n, c) - \mu(t, n)} {\sqrt{\sigma^2(t, n) + \varepsilon}}
        + \beta(c),
 \f]
 
@@ -35,9 +35,9 @@ mean and variance (see #dnnl_use_global_stats flag), and
 
 When mean and variance are computed at runtime, the following formulas are used:
 
-- \f$\mu(t, n) = \frac{1}{C} \sum\limits_{c} src(t, n, c)_{}\f$,
+- \f$\mu(t, n) = \frac{1}{C} \sum\limits_{c} \src(t, n, c)_{}\f$,
 
-- \f$\sigma^2(t, n) = \frac{1}{C} \sum\limits_{c} {}_{} (src(t, n, c) - \mu(t, n))^2\f$.
+- \f$\sigma^2(t, n) = \frac{1}{C} \sum\limits_{c} {}_{} (\src(t, n, c) - \mu(t, n))^2\f$.
 
 The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 
@@ -55,10 +55,10 @@ The \f$\gamma(c)\f$ and \f$\beta(c)\f$ tensors are considered learnable.
 ### Backward
 
 The backward propagation computes
-\f$\operatorname{diff\_src}(t, n, c)\f$,
-\f$diff\_\gamma(c)^*\f$, and \f$diff\_\beta(c)^*\f$
+\f$\diffsrc(t, n, c)\f$,
+\f$\diffgamma(c)^*\f$, and \f$\diffbeta(c)^*\f$
 based on
-\f$\operatorname{diff\_dst}(t, n, c)\f$, \f$src(t, n, c)\f$, \f$\mu(t, n)\f$,
+\f$\diffdst(t, n, c)\f$, \f$src(t, n, c)\f$, \f$\mu(t, n)\f$,
 \f$\sigma^2(t, n)\f$, \f$\gamma(c) ^*\f$, and \f$\beta(c) ^*\f$.
 
 The tensors marked with an asterisk are used only when the primitive is
@@ -71,12 +71,12 @@ Depending on the [flags](@ref dnnl_normalization_flags_t) and
 [propagation kind](@ref dnnl_prop_kind_t), the layer normalization primitive
 requires different inputs and outputs. For clarity, a summary is shown below.
 
-|                                                | #dnnl_forward_inference                                                                                                                       | #dnnl_forward_training                                                                                                                        | #dnnl_backward                                                                                                                                                        | #dnnl_backward_data                                                                                                                           |
-| :--                                            | :--                                                                                                                                           | :--                                                                                                                                           | :--                                                                                                                                                                   | :--                                                                                                                                           |
-| (none)                                         | *Inputs*: \f$src\f$ <br><br> *Outputs*: \f$dst\f$                                                       | *Inputs*: \f$src\f$ <br><br> *Outputs*: \f$dst\f$, \f$\mu\f$, \f$\sigma^2\f$                                                                  | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                                                                   | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                                           |
-| #dnnl_use_global_stats                         | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \f$dst\f$                            | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \f$dst\f$                                                                  | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                                                                   | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                                           |
-| #dnnl_use_scaleshift                           | *Inputs*: \f$src\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$                            | *Inputs*: \f$src\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$, \f$\mu\f$, \f$\sigma^2\f$                                       | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$, \f$diff\_\gamma\f$, \f$diff\_\beta\f$ | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                |
-| #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$ | *Inputs*: \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$dst\f$                                       | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$, \f$diff\_\gamma\f$, \f$diff\_\beta\f$ | *Inputs*: \f$\operatorname{diff\_dst}\f$, \f$src\f$, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \f$\operatorname{diff\_src}\f$                |
+|                                                | #dnnl_forward_inference                                                                       | #dnnl_forward_training                                                                        | #dnnl_backward                                                                                                                     | #dnnl_backward_data                                                                                         |
+| :--                                            | :--                                                                                           | :--                                                                                           | :--                                                                                                                                | :--                                                                                                         | 
+| (none)                                         | *Inputs*: \src <br><br> *Outputs*: \dst                                                       | *Inputs*: \src <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                   | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                            | 
+| #dnnl_use_global_stats                         | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                                                   | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$ <br><br> *Outputs*: \diffsrc                            |
+| #dnnl_use_scaleshift                           | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst                            | *Inputs*: \src, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst, \f$\mu\f$, \f$\sigma^2\f$ | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \diffgamma, \diffbeta | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc |
+| #dnnl_use_global_stats \| #dnnl_use_scaleshift | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst | *Inputs*: \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \dst | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc, \diffgamma, \diffbeta | *Inputs*: \diffdst, \src, \f$\mu\f$, \f$\sigma^2\f$, \f$\gamma\f$, \f$\beta\f$ <br><br> *Outputs*: \diffsrc |
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.

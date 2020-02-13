@@ -6,29 +6,29 @@ RNN {#dev_guide_rnn}
 >
 
 The RNN primitive computes a stack of unrolled recurrent cells, as depicted in
-Figure 1. `bias`, `src_iter` and `dst_iter` are optional parameters. If not
-provided, `bias` and `src_iter` will default to 0.
+Figure 1. \bias, \srciter and \dstiter are optional parameters. If not
+provided, \bias and \srciter will default to 0.
 
-@img{unrolled_stack_rnn.jpg,Figure 1: Example of stacked recurrent cells unrolled over the time dimension and executed with the left2right direction. Dashed lines represent optional parameters.,}
+@img{unrolled_stack_rnn.jpg,Figure 1: Example of stacked recurrent cells unrolled over the time dimension and executed with the `left2right` direction. Dashed lines represent optional parameters.,}
 
 The RNN primitive supports four modes for evaluation direction:
--   left2right will process the input data timestamps by increasing order
--   right2left will process the input data timestamps by decreasing order
--   bidirectional_concat will process all the stacked layers from
-    left2right and from right2left independently, and will concatenate the
-    output in dst_layer over the channel dimension.
--   bidirectional_sum will process all the stacked layers from left2right
-    and from right2left independently, and will sum the two outputs to
-    dst_layer.
+-   `left2right` will process the input data timestamps by increasing order
+-   `right2left` will process the input data timestamps by decreasing order
+-   `bidirectional_concat` will process all the stacked layers from
+    `left2right` and from `right2left` independently, and will concatenate the
+    output in \dstlayer over the channel dimension.
+-   `bidirectional_sum` will process all the stacked layers from `left2right`
+    and from `right2left` independently, and will sum the two outputs to
+    \dstlayer.
 
 Even though the RNN primitive supports passing a different number of channels
-for `src_layer`, `src_iter`, `dst_layer`, and `dst_iter`, we always require the
+for \srclayer, \srciter, \dstlayer, and \dstiter, we always require the
 following conditions in order for the dimension to be consistent:
-- \f$channels(dst\_layer) = channels(dst\_iter)\f$,
-- when \f$T > 1\f$, \f$channels(src\_iter) = channels(dst\_iter)\f$,
-- when \f$L > 1\f$, \f$channels(src\_layer) = channels(dst\_layer)\f$,
+- \f$channels(\dstlayer) = channels(\dstiter)\f$,
+- when \f$T > 1\f$, \f$channels(\srciter) = channels(\dstiter)\f$,
+- when \f$L > 1\f$, \f$channels(\srclayer) = channels(\dstlayer)\f$,
 - when using the `bidirectional_concat` direction,
- \f$channels(dst\_layer) = 2 * channels(dst\_iter)\f$.
+ \f$channels(\dstlayer) = 2 * channels(\dstiter)\f$.
 
 The general formula for the execution of a stack of unrolled recurrent cells
 depends on the current iteration of the previous layer (\f$h_{t,l-1}\f$ and
@@ -115,13 +115,13 @@ h_t &= tanh(c_t) * o_t
 \end{align}
 \f]
 
-where \f$W_*\f$ are stored in `weights_layer`, \f$U_*\f$ are stored in
-`weights_iter` and \f$B_*\f$ are stored in `bias`.
+where \f$W_*\f$ are stored in \weightslayer, \f$U_*\f$ are stored in
+\weightsiter and \f$B_*\f$ are stored in \bias.
 
 @note
 In order for the dimensions to be consistent, we require
-\f$channels(src\_iter\_c) = channels(dst\_iter\_c) =
-channels(dst\_iter)\f$.
+\f$channels(\srciterc) = channels(\dstiterc) =
+channels(\dstiter)\f$.
 
 ### LSTM with Peephole
 
@@ -188,8 +188,8 @@ h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 
 \f]
 
-where \f$W_*\f$ are in `weights_layer`, \f$U_*\f$ are in
-`weights_iter`, and \f$B_*\f$ are stored in `bias`.
+where \f$W_*\f$ are in \weightslayer, \f$U_*\f$ are in
+\weightsiter, and \f$B_*\f$ are stored in \bias.
 
 @note If you need to replace u_t by (1-u_t) when computing h_t, you can
 achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
@@ -225,7 +225,7 @@ h_t &= u_t * h_{t-1, l} + (1 - u_t) * o_t
 
 Note that for all tensors with a dimension depending on the gates number, except
 the bias, we implicitly require the order of these gates to be `u`, `r`, and
-`o`. For the `bias` tensor, we implicitly require the order of the gates to be
+`o`. For the \bias tensor, we implicitly require the order of the gates to be
 `u`, `r`, `o`, and `u'`.
 
 @note If you need to replace u_t by (1-u_t) when computing h_t, you can
@@ -246,24 +246,28 @@ once again by another forward pass.
 # Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output                   | Execution argument index    |
-| ---                                       | ---                         |
-| \f$\operatorname{src\_layer}\f$           | DNNL_ARG_SRC_LAYER          |
-| \f$\operatorname{src\_iter}\f$            | DNNL_ARG_SRC_ITER           |
-| \f$\operatorname{src\_iter\_c}\f$         | DNNL_ARG_SRC_ITER_C         |
-| \f$\operatorname{weights\_layer}\f$       | DNNL_ARG_WEIGHTS_LAYER      |
-| \f$\operatorname{bias}\f$                 | DNNL_ARG_BIAS               |
-| \f$\operatorname{dst\_layer}\f$           | DNNL_ARG_DST_LAYER          |
-| \f$\operatorname{dst\_iter}\f$            | DNNL_ARG_DST_ITER           |
-| \f$\operatorname{dst\_iter\_c}\f$         | DNNL_ARG_DST_ITER_C         |
-| \f$\operatorname{diff\_src\_layer}\f$     | DNNL_ARG_DIFF_SRC_LAYER     |
-| \f$\operatorname{diff\_src\_iter}\f$      | DNNL_ARG_DIFF_SRC_ITER      |
-| \f$\operatorname{diff\_src\_iter\_c}\f$   | DNNL_ARG_DIFF_SRC_ITER_C    |
-| \f$\operatorname{diff\_weights\_layer}\f$ | DNNL_ARG_DIFF_WEIGHTS_LAYER |
-| \f$\operatorname{diff\_bias}\f$           | DNNL_ARG_DIFF_BIAS          |
-| \f$\operatorname{diff\_dst\_layer}\f$     | DNNL_ARG_DIFF_DST_LAYER     |
-| \f$\operatorname{diff\_dst\_iter}\f$      | DNNL_ARG_DIFF_DST_ITER      |
-| \f$\operatorname{diff\_dst\_iter\_c}\f$   | DNNL_ARG_DIFF_DST_ITER_C    |
+| Primitive intput/output | Execution argument index    |
+| ---                     | ---                         |
+| \srclayer               | DNNL_ARG_SRC_LAYER          |
+| \srciter                | DNNL_ARG_SRC_ITER           |
+| \srciterc               | DNNL_ARG_SRC_ITER_C         |
+| \weightslayer           | DNNL_ARG_WEIGHTS_LAYER      |
+| \weightsiter            | DNNL_ARG_WEIGHTS_ITER       |
+| \bias                   | DNNL_ARG_BIAS               |
+| \dstlayer               | DNNL_ARG_DST_LAYER          |
+| \dstiter                | DNNL_ARG_DST_ITER           |
+| \dstiterc               | DNNL_ARG_DST_ITER_C         |
+| workspace               | DNNL_WORKSPACE              |
+| \diffsrclayer           | DNNL_ARG_DIFF_SRC_LAYER     |
+| \diffsrciter            | DNNL_ARG_DIFF_SRC_ITER      |
+| \diffsrciterc           | DNNL_ARG_DIFF_SRC_ITER_C    |
+| \diffweightslayer       | DNNL_ARG_DIFF_WEIGHTS_LAYER |
+| \diffweightsiter        | DNNL_ARG_DIFF_WEIGHTS_ITER  |
+| \diffbias               | DNNL_ARG_DIFF_BIAS          |
+| \diffdstlayer           | DNNL_ARG_DIFF_DST_LAYER     |
+| \diffdstiter            | DNNL_ARG_DIFF_DST_ITER      |
+| \diffdstiterc           | DNNL_ARG_DIFF_DST_ITER_C    |
+
 
 
 # Implementation details

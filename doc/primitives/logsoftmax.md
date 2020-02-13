@@ -15,19 +15,19 @@ form is used as more numerically stable:
 ### Forward
 
 \f[
-    dst(\overline{ou}, c, \overline{in}) =
+    \dst(\overline{ou}, c, \overline{in}) =
         \ln\left({\frac
         {
-            e^{src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+            e^{\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})}
         }
         {
             \sum\limits_{ic}
-                e^{src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+                e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
         }}\right) =
-        \left(src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})\right)
+        \left(\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})\right)
             - \ln\left(
                     \sum\limits_{ic}
-                    e^{src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+                    e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
                  \right),
 \f]
 
@@ -41,7 +41,7 @@ where
 \f[
     \nu(\overline{ou}, \overline{in}) =
         \max\limits_{ic}
-        src(\overline{ou}, ic, \overline{in})
+        \src(\overline{ou}, ic, \overline{in})
 \f]
 
 #### Difference Between Forward Training and Forward Inference
@@ -51,10 +51,8 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes
-\f$\operatorname{diff\_src}(ou, c, in)\f$,
-based on
-\f$\operatorname{diff\_dst}(ou, c, in)\f$ and \f$dst(ou, c, in)\f$.
+The backward propagation computes \f$\diffsrc(ou, c, in)\f$, based on
+\f$\diffdst(ou, c, in)\f$ and \f$\dst(ou, c, in)\f$.
 
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution

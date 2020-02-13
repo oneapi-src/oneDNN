@@ -13,9 +13,9 @@ only for 2D spatial data which are straightforward to generalize to cases of
 higher and lower dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
 
-Let \f$src\f$, \f$weights\f$ and \f$dst\f$ be \f$N \times IC \times IH \times
+Let \src, \weights and \dst be \f$N \times IC \times IH \times
 IW\f$, \f$OC \times IC \times KH \times KW\f$, and \f$N \times OC \times OH
-\times OW\f$ tensors respectively. Let \f$bias\f$ be a 1D tensor with \f$OC\f$
+\times OW\f$ tensors respectively. Let \bias be a 1D tensor with \f$OC\f$
 elements.
 
 Furthermore, let the remaining convolution parameters be:
@@ -31,18 +31,18 @@ The following formulas show how DNNL computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
 convolution types can be combined.
 
-To further simplify the formulas, we assume that \f$src(n, ic, ih, iw) = 0\f$
+To further simplify the formulas, we assume that \f$\src(n, ic, ih, iw) = 0\f$
 if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 
 ### Forward
 
 #### Regular Convolution
 
-\f[dst(n, oc, oh, ow) =  bias(oc) + \\
+\f[\dst(n, oc, oh, ow) =  \bias(oc) + \\
     + \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-        src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
+        \src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
         \cdot
-        weights(oc, ic, kh, kw).\f]
+        \weights(oc, ic, kh, kw).\f]
 
 Here:
 
@@ -55,17 +55,17 @@ Here:
 #### Convolution with Groups
 
 In the API, DNNL adds a separate groups dimension to memory objects
-representing weights tensors and represents weights as \f$G \times OC_G \times
+representing \weights tensors and represents weights as \f$G \times OC_G \times
 IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
 
 \f[
-    dst(n, g \cdot OC_G + oc_g, oh, ow) =
-        bias(g \cdot OC_G + oc_g) + \\
+    \dst(n, g \cdot OC_G + oc_g, oh, ow) =
+        \bias(g \cdot OC_G + oc_g) + \\
         +
         \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
+            \src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
         \cdot
-        weights(g, oc_g, ic_g, kh, kw),
+        \weights(g, oc_g, ic_g, kh, kw),
 \f]
 
 where
@@ -78,14 +78,14 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
 #### Convolution with Dilation
 
 \f[
-    dst(n, oc, oh, ow) =
-        bias(oc) + \\
+    \dst(n, oc, oh, ow) =
+        \bias(oc) + \\
         +
         \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
+            \src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
                     ow + kw \cdot (DW + 1) - PW_L)
             \cdot
-            weights(oc, ic, kh, kw).
+            \weights(oc, ic, kh, kw).
 \f]
 
 Here:
@@ -116,14 +116,15 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$\operatorname{diff\_src}\f$
-based on \f$\operatorname{diff\_dst}\f$ and \f$weights\f$.
+The backward propagation computes \diffsrc based on \diffdst and
+\weights.
 
-The weights update computes \f$\operatorname{diff\_weights}\f$ and \f$\operatorname{diff\_bias}\f$
-based on \f$\operatorname{diff\_dst}\f$ and \f$src\f$.
+The weights update computes \diffweights and \diffbias based on
+\diffdst and \src.
 
-@note The *optimized* memory formats \f$src\f$ and \f$weights\f$ might be
-different on forward propagation, backward propagation, and weights update.
+@note The *optimized* memory formats \src and \weights might be
+different on forward propagation, backward propagation, and weights
+update.
 
 
 ## Execution Arguments
@@ -254,10 +255,10 @@ Consider the following pseudo code:
 The would lead to the following:
 
 \f[
-    dst(\overline{x}) =
+    \dst(\overline{x}) =
         \gamma \cdot \tanh \left(
-            \alpha \cdot conv(src, weights) +
-            \beta  \cdot dst(\overline{x})
+            \alpha \cdot conv(\src, \weights) +
+            \beta  \cdot \dst(\overline{x})
         \right)
 \f]
 
@@ -279,10 +280,10 @@ The following pseudo code:
 That would lead to the following:
 
 \f[
-    dst(\overline{x}) =
-        \beta \cdot dst(\overline{x}) +
+    \dst(\overline{x}) =
+        \beta \cdot \dst(\overline{x}) +
         \gamma \cdot ReLU \left(
-            \alpha \cdot conv(src, weights),
+            \alpha \cdot conv(\src, \weights),
             \eta
         \right)
 \f]

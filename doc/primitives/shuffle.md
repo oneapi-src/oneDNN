@@ -15,8 +15,8 @@ The formal definition is shown below:
 ### Forward
 
 \f[
-    dst(\overline{ou}, c, \overline{in}) =
-    src(\overline{ou}, c', \overline{in})
+    \dst(\overline{ou}, c, \overline{in}) =
+    \src(\overline{ou}, c', \overline{in})
 \f]
 
 where
@@ -44,9 +44,9 @@ and #dnnl_forward_inference propagation kinds.
 ### Backward
 
 The backward propagation computes
-\f$diff\_src(ou, c, in)\f$,
+\f$\diffsrc(ou, c, in)\f$,
 based on
-\f$diff\_dst(ou, c, in)\f$.
+\f$\diffdst(ou, c, in)\f$.
 
 Essentially, backward propagation is the same as forward propagation with
 \f$g\f$ replaced by \f$C / g\f$.

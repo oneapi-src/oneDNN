@@ -8,10 +8,10 @@ Sum {#dev_guide_sum}
 The sum primitive sums \f$N\f$ tensors:
 
 \f[
-    dst(\overline{x}) =
+    \dst(\overline{x}) =
         \sum\limits_{i = 1}^{N}
         scales(i) \cdot
-        src_i(\overline{x})
+        \src_i(\overline{x})
 \f]
 
 The sum primitive doesn't have a notion of forward or backward propagations.
@@ -20,16 +20,16 @@ The backward propagation for the sum operation is simply an identity operation.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| primitive intput/output        | execution argument index |
-| ---                            | ---                      |
-| \f$src\f$                      | DNNL_ARG_MULTIPLE_SRC    |
-| \f$dst\f$                      | DNNL_ARG_DST             |
+| primitive intput/output | execution argument index |
+| ---                     | ---                      |
+| \src                    | DNNL_ARG_MULTIPLE_SRC    |
+| \dst                    | DNNL_ARG_DST             |
 
 ## Implementation Details
 
 ### General Notes
 
- * The \f$dst\f$ memory format can be either specified by a user or derived
+ * The \dst memory format can be either specified by a user or derived
    the most appropriate one by the primitive. The recommended way is to allow
    the primitive to choose the appropriate format.
 

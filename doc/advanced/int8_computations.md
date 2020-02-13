@@ -19,12 +19,12 @@ divides the result by the window size, and then stores the result back to the
 int8 destination:
 
 - \f$
-    dst_{s8}(...) =
+    \dst_{s8}(...) =
         (s8)
         \Biggl(
             \Biggl(
                 \sum\limits_{kh,kw}
-                (s32)src_{s8}(...)
+                (s32)\src_{s8}(...)
             \Biggr)
             \div
             (kh \cdot kw)

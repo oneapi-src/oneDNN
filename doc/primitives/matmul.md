@@ -9,28 +9,28 @@ The matrix multiplication (MatMul) primitive computes the product of two
 2D tensors with optional bias addition:
 
 \f[
-    dst(m, n) =
+    \dst(m, n) =
         \sum_{k=0}^{K} \left(
-            src(m, k) \cdot weights(k, n)
+            \src(m, k) \cdot \weights(k, n)
         \right) +
-        bias(m, n)
+        \bias(m, n)
 \f]
 
 The MatMul primitive also supports batching multiple independent matrix
 multiplication operations, in which case the tensors must be 3D:
 
 \f[
-    dst(mb, m, n) =
+    \dst(mb, m, n) =
         \sum_{k=0}^{K} \left(
-            src(mb, m, k) \cdot weights(mb, k, n)
+            \src(mb, m, k) \cdot \weights(mb, k, n)
         \right) +
-        bias(mb, m, n)
+        \bias(mb, m, n)
 \f]
 
-The bias tensor is optional and supports implicit broadcast semantics: any of
-its dimensions can be 1 and the same value would be used across the
-corresponding dimension. However, \f$bias\f$ must have the same number of
-dimensions as the \f$dst\f$.
+The bias tensor is optional and supports implicit broadcast semantics:
+any of its dimensions can be 1 and the same value would be used across
+the corresponding dimension. However, \bias must have the same number
+of dimensions as the \dst.
 
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution

@@ -18,20 +18,20 @@ standard @ref dev_guide_conventions.
 Max pooling:
 
 \f[
-    dst(n, c, oh, ow) =
+    \dst(n, c, oh, ow) =
         \max\limits_{kh, kw}
         \left(
-            src(n, c, oh \cdot SH + kh - ph_0, ow \cdot SW +kw - pw_0)
+            \src(n, c, oh \cdot SH + kh - ph_0, ow \cdot SW +kw - pw_0)
         \right)
 \f]
 
 Average pooling:
 
 \f[
-    dst(n, c, oh, ow) =
+    \dst(n, c, oh, ow) =
         \frac{1}{DENOM}
         \sum\limits_{kh, kw}
-            src(n, c, oh \cdot SH + kh - ph_0, ow \cdot SW +kw - pw_0)
+            \src(n, c, oh \cdot SH + kh - ph_0, ow \cdot SW +kw - pw_0)
 \f]
 
 where \f$ph_0, pw_0\f$ are `padding_l[0]` and `padding_l[1]` respectively,
@@ -53,8 +53,8 @@ Average pooling supports two algorithms:
 
 ### Backward
 
-The backward propagation computes \f$\operatorname{diff\_src}(n, c, h,
-w)\f$, based on \f$\operatorname{diff\_dst}(n, c, h, w)\f$ and (in
+The backward propagation computes \f$\diffsrc(n, c, h,
+w)\f$, based on \f$\diffdst(n, c, h, w)\f$ and (in
 case of max pooling) `workspace`.
 
 ## Execution Arguments
