@@ -63,43 +63,17 @@ protected:
 namespace {
 using namespace Xbyak;
 struct jit_bf16_eltwise_injector {
-    jit_bf16_eltwise_injector(jit_generator *host, Zmm zmm_idx,
-            Opmask k_mask_cvt, Opmask k_tail_mask, Opmask k_full_mask,
-            bf16_emulation_t *emu)
-        : h(host)
-        , emu_(emu)
-        , zmm_idx_(zmm_idx)
-        , k_mask_cvt_(k_mask_cvt)
-        , k_tail_mask_(k_tail_mask)
-        , k_full_mask_(k_full_mask) {}
+    jit_bf16_eltwise_injector(
+            jit_generator *host, Opmask k_tail_mask, bf16_emulation_t *emu)
+        : h(host), emu_(emu), k_tail_mask_(k_tail_mask) {}
 
-    void write_idx_table() {
-        h->align(64);
-        h->L(idx_table_);
-        const uint16_t _idx[] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7,
-                8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15};
-        for (size_t i = 0; i < sizeof(_idx) / sizeof(_idx[0]); ++i)
-            h->dw(_idx[i]);
-    }
-
-    void load_idx_table() {
-        Reg64 p_idx_table = Xbyak::util::r13;
-        h->push(p_idx_table);
-        h->mov(p_idx_table, idx_table_);
-        h->vmovups(zmm_idx_, h->ptr[p_idx_table]);
-        h->pop(p_idx_table);
-    }
-    void prepare_cvt_mask() {
+    void prepare_masks() {
         Reg64 mask_reg = Xbyak::util::r14;
         h->push(mask_reg);
-        h->mov(mask_reg.cvt32(), 0xAAAAAAAA);
-        h->kmovd(k_mask_cvt_, mask_reg.cvt32());
 
         h->mov(mask_reg.cvt32(), 0x1);
         h->kmovd(k_tail_mask_, mask_reg.cvt32());
 
-        h->mov(mask_reg.cvt32(), 0xffff);
-        h->kmovd(k_full_mask_, mask_reg.cvt32());
         h->pop(mask_reg);
     }
 
@@ -137,7 +111,7 @@ struct jit_bf16_eltwise_injector {
             else
                 h->vcvtneps2bf16(ymm_bf16, zmm_f32);
             if (!is_tail)
-                h->vmovdqu16(h->ptr[reg_to + offset] | k_full_mask_, ymm_bf16);
+                h->vmovdqu16(h->ptr[reg_to + offset], ymm_bf16);
             else
                 h->vmovdqu16(h->ptr[reg_to + offset] | k_tail_mask_, ymm_bf16);
         }
@@ -146,9 +120,7 @@ struct jit_bf16_eltwise_injector {
 private:
     jit_generator *const h;
     bf16_emulation_t *const emu_;
-    Xbyak::Label idx_table_;
-    Xbyak::Zmm zmm_idx_;
-    Xbyak::Opmask k_mask_cvt_, k_tail_mask_, k_full_mask_;
+    Xbyak::Opmask k_tail_mask_;
 };
 
 template <cpu_isa_t isa>
@@ -269,15 +241,14 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
                 bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                         bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
                         bf16_emu_reserv_4);
-            bf16_injector_ = new jit_bf16_eltwise_injector(this, zmm_idx,
-                    k_mask_cvt, k_tail_mask, k_full_mask, bf16_emu_);
+            bf16_injector_ = new jit_bf16_eltwise_injector(
+                    this, k_tail_mask, bf16_emu_);
         }
 
         preamble();
 
         if (is_bf16()) {
-            bf16_injector_->load_idx_table();
-            bf16_injector_->prepare_cvt_mask();
+            bf16_injector_->prepare_masks();
             if (!mayiuse(avx512_core_bf16)) bf16_emu_->init_vcvtneps2bf16();
         }
 
@@ -330,8 +301,6 @@ struct jit_uni_relu_kernel_float : public jit_uni_eltwise_kernel,
         L(loop_label[mid]);
         postamble();
 
-        if (is_bf16()) bf16_injector_->write_idx_table();
-
         ker_ = (decltype(ker_))this->getCode();
     }
 
@@ -369,10 +338,7 @@ private:
     Reg64 bf16_emu_scratch = r14;
     Zmm bf16_emu_reserv_4 = Zmm(27);
 
-    Zmm zmm_idx = Zmm(31);
-    opmask_t k_mask_cvt = k7;
     opmask_t k_tail_mask = k6;
-    opmask_t k_full_mask = k5;
 
     jit_bf16_eltwise_injector *bf16_injector_;
     bf16_emulation_t *bf16_emu_;
@@ -685,8 +651,8 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
                 bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
                         bf16_emu_reserv_2, bf16_emu_reserv_3, bf16_emu_scratch,
                         bf16_emu_reserv_5);
-            bf16_injector_ = new jit_bf16_eltwise_injector(this, zmm_idx,
-                    k_mask_cvt, k_tail_mask, k_full_mask, bf16_emu_);
+            bf16_injector_ = new jit_bf16_eltwise_injector(
+                    this, k_tail_mask, bf16_emu_);
         }
 
         eltwise_injector_
@@ -696,8 +662,7 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
         preamble();
 
         if (is_bf16()) {
-            bf16_injector_->load_idx_table();
-            bf16_injector_->prepare_cvt_mask();
+            bf16_injector_->prepare_masks();
             if (!mayiuse(avx512_core_bf16)) bf16_emu_->init_vcvtneps2bf16();
         }
 
@@ -769,8 +734,6 @@ struct jit_uni_kernel_fwd : public jit_uni_eltwise_kernel,
 
         postamble();
 
-        if (is_bf16()) bf16_injector_->write_idx_table();
-
         eltwise_injector_->prepare_table();
 
         ker_ = (decltype(ker_))this->getCode();
@@ -809,10 +772,7 @@ private:
     Reg64 bf16_emu_scratch = r14;
     Zmm bf16_emu_reserv_5 = Zmm(29);
 
-    Zmm zmm_idx = Zmm(31);
-    opmask_t k_mask_cvt = k7;
     opmask_t k_tail_mask = k6;
-    opmask_t k_full_mask = k5;
 
     jit_bf16_eltwise_injector *bf16_injector_;
     bf16_emulation_t *bf16_emu_;
