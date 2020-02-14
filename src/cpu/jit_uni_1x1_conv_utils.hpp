@@ -61,9 +61,9 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
     if (!rtus_applicable) return;
 
     const auto dat_tag = ndims == 3
-            ? memory_desc_wrapper(dst_d).matches_one_of_tag(
+            ? memory_desc_wrapper(src_d).matches_one_of_tag(
                     format_tag::nCw8c, format_tag::nCw16c)
-            : memory_desc_wrapper(dst_d).matches_one_of_tag(
+            : memory_desc_wrapper(src_d).matches_one_of_tag(
                     format_tag::nChw8c, format_tag::nChw16c);
     if (dat_tag == format_tag::undef) return;
 
