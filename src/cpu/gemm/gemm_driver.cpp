@@ -1138,6 +1138,7 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
 
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
 
     if (nocopy_checker(nthrs, arg)) {
         thread_info.copy = copy_type::no_copy;
@@ -1164,7 +1165,7 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
         thread_info.nthrs_n = nthrs_n;
         thread_info.nthrs_k = nthrs_k;
     } else {
-        if (arg->packing != pack_type::none && is_int8)
+        if (arg->packing != pack_type::none && (is_int8 || is_bf16))
             set_thread_opts_pack(nthrs, thread_info, arg);
         else
             set_thread_opts_nopack(nthrs, thread_info, arg);
