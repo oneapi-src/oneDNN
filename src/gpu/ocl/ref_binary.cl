@@ -115,15 +115,14 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
     dims0[3] = GWS_GET_D3();
     dims0[4] = GWS_GET_D4();
     dims0[5] = GWS_GET_D5();
+    int d1_block = GWS_GET_D1_BLOCK();
 
+    int src1_off = 0;
     int src0_off = SRC0_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
-    int src1_off = 0;
     int dst_off = DST_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
-
-    // IS_TENSOR_OP is true in case of no broadcasting for src1
-#if IS_TENSOR_OP
+#if TENSOR_OP
     src1_off = SRC1_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
 #else
@@ -133,16 +132,19 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
     for (int d = 0; d < NDIMS; ++d) {
         dims0[d] *= (!bcast_dims[d]);
     }
-
     src1_off = SRC1_OFF(
             dims0[0], dims0[1], dims0[2], dims0[3], dims0[4], dims0[5]);
 #endif
 
-    // using tmp vars to handle float calculations for bf16 datatypes
-    // DATA_TO_REF is a macro defined in ocl_types.h according to datatype
-    POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[src0_off]);
-    POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[src1_off]);
-    POST_OP_DATA_T d = 0;
+    // SRC1_D1 = IC for SRC1, using the dispatch ap
+    int block_size = dims0[1] > SRC1_D1 ? (SRC1_D1 % d1_block) : d1_block;
+
+    for (int ic = 0; ic < block_size; ++ic) {
+        // using tmp vars to handle float calculations for bf16 datatypes
+        // DATA_TO_REF is a macro defined in ocl_types.h according to datatype
+        POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[src0_off]);
+        POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[src1_off]);
+        POST_OP_DATA_T d = 0;
 
 #if SRC0_SCALE
     tmp_src0 = tmp_src0 * src0_scale;
@@ -152,26 +154,38 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #endif
 
 #if IS_ADD
-    d = tmp_src0 + tmp_src1;
+        d = tmp_src0 + tmp_src1;
 #elif IS_MUL
-    d = tmp_src0 * tmp_src1;
+        d = tmp_src0 * tmp_src1;
 #elif IS_MAX
-    d = max(tmp_src0, tmp_src1);
+        d = max(tmp_src0, tmp_src1);
 #elif IS_MIN
-    d = min(tmp_src0, tmp_src1);
+        d = min(tmp_src0, tmp_src1);
 #endif
 
 #if WITH_SUM == 1
 #if SUM_SCALE == 1
-    d += DATA_TO_REF(dst[dst_off]);
+        d += DATA_TO_REF(dst[dst_off]);
 #else
-    d += sum_scale * DATA_TO_REF(dst[dst_off]);
+        d += sum_scale * DATA_TO_REF(dst[dst_off]);
 #endif
 #endif
 #if WITH_ELTWISE == 1
     d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
 #endif
 
-    dst[dst_off] = TO_DST(d);
+        dst[dst_off] = TO_DST(d);
+
+#if USE_UNROLL_16B || SRC0_UNROLL_16B
+        src0_off++;
+        dst_off++;
+        if (USE_UNROLL_16B && (SRC1_D1 > 1)) {
+            src1_off++;
+        } else if (SRC0_UNROLL_16B
+                && (SRC1_D1 > 1)) {
+            src1_off+= SRC1_S1_0; // Equilvalent stride in plain format
+        }
+#endif
+    }
 }
 #endif

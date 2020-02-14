@@ -61,6 +61,30 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf.sum_scale = sum_scale;
     conf.eltwise_scale = eltwise_scale;
     if (with_eltwise) { conf.eltwise = po.entry_[e_idx].eltwise; }
+    int ic_block_sz = 1;
+    conf.use_unroll_16b = false;
+    conf.src0_unroll_16b = false;
+
+    auto &blk0 = src0_d.blocking_desc();
+    auto &blk1 = src1_d.blocking_desc();
+    bool is_16b_blk0 = (blk0.inner_nblks >= 1)
+            && (blk0.inner_idxs[blk0.inner_nblks - 1] == 1)
+            && (blk0.inner_blks[blk0.inner_nblks - 1] == 16);
+    bool is_16b_blk1 = (blk1.inner_nblks >= 1)
+            && (blk1.inner_idxs[blk1.inner_nblks - 1] == 1)
+            && (blk1.inner_blks[blk1.inner_nblks - 1] == 16);
+
+    if (!conf.is_tensor_op) {
+        // If: in case when both are blocked
+        // Else: only src0 is blocked
+        if (is_16b_blk0 && is_16b_blk1) {
+            ic_block_sz = 16;
+            conf.use_unroll_16b = true;
+        } else if (is_16b_blk0 && blk1.inner_nblks == 0) {
+            ic_block_sz = 16;
+            conf.src0_unroll_16b = true;
+        }
+    }
 
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(engine());
@@ -68,14 +92,23 @@ status_t ref_binary_t::pd_t::init_conf() {
     if (conf.is_tensor_op && conf.is_dense && conf.is_same_md) {
         conf.dispatch.define_dim("IDX", 0, dst_d.nelems());
     } else {
-        for (int i = 0; i < MAX_NDIMS; ++i) {
-            conf.dispatch.define_dim(utils::format("D%d", i),
+        // Setting the MB as the innermost dim for optimized performance
+        // Hence starting i = 1, ignoring MB
+        conf.dispatch.define_dim_with_nesting_level ("D0", ndims, dst_d.dims()[0], 1);
+        for (int i = 1; i < MAX_NDIMS; ++i) {
+            if ( i == 1 && (conf.use_unroll_16b || conf.src0_unroll_16b) ) {
+                // changing value for broadcasting offsets
+                // division by IC for enabling blocking within kernel
+                conf.dispatch.define_dim(utils::format("D%d", i), nstl::min(i, ndims - 1),
+                    i < ndims ? dst_d.padded_dims()[i] : 1, ic_block_sz);
+            }
+            else {
+                conf.dispatch.define_dim(utils::format("D%d", i),
                     nstl::min(i, ndims - 1), i < ndims ? dst_d.dims()[i] : 1);
+            }
         }
     }
-
     conf.dispatch.generate();
-
     return status::success;
 }
 
@@ -97,7 +130,6 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("BCAST_DIM3", conf.bcast_dims[3]);
     kernel_ctx.define_int("BCAST_DIM4", conf.bcast_dims[4]);
     kernel_ctx.define_int("BCAST_DIM5", conf.bcast_dims[5]);
-
     kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
     kernel_ctx.define_int("WITH_SUM", conf.with_sum);
     kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1);
@@ -105,6 +137,8 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("SRC1_S", conf.src1_data_type == data_type::s8);
     kernel_ctx.define_int("SRC0_SCALE", conf.with_src0_scale);
     kernel_ctx.define_int("SRC1_SCALE", conf.with_src1_scale);
+    kernel_ctx.define_int("USE_UNROLL_16B", conf.use_unroll_16b);
+    kernel_ctx.define_int("SRC0_UNROLL_16B", conf.src0_unroll_16b);
 
     def_memory_desc_info(kernel_ctx, conf.src0_md_info, "SRC0");
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");

@@ -356,6 +356,7 @@ struct binary_conf_t {
     bool is_max;
     bool is_min;
     bool is_tensor_op;
+    bool use_unroll_16b, src0_unroll_16b;
     compute::dispatch_t dispatch;
     int dim0[MAX_NDIMS];
     int bcast_dims[MAX_NDIMS];
