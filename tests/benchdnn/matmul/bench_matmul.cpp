@@ -86,10 +86,10 @@ void check_correctness(const desc_t *c) {
     for_(const auto &i_ld_src : ld_src)
     for_(const auto &i_ld_wei : ld_wei)
     for_(const auto &i_ld_dst : ld_dst)
-    for_(const auto &i_runtime_mb : runtime_mb)
-    for_(const auto &i_runtime_m : runtime_m)
-    for_(const auto &i_runtime_n : runtime_n)
-    for_(const auto &i_runtime_k : runtime_k)
+    for_(auto i_runtime_mb : runtime_mb)
+    for_(auto i_runtime_m : runtime_m)
+    for_(auto i_runtime_n : runtime_n)
+    for_(auto i_runtime_k : runtime_k)
     for (const auto &i_bia_cfg : bia_cfg) {
         const prb_t p(*c, i_cfg, i_stag, i_wtag, i_dtag, i_ld_src, i_ld_wei,
                 i_ld_dst, i_runtime_mb, i_runtime_m, i_runtime_n, i_runtime_k,

@@ -63,7 +63,7 @@ void check_correctness() {
     for_(const auto &i_tag : tag)
     for_(const auto &i_alg : alg)
     for_(const auto &i_axis : axis)
-    for_(const auto &i_inplace : inplace)
+    for_(auto i_inplace : inplace)
     for (const auto &i_mb : mb) {
         const prb_t p(dims, i_dir, i_dt, i_tag, i_alg, i_axis, i_inplace, i_mb);
         std::stringstream ss;

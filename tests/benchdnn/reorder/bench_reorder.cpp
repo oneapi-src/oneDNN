@@ -63,7 +63,7 @@ void check_correctness() {
     for_(const auto &i_stag : stag)
     for_(const auto &i_dtag : dtag)
     for_(const auto &i_oflag : oflag)
-    for (const auto &i_runtime_dim_mask : runtime_dim_mask) {
+    for (auto i_runtime_dim_mask : runtime_dim_mask) {
         reorder_conf_t reorder_conf {dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);

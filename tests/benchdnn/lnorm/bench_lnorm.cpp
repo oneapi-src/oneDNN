@@ -75,7 +75,7 @@ void check_correctness() {
     for_(const auto &i_tag : tag)
     for_(const auto &i_stat_tag : stat_tag)
     for_(const auto &i_flags : flags)
-    for (const auto &i_inplace : inplace) {
+    for (auto i_inplace : inplace) {
         const prb_t p(dims, i_tag, i_stat_tag, i_dir, i_dt, i_flags, i_inplace,
                 attr, check_alg);
         std::stringstream ss;

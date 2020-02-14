@@ -67,7 +67,7 @@ void check_correctness() {
     for_(const auto &i_alg : alg)
     for_(const auto &i_alpha : alpha)
     for_(const auto &i_beta : beta)
-    for_(const auto &i_inplace : inplace)
+    for_(auto i_inplace : inplace)
     for (const auto &i_mb : mb) {
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {

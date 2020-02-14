@@ -73,11 +73,11 @@ void check_correctness(const desc_t *c) {
     for_(const auto &i_prop : prop)
     for_(const auto &i_cfg : cfg)
     for_(const auto &i_alg : alg)
-    for_(const auto &i_with_peephole : with_peephole)
+    for_(auto i_with_peephole : with_peephole)
     for_(const auto &i_scale_policy : scale_policy)
     for_(const auto &i_direction : direction)
     for_(const auto &i_activation : activation)
-    for_(const auto &i_skip_nonlinear : skip_nonlinear)
+    for_(auto i_skip_nonlinear : skip_nonlinear)
     for (const auto &i_mb : mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
