@@ -55,8 +55,8 @@ verbose output.
 | `g`                                      | groups
 | `oc`, `od`, `oh`, `ow`                   | output channels, depth, height, and width
 | `ic`, `id`, `ih`, `iw`                   | input channels, depth, height, and width
-| `kd`, `kh, `kw`                          | kernel (filter) depth, height, and width
-| `sd`, `sh, `sw`                          | stride by depth, height, and width
+| `kd`, `kh`, `kw`                         | kernel (filter) depth, height, and width
+| `sd`, `sh`, `sw`                         | stride by depth, height, and width
 | `dd`, `dh`, `dw`                         | dilation by depth, height, and width
 | `pd`, `ph`, `pw`                         | padding by depth, height, and width
 
