@@ -24,13 +24,14 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     dump_global_params(s);
 
+    bool has_default_tags = true;
+    for (const auto &i_stag : p.stag)
+        has_default_tags = has_default_tags && i_stag == tag::abx;
+
     if (canonical || p.sdt != dnnl_f32) s << "--sdt=" << dt2str(p.sdt) << " ";
     if (canonical || (p.dtag != tag::undef && p.ddt != dnnl_f32))
         s << "--ddt=" << dt2str(p.ddt) << " ";
-    if (canonical
-            || !(p.n_inputs() == 2 && p.stag[0] == tag::abx
-                    && p.stag[1] == tag::abx))
-        s << "--stag=" << p.stag << " ";
+    if (canonical || !has_default_tags) s << "--stag=" << p.stag << " ";
     if (canonical || p.dtag != tag::undef) s << "--dtag=" << p.dtag << " ";
     if (canonical || p.axis != 1) s << "--axis=" << p.axis << " ";
 

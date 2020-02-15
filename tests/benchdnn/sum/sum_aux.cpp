@@ -20,9 +20,14 @@
 namespace sum {
 
 std::ostream &operator<<(std::ostream &s, const std::vector<float> &scales) {
+    bool has_single_scale = true;
+    for (size_t d = 0; d < scales.size() - 1; ++d)
+        has_single_scale = has_single_scale && scales[d] == scales[d + 1];
+
     s << scales[0];
-    for (int i = 1; i < (int)scales.size(); ++i)
-        s << ":" << scales[i];
+    if (!has_single_scale)
+        for (size_t d = 1; d < scales.size(); ++d)
+            s << ":" << scales[d];
     return s;
 }
 
@@ -32,15 +37,18 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     dump_global_params(s);
 
-    if (canonical
-            || !(p.n_inputs() == 2 && p.sdt[0] == dnnl_f32
-                    && p.sdt[1] == dnnl_f32))
+    bool has_default_dts = true;
+    for (const auto &i_dt : p.sdt)
+        has_default_dts = has_default_dts && i_dt == dnnl_f32;
+
+    bool has_default_tags = true;
+    for (const auto &i_stag : p.stag)
+        has_default_tags = has_default_tags && i_stag == tag::abx;
+
+    if (canonical || !has_default_dts || p.n_inputs() != 2)
         s << "--sdt=" << p.sdt << " ";
     if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
-    if (canonical
-            || !(p.n_inputs() == 2 && p.stag[0] == tag::abx
-                    && p.stag[1] == tag::abx))
-        s << "--stag=" << p.stag << " ";
+    if (canonical || !has_default_tags) s << "--stag=" << p.stag << " ";
     if (canonical || p.dtag != tag::undef) s << "--dtag=" << p.dtag << " ";
     s << "--scales=" << p.scales << " ";
 
