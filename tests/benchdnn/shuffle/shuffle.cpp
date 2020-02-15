@@ -167,7 +167,7 @@ int doit(const prb_t *p, res_t *r) {
             = p->dir & FLAG_FWD ? q(DNNL_ARG_SRC) : q(DNNL_ARG_DIFF_SRC);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(p->ndims);
+    const auto tag = get_abx_tag(p->ndims);
 
     dnn_mem_t src_fp(data_md, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_md, engine_tgt);

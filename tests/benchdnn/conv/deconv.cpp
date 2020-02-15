@@ -217,8 +217,8 @@ int doit(const prb_t *p, res_t *r) {
     swap(wei_tr_md.dims[with_groups + 0], wei_tr_md.dims[with_groups + 1]);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_default_tag(src_md.ndims);
-    const auto wei_tag = get_default_tag(wei_md.ndims);
+    const auto src_tag = get_abx_tag(src_md.ndims);
+    const auto wei_tag = get_abx_tag(wei_md.ndims);
 
     dnn_mem_t src_dt(src_md, engine_tgt);
     dnn_mem_t wei_dt(wei_md, engine_tgt);

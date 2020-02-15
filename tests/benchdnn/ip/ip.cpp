@@ -181,8 +181,8 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
     assert(mem_dt.nelems() == mem_fp.nelems());
 
-    dnn_mem_t mem_00(mem_dt.md_, dnnl_f32, get_default_tag(mem_dt.md_.ndims),
-            engine_tgt);
+    dnn_mem_t mem_00(
+            mem_dt.md_, dnnl_f32, get_abx_tag(mem_dt.md_.ndims), engine_tgt);
 
     const auto &c = p->cfg[kind];
 
@@ -238,8 +238,8 @@ int doit(const prb_t *p, res_t *r) {
             = p->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_default_tag(p->ndims);
-    const auto wei_tag = get_default_tag(p->ndims);
+    const auto src_tag = get_abx_tag(p->ndims);
+    const auto wei_tag = get_abx_tag(p->ndims);
 
     dnn_mem_t src_dt(src_md, engine_tgt);
     dnn_mem_t wei_dt(wei_md, engine_tgt);

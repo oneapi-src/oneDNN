@@ -486,7 +486,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &ss_md = q(DNNL_ARG_SCALE_SHIFT);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(p->ndims);
+    const auto tag = get_abx_tag(p->ndims);
 
     dnn_mem_t src_fp(data_md, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_md, engine_tgt);
@@ -499,16 +499,16 @@ int doit(const prb_t *p, res_t *r) {
     // On inference w/o global stats the layer norm doesn't require stat
     // memories. Hence, we need to prepare the mean_fp and var_fp ourselves.
     const auto stat_ndims = p->ndims - 1;
-    const auto stat_tag = get_default_tag(stat_ndims);
+    const auto stat_tag = get_abx_tag(stat_ndims);
     dnn_mem_t mean_fp(stat_ndims, data_md.dims, fp, stat_tag, engine_tgt);
     dnn_mem_t mean_dt(mean_md, engine_tgt);
 
     dnn_mem_t var_fp(stat_ndims, data_md.dims, fp, stat_tag, engine_tgt);
     dnn_mem_t var_dt(var_md, engine_tgt);
 
-    dnn_mem_t ss_fp(ss_md, fp, get_default_tag(ss_md.ndims), engine_tgt);
+    dnn_mem_t ss_fp(ss_md, fp, get_abx_tag(ss_md.ndims), engine_tgt);
     dnn_mem_t ss_dt(ss_md, engine_tgt);
-    dnn_mem_t d_ss_fp(ss_md, fp, get_default_tag(ss_md.ndims), engine_tgt);
+    dnn_mem_t d_ss_fp(ss_md, fp, get_abx_tag(ss_md.ndims), engine_tgt);
     dnn_mem_t d_ss_dt(ss_md, engine_tgt);
 
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;

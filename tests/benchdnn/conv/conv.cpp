@@ -283,7 +283,7 @@ int fill_src(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
-        const auto tag = get_default_tag(mem_dt.md_.ndims);
+        const auto tag = get_abx_tag(mem_dt.md_.ndims);
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, engine_tgt);
     }
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
@@ -319,7 +319,7 @@ int fill_wei(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
 
     dnn_mem_t extra_mem;
     if (check_reorder) {
-        const auto tag = get_default_tag(mem_dt.md_.ndims);
+        const auto tag = get_abx_tag(mem_dt.md_.ndims);
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, engine_tgt);
     }
     dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
@@ -381,7 +381,7 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
     dnn_mem_t extra_mem;
     if (need_extra_mem) {
-        const auto tag = get_default_tag(mem_dt.md_.ndims);
+        const auto tag = get_abx_tag(mem_dt.md_.ndims);
         extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, engine_tgt);
     }
     dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
@@ -601,8 +601,8 @@ int doit(const prb_t *p, res_t *r) {
             = p->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
 
     const auto fp = dnnl_f32;
-    const auto src_tag = get_default_tag(p->ndims);
-    const auto wei_tag = get_default_tag(p->ndims + p->has_groups);
+    const auto src_tag = get_abx_tag(p->ndims);
+    const auto wei_tag = get_abx_tag(p->ndims + p->has_groups);
 
     // Try to use CPU primitive as the reference in GPU testing to reduce
     // testing time

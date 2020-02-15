@@ -175,7 +175,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &src1_md = q(DNNL_ARG_SRC_1);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(p->ndims[0]);
+    const auto tag = get_abx_tag(p->ndims[0]);
 
     dnn_mem_t src0_fp(src0_md, fp, tag, engine_tgt);
     dnn_mem_t src0_dt(src0_md, engine_tgt);

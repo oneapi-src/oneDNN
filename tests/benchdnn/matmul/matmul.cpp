@@ -296,7 +296,7 @@ int doit(const prb_t *p, res_t *r) {
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, wei_fp, bia_fp, dst_fp);
-        dnn_mem_t c(dst_dt, fp, get_default_tag(p->ndims), engine_tgt);
+        dnn_mem_t c(dst_dt, fp, get_abx_tag(p->ndims), engine_tgt);
         SAFE(compare_dat(p, DST, c, dst_fp, r), WARN);
     }
 

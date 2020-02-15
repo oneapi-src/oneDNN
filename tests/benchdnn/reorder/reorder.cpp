@@ -331,7 +331,7 @@ int doit(const prb_t *p, res_t *r) {
         dst_md = q(DNNL_ARG_DST);
     }
 
-    const auto tag = get_default_tag(p->ndims);
+    const auto tag = get_abx_tag(p->ndims);
     const auto src_dt = src_md.data_type;
     const auto dst_dt = dst_md.data_type;
 

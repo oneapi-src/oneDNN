@@ -148,7 +148,7 @@ int doit(const prb_t *p, res_t *r) {
     };
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(p->ndims);
+    const auto tag = get_abx_tag(p->ndims);
 
     const auto &dst_md = q(DNNL_ARG_DST);
     const auto dst_data_type = dst_md.data_type; // needed for deduced dst

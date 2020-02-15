@@ -217,7 +217,7 @@ static int compare_padded_area_for_zeros(
     for (int64_t i = 0; i < nelems_padded; i++)
         padded_mem_dt.set_elem(i, mem_dt.get_elem(i));
 
-    const auto tag = get_default_tag(md.ndims);
+    const auto tag = get_abx_tag(md.ndims);
     dnn_mem_t plain_padded_mem_dt(padded_mem_dt, md.data_type, tag);
 
     r->errors = 0;
@@ -317,7 +317,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &data_md = q(DNNL_ARG_SRC);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(p->ndims);
+    const auto tag = get_abx_tag(p->ndims);
 
     dnn_mem_t src_fp(data_md, fp, tag, engine_tgt);
     dnn_mem_t src_dt(data_md, engine_tgt);

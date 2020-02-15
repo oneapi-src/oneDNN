@@ -256,7 +256,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(!check_md_consistency_with_tag(dst_md, p->tag), WARN);
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag(p->ndims);
+    const auto tag = get_abx_tag(p->ndims);
 
     dnn_mem_t src_fp(src_md, fp, tag, engine_tgt);
     dnn_mem_t src_dt(src_md, engine_tgt);
