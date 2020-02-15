@@ -35,7 +35,7 @@ namespace bnorm {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<std::string> tag {tag::nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<flags_t> flags {0};
 std::vector<int64_t> mb {0};
 std::vector<bool> inplace {true};
@@ -54,7 +54,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {tag::nchw};
+    tag = {tag::abx};
     flags = {0};
     mb = {0};
     inplace = {true};

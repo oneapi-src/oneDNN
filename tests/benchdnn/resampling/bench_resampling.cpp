@@ -34,7 +34,7 @@ namespace resampling {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<std::string> tag {tag::nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<alg_t> alg {nearest};
 std::vector<int64_t> mb {0};
 
@@ -49,7 +49,7 @@ void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
     mb = {0};
-    tag = {tag::nchw};
+    tag = {tag::abx};
     alg = {nearest};
     skip_impl = "";
     allow_unimpl = false;

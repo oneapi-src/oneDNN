@@ -31,7 +31,7 @@ namespace binary {
 
 std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
 std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<std::string>> stag {{tag::nchw, tag::nchw}};
+std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
 std::vector<alg_t> alg {ADD};
 std::vector<bool> inplace {true};
 
@@ -48,7 +48,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {{dnnl_f32, dnnl_f32}};
     ddt = {dnnl_f32};
-    stag = {{tag::nchw, tag::nchw}};
+    stag = {{tag::abx, tag::abx}};
     alg = {ADD};
     inplace = {true};
     attr = attr_t();

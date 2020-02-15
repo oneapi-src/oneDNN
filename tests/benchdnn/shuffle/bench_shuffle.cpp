@@ -32,7 +32,7 @@ namespace shuffle {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<std::string> tag {tag::nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<int64_t> group {1};
 std::vector<int> axis {1};
 
@@ -47,7 +47,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {tag::nchw};
+    tag = {tag::abx};
     group = {1};
     axis = {1};
     allow_unimpl = false;

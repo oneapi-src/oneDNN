@@ -145,7 +145,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (canonical || p.tag != tag::nchw) s << "--tag=" << p.tag << " ";
+    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
     if (canonical || p.alg != nearest) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);

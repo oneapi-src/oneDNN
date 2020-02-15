@@ -30,8 +30,8 @@
 #include "dnnl_types.h"
 
 namespace tag {
+extern const char *abx;
 extern const char *any;
-extern const char *nchw;
 extern const char *undef;
 } // namespace tag
 

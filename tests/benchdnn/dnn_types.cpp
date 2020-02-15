@@ -31,8 +31,8 @@
 #include "src/common/math_utils.hpp"
 
 namespace tag {
+const char *abx {"abx"};
 const char *any {"any"};
-const char *nchw {"nchw"};
 const char *undef {"undef"};
 } // namespace tag
 

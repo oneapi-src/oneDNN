@@ -38,8 +38,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--sdt=" << p.sdt << " ";
     if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
     if (canonical
-            || !(p.n_inputs() == 2 && p.stag[0] == tag::nchw
-                    && p.stag[1] == tag::nchw))
+            || !(p.n_inputs() == 2 && p.stag[0] == tag::abx
+                    && p.stag[1] == tag::abx))
         s << "--stag=" << p.stag << " ";
     if (canonical || p.dtag != tag::undef) s << "--dtag=" << p.dtag << " ";
     s << "--scales=" << p.scales << " ";

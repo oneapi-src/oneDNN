@@ -31,7 +31,7 @@ namespace eltwise {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<std::string> tag {tag::nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<alg_t> alg {attr_t::post_ops_t::RELU};
 std::vector<float> scales {0, 0.25, -0.25};
 std::vector<float> alpha {scales};
@@ -50,7 +50,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {tag::nchw};
+    tag = {tag::abx};
     alg = {attr_t::post_ops_t::RELU};
     alpha = scales;
     beta = scales;

@@ -34,7 +34,7 @@ namespace pool {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<const dt_conf_t *> cfg {conf_f32};
-std::vector<std::string> tag {tag::nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<alg_t> alg {MAX};
 std::vector<int64_t> mb {0};
 
@@ -49,7 +49,7 @@ void reset_parameters() {
     dir = {FWD_D};
     cfg = {conf_f32};
     mb = {0};
-    tag = {tag::nchw};
+    tag = {tag::abx};
     alg = {MAX};
     skip_impl = "";
     allow_unimpl = false;

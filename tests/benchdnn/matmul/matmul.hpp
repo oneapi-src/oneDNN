@@ -53,7 +53,7 @@ const int64_t LD_NONE = INT64_MAX - 1;
 // default driver setting
 namespace defaults {
 extern const dt_conf_t *cfg; // = conf_f32;
-const std::string tag("dnnl_ab");
+const std::string tag(tag::abx);
 const int64_t ld = LD_NONE;
 const bool runtime_val = false;
 const dnnl_data_type_t bia_dt = dnnl_data_type_undef;

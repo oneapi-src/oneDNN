@@ -205,7 +205,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (canonical || p.tag != tag::nchw) s << "--tag=" << p.tag << " ";
+    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
     if (canonical || p.alg != MAX) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
