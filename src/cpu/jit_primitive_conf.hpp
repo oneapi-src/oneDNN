@@ -520,7 +520,7 @@ struct jit_1x1_conv_call_s {
 
 struct jit_pool_conf_t {
     int ndims;
-    int mb, c;
+    int mb, c, c_without_padding;
     int id, ih, iw, od, oh, ow;
     int stride_d, stride_h, stride_w;
     int kd, kh, kw;
