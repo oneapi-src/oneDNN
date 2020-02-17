@@ -59,13 +59,13 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #if WITH_BIAS
     DATA_T S00[OW_BLOCK];
-    DATA_T B = AS_DATA_T(BLOCK_READ((const __global uint *)&bias[g]));
+    DATA_T B = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)&bias[g]));
     __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
     for (int k = 0; k < OW_BLOCK; k++) {
         S00[k] = B;
     }
 #else
-    DATA_T S00[OW_BLOCK] = {0.0};
+    DATA_T S00[OW_BLOCK] = {DATA_ZERO};
 #endif
 
 #if KH != 1 || KW != 1 || KD != 1
@@ -89,8 +89,8 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const __global DATA_T *wei1 = wei;
     const __global DATA_T *src1 = src;
 #endif
-                DATA_T B0
-                        = AS_DATA_T(BLOCK_READ((const __global uint *)(wei1)));
+                DATA_T B0 = AS_DATA_T(
+                        BLOCK_READ((const __global BLOCK_DATA_T *)(wei1)));
                 DATA_T A0;
 
                 __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
@@ -98,9 +98,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
                     if (iw + kw * (1 + DW) + k * SW < 0
                             || iw + kw * (1 + DW) + k * SW >= IW)
-                        A0 = 0.0;
+                        A0 = DATA_ZERO;
                     else
-                        A0 = AS_DATA_T(BLOCK_READ((const __global uint
+                        A0 = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T
                                         *)(&src1[k * SW * IC_BLOCK])));
 
                     S00[k] = fma(A0, (DATA_T)B0, S00[k]);
@@ -115,7 +115,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     for (int k = 0; k < OW_BLOCK; k++) {
 #if WITH_SUM == 1
         D00[k] = AS_DATA_T(
-                BLOCK_READ((const __global uint *)&dst[k * OC_BLOCK]));
+                BLOCK_READ((const __global BLOCK_DATA_T *)&dst[k * OC_BLOCK]));
 #if SUM_SCALE == 1
         S00[k] += D00[k];
 #else
@@ -131,7 +131,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
     for (int k = 0; k < OW_BLOCK; k++) {
         BLOCK_WRITE(
-                (__global unsigned int *)&dst[k * OC_BLOCK], AS_UINT_T(S00[k]));
+                (__global BLOCK_DATA_T *)&dst[k * OC_BLOCK], AS_UINT_T(S00[k]));
     }
 
 #endif
@@ -157,15 +157,15 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #if WITH_BIAS
     DATA8_T S00, S01;
-    DATA_T B = AS_DATA_T(BLOCK_READ((const __global uint *)&bias[g]));
+    DATA_T B = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T *)&bias[g]));
     __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
     for (int k = 0; k < 8; k++) {
         S00[k] = B;
         S01[k] = B;
     }
 #else
-    DATA8_T S00 = 0.0;
-    DATA8_T S01 = 0.0;
+    DATA8_T S00 = DATA_ZERO;
+    DATA8_T S01 = DATA_ZERO;
 #endif
 
 #if KH != 1 || KW != 1 || KD != 1
@@ -190,12 +190,12 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     const __global DATA_T *src1 = src;
 #endif
                 DATA8_T A0 = AS_DATA8_T(
-                        BLOCK_READ8((const __global uint *)(src1)));
+                        BLOCK_READ8((const __global BLOCK_DATA_T *)(src1)));
                 DATA8_T A1 = AS_DATA8_T(BLOCK_READ8(
-                        (const __global uint *)&src1[8 * IC_BLOCK]));
+                        (const __global BLOCK_DATA_T *)&src1[8 * IC_BLOCK]));
 
-                DATA_T B0
-                        = AS_DATA_T(BLOCK_READ((const __global uint *)(wei1)));
+                DATA_T B0 = AS_DATA_T(
+                        BLOCK_READ((const __global BLOCK_DATA_T *)(wei1)));
 
                 S00 = fma(A0, (DATA8_T)B0, S00);
                 S01 = fma(A1, (DATA8_T)B0, S01);
@@ -204,9 +204,9 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #endif
 
 #if WITH_SUM == 1
-    DATA8_T D00 = AS_DATA8_T(BLOCK_READ8((const __global uint *)dst));
+    DATA8_T D00 = AS_DATA8_T(BLOCK_READ8((const __global BLOCK_DATA_T *)dst));
     DATA8_T D01 = AS_DATA8_T(
-            BLOCK_READ8((const __global uint *)&dst[8 * OC_BLOCK]));
+            BLOCK_READ8((const __global BLOCK_DATA_T *)&dst[8 * OC_BLOCK]));
 
 #if SUM_SCALE == 1
     S00 += D00;
@@ -221,8 +221,8 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
     DO_ELTWISE(S01, 8, eltwise_alpha, eltwise_beta);
 #endif
 
-    BLOCK_WRITE8((__global unsigned int *)&dst[0], AS_UINT8_T(S00));
-    BLOCK_WRITE8((__global unsigned int *)&dst[8 * OC_BLOCK], AS_UINT8_T(S01));
+    BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[0], AS_UINT8_T(S00));
+    BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[8 * OC_BLOCK], AS_UINT8_T(S01));
 
 #endif
     return;

@@ -273,24 +273,26 @@ __kernel void ref_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
                 if (ow < 0 || ow >= OW) continue;
 
                 const int dst_off = DST_OFF(mb, oc, od, oh, ow);
-                VECT_DATA_T blockD0 = AS_VECT_DATA_T(VECT_BLOCK_READ(
-                        (const __global uint *)&diff_dst[dst_off]));
+                VECT_DATA_T blockD0 = AS_VECT_DATA_T(VECT_BLOCK_READ((
+                        const __global VECT_BLOCK_DATA_T *)&diff_dst[dst_off]));
 #ifdef MB16
-                VECT_DATA_T blockD1 = AS_VECT_DATA_T(VECT_BLOCK_READ(
-                        (const __global uint *)&diff_dst[dst_off + 8 * 16]));
+                VECT_DATA_T blockD1 = AS_VECT_DATA_T(
+                        VECT_BLOCK_READ((const __global VECT_BLOCK_DATA_T
+                                        *)&diff_dst[dst_off + 8 * 16]));
 #endif
 
 #if POOLING_MAX == 1
-                VECT_INT_T blockWS0 = AS_VECT_INT_T(
-                        VECT_BLOCK_READ((const __global uint *)&ws[dst_off]));
+                VECT_INT_T blockWS0 = AS_VECT_INT_T(VECT_BLOCK_READ(
+                        (const __global VECT_BLOCK_DATA_T *)&ws[dst_off]));
                 VECT_INT_T blockCMP0 = isnotequal(
                         AS_VECT_DATA_T(blockWS0 - kd * KH * KW - kh * KW - kw),
                         (VECT_DATA_T)0.0f);
                 blockD0 = select(blockD0, (VECT_DATA_T)0.0f, blockCMP0);
 
 #ifdef MB16
-                VECT_INT_T blockWS1 = AS_VECT_INT_T(VECT_BLOCK_READ(
-                        (const __global uint *)&ws[dst_off + 8 * 16]));
+                VECT_INT_T blockWS1 = AS_VECT_INT_T(
+                        VECT_BLOCK_READ((const __global VECT_BLOCK_DATA_T
+                                        *)&ws[dst_off + 8 * 16]));
                 VECT_INT_T blockCMP1 = isnotequal(
                         AS_VECT_DATA_T(blockWS1 - kd * KH * KW - kh * KW - kw),
                         (VECT_DATA_T)0.0f);
