@@ -247,7 +247,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                     if (size_n > block_n * slices) size_n = block_n * slices;
                     auto off_b_src = off_b0
                             + (!transb ? (Bk + Bn * ldb) : (Bn + Bk * ldb));
-                    apply_co = !(do_scale || (Bk > 0));
+                    apply_co = !co.is_null() && !(do_scale || (Bk > 0));
                     auto offset_co_src = offset_co
                             + ((offsetc_char == 'C') ? Bm : 0)
                             + ((offsetc_char == 'R') ? Bn : 0);

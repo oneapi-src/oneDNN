@@ -60,6 +60,8 @@ struct gen9_gemm_x8x8s32_t : public ocl_gemm_t {
             // - batch is not supported
             // - runtime dims are not supported
             // - bias is not supported
+            // - runtime zero points are supported for dst only
+            // - attribute zero points are supported for src and weights only
             bool limits_ok = d->batch == 1
                     && !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m, d->n, d->k,
                             d->lda, d->ldb, d->ldc)
@@ -78,7 +80,7 @@ struct gen9_gemm_x8x8s32_t : public ocl_gemm_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short))
                     && attr()->has_default_values(attr_skip_mask)
-                    && attr()->output_scales_.mask_ == 0
+                    && zero_points_ok() && attr()->output_scales_.mask_ == 0
                     && attr()->post_ops_.len_ <= 2
                     && IMPLICATION(attr()->post_ops_.len_ == 1,
                             attr()->post_ops_.find(eltwise) != -1
@@ -88,6 +90,13 @@ struct gen9_gemm_x8x8s32_t : public ocl_gemm_t {
                                     && attr()->post_ops_.find(eltwise) == 1);
             if (!ok) return status::unimplemented;
             return status::success;
+        }
+
+        bool zero_points_ok() const {
+            return attr()->zero_points_.defined(DNNL_ARG_SRC)
+                    && attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
+                    && (attr()->zero_points_.has_default_values(DNNL_ARG_DST)
+                            || !attr()->zero_points_.defined(DNNL_ARG_DST));
         }
 
         bool with_eltwise() const {
