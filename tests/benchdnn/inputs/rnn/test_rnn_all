@@ -1,4 +1,5 @@
 --reset
+--allow-unimpl=true
 
 # f32 tests
 --cfg=f32,bf16

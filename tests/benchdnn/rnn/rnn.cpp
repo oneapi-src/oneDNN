@@ -333,17 +333,19 @@ int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
     for (int64_t i = 0; i < mem_dt.nelems(); i++)
         mem_fp.set_elem(i, 0.0f);
-    for (int64_t l = 0; l < L; l++)
-        for (int64_t d = 0; d < D; d++)
-            for (int64_t g = 0; g < G; g++)
-                for (int64_t o = 0; o < O; o++) {
-                    const float val = round_to_nearest_representable(
-                            c.dt, 1.f / p.n_gates());
-                    auto i_off = ((o + g * 7 + d * 11 + l * 13) % I);
-                    mem_fp.set_elem(l * D * I * G * O + d * I * G * O
-                                    + i_off * G * O + g * O + o,
-                            val);
-                }
+
+    for_(int64_t l = 0; l < L; l++)
+    for_(int64_t d = 0; d < D; d++)
+    for_(int64_t g = 0; g < G; g++)
+    for (int64_t o = 0; o < O; o++) {
+        const float val
+                = round_to_nearest_representable(c.dt, 1.f / p.n_gates());
+        auto i_off = ((o + g * 7 + d * 11 + l * 13) % I);
+        mem_fp.set_elem(
+                l * D * I * G * O + d * I * G * O + i_off * G * O + g * O + o,
+                val);
+    }
+
     mem_dt.reorder(mem_fp);
     return OK;
 }
@@ -498,16 +500,13 @@ inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
     // Initializing the forward pass
     // When inference, we use forward_inference
     // When training, we use forward_training
-    {
-        dnnl_status_t init_status = init_rnn_fwd_desc(rd, p, fwd_prop, &input_d,
-                &states_d, &c_states_d, &weights_input_d, &weights_states_d,
-                &weights_peephole_d, &bias_d, &dst_last_layer_d,
-                &dst_last_iteration_d, &dst_c_last_iteration_d);
-        if (init_status == dnnl_unimplemented)
-            return r->state = UNIMPLEMENTED, OK;
-        else
-            DNN_SAFE(init_status, WARN);
-    }
+    dnnl_status_t init_status = dnnl_success;
+    init_status = init_rnn_fwd_desc(rd, p, fwd_prop, &input_d, &states_d,
+            &c_states_d, &weights_input_d, &weights_states_d,
+            &weights_peephole_d, &bias_d, &dst_last_layer_d,
+            &dst_last_iteration_d, &dst_c_last_iteration_d);
+    if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
+    DNN_SAFE(init_status, WARN);
 
     if (is_bwd) {
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_input_d, 3, input_dims,
@@ -560,63 +559,52 @@ inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
                          &diff_c_last_iteration_d),
                 WARN);
     }
+
     dnnl_primitive_attr_t dnnl_attr;
     create_dnnl_rnn_attr(p, &dnnl_attr);
-    dnnl_status_t init_status = dnnl_success;
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
         init_status = dnnl_primitive_desc_create(
                 &(rpd[i]), &(rd[i]), dnnl_attr, engine_tgt, NULL);
         if (init_status == dnnl_unimplemented) {
             dnnl_primitive_attr_destroy(dnnl_attr);
             return r->state = UNIMPLEMENTED, OK;
-        } else
-            SAFE(init_status, WARN);
+        }
+        SAFE(init_status, WARN);
 
         const char *impl_str = query_impl_info(rpd[i]);
         print(5, "dnnl implementation: %s\n", impl_str);
     }
     dnnl_primitive_attr_destroy(dnnl_attr);
 
-    auto q = [=](dnnl_query_t query, int rpd_idx, int index = 0) {
-        return *dnnl_primitive_desc_query_md(rpd[rpd_idx], query, index);
+    const auto q
+            = [&](int rpd_idx, int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                rpd[rpd_idx], dnnl_query_exec_arg_md, index);
     };
 
     for (int i = 0; i < 1 + (int)is_bwd; i++) {
-        rd[i].src_layer_desc = q(dnnl_query_src_md, i);
-        rd[i].src_iter_desc = q(dnnl_query_src_md, i, 1);
-        if (p.alg == VANILLA_LSTM)
-            rd[i].src_iter_c_desc = q(dnnl_query_src_md, i, 2);
-        rd[i].weights_layer_desc = q(dnnl_query_weights_md, i);
-        rd[i].weights_iter_desc = q(dnnl_query_weights_md, i, 1);
-        if (p.is_lstm_peephole()) {
-            rd[i].weights_peephole_desc = q(dnnl_query_weights_md, i, 2);
-            rd[i].bias_desc = q(dnnl_query_weights_md, i, 3);
-        } else {
-            rd[i].bias_desc = q(dnnl_query_weights_md, i, 2);
-        }
-        rd[i].dst_layer_desc = q(dnnl_query_dst_md, i);
-        rd[i].dst_iter_desc = q(dnnl_query_dst_md, i, 1);
-        if (p.alg == VANILLA_LSTM)
-            rd[i].dst_iter_c_desc = q(dnnl_query_dst_md, i, 2);
+        rd[i].src_layer_desc = q(i, DNNL_ARG_SRC_LAYER);
+        rd[i].src_iter_desc = q(i, DNNL_ARG_SRC_ITER);
+        rd[i].src_iter_c_desc = q(i, DNNL_ARG_SRC_ITER_C);
+        rd[i].weights_layer_desc = q(i, DNNL_ARG_WEIGHTS_LAYER);
+        rd[i].weights_iter_desc = q(i, DNNL_ARG_WEIGHTS_ITER);
+        rd[i].weights_peephole_desc = q(i, DNNL_ARG_WEIGHTS_PEEPHOLE);
+        rd[i].bias_desc = q(i, DNNL_ARG_BIAS);
+        rd[i].dst_layer_desc = q(i, DNNL_ARG_DST_LAYER);
+        rd[i].dst_iter_desc = q(i, DNNL_ARG_DST_ITER);
+        rd[i].dst_iter_c_desc = q(i, DNNL_ARG_DST_ITER_C);
     }
     if (is_bwd) {
-        rd[1].diff_src_layer_desc = q(dnnl_query_diff_src_md, 1);
-        rd[1].diff_src_iter_desc = q(dnnl_query_diff_src_md, 1, 1);
-        if (p.alg == VANILLA_LSTM)
-            rd[1].diff_src_iter_c_desc = q(dnnl_query_diff_src_md, 1, 2);
-        rd[1].diff_weights_layer_desc = q(dnnl_query_diff_weights_md, 1);
-        rd[1].diff_weights_iter_desc = q(dnnl_query_diff_weights_md, 1, 1);
-        if (p.is_lstm_peephole()) {
-            rd[1].diff_weights_peephole_desc
-                    = q(dnnl_query_diff_weights_md, 1, 2);
-            rd[1].diff_bias_desc = q(dnnl_query_diff_weights_md, 1, 3);
-        } else {
-            rd[1].diff_bias_desc = q(dnnl_query_diff_weights_md, 1, 2);
-        }
-        rd[1].diff_dst_layer_desc = q(dnnl_query_diff_dst_md, 1);
-        rd[1].diff_dst_iter_desc = q(dnnl_query_diff_dst_md, 1, 1);
-        if (p.alg == VANILLA_LSTM)
-            rd[1].diff_dst_iter_c_desc = q(dnnl_query_diff_dst_md, 1, 2);
+        rd[1].diff_src_layer_desc = q(1, DNNL_ARG_DIFF_SRC_LAYER);
+        rd[1].diff_src_iter_desc = q(1, DNNL_ARG_DIFF_SRC_ITER);
+        rd[1].diff_src_iter_c_desc = q(1, DNNL_ARG_DIFF_SRC_ITER_C);
+        rd[1].diff_weights_layer_desc = q(1, DNNL_ARG_DIFF_WEIGHTS_LAYER);
+        rd[1].diff_weights_iter_desc = q(1, DNNL_ARG_DIFF_WEIGHTS_ITER);
+        rd[1].diff_weights_peephole_desc = q(1, DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE);
+        rd[1].diff_bias_desc = q(1, DNNL_ARG_DIFF_BIAS);
+        rd[1].diff_dst_layer_desc = q(1, DNNL_ARG_DIFF_DST_LAYER);
+        rd[1].diff_dst_iter_desc = q(1, DNNL_ARG_DIFF_DST_ITER);
+        rd[1].diff_dst_iter_c_desc = q(1, DNNL_ARG_DIFF_DST_ITER_C);
     }
 
     return OK;
@@ -624,18 +612,6 @@ inline int init_pd(const prb_t &p, dnnl_rnn_desc_t rd[2],
 
 int doit(const prb_t &p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-
-    res_t res_zero {};
-    *r = res_zero;
-
-    const auto fp = dnnl_f32;
-
-    if (p.alg != VANILLA_LSTM && p.alg != VANILLA_RNN && p.alg != VANILLA_GRU
-            && p.alg != LBR_GRU) {
-        printf("p.alg: %d\n", (int)p.alg);
-        r->state = UNIMPLEMENTED;
-        return OK;
-    }
 
     dnn_mem_t input_dt;
     dnn_mem_t states_dt;
@@ -691,8 +667,6 @@ int doit(const prb_t &p, res_t *r) {
 
     auto cleanup = [&]() {
         DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
-        DNN_SAFE(dnnl_primitive_desc_destroy(rpd[0]), CRIT);
-        DNN_SAFE(dnnl_primitive_desc_destroy(rpd[1]), CRIT);
         return OK;
     };
 
@@ -722,6 +696,12 @@ int doit(const prb_t &p, res_t *r) {
     auto &diff_dst_layer_dt_d = rd[1].diff_dst_layer_desc;
     auto &diff_dst_iter_dt_d = rd[1].diff_dst_iter_desc;
     auto &diff_dst_iter_c_dt_d = rd[1].diff_dst_iter_c_desc;
+
+    DNN_SAFE(dnnl_primitive_create(&c, rpd[0]), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(rpd[0]), CRIT);
+
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
 
     input_dt = dnn_mem_t(input_dt_d, p.cfg[input].dt, engine_tgt);
     states_dt = dnn_mem_t(states_dt_d, p.cfg[states].dt, engine_tgt);
@@ -768,6 +748,7 @@ int doit(const prb_t &p, res_t *r) {
                 p.cfg[diff_c_last_iteration].dt, engine_tgt);
     }
 
+    const auto fp = dnnl_f32;
     input_fp = dnn_mem_t(input_dt_d, fp, dnnl_tnc, engine_tgt);
     states_fp = dnn_mem_t(states_dt_d, fp, dnnl_ldnc, engine_tgt);
     c_states_fp = dnn_mem_t(c_states_dt_d, fp, dnnl_ldnc, engine_tgt);
@@ -807,14 +788,14 @@ int doit(const prb_t &p, res_t *r) {
                 = dnn_mem_t(diff_dst_iter_c_dt_d, fp, dnnl_ldnc, engine_tgt);
 
         const auto ws_md = dnnl_primitive_desc_query_md(
-                rpd[0], dnnl_query_workspace_md, 0);
+                const_pd, dnnl_query_workspace_md, 0);
         SAFE(ws_md->ndims != 0 ? OK : FAIL, WARN);
         workspace_dt = dnn_mem_t(*ws_md, engine_tgt);
     }
 
     // for int8 RNN we need pass attributes for data q10n
     const_dnnl_primitive_attr_t rnn_attr;
-    DNN_SAFE(dnnl_primitive_desc_get_attr(rpd[0], &rnn_attr), WARN);
+    DNN_SAFE(dnnl_primitive_desc_get_attr(const_pd, &rnn_attr), WARN);
 
     SAFE(fill_activation(p, input, input_dt, input_fp, rnn_attr), WARN);
     SAFE(fill_activation(p, states, states_dt, states_fp, rnn_attr), WARN);
@@ -882,8 +863,6 @@ int doit(const prb_t &p, res_t *r) {
 
     // Running the forward pass
     {
-        DNN_SAFE(dnnl_primitive_create(&c, rpd[0]), WARN);
-
         args.set(DNNL_ARG_SRC_LAYER, input_dt);
         args.set(DNNL_ARG_SRC_ITER, states_dt);
         if (p.alg == VANILLA_LSTM) args.set(DNNL_ARG_SRC_ITER_C, c_states_dt);
@@ -919,9 +898,11 @@ int doit(const prb_t &p, res_t *r) {
 
     if (is_bwd) {
         args.clear();
-        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
 
+        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
         DNN_SAFE(dnnl_primitive_create(&c, rpd[1]), WARN);
+        DNN_SAFE(dnnl_primitive_desc_destroy(rpd[1]), CRIT);
+        DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
 
         args.set(DNNL_ARG_SRC_LAYER, input_dt);
         args.set(DNNL_ARG_SRC_ITER, states_dt);
