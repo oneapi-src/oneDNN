@@ -71,39 +71,11 @@
 #define POST_OP(val)
 #endif
 
-#define UPDATE_C_EACH(X, OFF) \
+#define COMPUTE_C(X, Y, CO_IDX) \
     do { \
-        if (n > X + OFF) { \
-            if (m > 0) { \
-                float val = c[0]; \
-                POST_OP(val); \
-                c[0] = val; \
-            } \
-            if (m > 1) { \
-                float val = c[1]; \
-                POST_OP(val); \
-                c[1] = val; \
-            } \
-            if (m > 2) { \
-                float val = c[2]; \
-                POST_OP(val); \
-                c[2] = val; \
-            } \
-            if (m > 3) { \
-                float val = c[3]; \
-                POST_OP(val); \
-                c[3] = val; \
-            } \
-            c += ldc; \
-        } \
-    } while (0)
-
-#define UPDATE_C(X) \
-    do { \
-        UPDATE_C_EACH(X, 0); \
-        UPDATE_C_EACH(X, 1); \
-        UPDATE_C_EACH(X, 2); \
-        UPDATE_C_EACH(X, 3); \
+        float val = (!beta ? 0 : (X)) + (Y); \
+        POST_OP(val); \
+        (X) = convert_int_sat_rte(val + (apply_co ? co[CO_IDX] : 0)); \
     } while (0)
 
 #ifdef FF
@@ -111,17 +83,13 @@
     do { \
         if (n > X + OFF) { \
             if (m > 0) \
-                c[0] = ((!beta) ? 0 : c[0]) + sc[X / 4 + 0].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[0] + xb[0]; \
+                COMPUTE_C(c[0], sc[X / 4 + 0].s##OFF + xa[0] + xb[0], 0); \
             if (m > 1) \
-                c[1] = ((!beta) ? 0 : c[1]) + sc[X / 4 + 4].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[1] + xb[0]; \
+                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 0); \
             if (m > 2) \
-                c[2] = ((!beta) ? 0 : c[2]) + sc[X / 4 + 8].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[2] + xb[0]; \
+                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 0); \
             if (m > 3) \
-                c[3] = ((!beta) ? 0 : c[3]) + sc[X / 4 + 12].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[3] + xb[0]; \
+                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 0); \
             xb++; \
             c += ldc; \
         } \
@@ -131,17 +99,13 @@
     do { \
         if (n > X + OFF) { \
             if (m > 0) \
-                c[0] = ((!beta) ? 0 : c[0]) + sc[X / 4 + 0].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[0] + xb[0]; \
+                COMPUTE_C(c[0], sc[X / 4 + 0].s##OFF + xa[0] + xb[0], 0); \
             if (m > 1) \
-                c[1] = ((!beta) ? 0 : c[1]) + sc[X / 4 + 4].s##OFF \
-                        + ((!apply_co) ? 0 : co[1]) + xa[1] + xb[0]; \
+                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 1); \
             if (m > 2) \
-                c[2] = ((!beta) ? 0 : c[2]) + sc[X / 4 + 8].s##OFF \
-                        + ((!apply_co) ? 0 : co[2]) + xa[2] + xb[0]; \
+                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 2); \
             if (m > 3) \
-                c[3] = ((!beta) ? 0 : c[3]) + sc[X / 4 + 12].s##OFF \
-                        + ((!apply_co) ? 0 : co[3]) + xa[3] + xb[0]; \
+                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 3); \
             xb++; \
             c += ldc; \
         } \
@@ -151,17 +115,13 @@
     do { \
         if (n > X + OFF) { \
             if (m > 0) \
-                c[0] = ((!beta) ? 0 : c[0]) + sc[X / 4 + 0].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[0] + xb[0]; \
+                COMPUTE_C(c[0], sc[X / 4 + 0].s##OFF + xa[0] + xb[0], 0); \
             if (m > 1) \
-                c[1] = ((!beta) ? 0 : c[1]) + sc[X / 4 + 4].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[1] + xb[0]; \
+                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 0); \
             if (m > 2) \
-                c[2] = ((!beta) ? 0 : c[2]) + sc[X / 4 + 8].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[2] + xb[0]; \
+                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 0); \
             if (m > 3) \
-                c[3] = ((!beta) ? 0 : c[3]) + sc[X / 4 + 12].s##OFF \
-                        + ((!apply_co) ? 0 : co[0]) + xa[3] + xb[0]; \
+                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 0); \
             xb++; \
             c += ldc; \
             co++; \
@@ -191,10 +151,9 @@
 __attribute__((intel_reqd_sub_group_size(GRX))) kernel void
 gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
         long offsetA, long offsetB, long offsetC, long lda, long ldb, long ldc,
-        long m, long n, long k, int beta, FLOATA ao, FLOATB bo,
-        global FLOATC *co, long offsetCO, int apply_co, local FLOATA *sa,
-        local FLOATB *sb, int apply_eltwise, float eltwise_alpha,
-        float eltwise_beta) {
+        long m, long n, long k, int beta, int ao, int bo, global int *co,
+        long offsetCO, int apply_co, local FLOATA *sa, local FLOATB *sb,
+        int apply_eltwise, float eltwise_alpha, float eltwise_beta) {
 
     long kk = (k + UNROLL_K - 1) & ~(UNROLL_K - 1);
     long i, j, l, ll;
@@ -349,13 +308,4 @@ gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
     ADD_SCALE(4);
     ADD_SCALE(8);
     ADD_SCALE(12);
-
-    // Update C with POST_OP
-    c = c_ori;
-    if (apply_eltwise) {
-        UPDATE_C(0);
-        UPDATE_C(4);
-        UPDATE_C(8);
-        UPDATE_C(12);
-    }
 }
