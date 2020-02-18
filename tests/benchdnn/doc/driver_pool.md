@@ -14,7 +14,7 @@ where *pool-knobs* are:
             Refer to the common glossary in README.md for details.
  - `--alg={MAX [default], AVG_NP, AVG_P}` -- pooling algorithm.
             `MAX` is dnnl_pooling_max;
-            `AVG_WP` is dnnl_pooling_avg_exclude_padding;
+            `AVG_NP` is dnnl_pooling_avg_exclude_padding;
             `AVG_P` is dnnl_pooling_avg_include_padding;
             Refer to ``doc/primitives/pooling.md`` for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.

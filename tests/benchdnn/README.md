@@ -43,8 +43,8 @@ So far it supports and uses the following drivers:
 where:
 
  - `--DRIVER` -- is either `binary`, `bnorm`, `concat`, `conv` [default],
-            `deconv`, `eltwise`, `ip`, `lrn`, `pool`, `reorder`, `rnn`,
-            `shuffle`, `softmax`, or `sum`.
+            `deconv`, `eltwise`, `ip`, `lnorm`, `lrn`, `matmul`, `pool`,
+            `reorder`, `resampling`, `rnn`, `shuffle`, `softmax`, or `sum`.
  - `--engine=ENGINE_KIND` -- specifies the engine kind to use for the benchmark.
             Can be `cpu` [default] or `gpu`.
  - `--mode=MODE` -- string that contains flags for benchmark mode.
@@ -102,9 +102,9 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 | FWD_D         | dnnl_forward_training w/o bias
 | FWD_I         | dnnl_forward_inference
 | BWD_D         | dnnl_backward_data
-| BWD_W         | dnnl_backward_weights
-| BWD_DW        | dnnl_backward_data + dnnl_backward_weights
-| BWD_WB        | dnnl_backward_weights + dnnl_backward_bias
+| BWD_WB        | dnnl_backward_weights w/ bias
+| BWD_W         | dnnl_backward_weights w/o bias
+| BWD_DW        | dnnl_backward_data + dnnl_backward_weights w/o bias
 
 |Data type/cfg  | Description
 |:---           |:---

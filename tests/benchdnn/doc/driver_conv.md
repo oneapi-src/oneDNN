@@ -26,9 +26,10 @@ where *conv-knobs* are:
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
              problem descriptor. The default is `0`.
- - `--match=regex` -- run only problems that match the regex. The default is
-            `".*"` (everything). Note: Windows may interpret only string
-            arguments surrounded by double quotation marks.
+ - `--match=REGEXP` -- run only problems that match the regular expression
+            `REGEXP`. By default there is no pattern applied. Note: Windows may
+            interpret only string arguments surrounded by double quotation
+            marks.
 
 and *conv-desc* is a problem descriptor. The canonical form is:
 ```

@@ -237,7 +237,7 @@ static bool parse_fix_times_per_prb(
 
 static bool parse_verbose(
         const char *str, const std::string &option_name = "verbose") {
-    const std::string pattern = "-v"; // check short option first
+    const std::string pattern("-v"); // check short option first
     if (pattern.find(str, 0, pattern.size()) != eol) {
         verbose = atoi(str + pattern.size());
         return true;
@@ -270,23 +270,10 @@ static bool parse_canonical(
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
-    if (parse_bench_mode(str))
-        ;
-    else if (parse_max_ms_per_prb(str))
-        ;
-    else if (parse_fix_times_per_prb(str))
-        ;
-    else if (parse_verbose(str))
-        ;
-    else if (parse_engine_kind(str))
-        ;
-    else if (parse_fast_ref_gpu(str))
-        ;
-    else if (parse_canonical(str))
-        ;
-    else
-        return false;
-    return true;
+    return parse_bench_mode(str) || parse_max_ms_per_prb(str)
+            || parse_fix_times_per_prb(str) || parse_verbose(str)
+            || parse_engine_kind(str) || parse_fast_ref_gpu(str)
+            || parse_canonical(str);
 }
 
 void catch_unknown_options(const char *str) {
