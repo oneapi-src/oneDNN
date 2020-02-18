@@ -39,23 +39,26 @@ namespace cpu {
 template <typename src_data_t, typename acc_data_t>
 void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
         const src_data_t *ws_gates_, acc_data_t *diff_bias_) {
-    auto body = [&](int i, int k) {
-        for (int j = 0; j < rnn.mb; j++)
-            diff_bias_[i * rnn.dic + k]
-                    += ws_gates_[j * rnn.gates_ws_ld + i * rnn.dic + k];
-    };
 
-    // @todo block k on simd-width
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP \
-        && _OPENMP >= 201307 /* icc 17.0 has a problem with simd collapse */ \
-        && !((defined __INTEL_COMPILER) && (__INTEL_COMPILER == 1700))
+    // The loop body needs to be inlined as some versions of icc have
+    // an issue with lambdas inside omp simd loops
+#define body_loop(i, k) \
+    for (int j = 0; j < rnn.mb; j++) \
+        diff_bias_[i * rnn.dic + k] \
+                += ws_gates_[j * rnn.gates_ws_ld + i * rnn.dic + k];
+
+    // @todo block k on simd-width to enable vectorization in
+    // parallel_nd path
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP && _OPENMP >= 201307
 #pragma omp parallel for simd collapse(2)
     for (int i = 0; i < rnn.n_gates; i++)
         for (int k = 0; k < rnn.dic; k++)
-            body(i, k);
+            body_loop(i, k);
 #else
-    parallel_nd(rnn.n_gates, rnn.dic, body);
+    parallel_nd(rnn.n_gates, rnn.dic, [&](int i, int k) { body_loop(i, k); });
 #endif
+
+#undef body_loop
 }
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
