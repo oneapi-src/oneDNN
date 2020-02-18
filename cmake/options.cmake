@@ -66,7 +66,7 @@ set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
 set(DNNL_CODE_COVERAGE "OFF" CACHE STRING
     "specifies which supported tool for code coverage will be used
     Currently only gcov supported")
-if(NOT ${DNNL_CODE_COVERAGE} MATCHES "^(OFF|GCOV)$")
+if(NOT "${DNNL_CODE_COVERAGE}" MATCHES "^(OFF|GCOV)$")
     message(FATAL_ERROR "Unsupported code coverage tool: ${DNNL_CODE_COVERAGE}")
 endif()
 
@@ -115,7 +115,7 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
     location.")
-if(NOT ${DNNL_CPU_RUNTIME} MATCHES "^(OMP|TBB|SEQ)$")
+if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
 endif()
 
@@ -129,7 +129,7 @@ set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
 
     Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
     installed in a non-standard location.")
-if(NOT ${DNNL_GPU_RUNTIME} MATCHES "^(OCL|NONE)$")
+if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE)$")
     message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GPU_RUNTIME}")
 endif()
 
