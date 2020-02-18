@@ -92,9 +92,12 @@ struct gen9_convolution_fwd_t : public primitive_impl_t {
             kernel_name = "gen9_conv_dw_fwd";
         else if (pd()->desc()->src_desc.data_type == data_type::f16)
             kernel_name = "gen9_conv_fwd_f16";
-        else if (pd()->desc()->src_desc.data_type == data_type::f32)
-            kernel_name = "gen9_conv_fwd_f32";
-        else
+        else if (pd()->desc()->src_desc.data_type == data_type::f32) {
+            if (pd()->conf.is_nhwc)
+                kernel_name = "gen9_conv_nhwc_fwd_f32";
+            else
+                kernel_name = "gen9_conv_fwd_f32";
+        } else
             assert(!"not expected");
 
         auto *compute_engine

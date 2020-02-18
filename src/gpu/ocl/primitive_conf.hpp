@@ -128,6 +128,7 @@ enum conv_version_t {
     ver_1stconv,
     ver_16mb16c,
     ver_8ow16c,
+    ver_nhwc,
 };
 
 struct conv_conf_t {
