@@ -29,13 +29,6 @@
 #define POST_OP(val)
 #endif
 
-#define UPDATE_ELEM_C(X) \
-    do { \
-        float val = c[X]; \
-        POST_OP(val); \
-        c[X] = val; \
-    } while (0)
-
 kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
         long offset_c, long m, long n, long ldc, float alpha, float beta,
         global int *co, long offset_co, int alpha_is_zero, int apply_eltwise,
@@ -61,27 +54,19 @@ kernel void gen9_gemm_scale_x8x8s32(global int *cc, global int *c, char trc,
     if (trc == 'R') offset_co += 16 * idy;
     for (j = 0; j < n; j++) {
         if (m > 0) {
-            if (!alpha_is_zero) {
-                c[offset_c + 0] = (int)(alpha * cc[offset_cc + 0]
-                                          + beta * c[offset_c + 0])
-                        + co[offset_co + offset_x];
-            } else {
-                c[offset_c + 0] = (int)(beta * c[offset_c + 0])
-                        + co[offset_co + offset_x];
-            }
+            float val = (alpha_is_zero ? 0 : alpha) * cc[offset_cc + 0]
+                    + beta * c[offset_c + 0];
+            POST_OP(val);
+            c[offset_c] = convert_int_sat_rte(
+                    val + (co ? co[offset_co + offset_x] : 0));
             if (trc == 'C') { offset_x++; }
-            if (apply_eltwise) UPDATE_ELEM_C(offset_c + 0);
         }
         if (m > 1) {
-            if (!alpha_is_zero) {
-                c[offset_c + 1] = (int)(alpha * cc[offset_cc + 1]
-                                          + beta * c[offset_c + 1])
-                        + co[offset_co + offset_x];
-            } else {
-                c[offset_c + 1] = (int)(beta * c[offset_c + 1])
-                        + co[offset_co + offset_x];
-            }
-            if (apply_eltwise) UPDATE_ELEM_C(offset_c + 1);
+            float val = (alpha_is_zero ? 0 : alpha) * cc[offset_cc + 1]
+                    + beta * c[offset_c + 1];
+            POST_OP(val);
+            c[offset_c + 1] = convert_int_sat_rte(
+                    val + (co ? co[offset_co + offset_x] : 0));
         }
 
         offset_cc += ldcc;
