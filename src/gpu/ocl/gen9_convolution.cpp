@@ -52,7 +52,10 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
 
     if (is_1stconv || conf.with_groups) {
         conf.ic = conf.ic_without_padding;
-        conf.oc = conf.oc_without_padding;
+        if ( is_1stconv && conf.oc_without_padding % 16 != 0)
+            conf.oc = utils::rnd_up(conf.oc_without_padding, 16);
+        else
+            conf.oc = conf.oc_without_padding;
     } else {
         conf.ic = utils::rnd_up(conf.ic_without_padding, 16);
         conf.oc = utils::rnd_up(conf.oc_without_padding, 16);
@@ -63,8 +66,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
 
     const bool is_dw_16g = (conf.is_depthwise && conf.ngroups % 16 == 0);
 
-    const bool is_16ic = conf.ic % 16 == 0;
     const bool is_16oc = conf.oc % 16 == 0;
+    const bool is_16ic = conf.ic % 16 == 0;
     const bool use_16mb_unroll = !(conf.mb == 1 || conf.mb % 16 != 0)
             && !is_1stconv && ((is_16ic && is_16oc) || is_dw_16g)
             && IMPLICATION(src_mdw.data_type() == f16, conf.mb % 32 == 0)
