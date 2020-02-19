@@ -159,7 +159,7 @@ struct gemm_matmul_t : public primitive_impl_t {
                     == create_gemm_pd(&gemm_pd_, engine(), transB, transA, MB,
                             N, M, K, stride_b, stride_a, stride_c, ldb, lda,
                             ldc, bias_mask, weights_dt, src_dt, dst_dt, acc_dt,
-                            bias_dt, attr());
+                            bias_dt, &gemm_attr);
             if (!gemm_ok) return status::unimplemented;
 
             return status::success;
