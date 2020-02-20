@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "src/common/dnnl_thread.hpp"
+
 #include "common.hpp"
 #include "conv/conv_common.hpp"
 
@@ -306,154 +308,91 @@ void compute_wino_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
     const int64_t hp_max = p->ih + t_pad;
     const int64_t p_dim = p->mb * sp.h_tiles * sp.w_tiles;
 
-#pragma omp parallel
-    {
-        float I[6][6];
-        float F[3][3];
-        float O[4][4];
-
-        float _v[6][6];
-        float _u[6][6];
-        float _m[6][6];
-
-#pragma omp for collapse(4)
-        /* src_transform v <- B_t * d * B */
-        for (int64_t img = 0; img < p->mb; img++) {
-            for (int64_t c = 0; c < p->ic; c++) {
-                for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
-                    for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            int64_t ydim = hfm * sp.out_dim + j;
-                            if ((t_pad <= ydim) && (ydim < hp_max)) {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    int64_t xdim = wfm * sp.out_dim + k;
-                                    if ((l_pad <= xdim) && (xdim < wp_max)) {
-                                        size_t src_off = src_off_f(p, img, 0, c,
-                                                0, ydim - t_pad, xdim - l_pad);
-                                        I[j][k] = ((float *)src_m)[src_off];
-                                    } else {
-                                        I[j][k] = 0.f;
-                                    }
-                                }
-                            } else {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    I[j][k] = 0.f;
-                                }
-                            }
-                        }
-
-                        trans_I_4x4_3x3(_v, I);
-
-                        /* scatter v:V */
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            for (int64_t k = 0; k < sp.alpha; k++) {
-                                V(j, k, c, img, hfm, wfm) = _v[j][k];
+    dnnl::impl::parallel_nd(p->mb, p->ic, sp.h_tiles, sp.w_tiles,
+            [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
+                float I[6][6] = {0};
+                float _v[6][6] = {0};
+                /* src_transform v <- B_t * d * B */
+                for (int64_t j = 0; j < sp.alpha; j++) {
+                    int64_t ydim = hfm * sp.out_dim + j;
+                    if ((t_pad <= ydim) && (ydim < hp_max)) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
+                            int64_t xdim = wfm * sp.out_dim + k;
+                            if ((l_pad <= xdim) && (xdim < wp_max)) {
+                                size_t src_off = src_off_f(p, img, 0, c, 0,
+                                        ydim - t_pad, xdim - l_pad);
+                                I[j][k] = ((float *)src_m)[src_off];
                             }
                         }
                     }
                 }
-            }
-        }
+                trans_I_4x4_3x3(_v, I);
 
-#pragma omp for collapse(2)
-        /* wei_transform u <- G * g * G_t */
-        for (int64_t oc = 0; oc < p->oc; ++oc) {
-            for (int64_t ic = 0; ic < p->ic; ++ic) {
-                for (int64_t j = 0; j < p->kh; j++) {
-                    for (int64_t i = 0; i < p->kw; i++) {
-                        size_t wei_off = wei_off_f(p, 0, oc, ic, 0, j, i);
-                        F[j][i] = ((float *)wei_m)[wei_off];
-                    }
-                }
-
-                trans_W_4x4_3x3(_u, F);
-
-                /* scatter u:U */
+                /* scatter v:V */
                 for (int64_t j = 0; j < sp.alpha; j++) {
                     for (int64_t k = 0; k < sp.alpha; k++) {
-                        U(j, k, oc, ic) = _u[j][k];
+                        V(j, k, c, img, hfm, wfm) = _v[j][k];
                     }
                 }
-            }
-        }
+            });
 
-#pragma omp for collapse(2)
+    dnnl::impl::parallel_nd(p->oc, p->ic, [&](int64_t oc, int64_t ic) {
+        float F[3][3] = {0};
+        float _u[6][6] = {0};
+        /* wei_transform u <- G * g * G_t */
+        for_(int64_t j = 0; j < p->kh; j++)
+        for (int64_t i = 0; i < p->kw; i++) {
+            size_t wei_off = wei_off_f(p, 0, oc, ic, 0, j, i);
+            F[j][i] = ((float *)wei_m)[wei_off];
+        }
+        trans_W_4x4_3x3(_u, F);
+
+        /* scatter u:U */
+        for_(int64_t j = 0; j < sp.alpha; j++)
+        for (int64_t k = 0; k < sp.alpha; k++) {
+            U(j, k, oc, ic) = _u[j][k];
+        }
+    });
+
+    dnnl::impl::parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
         /* M = U * V */
-        for (int64_t j = 0; j < sp.alpha; ++j) {
-            for (int64_t k = 0; k < sp.alpha; ++k) {
-                gemm("C", "N", "N", p->oc, p_dim, p->ic, 1.0,
-                        (float *)&(U(j, k, 0, 0)), p->ic,
-                        (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
-                        (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
-            }
-        }
+        gemm("C", "N", "N", p->oc, p_dim, p->ic, 1.0, (float *)&(U(j, k, 0, 0)),
+                p->ic, (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
+                (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
+    });
 
-#pragma omp for collapse(4)
-        /* Y = A_t *m * A */
-        for (int64_t oc = 0; oc < p->oc; ++oc) {
-            for (int64_t img = 0; img < p->mb; ++img) {
-                for (int64_t hfm = 0; hfm < sp.h_tiles; ++hfm) {
-                    for (int64_t wfm = 0; wfm < sp.w_tiles; ++wfm) {
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            for (int64_t k = 0; k < sp.alpha; k++) {
-                                _m[j][k] = M(j, k, oc, img, hfm, wfm);
-                            }
-                        }
-                        trans_O_4x4_3x3(_m, O);
+    dnnl::impl::parallel_nd(p->oc, p->mb, sp.h_tiles, sp.w_tiles,
+            [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
+                float O[4][4] = {0};
+                float _m[6][6] = {0};
+                /* Y = A_t *m * A */
+                for_(int64_t j = 0; j < sp.alpha; j++)
+                for (int64_t k = 0; k < sp.alpha; k++) {
+                    _m[j][k] = M(j, k, oc, img, hfm, wfm);
+                }
+                trans_O_4x4_3x3(_m, O);
 
-                        for (int64_t j = 0; j < sp.out_dim; j++) {
-                            int64_t ydim = hfm * sp.out_dim + j;
-                            if (ydim < p->oh) {
-                                for (int64_t k = 0; k < sp.out_dim; k++) {
-
-                                    float conv_res = O[j][k];
-
-                                    int64_t xdim = wfm * sp.out_dim + k;
-                                    if (xdim < p->ow) {
-                                        const size_t dst_off = dst_off_f(
-                                                p, img, 0, oc, 0, ydim, xdim);
-                                        float &dst = ((float *)dst_m)[dst_off];
-
-                                        const size_t bia_off
-                                                = bia_off_f(p, 0, oc);
-                                        conv_res += with_bias
-                                                ? ((float *)bia_m)[bia_off]
-                                                : 0.f;
-
-                                        const auto &ops = p->attr.post_ops;
-                                        for (int idx = 0; idx < ops.len;
-                                                ++idx) {
-                                            using pk = attr_t::post_ops_t::
-                                                    kind_t;
-                                            const auto &e = ops.entry[idx];
-                                            switch (e.kind) {
-                                                case pk::SUM:
-                                                    conv_res += e.sum.scale
-                                                            * dst;
-                                                    break;
-                                                case pk::RELU:
-                                                    conv_res = e.eltwise.scale
-                                                            * (conv_res < 0 ? 0
-                                                                            : conv_res);
-                                                    break;
-                                                default:
-                                                    assert(!"unknown "
-                                                            "attr::post_ops::"
-                                                            "kind");
-                                            }
-                                        }
-
-                                        dst = conv_res;
-                                    }
-                                }
+                for (int64_t j = 0; j < sp.out_dim; j++) {
+                    int64_t ydim = hfm * sp.out_dim + j;
+                    if (ydim < p->oh) {
+                        for (int64_t k = 0; k < sp.out_dim; k++) {
+                            float conv_res = O[j][k];
+                            int64_t xdim = wfm * sp.out_dim + k;
+                            if (xdim < p->ow) {
+                                const size_t dst_off = dst_off_f(
+                                        p, img, 0, oc, 0, ydim, xdim);
+                                float &dst = ((float *)dst_m)[dst_off];
+                                const size_t bia_off = bia_off_f(p, 0, oc);
+                                conv_res += with_bias
+                                        ? ((float *)bia_m)[bia_off]
+                                        : 0.f;
+                                maybe_post_ops(conv_res, dst, p->attr);
+                                dst = conv_res;
                             }
                         }
                     }
                 }
-            }
-        }
-    }
-
+            });
     free_scratchpad(&sp);
 }
 
@@ -481,124 +420,86 @@ void compute_wino_ref_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
     bool with_bias = p->dir & FLAG_BIA;
 
-#pragma omp parallel
-    {
-        float I[6][6];
-        float F[3][3];
-        float O[4][4];
-
-        float _v[6][6];
-        float _u[6][6];
-        float _m[6][6];
-
-#pragma omp for collapse(4)
-        /* diff_src transform v <- B_t * d * B */
-        for (int64_t img = 0; img < p->mb; img++) {
-            for (int64_t c = 0; c < p->oc; c++) {
-                for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
-                    for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
-
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            int64_t ydim = hfm * sp.out_dim + j;
-                            if ((t_pad <= ydim) && (ydim < hp_max)) {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    int64_t xdim = wfm * sp.out_dim + k;
-                                    if ((l_pad <= xdim) && (xdim < wp_max)) {
-                                        size_t dst_off = dst_off_f(p, img, 0, c,
-                                                0, ydim - t_pad, xdim - l_pad);
-                                        I[j][k] = ((
-                                                float *)diff_dst_m)[dst_off];
-                                    } else {
-                                        I[j][k] = 0.f;
-                                    }
-                                }
-                            } else {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    I[j][k] = 0.f;
-                                }
-                            }
-                        }
-
-                        trans_I_4x4_3x3(_v, I);
-
-                        /* scatter v:V */
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            for (int64_t k = 0; k < sp.alpha; k++) {
-                                V(j, k, c, img, hfm, wfm) = _v[j][k];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-#pragma omp for collapse(2)
-        /* wei_transform u <- G * g * G_t */
-        for (int64_t ic = 0; ic < p->ic; ++ic) {
-            for (int64_t oc = 0; oc < p->oc; ++oc) {
-                for (int64_t j = 0; j < p->kh; j++) {
-                    for (int64_t i = 0; i < p->kw; i++) {
-                        size_t wei_off = wei_off_f(
-                                p, 0, oc, ic, 0, p->kh - j - 1, p->kw - i - 1);
-                        F[j][i] = ((float *)wei_m)[wei_off];
-                    }
-                }
-                trans_W_4x4_3x3(_u, F);
-
-                /* scatter u:U */
+    dnnl::impl::parallel_nd(p->mb, p->oc, sp.h_tiles, sp.w_tiles,
+            [&](int64_t img, int64_t c, int64_t hfm, int64_t wfm) {
+                float I[6][6] = {0};
+                float _v[6][6] = {0};
+                /* diff_src transform v <- B_t * d * B */
                 for (int64_t j = 0; j < sp.alpha; j++) {
+                    int64_t ydim = hfm * sp.out_dim + j;
+                    if ((t_pad <= ydim) && (ydim < hp_max)) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
+                            int64_t xdim = wfm * sp.out_dim + k;
+                            if ((l_pad <= xdim) && (xdim < wp_max)) {
+                                size_t dst_off = dst_off_f(p, img, 0, c, 0,
+                                        ydim - t_pad, xdim - l_pad);
+                                I[j][k] = ((float *)diff_dst_m)[dst_off];
+                            }
+                        }
+                    }
+                    trans_I_4x4_3x3(_v, I);
+
+                    /* scatter v:V */
+                    for_(int64_t j = 0; j < sp.alpha; j++)
                     for (int64_t k = 0; k < sp.alpha; k++) {
-                        U(j, k, ic, oc) = _u[j][k];
+                        V(j, k, c, img, hfm, wfm) = _v[j][k];
                     }
                 }
-            }
-        }
+            });
 
-#pragma omp for collapse(2)
+    dnnl::impl::parallel_nd(p->ic, p->oc, [&](int64_t ic, int64_t oc) {
+        float F[3][3] = {0};
+        float _u[6][6] = {0};
+        /* wei_transform u <- G * g * G_t */
+        for_(int64_t j = 0; j < p->kh; j++)
+        for (int64_t i = 0; i < p->kw; i++) {
+            size_t wei_off
+                    = wei_off_f(p, 0, oc, ic, 0, p->kh - j - 1, p->kw - i - 1);
+            F[j][i] = ((float *)wei_m)[wei_off];
+        }
+        trans_W_4x4_3x3(_u, F);
+
+        /* scatter u:U */
+        for_(int64_t j = 0; j < sp.alpha; j++)
+        for (int64_t k = 0; k < sp.alpha; k++) {
+            U(j, k, ic, oc) = _u[j][k];
+        }
+    });
+
+    dnnl::impl::parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
         /* M = U * V */
-        for (int64_t j = 0; j < sp.alpha; ++j) {
-            for (int64_t k = 0; k < sp.alpha; ++k) {
-                gemm("C", "N", "N", p->ic, p_dim, p->oc, 1.0,
-                        (float *)&(U(j, k, 0, 0)), p->oc,
-                        (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
-                        (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
-            }
-        }
+        gemm("C", "N", "N", p->ic, p_dim, p->oc, 1.0, (float *)&(U(j, k, 0, 0)),
+                p->oc, (float *)&(V(j, k, 0, 0, 0, 0)), p_dim, 1.0,
+                (float *)&(M(j, k, 0, 0, 0, 0)), p_dim);
+    });
 
-#pragma omp for collapse(4)
-        /* diff_dst: Y = A_t *m * A */
-        for (int64_t c = 0; c < p->ic; ++c) {
-            for (int64_t img = 0; img < p->mb; ++img) {
-                for (int64_t hfm = 0; hfm < sp.h_tiles; ++hfm) {
-                    for (int64_t wfm = 0; wfm < sp.w_tiles; ++wfm) {
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            for (int64_t k = 0; k < sp.alpha; k++) {
-                                _m[j][k] = M(j, k, c, img, hfm, wfm);
-                            }
-                        }
-                        trans_O_4x4_3x3(_m, O);
+    dnnl::impl::parallel_nd(p->ic, p->mb, sp.h_tiles, sp.w_tiles,
+            [&](int64_t c, int64_t img, int64_t hfm, int64_t wfm) {
+                float O[4][4] = {0};
+                float _m[6][6] = {0};
+                /* diff_dst: Y = A_t *m * A */
+                for_(int64_t j = 0; j < sp.alpha; j++)
+                for (int64_t k = 0; k < sp.alpha; k++) {
+                    _m[j][k] = M(j, k, c, img, hfm, wfm);
+                }
+                trans_O_4x4_3x3(_m, O);
 
-                        float bia = with_bias ? ((float *)bia_m)[c] : 0.f;
+                float bia = with_bias ? ((float *)bia_m)[c] : 0.f;
 
-                        for (int64_t j = 0; j < sp.out_dim; j++) {
-                            int64_t ydim = hfm * sp.out_dim + j;
-                            if (ydim < p->ih) {
-                                for (int64_t k = 0; k < sp.out_dim; k++) {
-                                    int64_t xdim = wfm * sp.out_dim + k;
-                                    if (xdim < p->iw) {
-                                        size_t src_off = src_off_f(
-                                                p, img, 0, c, 0, ydim, xdim);
-                                        ((float *)diff_src_m)[src_off]
-                                                = O[j][k] + bia;
-                                    }
-                                }
+                for (int64_t j = 0; j < sp.out_dim; j++) {
+                    int64_t ydim = hfm * sp.out_dim + j;
+                    if (ydim < p->ih) {
+                        for (int64_t k = 0; k < sp.out_dim; k++) {
+                            int64_t xdim = wfm * sp.out_dim + k;
+                            if (xdim < p->iw) {
+                                size_t src_off = src_off_f(
+                                        p, img, 0, c, 0, ydim, xdim);
+                                ((float *)diff_src_m)[src_off] = O[j][k] + bia;
                             }
                         }
                     }
                 }
-            }
-        }
-    }
+            });
 
     free_scratchpad(&sp);
 }
@@ -624,127 +525,83 @@ void compute_wino_ref_bwd_w(const prb_t *p, dnn_mem_t &src_m,
     const int64_t hp_max = p->ih + t_pad;
     const int64_t p_dim = p->mb * sp.h_tiles * sp.w_tiles;
 
-#pragma omp parallel
-    {
-        float I[6][6];
-        float F[6][6];
-        float O[6][6];
-
-        float _v[6][6];
-        float _u[3][3];
-        float _m[6][6];
-
-#pragma omp for collapse(4)
-        /* src transform v <- B_t * d * B */
-        for (int64_t img = 0; img < p->mb; img++) {
-            for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
-                for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
-                    for (int64_t ic = 0; ic < p->ic; ic++) {
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            int64_t ydim = hfm * sp.out_dim + j;
-                            if ((t_pad <= ydim) && (ydim < hp_max)) {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    int64_t xdim = wfm * sp.out_dim + k;
-                                    if ((l_pad <= xdim) && (xdim < wp_max)) {
-                                        size_t src_off = src_off_f(p, img, 0,
-                                                ic, 0, ydim - t_pad,
-                                                xdim - l_pad);
-                                        I[j][k] = ((float *)src_m)[src_off];
-                                    } else {
-                                        I[j][k] = 0.f;
-                                    }
-                                }
-                            } else {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    I[j][k] = 0.f;
-                                }
-                            }
-                        }
-
-                        trans_I_4x4_3x3(_v, I);
-
-                        /* scatter v:V */
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            for (int64_t k = 0; k < sp.alpha; k++) {
-                                V(j, k, img, hfm, wfm, ic) = _v[j][k];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-#pragma omp for collapse(4)
-        /* diff_dst transform */
-        for (int64_t oc = 0; oc < p->oc; oc++) {
-            for (int64_t img = 0; img < p->mb; img++) {
-                for (int64_t hfm = 0; hfm < sp.h_tiles; hfm++) {
-                    for (int64_t wfm = 0; wfm < sp.w_tiles; wfm++) {
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            int64_t ydim = hfm * sp.out_dim + j;
-                            if (ydim < p->oh) {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    int64_t xdim = wfm * sp.out_dim + k;
-                                    if (xdim < p->ow) {
-                                        size_t dst_off = dst_off_f(
-                                                p, img, 0, oc, 0, ydim, xdim);
-                                        O[j][k] = ((
-                                                float *)diff_dst_m)[dst_off];
-                                    } else {
-                                        O[j][k] = 0.f;
-                                    }
-                                }
-                            } else {
-                                for (int64_t k = 0; k < sp.alpha; k++) {
-                                    O[j][k] = 0.f;
-                                }
-                            }
-                        }
-                        trans_W_3x3_4x4_wu(_m, O);
-
-                        /* scatter v:V */
-                        for (int64_t j = 0; j < sp.alpha; j++) {
-                            for (int64_t k = 0; k < sp.alpha; k++) {
-                                M(j, k, oc, img, hfm, wfm) = _m[j][k];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-#pragma omp for collapse(2)
-        /* GeMM U = M * V */
-        for (int64_t j = 0; j < sp.alpha; ++j) {
-            for (int64_t k = 0; k < sp.alpha; ++k) {
-                gemm("C", "N", "N", p->oc, p->ic, p_dim, 1.0,
-                        (float *)&(M(j, k, 0, 0, 0, 0)), p_dim,
-                        (float *)&(V(j, k, 0, 0, 0, 0)), p->ic, 1.0,
-                        (float *)&(U(j, k, 0, 0)), p->ic);
-            }
-        }
-
-#pragma omp for collapse(2)
-        for (int64_t oc = 0; oc < p->oc; ++oc) {
-            for (int64_t ic = 0; ic < p->ic; ++ic) {
+    dnnl::impl::parallel_nd(p->mb, sp.h_tiles, sp.w_tiles, p->ic,
+            [&](int64_t img, int64_t hfm, int64_t wfm, int64_t ic) {
+                float I[6][6] = {0};
+                float _v[6][6] = {0};
+                /* src transform v <- B_t * d * B */
                 for (int64_t j = 0; j < sp.alpha; j++) {
-                    for (int64_t k = 0; k < sp.alpha; k++) {
-                        F[j][k] = U(j, k, oc, ic);
+                    int64_t ydim = hfm * sp.out_dim + j;
+                    if ((t_pad <= ydim) && (ydim < hp_max)) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
+                            int64_t xdim = wfm * sp.out_dim + k;
+                            if ((l_pad <= xdim) && (xdim < wp_max)) {
+                                size_t src_off = src_off_f(p, img, 0, ic, 0,
+                                        ydim - t_pad, xdim - l_pad);
+                                I[j][k] = ((float *)src_m)[src_off];
+                            }
+                        }
                     }
                 }
+                trans_I_4x4_3x3(_v, I);
 
-                trans_O_3x3_4x4_wu(F, _u);
+                /* scatter v:V */
+                for_(int64_t j = 0; j < sp.alpha; j++)
+                for (int64_t k = 0; k < sp.alpha; k++) {
+                    V(j, k, img, hfm, wfm, ic) = _v[j][k];
+                }
+            });
 
-                /* scatter u:U */
-                for (int64_t kh = 0; kh < p->kh; kh++) {
-                    for (int64_t kw = 0; kw < p->kw; kw++) {
-                        size_t wei_off = wei_off_f(p, 0, oc, ic, 0, kh, kw);
-                        ((float *)diff_wei_m)[wei_off] = _u[kh][kw];
+    dnnl::impl::parallel_nd(p->oc, p->mb, sp.h_tiles, sp.w_tiles,
+            [&](int64_t oc, int64_t img, int64_t hfm, int64_t wfm) {
+                float O[6][6] = {0};
+                float _m[6][6] = {0};
+                /* diff_dst transform */
+                for (int64_t j = 0; j < sp.alpha; j++) {
+                    int64_t ydim = hfm * sp.out_dim + j;
+                    if (ydim < p->oh) {
+                        for (int64_t k = 0; k < sp.alpha; k++) {
+                            int64_t xdim = wfm * sp.out_dim + k;
+                            if (xdim < p->ow) {
+                                size_t dst_off = dst_off_f(
+                                        p, img, 0, oc, 0, ydim, xdim);
+                                O[j][k] = ((float *)diff_dst_m)[dst_off];
+                            }
+                        }
                     }
                 }
-            }
+                trans_W_3x3_4x4_wu(_m, O);
+                /* scatter v:V */
+                for_(int64_t j = 0; j < sp.alpha; j++)
+                for (int64_t k = 0; k < sp.alpha; k++) {
+                    M(j, k, oc, img, hfm, wfm) = _m[j][k];
+                }
+            });
+
+    dnnl::impl::parallel_nd(sp.alpha, sp.alpha, [&](int64_t j, int64_t k) {
+        /* GeMM U = M * V */
+        gemm("C", "N", "N", p->oc, p->ic, p_dim, 1.0,
+                (float *)&(M(j, k, 0, 0, 0, 0)), p_dim,
+                (float *)&(V(j, k, 0, 0, 0, 0)), p->ic, 1.0,
+                (float *)&(U(j, k, 0, 0)), p->ic);
+    });
+
+    dnnl::impl::parallel_nd(p->oc, p->ic, [&](int64_t oc, int64_t ic) {
+        float F[6][6] = {0};
+        float _u[3][3] = {0};
+        for_(int64_t j = 0; j < sp.alpha; j++)
+        for (int64_t k = 0; k < sp.alpha; k++) {
+            F[j][k] = U(j, k, oc, ic);
         }
-    }
+        trans_O_3x3_4x4_wu(F, _u);
+
+        /* scatter u:U */
+        for_(int64_t kh = 0; kh < p->kh; kh++)
+        for (int64_t kw = 0; kw < p->kw; kw++) {
+            size_t wei_off = wei_off_f(p, 0, oc, ic, 0, kh, kw);
+            ((float *)diff_wei_m)[wei_off] = _u[kh][kw];
+        }
+    });
 
     free_scratchpad(&sp);
 
