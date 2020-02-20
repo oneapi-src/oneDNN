@@ -3699,7 +3699,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_dump(int enable);
 ///  - minor: minor version number,
 ///  - patch: patch release number,
 ///  - hash: git commit hash.
-const dnnl_version_t DNNL_API *dnnl_version();
+const dnnl_version_t DNNL_API *dnnl_version(void);
 
 /// Sets library profiling flags. The flags define which profilers are
 /// supported.
