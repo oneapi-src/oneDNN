@@ -56,12 +56,6 @@ protected:
                         && get_test_engine_kind() == engine::kind::cpu,
                 "current ISA doesn't support bfloat16 data type");
 
-        // TODO: remove SKIP_IF when GPU adds int8 support
-        SKIP_IF((src0_dt == memory::data_type::s8
-                        || src0_dt == memory::data_type::u8)
-                        && get_test_engine_kind() == engine::kind::gpu,
-                "GPU doesn't support int8 data type");
-
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -73,8 +67,7 @@ protected:
         allows_attr_t aa {0};
         aa.po_sum = 1;
         aa.po_eltwise = 1;
-        // TODO: remove condition when GPU adds int8, scales support
-        if (get_test_engine_kind() == engine::kind::cpu) { aa.scales = 1; }
+        aa.scales = 1;
 
         auto eng = engine(get_test_engine_kind(), 0);
         auto strm = stream(eng);

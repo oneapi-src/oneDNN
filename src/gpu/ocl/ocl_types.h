@@ -141,7 +141,7 @@
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (char)(v)
-#define DATA_TO_REF convert_char_sat_rte
+#define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_char_sat_rte
 #define CONVERT_DATA8_T convert_char8_sat_rte
 #define ROUND rint
@@ -171,7 +171,7 @@
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (uchar)(v)
-#define DATA_TO_REF convert_uchar_sat_rte
+#define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_uchar_sat_rte
 #define CONVERT_DATA8_T convert_uchar8_sat_rte
 #define ROUND rint

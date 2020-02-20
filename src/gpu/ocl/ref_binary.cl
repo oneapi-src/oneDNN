@@ -20,7 +20,6 @@
 #endif
 
 #undef DST_OFF
-
 #define SRC0_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC0, x0, x1, x2, x3, x4, x5)
 #define SRC1_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(SRC1, x0, x1, x2, x3, x4, x5)
 #define DST_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
@@ -29,12 +28,28 @@
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
         __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale) {
+        float sum_scale, float eltwise_scale
+#if SRC0_SCALE
+        ,
+        float src0_scale
+#endif
+#if SRC1_SCALE
+        ,
+        float src1_scale
+#endif
+) {
     int off = GWS_GET_IDX();
 
     POST_OP_DATA_T tmp_src0 = DATA_TO_REF(src0[off]);
     POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[off]);
     POST_OP_DATA_T d = 0;
+
+#if SRC0_SCALE
+    tmp_src0 = tmp_src0 * src0_scale;
+#endif
+#if SRC1_SCALE
+    tmp_src1 = tmp_src1 * src1_scale;
+#endif
 
 #if IS_ADD
     d = tmp_src0 + tmp_src1;
@@ -55,16 +70,42 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
 #endif
 
 #if WITH_ELTWISE == 1
-    d = fwd_eltwise(d, eltwise_alpha, eltwise_beta);
-#endif
 
+    d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
+#endif
     dst[off] = TO_DST(d);
 }
 #else
+#if !SAME_SRC_DT
+#if SRC0_S
+#define SRC0_DATA_T char
+#else
+#define SRC0_DATA_T uchar
+#endif
+
+#if SRC1_S
+#define SRC1_DATA_T char
+#else
+#define SRC1_DATA_T uchar
+#endif
+
+#else
+#define SRC1_DATA_T DATA_T
+#define SRC0_DATA_T DATA_T
+#endif
 KERNEL_ATTR
-__kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
+__kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale) {
+        float sum_scale, float eltwise_scale
+#if SRC0_SCALE
+        ,
+        float src0_scale
+#endif
+#if SRC1_SCALE
+        ,
+        float src1_scale
+#endif
+) {
 
     // since gws = no. of total elems in A, id will be the logical offset
     int dims0[6] = {0};
@@ -103,6 +144,13 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     POST_OP_DATA_T tmp_src1 = DATA_TO_REF(src1[src1_off]);
     POST_OP_DATA_T d = 0;
 
+#if SRC0_SCALE
+    tmp_src0 = tmp_src0 * src0_scale;
+#endif
+#if SRC1_SCALE
+    tmp_src1 = tmp_src1 * src1_scale;
+#endif
+
 #if IS_ADD
     d = tmp_src0 + tmp_src1;
 #elif IS_MUL
@@ -120,9 +168,8 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
     d += sum_scale * DATA_TO_REF(dst[dst_off]);
 #endif
 #endif
-
 #if WITH_ELTWISE == 1
-    d = fwd_eltwise(d, eltwise_alpha, eltwise_beta);
+    d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
 #endif
 
     dst[dst_off] = TO_DST(d);

@@ -35,6 +35,7 @@ __kernel void ref_convolution_fwd(
 #endif
 #endif
 ) {
+
     const int n = GWS_GET_MB();
     const int oc = GWS_GET_OC();
     const int g = GWS_GET_G();
@@ -157,6 +158,7 @@ __kernel void ref_convolution_bwd_weights(const __global SRC_DATA_T *src,
         diff_bias[g * OC + oc] = TO_BIA(d);
     }
 #endif
+
     ACC_DATA_T dw = 0.0;
     for (int n = 0; n < MB; ++n)
         for (int od = 0; od < OD; ++od)

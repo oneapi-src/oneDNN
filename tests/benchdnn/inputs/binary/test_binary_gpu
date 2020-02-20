@@ -49,3 +49,24 @@
 
 --attr=post_ops='sum:0.25;relu'
 --batch=shapes_common_gpu
+
+--reset
+
+--inplace=true,false
+--alg=ADD,MUL,MAX,MIN
+--ddt=s8
+--sdt=s8:u8
+--batch=shapes_common_gpu
+
+--attr=post_ops='sum:0.5'
+--batch=shapes_common_gpu
+
+--attr=post_ops='linear:2:0.125'
+--batch=shapes_common_gpu
+
+--attr=post_ops='sum:0.25;relu'
+--batch=shapes_common_gpu
+
+--attr=scales='src:common:0.25_src1:common:0.5';post_ops='sum:0.5;logistic:0:0:2'
+--batch=shapes_common_gpu
+

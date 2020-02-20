@@ -34,12 +34,14 @@ status_t ref_binary_t::pd_t::init_conf() {
     float sum_scale = with_sum ? po.entry_[0].sum.scale : 1;
     int e_idx = po.find(primitive_kind::eltwise);
     bool with_eltwise = e_idx != -1 ? true : false;
+    float eltwise_scale = with_eltwise ? po.entry_[e_idx].eltwise.scale : 1;
 
     const int ndims = src0_d.ndims();
     conf.src0_md_info = memory_desc_info_t::create(src0_d);
     conf.src1_md_info = memory_desc_info_t::create(src1_d);
     conf.dst_md_info = memory_desc_info_t::create(dst_d);
-    conf.data_type = src0_d.data_type();
+    conf.src0_data_type = src0_d.data_type();
+    conf.src1_data_type = src1_d.data_type();
     conf.ndims = ndims;
     for (int i = 0; i < MAX_NDIMS; ++i) {
         conf.bcast_dims[i] = i < ndims ? broadcast_dims()[i] : 1;
@@ -50,11 +52,14 @@ status_t ref_binary_t::pd_t::init_conf() {
     conf.is_min = (alg == alg_kind::binary_min);
     conf.is_tensor_op = is_tensor_op();
     conf.is_dense = dst_d.is_dense();
+    conf.same_src_dt = (src0_d.data_type() == src1_d.data_type());
     conf.is_same_md = (src0_d == dst_d) && (src1_d == dst_d);
-
+    conf.with_src0_scale = with_scales(DNNL_ARG_SRC_0);
+    conf.with_src1_scale = with_scales(DNNL_ARG_SRC_1);
     conf.with_eltwise = with_eltwise;
     conf.with_sum = with_sum;
     conf.sum_scale = sum_scale;
+    conf.eltwise_scale = eltwise_scale;
     if (with_eltwise) { conf.eltwise = po.entry_[e_idx].eltwise; }
 
     auto *compute_engine
@@ -76,7 +81,7 @@ status_t ref_binary_t::pd_t::init_conf() {
 
 status_t ref_binary_t::pd_t::init_kernel_ctx(
         compute::kernel_ctx_t &kernel_ctx) const {
-    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.set_data_type(conf.src0_data_type);
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("IS_MUL", conf.is_mul);
     kernel_ctx.define_int("IS_ADD", conf.is_add);
@@ -85,6 +90,7 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("IS_TENSOR_OP", conf.is_tensor_op);
     kernel_ctx.define_int("IS_DENSE", conf.is_dense);
     kernel_ctx.define_int("IS_SAME_MD", conf.is_same_md);
+    kernel_ctx.define_int("SAME_SRC_DT", conf.same_src_dt);
     kernel_ctx.define_int("BCAST_DIM0", conf.bcast_dims[0]);
     kernel_ctx.define_int("BCAST_DIM1", conf.bcast_dims[1]);
     kernel_ctx.define_int("BCAST_DIM2", conf.bcast_dims[2]);
@@ -95,6 +101,10 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("WITH_ELTWISE", conf.with_eltwise);
     kernel_ctx.define_int("WITH_SUM", conf.with_sum);
     kernel_ctx.define_int("SUM_SCALE", conf.sum_scale == 1);
+    kernel_ctx.define_int("SRC0_S", conf.src0_data_type == data_type::s8);
+    kernel_ctx.define_int("SRC1_S", conf.src1_data_type == data_type::s8);
+    kernel_ctx.define_int("SRC0_SCALE", conf.with_src0_scale);
+    kernel_ctx.define_int("SRC1_SCALE", conf.with_src1_scale);
 
     def_memory_desc_info(kernel_ctx, conf.src0_md_info, "SRC0");
     def_memory_desc_info(kernel_ctx, conf.src1_md_info, "SRC1");
@@ -118,6 +128,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
     auto sum_scale = pd()->sum_scale();
+    auto eltwise_scale = pd()->eltwise_scale();
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, src0);
@@ -126,6 +137,21 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(3, eltwise_alpha);
     arg_list.set(4, eltwise_beta);
     arg_list.set(5, sum_scale);
+    arg_list.set(6, eltwise_scale);
+    if (utils::one_of(
+                pd()->src_md()->data_type, data_type::u8, data_type::s8)) {
+        if (pd()->with_scales(DNNL_ARG_SRC_0)) {
+            auto src0_scale = pd()->get_scale(DNNL_ARG_SRC_0);
+            arg_list.set(7, src0_scale);
+            if (pd()->with_scales(DNNL_ARG_SRC_1)) {
+                auto src1_scale = pd()->get_scale(DNNL_ARG_SRC_1);
+                arg_list.set(8, src1_scale);
+            }
+        } else if (pd()->with_scales(DNNL_ARG_SRC_1)) {
+            auto src1_scale = pd()->get_scale(DNNL_ARG_SRC_1);
+            arg_list.set(7, src1_scale);
+        }
+    }
 
     const auto &conf = pd()->conf;
 
