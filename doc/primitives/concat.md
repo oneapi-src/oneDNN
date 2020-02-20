@@ -59,7 +59,7 @@ The concat primitive doesn't support any post-ops or attributes.
 
 ## Implementation Limitations
 
-1. The primitive works with blocked memory formats, such as plain formats
+1. The primitive works with several memory formats, such as plain formats
    #dnnl_nchw, #dnnl_nhwc, and blocked formats #dnnl_nChw16c, #dnnl_nCdhw8c that
    appear in convolutions. The primitive does not support non-blocked formats
    that are typically used in prepacked weights, such as:

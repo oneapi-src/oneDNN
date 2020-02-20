@@ -38,7 +38,7 @@ argument index as specified by the following table.
    means that if some dimension has value of one, this value will be used to
    compute an operation with each point of source 0 for this dimension.
 
- * The \dst memory format can be either specified explicitly or be
+ * The \dst memory format can be either specified explicitly or by
    #dnnl::memory::format_tag::any (recommended), in which case the primitive
    will derive the most appropriate memory format based on the format of the
    source 0 tensor.

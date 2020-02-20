@@ -28,12 +28,12 @@ where
 - \f$\gamma(c), \beta(c)\f$ are optional scale and shift for a channel
 (see #dnnl_use_scaleshift flag),
 
-- \f$\mu(t, n), \sigma^2(t, n)\f$ are computed at runtime or provided by a user
-mean and variance (see #dnnl_use_global_stats flag), and
+- \f$\mu(t, n), \sigma^2(t, n)\f$ are mean and variance (see
+  #dnnl_use_global_stats flag), and
 
 - \f$\varepsilon\f$ is a constant to improve numerical stability.
 
-When mean and variance are computed at runtime, the following formulas are used:
+Mean and variance are computed at runtime or provided by a user. When mean and variance are computed at runtime, the following formulas are used:
 
 - \f$\mu(t, n) = \frac{1}{C} \sum\limits_{c} \src(t, n, c)_{}\f$,
 

@@ -53,7 +53,7 @@ where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being
 
 # Cell Functions
 
-The RNN API provides five cell functions:
+The RNN API provides four cell functions:
 
 -   [Vanilla RNN](#Vanilla-RNN), a single-gate recurrent cell,
 -   [LSTM](#LSTM), a four-gate long short-term memory cell,

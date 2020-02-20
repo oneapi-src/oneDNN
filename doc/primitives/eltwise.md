@@ -83,9 +83,9 @@ argument index as specified by the following table.
    \diffdst can be used as input and output for backward propagation. In case
    of in-place operation, the original data will be overwritten.
 
-4. For some operations it might be performance beneficial to compute backward
+4. For some operations it might be beneficial to compute backward
    propagation based on \f$\dst(\overline{s})\f$, rather than on
-   \f$\src(\overline{s})\f$.
+   \f$\src(\overline{s})\f$, for improved performance.
 
 @note For operations supporting destination memory as input, \dst can be
 used instead of \src when backward propagation is computed. This enables
