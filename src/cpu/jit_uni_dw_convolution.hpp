@@ -52,12 +52,12 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_impl_t {
                                     data_type::f32, data_type::bf16))
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
-                    && !has_zero_dim_memory() && set_default_formats();
+                    && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status
                     = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(jcp_,
-                            *desc(), src_md(), *weights_md(), *dst_md(),
+                            *desc(), src_md_, weights_md_, bias_md_, dst_md_,
                             *attr());
             if (status != status::success) return status;
 
@@ -69,20 +69,6 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_impl_t {
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::one_of(isa, avx512_common, avx512_core)
-                    ? nChw16c
-                    : nChw8c;
-            auto wei_tag = utils::one_of(isa, avx512_common, avx512_core)
-                    ? Goihw16g
-                    : Goihw8g;
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     jit_uni_dw_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {

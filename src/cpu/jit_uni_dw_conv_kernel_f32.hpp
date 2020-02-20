@@ -58,30 +58,39 @@ private:
     // dw convolution
     reg64_t reg_input = r8;
     reg64_t aux_reg_input = r9;
-    reg64_t aux1_reg_input = r10;
-    reg64_t reg_kernel = r11;
-    reg64_t aux_reg_kernel = r12;
-    reg64_t aux1_reg_kernel = r13;
-    reg64_t reg_output = r14;
-    reg64_t reg_bias = r15;
-    reg64_t reg_kh = rax;
-    reg64_t reg_kw = rbx;
-    reg64_t iter_kh = rdx;
-    reg64_t iter_kw = rsi;
-    reg64_t reg_ur_w = rbp;
-    reg64_t reg_ch_blocks = aux1_reg_input;
-    reg64_t imm_addr64 = aux1_reg_input;
+    reg64_t reg_kernel = r10;
+    reg64_t aux_reg_kernel = r11;
+    reg64_t reg_ch_blocks = r12;
+    reg64_t reg_output = r13;
+    reg64_t reg_bias = r14;
+    reg64_t reg_kh = r15;
+    reg64_t iter_kh = rax;
+    reg64_t reg_oi = rbx;
+
+    inline void load_src(int ur_ch_blocks, int ur_w);
+    inline void compute_loop(int ur_w, int ur_ch_blocks, int pad_l, int pad_r);
+    inline void ow_loop(int ur_ch_blocks);
+    inline void apply_filter_unrolled(
+            int ur_ch_blocks, int ur_w, int pad_l, int pad_r);
+    inline void apply_activation(int ur_ch_blocks, int ur_w);
+    inline void store_dst(int ur_ch_blocks, int ur_w);
 
     inline Vmm get_ker_reg(int idx) { return Vmm(idx + 0); }
     inline Vmm get_src_reg(int idx) { return Vmm(idx + 1); }
     inline Vmm get_acc_reg(int idx) { return Vmm(idx + 4); }
 
-    inline void load_src(int ur_ch_blocks, int ur_w);
-    inline void apply_filter(int ur_ch_blocks, int ur_w);
-    inline void apply_filter_unrolled(int ur_ch_blocks, int ur_w);
-    inline void apply_activation(int ur_ch_blocks, int ur_w);
-    inline void store_dst(int ur_ch_blocks, int ur_w);
-    inline void loop_body(int ur_ch_blocks);
+    int get_ow_start(int ki, int pad_l) {
+        return nstl::max(0,
+                utils::div_up(pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
+    }
+
+    int get_ow_end(int ur_w, int ki, int pad_r) {
+        return ur_w
+                - nstl::max(0,
+                        utils::div_up(
+                                pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
+                                jcp.stride_w));
+    }
 
     jit_uni_eltwise_injector_f32<isa> *eltwise_injector_;
 

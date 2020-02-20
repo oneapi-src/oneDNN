@@ -65,19 +65,14 @@ private:
     // dw convolution
     reg64_t reg_input = r8;
     reg64_t aux_reg_input = r9;
-    reg64_t aux1_reg_input = r10;
-    reg64_t reg_kernel = r11;
-    reg64_t aux_reg_kernel = r12;
-    reg64_t aux1_reg_kernel = r13;
-    reg64_t reg_output = r14;
-    reg64_t reg_bias = r15;
-    reg64_t reg_kh = rax;
-    reg64_t reg_kw = rbx;
-    reg64_t iter_kh = rdx;
-    reg64_t iter_kw = rsi;
-    reg64_t reg_ur_w = rbp;
-    reg64_t reg_ch_blocks = aux1_reg_input;
-    reg64_t imm_addr64 = aux1_reg_input;
+    reg64_t reg_kernel = r10;
+    reg64_t aux_reg_kernel = r11;
+    reg64_t reg_ch_blocks = r12;
+    reg64_t reg_output = r13;
+    reg64_t reg_bias = r14;
+    reg64_t reg_kh = r15;
+    reg64_t iter_kh = rax;
+    reg64_t reg_oi = rbx;
 
     Xbyak::Zmm zmm_ker_reg = Xbyak::Zmm(0);
     Xbyak::Zmm zmm_src_reg = Xbyak::Zmm(1);
@@ -87,7 +82,7 @@ private:
     Xbyak::Zmm bf16_emu_reserv_1 = Xbyak::Zmm(26);
     Xbyak::Zmm bf16_emu_reserv_2 = Xbyak::Zmm(27);
     Xbyak::Zmm bf16_emu_reserv_3 = Xbyak::Zmm(28);
-    reg64_t bf16_emu_reserv_4 = iter_kw;
+    reg64_t bf16_emu_reserv_4 = abi_not_param1;
     Xbyak::Zmm bf16_emu_reserv_5 = Xbyak::Zmm(29);
     Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(30);
 
@@ -96,12 +91,26 @@ private:
         return Xbyak::Zmm(idx + acc_idx_start);
     }
 
+    int get_ow_start(int ki, int pad_l) {
+        return nstl::max(0,
+                utils::div_up(pad_l - ki * (jcp.dilate_w + 1), jcp.stride_w));
+    }
+
+    int get_ow_end(int ur_w, int ki, int pad_r) {
+        return ur_w
+                - nstl::max(0,
+                        utils::div_up(
+                                pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
+                                jcp.stride_w));
+    }
+
     inline void load_src(int ur_ch_blocks, int ur_w);
-    inline void apply_filter(int ur_ch_blocks, int ur_w);
-    inline void apply_filter_unrolled(int ur_ch_blocks, int ur_w);
+    inline void compute_loop(int ur_w, int ur_ch_blocks, int pad_l, int pad_r);
+    inline void loop_ow(int ur_ch_blocks);
+    inline void apply_filter_unrolled(
+            int ur_ch_blocks, int ur_w, int pad_l, int pad_r);
     inline void apply_activation(int ur_ch_blocks, int ur_w);
     inline void store_dst(int ur_ch_blocks, int ur_w);
-    inline void loop_ow(int ur_ch_blocks);
 
     jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 

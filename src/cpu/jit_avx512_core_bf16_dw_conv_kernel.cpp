@@ -57,68 +57,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::load_src(int ur_ch_blocks, int ur_w) {
     }
 }
 
-void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter(
-        int ur_ch_blocks, int ur_w) {
-    int ch_block = jcp.ch_block;
-    int dilate_h = jcp.dilate_h + 1;
-    int dilate_w = jcp.dilate_w + 1;
-    int stride_w = jcp.stride_w;
-
-    Label iter_exit_label;
-
-    cmp(reg_kh, 0);
-    je(iter_exit_label, T_NEAR);
-    cmp(reg_kw, 0);
-    je(iter_exit_label, T_NEAR);
-
-    mov(iter_kh, reg_kh);
-    Label kh_label;
-    L(kh_label);
-    {
-        mov(iter_kw, reg_kw);
-        mov(aux1_reg_input, aux_reg_input);
-        mov(aux1_reg_kernel, aux_reg_kernel);
-
-        Label kw_label;
-        L(kw_label);
-        {
-            for (int ch = 0; ch < ur_ch_blocks; ch++) {
-                int ker_off = ch * jcp.kh * jcp.kw * ch_block;
-                vpmovzxwd(zmm_ker_reg,
-                        ptr[aux1_reg_kernel + ker_off * jcp.typesize_in]);
-                for (int ow = 0; ow < ur_w; ow++) {
-                    Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
-                    int inp_off = ch * jcp.ih * jcp.iw * ch_block
-                            + ow * stride_w * ch_block;
-                    /* zero-extend bf16 to packed 32-bit int */
-                    vpmovzxwd(zmm_src_reg,
-                            ptr[aux1_reg_input + inp_off * jcp.typesize_in]);
-                    if (isa_has_bf16(jcp.isa))
-                        vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
-                    else
-                        bf16_emu_->vdpbf16ps(zmm_acc, zmm_ker_reg, zmm_src_reg);
-                }
-            }
-            add(aux1_reg_kernel, jcp.ch_block * jcp.typesize_in);
-            add(aux1_reg_input, jcp.ch_block * dilate_w * jcp.typesize_in);
-
-            dec(iter_kw);
-            cmp(iter_kw, 0);
-            jg(kw_label, T_NEAR);
-        }
-        add(aux_reg_kernel, jcp.kw * jcp.ch_block * jcp.typesize_in);
-        add(aux_reg_input, jcp.iw * jcp.ch_block * dilate_h * jcp.typesize_in);
-
-        dec(iter_kh);
-        cmp(iter_kh, 0);
-        jg(kh_label, T_NEAR);
-    }
-
-    L(iter_exit_label);
-}
-
 void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
-        int ur_ch_blocks, int ur_w) {
+        int ur_ch_blocks, int ur_w, int pad_l, int pad_r) {
     int ch_blk = jcp.ch_block;
     int dilate_h = jcp.dilate_h + 1;
     int dilate_w = jcp.dilate_w + 1;
@@ -139,10 +79,13 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
 
                 vpmovzxwd(zmm_ker_reg,
                         ptr[aux_reg_kernel + ker_off * jcp.typesize_in]);
-                for (int ow = 0; ow < ur_w; ow++) {
+                int ow_start = get_ow_start(kw, pad_l);
+                int ow_end = get_ow_end(ur_w, kw, pad_r);
+                for (int ow = ow_start; ow < ow_end; ow++) {
                     Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
                     int inp_off = ch * jcp.ih * jcp.iw * ch_blk
-                            + ow * stride_w * ch_blk + kw * ch_blk * dilate_w;
+                            + (ow * stride_w - pad_l) * ch_blk
+                            + kw * ch_blk * dilate_w;
                     /* zero-extend bf16 to packed 32-bit int */
                     vpmovzxwd(zmm_src_reg,
                             ptr[aux_reg_input + inp_off * jcp.typesize_in]);
@@ -230,57 +173,82 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
     }
 }
 
+void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
+        int ur_w, int ur_ch_blocks, int pad_l, int pad_r) {
+
+    mov(aux_reg_input, reg_input);
+    mov(aux_reg_kernel, reg_kernel);
+    load_src(ur_ch_blocks, ur_w);
+    apply_filter_unrolled(ur_ch_blocks, ur_w, pad_l, pad_r);
+    apply_activation(ur_ch_blocks, ur_w);
+    store_dst(ur_ch_blocks, ur_w);
+}
+
 void jit_avx512_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
 
-    Label unrolled_w_label;
-    Label tail_w_label;
-    Label exit_label;
+    int iw = jcp.iw;
+    int ow = jcp.ow;
+    int kw = jcp.kw;
+    int l_pad = jcp.l_pad;
+    int ur_w = jcp.ur_w;
+    int ur_w_tail = jcp.ur_w_tail;
+    int stride_w = jcp.stride_w;
 
-    L(unrolled_w_label);
-    {
-        int ur_w = jcp.ur_w;
+    size_t inp_shift = (size_t)jcp.typesize_in * ur_w * stride_w * jcp.ch_block;
+    size_t out_shift = (size_t)jcp.typesize_out * ur_w * jcp.ch_block;
 
-        cmp(reg_ur_w, ur_w);
-        jl(tail_w_label, T_NEAR);
+    int inp_shift_pad
+            = jcp.typesize_in * (ur_w * stride_w - l_pad) * jcp.ch_block;
 
-        mov(aux_reg_input, reg_input);
-        mov(aux_reg_kernel, reg_kernel);
+    int r_pad = nstl::max(0, jcp.r_pad);
+    int n_oi = ow / ur_w;
+    int r_pad1 = calculate_end_padding(l_pad, ur_w * n_oi, iw, stride_w,
+            calculate_extended_filter_size(kw, jcp.dilate_w));
 
-        load_src(ur_ch_blocks, ur_w);
-        apply_filter_unrolled(ur_ch_blocks, ur_w);
-        apply_activation(ur_ch_blocks, ur_w);
-        store_dst(ur_ch_blocks, ur_w);
+    assert(jcp.nb_ow <= 1);
 
-        add(reg_input, jcp.typesize_in * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_output, jcp.typesize_out * ur_w * jcp.ch_block);
+    if (r_pad1 > 0) n_oi--;
+    xor_(reg_oi, reg_oi);
+    if (ow == ur_w) {
+        compute_loop(ur_w, ur_ch_blocks, l_pad, r_pad);
+    } else {
+        if (n_oi == 0) {
+            compute_loop(ur_w, ur_ch_blocks, l_pad, r_pad1);
+            add(reg_input, inp_shift_pad);
+            add(reg_output, out_shift);
+            if (ur_w_tail != 0) {
+                compute_loop(ur_w_tail, ur_ch_blocks, 0, r_pad);
+            }
+        } else {
+            if (l_pad > 0) {
+                compute_loop(ur_w, ur_ch_blocks, l_pad, 0);
+                add(reg_input, inp_shift_pad);
+                add(reg_output, out_shift);
+                inc(reg_oi);
+            }
+            if ((l_pad <= 0 && n_oi > 0) || (l_pad > 0 && n_oi > 1)) {
+                Label ow_loop_label;
+                L(ow_loop_label);
+                {
+                    compute_loop(ur_w, ur_ch_blocks, 0, 0);
+                    add(reg_input, inp_shift);
+                    add(reg_output, out_shift);
 
-        sub(reg_ur_w, ur_w);
-        jmp(unrolled_w_label);
+                    inc(reg_oi);
+                    cmp(reg_oi, n_oi);
+                    jl(ow_loop_label, T_NEAR);
+                }
+            }
+            if (r_pad1 > 0) {
+                compute_loop(ur_w, ur_ch_blocks, 0, r_pad1);
+                add(reg_input, inp_shift);
+                add(reg_output, out_shift);
+            }
+            if (ur_w_tail != 0) {
+                compute_loop(ur_w_tail, ur_ch_blocks, 0, r_pad);
+            }
+        }
     }
-
-    L(tail_w_label);
-    {
-        int ur_w = 1;
-
-        cmp(reg_ur_w, ur_w);
-        jl(exit_label, T_NEAR);
-
-        mov(aux_reg_input, reg_input);
-        mov(aux_reg_kernel, reg_kernel);
-
-        load_src(ur_ch_blocks, ur_w);
-        apply_filter(ur_ch_blocks, ur_w);
-        apply_activation(ur_ch_blocks, ur_w);
-        store_dst(ur_ch_blocks, ur_w);
-
-        add(reg_input, jcp.typesize_in * ur_w * jcp.ch_block * jcp.stride_w);
-        add(reg_output, jcp.typesize_out * ur_w * jcp.ch_block);
-
-        sub(reg_ur_w, ur_w);
-        jmp(tail_w_label);
-    }
-
-    L(exit_label);
 }
 
 void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
@@ -291,9 +259,7 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     if (jcp.with_bias) mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);
     mov(reg_kh, ptr[this->param1 + GET_OFF(kh_padding)]);
-    mov(reg_kw, ptr[this->param1 + GET_OFF(kw_padding)]);
     mov(reg_ch_blocks, ptr[this->param1 + GET_OFF(ch_blocks)]);
-    mov(reg_ur_w, ptr[this->param1 + GET_OFF(ur_w)]);
 
     Label ch_blocks_tail_label;
     Label exit_label;
