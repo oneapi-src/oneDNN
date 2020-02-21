@@ -241,8 +241,8 @@ static bool parse_engine_kind(
         DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
 
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
-        DNN_SAFE(dnnl_stream_create(
-                         &stream_tgt, engine_tgt, dnnl_stream_default_flags),
+        SAFE(create_dnnl_stream(
+                     &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
         return true;
     }

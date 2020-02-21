@@ -68,7 +68,7 @@ protected:
 
     void Test() {
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
 
         data_d.reset(
                 new memory::desc(p.dims, memory::data_type::f32, p.data_tag));

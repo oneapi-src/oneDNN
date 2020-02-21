@@ -1356,7 +1356,8 @@ public:
 
         // find local mean
         acc_data_t *r_mean = need_reduction ? rbuf : mean;
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1381,7 +1382,8 @@ public:
 
         // find local var
         acc_data_t *r_var = need_reduction ? rbuf : var;
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1412,7 +1414,8 @@ public:
             const acc_data_t *var, uint8_t *ws, bool blk_has_tail) {
         const size_t stride_C = (size_t)S_ * simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1518,7 +1521,8 @@ public:
             }
         };
 
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1557,7 +1561,8 @@ public:
         const size_t stride_C = (size_t)S_ * simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
 
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);

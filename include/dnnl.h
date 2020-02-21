@@ -1042,10 +1042,22 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 
 /// Sets a memory object's data handle.
 ///
+/// See the description of dnnl_memory_set_data_handle_v2() for more details.
+///
+/// @param memory Memory object.
+/// @param handle Data handle. For the CPU engine, the data handle is a
+///     pointer to the actual data. For OpenCL it is a `cl_mem`.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
+        dnnl_memory_t memory, void *handle);
+
+/// Sets a memory object's data handle.
+///
 /// This function may write zero values to the memory specified by the @p
 /// handle if the memory object has a zero padding area. This may be time
-/// consuming and happens each time this function is called. Furthermore, it
-/// is performed using an internal service stream in a blocking manner.
+/// consuming and happens each time this function is called. The operation is
+/// always blocking and the stream parameter is a hint.
 ///
 /// @note
 ///     The zero padding is required by memory objects created with blocked
@@ -1065,10 +1077,11 @@ dnnl_status_t DNNL_API dnnl_memory_get_data_handle(
 /// @param memory Memory object.
 /// @param handle Data handle. For the CPU engine, the data handle is a
 ///     pointer to the actual data. For OpenCL it is a `cl_mem`.
+/// @param stream Stream to use to execute padding in.
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
-dnnl_status_t DNNL_API dnnl_memory_set_data_handle(
-        dnnl_memory_t memory, void *handle);
+dnnl_status_t DNNL_API dnnl_memory_set_data_handle_v2(
+        dnnl_memory_t memory, void *handle, dnnl_stream_t stream);
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 /// Returns an OpenCL memory object associated with a memory object.
@@ -3546,6 +3559,52 @@ dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);
 /// @addtogroup dnnl_api_stream
 /// @{
 
+/// Creates execution stream attributes for a stream that runs on an engine of
+/// a particular kind.
+///
+/// @param attr Output execution stream attributes.
+/// @param kind Target engine kind.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_stream_attr_create(
+        dnnl_stream_attr_t *attr, dnnl_engine_kind_t kind);
+
+/// Destroys execution stream attributes.
+///
+/// @param attr Execution stream attributes to destroy.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_stream_attr_destroy(dnnl_stream_attr_t attr);
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+/// Sets a threadpool to be used by the execution stream. Always returns
+/// dnnl_invalid_arguments unless DNNL is built with threadpool runtime.
+///
+/// @sa @ref dev_guide_threadpool
+///
+/// @param attr Execution stream attributes.
+/// @param threadpool Pointer to an instance of a C++ class that implements
+///     dnnl::threapdool_iface interface.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_stream_attr_set_threadpool(
+        dnnl_stream_attr_t attr, void *threadpool);
+
+/// Returns a threadpool to be used by the execution stream. Always returns
+/// dnnl_invalid_arguments unless DNNL is built with threadpool runtime.
+///
+/// @sa @ref dev_guide_threadpool
+///
+/// @param attr Execution stream attributes.
+/// @param threadpool Output pointer to an instance of a C++ class that
+///     implements dnnl::threapdool_iface interface. Set to NULL if the
+///     threadpool attribute was never set.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_stream_attr_get_threadpool(
+        dnnl_stream_attr_t attr, void **threadpool);
+#endif
+
 /// Creates an execution stream.
 ///
 /// @param stream Output execution stream.
@@ -3555,6 +3614,17 @@ dnnl_status_t DNNL_API dnnl_engine_destroy(dnnl_engine_t engine);
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_stream_create(
         dnnl_stream_t *stream, dnnl_engine_t engine, unsigned flags);
+
+/// Creates an execution stream.
+///
+/// @param stream Output execution stream.
+/// @param engine Engine to create the execution stream on.
+/// @param flags Stream behavior flags (@sa dnnl_stream_flags_t).
+/// @param attr Stream attributes.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_stream_create_v2(dnnl_stream_t *stream,
+        dnnl_engine_t engine, unsigned flags, const_dnnl_stream_attr_t attr);
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 /// Creates an execution stream for a given engine associated with
@@ -3895,6 +3965,35 @@ dnnl_status_t DNNL_API dnnl_gemm_s8s8s32(char transa, char transb, char offsetc,
         dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha, const int8_t *A,
         dnnl_dim_t lda, int8_t ao, const int8_t *B, dnnl_dim_t ldb, int8_t bo,
         float beta, int32_t *C, dnnl_dim_t ldc, const int32_t *co);
+
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+/// @copydoc dnnl_sgemm()
+/// @param tp A pointer to a threadpool interface (only when built with the
+///     THREADPOOL CPU runtime).
+dnnl_status_t DNNL_API dnnl_sgemm_tp(char transa, char transb, dnnl_dim_t M,
+        dnnl_dim_t N, dnnl_dim_t K, float alpha, const float *A, dnnl_dim_t lda,
+        const float *B, dnnl_dim_t ldb, float beta, float *C, dnnl_dim_t ldc,
+        void *tp);
+
+/// @copydoc dnnl_gemm_u8s8s32()
+/// @param tp A pointer to a threadpool interface (only when built with the
+///     THREADPOOL CPU runtime).
+dnnl_status_t DNNL_API dnnl_gemm_u8s8s32_tp(char transa, char transb,
+        char offsetc, dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha,
+        const uint8_t *A, dnnl_dim_t lda, uint8_t ao, const int8_t *B,
+        dnnl_dim_t ldb, int8_t bo, float beta, int32_t *C, dnnl_dim_t ldc,
+        const int32_t *co, void *tp);
+
+/// @copydoc dnnl_gemm_s8s8s32()
+/// @param tp A pointer to a threadpool interface (only when built with the
+///     THREADPOOL CPU runtime).
+dnnl_status_t DNNL_API dnnl_gemm_s8s8s32_tp(char transa, char transb,
+        char offsetc, dnnl_dim_t M, dnnl_dim_t N, dnnl_dim_t K, float alpha,
+        const int8_t *A, dnnl_dim_t lda, int8_t ao, const int8_t *B,
+        dnnl_dim_t ldb, int8_t bo, float beta, int32_t *C, dnnl_dim_t ldc,
+        const int32_t *co, void *tp);
+#endif
+
 /// @} dnnl_api_blas
 
 /// @} dnnl_api

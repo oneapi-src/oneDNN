@@ -975,6 +975,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
+    jcp.nthr = nthreads;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -1180,7 +1181,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
     if (jcp.ver == ver_vnni && jcp.mb == 1 && jcp.kh == 3 && jcp.kw == 3
             && jcp.stride_w == 1 && jcp.ic % 64 == 0
-            && nthreads <= ncores_per_socket)
+            && jcp.nthr <= ncores_per_socket)
         max_threading_nb_oc_chunk = 2;
     jcp.nb_oc_blocking_thr_chunk
             = nstl::min(max_threading_nb_oc_chunk, jcp.nb_oc);
@@ -1195,7 +1196,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     // TODO: generalize this condition and rewrite it in appropriate manner
     const int size_treshold_for_nb_oc_blocking_reduction = 17;
     if (jcp.mb == 1 && jcp.ow <= size_treshold_for_nb_oc_blocking_reduction
-            && jcp.stride_w == 1 && nthreads <= ncores_per_socket
+            && jcp.stride_w == 1 && jcp.nthr <= ncores_per_socket
             && !(jcp.kh == 1 && jcp.kw == 3)
             && !(jcp.kh >= 7 && jcp.oc % 64 == 0)) {
         const int max_nb_oc_blocking = 2;
@@ -1242,7 +1243,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     int base_work_amount = jcp.mb * jcp.nb_ch * jcp.od * jcp.oh
             * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
     float best_thr_eff
-            = (float)base_work_amount / rnd_up(base_work_amount, nthreads);
+            = (float)base_work_amount / rnd_up(base_work_amount, jcp.nthr);
     int max_nb_ow = div_up(jcp.ow, 2 * jcp.ur_w);
     for (int nb_ow = 1; nb_ow <= max_nb_ow; nb_ow++) {
         int ow_block
@@ -1252,7 +1253,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             break;
         if (div_up(jcp.ow, ow_block) != nb_ow) continue;
         auto work_amount = base_work_amount * nb_ow;
-        float thr_eff = (float)work_amount / rnd_up(work_amount, nthreads);
+        float thr_eff = (float)work_amount / rnd_up(work_amount, jcp.nthr);
         if (ow_block >= 2 * jcp.ur_w && thr_eff > 1.1f * best_thr_eff) {
             jcp.ow_block = ow_block;
             best_thr_eff = thr_eff;
@@ -1269,7 +1270,7 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
                     jcp.stride_w, ext_kw));
     if (r_pad_no_tail > jcp.ur_w) return status::unimplemented;
 
-    pick_loop_order(jcp, nthreads);
+    pick_loop_order(jcp, jcp.nthr);
 
     jcp.nb_ic_L2 = jcp.nb_ic;
 

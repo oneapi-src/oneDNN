@@ -748,6 +748,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
 
+    jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
     jcp.prop_kind = cd.prop_kind;
@@ -920,7 +921,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                 = (one_of(jcp.prop_kind, forward_training, forward_inference))
                 ? jcp.od * jcp.oh
                 : jcp.id * jcp.ih;
-        if ((8 * jcp.mb) / nthreads >= 1) {
+        if ((8 * jcp.mb) / jcp.nthr >= 1) {
             max_regs = 9;
             min_regs = 6;
             size_treshold = 14;
@@ -1039,11 +1040,11 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         auto bcast_size
                 = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
 
-        if (nthreads <= 28 && jcp.mb < nthreads
-                && nb_load * nb_bcast > nthreads) {
+        if (jcp.nthr <= 28 && jcp.mb < jcp.nthr
+                && nb_load * nb_bcast > jcp.nthr) {
             // Some heuristic here
             float calc_koef = 0.01, best_cost = FLT_MAX;
-            int n_lgc = nthreads;
+            int n_lgc = jcp.nthr;
             float ratio = (float)load_size / (float)bcast_size;
             int best_lgc = ratio > 1 ? n_lgc : 1;
             auto calc_job_cost = [&](int lb, int tg, float mem_k) {
@@ -1058,12 +1059,12 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                 lgc = ratio > 1 ? n_lgc - ilgc : ilgc + 1;
                 int min_lb = nb_load / lgc;
                 int max_lb = div_up(nb_load, lgc);
-                int min_tg = nthreads / lgc;
-                int max_tg = div_up(nthreads, lgc);
+                int min_tg = jcp.nthr / lgc;
+                int max_tg = div_up(jcp.nthr, lgc);
                 // Some heuristic here
                 float mem_koef = (max_tg == 1) ? 1.f : 1.3f;
                 float job_cost = 0.;
-                if (nthreads % lgc < nb_load % lgc) {
+                if (jcp.nthr % lgc < nb_load % lgc) {
                     job_cost = calc_job_cost(max_lb, min_tg, mem_koef);
                 } else {
                     auto job_cost1 = calc_job_cost(max_lb, max_tg, mem_koef);
@@ -1081,21 +1082,21 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                     = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
         } else {
             jcp.load_grp_count
-                    = div_up(nthreads, jcp.mb * jcp.ngroups * nb_bcast);
-            jcp.load_grp_count = best_divider(nthreads, jcp.load_grp_count,
+                    = div_up(jcp.nthr, jcp.mb * jcp.ngroups * nb_bcast);
+            jcp.load_grp_count = best_divider(jcp.nthr, jcp.load_grp_count,
                     2 * jcp.load_grp_count, false);
         }
 
         if (jcp.expl_bcast && jcp.bcast_dim <= 64 && load_size >= L2_size) {
             jcp.load_grp_count = nstl::max(jcp.load_grp_count, 4);
-        } else if (jcp.bcast_dim <= 49 && jcp.mb <= nthreads
+        } else if (jcp.bcast_dim <= 49 && jcp.mb <= jcp.nthr
                 && jcp.load_dim > 512 && jcp.load_dim / jcp.reduce_dim >= 4) {
             jcp.load_grp_count = nstl::max(jcp.load_grp_count, 2);
             load_blocking = jcp.load_block;
         }
 
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
-                                 div_up(nthreads, jcp.load_grp_count))
+                                 div_up(jcp.nthr, jcp.load_grp_count))
                 * jcp.bcast_block;
         bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
         bcast_blocking = rnd_up(bcast_blocking, jcp.bcast_block);
@@ -1164,7 +1165,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.load_loop_iter_step = jcp.oc_block;
 
         /* --- */
-        balance(jcp, nthreads);
+        balance(jcp, jcp.nthr);
 
         load_blocking = div_up(jcp.load_dim, jcp.load_block);
         load_blocking = best_divider(load_blocking, 16, load_blocking, false);

@@ -493,6 +493,7 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         return status::unimplemented;
 
     const int ndims = src_d.ndims();
+    jcp.nthr = nthreads;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
@@ -653,21 +654,21 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     if (cmp_reduce) jcp.loop_order = reduce_src ? loop_rbl : loop_rlb;
     load_blocking = jcp.load_dim;
 
-    jcp.load_grp_count = div_up(nthreads, jcp.mb * jcp.ngroups * nb_bcast);
+    jcp.load_grp_count = div_up(jcp.nthr, jcp.mb * jcp.ngroups * nb_bcast);
     jcp.load_grp_count = best_divider(
-            nthreads, jcp.load_grp_count, 2 * jcp.load_grp_count, false);
+            jcp.nthr, jcp.load_grp_count, 2 * jcp.load_grp_count, false);
 
     if (jcp.bcast_dim <= SMALL_SPATIAL
             && jcp.load_dim * jcp.reduce_dim >= L2_size) {
         jcp.load_grp_count = nstl::max(jcp.load_grp_count, 4);
-    } else if (jcp.bcast_dim <= SMALL_SPATIAL && jcp.mb <= nthreads
+    } else if (jcp.bcast_dim <= SMALL_SPATIAL && jcp.mb <= jcp.nthr
             && jcp.load_dim > 256 && jcp.load_dim / jcp.reduce_dim >= 4) {
         jcp.load_grp_count = nstl::max(jcp.load_grp_count, 2);
         load_blocking = jcp.load_block;
     }
 
     bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
-                             div_up(nthreads, jcp.load_grp_count))
+                             div_up(jcp.nthr, jcp.load_grp_count))
             * jcp.bcast_block;
     bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
     bcast_blocking = rnd_up(bcast_blocking, jcp.bcast_block);

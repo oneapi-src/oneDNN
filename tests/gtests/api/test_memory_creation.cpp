@@ -204,4 +204,30 @@ TEST_F(c_api_memory_test, TestZeroPadBoom) {
     ASSERT_TRUE(dnnl_success == dnnl_engine_destroy(e));
 }
 
+TEST(memory_test_cpp, TestSetDataHandleCPU) {
+    engine eng = engine(engine::kind::cpu, 0);
+    stream str = make_stream(eng);
+
+    const memory::dim N = 1, C = 5, W = 7, H = 7;
+    memory::desc data_md(
+            {N, C, W, H}, memory::data_type::f32, memory::format_tag::nChw16c);
+    memory mem(data_md, eng, DNNL_MEMORY_NONE);
+
+    float *p = (float *)malloc(mem.get_desc().get_size());
+    ASSERT_TRUE(p != NULL);
+    mem.set_data_handle(p, str);
+
+    ASSERT_TRUE(N == 1);
+    ASSERT_TRUE(C < 16);
+    ASSERT_TRUE(data_md.data.format_kind == dnnl_blocked);
+    ASSERT_TRUE(data_md.data.format_desc.blocking.inner_nblks == 1);
+    ASSERT_TRUE(data_md.data.format_desc.blocking.inner_blks[0] == 16);
+    for (int h = 0; h < H; h++)
+        for (int w = 0; w < W; w++)
+            for (int c = C; c < 16; c++)
+                ASSERT_TRUE(p[h * W * 16 + w * 16 + c] == 0.0f);
+
+    free(p);
+}
+
 } // namespace dnnl

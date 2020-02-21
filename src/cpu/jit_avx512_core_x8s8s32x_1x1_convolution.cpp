@@ -82,7 +82,7 @@ void jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t<src_type,
             }
         }
     }
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(pd()->jcp_.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, scratchpad);
     });

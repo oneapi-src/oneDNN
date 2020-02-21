@@ -6,7 +6,7 @@ DNNL supports the following build-time options.
 | Option                      | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
 | DNNL_LIBRARY_TYPE           | **SHARED**, STATIC                  | Defines the resulting library type
-| DNNL_CPU_RUNTIME            | **OMP**, TBB, SEQ                   | Defines the threading runtime for CPU engines
+| DNNL_CPU_RUNTIME            | **OMP**, TBB, SEQ, THREADPOOL       | Defines the threading runtime for CPU engines
 | DNNL_GPU_RUNTIME            | **NONE**, OCL                       | Defines the offload runtime for GPU engines
 | DNNL_BUILD_EXAMPLES         | **ON**, OFF                         | Controls building the examples
 | DNNL_BUILD_TESTS            | **ON**, OFF                         | Controls building the tests
@@ -97,6 +97,31 @@ limitations if built with Intel TBB.
 Functional limitations:
 * Winograd convolution algorithm is not supported for fp32 backward
   by data and backward by weights propagation.
+
+#### Threadpool
+To build DNNL with support for threadpool threading, set `DNNL_CPU_RUNTIME` to
+`THREADPOOL`
+
+~~~sh
+$ cmake -DDNNL_CPU_RUNTIME=THREADPOOL ..
+~~~
+
+The `DNNL_TEST_THREADPOOL_IMPL` CMake variable controls which of the three
+threadpool implementations would be used for testing: `STANDALONE`, `TBB`, or
+`EIGEN`. The latter two require also passing `TBBROOT` or `Eigen3_DIR` paths
+to CMake. For example:
+
+~~~sh
+$ cmake -DDNNL_CPU_RUNTIME=THREADPOOL -DDNNL_TEST_THREADPOOL_IMPL=EIGEN -DEigen3_DIR=/path/to/eigen/share/eigen3/cmake ..
+~~~
+
+Threadpool threading support is experimental and has the same limitations as
+TBB plus more:
+* As threadpools are attached to streams which are only passed during
+  primitive execution, work decomposition is performed statically at the
+  primitive creation time. At the primitive execution time, the threadpool is
+  responsible for balancing the static decomposition from the previous item
+  across available worker threads.
 
 ## GPU Options
 Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine

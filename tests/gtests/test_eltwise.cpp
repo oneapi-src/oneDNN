@@ -358,7 +358,7 @@ protected:
         p = ::testing::TestWithParam<eltwise_test_params>::GetParam();
 
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
 
         Forward();
         if (data_type == memory::data_type::f32

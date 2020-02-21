@@ -1883,7 +1883,7 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
         return ref_gemm(transa, transb, p_m, p_n, p_k, p_alpha, A, p_lda, B,
                 p_lda, p_beta, C, p_ldc, bias);
 
-    int nthr = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
+    int nthr_to_use = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
     int m = *p_m;
     int n = *p_n;
@@ -1898,11 +1898,12 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
 
     // Determine threading partitioning
     calc_nthr_nocopy_avx512_common(
-            m, n, k, nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
+            m, n, k, nthr_to_use, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
     assert(IMPLICATION(!dnnl_thr_syncable(), nthr_k == 1));
 
     // May not happen, but just in case
-    if (nthr < nthr_m * nthr_n * nthr_k) nthr = nthr_m * nthr_n * nthr_k;
+    if (nthr_to_use < nthr_m * nthr_n * nthr_k)
+        nthr_to_use = nthr_m * nthr_n * nthr_k;
 
     nthr_mn = nthr_m * nthr_n;
 
@@ -1914,13 +1915,13 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
 
     if (nthr_k > 1) {
         ompstatus_ = (unsigned char *)malloc(
-                nthr * CACHE_LINE_SIZE, CACHE_LINE_SIZE);
+                nthr_to_use * CACHE_LINE_SIZE, CACHE_LINE_SIZE);
         if (!ompstatus_) return dnnl_out_of_memory;
 
         ompstatus = (unsigned char volatile *)ompstatus_;
         assert(ompstatus);
 
-        for (int i = 0; i < nthr; i++)
+        for (int i = 0; i < nthr_to_use; i++)
             ompstatus[i * CACHE_LINE_SIZE] = 0;
 
         c_buffers = (float *)malloc(
@@ -1932,10 +1933,13 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
     const size_t ws_size_per_thr
             = rnd_up(ws_elems_per_thr * sizeof(float), PAGE_4K);
     if (k > STACK_K_CAPACITY) {
-        ws_buffers = (float *)malloc(nthr * ws_size_per_thr, PAGE_4K);
+        ws_buffers = (float *)malloc(nthr_to_use * ws_size_per_thr, PAGE_4K);
     }
 
-    parallel_nd(nthr, [&](const int ithr) {
+    parallel(nthr_to_use, [&](int ithr, int nthr) {
+        assert(nthr == nthr_to_use);
+        MAYBE_UNUSED(nthr);
+
         int ithr_m, ithr_n, ithr_k, ithr_mn;
         int m_from, m_to, myM;
         int n_from, n_to, myN;
@@ -1948,7 +1952,7 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
                 : 0;
         dim_t ld = ldc;
 
-        int sum_later = (dnnl_get_num_threads() < nthr_m * nthr_n * nthr_k);
+        int sum_later = nthr < nthr_m * nthr_n * nthr_k;
 
         if (ithr < nthr_m * nthr_n * nthr_k) {
 
@@ -2051,7 +2055,10 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
     // handle C summation later
     if (nthr_k > 1 && ompstatus[0] == 0) {
 
-        parallel_nd(nthr, [&](const int ithr) {
+        parallel(nthr_to_use, [&](int ithr, int nthr) {
+            assert(nthr == nthr_to_use);
+            MAYBE_UNUSED(nthr);
+
             int ithr_m, ithr_n, ithr_k, ithr_mn;
             int m_from, m_to, myM;
             int n_from, n_to, myN;

@@ -162,7 +162,7 @@ void jit_avx2_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
         bias = padded_bias;
     }
 
-    parallel(0, ker);
+    parallel(jcp.nthr, ker);
 
     if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
 }
@@ -282,7 +282,7 @@ void jit_avx2_convolution_bwd_data_t::execute_backward_data(
         }
     };
 
-    parallel(0, ker);
+    parallel(jcp.nthr, ker);
 }
 
 void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
@@ -429,29 +429,33 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
             rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
-#if DNNL_THR_SYNC == 1
-    parallel(0, [&](const int ithr, const int nthr) {
-        ker(ithr, nthr);
-        if (pd()->with_bias()) ker_bias(ithr, nthr);
-    });
-#else
-    parallel(0, [&](int ithr, int nthr) { ker(ithr, nthr); });
-    parallel(0, [&](int ithr, int nthr) {
-        assert(nthr == rw->balancer().nthr_);
-        MAYBE_UNUSED(nthr);
-        if (rw->balancer().ithr_njobs(ithr) == 0) return;
-        rw->reduce_nolock(ithr, diff_weights, reducer_wei_scratchpad);
-    });
-    if (pd()->with_bias()) {
-        parallel(0, [&](int ithr, int nthr) { ker_bias(ithr, nthr); });
-        parallel(0, [&](int ithr, int nthr) {
-            assert(nthr == rb->balancer().nthr_);
-            MAYBE_UNUSED(nthr);
-            if (rb->balancer().ithr_njobs(ithr) == 0) return;
-            rb->reduce_nolock(ithr, diff_bias, reducer_bia_scratchpad);
+    if (dnnl_thr_syncable()) {
+        assert(IMPLICATION(pd()->with_bias(),
+                rw->balancer().nthr_ == rb->balancer().nthr_));
+        parallel(rw->balancer().nthr_, [&](const int ithr, const int nthr) {
+            ker(ithr, nthr);
+            if (pd()->with_bias()) ker_bias(ithr, nthr);
         });
+    } else {
+        parallel(rw->balancer().nthr_,
+                [&](int ithr, int nthr) { ker(ithr, nthr); });
+        parallel(rw->balancer().nthr_, [&](int ithr, int nthr) {
+            assert(nthr == rw->balancer().nthr_);
+            MAYBE_UNUSED(nthr);
+            if (rw->balancer().ithr_njobs(ithr) == 0) return;
+            rw->reduce_nolock(ithr, diff_weights, reducer_wei_scratchpad);
+        });
+        if (pd()->with_bias()) {
+            parallel(rb->balancer().nthr_,
+                    [&](int ithr, int nthr) { ker_bias(ithr, nthr); });
+            parallel(rb->balancer().nthr_, [&](int ithr, int nthr) {
+                assert(nthr == rb->balancer().nthr_);
+                MAYBE_UNUSED(nthr);
+                if (rb->balancer().ithr_njobs(ithr) == 0) return;
+                rb->reduce_nolock(ithr, diff_bias, reducer_bia_scratchpad);
+            });
+        }
     }
-#endif
 
     /* TODO: put this in ker_bias */
     if (pd()->wants_padded_bias()) {

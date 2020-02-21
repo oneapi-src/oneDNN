@@ -194,3 +194,31 @@ dnnl_status_t dnnl_set_jit_profiling_flags(unsigned flags) {
 dnnl_status_t dnnl_set_jit_profiling_jitdumpdir(const char *dir) {
     return dnnl::impl::init_jit_profiling_jitdumpdir(dir, true);
 }
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "dnnl_threadpool_iface.hpp"
+namespace dnnl {
+namespace impl {
+namespace threadpool_utils {
+
+namespace {
+static thread_local threadpool_iface *active_threadpool = nullptr;
+}
+
+void DNNL_API activate_threadpool(threadpool_iface *tp) {
+    assert(!active_threadpool);
+    if (!active_threadpool) active_threadpool = tp;
+}
+
+void DNNL_API deactivate_threadpool() {
+    active_threadpool = nullptr;
+}
+
+threadpool_iface *get_active_threadpool() {
+    return active_threadpool;
+}
+
+} // namespace threadpool_utils
+} // namespace impl
+} // namespace dnnl
+#endif

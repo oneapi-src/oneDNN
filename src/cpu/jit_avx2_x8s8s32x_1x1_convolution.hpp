@@ -94,7 +94,7 @@ struct jit_avx2_x8s8s32x_1x1_convolution_fwd_t : public primitive_impl_t {
             jit_avx2_x8s8s32x_1x1_conv_kernel::init_scratchpad(
                     scratchpad, jcp_, *attr());
 
-            rtus_prepare_space_info(this, scratchpad);
+            rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
         }

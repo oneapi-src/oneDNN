@@ -115,8 +115,17 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
     location.")
-if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ)$")
+if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
+endif()
+
+set(_DNNL_TEST_THREADPOOL_IMPL "STANDALONE" CACHE STRING
+    "specifies which threadpool implementation to use when
+    DNNL_CPU_RUNTIME=THREADPOOL is selected. Valid values: STANDALONE, EIGEN,
+    TBB")
+if(NOT "${_DNNL_TEST_THREADPOOL_IMPL}" MATCHES "^(STANDALONE|TBB|EIGEN)$")
+    message(FATAL_ERROR
+        "Unsupported threadpool implementation: ${_DNNL_TEST_THREADPOOL_IMPL}")
 endif()
 
 set(TBBROOT "" CACHE STRING

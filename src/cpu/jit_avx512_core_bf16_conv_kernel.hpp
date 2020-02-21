@@ -403,7 +403,7 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, memory_desc_t &src_md,
             memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
-            memory_desc_t &diff_dst_md);
+            memory_desc_t &diff_dst_md, int nthreads);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 

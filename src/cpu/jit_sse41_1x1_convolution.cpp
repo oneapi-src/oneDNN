@@ -44,7 +44,7 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward(
             const data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(kernel_->jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, scratchpad);
     });

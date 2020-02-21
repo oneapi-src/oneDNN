@@ -90,7 +90,7 @@ protected:
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
 
         ASSERT_TRUE(isF32(data_type) || isS8(data_type));
 

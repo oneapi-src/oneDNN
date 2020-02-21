@@ -211,12 +211,12 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
 
     bool do_copy = (NB / unroll_factor<data_t>::n > 3);
     const int nthr_mn = nthr_m * nthr_n;
-    const int nthr = nthr_mn * nthr_k;
+    const int nthr_to_use = nthr_mn * nthr_k;
     const size_t ws_elems_per_thr = K * unroll_factor<data_t>::m;
     const size_t ws_size_per_thr
             = rnd_up(ws_elems_per_thr * sizeof(data_t), PAGE_4K);
     if (do_copy) {
-        ws_buffers = (data_t *)malloc(nthr * ws_size_per_thr, PAGE_4K);
+        ws_buffers = (data_t *)malloc(nthr_to_use * ws_size_per_thr, PAGE_4K);
         if (!ws_buffers) do_copy = false;
     }
 
@@ -228,7 +228,10 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
                   myN = to - from;
               };
 
-    parallel_nd(nthr, [&](const int ithr) {
+    parallel(nthr_to_use, [&](int ithr, int nthr) {
+        assert(nthr_to_use == nthr);
+        MAYBE_UNUSED(nthr);
+
         int ithr_mn = ithr % nthr_mn;
         int ithr_m = ithr_mn % nthr_m;
         int ithr_n = ithr_mn / nthr_m;
@@ -285,7 +288,10 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
     });
 
     if (nthr_k > 1) {
-        parallel_nd(nthr, [&](const int ithr) {
+        parallel(nthr_to_use, [&](int ithr, int nthr) {
+            assert(nthr_to_use == nthr);
+            MAYBE_UNUSED(nthr);
+
             int ithr_mn = ithr % nthr_mn;
             int ithr_m = ithr_mn % nthr_m;
             int ithr_k = ithr / nthr_mn;

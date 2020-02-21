@@ -229,7 +229,7 @@ protected:
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
         ASSERT_EQ(true,
                 dnnl::impl::utils::one_of(data_type,
                         dnnl::memory::data_type::f32,

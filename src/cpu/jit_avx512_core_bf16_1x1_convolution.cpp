@@ -105,7 +105,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
         bias_dw = const_cast<float *>(bias_in);
     }
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, scratchpad);
     });
@@ -423,7 +423,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
     auto scratchpad = ctx.get_scratchpad_grantor();
-    parallel(0, [&](const int ithr, const int nthr) {
+    const auto &jcp = kernel_->jcp;
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+        assert(nthr == jcp.nthr);
         execute_backward_data_thr(
                 ithr, nthr, diff_dst, weights, diff_src, scratchpad);
     });
@@ -966,6 +968,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     };
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+        assert(nthr == jcp.nthr);
         ker(ithr, jcp.nthr);
         if (dnnl_thr_syncable())
             ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
@@ -974,6 +977,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 
     if (!dnnl_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+            assert(nthr == jcp.nthr);
             ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
             if (pd()->with_bias()) {
                 auto rb = this->reducer_bias_;

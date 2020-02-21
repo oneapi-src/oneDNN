@@ -74,6 +74,7 @@ Data manipulation:
  * @ref dev_guide_int8_computations
  * @ref dev_guide_opencl_interoperability
  * @ref dev_guide_primitive_cache
+ * @ref dev_guide_threadpool
 
 # Examples
 

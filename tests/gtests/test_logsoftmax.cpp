@@ -57,7 +57,7 @@ protected:
         allows_attr_t aa {0}; // doesn't support anything
 
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         prop_kind pk = p.aprop_kind == prop_kind::backward_data
                 ? prop_kind::forward_training
                 : p.aprop_kind;
@@ -139,7 +139,7 @@ protected:
         allows_attr_t aa {0}; // doesn't support anything
 
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         auto prec = data_traits<data_t>::data_type;
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);
         auto diff_mem_desc = memory::desc(p.dims, prec, p.diff_memory_format);

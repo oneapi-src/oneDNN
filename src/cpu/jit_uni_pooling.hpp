@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 

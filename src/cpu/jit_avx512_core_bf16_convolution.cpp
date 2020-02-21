@@ -71,12 +71,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     dim_t work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.nb_ow;
 
-    int nthr;
-    if (jcp.aligned_threads)
-        nthr = jcp.aligned_threads;
-    else
-        nthr = dnnl_get_max_threads();
-
+    int nthr = jcp.aligned_threads ? jcp.aligned_threads : jcp.nthr;
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -152,12 +147,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
     dim_t work_amount = jcp.mb * jcp.ngroups * oc_chunks * jcp.oh * jcp.nb_ow;
 
-    int nthr;
-    if (jcp.aligned_threads)
-        nthr = jcp.aligned_threads;
-    else
-        nthr = dnnl_get_max_threads();
-
+    int nthr = jcp.aligned_threads ? jcp.aligned_threads : jcp.nthr;
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -255,12 +245,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
     dim_t work_amount
             = jcp.mb * jcp.ngroups * oc_chunks * jcp.od * jcp.oh * jcp.nb_ow;
 
-    int nthr;
-    if (jcp.aligned_threads)
-        nthr = jcp.aligned_threads;
-    else
-        nthr = dnnl_get_max_threads();
-
+    int nthr = jcp.aligned_threads ? jcp.aligned_threads : jcp.nthr;
     parallel(nthr, [&](const int ithr, const int nthr) {
         dim_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
@@ -362,7 +347,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
 
     const auto &jcp = pd()->jcp_;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
         int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.id * jcp.ih;
@@ -511,7 +496,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
     const auto &jcp = pd()->jcp_;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
         int work_amount = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih * jcp.nb_iw;
@@ -1611,6 +1596,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::execute_backward_weights(
     if (!dnnl_thr_syncable()
             && (nthr_mb_ > _start_nthr_mb || pd()->with_bias())) {
         parallel(nthr_, [&](const int ithr, const int nthr) {
+            assert(nthr_ == nthr);
             thread_info_t thread_info(this, ctx, ithr);
             if (nthr_mb_ > _start_nthr_mb)
                 reduce_and_convert_diff_weights(&thread_info);

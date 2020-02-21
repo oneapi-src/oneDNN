@@ -18,6 +18,7 @@
 #include <math.h>
 
 #include "c_types_map.hpp" // common
+#include "dnnl_thread.hpp" // common
 #include "type_helpers.hpp" // common
 
 #include "cpu_batch_normalization_utils.hpp" // cpu

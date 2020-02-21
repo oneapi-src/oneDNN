@@ -108,8 +108,9 @@ void jit_uni_layer_normalization_bwd_t::execute_backward(
     if (diff_scaleshift == nullptr)
         diff_scaleshift = scratchpad.template get<float>(key_lnorm_tmp_diff_ss);
 
-    int nthr = dnnl_get_max_threads();
-    parallel(nthr, [&](const int ithr, const int nthr) {
+    int max_nthr = dnnl_get_max_threads();
+    parallel(max_nthr, [&](int ithr, int nthr) {
+        assert(nthr == max_nthr);
         dim_t N_s = 0, N_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
 
@@ -127,15 +128,16 @@ void jit_uni_layer_normalization_bwd_t::execute_backward(
 
     parallel_nd(C, [&](dim_t c) {
         float diff_gamma = 0, diff_beta = 0;
-        for (dim_t n = 0; n < nthr; n++) {
+        for (dim_t n = 0; n < max_nthr; n++) {
             diff_gamma += reduce[C * n + c];
-            diff_beta += reduce[C * nthr + C * n + c];
+            diff_beta += reduce[C * max_nthr + C * n + c];
         }
         diff_scaleshift[c] = diff_gamma;
         diff_scaleshift[C + c] = diff_beta;
     });
 
-    parallel(nthr, [&](const int ithr, const int nthr) {
+    parallel(max_nthr, [&](int ithr, int nthr) {
+        assert(nthr == max_nthr);
         dim_t N_s = 0, N_e = 0;
         balance211(N, nthr, ithr, N_s, N_e);
 

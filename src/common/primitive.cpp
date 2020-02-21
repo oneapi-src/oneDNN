@@ -67,6 +67,8 @@ status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
     status_t status = cvt_primtive_args(primitive->pd(), nargs, c_args, args);
     if (status != status::success) return status;
 
+    stream->before_exec_hook();
+
     exec_ctx_t ctx(stream, std::move(args));
 
     if (get_verbose()) {
@@ -79,6 +81,8 @@ status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
     } else {
         status = primitive->execute(ctx);
     }
+
+    stream->after_exec_hook();
 
     if (msan_enabled) unpoison_outputs(ctx.args());
 

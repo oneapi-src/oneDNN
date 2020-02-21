@@ -85,7 +85,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_1x1_conv_kernel_f32::init_scratchpad(scratchpad, jcp_);
 
-            rtus_prepare_space_info(this, scratchpad);
+            rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
         }
@@ -355,7 +355,7 @@ struct jit_avx2_1x1_convolution_bwd_data_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_1x1_conv_kernel_f32::init_scratchpad(scratchpad, jcp_);
 
-            rtus_prepare_space_info(this, scratchpad);
+            rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             return status::success;
         }
@@ -440,7 +440,7 @@ struct jit_avx2_1x1_convolution_bwd_weights_t : public primitive_impl_t {
             auto scratchpad = scratchpad_registry().registrar();
             jit_avx2_1x1_conv_kernel_f32::init_scratchpad(scratchpad, jcp_);
 
-            rtus_prepare_space_info(this, scratchpad);
+            rtus_prepare_space_info(this, scratchpad, jcp_.nthr);
 
             auto reducer_bia_scratchpad = memory_tracking::registrar_t(
                     scratchpad, memory_tracking::names::prefix_reducer_bia);

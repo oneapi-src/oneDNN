@@ -64,7 +64,8 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             status_t status = jit_sse41_1x1_conv_kernel_f32::init_conf(jcp_,
-                    *desc(), *src_md(), *weights_md(), *dst_md(), *attr());
+                    *desc(), *src_md(), *weights_md(), *dst_md(), *attr(),
+                    dnnl_get_max_threads());
             if (status != status::success) return status;
 
             if (jcp_.with_dw_conv) {

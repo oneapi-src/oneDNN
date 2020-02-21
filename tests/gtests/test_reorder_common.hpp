@@ -120,7 +120,7 @@ protected:
                 == r_pd.dst_desc());
 
         auto r = reorder(r_pd);
-        auto strm = stream(r_pd.get_engine());
+        auto strm = make_stream(r_pd.get_engine());
         r.execute(strm, src, dst);
         strm.wait();
 

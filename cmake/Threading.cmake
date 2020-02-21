@@ -30,3 +30,31 @@ set(DNNL_CPU_THREADING_RUNTIME "${DNNL_CPU_RUNTIME}")
 # std::call_once that relies on mutexes)
 find_package(Threads REQUIRED)
 list(APPEND EXTRA_SHARED_LIBS "${CMAKE_THREAD_LIBS_INIT}")
+
+# A macro to avoid code duplication
+macro(find_package_tbb)
+    if(WIN32)
+        find_package(TBB ${ARGN} COMPONENTS tbb HINTS cmake/win)
+    elseif(APPLE)
+        find_package(TBB ${ARGN} COMPONENTS tbb HINTS cmake/mac)
+    elseif(UNIX)
+        find_package(TBB ${ARGN} COMPONENTS tbb HINTS cmake/lnx)
+    endif()
+
+    if(TBB_FOUND)
+        # Check for TBB version, required >= 2017
+        get_target_property(_tbb_include_dirs TBB::tbb
+            INTERFACE_INCLUDE_DIRECTORIES)
+        file(READ "${_tbb_include_dirs}/tbb/tbb_stddef.h" _tbb_stddef)
+        string(REGEX REPLACE
+            ".*#define TBB_INTERFACE_VERSION ([0-9]+).*" "\\1"
+            TBB_INTERFACE_VERSION "${_tbb_stddef}")
+        if (${TBB_INTERFACE_VERSION} VERSION_LESS 9100)
+            if("${mode}" STREQUAL REQUIRED)
+                message(FATAL_ERROR "DNNL requires TBB version 2017 or above")
+            endif()
+            unset(TBB_FOUND)
+        endif()
+    endif()
+endmacro()
+

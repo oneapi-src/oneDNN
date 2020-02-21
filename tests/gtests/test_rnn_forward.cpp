@@ -145,7 +145,7 @@ protected:
         const bool is_lstm_projection
                 = p.fmts.weights_projection_fmt != memory::format_tag::undef;
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         //@todo check algorithm is one of the supported by RNN
         //ASSERT_EQ(p.aalgorithm, algorithm::vanilla_lstm);
 

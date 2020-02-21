@@ -18,6 +18,7 @@
 #define CPU_JIT_SSE41_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
@@ -51,7 +52,8 @@ struct jit_sse41_convolution_fwd_t : public primitive_impl_t {
             if (!ok) return status::unimplemented;
 
             return jit_sse41_conv_fwd_kernel_f32::init_conf(jcp_, *desc(),
-                    *src_md(), *weights_md(), *dst_md(), *attr());
+                    *src_md(), *weights_md(), *dst_md(), *attr(),
+                    dnnl_get_max_threads());
         }
 
         jit_conv_conf_t jcp_;

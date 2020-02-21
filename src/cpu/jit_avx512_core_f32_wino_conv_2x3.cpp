@@ -856,12 +856,15 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
     auto ptr_V = scratchpad.get<float>(key_wino_V);
     auto ptr_M = scratchpad.get<float>(key_wino_M);
 
-    parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
-            [&](int mb, int tile_y_b, int tile_x_b) {
+    parallel_nd_ext(jcp.nthr, jcp.mb, div_up(jcp.oh, jcp.yb),
+            div_up(jcp.ow, jcp.xb),
+            [&](int ithr, int nthr, int mb, int tile_y_b, int tile_x_b) {
+                assert(nthr <= jcp.nthr);
+                MAYBE_UNUSED(nthr);
+
                 int tile_y = tile_y_b * jcp.yb;
                 int tile_x = tile_x_b * jcp.xb;
 
-                int ithr = dnnl_get_thread_num();
                 auto wino_src = ptr_V + size_wino_src * ithr;
                 auto wino_dst = ptr_M + size_wino_dst * ithr;
 

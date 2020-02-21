@@ -674,16 +674,16 @@ void jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::generate() {
 namespace {
 bool is_winograd_faster_than_direct(const jit_conv_conf_2x3_wino_t &jcp) {
     if (jcp.ver == ver_vnni) {
-        return (jcp.mb <= dnnl_get_max_threads()
+        return (jcp.mb <= jcp.nthr
                        && (jcp.mb > 4 && jcp.ic > 64
                                && !(jcp.oc > 128 && jcp.ih < 14)))
-                || jcp.mb > dnnl_get_max_threads();
+                || jcp.mb > jcp.nthr;
     }
     return true;
 }
 } // namespace
 
-status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t ::init_conf(
+status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
         jit_conv_conf_2x3_wino_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &wei_md, memory_desc_t &dst_md,
         memory_desc_t &bias_md, const primitive_attr_t &attr) {
@@ -1060,12 +1060,15 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
     auto wino_src_base = scratchpad.template get<src_data_t>(key_wino_V);
     auto wino_dst_base = scratchpad.template get<acc_data_t>(key_wino_M);
 
-    parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
-            [&](int mb, int tile_y_b, int tile_x_b) {
+    parallel_nd_ext(jcp.nthr, jcp.mb, div_up(jcp.oh, jcp.yb),
+            div_up(jcp.ow, jcp.xb),
+            [&](int ithr, int nthr, int mb, int tile_y_b, int tile_x_b) {
+                assert(nthr <= jcp.nthr);
+                MAYBE_UNUSED(nthr);
+
                 int tile_y = tile_y_b * jcp.yb;
                 int tile_x = tile_x_b * jcp.xb;
 
-                int ithr = dnnl_get_thread_num();
                 auto wino_src = wino_src_base + jcp.size_wino_src * ithr;
                 auto wino_dst = wino_dst_base + jcp.size_wino_dst * ithr;
 

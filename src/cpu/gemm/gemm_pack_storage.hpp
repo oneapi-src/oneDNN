@@ -18,6 +18,7 @@
 #define GEMM_PACK_STORAGE_HPP
 
 #include <cstdint>
+#include "dnnl_thread.hpp"
 #include "gemm_threading.hpp"
 #include "utils.hpp"
 
@@ -280,8 +281,30 @@ protected:
 
         template <typename data_type>
         void finalize(size_t &cur_off, int nslices) {
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+            // This, I hope, is a temporary workaround...
+            // The reason for this special case is that in case of threadpool
+            // threading this function may be called to estimate the amount of
+            // memory needed when no threading information is actually
+            // available. Hence, it needs to provide an upper bound.
+            size_t max_off = cur_off;
+            for (int id = 0; id < nslices; id++) {
+                slice[id].finalize<data_type>(cur_off);
+                if (id == 0) {
+                    // Assume that slice[0] is the largest one.
+                    size_t slice0_size = cur_off - max_off;
+                    max_off += slice0_size * dnnl_get_max_threads();
+                }
+            }
+            if (!threadpool_utils::get_active_threadpool() && nslices)
+                // The std::max is a paranoid check for the case when slice[0]
+                // is not actually the largest one. Probably a crash will
+                // happen anyways...
+                cur_off = std::max(cur_off, max_off);
+#else
             for (int id = 0; id < nslices; id++)
                 slice[id].finalize<data_type>(cur_off);
+#endif
         }
     } * matrix_header, *sums_header;
 

@@ -125,7 +125,7 @@ protected:
         }
 
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         std::vector<memory::desc> srcs_md;

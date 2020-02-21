@@ -950,15 +950,16 @@ static void prb_block_for_cache(tr::prb_t &prb) {
 /** finds the maximum number of dimension the kernel should process and
  * optionally splits one of the dimension to achieve better balance between
  * parallel driver and the kernel. */
-static void prb_thread_kernel_balance(tr::prb_t &prb, int &ndims_ker_max) {
+static void prb_thread_kernel_balance(
+        tr::prb_t &prb, int &ndims_ker_max, int nthr) {
     size_t sz_total = 1;
     for (int d = 0; d < prb.ndims; ++d)
         sz_total *= prb.nodes[d].n;
 
     /* sz_drv_min is the minimal size for the parallel
      * driver required for good parallelization */
-    const size_t sz_drv_min = nstl::min<size_t>(
-            16 * dnnl_get_max_threads(), utils::div_up(sz_total, 1024));
+    const size_t sz_drv_min
+            = nstl::min<size_t>(16 * nthr, utils::div_up(sz_total, 1024));
 
     /* kdims -- # of dimensions processed by a kernel
      * sz_ker_cur -- product of the dimension processed by a kernel
@@ -1064,7 +1065,8 @@ struct jit_uni_reorder_t : public primitive_impl_t {
             });
 
             int ndims_ker_max;
-            prb_thread_kernel_balance(prb, ndims_ker_max);
+            int nthr = dnnl_get_max_threads();
+            prb_thread_kernel_balance(prb, ndims_ker_max, nthr);
 
             tr::kernel_t::desc_t ker_desc;
             status_t ker_init_status
@@ -1090,11 +1092,13 @@ struct jit_uni_reorder_t : public primitive_impl_t {
             _pd->prb_ = prb;
             _pd->ker_desc_ = ker_desc;
             _pd->init_scratchpad_md();
+            _pd->nthr_ = nthr;
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }
 
         tr::prb_t prb_;
         tr::kernel_t::desc_t ker_desc_;
+        int nthr_;
     };
 
     jit_uni_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {
@@ -1198,7 +1202,7 @@ struct jit_uni_reorder_t : public primitive_impl_t {
         if (ndims - ndims_ker == 0) {
             omp_driver_0d(ndims_ker, in, out, scale);
         } else {
-            parallel(0, [&](const int ithr, const int nthr) {
+            parallel(pd()->nthr_, [&](const int ithr, const int nthr) {
                 switch (ndims - ndims_ker) {
                     case 1:
                         omp_driver_1d(ithr, nthr, ndims_ker, in, out, scale);

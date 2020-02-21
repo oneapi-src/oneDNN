@@ -225,8 +225,7 @@ private:
         const float *scales = pd()->attr()->rnn_weights_qparams_.scales_;
         const int mask = pd()->attr()->rnn_weights_qparams_.mask_;
 
-        int nthr = dnnl_get_max_threads();
-        parallel(nthr, [&](const int ithr, const int nthr) {
+        parallel(0, [&](const int ithr, const int nthr) {
             int start, end;
             balance211(L * D * I, nthr, ithr, start, end);
             for (int ldi = start; ldi < end; ldi++) {

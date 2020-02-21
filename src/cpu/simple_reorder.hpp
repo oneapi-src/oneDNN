@@ -577,9 +577,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_mult = blksize;
         constexpr int o_mult = 1;
 
-        parallel_nd(
-                G, NB_OC, NB_IC, H, W, [&](int g, int O, int I, int h, int w) {
-                    int ithr = dnnl_get_thread_num();
+        parallel_nd_ext(0, G, NB_OC, NB_IC, H, W,
+                [&](int ithr, int, int g, int O, int I, int h, int w) {
                     float *_wspace = wspace + wsp_size * ithr;
                     auto i = &input[input_d.blk_off<!w_groups>(
                             g, i_mult * O, i_mult * I, h, w)];
@@ -655,9 +654,8 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         constexpr int i_c_mult = blksize;
         constexpr int o_c_mult = 1;
 
-        parallel_nd(
-                dims[0], pdims[1] / blksize, H, [&](int n, int nb_c, int h) {
-                    int ithr = dnnl_get_thread_num();
+        parallel_nd_ext(0, dims[0], pdims[1] / blksize, H,
+                [&](int ithr, int, int n, int nb_c, int h) {
                     float *_wspace = wspace + wsp_size * ithr;
                     auto i = &input[input_d.blk_off(n, i_c_mult * nb_c, h)];
                     auto o = &output[output_d.blk_off(n, o_c_mult * nb_c, h)];

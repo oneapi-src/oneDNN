@@ -795,4 +795,18 @@ void test_bwd_pd_constructors(const op_desc_t &op_desc, const pd_t &pd,
     test_bwd_pd_allow_empty<op_desc_t, pd_t>(test_pd, hint_pd);
 }
 
+inline dnnl::stream make_stream(dnnl::engine engine,
+        dnnl::stream::flags flags = dnnl::stream::flags::default_flags) {
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    if (engine.get_kind() != dnnl::engine::kind::cpu)
+        return dnnl::stream(engine, flags);
+    dnnl::stream_attr stream_attr(dnnl::engine::kind::cpu);
+    stream_attr.set_threadpool(
+            dnnl::impl::threadpool_utils::get_active_threadpool());
+    return dnnl::stream(engine, flags, stream_attr);
+#else
+    return dnnl::stream(engine, flags);
+#endif
+}
+
 #endif

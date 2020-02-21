@@ -17,6 +17,8 @@
 #ifndef DNNL_THREAD_HPP
 #define DNNL_THREAD_HPP
 
+#include <algorithm>
+
 #include "utils.hpp"
 #include "z_magic.hpp"
 
@@ -25,31 +27,16 @@
 inline int dnnl_get_max_threads() {
     return 1;
 }
-inline int dnnl_get_num_threads() {
-    return 1;
-}
-inline int dnnl_get_thread_num() {
-    return 0;
-}
 inline int dnnl_in_parallel() {
     return 0;
 }
 inline void dnnl_thr_barrier() {}
 
-#define PRAGMA_OMP(...)
-
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
-#include <omp.h>
+#include "omp.h"
 #define DNNL_THR_SYNC 1
-
 inline int dnnl_get_max_threads() {
     return omp_get_max_threads();
-}
-inline int dnnl_get_num_threads() {
-    return omp_get_num_threads();
-}
-inline int dnnl_get_thread_num() {
-    return omp_get_thread_num();
 }
 inline int dnnl_in_parallel() {
     return omp_in_parallel();
@@ -58,21 +45,12 @@ inline void dnnl_thr_barrier() {
 #pragma omp barrier
 }
 
-#define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
-
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
 #include "tbb/parallel_for.h"
 #include "tbb/task_arena.h"
 #define DNNL_THR_SYNC 0
-
 inline int dnnl_get_max_threads() {
     return tbb::this_task_arena::max_concurrency();
-}
-inline int dnnl_get_num_threads() {
-    return dnnl_get_max_threads();
-}
-inline int dnnl_get_thread_num() {
-    return tbb::this_task_arena::current_thread_index();
 }
 inline int dnnl_in_parallel() {
     return 0;
@@ -80,12 +58,65 @@ inline int dnnl_in_parallel() {
 inline void dnnl_thr_barrier() {
     assert(!"no barrier in TBB");
 }
-inline tbb::static_partitioner dnnl_tbb_partitioner() {
-    return tbb::static_partitioner();
+
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include <thread>
+#include "dnnl_threadpool_iface.hpp"
+#define DNNL_THR_SYNC 0
+
+namespace dnnl {
+namespace impl {
+namespace threadpool_utils {
+
+// Each thread maintains a thread-local pointer to a threadpool which is
+// 'active' for the current thread. If this pointer is a nullptr, all the work
+// is executed sequentially.
+
+// Sets `tp` to be the active threadpool for the calling thread. This will
+// make all calls to `get_active_threadpool()` to return `tp` thus enabling
+// `parallel()` and `parallel_nd()` to submit work to `tp`.
+void activate_threadpool(threadpool_iface *tp);
+
+// Resets the active threadpool for the calling thread to nullptr. After this
+// call `parallel()` and `parallel_nd()` would execute work sequentially.
+void deactivate_threadpool();
+
+// Returns the active threadpool for the calling thread.
+threadpool_iface *get_active_threadpool();
+
+} // namespace threadpool_utils
+} // namespace impl
+} // namespace dnnl
+
+inline int dnnl_get_max_threads() {
+    using namespace dnnl::impl::threadpool_utils;
+    dnnl::threadpool_iface *tp = get_active_threadpool();
+    // This is the maximum number of threads DNNL would use
+    int def_max_threads = std::thread::hardware_concurrency();
+    assert(def_max_threads > 0);
+    // Use the default value if the threadpool-provided is outside the range
+    // [1, def_max_threads]
+    return tp ? std::min(std::max(1, tp->get_num_threads()), def_max_threads)
+              : def_max_threads;
 }
+inline int dnnl_in_parallel() {
+    using namespace dnnl::impl::threadpool_utils;
+    dnnl::threadpool_iface *tp = get_active_threadpool();
+    return tp ? tp->get_in_parallel() : 0;
+}
+inline void dnnl_thr_barrier() {
+    assert(!"no barrier with THREADPOOL");
+}
+#endif
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+#define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
+#define OMP_GET_THREAD_NUM() omp_get_thread_num()
+#define OMP_GET_NUM_THREADS() omp_get_num_threads()
+#else
 #define PRAGMA_OMP(...)
-
+#define OMP_GET_THREAD_NUM() 0
+#define OMP_GET_NUM_THREADS() 1
 #endif
 
 // MSVC still supports omp 2.0 only

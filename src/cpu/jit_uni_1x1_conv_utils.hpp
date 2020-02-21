@@ -95,12 +95,11 @@ inline void rtus_prepare(conv_pd_t *self, const convolution_desc_t *&conv_d,
 }
 
 template <typename conv_pd_t>
-inline void rtus_prepare_space_info(
-        conv_pd_t *self, memory_tracking::registrar_t &scratchpad) {
+inline void rtus_prepare_space_info(conv_pd_t *self,
+        memory_tracking::registrar_t &scratchpad, int max_threads) {
     if (!self->rtus_.reduce_src_) return;
     const auto &jcp = self->jcp_;
 
-    const int max_threads = dnnl_get_max_threads();
     const size_t factor = utils::pick_by_prop_kind(self->desc()->prop_kind,
             jcp.nb_reduce, jcp.nb_load_blocking_max, jcp.nb_bcast_blocking);
     size_t typesize

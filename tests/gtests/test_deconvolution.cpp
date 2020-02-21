@@ -142,7 +142,7 @@ protected:
                 deconvolution_test_params>::GetParam();
 
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
 
         ASSERT_EQ(p.aalgorithm, algorithm::deconvolution_direct);
         memory::data_type data_type = data_traits<data_t>::data_type;
