@@ -237,6 +237,10 @@ INST_TEST_CASE(TestGEMM_expected_failures,
                 true, dnnl_invalid_arguments});
 
 INST_TEST_CASE(TestGEMM_general_cases_fix_offset,
+        test_params {'N', 'n', 30, 20, 10, 1.0, 0.0, 60, 50, 80, fix_use_oc},
+        test_params {'n', 'T', 30, 20, 10, 1.0, 0.0, 60, 50, 80, fix_use_oc},
+        test_params {'T', 'N', 30, 20, 10, 1.0, 0.0, 60, 50, 80, fix_use_oc},
+        test_params {'t', 't', 30, 20, 10, 1.0, 0.0, 60, 50, 80, fix_use_oc},
         test_params {'N', 'n', 30, 20, 10, 2.0, 1.0, 60, 50, 80, fix_use_oc},
         test_params {'n', 'T', 30, 20, 10, 2.0, 1.0, 60, 50, 80, fix_use_oc},
         test_params {'T', 'N', 30, 20, 10, 2.0, 1.0, 60, 50, 80, fix_use_oc},
@@ -290,6 +294,10 @@ INST_TEST_CASE(TestGEMM_general_cases_fix_offset,
                 'n', 'n', 2, 2, 10000, 1.0, 2.0, 10000, 2, 2, fix_no_offsets});
 
 INST_TEST_CASE(TestGEMM_general_cases_col_offset,
+        test_params {'N', 'n', 30, 20, 10, 1.0, 0.0, 60, 50, 80, col_use_oc},
+        test_params {'n', 'T', 30, 20, 10, 1.0, 0.0, 60, 50, 80, col_use_oc},
+        test_params {'T', 'N', 30, 20, 10, 1.0, 0.0, 60, 50, 80, col_use_oc},
+        test_params {'t', 't', 30, 20, 10, 1.0, 0.0, 60, 50, 80, col_use_oc},
         test_params {'N', 'n', 30, 20, 10, 2.0, 1.0, 60, 50, 80, col_use_oc},
         test_params {'n', 'T', 30, 20, 10, 2.0, 1.0, 60, 50, 80, col_use_oc},
         test_params {'T', 'N', 30, 20, 10, 2.0, 1.0, 60, 50, 80, col_use_oc},
@@ -343,6 +351,10 @@ INST_TEST_CASE(TestGEMM_general_cases_col_offset,
                 'n', 'n', 2, 2, 10000, 1.0, 2.0, 10000, 2, 2, col_no_offsets});
 
 INST_TEST_CASE(TestGEMM_general_cases_row_offset,
+        test_params {'N', 'n', 30, 20, 10, 1.0, 0.0, 60, 50, 80, row_use_oc},
+        test_params {'n', 'T', 30, 20, 10, 1.0, 0.0, 60, 50, 80, row_use_oc},
+        test_params {'T', 'N', 30, 20, 10, 1.0, 0.0, 60, 50, 80, row_use_oc},
+        test_params {'t', 't', 30, 20, 10, 1.0, 0.0, 60, 50, 80, row_use_oc},
         test_params {'N', 'n', 30, 20, 10, 2.0, 1.0, 60, 50, 80, row_use_oc},
         test_params {'n', 'T', 30, 20, 10, 2.0, 1.0, 60, 50, 80, row_use_oc},
         test_params {'T', 'N', 30, 20, 10, 2.0, 1.0, 60, 50, 80, row_use_oc},

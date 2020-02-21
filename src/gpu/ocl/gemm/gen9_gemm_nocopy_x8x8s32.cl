@@ -101,13 +101,14 @@
             if (m > 0) \
                 COMPUTE_C(c[0], sc[X / 4 + 0].s##OFF + xa[0] + xb[0], 0); \
             if (m > 1) \
-                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 1); \
+                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 0); \
             if (m > 2) \
-                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 2); \
+                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 0); \
             if (m > 3) \
-                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 3); \
+                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 0); \
             xb++; \
             c += ldc; \
+            co++; \
         } \
     } while (0)
 #else
@@ -117,14 +118,13 @@
             if (m > 0) \
                 COMPUTE_C(c[0], sc[X / 4 + 0].s##OFF + xa[0] + xb[0], 0); \
             if (m > 1) \
-                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 0); \
+                COMPUTE_C(c[1], sc[X / 4 + 4].s##OFF + xa[1] + xb[0], 1); \
             if (m > 2) \
-                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 0); \
+                COMPUTE_C(c[2], sc[X / 4 + 8].s##OFF + xa[2] + xb[0], 2); \
             if (m > 3) \
-                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 0); \
+                COMPUTE_C(c[3], sc[X / 4 + 12].s##OFF + xa[3] + xb[0], 3); \
             xb++; \
             c += ldc; \
-            co++; \
         } \
     } while (0)
 #endif
@@ -175,10 +175,10 @@ gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
 
     if (apply_co) {
         co += offsetCO;
-#ifdef CC
+#ifdef RR
         co += GROUPSIZE_M * gdx + UNROLL_M * idx + UNROLL_M * lid / GRX;
 #endif
-#ifdef RR
+#ifdef CC
         co += GROUPSIZE_N * gdy + UNROLL_N * idy;
 #endif
     }
