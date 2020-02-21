@@ -49,8 +49,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init() {
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && can_use_gemm() && batch() == 1
-            && check_bias()
+            && dst_md()->data_type == dst_type && can_use_gemm() && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);
@@ -165,47 +164,60 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
         need_free_acc = true;
     }
 
-    // gemm section
-    {
-        const auto &src_strides = &src_d.blocking_desc().strides[batched];
-        const auto &weights_strides
-                = &weights_d.blocking_desc().strides[batched];
+    const auto &src_strides = &src_d.blocking_desc().strides[batched];
+    const auto &weights_strides = &weights_d.blocking_desc().strides[batched];
 
-        const char *transA
-                = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N"
-                                                                       : "T";
-        const char *transB
-                = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
-                ? "N"
-                : "T";
+    const char *transA
+            = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N" : "T";
+    const char *transB
+            = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
+            ? "N"
+            : "T";
 
-        const int M_s32 = (int)M;
-        const int N_s32 = (int)N;
-        const int K_s32 = (int)K;
+    auto _src = src;
+    auto _weights = weights;
+    auto _dst = dst;
+    auto _acc = acc;
 
-        const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-        const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-        const int ldc = (int)dst_bd.strides[batched + 0];
+    const int M_s32 = (int)M;
+    const int N_s32 = (int)N;
+    const int K_s32 = (int)K;
 
-        const float alpha = params.get_gemm_alpha(scales);
-        const float beta = params.gemm_beta_;
+    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
+    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
+    const int ldc = (int)dst_bd.strides[batched + 0];
 
+    const float alpha = params.get_gemm_alpha(scales);
+    const float beta = params.gemm_beta_;
+
+    const auto src_batch_stride = src_d.blocking_desc().strides[0];
+    const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
+    const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
+    const auto acc_batch_stride = M * N;
+
+    for (dim_t b = 0; b < batch; ++b) {
         status_t status = gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32,
-                &K_s32, &alpha, weights, &ldb, src, &lda, &beta, acc, &ldc);
+                &K_s32, &alpha, _weights, &ldb, _src, &lda, &beta, _acc, &ldc);
         if (status != status::success) {
             if (need_free_acc) free(acc);
             return status;
         }
-    }
 
-    if (params.has_pp_kernel_) {
-        const bool force_sequential = pp_kernel_->sequential_kernel();
-        const float *pp_scales = params.get_post_processing_scales(scales);
-        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-            size_t start {}, end {};
-            balance211((size_t)(M * N), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N);
-        });
+        if (params.has_pp_kernel_) {
+            const bool force_sequential = pp_kernel_->sequential_kernel();
+            const float *pp_scales = params.get_post_processing_scales(scales);
+            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+                size_t start {}, end {};
+                balance211((size_t)(M * N), nthr, ithr, start, end);
+                (*pp_kernel_)(
+                        _dst, _acc, bias, pp_scales, start, end, (size_t)N);
+            });
+        }
+
+        _src += src_batch_stride;
+        _weights += weights_batch_stride;
+        _dst += dst_batch_stride;
+        _acc += acc_batch_stride;
     }
 
     if (need_free_acc) free(acc);

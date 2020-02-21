@@ -80,7 +80,7 @@ gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init() {
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && batch() == 1 && check_bias()
+            && dst_md()->data_type == dst_type && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::zero_points_runtime
@@ -162,35 +162,45 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         need_free_acc = true;
     }
 
-    // gemm section
-    {
-        const auto &src_strides = &src_d.blocking_desc().strides[batched];
-        const auto &weights_strides
-                = &weights_d.blocking_desc().strides[batched];
+    const auto &src_strides = &src_d.blocking_desc().strides[batched];
+    const auto &weights_strides = &weights_d.blocking_desc().strides[batched];
 
-        const char *transA
-                = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N"
-                                                                       : "T";
-        const char *transB
-                = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
-                ? "N"
-                : "T";
+    const char *transA
+            = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N" : "T";
+    const char *transB
+            = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
+            ? "N"
+            : "T";
 
-        const int M_s32 = (int)M;
-        const int N_s32 = (int)N;
-        const int K_s32 = (int)K;
+    auto _src = src;
+    auto _weights = weights;
+    auto _dst = dst;
+    auto _acc = acc;
 
-        const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-        const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-        const int ldc = (int)dst_bd.strides[batched + 0];
+    const int M_s32 = (int)M;
+    const int N_s32 = (int)N;
+    const int K_s32 = (int)K;
 
-        const float alpha = params.get_gemm_alpha(scales);
-        const float beta = params.gemm_beta_;
-        const int32_t gemm_off_c = 0;
+    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
+    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
+    const int ldc = (int)dst_bd.strides[batched + 0];
 
+    const float alpha = params.get_gemm_alpha(scales);
+    const float beta = params.gemm_beta_;
+    const int32_t gemm_off_c = 0;
+
+    const auto src_batch_stride = src_d.blocking_desc().strides[0];
+    const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
+    const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
+    const auto acc_batch_stride = M * N;
+
+    std::vector<acc_data_t> src_compensation(M, 0);
+    std::vector<acc_data_t> weights_compensation(N, 0);
+
+    for (dim_t b = 0; b < batch; ++b) {
         status_t status = gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32,
-                &K_s32, &alpha, weights, &ldb, &gemm_off_b, src, &lda,
-                &gemm_off_a, &beta, acc, &ldc, &gemm_off_c);
+                &K_s32, &alpha, _weights, &ldb, &gemm_off_b, _src, &lda,
+                &gemm_off_a, &beta, _acc, &ldc, &gemm_off_c);
         if (status != status::success) {
             if (need_free_acc) free(acc);
             return status;
@@ -198,42 +208,49 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
         // if igemm cannot handle src and weights zero points
         if (post_process_src_and_weights_zero_points) {
-            std::vector<acc_data_t> src_compensation(M, 0);
-            std::vector<acc_data_t> weights_compensation(N, 0);
-
             if (weights_zero_point) {
                 for_(dim_t m = 0; m < M; ++m)
-                for (dim_t k = 0; k < K; ++k)
+                for (dim_t k = 0; k < K; ++k) {
+                    if (k == 0) src_compensation[m] = acc_data_t(0);
                     src_compensation[m]
-                            += src[src_strides[0] * m + src_strides[1] * k];
+                            += _src[src_strides[0] * m + src_strides[1] * k];
+                }
             }
 
             if (src_zero_point) {
                 for_(dim_t k = 0; k < K; ++k)
-                for (dim_t n = 0; n < N; ++n)
-                    weights_compensation[n] += weights[weights_strides[0] * k
+                for (dim_t n = 0; n < N; ++n) {
+                    if (k == 0) weights_compensation[n] = acc_data_t(0);
+                    weights_compensation[n] += _weights[weights_strides[0] * k
                             + weights_strides[1] * n];
+                }
             }
 
             for_(dim_t m = 0; m < M; ++m)
             for (dim_t n = 0; n < N; ++n)
-                acc[m * ldc + n] += 0 - src_zero_point * weights_compensation[n]
+                _acc[m * ldc + n] += 0
+                        - src_zero_point * weights_compensation[n]
                         - weights_zero_point * src_compensation[m]
                         + src_zero_point * weights_zero_point * (int)K;
         }
-    }
 
-    bool postops_in_matmul = need_post_processing(pd(), dst_zero_point_f32);
-    assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
+        bool postops_in_matmul = need_post_processing(pd(), dst_zero_point_f32);
+        assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
 
-    if (postops_in_matmul) {
-        const bool force_sequential = pp_kernel_->sequential_kernel();
-        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-            size_t start {}, end {};
-            balance211((size_t)(M * N), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
-                    &dst_zero_point_f32);
-        });
+        if (postops_in_matmul) {
+            const bool force_sequential = pp_kernel_->sequential_kernel();
+            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+                size_t start {}, end {};
+                balance211((size_t)(M * N), nthr, ithr, start, end);
+                (*pp_kernel_)(_dst, _acc, bias, scales, start, end, (size_t)N,
+                        &dst_zero_point_f32);
+            });
+        }
+
+        _src += src_batch_stride;
+        _weights += weights_batch_stride;
+        _dst += dst_batch_stride;
+        _acc += acc_batch_stride;
     }
 
     if (need_free_acc) free(acc);
