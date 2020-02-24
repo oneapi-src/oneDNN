@@ -96,6 +96,8 @@ file(GLOB PRIM_TEST_CASES_SRC
 if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
     set_source_files_properties(
             test_convolution_eltwise_forward_x8s8f32s32.cpp
+            test_convolution_backward_data_f32.cpp
+            test_convolution_backward_weights_f32.cpp
             PROPERTIES COMPILE_FLAGS "/O1")
 endif()
 
