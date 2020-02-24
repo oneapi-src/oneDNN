@@ -56,13 +56,12 @@ supporting destination as input memory and the corresponding formulas.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output | Execution argument index |
-| ---                     | ---                      |
-| \src                    | DNNL_ARG_SRC             |
-| \dst                    | DNNL_ARG_DST             |
-| \diffsrc                | DNNL_ARG_DIFF_SRC        |
-| \diffdst                | DNNL_ARG_DIFF_DST        |
-
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
 
 ## Implementation Details
 
@@ -119,7 +118,6 @@ meaning associated with any logical dimensions.
 ### Post-ops and Attributes
 
 The eltwise primitive doesn't support any post-ops or attributes.
-
 
 @anchor dg_eltwise_impl_limits
 ## Implementation Limitations

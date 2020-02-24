@@ -153,7 +153,7 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_impl_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        /* LN supports arbitraty layout for input/output statistics.
+        /* LN supports arbitrary layout for input/output statistics.
          * For best performance we compute LN with statistics in the same format
          * as data tensor (i.e. data in abcd, stats in abc) and user's
          * input/output statistics are reordered if necessary */
@@ -299,7 +299,7 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_impl_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
-        /* LN supports arbitraty layout for input/output statistics.
+        /* LN supports arbitrary layout for input/output statistics.
          * For best performance we compute LN with statistics in the same format
          * as data tensor (i.e. data in abcd, stats in abc) and user's
          * input/output statistics are reordered if necessary */

@@ -40,16 +40,16 @@ update.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output | Execution argument index |
-| ---                     | ---                      |
-| \src                    | DNNL_ARG_SRC             |
-| \weights                | DNNL_ARG_WEIGHTS         |
-| \bias                   | DNNL_ARG_BIAS            |
-| \dst                    | DNNL_ARG_DST             |
-| \diffsrc                | DNNL_ARG_DIFF_SRC        |
-| \diffweights            | DNNL_ARG_DIFF_WEIGHTS    |
-| \diffbias               | DNNL_ARG_DIFF_BIAS       |
-| \diffdst                | DNNL_ARG_DIFF_DST        |
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \weights               | DNNL_ARG_WEIGHTS         |
+| \bias                  | DNNL_ARG_BIAS            |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffweights           | DNNL_ARG_DIFF_WEIGHTS    |
+| \diffbias              | DNNL_ARG_DIFF_BIAS       |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
 
 
 ## Implementation Details

@@ -43,7 +43,6 @@ h_{t, l} = Cell(h_{t, l-1}, h_{t-1, l})
 \f]
 where \f$t,l\f$ are the indices of the timestamp and the layer of the cell being executed.
 
-
 And here is the equation for LSTM cells:
 
 \f[ \begin{equation*}
@@ -197,7 +196,6 @@ achieve this by multiplying \f$W_u\f$, \f$U_u\f$ and \f$B_u\f$ by \f$-1\f$.
 This is possible as \f$u_t = \sigma(W_u \cdot h_{t,l-1} + U_u \cdot h_{t-1, l}
 + B_u)\f$, and \f$1 – \sigma(a) = \sigma(-a)\f$.
 
-
 ## Linear-Before-Reset GRU
 
 A three-gate gated recurrent unit cell with linear layer applied before the
@@ -208,7 +206,6 @@ reset gate, initialized with or  as in the following example.
         weights_layer_desc, weights_iter_desc, bias_desc,
         dst_layer_desc, dst_iter_desc);
 ~~~
-
 
 The following equation describes the mathematical behavior of the
 Linear-Before-Reset GRU cell.
@@ -247,29 +244,27 @@ once again by another forward pass.
 # Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output | Execution argument index    |
-| ---                     | ---                         |
-| \srclayer               | DNNL_ARG_SRC_LAYER          |
-| \srciter                | DNNL_ARG_SRC_ITER           |
-| \srciterc               | DNNL_ARG_SRC_ITER_C         |
-| \weightslayer           | DNNL_ARG_WEIGHTS_LAYER      |
-| \weightsiter            | DNNL_ARG_WEIGHTS_ITER       |
-| \bias                   | DNNL_ARG_BIAS               |
-| \dstlayer               | DNNL_ARG_DST_LAYER          |
-| \dstiter                | DNNL_ARG_DST_ITER           |
-| \dstiterc               | DNNL_ARG_DST_ITER_C         |
-| workspace               | DNNL_WORKSPACE              |
-| \diffsrclayer           | DNNL_ARG_DIFF_SRC_LAYER     |
-| \diffsrciter            | DNNL_ARG_DIFF_SRC_ITER      |
-| \diffsrciterc           | DNNL_ARG_DIFF_SRC_ITER_C    |
-| \diffweightslayer       | DNNL_ARG_DIFF_WEIGHTS_LAYER |
-| \diffweightsiter        | DNNL_ARG_DIFF_WEIGHTS_ITER  |
-| \diffbias               | DNNL_ARG_DIFF_BIAS          |
-| \diffdstlayer           | DNNL_ARG_DIFF_DST_LAYER     |
-| \diffdstiter            | DNNL_ARG_DIFF_DST_ITER      |
-| \diffdstiterc           | DNNL_ARG_DIFF_DST_ITER_C    |
-
-
+| Primitive input/output | Execution argument index    |
+| ---                    | ---                         |
+| \srclayer              | DNNL_ARG_SRC_LAYER          |
+| \srciter               | DNNL_ARG_SRC_ITER           |
+| \srciterc              | DNNL_ARG_SRC_ITER_C         |
+| \weightslayer          | DNNL_ARG_WEIGHTS_LAYER      |
+| \weightsiter           | DNNL_ARG_WEIGHTS_ITER       |
+| \bias                  | DNNL_ARG_BIAS               |
+| \dstlayer              | DNNL_ARG_DST_LAYER          |
+| \dstiter               | DNNL_ARG_DST_ITER           |
+| \dstiterc              | DNNL_ARG_DST_ITER_C         |
+| workspace              | DNNL_WORKSPACE              |
+| \diffsrclayer          | DNNL_ARG_DIFF_SRC_LAYER     |
+| \diffsrciter           | DNNL_ARG_DIFF_SRC_ITER      |
+| \diffsrciterc          | DNNL_ARG_DIFF_SRC_ITER_C    |
+| \diffweightslayer      | DNNL_ARG_DIFF_WEIGHTS_LAYER |
+| \diffweightsiter       | DNNL_ARG_DIFF_WEIGHTS_ITER  |
+| \diffbias              | DNNL_ARG_DIFF_BIAS          |
+| \diffdstlayer          | DNNL_ARG_DIFF_DST_LAYER     |
+| \diffdstiter           | DNNL_ARG_DIFF_DST_ITER      |
+| \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C    |
 
 # Implementation details
 
@@ -277,7 +272,6 @@ argument index as specified by the following table.
 
 The following table lists the combination of data types supported by the RNN
 primitive for each input and output memory object.
-
 
  Propagation                | Cell Function | Input data | Recurrent data (1) | Weights | Bias | Output Data
 --------------------------- | ------------- | ---------- | ------------------ | ------- | ---- | ------------

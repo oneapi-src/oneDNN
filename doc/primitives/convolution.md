@@ -124,22 +124,20 @@ The weights update computes \diffweights and \diffbias based on
 different on forward propagation, backward propagation, and weights
 update.
 
-
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output | Execution argument index |
-| ---                     | ---                      |
-| \src                    | DNNL_ARG_SRC             |
-| \weights                | DNNL_ARG_WEIGHTS         |
-| \bias                   | DNNL_ARG_BIAS            |
-| \dst                    | DNNL_ARG_DST             |
-| \diffsrc                | DNNL_ARG_DIFF_SRC        |
-| \diffweights            | DNNL_ARG_DIFF_WEIGHTS    |
-| \diffbias               | DNNL_ARG_DIFF_BIAS       |
-| \diffdst                | DNNL_ARG_DIFF_DST        |
-| \f$depthwise\f$         | DNNL_ARG_ATTR_POST_OP_DW |
-
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \weights               | DNNL_ARG_WEIGHTS         |
+| \bias                  | DNNL_ARG_BIAS            |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffweights           | DNNL_ARG_DIFF_WEIGHTS    |
+| \diffbias              | DNNL_ARG_DIFF_BIAS       |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
+| \f$depthwise\f$        | DNNL_ARG_ATTR_POST_OP_DW |
 
 ## Implementation Details
 
@@ -391,7 +389,6 @@ processors available.  (For automatic selection to work as intended, use the
 same thread affinity settings when creating the convolution as when executing
 the convolution.)
 
-
 @anchor dg_conv_impl_limits
 ## Implementation Limitations
 
@@ -404,7 +401,6 @@ the convolution.)
 
 3. **GPU**
     - No support for Winograd algorithm
-
 
 ## Performance Tips
 

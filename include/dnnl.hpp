@@ -1942,7 +1942,7 @@ struct memory : public handle<dnnl_memory_t> {
     /// in a blocking manner.
     ///
     /// @warning
-    ///     Even if hte memory object is used to hold values that stay constant
+    ///     Even if the memory object is used to hold values that stay constant
     ///     (e.g., pre-packed weights during inference), the function will still
     ///     write zeroes to the padding area if it exists. Hence, the @p
     ///     handle parameter cannot and does not have a const qualifier.

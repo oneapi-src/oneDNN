@@ -103,7 +103,7 @@ requires different inputs and outputs.  For clarity, a summary is shown below.
 
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output     | Execution argument index  |
+| Primitive input/output      | Execution argument index  |
 | ---                         | ---                       |
 | \src                        | DNNL_ARG_SRC              |
 | \f$\gamma, \beta\f$         | DNNL_ARG_SCALE_SHIFT      |

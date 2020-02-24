@@ -22,11 +22,11 @@ The binary primitive does not have a notion of forward or backward propagations.
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output | Execution argument index |
-| ---                     | ---                      |
-| \f$\src_0\f$            | DNNL_ARG_SRC_0           |
-| \f$\src_1\f$            | DNNL_ARG_SRC_1           |
-| \dst                    | DNNL_ARG_DST             |
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \f$\src_0\f$           | DNNL_ARG_SRC_0           |
+| \f$\src_1\f$           | DNNL_ARG_SRC_1           |
+| \dst                   | DNNL_ARG_DST             |
 
 ## Implementation Details
 
@@ -51,7 +51,6 @@ argument index as specified by the following table.
    tensor may be used as the destination, in which case its data will
    be overwritten.
 
-
 ### Post-ops and Attributes
 
 The following attributes are supported:
@@ -73,7 +72,6 @@ See @ref dev_guide_data_types page for more details.
 
 The binary primitive works with arbitrary data tensors. There is no special
 meaning associated with any of tensors dimensions.
-
 
 ## Implementation Limitations
 

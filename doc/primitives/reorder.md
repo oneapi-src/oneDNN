@@ -26,11 +26,10 @@ quantize the data (and if necessary change the memory format simultaneously).
 ## Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive intput/output | Execution argument index |
-| ---                     | ---                      |
-| \src                    | DNNL_ARG_FROM            |
-| \dst                    | DNNL_ARG_TO              |
-
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_FROM            |
+| \dst                   | DNNL_ARG_TO              |
 
 ## Implementation Details
 
@@ -110,12 +109,10 @@ would lead to the following operation:
 @note The intermediate operations are being done using single precision
 floating point data type.
 
-
 ## Implementation Limitations
 
 1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
-
 
 ## Performance Tips
 
