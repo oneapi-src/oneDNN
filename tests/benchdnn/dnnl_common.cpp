@@ -192,10 +192,10 @@ void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
 }
 
 bool check_md_consistency_with_tag(
-        const dnnl_memory_desc_t &md, dnnl_format_tag_t tag) {
+        const dnnl_memory_desc_t &md, const std::string &tag) {
     dnnl_memory_desc_t md_new_tag;
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &md_new_tag, md.ndims, md.dims, md.data_type, tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&md_new_tag, md.ndims, md.dims,
+                     md.data_type, convert_tag(tag, md.ndims)),
             WARN);
     return dnnl_memory_desc_equal(&md_new_tag, &md);
 }

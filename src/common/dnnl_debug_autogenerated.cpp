@@ -149,7 +149,6 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_Abcde8a) return "Abcde8a";
     if (v == dnnl_ABcde8a8b) return "ABcde8a8b";
     if (v == dnnl_BAcde16b16a) return "BAcde16b16a";
-    if (v == dnnl_BAcde16a16b) return "BAcde16a16b";
     if (v == dnnl_aBcde8b) return "aBcde8b";
     if (v == dnnl_ABcde8b16a2b) return "ABcde8b16a2b";
     if (v == dnnl_aBCde8b16c2b) return "aBCde8b16c2b";
@@ -187,7 +186,6 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_aBdefc16b) return "aBdefc16b";
     if (v == dnnl_aBdefC16b2c) return "aBdefC16b2c";
     if (v == dnnl_aCBdef16c16b) return "aCBdef16c16b";
-    if (v == dnnl_aCBdef16b16c) return "aCBdef16b16c";
     if (v == dnnl_aBdefc4b) return "aBdefc4b";
     if (v == dnnl_aBdefc8b) return "aBdefc8b";
     if (v == dnnl_Abcdef16a) return "Abcdef16a";
@@ -212,6 +210,8 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_BAc16b16a) return "BAc16b16a";
     if (v == dnnl_BAcd16a16b) return "BAcd16a16b";
     if (v == dnnl_BAcd16b16a) return "BAcd16b16a";
+    if (v == dnnl_BAcde16a16b) return "BAcde16a16b";
+    if (v == dnnl_aCBdef16b16c) return "aCBdef16b16c";
     if (v == dnnl_format_tag_last) return "format_tag_last";
     if (v == dnnl_x) return "x";
     if (v == dnnl_nc) return "nc";
@@ -452,11 +452,13 @@ const char *dnnl_alg_kind2str(dnnl_alg_kind_t v) {
     if (v == dnnl_eltwise_soft_relu) return "eltwise_soft_relu";
     if (v == dnnl_eltwise_logistic) return "eltwise_logistic";
     if (v == dnnl_eltwise_exp) return "eltwise_exp";
+    if (v == dnnl_eltwise_gelu_tanh) return "eltwise_gelu_tanh";
     if (v == dnnl_eltwise_gelu) return "eltwise_gelu";
     if (v == dnnl_eltwise_swish) return "eltwise_swish";
     if (v == dnnl_eltwise_log) return "eltwise_log";
     if (v == dnnl_eltwise_clip) return "eltwise_clip";
     if (v == dnnl_eltwise_pow) return "eltwise_pow";
+    if (v == dnnl_eltwise_gelu_erf) return "eltwise_gelu_erf";
     if (v == dnnl_eltwise_relu_use_dst_for_bwd) return "eltwise_relu_use_dst_for_bwd";
     if (v == dnnl_eltwise_tanh_use_dst_for_bwd) return "eltwise_tanh_use_dst_for_bwd";
     if (v == dnnl_eltwise_elu_use_dst_for_bwd) return "eltwise_elu_use_dst_for_bwd";

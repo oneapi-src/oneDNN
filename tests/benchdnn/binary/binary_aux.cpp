@@ -51,12 +51,14 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg) {
 }
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    using ::operator<<;
+
     dump_global_params(s);
 
     if (canonical || !(p.sdt[0] == dnnl_f32 && p.sdt[1] == dnnl_f32))
         s << "--sdt=" << p.sdt << " ";
     if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
-    if (canonical || !(p.stag[0] == dnnl_nchw && p.stag[1] == dnnl_nchw))
+    if (canonical || !(p.stag[0] == tag::nchw && p.stag[1] == tag::nchw))
         s << "--stag=" << p.stag << " ";
     if (canonical || p.alg != ADD) s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.inplace != true)

@@ -138,12 +138,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.cfg != defaults::cfg)
         s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (canonical || p.stag != defaults::tag)
-        s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (canonical || p.wtag != defaults::tag)
-        s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (canonical || p.dtag != defaults::tag)
-        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
+    if (canonical || p.stag != defaults::tag) s << "--stag=" << p.stag << " ";
+    if (canonical || p.wtag != defaults::tag) s << "--wtag=" << p.wtag << " ";
+    if (canonical || p.dtag != defaults::tag) s << "--dtag=" << p.dtag << " ";
 
     // TODO: switch me on when run-time leading dimensions will be supported
     // if (canonical || p.ld_src != defaults::ld)

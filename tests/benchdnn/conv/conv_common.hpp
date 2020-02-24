@@ -109,8 +109,8 @@ const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-            dnnl_format_tag_t stag, dnnl_format_tag_t wtag,
-            dnnl_format_tag_t dtag, alg_t alg, const attr_t &attr,
+            const std::string &stag, const std::string &wtag,
+            const std::string &dtag, alg_t alg, const attr_t &attr,
             int64_t mb = 0, bool is_deconv = false)
         : desc_t(desc)
         , dir(dir)
@@ -133,7 +133,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    dnnl_format_tag_t stag, wtag, dtag;
+    std::string stag, wtag, dtag;
     alg_t alg;
     attr_t attr;
 

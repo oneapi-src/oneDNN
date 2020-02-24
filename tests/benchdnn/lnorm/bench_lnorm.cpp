@@ -39,8 +39,8 @@ namespace lnorm {
 dims_t dims;
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<dnnl_format_tag_t> tag {dnnl_tnc};
-std::vector<dnnl_format_tag_t> stat_tag {dnnl_format_tag_any};
+std::vector<std::string> tag {"dnnl_tnc"};
+std::vector<std::string> stat_tag {tag::any};
 std::vector<flags_t> flags {0};
 std::vector<bool> inplace {true};
 
@@ -59,8 +59,8 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {dnnl_tnc};
-    stat_tag = {dnnl_format_tag_any};
+    tag = {"dnnl_tnc"};
+    stat_tag = {tag::any};
     flags = {0};
     inplace = {true};
     attr = attr_t();

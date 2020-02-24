@@ -510,7 +510,7 @@ inline void inv_bias_ldgo_off_f(const prb_t &p, size_t off, int64_t &l,
     return inv_ldgo_off_with_G_f(p, p.n_bias(), off, l, d, b, c);
 }
 
-// dst_last_layer: dnnl_tnc
+// dst_last_layer: "dnnl_tnc"
 inline size_t tnc_off_f(const prb_t &p, int64_t t, int64_t n, int64_t c) {
     return (t * p.mb + n) * p.sic + c;
 }

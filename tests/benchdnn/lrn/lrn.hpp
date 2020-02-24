@@ -49,7 +49,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, alg_t alg)
+            const std::string &tag, alg_t alg)
         : desc_t(desc), dir(dir), dt(dt), tag(tag), alg(alg) {
         if (mb) this->mb = mb;
     }
@@ -57,7 +57,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     dnnl_data_type_t dt;
-    dnnl_format_tag_t tag;
+    std::string tag;
     alg_t alg;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
@@ -89,7 +89,7 @@ struct perf_report_t : public base_perf_report_t {
     virtual const char *name() const override { return p_->name; }
     virtual const dir_t *dir() const override { return &p_->dir; }
     virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

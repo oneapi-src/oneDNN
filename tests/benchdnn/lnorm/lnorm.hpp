@@ -43,9 +43,10 @@ const auto flags2str = bnorm::flags2str;
 flags_t str2flags(const char *str);
 
 struct prb_t {
-    prb_t(const dims_t &dims, dnnl_format_tag_t tag, dnnl_format_tag_t stat_tag,
-            dir_t dir, dnnl_data_type_t dt, flags_t flags, bool inplace,
-            const attr_t &attr, check_alg_t check_alg)
+    prb_t(const dims_t &dims, const std::string &tag,
+            const std::string &stat_tag, dir_t dir, dnnl_data_type_t dt,
+            flags_t flags, bool inplace, const attr_t &attr,
+            check_alg_t check_alg)
         : check_alg(check_alg)
         , dims(dims)
         , tag(tag)
@@ -68,7 +69,7 @@ struct prb_t {
     check_alg_t check_alg;
     int64_t n, c;
     dims_t dims;
-    dnnl_format_tag_t tag, stat_tag;
+    std::string tag, stat_tag;
     dir_t dir;
     dnnl_data_type_t dt;
     flags_t flags;
@@ -116,8 +117,8 @@ struct perf_report_t : public base_perf_report_t {
     virtual const attr_t *attr() const override { return &p_->attr; }
     virtual const dir_t *dir() const override { return &p_->dir; }
     virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
-    virtual const dnnl_format_tag_t *stat_tag() const override {
+    virtual const std::string *tag() const override { return &p_->tag; }
+    virtual const std::string *stat_tag() const override {
         return &p_->stat_tag;
     }
 

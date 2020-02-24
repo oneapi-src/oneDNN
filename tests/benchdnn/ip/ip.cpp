@@ -58,17 +58,17 @@ inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &ippd, res_t *r) {
             : p->ndims == 4 ? wei_dims_2d
                             : p->ndims == 3 ? wei_dims_1d : wei_dims_0d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, p->ndims, src_dims, p->cfg[SRC].dt, p->stag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims,
+                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &wei_d, p->ndims, wei_dims, p->cfg[WEI].dt, p->wtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims, wei_dims,
+                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, 2, dst_dims, p->cfg[DST].dt, p->dtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt,
+                     convert_tag(p->dtag, 2)),
             WARN);
 
     switch (p->dir) {

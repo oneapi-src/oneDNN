@@ -379,14 +379,14 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &lpd, res_t *r) {
 
     const int64_t *data_dims = &p->dims[0];
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, p->ndims, data_dims, p->dt, p->tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, data_dims, p->dt,
+                     convert_tag(p->tag, p->ndims)),
             WARN);
 
     const dnnl_memory_desc_t *stat_d_ptr = NULL;
-    if (p->stat_tag != dnnl_format_tag_undef) {
+    if (p->stat_tag != tag::undef) {
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&stat_d, p->ndims - 1, data_dims,
-                         dnnl_f32, p->stat_tag),
+                         dnnl_f32, convert_tag(p->stat_tag, p->ndims - 1)),
                 WARN);
         stat_d_ptr = &stat_d;
     }

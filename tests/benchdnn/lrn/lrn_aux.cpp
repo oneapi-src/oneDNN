@@ -138,8 +138,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (canonical || p.tag != dnnl_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.tag != tag::nchw) s << "--tag=" << p.tag << " ";
     if (canonical || p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);

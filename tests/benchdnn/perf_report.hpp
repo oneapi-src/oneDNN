@@ -87,10 +87,10 @@ struct base_perf_report_t {
         HANDLE("stag", if (stag()) s << *stag());
         HANDLE("name", if (name()) s << name());
         HANDLE("ddt", if (ddt()) s << dt2str(*ddt()));
-        HANDLE("dtag", if (dtag()) s << fmt_tag2str(*dtag()));
+        HANDLE("dtag", if (dtag()) s << *dtag());
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
-        HANDLE("tag", if (tag()) s << fmt_tag2str(*tag()));
-        HANDLE("stat_tag", if (stat_tag()) s << fmt_tag2str(*stat_tag()));
+        HANDLE("tag", if (tag()) s << *tag());
+        HANDLE("stat_tag", if (stat_tag()) s << *stat_tag());
 
         HANDLE("bw", s << get_bw());
         HANDLE("flops", s << get_flops());
@@ -135,12 +135,10 @@ struct base_perf_report_t {
     virtual const dnnl_data_type_t *dt() const { return nullptr; }
     virtual const std::vector<dnnl_data_type_t> *sdt() const { return nullptr; }
     virtual const dnnl_data_type_t *ddt() const { return nullptr; }
-    virtual const dnnl_format_tag_t *tag() const { return nullptr; }
-    virtual const dnnl_format_tag_t *stat_tag() const { return nullptr; }
-    virtual const std::vector<dnnl_format_tag_t> *stag() const {
-        return nullptr;
-    }
-    virtual const dnnl_format_tag_t *dtag() const { return nullptr; }
+    virtual const std::string *tag() const { return nullptr; }
+    virtual const std::string *stat_tag() const { return nullptr; }
+    virtual const std::vector<std::string> *stag() const { return nullptr; }
+    virtual const std::string *dtag() const { return nullptr; }
     virtual const dnnl_prop_kind_t *prop() const { return nullptr; }
 
     /* primitive-specific properties (but with common interface) */

@@ -32,7 +32,7 @@
 namespace matmul {
 
 std::vector<const dt_conf_t *> cfg;
-std::vector<dnnl_format_tag_t> stag, wtag, dtag;
+std::vector<std::string> stag, wtag, dtag;
 std::vector<int64_t> ld_src, ld_wei, ld_dst;
 std::vector<bool> runtime_mb, runtime_m, runtime_n, runtime_k;
 std::vector<dnnl_data_type_t> bia_dt;

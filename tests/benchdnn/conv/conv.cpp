@@ -443,10 +443,13 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     if (bia_dt == dnnl_data_type_undef) bia_dt = p->cfg[BIA].dt;
     if (dst_dt == dnnl_data_type_undef) dst_dt = p->cfg[DST].dt;
     if (acc_dt == dnnl_data_type_undef) acc_dt = p->cfg[ACC].dt;
-    if (src_tag == dnnl_format_tag_undef) src_tag = p->stag;
-    if (wei_tag == dnnl_format_tag_undef) wei_tag = p->wtag;
+    if (src_tag == dnnl_format_tag_undef)
+        src_tag = convert_tag(p->stag, p->ndims);
+    if (wei_tag == dnnl_format_tag_undef)
+        wei_tag = convert_tag(p->wtag, p->ndims);
     if (bia_tag == dnnl_format_tag_undef) bia_tag = dnnl_format_tag_any;
-    if (dst_tag == dnnl_format_tag_undef) dst_tag = p->dtag;
+    if (dst_tag == dnnl_format_tag_undef)
+        dst_tag = convert_tag(p->dtag, p->ndims);
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
                      p->ndims == 5 ? src_3d_dims

@@ -28,7 +28,7 @@
 namespace reorder {
 
 std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
-std::vector<dnnl_format_tag_t> stag {dnnl_nchw}, dtag {dnnl_nchw};
+std::vector<std::string> stag {tag::nchw}, dtag {tag::nchw};
 std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
 std::vector<flag_t> oflag {FLAG_NONE};
 std::vector<unsigned> runtime_dim_mask {0};
@@ -47,8 +47,8 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {dnnl_f32};
     ddt = {dnnl_f32};
-    stag = {dnnl_nchw};
-    dtag = {dnnl_nchw};
+    stag = {tag::nchw};
+    dtag = {tag::nchw};
     def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
     oflag = {FLAG_NONE};
     runtime_dim_mask = {0};

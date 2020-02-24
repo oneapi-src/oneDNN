@@ -37,19 +37,20 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &cpd, res_t *r) {
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const dims_t &i_sdims = p->sdims[i_input];
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], p->ndims,
-                         i_sdims.data(), p->sdt, p->stag[i_input]),
+                         i_sdims.data(), p->sdt,
+                         convert_tag(p->stag[i_input], p->ndims)),
                 WARN);
     }
 
-    if (p->dtag != dnnl_format_tag_undef) {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                         &dst_d, p->ndims, p->ddims.data(), p->ddt, p->dtag),
+    if (p->dtag != tag::undef) {
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, p->ddims.data(),
+                         p->ddt, convert_tag(p->dtag, p->ndims)),
                 WARN);
     }
 
     dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
-            p->dtag != dnnl_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
-            p->axis, src_d.data(), NULL, engine_tgt);
+            p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(), p->axis,
+            src_d.data(), NULL, engine_tgt);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;

@@ -37,7 +37,7 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
-            const std::vector<dnnl_format_tag_t> &stag, alg_t alg, bool inplace,
+            const std::vector<std::string> &stag, alg_t alg, bool inplace,
             const attr_t &attr)
         : sdims(sdims)
         , sdt(sdt)
@@ -54,7 +54,7 @@ struct prb_t {
     std::vector<dims_t> sdims;
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
-    std::vector<dnnl_format_tag_t> stag;
+    std::vector<std::string> stag;
     alg_t alg;
     bool inplace;
     attr_t attr;
@@ -97,7 +97,7 @@ struct perf_report_t : public base_perf_report_t {
         return &p_->sdt;
     }
     virtual const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
+    virtual const std::vector<std::string> *stag() const override {
         return &p_->stag;
     }
 

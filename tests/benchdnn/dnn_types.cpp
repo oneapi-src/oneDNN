@@ -30,6 +30,12 @@
 #include "dnnl_debug.hpp"
 #include "src/common/math_utils.hpp"
 
+namespace tag {
+const char *any {"any"};
+const char *nchw {"nchw"};
+const char *undef {"undef"};
+} // namespace tag
+
 // returns dims with current @p off values using actual values from @p dims
 dims_t off2dims_idx(const dims_t &dims, int64_t off) {
     dims_t dims_idx;
@@ -66,10 +72,10 @@ std::ostream &operator<<(
 }
 
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<dnnl_format_tag_t> &v_tag) {
-    s << fmt_tag2str(v_tag[0]);
+        std::ostream &s, const std::vector<std::string> &v_tag) {
+    s << v_tag[0];
     for (size_t d = 1; d < v_tag.size(); ++d)
-        s << ":" << fmt_tag2str(v_tag[d]);
+        s << ":" << v_tag[d];
     return s;
 }
 
@@ -690,6 +696,10 @@ dnnl_format_tag_t get_default_tag(int ndims) {
         default: assert(!"unsupported ndims");
     }
     return dnnl_format_tag_undef;
+}
+
+dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims) {
+    return str2fmt_tag(tag_str.c_str());
 }
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr) {

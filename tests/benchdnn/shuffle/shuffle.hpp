@@ -34,7 +34,7 @@ namespace shuffle {
 
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, int axis, int64_t group)
+            const std::string &tag, int axis, int64_t group)
         : dims(dims)
         , dir(dir)
         , dt(dt)
@@ -47,7 +47,7 @@ struct prb_t {
     dims_t dims;
     dir_t dir;
     dnnl_data_type_t dt;
-    dnnl_format_tag_t tag;
+    std::string tag;
     int axis;
     int64_t group;
     int ndims;
@@ -72,7 +72,7 @@ struct perf_report_t : public base_perf_report_t {
     virtual const int64_t *group() const override { return &p_->group; }
     virtual const dir_t *dir() const override { return &p_->dir; }
     virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

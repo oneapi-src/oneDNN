@@ -55,7 +55,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, flags_t flags, bool inplace,
+            const std::string &tag, flags_t flags, bool inplace,
             const attr_t &attr, check_alg_t check_alg)
         : desc_t(desc)
         , check_alg(check_alg)
@@ -73,7 +73,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     dnnl_data_type_t dt;
-    dnnl_format_tag_t tag;
+    std::string tag;
     flags_t flags;
     bool inplace;
     attr_t attr;
@@ -105,7 +105,7 @@ struct perf_report_t : public base_perf_report_t {
     virtual const char *name() const override { return p_->name; }
     virtual const dir_t *dir() const override { return &p_->dir; }
     virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

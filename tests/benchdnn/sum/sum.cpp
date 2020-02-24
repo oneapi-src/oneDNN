@@ -38,17 +38,18 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], p->ndims,
-                         p->dims.data(), p->sdt[i_input], p->stag[i_input]),
+                         p->dims.data(), p->sdt[i_input],
+                         convert_tag(p->stag[i_input], p->ndims)),
                 WARN);
 
-    if (p->dtag != dnnl_format_tag_undef) {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                         &dst_d, p->ndims, p->dims.data(), p->ddt, p->dtag),
+    if (p->dtag != tag::undef) {
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, p->dims.data(),
+                         p->ddt, convert_tag(p->dtag, p->ndims)),
                 WARN);
     }
 
     dnnl_status_t init_status = dnnl_sum_primitive_desc_create(&spd,
-            p->dtag != dnnl_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
+            p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(),
             p->scales.data(), src_d.data(), NULL, engine_tgt);
 
     if (init_status == dnnl_unimplemented)

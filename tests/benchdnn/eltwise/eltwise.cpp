@@ -33,8 +33,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &epd, res_t *r) {
     dnnl_eltwise_desc_t ed;
     dnnl_memory_desc_t data_d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, p->ndims, p->dims.data(), p->dt, p->tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, p->dims.data(),
+                     p->dt, convert_tag(p->tag, p->ndims)),
             WARN);
 
     dnnl_alg_kind_t alg = attr_t::post_ops_t::kind2dnnl_kind(p->alg);
@@ -210,8 +210,8 @@ static int compare_padded_area_for_zeros(
     // Create memory with dims = md.padded_dims with same format.
     // This way reorder to plain format keeps padding values.
     dnnl_memory_desc_t pad_data_d;
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &pad_data_d, md.ndims, padded_dims, md.data_type, p->tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&pad_data_d, md.ndims, padded_dims,
+                     md.data_type, convert_tag(p->tag, p->ndims)),
             WARN);
     dnn_mem_t padded_mem_dt(pad_data_d, engine_tgt);
     for (int64_t i = 0; i < nelems_padded; i++)

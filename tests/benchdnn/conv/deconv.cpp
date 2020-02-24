@@ -76,14 +76,14 @@ inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &dpd, res_t *r) {
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims,
                      p->ndims == 5 ? src_3d_dims
                                    : p->ndims == 3 ? src_1d_dims : src_2d_dims,
-                     p->cfg[SRC].dt, p->stag),
+                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims + p->has_groups,
                      p->ndims == 5
                              ? &wei_3d_dims[!p->has_groups]
                              : p->ndims == 3 ? &wei_1d_dims[!p->has_groups]
                                              : &wei_2d_dims[!p->has_groups],
-                     p->cfg[WEI].dt, p->wtag),
+                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
@@ -91,7 +91,7 @@ inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &dpd, res_t *r) {
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims,
                      p->ndims == 5 ? dst_3d_dims
                                    : p->ndims == 3 ? dst_1d_dims : dst_2d_dims,
-                     p->cfg[DST].dt, p->dtag),
+                     p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
             WARN);
 
     dnnl_dim_t strides_nd[] = {p->sd, p->sh, p->sw};

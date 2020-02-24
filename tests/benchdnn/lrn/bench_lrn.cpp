@@ -33,7 +33,7 @@ namespace lrn {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
+std::vector<std::string> tag {tag::nchw};
 std::vector<alg_t> alg {ACROSS};
 std::vector<int64_t> mb {0};
 
@@ -47,7 +47,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {dnnl_nchw};
+    tag = {tag::nchw};
     alg = {ACROSS};
     mb = {0};
     skip_impl = "";

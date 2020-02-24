@@ -33,7 +33,7 @@ using alg_t = attr_t::post_ops_t::kind_t;
 
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, alg_t alg, float alpha, float beta,
+            const std::string &tag, alg_t alg, float alpha, float beta,
             bool inplace, int64_t mb = 0)
         : dims(dims)
         , dir(dir)
@@ -51,7 +51,7 @@ struct prb_t {
     dims_t dims;
     dir_t dir;
     dnnl_data_type_t dt;
-    dnnl_format_tag_t tag;
+    std::string tag;
     alg_t alg;
     float alpha, beta;
     bool inplace;
@@ -85,7 +85,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual const dir_t *dir() const override { return &p_->dir; }
     virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

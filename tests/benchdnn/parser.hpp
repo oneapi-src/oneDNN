@@ -100,10 +100,10 @@ bool parse_dt(std::vector<dnnl_data_type_t> &dt, const char *str,
 bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
         const char *str, const std::string &option_name = "sdt");
 
-bool parse_tag(std::vector<dnnl_format_tag_t> &tag, const char *str,
+bool parse_tag(std::vector<std::string> &tag, const char *str,
         const std::string &option_name = "tag");
 
-bool parse_multi_tag(std::vector<std::vector<dnnl_format_tag_t>> &tag,
+bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const char *str, const std::string &option_name = "stag");
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,

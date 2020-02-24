@@ -497,8 +497,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
             : p->ndims == 4 ? data_dims_2d
                             : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, p->ndims, data_dims, p->dt, p->tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, data_dims, p->dt,
+                     convert_tag(p->tag, p->ndims)),
             WARN);
 
     auto flags = (dnnl_normalization_flags_t)p->flags;
@@ -579,7 +579,8 @@ static int cvt_mask_to_ws(
             : p->ndims == 4 ? data_dims_2d
                             : p->ndims == 3 ? data_dims_1d : data_dims_0d;
 
-    dnn_mem_t data(p->ndims, data_dims, dnnl_f32, p->tag, engine_tgt);
+    dnn_mem_t data(p->ndims, data_dims, dnnl_f32, convert_tag(p->tag, p->ndims),
+            engine_tgt);
     SAFE(data.reorder(mask_fp), WARN);
 
     dnn_mem_t mean(1, &p->ic, dnnl_f32, dnnl_x, engine_tgt);

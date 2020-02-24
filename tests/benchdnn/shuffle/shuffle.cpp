@@ -99,8 +99,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
     dnnl_shuffle_desc_t sd;
     dnnl_primitive_desc_t fspd;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, p->ndims, p->dims.data(), p->dt, p->tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, p->dims.data(),
+                     p->dt, convert_tag(p->tag, p->ndims)),
             WARN);
     DNN_SAFE(dnnl_shuffle_forward_desc_init(
                      &sd, dnnl_forward_training, &data_d, p->axis, p->group),

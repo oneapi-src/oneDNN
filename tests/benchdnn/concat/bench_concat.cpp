@@ -31,8 +31,8 @@ namespace concat {
 
 std::vector<dnnl_data_type_t> sdt {dnnl_f32};
 std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<dnnl_format_tag_t>> stag {{dnnl_nchw, dnnl_nchw}};
-std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_undef};
+std::vector<std::vector<std::string>> stag {{tag::nchw, tag::nchw}};
+std::vector<std::string> dtag {tag::undef};
 std::vector<int> axis {1};
 
 std::vector<dims_t> sdims;
@@ -46,8 +46,8 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {dnnl_f32};
     ddt = {dnnl_f32};
-    stag = {{dnnl_nchw, dnnl_nchw}};
-    dtag = {dnnl_format_tag_undef};
+    stag = {{tag::nchw, tag::nchw}};
+    dtag = {tag::undef};
     axis = {1};
     allow_unimpl = false;
 }

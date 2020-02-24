@@ -34,8 +34,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
     dnnl_softmax_desc_t sd;
     dnnl_memory_desc_t data_d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &data_d, p->ndims, p->dims.data(), p->dt, p->tag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&data_d, p->ndims, p->dims.data(),
+                     p->dt, convert_tag(p->tag, p->ndims)),
             WARN);
 
     if (p->dir & FLAG_FWD) {

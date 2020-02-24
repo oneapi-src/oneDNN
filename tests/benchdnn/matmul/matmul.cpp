@@ -52,14 +52,14 @@ int init_pd(const prb_t *p, dnnl_primitive_desc_t &mpd, res_t *r) {
     prep_bia_dims(p, bia_dims, dst_dims);
 
     dnnl_memory_desc_t src_d, wei_d, dst_d, bia_d {};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, p->ndims, src_dims, p->cfg[SRC].dt, p->stag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims,
+                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &wei_d, p->ndims, wei_dims, p->cfg[WEI].dt, p->wtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims, wei_dims,
+                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, p->ndims, dst_dims, p->cfg[DST].dt, p->dtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dst_dims,
+                     p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
             WARN);
     if (p->bia_dt != dnnl_data_type_undef)
         DNN_SAFE(dnnl_memory_desc_init_by_strides(
@@ -230,13 +230,13 @@ int doit(const prb_t *p, res_t *r) {
         }
 
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_md, p->ndims, src_md.dims,
-                         p->cfg[SRC].dt, p->stag),
+                         p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
                 WARN);
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_md, p->ndims, wei_md.dims,
-                         p->cfg[WEI].dt, p->wtag),
+                         p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
                 WARN);
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, dst_md.dims,
-                         p->cfg[DST].dt, p->dtag),
+                         p->cfg[DST].dt, convert_tag(p->dtag, p->ndims)),
                 WARN);
         if (p->bia_dt != dnnl_data_type_undef) {
             prep_bia_dims(p, bia_md.dims, dst_md.dims);

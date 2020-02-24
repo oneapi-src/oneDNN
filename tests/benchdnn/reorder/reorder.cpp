@@ -239,11 +239,11 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &rpd,
         if (p->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
 
     dnnl_memory_desc_t src_d, dst_d;
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, p->ndims, dims.data(), p->conf_in->dt, rc.tag_in),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, dims.data(),
+                     p->conf_in->dt, convert_tag(rc.tag_in, p->ndims)),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dims.data(),
-                     p->conf_out->dt, rc.tag_out),
+                     p->conf_out->dt, convert_tag(rc.tag_out, p->ndims)),
             WARN);
 
     // assign extra for dst_md
@@ -321,10 +321,10 @@ int doit(const prb_t *p, res_t *r) {
         // re-create memory descriptors with defined dims
         const auto &rc = p->reorder;
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_md, p->ndims, rc.dims.data(),
-                         p->conf_in->dt, rc.tag_in),
+                         p->conf_in->dt, convert_tag(rc.tag_in, p->ndims)),
                 WARN);
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, rc.dims.data(),
-                         p->conf_out->dt, rc.tag_out),
+                         p->conf_out->dt, convert_tag(rc.tag_out, p->ndims)),
                 WARN);
     } else {
         src_md = q(DNNL_ARG_SRC);

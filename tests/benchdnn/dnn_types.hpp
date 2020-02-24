@@ -29,6 +29,12 @@
 #include "common.hpp"
 #include "dnnl_types.h"
 
+namespace tag {
+extern const char *any;
+extern const char *nchw;
+extern const char *undef;
+} // namespace tag
+
 struct dims_t : public std::vector<int64_t> {};
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
@@ -36,7 +42,7 @@ std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims);
 std::ostream &operator<<(
         std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt);
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<dnnl_format_tag_t> &v_tag);
+        std::ostream &s, const std::vector<std::string> &v_tag);
 
 enum dir_t {
     DIR_UNDEF = 0,
@@ -256,6 +262,8 @@ private:
 std::ostream &dump_global_params(std::ostream &s);
 
 dnnl_format_tag_t get_default_tag(int ndims);
+dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims);
+
 dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         int scale_mask, const float *scales);
 inline dnnl_primitive_attr_t create_dnnl_attr(
