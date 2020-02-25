@@ -3631,64 +3631,62 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
     auto calc_mem_cost = [=](int nthr_mb, int nthr_oc_b, int nthr_ic_b) {
         /* calculate per thread memory cost (read/write). high level optimizer
          * tries to minimize memory consumption. few notes:
-         *  (n1) unclear why, but that essentially helps first convolution...
-         *  (n2) assuming the reduction over minibatch is always there:
-         *    - instead of 8 it should be 5 here (write ~= 2 read):
-         *      kernel: temporal workspace 1 write
-         *      reduction: 1 read from workspace and 1 write to the diff_wei
-         *    - but experiments showed 8 works better than 5 or 6... */
+         *  (n1) if weights tensor size is less than source and destination
+         *       tensors we apply the ratio of the source and destination
+         *       tensor sizes to weights one as compensation coefficient to
+         *       avoid parallelization across batch size only, othervise we
+         *       apply additional coefficient to source component based on
+         *       performance measurements
+         *  (n2) use scales based on output vs input channels ratio for source
+         *       and destination componets to imporve threading balance across
+         *       input and output channels */
 
         const dim_t src_type_size = 2;
         const dim_t wei_type_size = 4;
-        const dim_t balance_threshold = 16;
 
         dim_t src_size
                 = (dim_t)j.mb * j.ic * j.id * j.ih * j.iw * src_type_size;
+        dim_t dst_size
+                = (dim_t)j.mb * j.oc * j.od * j.oh * j.ow * src_type_size;
         dim_t wei_size
                 = (dim_t)j.oc * j.ic * j.kd * j.kh * j.kw * wei_type_size;
 
-        dim_t r2 = nstl::min(balance_threshold,
-                nstl::max(div_up(src_size, wei_size), (dim_t)1));
-        dim_t r1 = nstl::min(balance_threshold,
-                nstl::max(div_up(wei_size, src_size), (dim_t)1));
-
-        const dim_t spatial_size_threshold = 28 * 28;
+        float wei_compensation_scale = 0.5f * (dst_size + src_size) / wei_size;
+        float oi_channels_ratio = (float)j.nb_oc / j.nb_ic;
         auto get_src_coef = [=]() {
-            if (j.ndims == 5 && j.kw == 1)
-                // To avoid degradations for problems with 1x1x1 kernel
-                return (src_size <= wei_size) ? r2 : r1;
+            float src_coef = nstl::max(1.0f / oi_channels_ratio, 1.0f);
+            if (wei_compensation_scale < 1.0f) src_coef *= 4.0f;
 
-            return (dim_t)(j.oh * j.ow < spatial_size_threshold ? 4 : 1);
-        };
-        auto get_wei_coef = [=]() {
-            if (j.ndims == 5 && j.kw == 1)
-                // To avoid degradations for problems with 1x1x1 kernel
-                return (src_size <= wei_size) ? r1 : r2;
-
-            return (dim_t)(j.oh * j.ow < spatial_size_threshold ? 1 : 24);
+            return src_coef;
         };
 
-        const dim_t src_coef = get_src_coef();
-        const dim_t dst_coef = 1;
-        const dim_t wei_coef = get_wei_coef();
+        auto get_dst_coef
+                = [=]() { return nstl::max(oi_channels_ratio, 1.0f); };
 
-        dim_t src_v = src_coef * div_up(j.mb, nthr_mb)
+        auto get_wei_coef
+                = [=]() { return nstl::max(wei_compensation_scale, 1.0f); };
+
+        const float src_coef = get_src_coef();
+        const float dst_coef = get_dst_coef();
+        const float wei_coef = get_wei_coef();
+
+        float src_v = src_coef * div_up(j.mb, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_ic, nthr_ic_b)
                 * j.ic_block * j.ih * j.iw * j.id / j.stride_d / j.stride_h
                 / j.stride_w;
-        dim_t wei_v = wei_coef * div_up(j.ngroups, nthr_g_)
+        float wei_v = wei_coef * div_up(j.ngroups, nthr_g_)
                 * div_up(j.nb_oc, nthr_oc_b) * div_up(j.nb_ic, nthr_ic_b) * j.kh
                 * j.kw * j.kd * j.ic_block * j.oc_block;
-        dim_t dst_v = dst_coef * div_up(j.mb, nthr_mb)
+        float dst_v = dst_coef * div_up(j.mb, nthr_mb)
                 * div_up(j.ngroups, nthr_g_) * div_up(j.nb_oc, nthr_oc_b)
                 * j.oc_block * j.oh * j.ow * j.od;
 
         return src_v + dst_v + wei_v;
     };
 
-    dim_t best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
+    float best_mem_cost = calc_mem_cost(nthr_mb_, nthr_oc_b_, nthr_ic_b_);
 
-    /* step 1: find the best thread distribution with lowest memory cost */
+    /* find the best thread distribution with lowest memory cost */
     // TODO: support reduction by depth and height dimensions
     const int nthr_mb_max = nstl::min(nthr, j.mb);
     for (int nthr_mb = 1; nthr_mb <= nthr_mb_max; ++nthr_mb) {
@@ -3697,7 +3695,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
         for (int nthr_oc_b = 1; nthr_oc_b <= nthr_oc_b_max; ++nthr_oc_b) {
             int nthr_ic_b = nstl::min(nthr_par / nthr_oc_b, j.nb_ic);
 
-            dim_t mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
+            float mem_cost = calc_mem_cost(nthr_mb, nthr_oc_b, nthr_ic_b);
             if (mem_cost <= best_mem_cost) {
                 best_mem_cost = mem_cost;
                 nthr_mb_ = nthr_mb;
@@ -3707,8 +3705,8 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::balance(
         }
     }
 
-    if (nthr_mb_ > max_threads / 2 && nthr_mb_ < max_threads)
-        nthr_mb_ = nstl::min(j.mb * j.od, max_threads);
+    if (nthr_mb_ > nthr / 2 && nthr_mb_ < nthr)
+        nthr_mb_ = nstl::min(j.mb, nthr);
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
 
     assert(nthr_ <= max_threads);
