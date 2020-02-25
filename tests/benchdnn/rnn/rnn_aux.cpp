@@ -60,7 +60,7 @@ activation_t str2activation(const char *str) {
     CASE(UNDEF);
 #undef CASE
     assert(!"unknown activation");
-    return TANH;
+    return UNDEF;
 }
 
 const char *activation2str(activation_t act) {
@@ -198,17 +198,21 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    s << "--prop=" << prop2str(p.prop) << " ";
-    s << "--alg=" << alg2str(p.alg) << " ";
-    s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
-    if (canonical || p.alg == VANILLA_LSTM)
+    if (canonical || p.prop != dnnl_forward)
+        s << "--prop=" << prop2str(p.prop) << " ";
+    if (canonical || p.alg != VANILLA_RNN)
+        s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.skip_nonlinear != false)
+        s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
+    if (canonical || p.with_peephole != false)
         s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
-    if (canonical || p.alg == VANILLA_RNN)
+    if (canonical || p.activation != UNDEF)
         s << "--activation=" << activation2str(p.activation) << " ";
-
-    s << "--direction=" << direction2str(p.direction) << " ";
-    s << "--cfg=" << cfg2str(p.cfg) << " ";
-    s << "--scaling=" << attr_t::scale_t::policy2str(p.scale_policy) << " ";
+    if (canonical || p.direction != dnnl_unidirectional_left2right)
+        s << "--direction=" << direction2str(p.direction) << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.scale_policy != policy_t::NONE)
+        s << "--scaling=" << attr_t::scale_t::policy2str(p.scale_policy) << " ";
 
     s << static_cast<const desc_t &>(p);
 

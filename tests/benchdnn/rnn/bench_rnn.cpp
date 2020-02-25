@@ -34,7 +34,7 @@ std::vector<dir_t> prop {FWD_D};
 std::vector<const dt_conf_t *> cfg {conf_f32};
 std::vector<alg_t> alg {VANILLA_RNN};
 std::vector<dnnl_rnn_direction_t> direction {dnnl_unidirectional_left2right};
-std::vector<activation_t> activation {RELU};
+std::vector<activation_t> activation {UNDEF};
 std::vector<bool> skip_nonlinear {false};
 std::vector<bool> with_peephole {false};
 std::vector<int64_t> mb {0};
@@ -58,7 +58,7 @@ void reset_parameters() {
     cfg = {conf_f32};
     alg = {VANILLA_RNN};
     direction = {dnnl_unidirectional_left2right};
-    activation = {RELU};
+    activation = {UNDEF};
     skip_nonlinear = {false};
     with_peephole = {false};
     mb = {0};
