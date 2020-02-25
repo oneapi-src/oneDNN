@@ -73,6 +73,10 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
     Label kh_label;
     L(kh_label);
     {
+        if (jcp.is_fused_conv) {
+            mov(aux_reg_input, ptr[aux_reg_input_buffer_ptr]);
+            add(aux_reg_input, reg_iw_offset);
+        }
         for (int ch = 0; ch < ur_ch_blocks; ch++) {
             for (int kw = 0; kw < jcp.kw; kw++) {
                 int ker_off = ch * jcp.kh * jcp.kw * ch_blk + kw * ch_blk;
@@ -83,7 +87,8 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
                 int ow_end = get_ow_end(ur_w, kw, pad_r);
                 for (int ow = ow_start; ow < ow_end; ow++) {
                     Zmm zmm_acc = get_acc_reg(ch * ur_w + ow);
-                    int inp_off = ch * jcp.ih * jcp.iw * ch_blk
+                    int inp_off = ch * (jcp.is_fused_conv ? 1 : jcp.ih) * jcp.iw
+                                    * ch_blk
                             + (ow * stride_w - pad_l) * ch_blk
                             + kw * ch_blk * dilate_w;
                     /* zero-extend bf16 to packed 32-bit int */
@@ -98,7 +103,12 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::apply_filter_unrolled(
         }
 
         add(aux_reg_kernel, jcp.kw * ch_blk * jcp.typesize_in);
-        add(aux_reg_input, jcp.iw * ch_blk * dilate_h * jcp.typesize_in);
+        if (jcp.is_fused_conv) {
+            // Move to next row pointer in the buffer
+            add(aux_reg_input_buffer_ptr, sizeof(void *));
+        } else {
+            add(aux_reg_input, jcp.iw * ch_blk * dilate_h * jcp.typesize_in);
+        }
 
         dec(iter_kh);
         cmp(iter_kh, 0);
@@ -176,7 +186,11 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::store_dst(int ur_ch_blocks, int ur_w) {
 void jit_avx512_dw_conv_fwd_kernel_bf16::compute_loop(
         int ur_w, int ur_ch_blocks, int pad_l, int pad_r) {
 
-    mov(aux_reg_input, reg_input);
+    if (jcp.is_fused_conv) {
+        mov(aux_reg_input_buffer_ptr, reg_input_buffer_ptr);
+    } else {
+        mov(aux_reg_input, reg_input);
+    }
     mov(aux_reg_kernel, reg_kernel);
     load_src(ur_ch_blocks, ur_w);
     apply_filter_unrolled(ur_ch_blocks, ur_w, pad_l, pad_r);
@@ -254,7 +268,26 @@ void jit_avx512_dw_conv_fwd_kernel_bf16::loop_ow(int ur_ch_blocks) {
 void jit_avx512_dw_conv_fwd_kernel_bf16::generate() {
     this->preamble();
 
-    mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
+    if (jcp.is_fused_conv) {
+        mov(reg_input_buffer_ptr, ptr[this->param1 + GET_OFF(src)]);
+        /* In case of fused depthwise convolution, `param.src` is not a pointer
+        to input, instead it points to a buffer containing pointers to
+        consecutive rows of input in format Cwc with blocking nb_ch_blocking.
+        Example: [ptr_to_inp_row0, ptr_to_inp_row1, ptr_to_inp_row2].
+        Traverse the data as
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row0 ...
+            add(reg_input_buffer_ptr, sizeof(void*))
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row1 ...
+            add(reg_input_buffer_ptr, sizeof(void*))
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row2 ...
+        */
+        xor_(reg_iw_offset, reg_iw_offset);
+    } else {
+        mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
+    }
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     if (jcp.with_bias) mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);

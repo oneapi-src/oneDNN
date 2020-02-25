@@ -74,6 +74,11 @@ private:
     reg64_t iter_kh = rax;
     reg64_t reg_oi = rbx;
 
+    // fused convolution
+    reg64_t reg_input_buffer_ptr = rdx;
+    reg64_t aux_reg_input_buffer_ptr = rsi;
+    reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
+
     Xbyak::Zmm zmm_ker_reg = Xbyak::Zmm(0);
     Xbyak::Zmm zmm_src_reg = Xbyak::Zmm(1);
     Xbyak::Zmm zmm_prev_dst = Xbyak::Zmm(31);

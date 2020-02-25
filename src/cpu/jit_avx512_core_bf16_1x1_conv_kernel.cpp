@@ -620,8 +620,9 @@ void jit_avx512_core_bf16_1x1_conv_kernel::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_bia);
                 add(reg_output_data,
-                        load_loop_blk * jcp.bcast_dim * jcp.load_block
-                                * jcp.typesize_out);
+                        load_loop_blk
+                                * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                                * jcp.load_block * jcp.typesize_out);
                 add(reg_store_buf,
                         load_loop_blk * jcp.bcast_dim * jcp.load_block
                                 * jcp.typesize_acc);
