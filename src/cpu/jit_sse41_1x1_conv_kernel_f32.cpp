@@ -145,7 +145,8 @@ void jit_sse41_1x1_conv_kernel_f32::generate_reduce_loop(
                         + n * 4 * sizeof(float)];
             default:
                 return ptr[aux_reg_output_data
-                        + (i * jcp.os + j) * jcp.oc_block * sizeof(float)
+                        + (i * (jcp.with_dw_conv ? jcp.ow : jcp.os) + j)
+                                * jcp.oc_block * sizeof(float)
                         + n * 4 * sizeof(float)];
         }
     };
@@ -379,7 +380,8 @@ void jit_sse41_1x1_conv_kernel_f32::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.oc_block * sizeof(float));
                 add(reg_output_data,
-                        load_loop_blk * jcp.os * jcp.oc_block * sizeof(float));
+                        load_loop_blk * (jcp.with_dw_conv ? jcp.ow : jcp.os)
+                                * jcp.oc_block * sizeof(float));
                 break;
             case backward_data:
                 add(reg_output_data,
@@ -453,11 +455,19 @@ bool jit_sse41_1x1_conv_kernel_f32::post_ops_ok(
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
+    auto is_convolution
+            = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
-    switch (p.len_) {
+    int dw_idx = p.find(primitive_kind::convolution);
+    int len = dw_idx == -1 ? p.len_ : dw_idx + 1;
+
+    switch (len) {
         case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+        case 1: // eltwise OR sum OR convolution
+            return is_eltwise(0) || is_sum(0) || is_convolution(0);
+        case 2: // sum -> eltwise OR eltwise -> convolution
+            return (is_sum(0) && is_eltwise(1))
+                    || (is_eltwise(0) && is_convolution(1));
         default: return false;
     }
 
@@ -502,11 +512,19 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.os = jcp.oh * jcp.ow;
     jcp.is = jcp.ih * jcp.iw;
 
+    jcp.typesize_in = sizeof(prec_traits<data_type::f32>::type);
+    jcp.typesize_out = sizeof(prec_traits<data_type::f32>::type);
+
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+
+    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    jcp.with_dw_conv = dw_conv_ind != -1;
+    // Using dw_conv_ind as upper-bound below, as post-ops after it will be
+    // handled in depthwise convolution.
+    jcp.with_sum = p.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
@@ -538,6 +556,7 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     if (!args_ok) return status::unimplemented;
 
     jcp.ur = 1;
+    if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
 
     int load_blocking {0};
     int load_blocking_max {0};
@@ -671,7 +690,7 @@ status_t jit_sse41_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     assert(reduce_blocking);
 
     assert(jcp.bcast_block % jcp.ur == 0);
-    jcp.ur_tail = jcp.bcast_dim % jcp.ur;
+    jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
     jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;

@@ -103,6 +103,8 @@ struct jit_conv_conf_t {
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
+    bool is_fused_conv;
+    int dw_conv_buffer_oc;
 
     post_ops_t::entry_t::eltwise_t eltwise;
 
@@ -435,6 +437,7 @@ struct jit_1x1_conv_conf_t {
     bool with_bias;
     bool with_sum;
     bool with_eltwise;
+    bool with_dw_conv;
 
     post_ops_t::entry_t::eltwise_t eltwise;
 

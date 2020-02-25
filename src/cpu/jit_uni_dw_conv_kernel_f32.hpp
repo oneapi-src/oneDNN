@@ -66,6 +66,10 @@ private:
     reg64_t reg_kh = r15;
     reg64_t iter_kh = rax;
     reg64_t reg_oi = rbx;
+    // fused convolution
+    reg64_t reg_input_buffer_ptr = rdx;
+    reg64_t aux_reg_input_buffer_ptr = rbp;
+    reg64_t reg_iw_offset = reg_input; //Hack: clear reg_input early in kernel
 
     inline void load_src(int ur_ch_blocks, int ur_w);
     inline void compute_loop(int ur_w, int ur_ch_blocks, int pad_l, int pad_r);

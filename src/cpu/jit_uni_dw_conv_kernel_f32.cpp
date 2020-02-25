@@ -77,6 +77,10 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
     Label kh_label;
     L(kh_label);
     {
+        if (jcp.is_fused_conv) {
+            mov(aux_reg_input, ptr[aux_reg_input_buffer_ptr]);
+            add(aux_reg_input, reg_iw_offset);
+        }
         int repeats = isa == sse41 ? 2 : 1;
         for (int i = 0; i < repeats; i++) {
             for (int ch = 0; ch < ur_ch_blocks; ch++) {
@@ -91,7 +95,8 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
                     int ow_start = get_ow_start(kw, pad_l);
                     int ow_end = get_ow_end(ur_w, kw, pad_r);
                     for (int ow = ow_start; ow < ow_end; ow++) {
-                        int inp_off = ch * jcp.ih * jcp.iw * ch_blk
+                        int inp_off = ch * (jcp.is_fused_conv ? 1 : jcp.ih)
+                                        * jcp.iw * ch_blk
                                 + (ow * stride_w - pad_l) * ch_blk
                                 + kw * ch_blk * dilate_w + i * 4;
 
@@ -108,7 +113,12 @@ void jit_uni_dw_conv_fwd_kernel_f32<isa>::apply_filter_unrolled(
         }
 
         add(aux_reg_kernel, jcp.kw * ch_blk * sizeof(float));
-        add(aux_reg_input, jcp.iw * ch_blk * dilate_h * sizeof(float));
+        if (jcp.is_fused_conv) {
+            // Move to next row pointer in the buffer
+            add(aux_reg_input_buffer_ptr, sizeof(void *));
+        } else {
+            add(aux_reg_input, jcp.iw * ch_blk * dilate_h * sizeof(float));
+        }
 
         dec(iter_kh);
         cmp(iter_kh, 0);
@@ -152,7 +162,11 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::compute_loop(
         int ur_w, int ur_ch_blocks, int pad_l, int pad_r) {
 
-    mov(aux_reg_input, reg_input);
+    if (jcp.is_fused_conv) {
+        mov(aux_reg_input_buffer_ptr, reg_input_buffer_ptr);
+    } else {
+        mov(aux_reg_input, reg_input);
+    }
     mov(aux_reg_kernel, reg_kernel);
     load_src(ur_ch_blocks, ur_w);
     apply_filter_unrolled(ur_ch_blocks, ur_w, pad_l, pad_r);
@@ -231,7 +245,26 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32<isa>::generate() {
     this->preamble();
 
-    mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
+    if (jcp.is_fused_conv) {
+        mov(reg_input_buffer_ptr, ptr[this->param1 + GET_OFF(src)]);
+        /* In case of fused depthwise convolution, `param.src` is not a pointer
+        to input, instead it points to a buffer containing pointers to
+        consecutive rows of input in format Cwc with blocking nb_ch_blocking.
+        Example: [ptr_to_inp_row0, ptr_to_inp_row1, ptr_to_inp_row2].
+        Traverse the data as
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row0 ...
+            add(reg_input_buffer_ptr, sizeof(void*))
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row1 ...
+            add(reg_input_buffer_ptr, sizeof(void*))
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row2 ...
+        */
+        xor_(reg_iw_offset, reg_iw_offset);
+    } else {
+        mov(reg_input, ptr[this->param1 + GET_OFF(src)]);
+    }
     mov(reg_output, ptr[this->param1 + GET_OFF(dst)]);
     mov(reg_kernel, ptr[this->param1 + GET_OFF(filt)]);
     if (jcp.with_bias) mov(reg_bias, ptr[this->param1 + GET_OFF(bias)]);

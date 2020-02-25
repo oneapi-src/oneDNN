@@ -91,7 +91,8 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
                 - div_up(i_b_overflow, dil_h);
 
         auto par_conv = jit_conv_call_s();
-        par_conv.src = &src[src_d.blk_off(n, ch, ih, iw)];
+        par_conv.src
+                = jcp.is_fused_conv ? src : &src[src_d.blk_off(n, ch, ih, iw)];
         par_conv.dst = &dst[dst_d.blk_off(n, ch, oh, ow)];
 
         par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0, kh, kw)];

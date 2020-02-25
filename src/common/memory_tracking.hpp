@@ -216,6 +216,7 @@ enum {
 
 enum {
     prefix_none = 0,
+    prefix_fusion,
     prefix_reducer_bia,
     prefix_reducer_wei,
 };
