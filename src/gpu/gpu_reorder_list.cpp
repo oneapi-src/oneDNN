@@ -14,34 +14,33 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/utils.hpp"
-#include "gpu/gpu_sum_pd.hpp"
-#include "gpu/ocl/ocl_engine.hpp"
-#include "gpu/ocl/ref_sum.hpp"
-#include "gpu/ocl/simple_sum.hpp"
+#include "gpu/gpu_impl_list.hpp"
+
+#include "gpu/ocl/cross_engine_reorder.hpp"
+#include "gpu/ocl/rnn/rnn_reorders.hpp"
+#include "gpu/ocl/simple_reorder.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-using spd_create_f = engine_t::sum_primitive_desc_create_f;
+using rpd_create_f = engine_t::reorder_primitive_desc_create_f;
 
 namespace {
-#define INSTANCE(...) __VA_ARGS__::pd_t::create
-static const spd_create_f ocl_sum_impl_list[] = {
-        INSTANCE(simple_sum_t<data_type::f32>),
-        INSTANCE(ref_sum_t),
-        nullptr,
-};
-#undef INSTANCE
+
+using namespace dnnl::impl::data_type;
+
+static const rpd_create_f reorder_impl_list[]
+        = {ocl::rnn_weights_reorder_t::pd_t::create,
+                ocl::cross_engine_reorder_t::pd_t::create,
+                ocl::simple_reorder_t::pd_t::create, nullptr};
 } // namespace
 
-const spd_create_f *ocl_gpu_engine_impl_list_t::get_sum_implementation_list() {
-    return ocl_sum_impl_list;
+const rpd_create_f *gpu_impl_list_t::get_reorder_implementation_list(
+        const memory_desc_t *, const memory_desc_t *) {
+    return reorder_impl_list;
 }
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

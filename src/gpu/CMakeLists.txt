@@ -14,5 +14,15 @@
 # limitations under the License.
 #===============================================================================
 
+file(GLOB SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+    )
+
+set(OBJ_LIB ${LIB_NAME}_gpu)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)
+
 add_subdirectory(compute)
 add_subdirectory(ocl)

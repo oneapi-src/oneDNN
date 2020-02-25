@@ -24,6 +24,7 @@
 #include "common/stream.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_impl_list.hpp"
 #include "gpu/ocl/ocl_gpu_device_info.hpp"
 #include "gpu/ocl/ocl_gpu_kernel.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -32,18 +33,6 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
-
-class ocl_gpu_engine_impl_list_t {
-public:
-    static const engine_t::concat_primitive_desc_create_f *
-    get_concat_implementation_list();
-    static const engine_t::reorder_primitive_desc_create_f *
-    get_reorder_implementation_list(
-            const memory_desc_t *src_md, const memory_desc_t *dst_md);
-    static const engine_t::sum_primitive_desc_create_f *
-    get_sum_implementation_list();
-    static const engine_t::primitive_desc_create_f *get_implementation_list();
-};
 
 class ocl_gpu_engine_t : public compute::compute_engine_t {
 public:
@@ -79,25 +68,24 @@ public:
 
     virtual const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
-        return ocl_gpu_engine_impl_list_t::get_concat_implementation_list();
+        return gpu_impl_list_t::get_concat_implementation_list();
     }
 
     virtual const reorder_primitive_desc_create_f *
     get_reorder_implementation_list(const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
-        return ocl_gpu_engine_impl_list_t::get_reorder_implementation_list(
-                src_md, dst_md);
+        return gpu_impl_list_t::get_reorder_implementation_list(src_md, dst_md);
     }
 
     virtual const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override {
-        return ocl_gpu_engine_impl_list_t::get_sum_implementation_list();
+        return gpu_impl_list_t::get_sum_implementation_list();
     }
 
     virtual const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *desc) const override {
         UNUSED(desc);
-        return ocl_gpu_engine_impl_list_t::get_implementation_list();
+        return gpu_impl_list_t::get_implementation_list();
     }
 
     virtual cl_device_id device() const { return device_; }

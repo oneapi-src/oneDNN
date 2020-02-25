@@ -16,35 +16,13 @@
 
 #include <CL/cl.h>
 
-#include "gpu/ocl/ocl_gpu_engine.hpp"
-
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "gpu/ocl/gemm/gen9_gemm.hpp"
-#include "gpu/ocl/gemm/gen9_gemm_x8x8s32.hpp"
-#include "gpu/ocl/gemm/ref_gemm.hpp"
-#include "gpu/ocl/gemm_inner_product.hpp"
-#include "gpu/ocl/gemm_matmul.hpp"
-#include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
-#include "gpu/ocl/gen9_convolution.hpp"
+#include "gpu/ocl/ocl_gpu_engine.hpp"
 #include "gpu/ocl/ocl_kernel_list.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/ref_batch_normalization.hpp"
-#include "gpu/ocl/ref_binary.hpp"
-#include "gpu/ocl/ref_convolution.hpp"
-#include "gpu/ocl/ref_deconvolution.hpp"
-#include "gpu/ocl/ref_eltwise.hpp"
-#include "gpu/ocl/ref_inner_product.hpp"
-#include "gpu/ocl/ref_layer_normalization.hpp"
-#include "gpu/ocl/ref_lrn.hpp"
-#include "gpu/ocl/ref_matmul.hpp"
-#include "gpu/ocl/ref_pooling.hpp"
-#include "gpu/ocl/ref_resampling.hpp"
-#include "gpu/ocl/ref_shuffle.hpp"
-#include "gpu/ocl/ref_softmax.hpp"
-#include "gpu/ocl/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -165,92 +143,6 @@ status_t ocl_gpu_engine_t::create_kernels(
         OCL_CHECK(clReleaseProgram(program));
     }
     return status::success;
-    ;
-}
-
-using pd_create_f = dnnl::impl::engine_t::primitive_desc_create_f;
-
-namespace {
-
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
-static const pd_create_f ocl_impl_list[] = {
-        // Elementwise
-        INSTANCE(ref_eltwise_fwd_t),
-        INSTANCE(ref_eltwise_bwd_t),
-
-        // Deconvolution
-        INSTANCE(ref_deconvolution_fwd_t),
-        INSTANCE(ref_deconvolution_bwd_data_t),
-        INSTANCE(ref_deconvolution_bwd_weights_t),
-
-        // Convolution
-        INSTANCE(gen9_convolution_fwd_t),
-        INSTANCE(gen9_convolution_bwd_data_t),
-        INSTANCE(gen9_convolution_bwd_weights_t),
-        INSTANCE(ref_convolution_fwd_t),
-        INSTANCE(ref_convolution_bwd_data_t),
-        INSTANCE(ref_convolution_bwd_weights_t),
-
-        // Batch Normalization
-        INSTANCE(ref_batch_normalization_fwd_t),
-        INSTANCE(ref_batch_normalization_bwd_t),
-
-        // Pooling
-        INSTANCE(ref_pooling_fwd_t),
-        INSTANCE(ref_pooling_bwd_t),
-
-        // LRN
-        INSTANCE(ref_lrn_fwd_t),
-        INSTANCE(ref_lrn_bwd_t),
-
-        // Inner Product
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t),
-        INSTANCE(gemm_inner_product_fwd_t),
-        INSTANCE(gemm_inner_product_bwd_data_t),
-        INSTANCE(gemm_inner_product_bwd_weights_t),
-
-        INSTANCE(ref_inner_product_fwd_t),
-        INSTANCE(ref_inner_product_bwd_data_t),
-        INSTANCE(ref_inner_product_bwd_weights_t),
-
-        // Softmax
-        INSTANCE(ref_softmax_fwd_t),
-        INSTANCE(ref_softmax_bwd_t),
-
-        // GEMM (internal)
-        INSTANCE(gen9_gemm_x8x8s32_t),
-        INSTANCE(gen9_gemm_t),
-        INSTANCE(ref_gemm_t),
-
-        // RNN
-        INSTANCE(ref_rnn_fwd_t),
-        INSTANCE(ref_rnn_bwd_t),
-
-        // Shuffle
-        INSTANCE(ref_shuffle_t),
-
-        // Layer Normalization
-        INSTANCE(ref_layer_normalization_fwd_t),
-        INSTANCE(ref_layer_normalization_bwd_t),
-
-        // Binary
-        INSTANCE(ref_binary_t),
-
-        // MatMul
-        INSTANCE(gemm_matmul_t),
-        INSTANCE(ref_matmul_t),
-
-        // Resampling
-        INSTANCE(ref_resampling_fwd_t),
-        INSTANCE(ref_resampling_bwd_t),
-        nullptr,
-};
-
-#undef INSTANCE
-} // namespace
-
-const pd_create_f *ocl_gpu_engine_impl_list_t::get_implementation_list() {
-    return ocl_impl_list;
 }
 
 } // namespace ocl
