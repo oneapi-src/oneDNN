@@ -46,11 +46,9 @@ if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 
 Here:
 
-- \f$OH = \left\lfloor{\frac{IH \cdot SH - KH + PH_L + PH_R}{SH}}
-        \right\rfloor + 1,\f$
+- \f$OH = \left\lfloor{\frac{IH - KH + PH_L + PH_R}{SH}} \right\rfloor + 1,\f$
 
-- \f$OW = \left\lfloor{\frac{IW \cdot SW - KW + PW_L + PW_R}{SW}}
-        \right\rfloor + 1.\f$
+- \f$OW = \left\lfloor{\frac{IW - KW + PW_L + PW_R}{SW}} \right\rfloor + 1.\f$
 
 #### Convolution with Groups
 
@@ -97,9 +95,9 @@ Here:
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
 
 @note
-    In DNNL dilation parameter equals 0 means no-dilation, i.e. regular
-    convolution. Other libraries might use another convention, where
-    dilation parameter equals 1 indicates no-dilation case.
+    In DNNL dilation parameter equals 0 corresponds to non-dilated, i.e.
+    regular, convolution. Other libraries might use another convention, where
+    dilation parameter equals 1 corresponds to regular convolution.
 
 #### Deconvolution (Transposed Convolution)
 
