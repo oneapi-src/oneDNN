@@ -21,7 +21,7 @@ Max pooling:
     \dst(n, c, oh, ow) =
         \max\limits_{kh, kw}
         \left(
-            \src(n, c, oh \cdot SH + kh - ph_0, ow \cdot SW +kw - pw_0)
+            \src(n, c, oh \cdot SH + kh - PH_L, ow \cdot SW +kw - PW_L)
         \right)
 \f]
 
@@ -31,12 +31,11 @@ Average pooling:
     \dst(n, c, oh, ow) =
         \frac{1}{DENOM}
         \sum\limits_{kh, kw}
-            \src(n, c, oh \cdot SH + kh - ph_0, ow \cdot SW +kw - pw_0)
+            \src(n, c, oh \cdot SH + kh - PH_L, ow \cdot SW +kw - PW_L)
 \f]
 
-where \f$ph_0, pw_0\f$ are `padding_l[0]` and `padding_l[1]` respectively,
-and output spatial dimensions are calculated similarly to
-how they are done in convolution.
+Here output spatial dimensions are calculated similarly to how they are done in
+@ref dev_guide_convolution.
 
 Average pooling supports two algorithms:
 - #dnnl_pooling_avg_include_padding, in which case \f$DENOM = KH \cdot KW\f$,
@@ -47,9 +46,8 @@ Average pooling supports two algorithms:
 
 #### Difference Between Forward Training and Forward Inference
 
-- Max pooling requires `workspace` output for the #dnnl_forward_training
-  propagation kind, and doesn't require it for #dnnl_forward_inference
-  (see details below).
+- Max pooling requires a `workspace` for the #dnnl_forward_training propagation
+  kind, and doesn't require it for #dnnl_forward_inference (see details below).
 
 ### Backward
 
@@ -73,16 +71,17 @@ argument index as specified by the following table.
 ### General Notes
 
 1. During training, max pooling requires a workspace on forward
-   (#dnnl_forward_training) and backward passes to save indices where a
-   maximum was found. The workspace format is opaque, and the indices cannot be
-   restored from it. However, one can use backward pooling to perform
-   up-sampling (used in some detection topologies).
+   (#dnnl_forward_training) and backward passes to save indices where a maximum
+   was found. The workspace format is opaque, and the indices cannot be restored
+   from it. However, one can use backward pooling to perform up-sampling (used
+   in some detection topologies). The workspace can be created via
+   `workspace_desc()` from the pooling primitive descriptor.
 
 2. A user can use memory format tag #dnnl_format_tag_any for `dst` memory
    descriptor when creating pooling forward propagation. The library would
    derive the appropriate format from the `src` memory descriptor. However,
    the `src` itself must be defined. Similarly, a user can use memory format tag
-   #dnnl_format_tag_any for the`diff_src` memory descriptor when creating
+   #dnnl_format_tag_any for the `diff_src` memory descriptor when creating
    pooling backward propagation.
 
 ### Data Type Support
