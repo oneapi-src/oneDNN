@@ -142,7 +142,7 @@ provide a memory descriptor for statistics when initializing the layer
 normalization descriptor. For best performance, it is advised to use the memory
 format that follows the data memory format; i.e., if the data format is
 #dnnl_tnc, the best performance can be expected for statistics with the
-#dnnl_tn format and suboptimal for statistics with the #dnnl_nc format.
+#dnnl_tn format and suboptimal for statistics with the #dnnl_nt format.
 
 #### Scale and Shift
 
@@ -174,7 +174,7 @@ The layer normalization primitive is optimized for the following memory formats:
 2. For `mean`/`variance`, use the memory format that follows the data memory
    format; i.e., if the data format is #dnnl_tnc, the best performance can be
    expected for statistics with #dnnl_tn and suboptimal for statistics with the
-   #dnnl_nc format.
+   #dnnl_nt format.
 
 3. For backward propagation, use the same memory format for `src`, `diff_dst`,
    and `diff_src` (the format of `diff_dst` and `diff_src` are always the same
