@@ -169,10 +169,12 @@ void _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Vmm>::reduce_loop(
     };
 
     auto output_ptr = [=](int i_load, int i_ur) {
+        const size_t ur_stride = jcp.with_dw_conv
+                ? jcp.nb_load_blocking * jcp.oc_block * i_ur
+                : jcp.oc_without_padding * jcp.ngroups * i_ur;
+
         return EVEX_compress_addr(aux_reg_output_data,
-                jcp.typesize_out
-                        * (jcp.oc_without_padding * i_ur * jcp.ngroups
-                                + i_load * jcp.load_block));
+                jcp.typesize_out * (ur_stride + i_load * jcp.load_block));
     };
 
     auto init = [=]() {
@@ -515,13 +517,19 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
     const auto &p = attr.post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    auto is_convolution
+            = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
-    switch (p.len_) {
+    int dw_idx = p.find(primitive_kind::convolution);
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+
+    switch (len) {
         case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
+        case 1: return is_eltwise(0) || p.contain(sum, 0) || is_convolution(0);
         case 2:
             return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0));
+                    || (p.contain(sum, 1) && is_eltwise(0))
+                    || (is_eltwise(0) && is_convolution(1));
         default: return false;
     }
 
@@ -598,7 +606,11 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    jcp.with_dw_conv = dw_conv_ind != -1;
+    // Using dw_conv_ind as upper-bound below, as post-ops after it will be
+    // handled in depthwise convolution.
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
@@ -727,6 +739,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
             }
         }
     }
+    if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
 
     jcp.reduce_dim = jcp.ic;
     jcp.reduce_block = jcp.ic_block;
@@ -822,7 +835,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     assert(jcp.bcast_block % jcp.ur == 0);
     assert(jcp.reduce_dim % jcp.reduce_block == 0);
 
-    jcp.ur_tail = jcp.bcast_dim % jcp.ur;
+    jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
     jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;

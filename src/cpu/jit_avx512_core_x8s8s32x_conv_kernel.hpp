@@ -76,6 +76,9 @@ private:
     const Xbyak::Reg64 reg_compensation = r14;
     const Xbyak::Reg64 aux_reg_inp_d = r13;
     const Xbyak::Reg64 aux_reg_ker_d = r15;
+    // Using 3d regs as depthwise3d is not yet supported
+    const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
+    const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
 
     /* counter regs */
     const Xbyak::Reg64 reg_bias_alpha = abi_not_param1;
