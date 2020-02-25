@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2020 Intel Corporation
+* Copyright 2016-2019 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -44,13 +44,39 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+    auto scratchpad = ctx.get_scratchpad_grantor();
+
+    const auto &jcp = kernel_->jcp;
+    // TODO (Roma): remove this restriction
+    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+
+    if (pd()->wants_padded_bias()) {
+        auto padded_bias = scratchpad.get<data_t>(key_conv_padded_bias);
+        utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
+        utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
+                jcp.oc - jcp.oc_without_padding);
+        bias = padded_bias;
+    }
+
+    parallel(0, [&](const int ithr, const int nthr) {
+        execute_forward_thr(ithr, nthr, src, weights, bias, dst, scratchpad);
+    });
+
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
+}
+
+void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
+        const int nthr, const data_t *src, const data_t *weights,
+        const data_t *bias, data_t *dst,
+        const memory_tracking::grantor_t &scratchpad) const {
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
     const auto &jcp = kernel_->jcp;
     auto rtus_space = pd()->rtus_.reduce_src_
-            ? ctx.get_scratchpad_grantor().get<data_t>(key_conv_rtus_space)
+            ? scratchpad.get<data_t>(key_conv_rtus_space)
             : NULL;
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
@@ -60,117 +86,102 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward(
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
+    const int nb_oc = jcp.nb_load;
+    const int nb_ic = jcp.nb_reduce;
+    const int nb_ic_blocking = jcp.nb_reduce_blocking;
+    const int os_block = jcp.bcast_block;
+
+    auto p = jit_1x1_conv_call_s();
+    auto rp = rtus_driver_t<avx2>::call_params_t();
+
+    int start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
+
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
         return remaining < tail_step ? remaining : default_step;
     };
 
-    auto ker = [&](const int ithr, const int nthr) {
-        // TODO (Roma): remove this restriction
-        assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &od,
+                              int &oh, int &ow, int &id, int &ih, int &iw) {
+        int osb {0};
+        nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
 
-        auto p = jit_1x1_conv_call_s();
-        auto rp = rtus_driver_t<avx2>::call_params_t();
+        bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
+                jcp.nb_bcast_blocking_max);
+        bcast_step = nstl::min(bcast_step, end - iwork);
 
-        const int nb_oc = jcp.nb_load;
-        const int nb_ic = jcp.nb_reduce;
-        const int nb_ic_blocking = jcp.nb_reduce_blocking;
-        const int os_block = jcp.bcast_block;
+        const int os = osb * os_block;
+        const int os_2d = os % (jcp.oh * jcp.ow);
+        od = os / (jcp.oh * jcp.ow);
+        oh = os_2d / jcp.ow;
+        ow = os_2d % jcp.ow;
+        id = od * stride_d;
+        ih = oh * stride_h;
+        iw = ow * stride_w;
+        rp.iw_start = iw;
 
-        int start {0}, end {0};
-        balance211(work_amount, nthr, ithr, start, end);
-
-        int iwork = start;
-        while (iwork < end) {
-            int n {0}, g {0}, osb {0};
-            nd_iterator_init(
-                    iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
-
-            int bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
-                    jcp.nb_bcast_blocking_max);
-            bcast_step = nstl::min(bcast_step, end - iwork);
-
-            const int os = osb * os_block;
-
-            const int od = os / (jcp.oh * jcp.ow);
-            const int os_2d = os % (jcp.oh * jcp.ow);
-            const int oh = os_2d / jcp.ow;
-            const int ow = os_2d % jcp.ow;
-
-            const int id = od * stride_d;
-            const int ih = oh * stride_h;
-            const int iw = ow * stride_w;
-            rp.iw_start = iw;
-
-            p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
-            rp.os = p.bcast_dim;
-
-            int ocb = 0;
-            while (ocb < jcp.nb_load) {
-                const int load_step = step(jcp.nb_load_blocking,
-                        jcp.nb_load - ocb, jcp.nb_load_blocking_max);
-
-                const int _ocb = g * nb_oc + ocb;
-                p.load_dim = this_block_size(
-                        ocb * jcp.oc_block, jcp.oc, load_step * jcp.oc_block);
-                const size_t dst_off = data_blk_off(dst_d, n, _ocb, od, oh, ow);
-
-                p.output_data = &dst[dst_off];
-
-                p.bias_data = &bias[_ocb * jcp.oc_block];
-
-                for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
-                    p.first_last_flag = 0 | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
-                            | (icb + nb_ic_blocking >= nb_ic ? FLAG_REDUCE_LAST
-                                                             : 0);
-
-                    p.reduce_dim = this_block_size(icb * jcp.ic_block, jcp.ic,
-                            nb_ic_blocking * jcp.ic_block);
-                    rp.icb = p.reduce_dim / jcp.reduce_block;
-
-                    p.load_data = &weights[pd()->with_groups()
-                                    ? weights_d.blk_off(g, ocb, icb)
-                                    : weights_d.blk_off(ocb, icb)];
-
-                    const int _icb = g * nb_ic + icb;
-                    if (pd()->rtus_.reduce_src_) {
-                        rp.ws = rtus_space
-                                + ithr * pd()->rtus_.space_per_thread_
-                                + _icb * jcp.is * jcp.ic_block;
-
-                        if (ocb == 0) {
-                            rp.src = src
-                                    + data_blk_off(src_d, n, _icb, id, ih, iw);
-                            rtus_driver_->ker_(&rp);
-                        }
-
-                        p.bcast_data = rp.ws;
-                    } else
-                        p.bcast_data = src
-                                + data_blk_off(src_d, n, _icb, id, ih, iw);
-
-                    kernel_->jit_ker(&p);
-                }
-
-                ocb += load_step;
-            }
-
-            iwork += bcast_step;
-        }
+        p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
+        rp.os = p.bcast_dim;
     };
 
-    if (pd()->wants_padded_bias()) {
-        auto padded_bias = ctx.get_scratchpad_grantor().get<data_t>(
-                key_conv_padded_bias);
-        utils::array_copy(padded_bias, bias, jcp.oc_without_padding);
-        utils::array_set(padded_bias + jcp.oc_without_padding, 0.f,
-                jcp.oc - jcp.oc_without_padding);
-        bias = padded_bias;
+    auto init_load = [&](int ocb, int &load_step) {
+        load_step = step(jcp.nb_load_blocking, jcp.nb_load - ocb,
+                jcp.nb_load_blocking_max);
+        p.load_dim = this_block_size(
+                ocb * jcp.oc_block, jcp.oc, load_step * jcp.oc_block);
+    };
+
+    auto inner_ker = [&](int ocb, int icb, int n, int g, int od, int oh, int ow,
+                             int id, int ih, int iw) {
+        const int _ocb = g * nb_oc + ocb;
+        const int _icb = g * nb_ic + icb;
+
+        p.output_data = &dst[data_blk_off(dst_d, n, _ocb, od, oh, ow)];
+        p.bias_data = &bias[_ocb * jcp.oc_block];
+
+        p.first_last_flag = 0 | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
+                | (icb + nb_ic_blocking >= nb_ic ? FLAG_REDUCE_LAST : 0);
+
+        p.reduce_dim = this_block_size(
+                icb * jcp.ic_block, jcp.ic, nb_ic_blocking * jcp.ic_block);
+        rp.icb = p.reduce_dim / jcp.reduce_block;
+
+        p.load_data
+                = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
+                                               : weights_d.blk_off(ocb, icb)];
+
+        if (pd()->rtus_.reduce_src_) {
+            rp.ws = rtus_space + ithr * pd()->rtus_.space_per_thread_
+                    + _icb * jcp.is * jcp.ic_block;
+
+            if (ocb == 0) {
+                rp.src = src + data_blk_off(src_d, n, _icb, id, ih, iw);
+                rtus_driver_->ker_(&rp);
+            }
+
+            p.bcast_data = rp.ws;
+        } else
+            p.bcast_data = src + data_blk_off(src_d, n, _icb, id, ih, iw);
+
+        kernel_->jit_ker(&p);
+    };
+
+    int iwork = start;
+    while (iwork < end) {
+        int n, g, bcast_step, od, oh, ow, id, ih, iw;
+        init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
+        int ocb = 0;
+        while (ocb < jcp.nb_load) {
+            int load_step;
+            init_load(ocb, load_step);
+            for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
+                inner_ker(ocb, icb, n, g, od, oh, ow, id, ih, iw);
+            }
+            ocb += load_step;
+        }
+        iwork += bcast_step;
     }
-
-    parallel(0, ker);
-
-    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
 }
 
 /* convolution backward wtr data */

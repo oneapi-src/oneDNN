@@ -39,6 +39,19 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward(
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
+    auto scratchpad = ctx.get_scratchpad_grantor();
+    parallel(0, [&](const int ithr, const int nthr) {
+        execute_forward_thr(ithr, nthr, src, weights, bias, dst, scratchpad);
+    });
+
+    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
+}
+
+void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
+        const int nthr, const data_t *src, const data_t *weights,
+        const data_t *bias, data_t *dst,
+        const memory_tracking::grantor_t &scratchpad) const {
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
@@ -47,86 +60,90 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward(
     const int ndims = src_d.ndims();
 
     const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
+    // TODO (Roma): remove this restriction
+    assert(jcp.stride_w == 1 && jcp.stride_h == 1);
 
-    parallel(0, [&](const int ithr, const int nthr) {
-        // TODO (Roma): remove this restriction
-        assert(jcp.stride_w == 1 && jcp.stride_h == 1);
+    auto par_conv = jit_1x1_conv_call_s();
 
-        auto par_conv = jit_1x1_conv_call_s();
+    const int nb_oc = jcp.nb_load;
+    const int nb_ic = jcp.nb_reduce;
+    const int nb_ic_blocking = jcp.nb_reduce_blocking;
+    const int os_block = jcp.bcast_block;
 
-        const int nb_oc = jcp.nb_load;
-        const int nb_ic = jcp.nb_reduce;
-        const int nb_ic_blocking = jcp.nb_reduce_blocking;
-        const int os_block = jcp.bcast_block;
+    int start {0}, end {0};
+    balance211(work_amount, nthr, ithr, start, end);
 
-        int start {0}, end {0};
-        balance211(work_amount, nthr, ithr, start, end);
+    auto step = [](int default_step, int remaining, int tail_step) {
+        assert(default_step <= tail_step);
+        return remaining < tail_step ? remaining : default_step;
+    };
 
-        int iwork = start;
-        while (iwork < end) {
-            int n {0}, g {0}, osb {0};
-            nd_iterator_init(
-                    iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
+    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &oh,
+                              int &ow, int &ih, int &iw) {
+        int osb {0};
+        nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
 
-            const int bcast_step_rem = jcp.nb_bcast - osb;
-            int bcast_step = bcast_step_rem <= jcp.nb_bcast_blocking_max
-                    ? bcast_step_rem
-                    : jcp.nb_bcast_blocking;
-            bcast_step = nstl::min<int>(bcast_step, end - iwork);
+        bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
+                jcp.nb_bcast_blocking_max);
+        bcast_step = nstl::min(bcast_step, end - iwork);
 
-            const int os = osb * os_block;
-            const int ow = os % jcp.ow;
-            const int oh = os / jcp.ow;
-            const int iw = ow * jcp.stride_w;
-            const int ih = oh * jcp.stride_h;
+        const int os = osb * os_block;
+        ow = os % jcp.ow;
+        oh = os / jcp.ow;
 
-            par_conv.bcast_dim
-                    = this_block_size(os, jcp.os, bcast_step * os_block);
+        ih = oh * jcp.stride_h;
+        iw = ow * jcp.stride_w;
 
-            int ocb = 0;
-            while (ocb < jcp.nb_load) {
-                const int load_step_rem = jcp.nb_load - ocb;
-                const int load_step = load_step_rem < jcp.nb_load_blocking_max
-                        ? load_step_rem
-                        : jcp.nb_load_blocking;
+        par_conv.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
+    };
 
-                const size_t _ocb = g * nb_oc + ocb;
-                par_conv.load_dim = this_block_size(
-                        ocb * jcp.oc_block, jcp.oc, load_step * jcp.oc_block);
+    auto init_load = [&](int ocb, int &load_step) {
+        load_step = step(jcp.nb_load_blocking, jcp.nb_load - ocb,
+                jcp.nb_load_blocking_max);
+        par_conv.load_dim = this_block_size(
+                ocb * jcp.oc_block, jcp.oc, load_step * jcp.oc_block);
+    };
 
-                const size_t dst_off = data_blk_off(dst_d, n, _ocb, oh, ow);
-                par_conv.output_data = &dst[dst_off];
+    auto inner_ker = [&](int ocb, int icb, int n, int g, int oh, int ow, int ih,
+                             int iw) {
+        const size_t _ocb = g * nb_oc + ocb;
+        const size_t _icb = g * nb_ic + icb;
 
-                par_conv.bias_data = &bias[_ocb * jcp.oc_block];
+        par_conv.output_data = &dst[data_blk_off(dst_d, n, _ocb, oh, ow)];
 
-                for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
-                    par_conv.first_last_flag = 0
-                            | (icb == 0) * FLAG_REDUCE_FIRST
-                            | (icb + nb_ic_blocking >= nb_ic)
-                                    * FLAG_REDUCE_LAST;
+        par_conv.bias_data = &bias[_ocb * jcp.oc_block];
 
-                    par_conv.reduce_dim = this_block_size(icb * jcp.ic_block,
-                            jcp.ic, nb_ic_blocking * jcp.ic_block);
+        par_conv.first_last_flag = 0 | (icb == 0) * FLAG_REDUCE_FIRST
+                | (icb + nb_ic_blocking >= nb_ic) * FLAG_REDUCE_LAST;
 
-                    const size_t _icb = g * nb_ic + icb;
-                    const size_t src_off = data_blk_off(src_d, n, _icb, ih, iw);
-                    par_conv.bcast_data = &src[src_off];
+        par_conv.reduce_dim = this_block_size(
+                icb * jcp.ic_block, jcp.ic, nb_ic_blocking * jcp.ic_block);
 
-                    par_conv.load_data = &weights[pd()->with_groups()
-                                    ? weights_d.blk_off(g, ocb, icb)
-                                    : weights_d.blk_off(ocb, icb)];
+        const size_t src_off = data_blk_off(src_d, n, _icb, ih, iw);
+        par_conv.bcast_data = &src[src_off];
 
-                    kernel_->jit_ker(&par_conv);
-                }
+        par_conv.load_data
+                = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
+                                               : weights_d.blk_off(ocb, icb)];
 
-                ocb += load_step;
+        kernel_->jit_ker(&par_conv);
+    };
+
+    int iwork = start;
+    while (iwork < end) {
+        int n, g, bcast_step, oh, ow, ih, iw;
+        init_bcast(iwork, n, g, bcast_step, oh, ow, ih, iw);
+        int ocb = 0;
+        while (ocb < jcp.nb_load) {
+            int load_step;
+            init_load(ocb, load_step);
+            for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
+                inner_ker(ocb, icb, n, g, oh, ow, ih, iw);
             }
-
-            iwork += bcast_step;
+            ocb += load_step;
         }
-    });
-
-    if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad();
+        iwork += bcast_step;
+    }
 }
 
 } // namespace cpu

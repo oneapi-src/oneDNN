@@ -82,6 +82,9 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
+    void execute_forward_thr(const int ithr, const int nthr, const data_t *src,
+            const data_t *weights, const data_t *bias, data_t *dst,
+            const memory_tracking::grantor_t &scratchpad) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_sse41_1x1_conv_kernel_f32 *kernel_;
 };
