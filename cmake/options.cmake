@@ -117,10 +117,7 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
 
     To use Threading Building Blocks (TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
-    location.
-
-    Using DPC++ for CPU requires setting DPCPPROOT if the libraries are
-    installed in a non-standard location.")
+    location.")
 if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|THREADPOOL|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
 endif()
@@ -144,9 +141,6 @@ set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
     or DPCPP (DPC++ GPU engines).
 
     Using OpenCL for GPU requires setting OPENCLROOT if the libraries are
-    installed in a non-standard location.
-
-    Using DPC++ for GPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
 if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GPU_RUNTIME}")

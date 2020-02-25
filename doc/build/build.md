@@ -109,25 +109,31 @@ cmake --build .
 
 #### Windows
 
-@note
-    Currently, building on Windows has a few limitations:
-    - Only the Clang compiler with GNU-like command-line is supported
-      (`clang.exe` and `clang++.exe`).
-    - Only the Ninja generator is supported.
-    - CMake version must be 3.15 or newer.
-
 ~~~bat
 :: Set Intel oneAPI DPC++ Compiler environment
 :: <..>\setvars.bat
+~~~
 
-:: Set C and C++ compilers (must have GNU-like command-line interface)
-set CC=clang
-set CXX=clang++
+##### Ninja
+
+~~~bat
+:: Set C and C++ compilers
+set CC=<C compiler>
+set CXX=<DPC++ compiler>
 
 mkdir build
 cd build
 cmake -G Ninja -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
 cmake --build .
+~~~
+
+##### Visual Studio
+
+~~~bat
+mkdir build
+cd build
+cmake -G "Visual Studio 16 2019" -A x64 -T "Intel(R) oneAPI DPC++ Compiler" -DDNNL_CPU_RUNTIME=DPCPP -DDNNL_GPU_RUNTIME=DPCPP ..
+msbuild "DNNL.sln"
 ~~~
 
 ## Validate the Build
