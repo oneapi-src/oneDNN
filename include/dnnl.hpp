@@ -2291,10 +2291,23 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Constructs a memory object.
     ///
+    /// Unless @p handle is equal to DNNL_MEMORY_NONE, the constructed memory
+    /// object will have the underlying buffer set. In this case, the buffer
+    /// will be initialized as if #memory::set_data_handle() had been called.
+    ///
+    /// @sa memory::set_data_handle()
+    ///
     /// @param md Memory descriptor.
     /// @param engine Engine to store the data on.
     /// @param handle Handle of the memory buffer to use as an underlying
-    ///     storage. On CPU this is a pointer.
+    ///     storage.
+    ///     - A pointer to the user-allocated buffer. In this case the library
+    ///       doesn't own the buffer.
+    ///     - The DNNL_MEMORY_ALLOCATE special value. Instructs the library to
+    ///       allocate the buffer for the memory object. In this case the
+    ///       library owns the buffer.
+    ///     - DNNL_MEMORY_NONE to create dnnl_memory without an underlying
+    ///       buffer.
     memory(const desc &md, const engine &engine, void *handle) {
         dnnl_memory_t result;
         error::wrap_c_api(
@@ -2340,8 +2353,30 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Sets memory buffer.
     ///
-    /// @param handle Memory buffer to use as the underlying storage. It must
-    ///     have at least get_desc().get_size() bytes allocated.
+    /// This function may write zeroes to the specified data @p handle if the
+    /// memory object has padding to maintain data consistency.
+    ///
+    /// @note
+    ///     The padding is performed for memory objects created with blocked
+    ///     memory format tags like #dnnl_aBcd8b when any of the dimensions is
+    ///     not a multiple of a corresponding block size. The padding is
+    ///     performed only for memory objects created with plain memory format
+    ///     tags like #dnnl_nchw or #dnnl_nhwc if requested explicitly. More
+    ///     information is available in @ref
+    ///     dev_guide_understanding_memory_formats.
+    ///
+    /// The write can be time consuming and happens each time the function is
+    /// called. Furthermore, it is performed using an internal service stream
+    /// in a blocking manner.
+    ///
+    /// @warning
+    ///     Even if hte memory object is used to hold values that stay constant
+    ///     (e.g., pre-packed weights during inference), the function will still
+    ///     write zeroes to the padding area if it exists. Hence, the @p
+    ///     handle parameter cannot and does not have a const qualifier.
+    ///
+    /// @param handle Output data handle. For the CPU engine, the data handle
+    ///     is a pointer to the actual data. For OpenCL it is a cl_mem.
     void set_data_handle(void *handle) const {
         error::wrap_c_api(dnnl_memory_set_data_handle(get(), handle),
                 "could not set native handle of a memory object");
@@ -2349,7 +2384,7 @@ struct memory : public handle<dnnl_memory_t> {
 
     /// Maps the data of the memory.
     ///
-    /// Mapping allows to read/write directly from/to the memory contents for
+    /// Mapping enables read/write directly from/to the memory contents for
     /// engines that do not support direct memory access.
     ///
     /// Mapping is an exclusive operation - a memory object cannot be used in
@@ -2357,11 +2392,11 @@ struct memory : public handle<dnnl_memory_t> {
     ///
     /// @note
     ///     Any primitives working with the memory should be completed before
-    ///     mapping. Use stream::wait() to synchronize the corresponding
-    ///     execution stream.
+    ///     the memory is mapped. Use stream::wait() to synchronize the
+    ///     corresponding execution stream.
     ///
     /// @note
-    ///     Map/unmap API is provided mainly for debug/testing purposes and
+    ///     The map/unmap API is provided mainly for debug/testing purposes and
     ///     its performance may be suboptimal.
     ///
     /// @tparam T Data type to return a pointer to.
@@ -2381,7 +2416,7 @@ struct memory : public handle<dnnl_memory_t> {
     /// obtained through a map_data() call.
     ///
     /// @note
-    ///     Map/unmap API is provided mainly for debug/testing purposes and
+    ///     The map/unmap API is provided mainly for debug/testing purposes and
     ///     its performance may be suboptimal.
     ///
     /// @param mapped_ptr A pointer previously returned by map_data().
@@ -2400,6 +2435,8 @@ struct memory : public handle<dnnl_memory_t> {
     }
 
     /// Sets the OpenCL memory object @p mem_object associated with the memory.
+    ///
+    /// For behavioral details see memory::set_data_handle().
     ///
     /// @param mem_object OpenCL cl_mem object to use as the underlying
     ///     storage. It must have at least get_desc().get_size() bytes
