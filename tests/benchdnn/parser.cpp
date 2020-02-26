@@ -274,13 +274,20 @@ static bool parse_mem_check(
     return parse_single_value_option(mem_check, str2bool, str, option_name);
 }
 
+static bool parse_scratchpad_mode(
+        const char *str, const std::string &option_name = "scratchpad") {
+    return parse_single_value_option(
+            scratchpad_mode, str2scratchpad_mode, str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
     return parse_bench_mode(str) || parse_max_ms_per_prb(str)
             || parse_fix_times_per_prb(str) || parse_verbose(str)
             || parse_engine_kind(str) || parse_fast_ref_gpu(str)
-            || parse_canonical(str) || parse_mem_check(str);
+            || parse_canonical(str) || parse_mem_check(str)
+            || parse_scratchpad_mode(str);
 }
 
 void catch_unknown_options(const char *str) {

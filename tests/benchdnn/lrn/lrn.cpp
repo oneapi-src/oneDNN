@@ -135,8 +135,12 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &lpd,
                 WARN);
     }
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&lpd, &ld, NULL, engine_tgt, hint);
+    auto dnnl_attr = create_dnnl_attr(attr_t());
+
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
+            &lpd, &ld, dnnl_attr, engine_tgt, hint);
+
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -190,6 +194,7 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto &data_md = q(const_fpd, DNNL_ARG_SRC);
     const auto &ws_md = q(const_fpd, DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = get_abx_tag(p->ndims);
@@ -203,6 +208,7 @@ int doit(const prb_t *p, res_t *r) {
     if (p->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
     dnn_mem_t ws_fp(ws_md, engine_tgt);
     dnn_mem_t ws_dt(ws_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     dnn_mem_t d_dst_dt, d_src_dt;
 
@@ -212,6 +218,7 @@ int doit(const prb_t *p, res_t *r) {
     args_fwd.set(DNNL_ARG_SRC, src_dt);
     args_fwd.set(DNNL_ARG_DST, dst_dt);
     args_fwd.set(DNNL_ARG_WORKSPACE, ws_dt);
+    args_fwd.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args_t &args = args_fwd;
 
     DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
@@ -241,6 +248,7 @@ int doit(const prb_t *p, res_t *r) {
         }
 
         const auto &d_data_md = q(const_bpd, DNNL_ARG_DIFF_DST);
+        const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         dnn_mem_t d_dst_fp(d_data_md, fp, tag, engine_tgt);
         d_dst_dt = dnn_mem_t(d_data_md, engine_tgt);
@@ -248,13 +256,15 @@ int doit(const prb_t *p, res_t *r) {
         dnn_mem_t d_src_fp(d_data_md, fp, tag, engine_tgt);
         d_src_dt = dnn_mem_t(d_data_md, engine_tgt);
 
+        scratchpad_dt = dnn_mem_t(d_scratchpad_md, engine_tgt);
+
         SAFE(fill_dst(p, d_dst_dt, d_dst_fp), WARN);
 
         args_bwd.set(DNNL_ARG_SRC, src_dt);
         args_bwd.set(DNNL_ARG_DIFF_DST, d_dst_dt);
         args_bwd.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args_bwd.set(DNNL_ARG_WORKSPACE, ws_dt);
-
+        args_bwd.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args = args_bwd;
 
         DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);

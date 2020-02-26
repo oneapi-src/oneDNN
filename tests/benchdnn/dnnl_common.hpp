@@ -187,6 +187,7 @@ extern dnnl_engine_kind_t engine_tgt_kind;
 
 extern dnnl_engine_t engine_tgt;
 extern dnnl_stream_t stream_tgt;
+extern dnnl_scratchpad_mode_t scratchpad_mode;
 
 inline int init() {
     if (!engine_tgt) {

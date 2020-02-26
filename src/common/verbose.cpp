@@ -211,7 +211,8 @@ void attr2str(char *str, int len, int written, const primitive_attr_t *attr) {
     // scratchpad mode is not a part of has_default_values(). Check it first.
     const scratchpad_mode_t &spm = attr->scratchpad_mode_;
     if (spm != scratchpad_mode_t::dnnl_scratchpad_mode_library) {
-        DPRINT(str, len, written, "scratchpad_mode:%d;", (int)spm);
+        DPRINT(str, len, written, "scratchpad_mode:%s;",
+                dnnl_scratchpad_mode2str(spm));
     }
 
     if (attr->has_default_values()) return;

@@ -270,8 +270,12 @@ inline dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, int64_t scale_cnt, const float *scales) {
     return create_dnnl_attr(attr, scale_cnt, -1, scales);
 }
+inline dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr) {
+    return create_dnnl_attr(attr, 1, -1, NULL);
+}
 
 dnnl_engine_kind_t str2engine_kind(const char *str);
+dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,

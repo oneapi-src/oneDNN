@@ -64,11 +64,11 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
     DNN_SAFE(dnnl_binary_desc_init(&bd, alg, &src_d[0], &src_d[1], &dst_d),
             WARN);
 
-    // At this point, p->attr is sufficient to create attributes for binary
-    auto dnnl_attr = create_dnnl_attr(p->attr, 1, NULL);
+    auto dnnl_attr = create_dnnl_attr(p->attr);
 
     dnnl_status_t init_status = dnnl_primitive_desc_create(
             &bpd, &bd, dnnl_attr, engine_tgt, NULL);
+
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
@@ -173,6 +173,7 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto &src0_md = q(DNNL_ARG_SRC_0);
     const auto &src1_md = q(DNNL_ARG_SRC_1);
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = get_abx_tag(p->ndims[0]);
@@ -196,10 +197,13 @@ int doit(const prb_t *p, res_t *r) {
     }
     dnn_mem_t &dst_dt = p->inplace ? src0_dt : placeholder_dst_dt;
 
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+
     args_t args;
     args.set(DNNL_ARG_SRC_0, src0_dt);
     args.set(DNNL_ARG_SRC_1, src1_dt);
     args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 

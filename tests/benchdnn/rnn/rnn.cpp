@@ -63,6 +63,9 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_data_qparams(
                 *dnnl_attr, p.data_scale, p.data_shift));
     }
+
+    DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
+            *dnnl_attr, scratchpad_mode));
 }
 
 int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
@@ -601,6 +604,7 @@ int doit(const prb_t &p, res_t *r) {
     const auto &dst_last_iteration_md = q(const_fpd, DNNL_ARG_DST_ITER);
     const auto &dst_c_last_iteration_md = q(const_fpd, DNNL_ARG_DST_ITER_C);
     const auto &workspace_md = q(const_fpd, DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
     dnn_mem_t input_dt(input_md, engine_tgt);
     dnn_mem_t states_dt(states_md, engine_tgt);
@@ -613,6 +617,7 @@ int doit(const prb_t &p, res_t *r) {
     dnn_mem_t dst_last_iteration_dt(dst_last_iteration_md, engine_tgt);
     dnn_mem_t dst_c_last_iteration_dt(dst_c_last_iteration_md, engine_tgt);
     dnn_mem_t workspace_dt(workspace_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     const auto fp = dnnl_f32;
     dnn_mem_t input_fp(input_md, fp, dnnl_tnc, engine_tgt);
@@ -685,6 +690,7 @@ int doit(const prb_t &p, res_t *r) {
     args.set(DNNL_ARG_DST_ITER, dst_last_iteration_dt);
     args.set(DNNL_ARG_DST_ITER_C, dst_c_last_iteration_dt);
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     DNN_SAFE_CLEAN(execute_and_wait(c, stream_tgt, args), WARN, cleanup);
 
@@ -733,6 +739,7 @@ int doit(const prb_t &p, res_t *r) {
         const auto &diff_dst_layer_md = q(const_bpd, DNNL_ARG_DIFF_DST_LAYER);
         const auto &diff_dst_iter_md = q(const_bpd, DNNL_ARG_DIFF_DST_ITER);
         const auto &diff_dst_iter_c_md = q(const_bpd, DNNL_ARG_DIFF_DST_ITER_C);
+        const auto &bwd_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
         bwd_weights_input_dt = dnn_mem_t(bwd_weights_input_md, engine_tgt);
         bwd_weights_states_dt = dnn_mem_t(bwd_weights_states_md, engine_tgt);
@@ -749,6 +756,7 @@ int doit(const prb_t &p, res_t *r) {
         diff_last_layer_dt = dnn_mem_t(diff_dst_layer_md, engine_tgt);
         diff_last_iteration_dt = dnn_mem_t(diff_dst_iter_md, engine_tgt);
         diff_c_last_iteration_dt = dnn_mem_t(diff_dst_iter_c_md, engine_tgt);
+        scratchpad_dt = dnn_mem_t(bwd_scratchpad_md, engine_tgt);
 
         dnn_mem_t dst_diff_input_fp(
                 diff_src_layer_md, fp, dnnl_tnc, engine_tgt);
@@ -827,6 +835,7 @@ int doit(const prb_t &p, res_t *r) {
         args.set(DNNL_ARG_DIFF_WEIGHTS_ITER, dst_diff_weights_states_dt);
         args.set(DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE, dst_diff_weights_peephole_dt);
         args.set(DNNL_ARG_DIFF_BIAS, dst_diff_bias_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE_CLEAN(execute_and_wait(c, stream_tgt, args), WARN, cleanup);
 

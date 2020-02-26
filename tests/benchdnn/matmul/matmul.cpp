@@ -250,6 +250,7 @@ int doit(const prb_t *p, res_t *r) {
         dst_md = q(DNNL_ARG_DST);
         if (p->bia_dt != dnnl_data_type_undef) bia_md = q(DNNL_ARG_BIAS);
     }
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     dnn_mem_t src_dt(src_md, engine_tgt);
     dnn_mem_t wei_dt(wei_md, engine_tgt);
@@ -257,6 +258,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_dt;
     if (p->bia_dt != dnnl_data_type_undef)
         bia_dt = dnn_mem_t(bia_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     const auto fp = dnnl_f32;
     dnn_mem_t src_fp(p->ndims, src_md.dims, fp, NULL, engine_tgt);
@@ -288,6 +290,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_WEIGHTS, wei_dt);
     args.set(DNNL_ARG_DST, dst_dt);
     if (p->bia_dt != dnnl_data_type_undef) args.set(DNNL_ARG_BIAS, bia_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS, wei_zero_points_m);

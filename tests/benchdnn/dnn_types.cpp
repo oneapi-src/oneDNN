@@ -565,6 +565,8 @@ std::ostream &operator<<(std::ostream &s, const attr_t &attr) {
 std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || engine_tgt_kind != dnnl_cpu)
         s << "--engine=" << engine_kind2str(engine_tgt_kind) << " ";
+    if (canonical || scratchpad_mode != dnnl_scratchpad_mode_library)
+        s << "--scratchpad=" << scratchpad_mode2str(scratchpad_mode) << " ";
 
     s << "--" << driver_name << " ";
     return s;
@@ -579,6 +581,19 @@ dnnl_engine_kind_t str2engine_kind(const char *str) {
 
     assert(!"not expected");
     return dnnl_cpu;
+}
+
+dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str) {
+    const char *param = "library";
+    if (!strncasecmp(param, str, strlen(param)))
+        return dnnl_scratchpad_mode_library;
+
+    param = "user";
+    if (!strncasecmp(param, str, strlen(param)))
+        return dnnl_scratchpad_mode_user;
+
+    assert(!"not expected");
+    return dnnl_scratchpad_mode_library;
 }
 
 void attr_bundle_t::init_zero_points() {
@@ -671,6 +686,9 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
 
         DNN_SAFE_V(dnnl_post_ops_destroy(ops));
     }
+
+    DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
+            dnnl_attr, scratchpad_mode));
 
     return dnnl_attr;
 }

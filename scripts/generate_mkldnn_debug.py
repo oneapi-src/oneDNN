@@ -130,6 +130,9 @@ const char *dt2str(dnnl_data_type_t dt);
 /* endinge kind */
 const char *engine_kind2str(dnnl_engine_kind_t kind);
 
+/* scratchpad mode */
+const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode);
+
 #endif
 ''' % body
 
@@ -156,6 +159,10 @@ const char *dt2str(dnnl_data_type_t dt) {
 
 const char *engine_kind2str(dnnl_engine_kind_t kind) {
     return dnnl_engine_kind2str(kind);
+}
+
+const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode) {
+    return dnnl_scratchpad_mode2str(mode);
 }
 ''' % body.rstrip()
 
@@ -189,6 +196,7 @@ def sanitize_value(v):
         return 'undef'
     if 'any' in v:
         return 'any'
+    v = v.split('dnnl_scratchpad_mode_')[-1]
     v = v.split('dnnl_format_kind_')[-1]
     v = v.split('dnnl_')[-1]
     return v

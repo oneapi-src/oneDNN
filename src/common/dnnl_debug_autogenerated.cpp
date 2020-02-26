@@ -510,8 +510,8 @@ const char *dnnl_engine_kind2str(dnnl_engine_kind_t v) {
 }
 
 const char *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v) {
-    if (v == dnnl_scratchpad_mode_library) return "scratchpad_mode_library";
-    if (v == dnnl_scratchpad_mode_user) return "scratchpad_mode_user";
+    if (v == dnnl_scratchpad_mode_library) return "library";
+    if (v == dnnl_scratchpad_mode_user) return "user";
     assert(!"unknown scratchpad_mode");
     return "unknown scratchpad_mode";
 }

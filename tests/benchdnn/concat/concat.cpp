@@ -48,9 +48,13 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &cpd, res_t *r) {
                 WARN);
     }
 
+    auto dnnl_attr = create_dnnl_attr(attr_t());
+
     dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
             p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(), p->axis,
-            src_d.data(), NULL, engine_tgt);
+            src_d.data(), dnnl_attr, engine_tgt);
+
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -155,8 +159,12 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_fp(dst_md, fp, tag, engine_tgt);
     dnn_mem_t dst_dt(dst_md, engine_tgt);
 
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+
     args_t args;
     args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(p->n_inputs());

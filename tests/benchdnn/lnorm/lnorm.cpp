@@ -423,7 +423,9 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &lpd, res_t *r) {
         else
             SAFE(init_fwd_status, WARN);
     }
-    auto dnnl_attr = create_dnnl_attr(p->attr, 1, NULL);
+
+    auto dnnl_attr = create_dnnl_attr(p->attr);
+
     dnnl_status_t init_status = dnnl_primitive_desc_create(
             &lpd, &ld, dnnl_attr, engine_tgt, hint_fwd_pd);
 
@@ -484,6 +486,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &mean_md = q(DNNL_ARG_MEAN);
     const auto &var_md = q(DNNL_ARG_VARIANCE);
     const auto &ss_md = q(DNNL_ARG_SCALE_SHIFT);
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = get_abx_tag(p->ndims);
@@ -511,6 +514,8 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t d_ss_fp(ss_md, fp, get_abx_tag(ss_md.ndims), engine_tgt);
     dnn_mem_t d_ss_dt(ss_md, engine_tgt);
 
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
     args_t args;
@@ -534,6 +539,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_MEAN, mean_dt);
         args.set(DNNL_ARG_VARIANCE, var_dt);
         args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
 
@@ -578,6 +584,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_VARIANCE, var_dt);
         args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
 

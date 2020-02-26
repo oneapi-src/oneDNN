@@ -211,6 +211,7 @@ int doit(const prb_t *p, res_t *r) {
             = p->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_BIAS) : q(DNNL_ARG_BIAS);
     const auto &dst_md
             = p->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
     auto wei_tr_md = wei_md;
 
     const bool with_groups = 1;
@@ -224,6 +225,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t wei_dt(wei_md, engine_tgt);
     dnn_mem_t dst_dt(dst_md, engine_tgt);
     dnn_mem_t bia_dt(bia_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     dnn_mem_t src_fp(src_md, fp, src_tag, engine_tgt);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, engine_tgt);
@@ -245,6 +247,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(d, stream_tgt, args), WARN);
 
@@ -258,6 +261,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(d, stream_tgt, args), WARN);
 
@@ -272,6 +276,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(d, stream_tgt, args), WARN);
 

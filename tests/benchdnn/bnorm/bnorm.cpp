@@ -533,7 +533,9 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &bpd, res_t *r) {
         else
             SAFE(init_fwd_status, WARN);
     }
-    auto dnnl_attr = create_dnnl_attr(p->attr, 1, NULL);
+
+    auto dnnl_attr = create_dnnl_attr(p->attr);
+
     dnnl_status_t init_status = dnnl_primitive_desc_create(
             &bpd, &bd, dnnl_attr, engine_tgt, hint_fwd_pd);
 
@@ -647,6 +649,7 @@ int doit(const prb_t *p, res_t *r) {
     const auto &var_md = q(DNNL_ARG_VARIANCE);
     const auto &ss_md = q(DNNL_ARG_SCALE_SHIFT);
     const auto &ws_md = q(DNNL_ARG_WORKSPACE);
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
     const auto tag = get_abx_tag(p->ndims);
@@ -677,6 +680,8 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t ws_fp(src_fp.md_, engine_tgt);
     dnn_mem_t ws_dt(ws_md, engine_tgt);
 
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+
     dnn_mem_t d_dst_dt, placeholder_d_src_dt;
 
     args_t args;
@@ -703,6 +708,7 @@ int doit(const prb_t *p, res_t *r) {
         if (p->flags & USE_SCALESHIFT) { SAFE(ss_dt.reorder(ss_fp), WARN); }
         args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 
@@ -756,6 +762,7 @@ int doit(const prb_t *p, res_t *r) {
             SAFE(cvt_mask_to_ws(p, ws_fp, ws_dt), WARN);
         }
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(b, stream_tgt, args), WARN);
 

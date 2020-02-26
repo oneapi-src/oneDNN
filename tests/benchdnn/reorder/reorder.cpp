@@ -330,6 +330,7 @@ int doit(const prb_t *p, res_t *r) {
         src_md = q(DNNL_ARG_SRC);
         dst_md = q(DNNL_ARG_DST);
     }
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto tag = get_abx_tag(p->ndims);
     const auto src_dt = src_md.data_type;
@@ -340,6 +341,7 @@ int doit(const prb_t *p, res_t *r) {
 
     dnn_mem_t dst_dt_out_fmt_ref(dst_md, dst_dt, tag, engine_tgt);
     dnn_mem_t dst_dt_out_fmt_out(dst_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     /* Step 4: fill input memory */
     SAFE(fill_memory(p, SRC, src_dt_in_fmt_ref, attr_bundle), WARN);
@@ -362,6 +364,7 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
     args.set(DNNL_ARG_FROM, src_dt_in_fmt_in);
     args.set(DNNL_ARG_TO, dst_dt_out_fmt_out);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
