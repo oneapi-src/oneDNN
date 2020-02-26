@@ -46,12 +46,14 @@ tensors:
 
 ## Formulas and Verbose Output
 
-DNNL uses the following notations in the documentation formulas and
-verbose output.
+DNNL uses the following notations in the documentation formulas and verbose
+output. Here, lower-case letters are used to denote indices in a particular
+spatial dimension, the sizes of which are denoted by corresponding upper-case
+letters.
 
 | Name                                     | Semantics
 | :--------------------------------------- | :----------------------------------------
-| `n` (or `mb`)                            | number of image in a batch
+| `n` (or `mb`)                            | batch
 | `g`                                      | groups
 | `oc`, `od`, `oh`, `ow`                   | output channels, depth, height, and width
 | `ic`, `id`, `ih`, `iw`                   | input channels, depth, height, and width
