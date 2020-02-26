@@ -17,17 +17,17 @@
 #ifndef GPU_OCL_GEMM_REF_GEMM_HPP
 #define GPU_OCL_GEMM_REF_GEMM_HPP
 
+#include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
-#include "gpu/ocl/primitive_conf.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_gemm_t : public ocl_gemm_t {
+struct ref_gemm_t : public gpu_gemm_t {
     struct pd_t : public gpu_gemm_pd_t {
         using gpu_gemm_pd_t::gpu_gemm_pd_t;
 
@@ -187,7 +187,7 @@ struct ref_gemm_t : public ocl_gemm_t {
         return status::success;
     }
 
-    ref_gemm_t(const pd_t *apd) : ocl_gemm_t(apd) {}
+    ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 

@@ -14,18 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_OCL_GEMM_HPP
-#define GPU_OCL_GEMM_OCL_GEMM_HPP
+#ifndef GPU_GEMM_GPU_GEMM_HPP
+#define GPU_GEMM_GPU_GEMM_HPP
 
 #include "common/c_types_map.hpp"
-#include "gpu/ocl/gemm/ocl_gemm_exec_types.hpp"
+#include "gpu/gemm/gpu_gemm_exec_types.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_gemm_t : public primitive_impl_t {
+struct gpu_gemm_t : public primitive_impl_t {
     using primitive_impl_t::primitive_impl_t;
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const = 0;
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -45,7 +44,6 @@ struct ocl_gemm_t : public primitive_impl_t {
     }
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

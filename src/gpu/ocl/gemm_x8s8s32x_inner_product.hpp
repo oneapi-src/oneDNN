@@ -22,10 +22,10 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_types.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
-#include "gpu/ocl/primitive_conf.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

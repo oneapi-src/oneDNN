@@ -33,8 +33,8 @@
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
-#include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/gemm/gpu_gemm_utils.hpp"
 
 #define DEBUGPRINT 0
 #if DEBUGPRINT
@@ -138,15 +138,17 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     if (conf.with_dst_iter_c) conf.dst_iter_c_ndims = dst_iter_c_d.ndims();
     conf.bias_ndims = bias_d.ndims();
 
-    set_offsets(src_layer_d, off.src_layer_off);
-    set_offsets(src_iter_d, off.src_iter_off);
-    if (conf.with_src_iter_c) set_offsets(src_iter_c_d, off.src_iter_c_off);
-    set_offsets(weights_layer_d, off.weights_layer_off);
-    set_offsets(weights_iter_d, off.weights_iter_off);
-    set_offsets(bias_d, off.bias_off);
-    set_offsets(dst_layer_d, off.dst_layer_off);
-    set_offsets(dst_iter_d, off.dst_iter_off);
-    if (conf.with_dst_iter_c) set_offsets(dst_iter_c_d, off.dst_iter_c_off);
+    gpu::set_offsets(src_layer_d, off.src_layer_off);
+    gpu::set_offsets(src_iter_d, off.src_iter_off);
+    if (conf.with_src_iter_c)
+        gpu::set_offsets(src_iter_c_d, off.src_iter_c_off);
+    gpu::set_offsets(weights_layer_d, off.weights_layer_off);
+    gpu::set_offsets(weights_iter_d, off.weights_iter_off);
+    gpu::set_offsets(bias_d, off.bias_off);
+    gpu::set_offsets(dst_layer_d, off.dst_layer_off);
+    gpu::set_offsets(dst_iter_d, off.dst_iter_off);
+    if (conf.with_dst_iter_c)
+        gpu::set_offsets(dst_iter_c_d, off.dst_iter_c_off);
 
     if (!conf.is_fwd) {
         conf.diff_src_layer_ndims = diff_src_layer_d.ndims();
@@ -161,17 +163,17 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
             conf.diff_dst_iter_c_ndims = diff_dst_iter_c_d.ndims();
         conf.diff_bias_ndims = diff_bias_d.ndims();
 
-        set_offsets(diff_src_layer_d, off.diff_src_layer_off);
-        set_offsets(diff_src_iter_d, off.diff_src_iter_off);
+        gpu::set_offsets(diff_src_layer_d, off.diff_src_layer_off);
+        gpu::set_offsets(diff_src_iter_d, off.diff_src_iter_off);
         if (conf.with_src_iter_c)
-            set_offsets(diff_src_iter_c_d, off.diff_src_iter_c_off);
-        set_offsets(diff_weights_layer_d, off.diff_weights_layer_off);
-        set_offsets(diff_weights_iter_d, off.diff_weights_iter_off);
-        set_offsets(diff_bias_d, off.diff_bias_off);
-        set_offsets(diff_dst_layer_d, off.diff_dst_layer_off);
-        set_offsets(diff_dst_iter_d, off.diff_dst_iter_off);
+            gpu::set_offsets(diff_src_iter_c_d, off.diff_src_iter_c_off);
+        gpu::set_offsets(diff_weights_layer_d, off.diff_weights_layer_off);
+        gpu::set_offsets(diff_weights_iter_d, off.diff_weights_iter_off);
+        gpu::set_offsets(diff_bias_d, off.diff_bias_off);
+        gpu::set_offsets(diff_dst_layer_d, off.diff_dst_layer_off);
+        gpu::set_offsets(diff_dst_iter_d, off.diff_dst_iter_off);
         if (conf.with_dst_iter_c)
-            set_offsets(diff_dst_iter_c_d, off.diff_dst_iter_c_off);
+            gpu::set_offsets(diff_dst_iter_c_d, off.diff_dst_iter_c_off);
     }
 
     rnn_utils::set_offsets(rnn, conf.ws_gates_offset, conf.ws_states_offset,

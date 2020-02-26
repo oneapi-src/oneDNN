@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_OCL_GEMM_EXEC_TYPES_HPP
-#define GPU_OCL_GEMM_OCL_GEMM_EXEC_TYPES_HPP
+#ifndef GPU_GEMM_GPU_GEMM_EXEC_TYPES_HPP
+#define GPU_GEMM_GPU_GEMM_EXEC_TYPES_HPP
 
 #include "common/memory_storage.hpp"
 #include "common/stream.hpp"
@@ -27,7 +27,6 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
 #define GEMM_CTX_ARG_STORAGE(argument) \
     (ctx.args().argument ? *(ctx.args().argument) \
@@ -59,7 +58,6 @@ private:
     gemm_desc_t *gemm_desc_ = nullptr;
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

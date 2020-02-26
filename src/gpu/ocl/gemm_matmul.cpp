@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/gemm_matmul.hpp"
 
-#include "gpu/ocl/gemm/ocl_gemm_utils.hpp"
+#include "gpu/gemm/gpu_gemm_utils.hpp"
 
 namespace dnnl {
 namespace impl {

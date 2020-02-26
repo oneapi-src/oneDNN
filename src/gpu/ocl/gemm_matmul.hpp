@@ -17,8 +17,8 @@
 #ifndef GPU_OCL_GEMM_MATMUL_HPP
 #define GPU_OCL_GEMM_MATMUL_HPP
 
+#include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
 
 namespace dnnl {
 namespace impl {

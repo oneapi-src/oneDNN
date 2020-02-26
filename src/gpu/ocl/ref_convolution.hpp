@@ -22,7 +22,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
-#include "gpu/ocl/primitive_conf.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
 
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {

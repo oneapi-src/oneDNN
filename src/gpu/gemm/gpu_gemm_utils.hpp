@@ -14,17 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_GEMM_OCL_GEMM_UTILS_HPP
-#define GPU_OCL_GEMM_OCL_GEMM_UTILS_HPP
+#ifndef GPU_GEMM_GPU_GEMM_UTILS_HPP
+#define GPU_GEMM_GPU_GEMM_UTILS_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory_storage.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 namespace gemm_utils {
 
 inline status_t prepare_scales(const primitive_attr_t *attr, engine_t *engine,
@@ -82,12 +81,11 @@ inline status_t prepare_zero_points(const primitive_attr_t *attr,
     return s;
 }
 
-inline const ocl_gemm_t *gemm_impl(const primitive_t *p) {
-    return utils::downcast<ocl_gemm_t *>(p->get_primitive_impl().get());
+inline const gpu_gemm_t *gemm_impl(const primitive_t *p) {
+    return utils::downcast<gpu_gemm_t *>(p->get_primitive_impl().get());
 }
 
 } // namespace gemm_utils
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

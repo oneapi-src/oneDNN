@@ -23,9 +23,9 @@
 #include "common/c_types_map.hpp"
 #include "common/gemm_utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
 #include "gpu/ocl/gemm/gen9_gemm_kernel.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -34,7 +34,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen9_gemm_t : public ocl_gemm_t {
+struct gen9_gemm_t : public gpu_gemm_t {
 
     enum class type {
         copy_based,
@@ -296,7 +296,7 @@ struct gen9_gemm_t : public ocl_gemm_t {
         return init_superkernel_plan();
     }
 
-    gen9_gemm_t(const pd_t *apd) : ocl_gemm_t(apd) {}
+    gen9_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 

@@ -25,13 +25,13 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
-#include "gpu/ocl/gemm/ocl_gemm.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
-#include "gpu/ocl/primitive_conf.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
+#include "gpu/primitive_conf.hpp"
 
 // not implemented
 #define USE_MKL_PACKED_GEMM 0

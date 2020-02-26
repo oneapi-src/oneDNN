@@ -16,7 +16,7 @@
 
 #include "gpu/ocl/ref_convolution.hpp"
 
-#include "gpu/ocl/primitive_conf.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

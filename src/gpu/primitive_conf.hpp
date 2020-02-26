@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_PRIMITIVE_CONF_HPP
-#define GPU_OCL_PRIMITIVE_CONF_HPP
+#ifndef GPU_PRIMITIVE_CONF_HPP
+#define GPU_PRIMITIVE_CONF_HPP
 
 #include <stdint.h>
 
@@ -24,12 +24,10 @@
 #include "common/primitive_attr.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
 #define MAX_NDIMS 6
 
@@ -644,7 +642,6 @@ inline void def_dispatch(compute::kernel_ctx_t &kernel_ctx,
     dispatch.def_kernel_macros(kernel_ctx);
 }
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

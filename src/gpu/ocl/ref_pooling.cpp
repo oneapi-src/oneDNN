@@ -25,7 +25,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
-#include "gpu/ocl/primitive_conf.hpp"
+#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
