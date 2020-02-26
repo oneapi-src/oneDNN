@@ -160,6 +160,8 @@ struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
+            jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
+                    scratchpad, jcp_);
             rtus_prepare_space_info(this, scratchpad);
 
             return status::success;

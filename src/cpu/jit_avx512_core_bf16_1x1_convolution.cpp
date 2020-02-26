@@ -31,6 +31,7 @@ namespace cpu {
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
+using namespace dnnl::impl::prop_kind;
 
 #define data_blk_off(f, n, c, d, h, w) \
     ((ndims == 3) ? (f).blk_off(n, c, w) \
@@ -103,6 +104,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.get<src_data_t>(key_conv_rtus_space)
             : NULL;
+    float *store_buffer = scratchpad.template get<float>(key_conv_store_wsp);
 
     const int ndims = src_d.ndims();
     const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
@@ -123,6 +125,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     const int nb_oc = jcp.nb_load;
     const int nb_ic = jcp.nb_reduce;
     const int os_block = jcp.bcast_block;
+    const int nb_ic_blocking = jcp.nb_reduce_blocking;
 
     int bcast_start {0}, bcast_end {0}, ocb_start {0}, ocb_end {0};
     balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
@@ -158,14 +161,19 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 load_step * jcp.oc_block);
     };
 
-    auto init_reduce = [&]() {
-        p.reduce_dim = this_block_size(0, jcp.ic, jcp.ic);
+    auto init_reduce = [&](int icb) {
+        const int nb_ic_blocking_step
+                = nstl::min(icb + nb_ic_blocking, nb_ic) - icb;
+        p.first_last_flag = 0 | (icb == 0 ? FLAG_REDUCE_FIRST : 0)
+                | (icb + nb_ic_blocking_step >= nb_ic ? FLAG_REDUCE_LAST : 0);
+
+        p.reduce_dim = this_block_size(
+                icb * jcp.ic_block, jcp.ic, nb_ic_blocking_step * jcp.ic_block);
         rp.icb = p.reduce_dim / jcp.reduce_block;
     };
 
-    auto inner_ker = [&](int ocb, int n, int g, int od, int oh, int ow, int id,
-                             int ih, int iw) {
-        const int icb = 0;
+    auto inner_ker = [&](int ocb, int icb, int n, int g, int od, int oh, int ow,
+                             int id, int ih, int iw) {
         const int _ocb = g * nb_oc + ocb;
         const size_t dst_off = data_blk_off(dst_d, n, _ocb, od, oh, ow);
 
@@ -187,11 +195,18 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         } else
             p.bcast_data = src + data_blk_off(src_d, n, _icb, id, ih, iw);
 
+        const size_t grp_count = utils::div_up(
+                jcp.nthr, utils::div_up(jcp.nthr, jcp.load_grp_count));
+        const size_t max_load_per_thread
+                = rnd_up((jcp.load_dim / grp_count), jcp.load_block);
+        const size_t str_size = jcp.bcast_dim * max_load_per_thread;
+        p.store_buffer = store_buffer + ithr * str_size
+                + data_blk_off(dst_d, 0, 0, od, oh, ow);
+
         kernel_->jit_ker(&p);
     };
 
-    if (jcp.loop_order == loop_rlb) {
-        init_reduce();
+    if (jcp.loop_order == loop_lbr) {
         int ocb = ocb_start;
         while (ocb < ocb_end) {
             int load_step;
@@ -200,40 +215,13 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             while (iwork < bcast_end) {
                 int n, g, bcast_step, od, oh, ow, id, ih, iw;
                 init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
+                for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
+                    init_reduce(icb);
+                    inner_ker(ocb, icb, n, g, od, oh, ow, id, ih, iw);
+                }
                 iwork += bcast_step;
             }
             ocb += load_step;
-        }
-    } else if (jcp.loop_order == loop_lbr) {
-        int ocb = ocb_start;
-        while (ocb < ocb_end) {
-            int load_step;
-            init_load(ocb, load_step);
-            int iwork = bcast_start;
-            while (iwork < bcast_end) {
-                int n, g, bcast_step, od, oh, ow, id, ih, iw;
-                init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-                init_reduce();
-                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
-                iwork += bcast_step;
-            }
-            ocb += load_step;
-        }
-    } else if (jcp.loop_order == loop_rbl) {
-        init_reduce();
-        int iwork = bcast_start;
-        while (iwork < bcast_end) {
-            int n, g, bcast_step, od, oh, ow, id, ih, iw;
-            init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-            int ocb = ocb_start;
-            while (ocb < ocb_end) {
-                int load_step;
-                init_load(ocb, load_step);
-                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
-                ocb += load_step;
-            }
-            iwork += bcast_step;
         }
     } else if (jcp.loop_order == loop_blr) {
         int iwork = bcast_start;
@@ -244,8 +232,10 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             while (ocb < ocb_end) {
                 int load_step;
                 init_load(ocb, load_step);
-                init_reduce();
-                inner_ker(ocb, n, g, od, oh, ow, id, ih, iw);
+                for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
+                    init_reduce(icb);
+                    inner_ker(ocb, icb, n, g, od, oh, ow, id, ih, iw);
+                }
                 ocb += load_step;
             }
             iwork += bcast_step;
@@ -289,6 +279,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.template get<diff_src_data_t>(key_conv_rtus_space)
             : NULL;
+    float *store_buffer = scratchpad.template get<float>(key_conv_store_wsp);
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -341,7 +332,10 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         rp.icb = p.load_dim / jcp.ic_block;
     };
 
-    auto init_reduce = [&]() { p.reduce_dim = jcp.oc; };
+    auto init_reduce = [&]() {
+        p.reduce_dim = jcp.oc;
+        p.first_last_flag = 0 | FLAG_REDUCE_FIRST | FLAG_REDUCE_LAST;
+    };
 
     auto inner_ker = [&](int icb, int n, int g, int od, int oh, int ow, int id,
                              int ih, int iw) {
@@ -363,6 +357,13 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         const int _ocb = g * nb_oc + ocb;
         p.bcast_data = diff_dst + data_blk_off(diff_dst_d, n, _ocb, od, oh, ow);
 
+        const size_t grp_count = utils::div_up(
+                jcp.nthr, utils::div_up(jcp.nthr, jcp.load_grp_count));
+        const size_t max_load_per_thread
+                = rnd_up((jcp.load_dim / grp_count), jcp.load_block);
+        const size_t str_size = jcp.bcast_dim * max_load_per_thread;
+        p.store_buffer = store_buffer + ithr * str_size
+                + data_blk_off(diff_src_d, 0, 0, od, oh, ow);
         kernel_->jit_ker(&p);
         if (pd()->rtus_.reduce_src_) rtus_driver_->ker_(&rp);
     };
@@ -400,6 +401,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
             icb += load_step;
         }
     } else if (jcp.loop_order == loop_rbl) {
+        // TODO not used
         init_reduce();
         int iwork = bcast_start;
         while (iwork < bcast_end) {
@@ -594,7 +596,6 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                         const src_data_t *diff_src
                                 = &src[src_d.blk_off(img, _ic_b)];
 
-                        int sp_b_end = sp_b + sp_b_step;
                         const diff_dst_data_t *pdiff_dst
                                 = &diff_dst[diff_dst_d.blk_off(img, _oc_b)];
                         const src_data_t *local_src = diff_src;
@@ -621,8 +622,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 
                         p.first_last_flag = 0
                                 | (mb_sp_b == mb_sp_b_start ? FLAG_REDUCE_FIRST
-                                                            : 0)
-                                | (sp_b_end == sp_nb ? FLAG_SP_LAST : 0);
+                                                            : 0);
 
                         int sp = sp_b * jcp.reduce_block;
                         p.load_data = pdiff_dst + sp * jcp.oc_block;

@@ -514,6 +514,7 @@ struct jit_1x1_conv_call_s {
     const void *acc_s32;
     const void *scales;
     const void *compensation;
+    const void *store_buffer;
 
     size_t load_dim;
     size_t bcast_dim;
