@@ -826,7 +826,7 @@ size_t DNNL_API dnnl_memory_desc_get_size(
 ///
 /// Unless @p handle is equal to DNNL_MEMORY_NONE, the constructed memory
 /// object will have the underlying buffer set. In this case, the buffer will
-/// be initialized as if dnnl_memory_set_handle() had been called.
+/// be initialized as if dnnl_memory_set_data_handle() had been called.
 ///
 /// @sa dnnl_memory_set_data_handle()
 ///
