@@ -108,7 +108,9 @@
 #if WITH_ELTWISE == 1
 #define POST_OP(val) \
     do { \
-        if (last_k_block) val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+        if (last_k_block) \
+            val = fwd_eltwise( \
+                    val, eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 #else
 #define POST_OP(val)
@@ -203,7 +205,7 @@ gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
         int k, float alpha, float beta, int last_k_block, float eltwise_alpha,
-        float eltwise_beta) {
+        float eltwise_beta, float eltwise_scale) {
     SUPERKERNEL_PROLOGUE
 
     float2 a[4]; // 32 x 4  block of A, 4x 32x1 block accesses
@@ -311,7 +313,7 @@ gen9_gemm_nocopy_superkernel_f32(global int *plan, int threads,
         global float *A0, global float *B0, global float *C0, long offsetA,
         long offsetB, long offsetC, int lda, int ldb, int ldc, int m, int n,
         int k, float alpha, float beta, int last_k_block, float eltwise_alpha,
-        float eltwise_beta) {
+        float eltwise_beta, float eltwise_scale) {
     SUPERKERNEL_PROLOGUE
 
     float2 a[2]; // 32 x 2  block of A, 2x 32x1 block accesses

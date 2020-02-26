@@ -86,7 +86,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         float eltwise_alpha() const {
             const int eltwise_idx
                     = attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx != -1
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
                     : 1.0f;
         }
@@ -94,21 +94,29 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         float eltwise_beta() const {
             const int eltwise_idx
                     = attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx != -1
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
                     : 0.0f;
         }
 
+        float eltwise_scale() const {
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
+            return eltwise_idx != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
+                    : 1.0f;
+        }
+
         float sum_scale() const {
             const int sum_idx = attr()->post_ops_.find(primitive_kind::sum);
-            return with_sum() ? attr()->post_ops_.entry_[sum_idx].sum.scale
-                              : 0.0f;
+            return sum_idx != -1 ? attr()->post_ops_.entry_[sum_idx].sum.scale
+                                 : 0.0f;
         }
 
         alg_kind_t eltwise_alg_kind() const {
             const int eltwise_idx
                     = attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx != -1
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
                     : dnnl_alg_kind_undef;
         }

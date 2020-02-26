@@ -23,10 +23,10 @@
 #error "Kernel supports depth-wise convolutions only"
 #endif
 
-#define DO_ELTWISE(blockC, nelems, alpha, beta) \
+#define DO_ELTWISE(blockC, nelems, alpha, beta, scale) \
     do { \
         for (uint i = 0; i < nelems; i++) \
-            blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
+            blockC[i] = fwd_eltwise(blockC[i], alpha, beta, scale); \
     } while (0)
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
@@ -36,7 +36,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 __kernel void
 gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         const __global DATA_T *bias, __global DATA_T *dst, float eltwise_alpha,
-        float eltwise_beta, float sum_scale) {
+        float eltwise_beta, float eltwise_scale, float sum_scale) {
 
 #ifdef VER_8OW16C
     const int osp = get_global_id(1);
@@ -123,7 +123,8 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #endif
 #endif
 #if WITH_ELTWISE == 1
-        S00[k] = fwd_eltwise(S00[k], eltwise_alpha, eltwise_beta);
+        S00[k] = fwd_eltwise(
+                S00[k], eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
     }
 #endif
@@ -217,8 +218,8 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #endif
 #endif
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(S00, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(S01, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(S00, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(S01, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 
     BLOCK_WRITE8((__global BLOCK_DATA_T *)&dst[0], AS_UINT8_T(S00));

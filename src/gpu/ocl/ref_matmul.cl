@@ -28,7 +28,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         long bia_stride_m, long bia_stride_n, long a_stride_mb, long a_stride_m,
         long a_stride_k, long b_stride_mb, long b_stride_k, long b_stride_n,
         long c_stride_mb, long c_stride_m, long c_stride_n, float eltwise_alpha,
-        float eltwise_beta, float sum_scale) {
+        float eltwise_beta, float eltwise_scale, float sum_scale) {
 
     int n = get_global_id(1);
     int mb = get_global_id(2);
@@ -56,7 +56,7 @@ __kernel void ref_matmul(__global SRC_DATA_T *A, __global WEI_DATA_T *B,
         temp += (POST_OP_DATA_T)(sum_scale * DST_TO_REF(C[c_off]));
 #endif
 #if WITH_ELTWISE
-        temp = fwd_eltwise(temp, eltwise_alpha, eltwise_beta);
+        temp = fwd_eltwise(temp, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
         temp += c0[0];
         C[c_off] = TO_DST(temp);

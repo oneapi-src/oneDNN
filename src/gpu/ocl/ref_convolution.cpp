@@ -193,6 +193,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto eltwise_scale = pd()->eltwise_scale();
     auto sum_scale = pd()->sum_scale();
 
     compute::kernel_arg_list_t arg_list;
@@ -202,15 +203,16 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(3, dst);
     arg_list.set(4, eltwise_alpha);
     arg_list.set(5, eltwise_beta);
-    arg_list.set(6, sum_scale);
+    arg_list.set(6, eltwise_scale);
+    arg_list.set(7, sum_scale);
     if (utils::one_of(
                 pd()->src_md()->data_type, data_type::u8, data_type::s8)) {
         if (pd()->with_common_scales()) {
             float scales = pd()->attr()->output_scales_.scales_[0];
-            arg_list.set(7, scales);
+            arg_list.set(8, scales);
         }
         if (pd()->with_per_oc_scales()) {
-            arg_list.set(7, *scales_mem_->memory_storage());
+            arg_list.set(8, *scales_mem_->memory_storage());
         }
     }
 

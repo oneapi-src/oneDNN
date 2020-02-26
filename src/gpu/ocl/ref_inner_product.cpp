@@ -188,6 +188,7 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto eltwise_scale = pd()->eltwise_scale();
     auto sum_scale = pd()->sum_scale();
     const float *output_scales = pd()->attr()->output_scales_.scales_;
 
@@ -198,8 +199,9 @@ status_t ref_inner_product_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(3, dst);
     arg_list.set(4, eltwise_alpha);
     arg_list.set(5, eltwise_beta);
-    arg_list.set(6, sum_scale);
-    arg_list.set(7, output_scales[0]);
+    arg_list.set(6, eltwise_scale);
+    arg_list.set(7, sum_scale);
+    arg_list.set(8, output_scales[0]);
 
     auto nd_range = conf.dispatch.nd_range();
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);

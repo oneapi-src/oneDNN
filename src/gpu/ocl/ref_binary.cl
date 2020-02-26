@@ -28,7 +28,7 @@
 KERNEL_ATTR
 __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
         __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale, float eltwise_scale
+        float eltwise_scale, float sum_scale
 #if SRC0_SCALE
         ,
         float src0_scale
@@ -70,8 +70,7 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
 #endif
 
 #if WITH_ELTWISE == 1
-
-    d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
+    d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
     dst[off] = TO_DST(d);
 }
@@ -96,7 +95,7 @@ __kernel void ref_binary(__global DATA_T *src0, __global DATA_T *src1,
 KERNEL_ATTR
 __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         __global DATA_T *dst, float eltwise_alpha, float eltwise_beta,
-        float sum_scale, float eltwise_scale
+        float eltwise_scale, float sum_scale
 #if SRC0_SCALE
         ,
         float src0_scale
@@ -171,7 +170,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #endif
 #endif
 #if WITH_ELTWISE == 1
-        d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
+        d = fwd_eltwise(d, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 
         dst[dst_off] = TO_DST(d);

@@ -39,10 +39,10 @@
     (((((n * G) * IC + (ic)) * IH + (ih)) * IW + (iw)))
 #define DST_OFF(n, oc, oh, ow) ((((n * G) * OC + (oc)) * OH + (oh)) * OW + (ow))
 
-#define DO_ELTWISE(blockC, nelems, alpha, beta) \
+#define DO_ELTWISE(blockC, nelems, alpha, beta, scale) \
     do { \
         for (uint i = 0; i < nelems; i++) \
-            blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
+            blockC[i] = fwd_eltwise(blockC[i], alpha, beta, scale); \
     } while (0)
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
@@ -57,7 +57,7 @@ gen9_conv_fwd_f32(const __global float *src,
         const __global float *wei,
 #endif
         const __global float *bias, __global float *dst, float eltwise_alpha,
-        float eltwise_beta, float sum_scale) {
+        float eltwise_beta, float eltwise_scale, float sum_scale) {
 
 #ifdef VER_16MB16C
     const int oc = get_group_id(0);
@@ -228,8 +228,8 @@ gen9_conv_fwd_f32(const __global float *src,
 #endif
 #endif // with_sum
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 
     intel_sub_group_block_write8(
@@ -436,9 +436,9 @@ gen9_conv_fwd_f32(const __global float *src,
     }
 #endif
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #if OCB == 32
-    DO_ELTWISE(blockC01, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC01, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 #endif
 
@@ -765,10 +765,10 @@ gen9_conv_fwd_f32(const __global float *src,
 #endif // with_sum
 #if WITH_ELTWISE == 1
 #if OW_BLOCK != 16
-    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #else
-    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 #endif
 

@@ -111,15 +111,21 @@ struct ref_matmul_t : public primitive_impl_t {
         }
 
         float eltwise_alpha() const {
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx_ != -1
                     ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.alpha
                     : 1.0f;
         }
 
         float eltwise_beta() const {
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx_ != -1
                     ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.beta
                     : 0.0f;
+        }
+
+        float eltwise_scale() const {
+            return eltwise_idx_ != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.scale
+                    : 1.0f;
         }
 
         float sum_scale() const {
@@ -129,7 +135,7 @@ struct ref_matmul_t : public primitive_impl_t {
         }
 
         alg_kind_t eltwise_alg_kind() const {
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx_ != -1
                     ? attr()->post_ops_.entry_[eltwise_idx_].eltwise.alg
                     : dnnl_alg_kind_undef;
         }

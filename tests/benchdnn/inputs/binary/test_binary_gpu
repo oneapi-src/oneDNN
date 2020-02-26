@@ -10,7 +10,7 @@
 --attr=post_ops='sum:0.5'
 --batch=shapes_common
 
---attr=post_ops='linear:2:0.125'
+--attr=post_ops='linear:2:0.125:1.5'
 --batch=shapes_common
 
 --attr=post_ops='sum:0.25;relu:-0.01'
@@ -27,7 +27,7 @@
 --attr=post_ops='sum:0.5'
 --batch=shapes_common
 
---attr=post_ops='linear:2:0.125'
+--attr=post_ops='linear:2:0.125:1.5'
 --batch=shapes_common
 
 --attr=post_ops='sum:0.25;relu'
@@ -44,7 +44,7 @@
 --attr=post_ops='sum:0.5'
 --batch=shapes_common
 
---attr=post_ops='linear:2:0.125'
+--attr=post_ops='linear:2:0.125:1.5'
 --batch=shapes_common
 
 --attr=post_ops='sum:0.25;relu'
@@ -61,7 +61,7 @@
 --attr=post_ops='sum:0.5'
 --batch=shapes_common
 
---attr=post_ops='linear:2:0.125'
+--attr=post_ops='linear:2:0.125:1.5'
 --batch=shapes_common
 
 --attr=post_ops='sum:0.25;relu'

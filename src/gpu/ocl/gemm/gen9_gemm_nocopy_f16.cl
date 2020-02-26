@@ -77,7 +77,8 @@
 #define POST_OP(val) \
     do { \
         if (last_k_block && last_k_unroll) \
-            val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+            val = fwd_eltwise( \
+                    val, eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 #else
 #define POST_OP(val)
@@ -179,7 +180,7 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta
+        half eltwise_alpha, half eltwise_beta, half eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -332,7 +333,7 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta
+        half eltwise_alpha, half eltwise_beta, half eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -477,7 +478,7 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta
+        half eltwise_alpha, half eltwise_beta, half eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -616,7 +617,7 @@ kernel void
 gen9_gemm_nocopy_f16(global half *A, global half *B, global half *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, half alpha, half beta, int last_k_block,
-        half eltwise_alpha, half eltwise_beta
+        half eltwise_alpha, half eltwise_beta, half eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {

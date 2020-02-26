@@ -65,7 +65,8 @@
 #define POST_OP(val) \
     do { \
         if (apply_eltwise) \
-            val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+            val = fwd_eltwise( \
+                    val, eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 #else
 #define POST_OP(val)
@@ -153,7 +154,8 @@ gen9_gemm_compute_x8x8s32(global FLOATA *a, global FLOATB *b, global FLOATC *c,
         long offsetA, long offsetB, long offsetC, long lda, long ldb, long ldc,
         long m, long n, long k, int beta, int ao, int bo, global int *co,
         long offsetCO, int apply_co, local FLOATA *sa, local FLOATB *sb,
-        int apply_eltwise, float eltwise_alpha, float eltwise_beta) {
+        int apply_eltwise, float eltwise_alpha, float eltwise_beta,
+        float eltwise_scale) {
 
     long kk = (k + UNROLL_K - 1) & ~(UNROLL_K - 1);
     long i, j, l, ll;

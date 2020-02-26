@@ -1048,7 +1048,8 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(3, dst);
     arg_list.set(4, conf.eltwise.alpha);
     arg_list.set(5, conf.eltwise.beta);
-    arg_list.set(6, conf.sum_scale);
+    arg_list.set(6, conf.eltwise.scale);
+    arg_list.set(7, conf.sum_scale);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);

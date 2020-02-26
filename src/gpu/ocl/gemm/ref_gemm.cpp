@@ -66,8 +66,9 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const dim_t ldc = exec_d->ldc;
 
     const dim_t scale_stride = pd()->attr()->output_scales_.mask_ == 0 ? 0 : 1;
-    const float e_alpha = pd()->eltwise_alpha();
-    const float e_beta = pd()->eltwise_beta();
+    const float eltwise_alpha = pd()->eltwise_alpha();
+    const float eltwise_beta = pd()->eltwise_beta();
+    const float eltwise_scale = pd()->eltwise_scale();
     const int bias_mask = exec_d->bias_mask;
     const float beta = pd()->sum_scale();
 
@@ -95,16 +96,17 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     arg_list.set(17, lda);
     arg_list.set(18, ldb);
     arg_list.set(19, ldc);
-    arg_list.set(20, e_alpha);
-    arg_list.set(21, e_beta);
-    arg_list.set(22, bias_mask);
-    arg_list.set(23, *a0);
-    arg_list.set(24, *b0);
-    arg_list.set(25, *c0);
-    arg_list.set(26, c0_mask);
-    arg_list.set(27, *scales);
-    arg_list.set(28, scale_stride);
-    arg_list.set(29, beta);
+    arg_list.set(20, eltwise_alpha);
+    arg_list.set(21, eltwise_beta);
+    arg_list.set(22, eltwise_scale);
+    arg_list.set(23, bias_mask);
+    arg_list.set(24, *a0);
+    arg_list.set(25, *b0);
+    arg_list.set(26, *c0);
+    arg_list.set(27, c0_mask);
+    arg_list.set(28, *scales);
+    arg_list.set(29, scale_stride);
+    arg_list.set(30, beta);
 
     const size_t gws[3] = {1, (size_t)N, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);

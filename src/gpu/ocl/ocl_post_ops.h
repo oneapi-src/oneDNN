@@ -212,34 +212,34 @@ POST_OP_DATA_T gelu_erf_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     return dd * 0.5f * (1.f + erf(v) + v * two_over_sqrt_pi * exp(-v * v));
 }
 
-POST_OP_DATA_T fwd_eltwise(
-        POST_OP_DATA_T x, POST_OP_DATA_T alpha_, POST_OP_DATA_T beta_) {
+POST_OP_DATA_T fwd_eltwise(POST_OP_DATA_T x, POST_OP_DATA_T alpha_,
+        POST_OP_DATA_T beta_, POST_OP_DATA_T scale_) {
 #ifdef ALG_KIND
     switch (ALG_KIND) {
-        case RELU: return relu_fwd(x, alpha_); break;
-        case LINEAR: return linear_fwd(x, alpha_, beta_); break;
-        case BOUNDED_RELU: return bounded_relu_fwd(x, alpha_); break;
-        case SOFT_RELU: return soft_relu_fwd(x); break;
-        case LOGISTIC: return logistic_fwd(x); break;
-        case TANH: return tanh_fwd(x); break;
-        case ELU: return elu_fwd(x, alpha_); break;
-        case SQUARE: return square_fwd(x); break;
-        case SQRT: return sqrt_fwd(x); break;
-        case ABS: return abs_fwd(x); break;
-        case EXP: return exp_fwd(x); break;
-        case GELU_TANH: return gelu_tanh_fwd(x); break;
-        case SWISH: return swish_fwd(x, alpha_); break;
-        case LOG: return log_fwd(x); break;
-        case CLIP: return clip_fwd(x, alpha_, beta_); break;
-        case POW: return pow_fwd(x, alpha_, beta_); break;
-        case GELU_ERF: return gelu_erf_fwd(x); break;
+        case RELU: return scale_ * relu_fwd(x, alpha_); break;
+        case LINEAR: return scale_ * linear_fwd(x, alpha_, beta_); break;
+        case BOUNDED_RELU: return scale_ * bounded_relu_fwd(x, alpha_); break;
+        case SOFT_RELU: return scale_ * soft_relu_fwd(x); break;
+        case LOGISTIC: return scale_ * logistic_fwd(x); break;
+        case TANH: return scale_ * tanh_fwd(x); break;
+        case ELU: return scale_ * elu_fwd(x, alpha_); break;
+        case SQUARE: return scale_ * square_fwd(x); break;
+        case SQRT: return scale_ * sqrt_fwd(x); break;
+        case ABS: return scale_ * abs_fwd(x); break;
+        case EXP: return scale_ * exp_fwd(x); break;
+        case GELU_TANH: return scale_ * gelu_tanh_fwd(x); break;
+        case SWISH: return scale_ * swish_fwd(x, alpha_); break;
+        case LOG: return scale_ * log_fwd(x); break;
+        case CLIP: return scale_ * clip_fwd(x, alpha_, beta_); break;
+        case POW: return scale_ * pow_fwd(x, alpha_, beta_); break;
+        case GELU_ERF: return scale_ * gelu_erf_fwd(x); break;
 
-        case RELU_DST: return relu_fwd(x, alpha_); break;
-        case LOGISTIC_DST: return logistic_fwd(x); break;
-        case TANH_DST: return tanh_fwd(x); break;
-        case ELU_DST: return elu_fwd(x, alpha_); break;
-        case SQRT_DST: return sqrt_fwd(x); break;
-        case EXP_DST: return exp_fwd(x); break;
+        case RELU_DST: return scale_ * relu_fwd(x, alpha_); break;
+        case LOGISTIC_DST: return scale_ * logistic_fwd(x); break;
+        case TANH_DST: return scale_ * tanh_fwd(x); break;
+        case ELU_DST: return scale_ * elu_fwd(x, alpha_); break;
+        case SQRT_DST: return scale_ * sqrt_fwd(x); break;
+        case EXP_DST: return scale_ * exp_fwd(x); break;
 
         default: return x; break;
     }

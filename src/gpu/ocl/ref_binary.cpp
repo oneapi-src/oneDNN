@@ -172,8 +172,8 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     arg_list.set(2, dst);
     arg_list.set(3, eltwise_alpha);
     arg_list.set(4, eltwise_beta);
-    arg_list.set(5, sum_scale);
-    arg_list.set(6, eltwise_scale);
+    arg_list.set(5, eltwise_scale);
+    arg_list.set(6, sum_scale);
     if (utils::one_of(
                 pd()->src_md()->data_type, data_type::u8, data_type::s8)) {
         if (pd()->with_scales(DNNL_ARG_SRC_0)) {

@@ -42,7 +42,7 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
         int64_t ldc, int64_t m, int64_t n, int64_t k, int64_t beta, int32_t ao,
         int32_t bo, const memory_storage_t &co, int64_t offset_co,
         bool apply_co, bool apply_eltwise, float eltwise_alpha,
-        float eltwise_beta) const {
+        float eltwise_beta, float eltwise_scale) const {
 
     auto &kernel = compute_x8x8s32_kernel_;
     assert(kernel);
@@ -80,6 +80,7 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
     arg_list.set(20, apply_eltwise);
     arg_list.set(21, eltwise_alpha);
     arg_list.set(22, eltwise_beta);
+    arg_list.set(23, eltwise_scale);
 
     size_t nthreads_x = (m + block_m - 1) / block_m;
     size_t nthreads_y = (n + block_n - 1) / block_n;
@@ -108,7 +109,7 @@ status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
         int64_t offset_c, int64_t m, int64_t n, int64_t ldc, float alpha,
         float beta, const memory_storage_t &co, int64_t offset_co,
         bool alpha_is_zero, bool apply_eltwise, float eltwise_alpha,
-        float eltwise_beta) const {
+        float eltwise_beta, float eltwise_scale) const {
 
     auto &kernel = scale_x8x8s32_kernel_;
 
@@ -129,6 +130,7 @@ status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
     arg_list.set(12, apply_eltwise);
     arg_list.set(13, eltwise_alpha);
     arg_list.set(14, eltwise_beta);
+    arg_list.set(15, eltwise_scale);
 
     int unroll_m, unroll_n;
 
@@ -196,6 +198,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto eltwise_scale = pd()->eltwise_scale();
 
     auto &a = GEMM_CTX_ARG_STORAGE(a);
     auto &b = GEMM_CTX_ARG_STORAGE(b);
@@ -260,8 +263,8 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                                 off_a_src, off_b_src, off_c, lda, ldb, ldc,
                                 size_m, size_n, size_k, eff_beta, ao, bo, co,
                                 offset_co_src, (int)apply_co,
-                                (int)apply_eltwise, eltwise_alpha,
-                                eltwise_beta);
+                                (int)apply_eltwise, eltwise_alpha, eltwise_beta,
+                                eltwise_scale);
                         if (status) return status;
                     } else if (do_scale) {
                         auto off_c = 0 + Bm + Bn * m;
@@ -269,7 +272,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                                 *temp_buf_, off_a_src, off_b_src, off_c, lda,
                                 ldb, m, size_m, size_n, size_k, eff_beta, ao,
                                 bo, co, offset_co_src, apply_co, 0,
-                                eltwise_alpha, eltwise_beta);
+                                eltwise_alpha, eltwise_beta, eltwise_scale);
                         if (status) return status;
                     }
                 }
@@ -280,7 +283,8 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     if (do_scale) {
         status = launch_scale_x8x8s32(compute_stream, *temp_buf_, c,
                 offsetc_char, off_c0, m, n, ldc, alpha, beta, co, offset_co,
-                (int)alpha_is_zero, 1, eltwise_alpha, eltwise_beta);
+                (int)alpha_is_zero, 1, eltwise_alpha, eltwise_beta,
+                eltwise_scale);
         if (status) return status;
     }
     return status::success;

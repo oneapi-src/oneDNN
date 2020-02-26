@@ -75,7 +75,8 @@
 #define POST_OP(val) \
     do { \
         if (last_k_block && last_k_unroll) \
-            val = fwd_eltwise(val, eltwise_alpha, eltwise_beta); \
+            val = fwd_eltwise( \
+                    val, eltwise_alpha, eltwise_beta, eltwise_scale); \
     } while (0)
 #else
 #define POST_OP(val)
@@ -231,7 +232,7 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -377,7 +378,7 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -530,7 +531,7 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {
@@ -646,7 +647,7 @@ kernel void
 gen9_gemm_nocopy_f32(global float *A, global float *B, global float *C,
         long offset_a, long offset_b, long offset_c, int lda, int ldb, int ldc,
         int m, int n, int k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale
 #ifdef WITH_K_UNROLL
         ,
         volatile global int *flag, long offset_f) {

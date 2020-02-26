@@ -26,10 +26,10 @@
 #define CASE_3D 0
 #endif
 
-#define DO_ELTWISE(blockC, nelems, alpha, beta) \
+#define DO_ELTWISE(blockC, nelems, alpha, beta, scale) \
     do { \
         for (uint i = 0; i < nelems; i++) \
-            blockC[i] = fwd_eltwise(blockC[i], alpha, beta); \
+            blockC[i] = fwd_eltwise(blockC[i], alpha, beta, scale); \
     } while (0)
 
 #define ODHW_SIZE (OD * OH * OW)
@@ -49,7 +49,7 @@ __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 __kernel void
 gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
         const __global half *bias, __global half *dst, float eltwise_alpha,
-        float eltwise_beta, float sum_scale_) {
+        float eltwise_beta, float eltwise_scale, float sum_scale_) {
 
     half relu_negative_slope = eltwise_alpha;
     half sum_scale = sum_scale_;
@@ -293,13 +293,13 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 #endif // WITH_SUM == 1
 
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #if OC_UNROLL
-    DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
-    DO_ELTWISE(C01, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C01, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #if OC_UNROLL
-    DO_ELTWISE(C11, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C11, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 #endif // WITH_ELTWISE == 1
 
@@ -530,8 +530,8 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
     }
 #endif // WITH_SUM == 1
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif // WITH_ELTWISE == 1
 
     if (ow == OW_LAST) {
@@ -758,11 +758,11 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 #endif
 
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(C00, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(C01, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C00, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(C01, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #if USE_32OC_UNROLL
-    DO_ELTWISE(C10, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(C11, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C10, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(C11, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 #endif
 
@@ -809,11 +809,11 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 #endif
 #endif
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(C02, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(C03, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C02, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(C03, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #if USE_32OC_UNROLL
-    DO_ELTWISE(C12, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(C13, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(C12, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(C13, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 #endif
 
@@ -1124,10 +1124,10 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 
 #if WITH_ELTWISE == 1
 #if OW_BLOCK != 16
-    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
 #else
-    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta);
-    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta);
+    DO_ELTWISE(blockC00, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
+    DO_ELTWISE(blockC01, 8, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 #endif
 

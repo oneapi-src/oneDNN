@@ -37,9 +37,9 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         long offset_b0, long offset_c0, long offset_bias0, int transa,
         int transb, long MB, long M, long N, long K, long stride_a,
         long stride_b, long stride_c, long lda, long ldb, long ldc,
-        float eltwise_alpha, float eltwise_beta, int bias_mask,
-        __global int *a0, __global int *b0, __global int *c0, int c0_mask,
-        __global float *scales, long scale_stride, float beta) {
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+        int bias_mask, __global int *a0, __global int *b0, __global int *c0,
+        int c0_mask, __global float *scales, long scale_stride, float beta) {
 
     int n = get_global_id(1);
     int mb = get_global_id(2);
@@ -81,7 +81,7 @@ __kernel void ref_gemm(__global A_DATA_T *a, __global B_DATA_T *b,
         temp += (POST_OP_DATA_T)(beta * C_TO_REF(c[off_c]));
 #endif
 #if WITH_ELTWISE
-        temp = fwd_eltwise(temp, eltwise_alpha, eltwise_beta);
+        temp = fwd_eltwise(temp, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
         long off_c0
                 = mb * c0_strides[0] + m * c0_strides[1] + n * c0_strides[2];

@@ -94,13 +94,13 @@ const _dt_conf_t conf_bf16f32bf16 = {
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16},
 };
 

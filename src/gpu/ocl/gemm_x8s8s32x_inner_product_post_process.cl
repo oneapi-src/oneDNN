@@ -19,8 +19,8 @@
 
 __kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
         __global BIAS_DATA_T *bias, __global DST_DATA_T *dst,
-        float eltwise_alpha, float eltwise_beta, float sum_scale,
-        __global int *scratchpad, global float *scales) {
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+        float sum_scale, __global int *scratchpad, global float *scales) {
     const size_t mb = get_global_id(1);
     const size_t oc = get_global_id(2);
 
@@ -52,7 +52,7 @@ __kernel void gemm_x8s8s32x_inner_product_post_process(__global SRC_DATA_T *src,
 #endif
 
 #if WITH_ELTWISE == 1
-    acc = fwd_eltwise(acc, eltwise_alpha, eltwise_beta);
+    acc = fwd_eltwise(acc, eltwise_alpha, eltwise_beta, eltwise_scale);
 #endif
 
     dst[data_idx] = TO_DST(acc);

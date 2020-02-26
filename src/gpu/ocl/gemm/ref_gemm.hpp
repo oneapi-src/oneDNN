@@ -99,7 +99,7 @@ struct ref_gemm_t : public ocl_gemm_t {
         float eltwise_alpha() const {
             const int eltwise_idx
                     = attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx != -1
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
                     : 1.0f;
         }
@@ -107,15 +107,23 @@ struct ref_gemm_t : public ocl_gemm_t {
         float eltwise_beta() const {
             const int eltwise_idx
                     = attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx != -1
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
                     : 0.0f;
+        }
+
+        float eltwise_scale() const {
+            const int eltwise_idx
+                    = attr()->post_ops_.find(primitive_kind::eltwise);
+            return eltwise_idx != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
+                    : 1.0f;
         }
 
         alg_kind_t eltwise_alg_kind() const {
             const int eltwise_idx
                     = attr()->post_ops_.find(primitive_kind::eltwise);
-            return with_eltwise(0) || with_eltwise(1)
+            return eltwise_idx != -1
                     ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
                     : alg_kind::undef;
         }

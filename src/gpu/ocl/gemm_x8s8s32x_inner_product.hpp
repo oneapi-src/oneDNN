@@ -177,30 +177,33 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_impl_t {
         }
         bool with_sum() const { return post_op_idx(primitive_kind::sum) != -1; }
         alg_kind_t eltwise_algorithm() const {
-            using namespace primitive_kind;
-            return with_eltwise()
-                    ? attr()->post_ops_.entry_[post_op_idx(eltwise)].eltwise.alg
+            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
+            return eltwise_idx != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alg
                     : alg_kind::undef;
         }
         float eltwise_alpha() const {
-            using namespace primitive_kind;
-            return with_eltwise()
-                    ? attr()->post_ops_.entry_[post_op_idx(eltwise)]
-                              .eltwise.alpha
+            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
+            return eltwise_idx != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.alpha
                     : 1.0f;
         }
         float eltwise_beta() const {
-            using namespace primitive_kind;
-            return with_eltwise()
-                    ? attr()->post_ops_.entry_[post_op_idx(eltwise)]
-                              .eltwise.beta
+            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
+            return eltwise_idx != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.beta
                     : 0.0f;
         }
+        float eltwise_scale() const {
+            const int eltwise_idx = post_op_idx(primitive_kind::eltwise);
+            return eltwise_idx != -1
+                    ? attr()->post_ops_.entry_[eltwise_idx].eltwise.scale
+                    : 1.0f;
+        }
         float sum_scale() const {
-            using namespace primitive_kind;
-            return with_sum()
-                    ? attr()->post_ops_.entry_[post_op_idx(sum)].sum.scale
-                    : 0.0f;
+            const int sum_idx = post_op_idx(primitive_kind::sum);
+            return sum_idx != -1 ? attr()->post_ops_.entry_[sum_idx].sum.scale
+                                 : 0.0f;
         }
 
         status_t init_ip_scratchpad_md() {

@@ -25,6 +25,8 @@
                                    --batch=ip_1d
 --attr=post_ops='linear:3.0:2.0'
                                    --batch=ip_1d
+--attr=post_ops='tanh:0.5:1.5:2.0'
+                                   --batch=ip_1d
 
 # bf16
 --reset
@@ -36,6 +38,7 @@
 --cfg=f16
 --dir=FWD_B,FWD_D
 --attr=post_ops='linear:1.0:2.0' --batch=ip_1d
+--attr=post_ops='linear:2:3:0.5' --batch=ip_1d
 
 # bf16 + f32
 --attr=
@@ -53,6 +56,7 @@
 --cfg=bf16bf16bf16,bf16bf16f32
 --attr=post_ops='sum:0.5;relu:0.5' --batch=ip_1d
 --attr=post_ops='sum:0.5;tanh'     --batch=ip_1d
+--attr=post_ops='tanh:0.5:1.5:2.0' --batch=ip_1d
 
 # diff mem tags
 --batch=ip_resnet50_swfmt

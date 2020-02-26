@@ -113,7 +113,7 @@ status_t gen9_gemm_t::launch_compute(compute::compute_stream_t *compute_stream,
         int64_t m, int64_t n, int64_t k, const memory_storage_t &base,
         int32_t offset_a, int32_t offset_b, const memory_storage_t &c,
         int64_t offset_c, int64_t ldc, int last_k_block, float eltwise_alpha,
-        float eltwise_beta, bool beta0) const {
+        float eltwise_beta, float eltwise_scale, bool beta0) const {
     auto &kernel = compute_kernel_[beta0];
 
     assert(kernel);
@@ -130,6 +130,7 @@ status_t gen9_gemm_t::launch_compute(compute::compute_stream_t *compute_stream,
     arg_list.set(9, last_k_block);
     arg_list.set(10, eltwise_alpha);
     arg_list.set(11, eltwise_beta);
+    arg_list.set(12, eltwise_scale);
 
     int unroll_m, unroll_n;
     gen9_gemm_compute_kernel_t::get_unrolls(unroll_m, unroll_n);
@@ -154,7 +155,8 @@ status_t gen9_gemm_t::launch_nocopy(compute::compute_stream_t *compute_stream,
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
         int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta, memory_storage_t &flag) const {
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale,
+        memory_storage_t &flag) const {
 
     auto &kernel = nocopy_kernel_;
     int64_t offset_f = 0;
@@ -178,9 +180,10 @@ status_t gen9_gemm_t::launch_nocopy(compute::compute_stream_t *compute_stream,
     arg_list.set(14, last_k_block);
     arg_list.set(15, eltwise_alpha);
     arg_list.set(16, eltwise_beta);
+    arg_list.set(17, eltwise_scale);
     if (gemm_type_ == type::no_copy_k_unroll) {
-        arg_list.set(17, flag);
-        arg_list.set(18, offset_f);
+        arg_list.set(18, flag);
+        arg_list.set(19, offset_f);
     }
 
     bool transa = (pd()->desc()->transa == dnnl_trans);
@@ -224,7 +227,7 @@ status_t gen9_gemm_t::launch_nocopy_superkernel(
         const memory_storage_t &c, int64_t offset_a, int64_t offset_b,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
         int32_t n, int32_t k, float alpha, float beta, int last_k_block,
-        float eltwise_alpha, float eltwise_beta) const {
+        float eltwise_alpha, float eltwise_beta, float eltwise_scale) const {
 
     auto &kernel = nocopy_superkernel_;
 
@@ -249,6 +252,7 @@ status_t gen9_gemm_t::launch_nocopy_superkernel(
     arg_list.set(16, last_k_block);
     arg_list.set(17, eltwise_alpha);
     arg_list.set(18, eltwise_beta);
+    arg_list.set(19, eltwise_scale);
 
     size_t lthreads = nstl::min(hw_threads_, threads);
 
@@ -408,6 +412,7 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto eltwise_scale = pd()->eltwise_scale();
 
     auto alpha_native = alpha;
     auto beta_native = beta;
@@ -497,13 +502,13 @@ status_t gen9_gemm_t::execute_standard(const gemm_exec_ctx_t &ctx) const {
                     status = launch_nocopy(compute_stream, a, b, c, off_a_src,
                             off_b_src, off_c, lda, ldb, ldc, size_m, size_n,
                             size_k, alpha, eff_beta, (int)last_k_block,
-                            eltwise_alpha, eltwise_beta, *flag_);
+                            eltwise_alpha, eltwise_beta, eltwise_scale, *flag_);
                 } else {
                     bool beta0 = (beta == 0) && (Bk == 0);
                     status = launch_compute(compute_stream, size_m, size_n,
                             size_k, *temp_buf_, off_a_packed, off_b_packed, c,
                             off_c, ldc, (int)last_k_block, eltwise_alpha,
-                            eltwise_beta, beta0);
+                            eltwise_beta, eltwise_scale, beta0);
                 }
                 if (status) return status;
             }
@@ -537,6 +542,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
 
     auto eltwise_alpha = pd()->eltwise_alpha();
     auto eltwise_beta = pd()->eltwise_beta();
+    auto eltwise_scale = pd()->eltwise_scale();
 
     auto &a = GEMM_CTX_ARG_STORAGE(a);
     auto &b = GEMM_CTX_ARG_STORAGE(b);
@@ -565,7 +571,7 @@ status_t gen9_gemm_t::execute_superkernel(const gemm_exec_ctx_t &ctx) const {
         status = launch_nocopy_superkernel(compute_stream, *temp_buf_, threads_,
                 a, b, c, off_a, off_b, off_c, lda, ldb, ldc, m, n, size_k,
                 alpha, this_beta, (int)last_k_block, eltwise_alpha,
-                eltwise_beta);
+                eltwise_beta, eltwise_scale);
 
         if (status) return status;
     }

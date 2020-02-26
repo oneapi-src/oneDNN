@@ -63,7 +63,7 @@ __kernel void ref_eltwise_fwd(
 #endif
     POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
 
-    dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta));
+    dst[data_off] = CONVERT_DATA_T(fwd_eltwise(tmp_s, alpha, beta, 1.0f));
 }
 
 KERNEL_ATTR
