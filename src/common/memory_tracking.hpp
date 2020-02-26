@@ -185,6 +185,7 @@ enum {
     key_pool_src_bf16cvt,
     key_reducer_space,
     key_reducer_space_bctx,
+    key_reorder_cross_space,
     key_reorder_space,
     key_reorder_scales,
     key_reorder_wino_plain,

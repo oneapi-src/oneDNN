@@ -44,13 +44,15 @@ struct cross_engine_reorder_t : public primitive_impl_t {
         pd_t(const pd_t &rhs)
             : reorder_pd_t(rhs)
             , reorder_(rhs.reorder_->clone())
-            , reorder_engine_kind_(rhs.reorder_engine_kind_) {}
+            , reorder_engine_kind_(rhs.reorder_engine_kind_)
+            , do_reorder_(rhs.do_reorder_) {}
 
         pd_t &operator=(const pd_t &rhs) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(rhs);
             reorder_pd_t::operator=(rhs);
             reorder_.reset(rhs.reorder_->clone());
             reorder_engine_kind_ = rhs.reorder_engine_kind_;
+            do_reorder_ = rhs.do_reorder_;
             return *this;
         }
 
@@ -62,6 +64,11 @@ struct cross_engine_reorder_t : public primitive_impl_t {
 
         std::unique_ptr<primitive_desc_t> reorder_;
         engine_kind_t reorder_engine_kind_ = engine_kind::gpu;
+        bool do_reorder_ = true;
+
+    private:
+        status_t init_scratchpad(
+                memory_tracking::registrar_t &scratchpad) const;
     };
 
     virtual status_t init() override {
@@ -73,23 +80,6 @@ struct cross_engine_reorder_t : public primitive_impl_t {
 
         reorder_.reset(reorder_ptr);
 
-        bool with_sum_ab = (pd()->alpha() != 1.0 || pd()->beta() != 0.0);
-        do_reorder_ = with_sum_ab
-                || memory_desc_wrapper(pd()->src_md())
-                        != memory_desc_wrapper(pd()->dst_md());
-
-        if (do_reorder_) {
-            engine_t *temp_eng
-                    = (pd()->src_engine()->kind() == pd()->reorder_engine_kind_)
-                    ? pd()->src_engine()
-                    : pd()->dst_engine();
-            temp_buf.reset(new memory_t(temp_eng,
-                    (pd()->src_engine()->kind() == pd()->reorder_engine_kind_)
-                            ? pd()->dst_md()
-                            : pd()->src_md(),
-                    memory_flags_t::alloc, nullptr));
-            if (!temp_buf) return status::out_of_memory;
-        }
 
         return status::success;
     }
@@ -102,8 +92,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
     std::unique_ptr<primitive_t> reorder_;
-    std::unique_ptr<memory_t> temp_buf;
-    bool do_reorder_ = true;
 };
 
 } // namespace ocl
