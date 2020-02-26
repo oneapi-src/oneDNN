@@ -6,7 +6,8 @@ Concat {#dev_guide_concat}
 >
 
 The concat primitive concatenates \f$N\f$ tensors over `concat_axis` (here
-designated as \f$C\f$ axis) and defined as:
+designated as \f$C\f$ axis) and defined as (the variable names follow the
+standard @ref dev_guide_conventions):
 
 \f[
     \dst(\overline{ou}, c, \overline{in}) =

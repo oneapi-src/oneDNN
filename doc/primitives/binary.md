@@ -6,7 +6,8 @@ Binary {#dev_guide_binary}
 >
 
 The binary primitive computes an operation between source 0 and source 1
-element-wise:
+element-wise (the variable names follow the standard @ref
+dev_guide_conventions):
 
 \f[
     \dst(\overline{x}) =

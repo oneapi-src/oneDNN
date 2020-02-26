@@ -5,7 +5,8 @@ Eltwise {#dev_guide_eltwise}
 > [API Reference](@ref dnnl_api_eltwise)
 >
 
-The eltwise primitive applies an operation to every element of the tensor:
+The eltwise primitive applies an operation to every element of the tensor (the
+variable names follow the standard @ref dev_guide_conventions):
 
 \f[
     \dst(\overline{s}) = Operation(\src(\overline{s})),

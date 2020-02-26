@@ -5,7 +5,8 @@ Sum {#dev_guide_sum}
 > [API Reference](@ref dnnl_api_sum)
 >
 
-The sum primitive sums \f$N\f$ tensors:
+The sum primitive sums \f$N\f$ tensors (the variable names follow the standard
+@ref dev_guide_conventions):
 
 \f[
     \dst(\overline{x}) =

@@ -5,8 +5,9 @@ Matrix Multiplication {#dev_guide_matmul}
 > [API Reference](@ref dnnl_api_matmul)
 >
 
-The matrix multiplication (MatMul) primitive computes the product of two
-2D tensors with optional bias addition:
+The matrix multiplication (MatMul) primitive computes the product of two 2D
+tensors with optional bias addition (the variable names follow the standard @ref
+dev_guide_conventions):
 
 \f[
     \dst(m, n) =

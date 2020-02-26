@@ -9,8 +9,9 @@ The logsoftmax primitive performs softmax along a particular axis on data with
 arbitrary dimensions followed by the logarithm function. All other axes are
 treated as independent (batch).
 
-In general form, the operation is defined by the following formulas. Second
-form is used as more numerically stable:
+In general form, the operation is defined by the following formulas (the
+variable names follow the standard @ref dev_guide_conventions). Second form is
+used as more numerically stable:
 
 ### Forward
 

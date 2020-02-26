@@ -6,7 +6,8 @@ Reorder {#dev_guide_reorder}
 >
 
 The reorder primitive copies data between different memory formats but doesn't
-change the tensor from mathematical perspective:
+change the tensor from mathematical perspective (the variable names follow the
+standard @ref dev_guide_conventions):
 
 \f[
     \dst(\overline{x}) = \src(\overline{x})
@@ -14,7 +15,7 @@ change the tensor from mathematical perspective:
 
 As described in @ref dev_guide_basic_concepts in order to achieve the best
 performance some primitives (such as convolution) require special memory format
-which is typically referred as an *optimized* memory format. The *optimized*
+which is typically referred to as an *optimized* memory format. The *optimized*
 memory format may match or may not match memory format that data is currently
 kept in. In this case a user can use reorder primitive to copy (reorder) the
 data between the memory formats.
@@ -39,7 +40,7 @@ argument index as specified by the following table.
    the same shape. Implicit broadcasting is not supported.
 
 2. While in most of the cases the reorder should be able to handle arbitrary
-   source and destination memory formats and data types it might happen than
+   source and destination memory formats and data types, it might happen than
    some combinations are not implemented. For instance:
 
    - Reorder implementations between weights in non-plain memory formats might
