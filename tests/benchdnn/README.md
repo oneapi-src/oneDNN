@@ -35,7 +35,7 @@ So far it supports and uses the following drivers:
                [--max-ms-per-prb=INT] [--fix-times-per-prb=INT] \
                [-vINT|--verbose=INT] [--fast-ref-gpu=BOOL] \
                [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
-               [--canonical=BOOL] \
+               [--canonical=BOOL] [--mem-check=BOOL] \
                [--perf-template=PERF_TEMPLATE] [DRIVER-OPTS] \
                PROBLEM-DESCRIPTION [--batch=FILE]
 ```

@@ -400,3 +400,6 @@ const char *dt2str(dnnl_data_type_t dt) {
     return dnnl_dt2str(dt);
 }
 
+const char *engine_kind2str(dnnl_engine_kind_t kind) {
+    return dnnl_engine_kind2str(kind);
+}

@@ -272,7 +272,6 @@ inline dnnl_primitive_attr_t create_dnnl_attr(
 }
 
 dnnl_engine_kind_t str2engine_kind(const char *str);
-const char *engine_kind2str(dnnl_engine_kind_t engine);
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,

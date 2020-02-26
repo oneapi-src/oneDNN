@@ -581,16 +581,6 @@ dnnl_engine_kind_t str2engine_kind(const char *str) {
     return dnnl_cpu;
 }
 
-const char *engine_kind2str(dnnl_engine_kind_t engine) {
-    switch (engine) {
-        case dnnl_any_engine: return "any";
-        case dnnl_cpu: return "cpu";
-        case dnnl_gpu: return "gpu";
-    }
-    assert(!"incorrect engine kind");
-    return "incorrect engine kind";
-}
-
 void attr_bundle_t::init_zero_points() {
     for (const auto &arg_entry : attr.zero_points)
         zero_points[arg_entry.first] = {arg_entry.second.value};

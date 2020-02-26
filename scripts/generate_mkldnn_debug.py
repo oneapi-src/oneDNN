@@ -127,6 +127,9 @@ const char *status2str(dnnl_status_t status);
 /* data type */
 const char *dt2str(dnnl_data_type_t dt);
 
+/* endinge kind */
+const char *engine_kind2str(dnnl_engine_kind_t kind);
+
 #endif
 ''' % body
 
@@ -151,6 +154,9 @@ const char *dt2str(dnnl_data_type_t dt) {
     return dnnl_dt2str(dt);
 }
 
+const char *engine_kind2str(dnnl_engine_kind_t kind) {
+    return dnnl_engine_kind2str(kind);
+}
 ''' % body.rstrip()
 
 

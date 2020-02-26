@@ -265,8 +265,8 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_dt(dst_md, engine_tgt);
 
     if (p->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
-    dnn_mem_t ws_fp = dnn_mem_t(ws_md, engine_tgt);
-    dnn_mem_t ws_dt = dnn_mem_t(ws_md, engine_tgt);
+    dnn_mem_t ws_fp(ws_md, engine_tgt);
+    dnn_mem_t ws_dt(ws_md, engine_tgt);
 
     dnn_mem_t d_src_dt, d_dst_dt;
 
