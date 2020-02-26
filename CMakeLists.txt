@@ -55,7 +55,7 @@ endif()
 
 set(PROJECT_NAME "DNNL")
 set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
-set(PROJECT_VERSION "1.2.0")
+set(PROJECT_VERSION "1.2.1")
 
 set(LIB_NAME dnnl)
 
