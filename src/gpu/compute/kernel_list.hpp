@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2020 Intel Corporation
+* Copyright 2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,19 +14,42 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_KERNEL_LIST_HPP
-#define GPU_OCL_OCL_KERNEL_LIST_HPP
+#ifndef GPU_COMPUTE_KERNEL_LIST_HPP
+#define GPU_COMPUTE_KERNEL_LIST_HPP
+
+#include <cassert>
+#include <unordered_map>
+
+#include "gpu/compute/kernel.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
+namespace compute {
 
-const char **get_ocl_kernel_source(const char *kernel_name);
+class kernel_list_t {
+public:
+    void add(const char *name, kernel_t *kernel) {
+        assert(kernels_.count(name) == 0);
+        kernels_[name] = kernel;
+    }
 
-} // namespace ocl
+    void set(const char *name, const kernel_t &kernel) {
+        assert(kernels_.count(name) > 0);
+        *kernels_[name] = kernel;
+    }
+
+    const std::unordered_map<std::string, kernel_t *> &kernels() const {
+        return kernels_;
+    }
+
+private:
+    std::unordered_map<std::string, kernel_t *> kernels_;
+};
+
+} // namespace compute
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
 
-#endif
+#endif // GPU_COMPUTE_KERNEL_LIST_HPP

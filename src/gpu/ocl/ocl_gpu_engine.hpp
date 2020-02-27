@@ -67,6 +67,12 @@ public:
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const override;
 
+    status_t create_kernels_from_ocl_source(
+            std::vector<compute::kernel_t> *kernels,
+            const std::vector<const char *> &kernel_names,
+            const char **source_strings,
+            const compute::kernel_ctx_t &kernel_ctx) const override;
+
     const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
         return gpu_impl_list_t::get_concat_implementation_list();

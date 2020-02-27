@@ -14,19 +14,19 @@
 # limitations under the License.
 #===============================================================================
 
-# Generates cpp file with OpenCL code stored as string
+# Generates cpp file with GPU kernel code stored as string
 # Parameters:
-#   CL_FILE    -- path to the OpenCL source file
-#   CL_INC_DIR -- include directory
-#   CPP_FILE   -- path to the generated cpp file
+#   KER_FILE    -- path to the kernel source file
+#   KER_INC_DIR -- include directory
+#   GEN_FILE   -- path to the generated cpp file
 #===============================================================================
 
-# Read lines of OpenCL file and recursively substitute 'include'
+# Read lines of kernel file and recursively substitute 'include'
 # preprocessor directives.
-#   cl_file  -- path to the OpenCL file
-#   cl_lines -- list with code lines
-function(read_lines cl_file cl_lines)
-    file(STRINGS ${cl_file} contents NEWLINE_CONSUME)
+#   ker_file  -- path to the kernel file
+#   ker_lines -- list with code lines
+function(read_lines ker_file ker_lines)
+    file(STRINGS ${ker_file} contents NEWLINE_CONSUME)
     # Replace square brackets as they have special meaning in CMake
     string(REGEX REPLACE "\\[" "__BRACKET0__" contents "${contents}")
     string(REGEX REPLACE "\\]" "__BRACKET1__" contents "${contents}")
@@ -40,7 +40,7 @@ function(read_lines cl_file cl_lines)
     set(pp_lines)
     foreach(l ${contents})
         if(l MATCHES "\\s*#include \"(.*)\"")
-            set(inc_file "${CL_INC_DIR}/${CMAKE_MATCH_1}")
+            set(inc_file "${KER_INC_DIR}/${CMAKE_MATCH_1}")
             set(inc_lines)
             read_lines(${inc_file} inc_lines)
             list(APPEND pp_lines "${inc_lines}")
@@ -49,22 +49,30 @@ function(read_lines cl_file cl_lines)
             list(APPEND pp_lines "${esc_line}")
         endif()
     endforeach()
-    set(${cl_lines} "${pp_lines}" PARENT_SCOPE)
+    set(${ker_lines} "${pp_lines}" PARENT_SCOPE)
 endfunction()
 
-read_lines(${CL_FILE} cl_lines)
+read_lines(${KER_FILE} ker_lines)
 
 # Replace unescaped semicolon by EOL
-string(REGEX REPLACE "([^\\]|^);" "\\1\n" cl_lines "${cl_lines}")
+string(REGEX REPLACE "([^\\]|^);" "\\1\n" ker_lines "${ker_lines}")
 # Unescape semicolon
-string (REGEX REPLACE "\\\\;" ";" cl_lines "${cl_lines}")
+string (REGEX REPLACE "\\\\;" ";" ker_lines "${ker_lines}")
 # Escape quatation marks
-string(REGEX REPLACE "\"" "\\\\\"" cl_lines "${cl_lines}")
+string(REGEX REPLACE "\"" "\\\\\"" ker_lines "${ker_lines}")
 # Add EOLs
-string(REGEX REPLACE " ?\n" "\\\\n\",\n\"" cl_lines "${cl_lines}")
+string(REGEX REPLACE " ?\n" "\\\\n\",\n\"" ker_lines "${ker_lines}")
 # Replace square brackets back
-string(REGEX REPLACE "__BRACKET0__" "[" cl_lines "${cl_lines}")
-string(REGEX REPLACE "__BRACKET1__" "]" cl_lines "${cl_lines}")
+string(REGEX REPLACE "__BRACKET0__" "[" ker_lines "${ker_lines}")
+string(REGEX REPLACE "__BRACKET1__" "]" ker_lines "${ker_lines}")
 
-get_filename_component(kernel_name ${CL_FILE} NAME_WE)
-file(WRITE ${CPP_FILE} "const char *${kernel_name}_kernel[] ={ \"${cl_lines}\", \"END_OF_KERNEL\" };")
+get_filename_component(ker_name ${KER_FILE} NAME_WE)
+
+set(ker_lang "ocl")
+
+set(ker_contents  "const char *${ker_name}_kernel[] ={ \"${ker_lines}\", nullptr };")
+set(ker_contents "namespace ${ker_lang} {\n${ker_contents}\n}")
+set(ker_contents "namespace gpu {\n${ker_contents}\n}")
+set(ker_contents "namespace impl {\n${ker_contents}\n}")
+set(ker_contents "namespace dnnl {\n${ker_contents}\n}")
+file(WRITE ${GEN_FILE} "${ker_contents}")

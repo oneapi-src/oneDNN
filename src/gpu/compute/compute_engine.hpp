@@ -56,6 +56,12 @@ public:
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const = 0;
 
+    virtual status_t create_kernels_from_ocl_source(
+            std::vector<compute::kernel_t> *kernels,
+            const std::vector<const char *> &kernel_names,
+            const char **source_strings,
+            const compute::kernel_ctx_t &kernel_ctx) const = 0;
+
     bool mayiuse(device_ext_t ext) const { return device_info_->has(ext); }
 
     dispatch_t create_dispatch(const memory_desc_t *md = nullptr) const {

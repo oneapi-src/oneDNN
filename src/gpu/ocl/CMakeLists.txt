@@ -21,63 +21,17 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-set(OCL_KERNEL_LIST_EXTERN)
-set(OCL_KERNEL_LIST_ENTRIES)
-
-set(unique_kernel_names)
-
-# Parses kernel names from .cl file and updates OCL_KERNEL_LIST_EXTERN and
-# OCL_KERNEL_LIST_ENTRIES variables with the parsed kernel names
-function(parse_ocl_kernels cl_name cl_path)
-    set(entries "${OCL_KERNEL_LIST_ENTRIES}")
-
-    file(READ ${cl_path} contents)
-    string(REGEX MATCHALL "kernel[ \n]+void[ \n]+([a-z0-9_]+)" kernels
-        ${contents})
-    set(cur_kernel_names)
-    foreach(k ${kernels})
-        string(REGEX REPLACE "kernel[ \n]+void[ \n]+" "" k ${k})
-        list(APPEND cur_kernel_names ${k})
-        list(FIND unique_kernel_names ${k} index)
-        if (${index} GREATER -1)
-            message(WARNING "OpenCL kernel name is not unique: ${k}")
-        endif()
-        set(entries "${entries}\n        { \"${k}\", ${cl_name}_kernel },")
-    endforeach()
-
-    set(OCL_KERNEL_LIST_EXTERN
-        "${OCL_KERNEL_LIST_EXTERN}\nextern const char *${cl_name}_kernel[];"
-        PARENT_SCOPE)
-    set(OCL_KERNEL_LIST_ENTRIES "${entries}" PARENT_SCOPE)
-
-    set(unique_kernel_names "${unique_kernel_names};${cur_kernel_names}"
-        PARENT_SCOPE)
-endfunction()
+include("${PROJECT_SOURCE_DIR}/cmake/gen_gpu_kernel_list.cmake")
 
 file(GLOB_RECURSE CL_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cl)
-foreach(cl_path ${CL_SOURCES})
-    get_filename_component(cl_name ${cl_path} NAME_WE)
-    set(cpp_file "${CMAKE_CURRENT_BINARY_DIR}/${cl_name}_cl.cpp")
-    # XXX: incremental build does not work with headers from OpenCL code
-    add_custom_command(
-        OUTPUT ${cpp_file}
-        COMMAND ${CMAKE_COMMAND}
-            -DCL_FILE="${cl_path}"
-            -DCPP_FILE="${cpp_file}"
-            -DCL_INC_DIR="${PROJECT_SOURCE_DIR}/src"
-            -P ${PROJECT_SOURCE_DIR}/cmake/gen_ocl_source.cmake
-        DEPENDS ${cl_path}
-    )
-    list(APPEND SOURCES ${cpp_file})
-    parse_ocl_kernels(${cl_name} ${cl_path})
-endforeach()
 
-set(kernel_list_src ${PROJECT_BINARY_DIR}/src/gpu/ocl/ocl_kernel_list.cpp)
+set(kernel_list_templ "${PROJECT_SOURCE_DIR}/src/gpu/ocl/ocl_kernel_list.cpp.in")
+set(kernel_list_src "${PROJECT_BINARY_DIR}/src/gpu/ocl/ocl_kernel_list.cpp")
 
-configure_file(
-    "${PROJECT_SOURCE_DIR}/src/gpu/ocl/ocl_kernel_list.cpp.in"
-    ${kernel_list_src}
-)
+gen_gpu_kernel_list(
+    "${kernel_list_templ}"
+    "${kernel_list_src}"
+    "${CL_SOURCES}")
 
 list(APPEND SOURCES ${kernel_list_src})
 
