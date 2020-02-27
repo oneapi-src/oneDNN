@@ -1907,7 +1907,8 @@ struct memory : public handle<dnnl_memory_t> {
     ///
     /// Unless @p handle is equal to DNNL_MEMORY_NONE, the constructed memory
     /// object will have the underlying buffer set. In this case, the buffer
-    /// will be initialized as if memory::set_data_handle() had been called.
+    /// will be initialized as if #dnnl::memory::set_data_handle() had been
+    /// called.
     ///
     /// @sa memory::set_data_handle()
     ///
