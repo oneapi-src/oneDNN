@@ -147,10 +147,10 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         POST_OP_DATA_T d = 0;
 
 #if SRC0_SCALE
-    tmp_src0 = tmp_src0 * src0_scale;
+        tmp_src0 = tmp_src0 * src0_scale;
 #endif
 #if SRC1_SCALE
-    tmp_src1 = tmp_src1 * src1_scale;
+        tmp_src1 = tmp_src1 * src1_scale;
 #endif
 
 #if IS_ADD
@@ -171,7 +171,7 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
 #endif
 #endif
 #if WITH_ELTWISE == 1
-    d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
+        d = eltwise_scale * fwd_eltwise(d, eltwise_alpha, eltwise_beta);
 #endif
 
         dst[dst_off] = TO_DST(d);
@@ -181,9 +181,8 @@ __kernel void ref_binary(__global SRC0_DATA_T *src0, __global SRC1_DATA_T *src1,
         dst_off++;
         if (USE_UNROLL_16B && (SRC1_D1 > 1)) {
             src1_off++;
-        } else if (SRC0_UNROLL_16B
-                && (SRC1_D1 > 1)) {
-            src1_off+= SRC1_S1_0; // Equilvalent stride in plain format
+        } else if (SRC0_UNROLL_16B && (SRC1_D1 > 1)) {
+            src1_off += SRC1_S1_0; // Equilvalent stride in plain format
         }
 #endif
     }

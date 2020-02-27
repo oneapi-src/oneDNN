@@ -52,7 +52,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
 
     if (is_1stconv || conf.with_groups) {
         conf.ic = conf.ic_without_padding;
-        if ( is_1stconv && conf.oc_without_padding % 16 != 0)
+        if (is_1stconv && conf.oc_without_padding % 16 != 0)
             conf.oc = utils::rnd_up(conf.oc_without_padding, 16);
         else
             conf.oc = conf.oc_without_padding;

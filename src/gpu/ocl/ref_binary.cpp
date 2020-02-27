@@ -94,17 +94,19 @@ status_t ref_binary_t::pd_t::init_conf() {
     } else {
         // Setting the MB as the innermost dim for optimized performance
         // Hence starting i = 1, ignoring MB
-        conf.dispatch.define_dim_with_nesting_level ("D0", ndims, dst_d.dims()[0], 1);
+        conf.dispatch.define_dim_with_nesting_level(
+                "D0", ndims, dst_d.dims()[0], 1);
         for (int i = 1; i < MAX_NDIMS; ++i) {
-            if ( i == 1 && (conf.use_unroll_16b || conf.src0_unroll_16b) ) {
+            if (i == 1 && (conf.use_unroll_16b || conf.src0_unroll_16b)) {
                 // changing value for broadcasting offsets
                 // division by IC for enabling blocking within kernel
-                conf.dispatch.define_dim(utils::format("D%d", i), nstl::min(i, ndims - 1),
-                    i < ndims ? dst_d.padded_dims()[i] : 1, ic_block_sz);
-            }
-            else {
                 conf.dispatch.define_dim(utils::format("D%d", i),
-                    nstl::min(i, ndims - 1), i < ndims ? dst_d.dims()[i] : 1);
+                        nstl::min(i, ndims - 1),
+                        i < ndims ? dst_d.padded_dims()[i] : 1, ic_block_sz);
+            } else {
+                conf.dispatch.define_dim(utils::format("D%d", i),
+                        nstl::min(i, ndims - 1),
+                        i < ndims ? dst_d.dims()[i] : 1);
             }
         }
     }
