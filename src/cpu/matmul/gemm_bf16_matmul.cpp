@@ -174,11 +174,6 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             ? "N"
             : "T";
 
-    auto _src = src;
-    auto _weights = weights;
-    auto _dst = dst;
-    auto _acc = acc;
-
     const int M_s32 = (int)M;
     const int N_s32 = (int)N;
     const int K_s32 = (int)K;
@@ -195,30 +190,36 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
     const auto acc_batch_stride = M * N;
 
-    for (dim_t b = 0; b < batch; ++b) {
-        status_t status = gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32,
-                &K_s32, &alpha, _weights, &ldb, _src, &lda, &beta, _acc, &ldc);
-        if (status != status::success) {
-            if (need_free_acc) free(acc);
-            return status;
-        }
+    const bool parallel_over_batch = batch > 1;
+    parallel(parallel_over_batch ? 0 : 1, [&](int ithr, int nthr) {
+        size_t batch_start {}, batch_end {};
+        balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
+        for (size_t b = batch_start; b < batch_end; ++b) {
+            const src_data_t *curr_src = src + b * src_batch_stride;
+            const weights_data_t *curr_weights
+                    = weights + b * weights_batch_stride;
+            dst_data_t *curr_dst = dst + b * dst_batch_stride;
+            acc_data_t *curr_acc = acc + b * acc_batch_stride;
 
-        if (params.has_pp_kernel_) {
-            const bool force_sequential = pp_kernel_->sequential_kernel();
-            const float *pp_scales = params.get_post_processing_scales(scales);
-            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-                size_t start {}, end {};
-                balance211((size_t)(M * N), nthr, ithr, start, end);
-                (*pp_kernel_)(
-                        _dst, _acc, bias, pp_scales, start, end, (size_t)N);
-            });
-        }
+            gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
+                    curr_weights, &ldb, curr_src, &lda, &beta, curr_acc, &ldc);
 
-        _src += src_batch_stride;
-        _weights += weights_batch_stride;
-        _dst += dst_batch_stride;
-        _acc += acc_batch_stride;
-    }
+            if (params.has_pp_kernel_) {
+                const bool force_sequential = !parallel_over_batch
+                        || pp_kernel_->sequential_kernel();
+                const float *pp_scales
+                        = params.get_post_processing_scales(scales);
+                parallel(force_sequential ? 1 : 0,
+                        [this, M, N, curr_dst, curr_acc, bias, &pp_scales](
+                                int ithr, int nthr) {
+                            size_t start {}, end {};
+                            balance211((size_t)(M * N), nthr, ithr, start, end);
+                            (*pp_kernel_)(curr_dst, curr_acc, bias, pp_scales,
+                                    start, end, (size_t)N);
+                        });
+            }
+        }
+    });
 
     if (need_free_acc) free(acc);
 
