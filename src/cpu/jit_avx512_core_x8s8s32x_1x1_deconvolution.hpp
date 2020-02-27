@@ -69,8 +69,10 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
 
             if (status == status::success) {
                 primitive_desc_t *_conv_pd = nullptr;
-                status = primitive_desc_t::create<conv_pd_t>(
-                        &_conv_pd, (op_desc_t *)&cd, &attr_, engine, nullptr);
+                primitive_attr_t conv_attr = *attr();
+                conv_attr.set_scratchpad_mode(scratchpad_mode::user);
+                status = primitive_desc_t::create<conv_pd_t>(&_conv_pd,
+                        (op_desc_t *)&cd, &conv_attr, engine, nullptr);
                 conv_pd_.reset(_conv_pd);
             }
 
@@ -97,13 +99,9 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             if (!ok) return status::unimplemented;
 
             CHECK(init_convolution(engine));
+            init_scratchpad();
 
             return status::success;
-        }
-
-        virtual void init_scratchpad_md() override {
-            const auto conv_1x1_pd = static_cast<conv_pd_t *>(conv_pd_.get());
-            scratchpad_md_ = *conv_1x1_pd->scratchpad_md();
         }
 
     protected:
@@ -122,6 +120,13 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         friend jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t;
 
         std::unique_ptr<primitive_desc_t> conv_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    conv_pd_->scratchpad_registry().size());
+        }
     };
 
     jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
@@ -133,7 +138,12 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
-        return conv_p_->execute(const_cast<exec_ctx_t &>(ctx));
+        nested_scratchpad_t ns(
+                ctx, memory_tracking::names::key_nested, conv_p_);
+        // XXX: create a new ctx for convolution?
+        auto &tmp_ctx = const_cast<exec_ctx_t &>(ctx);
+        tmp_ctx.set_scratchpad_grantor(ns.grantor());
+        return conv_p_->execute(tmp_ctx);
     }
 
 private:

@@ -51,12 +51,13 @@ struct ref_sum_t : public primitive_t {
                 auto r_impls = engine->get_reorder_implementation_list(
                         src_md(i), dst_md());
                 for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t attr;
-                    attr.output_scales_.set(scales_[i]);
-                    if (i != 0) attr.post_ops_.append_sum(1.0);
+                    primitive_attr_t r_attr;
+                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
+                    r_attr.output_scales_.set(scales_[i]);
+                    if (i != 0) r_attr.post_ops_.append_sum(1.0);
 
                     reorder_pd_t *r_pd;
-                    if ((*r)(&r_pd, engine, &attr, engine, src_md(i), engine,
+                    if ((*r)(&r_pd, engine, &r_attr, engine, src_md(i), engine,
                                 dst_md())
                             == status::success) {
                         reorder_pds_.emplace_back(r_pd);
@@ -75,6 +76,16 @@ struct ref_sum_t : public primitive_t {
         }
 
         std::vector<std::unique_ptr<primitive_desc_t>> reorder_pds_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            for (size_t i = 0; i < reorder_pds_.size(); i++) {
+                scratchpad.book(
+                        memory_tracking::names::key_nested_multiple + (int)i,
+                        reorder_pds_[i]->scratchpad_registry().size());
+            }
+        }
     };
 
     ref_sum_t(const pd_t *apd) : primitive_t(apd) {}
@@ -92,12 +103,16 @@ struct ref_sum_t : public primitive_t {
     ~ref_sum_t() = default;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace memory_tracking::names;
         const auto n = pd()->n_inputs();
         for (int i = 0; i < n; ++i) {
             exec_args_t r_args;
             r_args[DNNL_ARG_SRC] = ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i);
             r_args[DNNL_ARG_DST] = ctx.args().at(DNNL_ARG_DST);
-            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+            exec_ctx_t r_ctx(ctx, std::move(r_args));
+
+            nested_scratchpad_t ns(ctx, key_nested_multiple + i, reorders_[i]);
+            r_ctx.set_scratchpad_grantor(ns.grantor());
             reorders_[i]->execute(r_ctx);
             ctx.stream()->wait();
         }

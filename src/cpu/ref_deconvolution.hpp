@@ -23,6 +23,7 @@
 #include "c_types_map.hpp"
 #include "primitive.hpp"
 #include "primitive_iterator.hpp"
+#include "stream.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -110,9 +111,10 @@ struct ref_deconvolution_fwd_t : public primitive_t {
 
             convolution_desc_t cd;
             CHECK(conv_descr_create(desc(), &cd));
-
+            primitive_attr_t conv_attr = *attr();
+            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
             dnnl_primitive_desc_iterator it(
-                    engine, (op_desc_t *)&cd, &attr_, nullptr);
+                    engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
                 primitive_desc_t *_conv_pd = it.fetch_once();
                 conv_supports_bias_
@@ -167,19 +169,23 @@ struct ref_deconvolution_fwd_t : public primitive_t {
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
 
+                init_scratchpad();
                 return status::success;
             }
 
             return status::unimplemented;
         }
 
-        virtual void init_scratchpad_md() override {
-            scratchpad_md_ = *conv_pd_->scratchpad_md();
-        }
-
         std::unique_ptr<primitive_desc_t> conv_pd_;
         bool conv_supports_bias_;
         format_tag_t dst_tag_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    conv_pd_->scratchpad_registry().size());
+        }
     };
 
     ref_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
@@ -189,6 +195,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
         conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
@@ -196,10 +203,10 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         if (pd()->with_bias() && pd()->conv_supports_bias_)
             conv_args[DNNL_ARG_BIAS] = args.at(DNNL_ARG_BIAS);
         conv_args[DNNL_ARG_DIFF_SRC] = args.at(DNNL_ARG_DST);
-        if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
+        nested_scratchpad_t ns(ctx, key_nested, conv_p_);
+        conv_ctx.set_scratchpad_grantor(ns.grantor());
         conv_p_->execute(conv_ctx);
 
         if (pd()->with_bias() && !pd()->conv_supports_bias_) {
@@ -263,9 +270,11 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
             convolution_desc_t cd;
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
+            primitive_attr_t conv_attr = *attr();
+            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
-                    engine, (op_desc_t *)&cd, &attr_, nullptr);
+                    engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
                 primitive_desc_t *_conv_pd = it.fetch_once();
                 if (_conv_pd->weights_md()->extra.flags == 0) {
@@ -301,18 +310,21 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
                     diff_src_md_ = *conv_pd_->dst_md();
                 if (diff_dst_md_.format_kind == format_kind::any)
                     diff_dst_md_ = *conv_pd_->src_md();
-
+                init_scratchpad();
                 return status::success;
             }
 
             return status::unimplemented;
         }
 
-        virtual void init_scratchpad_md() override {
-            scratchpad_md_ = *conv_pd_->scratchpad_md();
-        }
-
         std::unique_ptr<primitive_desc_t> conv_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    conv_pd_->scratchpad_registry().size());
+        }
     };
 
     typedef typename prec_traits<data_type::f32>::type data_t;
@@ -324,15 +336,16 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
         conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
         conv_args[DNNL_ARG_WEIGHTS] = args.at(DNNL_ARG_WEIGHTS);
         conv_args[DNNL_ARG_DST] = args.at(DNNL_ARG_DIFF_SRC);
-        if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
+        nested_scratchpad_t ns(ctx, key_nested, conv_p_);
+        conv_ctx.set_scratchpad_grantor(ns.grantor());
         conv_p_->execute(conv_ctx);
         return status::success;
     }
@@ -371,9 +384,11 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
             convolution_desc_t cd;
             status_t status = conv_descr_create(desc(), &cd);
             if (status != status::success) return status;
+            primitive_attr_t conv_attr = *attr();
+            conv_attr.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
-                    engine, (op_desc_t *)&cd, &attr_, nullptr);
+                    engine, (op_desc_t *)&cd, &conv_attr, nullptr);
             while (++it != it.end()) {
                 primitive_desc_t *_conv_pd = it.fetch_once();
                 bool bf16_ref_deconv_supports_bias = IMPLICATION(with_bias()
@@ -424,19 +439,22 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
                         utils::pick(ndims() - 3, ncw, nchw, ncdhw),
                         utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
                         utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
-
+                init_scratchpad();
                 return status::success;
             }
 
             return status::unimplemented;
         }
 
-        virtual void init_scratchpad_md() override {
-            scratchpad_md_ = *conv_pd_->scratchpad_md();
-        }
-
         std::unique_ptr<primitive_desc_t> conv_pd_;
         format_tag_t dst_tag_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    conv_pd_->scratchpad_registry().size());
+        }
     };
 
     ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
@@ -446,15 +464,16 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace memory_tracking::names;
         const auto &args = ctx.args();
         exec_args_t conv_args;
         conv_args[DNNL_ARG_DIFF_DST] = args.at(DNNL_ARG_SRC);
         conv_args[DNNL_ARG_SRC] = args.at(DNNL_ARG_DIFF_DST);
         conv_args[DNNL_ARG_DIFF_WEIGHTS] = args.at(DNNL_ARG_DIFF_WEIGHTS);
-        if (!types::is_zero_md(pd()->scratchpad_md()))
-            conv_args[DNNL_ARG_SCRATCHPAD] = args.at(DNNL_ARG_SCRATCHPAD);
         exec_ctx_t conv_ctx(ctx.stream(), std::move(conv_args));
 
+        nested_scratchpad_t ns(ctx, key_nested, conv_p_);
+        conv_ctx.set_scratchpad_grantor(ns.grantor());
         status_t status = conv_p_->execute(conv_ctx);
         if (status != status::success) return status;
 

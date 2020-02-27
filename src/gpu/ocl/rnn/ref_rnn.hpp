@@ -70,6 +70,14 @@ struct _ref_rnn_common_t : public primitive_t {
     using base_pd_t =
             typename utils::conditional<false || aprop == prop_kind::forward,
                     gpu_rnn_fwd_pd_t, gpu_rnn_bwd_pd_t>::type;
+    enum {
+        key_gemm_iter_fwd = memory_tracking::names::key_nested_multiple,
+        key_gemm_layer_fwd,
+        key_gemm_iter_bwd,
+        key_gemm_layer_bwd,
+        key_gemm_diff_wei_layer,
+        key_gemm_diff_wei_iter,
+    };
 
     struct pd_t : public base_pd_t {
 
@@ -110,6 +118,28 @@ struct _ref_rnn_common_t : public primitive_t {
             auto scratchpad = this->scratchpad_registry().registrar();
             scratchpad.book(key_rnn_space, scratchpad_sz, 4096);
             scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 4096);
+            // book scratchpad for nested primitives
+            switch (aprop) {
+                case prop_kind::forward:
+                    scratchpad.book(key_gemm_iter_fwd,
+                            gemm_iter_fwd_pd_->scratchpad_registry().size());
+                    scratchpad.book(key_gemm_layer_fwd,
+                            gemm_layer_fwd_pd_->scratchpad_registry().size());
+                    break;
+                case prop_kind::backward:
+                    scratchpad.book(key_gemm_iter_bwd,
+                            gemm_iter_bwd_pd_->scratchpad_registry().size());
+                    scratchpad.book(key_gemm_layer_bwd,
+                            gemm_layer_bwd_pd_->scratchpad_registry().size());
+                    scratchpad.book(key_gemm_diff_wei_layer,
+                            gemm_diff_wei_layer_pd_->scratchpad_registry()
+                                    .size());
+                    scratchpad.book(key_gemm_diff_wei_iter,
+                            gemm_diff_wei_iter_pd_->scratchpad_registry()
+                                    .size());
+                    break;
+                default: assert(!"unknown prop_kind");
+            }
         }
 
         void copy_from(const pd_t &other) {

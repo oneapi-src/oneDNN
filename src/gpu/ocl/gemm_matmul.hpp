@@ -55,8 +55,11 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd_,
     gemm_desc.bias_type = bias_dt;
     gemm_desc.bias_mask = bias_mask;
 
+    primitive_attr_t gemm_attr = *attr;
+    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
+
     dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&gemm_desc, attr, nullptr);
+            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
     ++it;
     gemm_pd_.reset(it.fetch_once());
     if (!gemm_pd_) return status::unimplemented;
@@ -179,11 +182,19 @@ struct gemm_matmul_t : public primitive_t {
                             bias_mask, weights_dt, src_dt, dst_dt, acc_dt,
                             bias_dt, &gemm_attr);
             if (!gemm_ok) return status::unimplemented;
+            init_scratchpad();
 
             return status::success;
         }
 
         std::unique_ptr<primitive_desc_t> gemm_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    gemm_pd_->scratchpad_registry().size());
+        }
     };
 
     status_t init(engine_t *engine) override {

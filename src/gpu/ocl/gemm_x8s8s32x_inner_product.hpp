@@ -60,8 +60,10 @@ inline status_t create_gemm_x8s8s32x_pd(
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
 
+    primitive_attr_t gemm_attr = attr;
+    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
     dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
     ++it;
     gemm_pd.reset(it.fetch_once());
     if (!gemm_pd) return status::unimplemented;
@@ -243,6 +245,13 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
         memory_desc_t scales_md_;
         memory_desc_t ip_scratchpad_md_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    gemm_pd_->scratchpad_registry().size());
+        }
     };
 
     status_t init(engine_t *engine) override {

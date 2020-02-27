@@ -95,15 +95,5 @@ memory_desc_wrapper exec_ctx_t::memory_mdw(
     return memory_desc_wrapper(args_.at(arg).mem->md());
 }
 
-void exec_ctx_t::set_scratchpad_grantor(
-        const memory_tracking::grantor_t &scratchpad_grantor) {
-    scratchpad_grantor_ = utils::make_unique<memory_tracking::grantor_t>(
-            scratchpad_grantor);
-}
-
-const memory_tracking::grantor_t &exec_ctx_t::get_scratchpad_grantor() const {
-    assert(scratchpad_grantor_.get());
-    return *(scratchpad_grantor_.get());
-}
 } // namespace impl
 } // namespace dnnl

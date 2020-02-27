@@ -50,6 +50,20 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(primitive_t);
 };
 
+// This is a helper class which is used for forwarding a scratchpad
+// from master primitive to the nested ones.
+struct nested_scratchpad_t {
+    nested_scratchpad_t(const exec_ctx_t &master_ctx, int key,
+            const std::shared_ptr<primitive_t> &nested_p);
+    const memory_tracking::grantor_t *grantor() const { return grantor_.get(); }
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(nested_scratchpad_t);
+
+private:
+    std::unique_ptr<memory_storage_t> scratchpad_mem_storage_;
+    std::unique_ptr<memory_tracking::grantor_t> grantor_;
+};
+
 } // namespace impl
 } // namespace dnnl
 

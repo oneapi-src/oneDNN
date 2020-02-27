@@ -187,7 +187,9 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         status_t depthwise_po_init(engine_t *engine) {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
-            auto &attr_1x1 = attr_;
+            auto attr_1x1 = *attr();
+            attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
+
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);
             const auto nthr = dnnl_get_max_threads();

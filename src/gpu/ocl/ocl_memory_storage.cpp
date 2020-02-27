@@ -90,11 +90,28 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
     err = clGetMemObjectInfo(
             mem_object(), CL_MEM_FLAGS, sizeof(mem_flags), &mem_flags, nullptr);
     assert(err == CL_SUCCESS);
+    if (err != CL_SUCCESS) return nullptr;
 
-    cl_buffer_region buffer_region = {offset, size};
-    ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(mem_object(),
-            mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
+    cl_mem parent_mem;
+    size_t parent_off;
+
+    err = clGetMemObjectInfo(mem_object(), CL_MEM_ASSOCIATED_MEMOBJECT,
+            sizeof(parent_mem), &parent_mem, nullptr);
     assert(err == CL_SUCCESS);
+    if (err != CL_SUCCESS) return nullptr;
+
+    err = clGetMemObjectInfo(mem_object(), CL_MEM_OFFSET, sizeof(parent_off),
+            &parent_off, nullptr);
+    assert(err == CL_SUCCESS);
+    if (err != CL_SUCCESS) return nullptr;
+
+    if (!parent_mem) parent_mem = mem_object();
+
+    cl_buffer_region buffer_region = {parent_off + offset, size};
+    ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(parent_mem, mem_flags,
+            CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
+    assert(err == CL_SUCCESS);
+    if (err != CL_SUCCESS) return nullptr;
 
     auto sub_storage = new ocl_memory_storage_t(this->engine());
     if (sub_storage)

@@ -55,8 +55,11 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd,
     gemm_desc.c_type = c_dt;
     gemm_desc.acc_type = c_dt;
 
+    primitive_attr_t gemm_attr = attr;
+    gemm_attr.set_scratchpad_mode(scratchpad_mode::user);
+
     dnnl_primitive_desc_iterator it(
-            engine, (op_desc_t *)&gemm_desc, &attr, nullptr);
+            engine, (op_desc_t *)&gemm_desc, &gemm_attr, nullptr);
     ++it;
     gemm_pd.reset(it.fetch_once());
     if (!gemm_pd) return status::unimplemented;
@@ -124,11 +127,19 @@ struct gemm_inner_product_fwd_t : public primitive_t {
                             weights_md()->data_type, src_md()->data_type,
                             dst_md()->data_type, *attr());
             if (!gemm_ok) return status::unimplemented;
+            init_scratchpad();
 
             return status::success;
         }
 
         std::unique_ptr<primitive_desc_t> gemm_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    gemm_pd_->scratchpad_registry().size());
+        }
     };
 
     status_t init(engine_t *engine) override {
@@ -217,11 +228,19 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
                             weights_md()->data_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type, *attr());
             if (!gemm_ok) return status::unimplemented;
+            init_scratchpad();
 
             return status::success;
         }
 
         std::unique_ptr<primitive_desc_t> gemm_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    gemm_pd_->scratchpad_registry().size());
+        }
     };
 
     status_t init(engine_t *engine) override {
@@ -301,6 +320,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
                         == status::success;
             }
             if (!gemm_ok) return status::unimplemented;
+            init_scratchpad();
 
             return status::success;
         }
@@ -311,6 +331,13 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
         }
 
         std::unique_ptr<primitive_desc_t> gemm_pd_;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_nested,
+                    gemm_pd_->scratchpad_registry().size());
+        }
     };
 
     status_t init(engine_t *engine) override {

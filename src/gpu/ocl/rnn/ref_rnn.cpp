@@ -576,8 +576,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
                 &this->ws_md_, 1, ws_dims, data_type::u8, x);
     }
 
-    init_scratchpad(scratchpad_sz);
-
     rnn_conf.acc_data_type = acc_data_t;
     rnn_conf.acc_data_type_elsz = types::data_type_size(acc_data_t);
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
@@ -681,6 +679,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     }
 
     if (!gemm_ok) return status::unimplemented;
+    init_scratchpad(scratchpad_sz);
     return status::success;
 }
 
@@ -885,21 +884,40 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
     gemm_args.b = gemm_B_;
     gemm_args.c = gemm_C_;
 
-    auto gemm_ctx = gemm_exec_ctx_t(ctx.stream(), gemm_args);
+    auto gemm_ctx = gemm_exec_ctx_t(ctx, gemm_args);
+
+    std::unique_ptr<nested_scratchpad_t> ns;
+    const auto init_gemm_nested_scratchpad
+            = [&](const std::shared_ptr<primitive_t> &gemm, int key) {
+                  ns = utils::make_unique<nested_scratchpad_t>(ctx, key, gemm);
+                  gemm_ctx.set_scratchpad_grantor(ns->grantor());
+              };
 
     switch (gemm_kind) {
-        case gemm_iter_fwd: gpu_gemm(gemm_iter_fwd_)->execute(gemm_ctx); break;
+        case gemm_iter_fwd:
+            init_gemm_nested_scratchpad(gemm_iter_fwd_, key_gemm_iter_fwd);
+            gpu_gemm(gemm_iter_fwd_)->execute(gemm_ctx);
+            break;
         case gemm_layer_fwd:
+            init_gemm_nested_scratchpad(gemm_layer_fwd_, key_gemm_layer_fwd);
             gpu_gemm(gemm_layer_fwd_)->execute(gemm_ctx);
             break;
-        case gemm_iter_bwd: gpu_gemm(gemm_iter_bwd_)->execute(gemm_ctx); break;
+        case gemm_iter_bwd:
+            init_gemm_nested_scratchpad(gemm_iter_bwd_, key_gemm_iter_bwd);
+            gpu_gemm(gemm_iter_bwd_)->execute(gemm_ctx);
+            break;
         case gemm_layer_bwd:
+            init_gemm_nested_scratchpad(gemm_layer_bwd_, key_gemm_layer_bwd);
             gpu_gemm(gemm_layer_bwd_)->execute(gemm_ctx);
             break;
         case gemm_diff_wei_iter:
+            init_gemm_nested_scratchpad(
+                    gemm_diff_wei_iter_, key_gemm_diff_wei_iter);
             gpu_gemm(gemm_diff_wei_iter_)->execute(gemm_ctx);
             break;
         case gemm_diff_wei_layer:
+            init_gemm_nested_scratchpad(
+                    gemm_diff_wei_layer_, key_gemm_diff_wei_layer);
             gpu_gemm(gemm_diff_wei_layer_)->execute(gemm_ctx);
             break;
         default: assert(!"unknown gemm_kind");

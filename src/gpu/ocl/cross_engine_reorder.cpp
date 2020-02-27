@@ -33,6 +33,7 @@ status_t cross_engine_reorder_t::pd_t::init_scratchpad(
                                                             : src_md());
     scratchpad.book(
             memory_tracking::names::key_reorder_cross_space, wspace_md.size());
+    scratchpad.book(key_nested, reorder_pd_->scratchpad_registry().size());
     return status::success;
 }
 
@@ -55,7 +56,8 @@ status_t cross_engine_reorder_t::pd_t::init(
 
     auto r_impls = reorder_engine->get_reorder_implementation_list(
             src_md(), dst_md());
-    const primitive_attr_t r_attr(*attr());
+    primitive_attr_t r_attr(*attr());
+    r_attr.set_scratchpad_mode(scratchpad_mode::user);
     for (auto r = r_impls; *r; ++r) {
         reorder_pd_t *r_pd = nullptr;
         if ((*r)(&r_pd, reorder_engine, &r_attr, reorder_engine, src_md(),
@@ -104,7 +106,10 @@ status_t cross_engine_reorder_t::execute(const exec_ctx_t &ctx) const {
         r_args[DNNL_ARG_DST]
                 = memory_arg_t {const_cast<memory_t *>(dst_mem), false};
 
-        exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+        exec_ctx_t r_ctx(ctx, std::move(r_args));
+
+        nested_scratchpad_t ns(ctx, key_nested, reorder_);
+        r_ctx.set_scratchpad_grantor(ns.grantor());
         return reorder_->execute(r_ctx);
     };
 

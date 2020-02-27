@@ -64,9 +64,11 @@ struct ref_concat_t : public primitive_t {
                 auto r_impls = engine->get_reorder_implementation_list(
                         src_md(i), src_image_md(i));
                 for (auto r = r_impls; *r; ++r) {
-                    const primitive_attr_t attr; /* alpha == 1. */
+                    primitive_attr_t r_attr; /* alpha == 1. */
+                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
                     reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine, &attr, engine, src_md(i), engine,
+
+                    if ((*r)(&r_pd, engine, &r_attr, engine, src_md(i), engine,
                                 src_image_md(i))
                             == status::success) {
                         reorder_pds_.emplace_back(r_pd);
@@ -83,21 +85,18 @@ struct ref_concat_t : public primitive_t {
                 auto r_impls = engine->get_reorder_implementation_list(
                         &tent_dst_md_, &dst_md_);
                 for (auto r = r_impls; *r; ++r) {
-                    primitive_attr_t attr;
+                    primitive_attr_t r_attr;
+                    r_attr.set_scratchpad_mode(scratchpad_mode::user);
                     reorder_pd_t *r_pd = nullptr;
-                    if ((*r)(&r_pd, engine, &attr, engine, &tent_dst_md_,
+                    if ((*r)(&r_pd, engine, &r_attr, engine, &tent_dst_md_,
                                 engine, &dst_md_)
                             == status::success) {
                         reorder_pds_.emplace_back(r_pd);
                         break;
                     }
                 }
-                using namespace memory_tracking::names;
-                auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(memory_tracking::names::key_concat_tent_dst,
-                        dnnl_memory_desc_get_size(&tent_dst_md_));
             }
-
+            init_scratchpad();
             return status;
         }
 
@@ -112,6 +111,20 @@ struct ref_concat_t : public primitive_t {
             tent_dst_md_ = rhs.tent_dst_md_;
             for (size_t i = 0; i < rhs.reorder_pds_.size(); ++i)
                 reorder_pds_.emplace_back(rhs.reorder_pds_[i]->clone());
+        }
+
+        void init_scratchpad() {
+            using namespace memory_tracking::names;
+            auto scratchpad = scratchpad_registry().registrar();
+            if (use_tent_dst()) {
+                scratchpad.book(memory_tracking::names::key_concat_tent_dst,
+                        dnnl_memory_desc_get_size(&tent_dst_md_));
+            }
+
+            for (size_t i = 0; i < reorder_pds_.size(); i++) {
+                scratchpad.book(key_nested_multiple + (int)i,
+                        reorder_pds_[i]->scratchpad_registry().size());
+            }
         }
     };
 
@@ -128,18 +141,22 @@ struct ref_concat_t : public primitive_t {
     ~ref_concat_t() = default;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
+        using namespace memory_tracking::names;
         engine_t *engine = ctx.stream()->engine();
         const auto n = pd()->n_inputs();
 
-        auto execute_reorder
-                = [&](const std::shared_ptr<primitive_t> &reorder,
-                          const memory_arg_t &src, const memory_arg_t &dst) {
-                      exec_args_t r_args;
-                      r_args[DNNL_ARG_SRC] = src;
-                      r_args[DNNL_ARG_DST] = dst;
-                      exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
-                      reorder->execute(r_ctx);
-                  };
+        auto execute_reorder = [&](const std::shared_ptr<primitive_t> &reorder,
+                                       const memory_arg_t &src,
+                                       const memory_arg_t &dst, int r_num) {
+            exec_args_t r_args;
+            r_args[DNNL_ARG_SRC] = src;
+            r_args[DNNL_ARG_DST] = dst;
+            exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+
+            nested_scratchpad_t ns(ctx, key_nested_multiple + r_num, reorder);
+            r_ctx.set_scratchpad_grantor(ns.grantor());
+            reorder->execute(r_ctx);
+        };
 
         const unsigned submemory_flags = memory_flags_t::use_runtime_ptr
                 | memory_flags_t::omit_zero_pad;
@@ -154,24 +171,25 @@ struct ref_concat_t : public primitive_t {
                         submemory_flags, tent_dst_ptr);
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst_i, false});
+                        {&tent_dst_i, false}, i);
             }
 
             memory_t tent_dst(engine, &pd()->tent_dst_md_,
                     memory_flags_t::use_runtime_ptr, tent_dst_ptr);
+
             execute_reorder(reorders_[n], {&tent_dst, true},
-                    ctx.args().at(DNNL_ARG_DST));
+                    ctx.args().at(DNNL_ARG_DST), n);
         } else {
             auto dst_ptr = CTX_OUT_MEM(void *, DNNL_ARG_DST);
             for (int i = 0; i < n; ++i) {
                 memory_t tent_dst_i(engine, pd()->src_image_md(i),
                         submemory_flags, dst_ptr);
+
                 execute_reorder(reorders_[i],
                         ctx.args().at(DNNL_ARG_MULTIPLE_SRC + i),
-                        {&tent_dst_i, false});
+                        {&tent_dst_i, false}, i);
             }
         }
-
         return status::success;
     }
 

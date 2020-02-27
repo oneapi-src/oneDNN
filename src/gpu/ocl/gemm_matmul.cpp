@@ -24,6 +24,7 @@ namespace gpu {
 namespace ocl {
 
 status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     using namespace gemm_utils;
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC);
@@ -115,7 +116,11 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_desc.acc_type = acc_dt;
     gemm_desc.bias_type = bia_dt;
 
-    gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args, &gemm_desc);
+    gemm_exec_ctx_t gemm_ctx(ctx, gemm_args, &gemm_desc);
+
+    nested_scratchpad_t ns(ctx, key_nested, gemm_);
+    gemm_ctx.set_scratchpad_grantor(ns.grantor());
+
     status_t gemm_exec_status = gpu_gemm(gemm_)->execute(gemm_ctx);
     if (gemm_exec_status != status::success) return gemm_exec_status;
 

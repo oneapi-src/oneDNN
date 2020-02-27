@@ -45,9 +45,10 @@ static status_t create_reorder_pd(engine_t *engine,
         std::unique_ptr<primitive_desc_t> &reorder_pd) {
     auto r_impls = engine->get_reorder_implementation_list(from_md, to_md);
     for (auto r = r_impls; *r; ++r) {
-        primitive_attr_t attr;
+        primitive_attr_t r_attr;
+        r_attr.set_scratchpad_mode(scratchpad_mode::user);
         reorder_pd_t *r_pd = nullptr;
-        if ((*r)(&r_pd, engine, &attr, engine, from_md, engine, to_md)
+        if ((*r)(&r_pd, engine, &r_attr, engine, from_md, engine, to_md)
                 == status::success) {
             reorder_pd.reset(r_pd);
             break;
@@ -123,6 +124,10 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
                 scratchpad.book(
                         key_lnorm_tmp_var, sizeof(float) * across_axis());
             }
+            if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
+                scratchpad.book(
+                        key_nested, reorder_pd_->scratchpad_registry().size());
+            }
         }
 
         void copy_from(const pd_t &other) {
@@ -149,10 +154,14 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
 
     void reorder_stat(const exec_ctx_t &ctx, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const {
+        using namespace memory_tracking::names;
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = in;
         r_args[DNNL_ARG_DST] = out;
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+
+        nested_scratchpad_t ns(ctx, key_nested, reorder_);
+        r_ctx.set_scratchpad_grantor(ns.grantor());
         reorder_->execute(r_ctx);
     }
 
@@ -269,6 +278,10 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
                     sizeof(float) * 2 * norm_axis() * dnnl_get_max_threads());
             scratchpad.book(
                     key_lnorm_tmp_diff_ss, sizeof(float) * 2 * norm_axis());
+            if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
+                scratchpad.book(
+                        key_nested, reorder_pd_->scratchpad_registry().size());
+            }
         }
 
         void copy_from(const pd_t &other) {
@@ -295,10 +308,14 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
 
     void reorder_stat(const exec_ctx_t &ctx, engine_t *engine,
             const memory_arg_t &in, const memory_arg_t &out) const {
+        using namespace memory_tracking::names;
         exec_args_t r_args;
         r_args[DNNL_ARG_SRC] = in;
         r_args[DNNL_ARG_DST] = out;
         exec_ctx_t r_ctx(ctx.stream(), std::move(r_args));
+
+        nested_scratchpad_t ns(ctx, key_nested, reorder_);
+        r_ctx.set_scratchpad_grantor(ns.grantor());
         reorder_->execute(r_ctx);
     }
 

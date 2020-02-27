@@ -100,7 +100,7 @@ struct primitive_desc_t : public c_compatible {
         return idx == 0 ? &scratchpad_md_ : &glob_zero_md;
     }
 
-    virtual void init_scratchpad_md() {
+    void init_scratchpad_md() {
         auto size = scratchpad_size(scratchpad_mode::user);
         dims_t dims = {size};
         dnnl_memory_desc_init_by_tag(

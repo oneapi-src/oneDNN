@@ -151,6 +151,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                         from_md, to_md);
                 for (auto r = r_impls; *r; ++r) {
                     primitive_attr_t attr;
+                    attr.set_scratchpad_mode(scratchpad_mode::user);
                     if ((*r)(&r_pd, engine, &attr, engine, from_md, engine,
                                 to_md)
                             == status::success) {
@@ -182,13 +183,15 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
         status_t init_ops(engine_t *engine) {
             using namespace data_type;
-            auto &root_attr = *attr();
+            auto root_attr = *attr();
+            root_attr.set_scratchpad_mode(scratchpad_mode::user);
             auto po_op_iter
                     = attr()->post_ops_.find(primitive_kind::convolution);
             if (po_op_iter == -1) return status::unimplemented;
 
             primitive_attr_t attr_1x1 = *attr();
             attr_1x1.post_ops_.len_ = po_op_iter;
+            attr_1x1.set_scratchpad_mode(scratchpad_mode::user);
 
             dnnl_primitive_desc_iterator it(
                     engine, op_desc(), &attr_1x1, nullptr);
@@ -200,7 +203,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             // computation can be avoided during execution.
             size_t inout_sp_offset_begin = 0;
             size_t inout_sp_offset_end = 0;
-
             user_scratchpad_size_
                     = root_pd->scratchpad_size(scratchpad_mode::user);
 
@@ -294,12 +296,9 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 
             scratchpad.book(memory_tracking::names::key_fusion_inout_buffer,
                     inout_buffer_size);
-
-            if (attr_.scratchpad_mode_ == scratchpad_mode::user) {
-                scratchpad.book(
-                        memory_tracking::names::key_fusion_forward_scratchpad,
-                        user_scratchpad_size_);
-            }
+            scratchpad.book(
+                    memory_tracking::names::key_fusion_forward_scratchpad,
+                    user_scratchpad_size_);
             return status::success;
         }
 
@@ -332,27 +331,12 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             primitives_.emplace_back(p);
         }
 
-        const dims_t dims_tz
-                = {static_cast<dim_t>(pd()->user_scratchpad_size_)};
-        dnnl_memory_desc_init_by_tag(
-                &user_scratchpad_md_, 1, dims_tz, data_type::u8, format_tag::a);
         return status::success;
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         engine_t *engine = ctx.stream()->engine();
         const auto scratchpad = ctx.get_scratchpad_grantor();
-
-        const bool is_user_scratchpad_mode
-                = pd()->attr()->scratchpad_mode_ == scratchpad_mode::user;
-
-        memory_t user_scratchpad_mem(engine, &user_scratchpad_md_,
-                memory_flags_t::use_runtime_ptr, NULL);
-        if (is_user_scratchpad_mode) {
-            const auto buffer = scratchpad.get<void>(
-                    memory_tracking::names::key_fusion_forward_scratchpad);
-            user_scratchpad_mem.set_data_handle(buffer);
-        }
 
         const auto inout_buffer = scratchpad.get<char>(
                 memory_tracking::names::key_fusion_inout_buffer);
@@ -378,10 +362,12 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                     exec_args[arg_info.op_arg].is_const = arg_info.is_const;
                 }
             }
-            if (is_user_scratchpad_mode)
-                exec_args[DNNL_ARG_SCRATCHPAD] = {&user_scratchpad_mem, false};
 
             exec_ctx_t op_ctx(ctx.stream(), std::move(exec_args));
+
+            nested_scratchpad_t ns(ctx,
+                    memory_tracking::names::key_fusion_forward_scratchpad, op);
+            op_ctx.set_scratchpad_grantor(ns.grantor());
             CHECK(op->execute(op_ctx));
         }
 
@@ -391,7 +377,6 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::vector<std::shared_ptr<primitive_t>> primitives_;
-    memory_desc_t user_scratchpad_md_;
 };
 
 } // namespace cpu

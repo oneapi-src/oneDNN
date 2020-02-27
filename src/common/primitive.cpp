@@ -44,6 +44,21 @@ void unpoison_outputs(const exec_args_t &args) {
 }
 } // namespace
 
+namespace dnnl {
+namespace impl {
+
+nested_scratchpad_t::nested_scratchpad_t(const exec_ctx_t &master_ctx, int key,
+        const std::shared_ptr<primitive_t> &nested_p) {
+    auto scratchpad = master_ctx.get_scratchpad_grantor();
+    scratchpad_mem_storage_ = scratchpad.get_memory_storage(key);
+    grantor_ = utils::make_unique<memory_tracking::grantor_t>(
+            nested_p->pd()->scratchpad_registry().grantor(
+                    scratchpad_mem_storage_.get()));
+}
+
+} // namespace impl
+} // namespace dnnl
+
 // API
 status_t dnnl_primitive_desc_destroy(
         primitive_desc_iface_t *primitive_desc_iface) {
@@ -146,8 +161,9 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
         mem_storage = scratchpad_->get_memory_storage();
     }
 
-    ctx.set_scratchpad_grantor(
-            primitive_->pd()->scratchpad_registry().grantor(mem_storage));
+    auto scratchpad_grantor
+            = primitive_->pd()->scratchpad_registry().grantor(mem_storage);
+    ctx.set_scratchpad_grantor(&scratchpad_grantor);
 
     auto status = primitive_->execute(ctx);
     return status;
