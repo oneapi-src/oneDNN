@@ -51,6 +51,7 @@ argument index as specified by the following table.
 | ---                     | ---                      |
 | \src                    | DNNL_ARG_SRC             |
 | \dst                    | DNNL_ARG_DST             |
+| workspace               | DNNL_ARG_WORKSPACE       |
 | \diffsrc                | DNNL_ARG_DIFF_SRC        |
 | \diffdst                | DNNL_ARG_DIFF_DST        |
 
