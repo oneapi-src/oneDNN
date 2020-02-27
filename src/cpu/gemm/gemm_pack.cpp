@@ -73,6 +73,13 @@ static inline bool use_reference_igemm(void) {
         return !mayiuse(avx512_core);
 }
 
+#else
+template <typename a_dt, typename b_dt>
+static inline bool use_reference_igemm(void) {
+    return true;
+}
+#endif
+
 template <typename T>
 static bool is_good_ld(dim_t ld) {
     static constexpr auto align = 64 / sizeof(T);
@@ -80,7 +87,6 @@ static bool is_good_ld(dim_t ld) {
 
     return ((ld % align) == 0) && ((ld % no_align) != 0);
 }
-#endif
 
 static dnnl_status_t check_pack_get_size_input(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
