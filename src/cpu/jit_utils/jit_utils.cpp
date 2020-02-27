@@ -18,15 +18,8 @@
 
 #include "utils.hpp"
 
-#ifndef DNNL_ENABLE_JIT_PROFILING
-#define DNNL_ENABLE_JIT_PROFILING 1
-#endif
-
-#ifndef DNNL_ENABLE_JIT_DUMP
-#define DNNL_ENABLE_JIT_DUMP 1
-#endif
-
 #if DNNL_ENABLE_JIT_PROFILING
+#define DNNL_ENABLE_JIT_DUMP 1
 #include "jitprofiling/jitprofiling.h"
 #ifdef __linux__
 #include "linux_perf/linux_perf.hpp"

@@ -86,6 +86,20 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_isa_iface.cpp
                               )
 
+# Some tests will fail on AArch64 and need to be skipped.
+# For example, any tests wich check for ISAs not present on AArch64.
+# AARCH64_SKIP_TESTS is a list of tests to be removed from PRIM_TEST_CASES_SRC.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
+    file(GLOB AARCH64_SKIP_TESTS
+                                  test_isa_iface.cpp
+                                  )
+endif()
+
+# Remove AARCH64_SKIP_TESTS entries from PRIM_TEST_CASES_SRC.
+foreach(TEST_FILE ${AARCH64_SKIP_TESTS})
+    list(REMOVE_ITEM PRIM_TEST_CASES_SRC "${TEST_FILE}")
+endforeach()
+
 # Workaround for an Intel compiler bug: stack unwinding does not restore
 # some of the nonvolatile registers with /O2 optimization
 if(WIN32 AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
