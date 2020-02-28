@@ -2176,6 +2176,165 @@ struct post_ops : public handle<dnnl_post_ops_t> {
                 "could not get parameters of an elementwise post-op");
         algorithm = static_cast<dnnl::algorithm>(c_alg);
     }
+
+    /// Appends a depthwise post-op convolution with stride 1.
+    ///
+    /// This post-op can only be fused with a 2D 1x1 convolution (convolution
+    /// with weights spatial dimension equal to 1 i.e., kh=kw=1).
+    ///
+    /// The kind of this post-op is #dnnl_convolution.
+    ///
+    /// The number of outputs for primitive remain same as before. The output
+    /// size remain same as the original primitive due to stride=1.
+    ///
+    /// The Post-op can be defined as:
+    ///
+    ///      dst[:] <- scales * (conv_dw( conv_1x1))
+    ///
+    /// @param weights_data_type Weights data type of depthwise post-op
+    /// @param bias_data_type Bias data type of depthwise post-op
+    /// @param dst_data_type Output data type of depthwise post-op
+    /// @param mask Output scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the
+    ///     @p scales array. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The mask
+    ///     value of 0 implies a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Output pointer to a constant array of float scaling
+    ///     factors.
+    void append_dw_k3s1p1(memory::data_type weights_data_type,
+            memory::data_type bias_data_type, memory::data_type dst_data_type,
+            int mask, const std::vector<float> &scales) {
+
+        error::wrap_c_api(dnnl_post_ops_append_dw_k3s1p1(get(),
+                                  memory::convert_to_c(weights_data_type),
+                                  memory::convert_to_c(bias_data_type),
+                                  memory::convert_to_c(dst_data_type),
+                                  scales.size(), mask, &scales[0]),
+                "could not append depthwise post-op");
+    }
+
+    /// Returns the parameters of an depthwise post-op with stride 1.
+    ///
+    /// @param index Index of the elementwise post-op.
+    /// @param weights_data_type Weights data type of depthwise post-op
+    /// @param bias_data_type Bias data type of depthwise post-op
+    /// @param dst_data_type Output data type of depthwise post-op
+    /// @param mask Output scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the
+    ///     @p scales array. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The mask
+    ///     value of 0 implies a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Output pointer to a constant array of float scaling
+    ///     factors.
+    void get_params_dw_k3s1p1(int index, memory::data_type &weights_data_type,
+            memory::data_type &bias_data_type, memory::data_type &dst_data_type,
+            int &mask, std::vector<float> &scales) const {
+
+        dnnl_data_type_t c_weights_data_type;
+        dnnl_data_type_t c_bias_data_type;
+        dnnl_data_type_t c_dst_data_type;
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(dnnl_post_ops_get_params_dw_k3s1p1(get(), index,
+                                  &c_weights_data_type, &c_bias_data_type,
+                                  &c_dst_data_type, &count, &c_mask, &c_scales),
+                "could not get parameters of depthwise post-op");
+
+        weights_data_type = static_cast<memory::data_type>(c_weights_data_type);
+        bias_data_type = static_cast<memory::data_type>(c_bias_data_type);
+        dst_data_type = static_cast<memory::data_type>(c_dst_data_type);
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+        return;
+    }
+
+    /// Appends a depthwise post-op convolution with stride 2.
+    ///
+    /// This post-op can only be fused with a 2D 1x1 convolution (convolution
+    /// with weights spatial dimension equal to 1 i.e., kh=kw=1).
+    ///
+    /// The kind of this post-op is #dnnl_convolution.
+    ///
+    /// The number of outputs for primitive remain same as before. The output
+    /// spatial size can be derived as below:
+    ///
+    /// output_height = ceil(output_height_1x1_convolution, stride)
+    /// output_width = ceil(output_width_1x1_convolution, stride)
+    ///
+    /// The Post-op can be defined as:
+    ///
+    ///      dst[:] <- scales * (conv_dw( conv_1x1))
+    ///
+    /// @param weights_data_type Weights data type of depthwise post-op
+    /// @param bias_data_type Bias data type of depthwise post-op
+    /// @param dst_data_type Output data type of depthwise post-op
+    /// @param mask Output scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the
+    ///     @p scales array. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The mask
+    ///     value of 0 implies a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Output pointer to a constant array of float scaling
+    ///     factors.
+    /// @returns #dnnl_success on success and a status describing the error
+    ///     otherwise
+    void append_dw_k3s2p1(memory::data_type weights_data_type,
+            memory::data_type bias_data_type, memory::data_type dst_data_type,
+            int mask, const std::vector<float> &scales) {
+
+        error::wrap_c_api(dnnl_post_ops_append_dw_k3s2p1(get(),
+                                  memory::convert_to_c(weights_data_type),
+                                  memory::convert_to_c(bias_data_type),
+                                  memory::convert_to_c(dst_data_type),
+                                  scales.size(), mask, &scales[0]),
+                "could not append depthwise post-op");
+    }
+
+    /// Returns the parameters of an depthwise post-op with stride 2.
+    ///
+    /// @param index Index of the elementwise post-op.
+    /// @param weights_data_type Weights data type of depthwise post-op
+    /// @param bias_data_type Bias data type of depthwise post-op
+    /// @param dst_data_type Output data type of depthwise post-op
+    /// @param mask Output scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the
+    ///     @p scales array. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The mask
+    ///     value of 0 implies a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Output pointer to a constant array of float scaling
+    ///     factors.
+    void get_params_dw_k3s2p1(int index, memory::data_type &weights_data_type,
+            memory::data_type &bias_data_type, memory::data_type &dst_data_type,
+            int &mask, std::vector<float> &scales) const {
+
+        dnnl_data_type_t c_weights_data_type;
+        dnnl_data_type_t c_bias_data_type;
+        dnnl_data_type_t c_dst_data_type;
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(dnnl_post_ops_get_params_dw_k3s2p1(get(), index,
+                                  &c_weights_data_type, &c_bias_data_type,
+                                  &c_dst_data_type, &count, &c_mask, &c_scales),
+                "could not get parameters of depthwise post-op");
+
+        weights_data_type = static_cast<memory::data_type>(c_weights_data_type);
+        bias_data_type = static_cast<memory::data_type>(c_bias_data_type);
+        dst_data_type = static_cast<memory::data_type>(c_dst_data_type);
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+        return;
+    }
 };
 
 /// @cond DO_NOT_DOCUMENT_THIS

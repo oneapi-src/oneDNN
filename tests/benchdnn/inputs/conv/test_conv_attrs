@@ -22,3 +22,6 @@
 --mb=2
 --allow-unimpl=true
 --dir=FWD_B --attr=post_ops='sum;relu' --batch=shapes_resnet_50
+
+# Depthwise fusion
+--batch=harness_conv_fused_depthwise

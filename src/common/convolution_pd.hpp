@@ -280,7 +280,10 @@ struct convolution_fwd_pd_t : public convolution_pd_t {
         return &glob_zero_md;
     }
 
-    virtual int n_inputs() const override { return 2 + with_bias(); }
+    virtual int n_inputs() const override {
+        return 2 + with_bias() + attr_post_op_dw_inputs();
+    }
+
     virtual int n_outputs() const override { return 1; }
 
 protected:
@@ -293,6 +296,14 @@ protected:
             format_tag_t src_tag, format_tag_t wei_tag, format_tag_t dst_tag) {
         return set_default_formats_common_template(src_md_, src_tag,
                 weights_md_, wei_tag, dst_md_, dst_tag, bias_md_);
+    }
+
+    int attr_post_op_dw_inputs() const {
+        const auto &po = attr_.post_ops_;
+        int conv = po.find(primitive_kind::convolution);
+        if (conv == -1) return 0;
+        return po.entry_[conv].depthwise_conv.bias_dt == data_type::undef ? 1
+                                                                          : 2;
     }
 };
 

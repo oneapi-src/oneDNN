@@ -33,3 +33,16 @@
 --attr=post_ops='sum;tanh:1:1:2.5' --batch=shapes_tails
 
 --batch=harness_conv_dw_bfloat16
+
+# depthwise fusion stride 1
+--cfg=bf16bf16bf16
+--attr=post_ops='dw_k3s1p1:bf16;relu'
+--batch=shapes_fused_mobilenet_stride_1
+--attr=post_ops='relu:0.5;dw_k3s1p1:f32;tanh:0:0:2.5'
+--batch=shapes_fused_mobilenet_stride_1
+
+# depthwise fusion stride 2
+--attr=post_ops='relu;dw_k3s2p1:bf16;tanh'
+--batch=shapes_fused_mobilenet_stride_2
+--attr=post_ops='relu;dw_k3s2p1:f32;tanh'
+--batch=shapes_fused_mobilenet_stride_2

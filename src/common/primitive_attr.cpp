@@ -185,15 +185,82 @@ status_t post_ops_t::append_eltwise(
     return success;
 }
 
+dnnl::impl::status_t post_ops_t::entry_t::set_depthwise_scales(
+        const float *scales) {
+
+    auto &d = this->depthwise_conv;
+
+    const dim_t scales_buf_size = 16; // derived from scales_t::scales_buf_size
+    const dim_t buf_size = nstl::max(scales_buf_size, d.count);
+
+    d.scales = nullptr;
+
+    if (d.count > 0) {
+        d.scales = (float *)dnnl::impl::malloc(buf_size * sizeof(*scales), 64);
+        if (d.scales == nullptr) return status::out_of_memory;
+    } else
+        return dnnl::impl::status::success;
+
+    if (is_runtime_value(*scales)) {
+        d.scales[0] = *scales;
+    } else if (d.count == 1) {
+        utils::array_set(d.scales, scales[0], buf_size);
+    } else {
+        utils::array_copy(d.scales, scales, d.count);
+    }
+    return dnnl::impl::status::success;
+}
+
+status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
+        data_type_t dst_dt, dim_t count, int mask, const float *scales) {
+    if (len_ == capacity) return out_of_memory;
+    bool ok = true && (wei_dt != data_type::undef)
+            && (dst_dt != data_type::undef) && (IMPLICATION(count > 0, scales))
+            && mask >= 0;
+    if (!ok) return invalid_arguments;
+
+    entry_[len_].kind = primitive_kind::convolution;
+    auto &d = entry_[len_].depthwise_conv;
+    d.stride = 1;
+    d.wei_dt = wei_dt;
+    d.bias_dt = bias_dt;
+    d.dst_dt = dst_dt;
+    d.count = count;
+    d.mask = mask;
+    d.scales = nullptr;
+
+    auto status = entry_[len_].set_depthwise_scales(scales);
+    if (status != status::success) return status;
+
+    len_++;
+
+    return success;
+}
+
+status_t post_ops_t::append_dw_k3s2p1(data_type_t wei_dt, data_type_t bias_dt,
+        data_type_t dst_dt, dim_t count, int mask, const float *scales) {
+
+    auto status
+            = append_dw_k3s1p1(wei_dt, bias_dt, dst_dt, count, mask, scales);
+    if (status != success) return status;
+    entry_[len_ - 1].depthwise_conv.stride = 2;
+
+    return success;
+}
+
 bool post_ops_t::defined() const {
     for (int idx = 0; idx < len_; ++idx) {
-        if (entry_[idx].kind == primitive_kind::sum) {
+        auto kind = entry_[idx].kind;
+        if (kind == primitive_kind::sum) {
             if (is_runtime_value(entry_[idx].sum.scale)) return false;
-        } else if (entry_[idx].kind == primitive_kind::eltwise) {
+        } else if (kind == primitive_kind::eltwise) {
             const auto &e = entry_[idx].eltwise;
             if (is_runtime_value(e.scale) || is_runtime_value(e.alpha)
                     || is_runtime_value(e.beta))
                 return false;
+        } else if (kind == primitive_kind::convolution) {
+            const auto &c = entry_[idx].depthwise_conv;
+            if (c.scales && is_runtime_value(*(c.scales))) return false;
         } else {
             assert(!"unreachable");
         }
@@ -389,6 +456,62 @@ status_t dnnl_post_ops_get_params_eltwise(const post_ops_t *post_ops, int index,
     *alg = e.alg;
     *alpha = e.alpha;
     *beta = e.beta;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_dw_k3s1p1(post_ops_t *post_ops,
+        data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
+        dim_t count, int mask, const float *scales) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_dw_k3s1p1(
+            wei_dt, bias_dt, dst_dt, count, mask, scales);
+}
+
+status_t dnnl_post_ops_get_params_dw_k3s1p1(const post_ops_t *post_ops,
+        int index, data_type_t *wei_dt, data_type_t *bias_dt,
+        data_type_t *dst_dt, dim_t *count, int *mask, const float **scales) {
+
+    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
+        return invalid_arguments;
+
+    const auto &d = post_ops->entry_[index].depthwise_conv;
+    if (d.stride != 1) return invalid_arguments;
+    if (wei_dt) *wei_dt = d.wei_dt;
+    if (bias_dt) *bias_dt = d.bias_dt;
+    if (dst_dt) *dst_dt = d.dst_dt;
+    if (count) *count = d.count;
+    if (mask) *mask = d.mask;
+    if (scales) *scales = d.scales;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_dw_k3s2p1(post_ops_t *post_ops,
+        data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
+        dim_t count, int mask, const float *scales) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_dw_k3s2p1(
+            wei_dt, bias_dt, dst_dt, count, mask, scales);
+}
+
+status_t dnnl_post_ops_get_params_dw_k3s2p1(const post_ops_t *post_ops,
+        int index, data_type_t *wei_dt, data_type_t *bias_dt,
+        data_type_t *dst_dt, dim_t *count, int *mask, const float **scales) {
+
+    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
+        return invalid_arguments;
+
+    const auto &d = post_ops->entry_[index].depthwise_conv;
+    if (d.stride != 2) return invalid_arguments;
+    if (wei_dt) *wei_dt = d.wei_dt;
+    if (bias_dt) *bias_dt = d.bias_dt;
+    if (dst_dt) *dst_dt = d.dst_dt;
+    if (count) *count = d.count;
+    if (mask) *mask = d.mask;
+    if (scales) *scales = d.scales;
 
     return success;
 }

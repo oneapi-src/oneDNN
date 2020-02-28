@@ -151,6 +151,10 @@ struct attr_t {
     struct post_ops_t {
         enum kind_t {
             SUM,
+
+            DW_K3S1P1,
+            DW_K3S2P1,
+
             RELU,
             TANH,
             ELU,
@@ -183,6 +187,8 @@ struct attr_t {
         static dnnl_alg_kind_t kind2dnnl_kind(kind_t kind);
 
         struct entry_t {
+            entry_t() {}
+
             kind_t kind;
             union {
                 struct {
@@ -192,7 +198,15 @@ struct attr_t {
                     dnnl_alg_kind_t alg;
                     float scale, alpha, beta;
                 } eltwise;
+                struct {
+                    int stride;
+                    dnnl_data_type_t dst_dt;
+                    scale_t oscale;
+                } convolution;
             };
+
+            bool is_eltwise_kind() const;
+            bool is_convolution_kind() const;
         };
 
         post_ops_t() : len(0) {}
@@ -203,6 +217,7 @@ struct attr_t {
         bool is_def() const { return len == 0; }
         int find(kind_t kind, int start = 0, int stop = -1) const;
         int eltwise_index() const;
+        int convolution_index() const;
 
         enum { capacity = 4 };
         int len;

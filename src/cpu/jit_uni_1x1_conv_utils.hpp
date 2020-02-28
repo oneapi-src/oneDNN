@@ -17,9 +17,11 @@
 #ifndef JIT_UNI_1X1_CONV_UTILS_HPP
 #define JIT_UNI_1X1_CONV_UTILS_HPP
 
+#include "convolution_pd.hpp"
 #include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
+#include "primitive_iterator.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -366,6 +368,81 @@ inline int best_divider(int value, int min_divider, int max_divider,
         }
     }
     return x_divider;
+}
+
+inline status_t get_depthwise_primitive_desc(primitive_desc_t **pd,
+        const memory_desc_t &src_dw_md, const primitive_attr_t &attr_1x1,
+        engine_t *engine, int dw_po_index) {
+
+    const memory_desc_wrapper src_dw_d(src_dw_md);
+    const int ndims = src_dw_d.ndims();
+    if (ndims != 4) return status::unimplemented;
+
+    if (dw_po_index == -1 || dw_po_index >= attr_1x1.post_ops_.len_
+            || !attr_1x1.post_ops_.entry_[dw_po_index].is_convolution())
+        return status::invalid_arguments;
+
+    // Create new attributes with scales from depthwise post-op and copy
+    // post-ops after depthwise post-op.
+    primitive_attr_t attr_dw;
+    auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;
+    if (utils::one_of(
+                dw_po.dst_dt, data_type::u8, data_type::s8, data_type::s32)
+            && dw_po.count) {
+        CHECK(attr_dw.output_scales_.set(
+                dw_po.count, dw_po.mask, dw_po.scales));
+    }
+
+    auto &len = attr_dw.post_ops_.len_;
+    for (int i = dw_po_index + 1; i < attr_1x1.post_ops_.len_; ++i) {
+        attr_dw.post_ops_.entry_[len++] = attr_1x1.post_ops_.entry_[i];
+    }
+
+    attr_dw.scratchpad_mode_ = attr_1x1.scratchpad_mode_;
+
+    const bool with_bias = dw_po.bias_dt != data_type::undef;
+
+    const auto n = src_dw_d.dims()[0];
+    const auto oc = src_dw_d.dims()[1];
+    const auto g = src_dw_d.dims()[1];
+    const auto ih = src_dw_d.dims()[ndims - 2];
+    const auto iw = src_dw_d.dims()[ndims - 1];
+    const auto stride = dw_po.stride;
+
+    const dims_t weights_tz = {g, 1, 1, 3, 3};
+
+    const dims_t dst_tz
+            = {n, oc, utils::div_up(ih, stride), utils::div_up(iw, stride)};
+
+    const dims_t bias_tz = {oc};
+    const dims_t pad_tz = {1, 1};
+    const dims_t stride_tz = {stride, stride};
+
+    memory_desc_t src_md, weights_md, bias_md, dst_md;
+
+    dnnl_memory_desc_init_by_tag(&src_md, ndims, src_dw_md.dims,
+            src_dw_md.data_type, format_tag::any);
+
+    dnnl_memory_desc_init_by_tag(
+            &weights_md, ndims + 1, weights_tz, dw_po.wei_dt, format_tag::any);
+
+    if (with_bias)
+        dnnl_memory_desc_init_by_tag(
+                &bias_md, 1, bias_tz, dw_po.bias_dt, format_tag::a);
+
+    dnnl_memory_desc_init_by_tag(
+            &dst_md, ndims, dst_tz, dw_po.dst_dt, format_tag::any);
+
+    convolution_desc_t cd_dw;
+    CHECK(conv_desc_init(&cd_dw, prop_kind::forward_inference,
+            alg_kind::convolution_auto, &src_md, &weights_md,
+            with_bias ? &bias_md : nullptr, &dst_md, stride_tz, nullptr, pad_tz,
+            pad_tz));
+
+    CHECK(dnnl_primitive_desc_create(
+            pd, (op_desc_t *)&cd_dw, &attr_dw, engine, NULL));
+
+    return status::success;
 }
 
 } // namespace cpu

@@ -20,13 +20,12 @@
 
 #include <sstream>
 
-#include "dnnl.h"
-
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "conv/conv.hpp"
+#include "conv/conv_dw_fusion.hpp"
 
 namespace conv {
 
@@ -82,7 +81,11 @@ void check_correctness(const desc_t *c) {
         print(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = doit(&p, &res);
+        int status = OK;
+        if (attr.post_ops.convolution_index() != -1)
+            status = conv_dw_fusion::doit(&p, &res);
+        else
+            status = conv::doit(&p, &res);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, allow_unimpl, status, pstr);
