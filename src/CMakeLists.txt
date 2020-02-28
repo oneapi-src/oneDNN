@@ -24,7 +24,9 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     )
 
-add_definitions(-DDNNL_DLL_EXPORTS)
+if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
+    add_definitions(-DDNNL_DLL_EXPORTS)
+endif()
 
 # propagate SRC specific flags
 append(CMAKE_C_FLAGS "${CMAKE_SRC_CCXX_FLAGS}")
