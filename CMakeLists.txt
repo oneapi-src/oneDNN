@@ -70,6 +70,13 @@ if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "DNNL supports 64 bit platforms only")
 endif()
 
+# Set the target architecture.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
+    set(TARGET_ARCH "AARCH64")
+else()
+    set(TARGET_ARCH "X86_64")
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 set(CMAKE_SRC_CCXX_FLAGS)       # SRC specifics
