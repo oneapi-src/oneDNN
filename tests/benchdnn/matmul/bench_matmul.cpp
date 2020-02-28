@@ -117,7 +117,13 @@ void check_correctness(const desc_t *c) {
 
 int bench(int argc, char **argv) {
     driver_name = "matmul";
-    reset_parameters();
+
+    // FIXME: Workaround to support nested batch files
+    static bool initialized = false;
+    if (!initialized) {
+        reset_parameters();
+        initialized = true;
+    }
 
     using namespace parser;
     for (; argc > 0; --argc, ++argv) {
