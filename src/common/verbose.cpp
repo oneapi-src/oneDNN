@@ -73,10 +73,12 @@ static setting_t<int> verbose {0};
 int get_verbose() {
 #if !defined(DISABLE_VERBOSE)
     if (!verbose.initialized()) {
+        // Assumes that all threads see the same environment
         const int len = 2;
         char val[len] = {0};
         if (getenv("MKLDNN_VERBOSE", val, len) == 1) verbose.set(atoi(val));
         if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
+        if (!verbose.initialized()) verbose.set(0);
     }
     static bool version_printed = false;
     if (!version_printed && verbose.get() > 0) {
