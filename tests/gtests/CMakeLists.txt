@@ -93,12 +93,12 @@ if(TARGET_ARCH STREQUAL "AARCH64")
     file(GLOB AARCH64_SKIP_TESTS
                                   test_isa_iface.cpp
                                   )
-endif()
 
 # Remove AARCH64_SKIP_TESTS entries from PRIM_TEST_CASES_SRC.
-foreach(TEST_FILE ${AARCH64_SKIP_TESTS})
-    list(REMOVE_ITEM PRIM_TEST_CASES_SRC "${TEST_FILE}")
-endforeach()
+    foreach(TEST_FILE ${AARCH64_SKIP_TESTS})
+        list(REMOVE_ITEM PRIM_TEST_CASES_SRC "${TEST_FILE}")
+    endforeach()
+endif()
 
 # Workaround for an Intel compiler bug: stack unwinding does not restore
 # some of the nonvolatile registers with /O2 optimization
