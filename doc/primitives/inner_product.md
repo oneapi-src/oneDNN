@@ -15,9 +15,10 @@ variable names follow the standard @ref dev_guide_conventions). Then:
 
 \f[\dst(n, oc) = \bias(oc) + \sum_{ic=0}^{IC-1} \src(n, ic) \cdot \weights(oc, ic)\f]
 
-In case when the \src tensor has spatial dimension it is flattened to 2D.
-For example, if it is a 4D \f$N \times IC' \times IH \times IW\f$ tensor, then
-the formula above is applied with \f$IC = IC' \cdot IH \cdot IW\f$.
+In case when the \src and \weights tensors have spatial dimension these are
+flattened to 2D. For example, if these are 4D \f$N \times IC' \times IH \times
+IW\f$ tensors, then the formula above is applied with \f$IC = IC' \cdot IH \cdot
+IW\f$.
 
 #### Difference Between Forward Training and Forward Inference
 
