@@ -1441,8 +1441,8 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
             bias_native_, workspace_, scratch_gates, w_input_native_,
             w_state_native_, diff_weights_layer_native_,
-            diff_weights_iter_native_, diff_bias_native_, *scales_buf_,
-            *tm_scales_buf_);
+            diff_weights_iter_native_, diff_bias_native_, scales_buf_.get(),
+            tm_scales_buf_.get());
 
     DPRINT("\n%s(%d) WS before copy res\n\n", __FUNCTION__, __LINE__);
     WS_PRINT(compute_stream, workspace_);

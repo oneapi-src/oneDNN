@@ -37,8 +37,8 @@
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
             int wic, int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
-            const memory_storage_t &scales, const memory_storage_t &bias, \
-            const memory_storage_t &tm_scales) const
+            const memory_storage_t *scales, const memory_storage_t &bias, \
+            const memory_storage_t *tm_scales) const
 
 #define cell_execution_sig(f) \
     void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
@@ -51,8 +51,8 @@
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
-            const memory_storage_t &diff_bias, const memory_storage_t &scales, \
-            const memory_storage_t &tm_scales) const
+            const memory_storage_t &diff_bias, const memory_storage_t *scales, \
+            const memory_storage_t *tm_scales) const
 
 #define grid_execution_sig(f) \
     void f(const exec_ctx_t &ctx, int dic, int slc, int sic, int wic, \
@@ -65,8 +65,8 @@
             const memory_storage_t &w_input, const memory_storage_t &w_state, \
             const memory_storage_t &diff_weights_layer, \
             const memory_storage_t &diff_weights_iter, \
-            const memory_storage_t &diff_bias, const memory_storage_t &scales, \
-            const memory_storage_t &tm_scales) const
+            const memory_storage_t &diff_bias, const memory_storage_t *scales, \
+            const memory_storage_t *tm_scales) const
 
 #define gemm_sig(f) \
     void f(const exec_ctx_t &ctx, const memory_storage_t &a, size_t off_a, \
