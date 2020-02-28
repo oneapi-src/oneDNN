@@ -24,8 +24,8 @@ When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
 | Primitive intput/output | Execution argument index |
 | ---                     | ---                      |
-| \f$\src_0\f$            | DNNL_ARG_SRC0            |
-| \f$\src_1\f$            | DNNL_ARG_SRC1            |
+| \f$\src_0\f$            | DNNL_ARG_SRC_0           |
+| \f$\src_1\f$            | DNNL_ARG_SRC_1           |
 | \dst                    | DNNL_ARG_DST             |
 
 ## Implementation Details
@@ -56,11 +56,11 @@ argument index as specified by the following table.
 
 The following attributes are supported:
 
-| Type      | Operation     | Restrictions       | Description
+| Type      | Operation     | Description        | Restrictions
 | :--       | :--           | :--                | :--
-| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | The corresponding tensor has integer data type. Only one scale per tensor is supported. Input tensors only. | Scales the corresponding input tensor by the given scale factor(s).
-| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)          | Must precede eltwise post-op. | Adds the operation result to the destination tensor instead of overwriting it. |
-| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)  |                               | Applies an @ref dnnl_api_eltwise operation to the result. |
+| Attribute | [Scales](@ref dnnl::primitive_attr::set_scales) | Scales the corresponding input tensor by the given scale factor(s).            | The corresponding tensor has integer data type. Only one scale per tensor is supported. Input tensors only. |
+| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)          | Adds the operation result to the destination tensor instead of overwriting it. | Must precede eltwise post-op. |
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)  | Applies an @ref dnnl_api_eltwise operation to the result.                      |                               |
 
 ### Data Types Support
 

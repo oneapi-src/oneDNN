@@ -207,11 +207,11 @@ primitive by applying the output scale to the result of the primitive and by
 chaining certain operations after the primitive. The following attributes and
 post-ops are supported:
 
-| Propagation | Type      | Operation                                                    | Restrictions           | Description
-| :--         | :--       | :--                                                          | :--                    | :--
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               |                        | Applies an @ref dnnl_api_eltwise operation to the result
-| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
+| Propagation | Type      | Operation     | Description        | Restrictions
+| :--         | :--       | :--           | :--                | :--
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only
+| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |
+| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |
 
 @note The library doesn't prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
