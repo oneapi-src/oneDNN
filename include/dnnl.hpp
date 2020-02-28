@@ -811,450 +811,6 @@ inline dnnl_query_t convert_to_c(query query) {
 
 /// @} dnnl_api_primitives_common
 
-/// @addtogroup dnnl_api_attributes Attributes
-///
-/// A container for parameters that extend primitives behavior.
-///
-/// @{
-
-/// @cond DO_NOT_DOCUMENT_THIS
-template <>
-struct handle_traits<dnnl_post_ops_t> {
-    static dnnl_status_t destructor(dnnl_post_ops_t p) {
-        return dnnl_post_ops_destroy(p);
-    }
-};
-/// @endcond
-
-/// Post-ops.
-///
-/// Post-ops are computations executed after the main primitive computations
-/// and are attached to the primitive via primitive attributes.
-///
-/// @sa @ref dev_guide_attributes_post_ops
-///
-struct post_ops : public handle<dnnl_post_ops_t> {
-    using handle<dnnl_post_ops_t>::handle;
-
-    /// Constructs an empty sequence of post-ops.
-    post_ops() {
-        dnnl_post_ops_t result;
-        error::wrap_c_api(
-                dnnl_post_ops_create(&result), "could not create post-ops");
-        reset(result);
-    }
-
-    /// Returns the number of post-ops entries.
-    int len() const { return dnnl_post_ops_len(get()); }
-
-    /// Returns the primitive kind of post-op at entry with a certain index.
-    /// @param index Index of the post-op to return the kind for.
-    /// @returns Primitive kind of the post-op at the specified index.
-    primitive::kind kind(int index) const {
-        error::wrap_c_api(index < len() ? dnnl_success : dnnl_invalid_arguments,
-                "post-ops index is out of range");
-        return static_cast<primitive::kind>(
-                dnnl_post_ops_get_kind(get(), index));
-    }
-
-    /// Appends an accumulation (sum) post-op. Prior to accumulating the
-    /// result, the previous value would be multiplied by a scaling factor
-    /// @p scale.
-    ///
-    /// The kind of this post-op is #dnnl::primitive::kind::sum.
-    ///
-    /// This feature may improve performance for cases like residual learning
-    /// blocks, where the result of convolution is accumulated to the
-    /// previously computed activations. The parameter @p scale may be used
-    /// for the integer-based computations when the result and previous
-    /// activations have different logical scaling factors.
-    ///
-    /// In the simplest case when the accumulation is the only post-op,
-    /// the computations would be:
-    ///
-    ///     dst[:] <- scale * dst[:] + op(...) // instead of dst[:] <- op(...)
-    ///
-    /// @note
-    ///     This post-op executes in-place and does not change the
-    ///     destination layout.
-    ///
-    /// @param scale Scaling factor.
-    void append_sum(float scale = 1.) {
-        error::wrap_c_api(dnnl_post_ops_append_sum(get(), scale),
-                "could not append a sum post-op");
-    }
-
-    /// Returns the parameters of an accumulation (sum) post-op.
-    ///
-    /// @param index Index of the sum post-op.
-    /// @param scale Scaling factor of the sum post-op.
-    void get_params_sum(int index, float &scale) const {
-        error::wrap_c_api(dnnl_post_ops_get_params_sum(get(), index, &scale),
-                "could not get parameters of a sum post-op");
-    }
-
-    /// Appends an elementwise post-op.
-    ///
-    /// The kind of this post-op is #dnnl::primitive::kind::eltwise.
-    ///
-    /// In the simplest case when the elementwise is the only post-op, the
-    /// computations would be:
-    ///
-    ///     dst[:] <- scale * eltwise_op (op(...)) // instead of dst[:] <- op(...)
-    ///
-    /// where eltwise_op is configured with the given parameters.
-    ///
-    /// @param scale Scaling factor.
-    /// @param algorithm Elementwise algorithm.
-    /// @param alpha Alpha parameter for the elementwise algorithm.
-    /// @param beta Beta parameter for the elementwise algorithm.
-    void append_eltwise(
-            float scale, algorithm algorithm, float alpha, float beta) {
-        error::wrap_c_api(dnnl_post_ops_append_eltwise(get(), scale,
-                                  convert_to_c(algorithm), alpha, beta),
-                "could not append an elementwise post-op");
-    }
-
-    /// Returns parameters of an elementwise post-up.
-    ///
-    /// @param index Index of the post-op.
-    /// @param scale Output scaling factor.
-    /// @param algorithm Output elementwise algorithm kind.
-    /// @param alpha Output alpha parameter for the elementwise algorithm.
-    /// @param beta Output beta parameter for the elementwise algorithm.
-    void get_params_eltwise(int index, float &scale, algorithm &algorithm,
-            float &alpha, float &beta) const {
-        dnnl_alg_kind_t c_alg;
-        error::wrap_c_api(dnnl_post_ops_get_params_eltwise(
-                                  get(), index, &scale, &c_alg, &alpha, &beta),
-                "could not get parameters of an elementwise post-op");
-        algorithm = static_cast<dnnl::algorithm>(c_alg);
-    }
-};
-
-/// @cond DO_NOT_DOCUMENT_THIS
-template <>
-struct handle_traits<dnnl_primitive_attr_t> {
-    static dnnl_status_t destructor(dnnl_primitive_attr_t p) {
-        return dnnl_primitive_attr_destroy(p);
-    }
-};
-/// @endcond
-
-/// Primitive attributes
-///
-/// @sa @ref dev_guide_attributes
-struct primitive_attr : public handle<dnnl_primitive_attr_t> {
-    using handle<dnnl_primitive_attr_t>::handle;
-
-    /// Constructs default (empty) primitive attributes.
-    primitive_attr() {
-        dnnl_primitive_attr_t result;
-        error::wrap_c_api(dnnl_primitive_attr_create(&result),
-                "could not create primitive attribute");
-        reset(result);
-    }
-
-    /// Creates primitive attributes from a C API ::dnnl_primitive_attr_t
-    /// handle. The resulting handle is not weak and the C handle will be
-    /// destroyed during the destruction of the C++ object.
-    ///
-    /// @param attr The C API primitive attributes.
-    primitive_attr(dnnl_primitive_attr_t attr)
-        : handle<dnnl_primitive_attr_t>(attr) {}
-
-    /// Returns the scratchpad mode.
-    scratchpad_mode get_scratchpad_mode() const {
-        dnnl_scratchpad_mode_t result;
-        error::wrap_c_api(
-                dnnl_primitive_attr_get_scratchpad_mode(get(), &result),
-                "could not get primitive scratchpad mode attribute");
-        return scratchpad_mode(result);
-    }
-
-    /// Sets scratchpad mode.
-    ///
-    /// @param mode Specified scratchpad mode.
-    void set_scratchpad_mode(scratchpad_mode mode) {
-        error::wrap_c_api(dnnl_primitive_attr_set_scratchpad_mode(
-                                  get(), dnnl::convert_to_c(mode)),
-                "could not set primitive scratchpad mode attribute");
-    }
-
-    /// Returns output scaling factors correspondence mask and values.
-    ///
-    /// @param mask Scaling factors correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     scales vector. The set i-th bit indicates that a dedicated output
-    ///     scaling factor is used for each index along that dimension. The
-    ///     mask value of 0 implies a common output scaling factor for the
-    ///     whole output tensor.
-    /// @param scales Vector of output scaling factors.
-    void get_output_scales(int &mask, std::vector<float> &scales) const {
-        dnnl_dim_t count;
-        int c_mask;
-        const float *c_scales;
-        error::wrap_c_api(dnnl_primitive_attr_get_output_scales(
-                                  get(), &count, &c_mask, &c_scales),
-                "could not get primitive output scales attribute");
-        scales.resize(count);
-
-        mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            scales[c] = c_scales[c];
-    }
-
-    /// Sets output scaling factors correspondence mask and values.
-    ///
-    /// @note
-    ///     The order of dimensions does not depend on how elements are laid
-    ///     out in memory. For example:
-    ///     - for a 2D CNN activations tensor the order is always (n, c)
-    ///     - for a 4D CNN activations tensor the order is always (n, c, h, w)
-    ///     - for a 5D CNN weights tensor the order is always
-    ///        (g, oc, ic, kh, kw)
-    ///
-    /// Example usage:
-    /// @code
-    ///     int mb = 32, oc = 32,
-    ///         oh = 14, ow = 14; // convolution output params
-    ///     // unique output scales per output channel
-    ///     vector<float> scales = { ... };
-    ///     int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
-    ///
-    ///     // construct a convolution descriptor
-    ///     dnnl::convolution::desc conv_d;
-    ///
-    ///     dnnl::primitive_attr attr;
-    ///     attr.set_output_scales(attr, oc, 1 << oc_dim, scales);
-    ///
-    ///     dnnl::primitive_desc conv_pd(conv_d, attr, engine);
-    /// @endcode
-    ///
-    /// @param mask Defines the correspondence between the output tensor
-    ///     dimensions and the @p scales vector. The set i-th bit indicates
-    ///     that a dedicated scaling factor is used for each index along that
-    ///     dimension. Set the mask to 0 to use a common output scaling factor
-    ///     for the whole output tensor.
-    /// @param scales Constant vector of output scaling factors. If the
-    ///     scaling factors are known at the time of this call, the following
-    ///     equality must hold:
-    ///     \f[scales.size() = \prod\limits_{d \in mask} output.dims[d].\f]
-    ///     Violations can only be detected when the attributes
-    ///     are used to create a primitive descriptor.
-    ///     If the scaling factors are not known at the time of the call,
-    ///     this vector must contain a single #DNNL_RUNTIME_F32_VAL value and
-    ///     the output scaling factors must be passed at execution time as an
-    ///     argument with index #DNNL_ARG_ATTR_OUTPUT_SCALES.
-    void set_output_scales(int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_output_scales(
-                        get(), (dnnl_dim_t)scales.size(), mask, scales.data()),
-                "could not set primitive output scales attribute");
-    }
-
-    /// Returns scaling factors correspondence mask and values for a given
-    /// memory argument.
-    ///
-    /// @param arg Parameter argument index as passed to the
-    ///     primitive::execute() call.
-    /// @param mask Scaling factors correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     scales vector. The set i-th bit indicates that a dedicated scaling
-    ///     factor is used for each index along that dimension. Set the mask to
-    ///     0 to use a common scaling factor for the whole output tensor.
-    /// @param scales Output vector of scaling factors.
-    void get_scales(int arg, int &mask, std::vector<float> &scales) const {
-        dnnl_dim_t count;
-        int c_mask;
-        const float *c_scales;
-        error::wrap_c_api(dnnl_primitive_attr_get_scales(
-                                  get(), arg, &count, &c_mask, &c_scales),
-                "could not get scales");
-        scales.resize(count);
-
-        mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            scales[c] = c_scales[c];
-    }
-
-    /// Sets scaling factors for primitive operations for a given memory
-    /// argument.
-    ///
-    /// @sa dnnl_primitive_attr_set_scales
-    /// @sa dnnl::primitive_attr::set_output_scales
-    ///
-    /// @param arg Parameter argument index as passed to the
-    ///     primitive::execute() call.
-    /// @param mask Scaling factors correspondence mask that defines the
-    ///     correspondence between the tensor dimensions and the @p scales
-    ///     vector. The set i-th bit indicates that a dedicated scaling factor
-    ///     is used for each index along that dimension. Set the mask to 0 to
-    ///     use a common scaling factor for the whole output tensor.
-    /// @param scales Constant vector of scaling factors. The following equality
-    ///     must hold:
-    ///     \f[scales.size() = \prod\limits_{d \in mask} argument.dims[d].\f]
-    void set_scales(int arg, int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_scales(get(), arg,
-                        (dnnl_dim_t)scales.size(), mask, scales.data()),
-                "could not set scales");
-    }
-
-    /// Returns zero points correspondence mask and values.
-    ///
-    /// @param arg Parameter argument index as passed to the
-    ///     primitive::execute() call.
-    /// @param mask Zero points correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     zero_points vector. The set i-th bit indicates that a dedicated
-    ///     zero point is used for each index along that dimension. Set the
-    ///     mask to 0 to use a common zero point for the whole output tensor.
-    /// @param zero_points Output vector of zero points.
-    void get_zero_points(
-            int arg, int &mask, std::vector<int32_t> &zero_points) const {
-        dnnl_dim_t count;
-        int c_mask;
-        const int32_t *c_zero_points;
-        error::wrap_c_api(dnnl_primitive_attr_get_zero_points(
-                                  get(), arg, &count, &c_mask, &c_zero_points),
-                "could not get primitive zero points attribute");
-        zero_points.resize(count);
-
-        mask = c_mask;
-        for (dnnl_dim_t c = 0; c < count; ++c)
-            zero_points[c] = c_zero_points[c];
-    }
-
-    /// Sets zero points for primitive operations for a given memory argument.
-    ///
-    /// @sa dnnl_primitive_attr_set_zero_points
-    /// @sa dnnl::primitive_attr::set_output_scales
-    ///
-    /// @param arg Parameter argument index as passed to the
-    ///     primitive::execute() call.
-    /// @param mask Zero point correspondence mask that defines the
-    ///     correspondence between the tensor dimensions and the @p
-    ///     zero_points vector. The set i-th bit indicates that a dedicated
-    ///     zero point is used for each index along that dimension. Set the
-    ///     mask to 0 to use a common zero point for the whole output tensor.
-    /// @param zero_points Constant vector of zero points. If the zero points
-    ///     are known at the time of this call, the following equality must
-    ///     hold:
-    ///     \f[zero_points.size() = \prod\limits_{d \in mask} argument.dims[d].\f]
-    ///     If the zero points are not known at the time of the call, this
-    ///     vector must contain a single #DNNL_RUNTIME_F32_VAL value and the
-    ///     zero points must be passed at execution time as an argument with
-    ///     index #DNNL_ARG_ATTR_ZERO_POINTS.
-    void set_zero_points(
-            int arg, int mask, const std::vector<int32_t> &zero_points) {
-        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg,
-                                  (dnnl_dim_t)zero_points.size(), mask,
-                                  zero_points.data()),
-                "could not set primitive zero points attribute");
-    }
-
-    /// Returns post-ops previously set via set_post_ops().
-    ///
-    /// @returns Post-ops.
-    const post_ops get_post_ops() const {
-        post_ops result;
-        const_dnnl_post_ops_t c_result;
-        error::wrap_c_api(dnnl_primitive_attr_get_post_ops(get(), &c_result),
-                "could not get primitive post-ops attribute");
-        result.reset(const_cast<dnnl_post_ops_t>(c_result), true);
-        return result;
-    }
-
-    /// Sets post-ops.
-    ///
-    /// @note
-    ///     There is no way to check whether the post-ops would be supported
-    ///     by the target primitive. Any error will be reported
-    ///     by the respective primitive descriptor constructor.
-    ///
-    /// @param ops Post-ops object to copy post-ops from.
-    void set_post_ops(const post_ops ops) {
-        error::wrap_c_api(dnnl_primitive_attr_set_post_ops(get(), ops.get()),
-                "could not set primitive post-ops attribute");
-    }
-
-    /// Sets quantization scale and shift parameters for RNN data tensors.
-    ///
-    /// For performance reasons, the low-precision configuration of the RNN
-    /// primitives expect input activations to have the unsigned 8-bit integer
-    /// data type. The scale and shift parameters are used to quantize
-    /// floating-point data to unsigned integer and must be passed to the RNN
-    /// primitive using attributes.
-    ///
-    /// The quantization formula is `scale * (data + shift)`.
-    ///
-    /// @note
-    ///     Quantization scale and shift are common for src_layer, src_iter,
-    ///     dst_iter, and dst_layer.
-    ///
-    /// Example usage:
-    /// @code
-    ///     // RNN parameters
-    ///     int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
-    ///     // Activations quantization parameters
-    ///     float scale = ..., shift = ..;
-    ///
-    ///     primitive_attr attr;
-    ///
-    ///     // Set scale and shift for int8 quantization of activation
-    ///     attr.set_rnn_data_qparams(scale, shift);
-    ///
-    ///     // Create and configure rnn op_desc
-    ///     vanilla_rnn_forward::desc rnn_d(...);
-    ///     vanilla_rnn_forward::primitive_desc rnn_d(rnn_d, attr, engine);
-    /// @endcode
-    ///
-    /// @param scale The value to scale the data by.
-    /// @param shift The value to shift the data by.
-    void set_rnn_data_qparams(float scale, float shift) {
-        error::wrap_c_api(
-                dnnl_primitive_attr_set_rnn_data_qparams(get(), scale, shift),
-                "could not get primitive RNN data quantization parameters "
-                "attributes");
-    }
-
-    /// Sets quantization scaling factors for RNN weights tensors. The
-    /// low-precision configuration of the RNN primitives expect input weights
-    /// to use the signed 8-bit integer data type. The scaling factors are
-    /// used to quantize floating-point data to signed integer and must be
-    /// passed to RNN primitives using attributes.
-    ///
-    /// @note
-    ///     The dimension order is always native and does not depend on the
-    ///     actual layout used. For example, five-dimensional weights always
-    ///     have (l, d, i, g, o) logical dimension ordering.
-    ///
-    /// @note
-    ///     Quantization scales are common for weights_layer and
-    ///     weights_iteration
-    ///
-    /// @param mask Scaling factors correspondence mask that defines the
-    ///     correspondence between the output tensor dimensions and the @p
-    ///     scales vector. The set i-th bit indicates that a dedicated scaling
-    ///     factor should be used each index along that dimension. Set the
-    ///     mask to 0 to use a common scaling factor for the whole output
-    ///     tensor.
-    /// @param scales Constant vector of output scaling factors. The following
-    ///     equality must hold:
-    ///     \f[scales.size() = \prod\limits_{d \in mask} weights.dims[d].\f]
-    ///     Violations can only be detected when the attributes are used to
-    ///     create a primitive descriptor.
-    void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
-        error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(get(),
-                                  (int)scales.size(), mask, scales.data()),
-                "could not get primitive RNN weights quantization parameters "
-                "attributes");
-    }
-};
-
-/// @} dnnl_api_attributes
-
 /// @} dnnl_api_primitives
 
 /// @addtogroup dnnl_api_engine Engine
@@ -2501,6 +2057,449 @@ inline bool operator!=(memory::format_tag a, dnnl_format_tag_t b) {
 
 /// @addtogroup dnnl_api_primitives
 /// @{
+/// @addtogroup dnnl_api_attributes Attributes
+///
+/// A container for parameters that extend primitives behavior.
+///
+/// @{
+
+/// @cond DO_NOT_DOCUMENT_THIS
+template <>
+struct handle_traits<dnnl_post_ops_t> {
+    static dnnl_status_t destructor(dnnl_post_ops_t p) {
+        return dnnl_post_ops_destroy(p);
+    }
+};
+/// @endcond
+
+/// Post-ops.
+///
+/// Post-ops are computations executed after the main primitive computations
+/// and are attached to the primitive via primitive attributes.
+///
+/// @sa @ref dev_guide_attributes_post_ops
+///
+struct post_ops : public handle<dnnl_post_ops_t> {
+    using handle<dnnl_post_ops_t>::handle;
+
+    /// Constructs an empty sequence of post-ops.
+    post_ops() {
+        dnnl_post_ops_t result;
+        error::wrap_c_api(
+                dnnl_post_ops_create(&result), "could not create post-ops");
+        reset(result);
+    }
+
+    /// Returns the number of post-ops entries.
+    int len() const { return dnnl_post_ops_len(get()); }
+
+    /// Returns the primitive kind of post-op at entry with a certain index.
+    /// @param index Index of the post-op to return the kind for.
+    /// @returns Primitive kind of the post-op at the specified index.
+    primitive::kind kind(int index) const {
+        error::wrap_c_api(index < len() ? dnnl_success : dnnl_invalid_arguments,
+                "post-ops index is out of range");
+        return static_cast<primitive::kind>(
+                dnnl_post_ops_get_kind(get(), index));
+    }
+
+    /// Appends an accumulation (sum) post-op. Prior to accumulating the
+    /// result, the previous value would be multiplied by a scaling factor
+    /// @p scale.
+    ///
+    /// The kind of this post-op is #dnnl::primitive::kind::sum.
+    ///
+    /// This feature may improve performance for cases like residual learning
+    /// blocks, where the result of convolution is accumulated to the
+    /// previously computed activations. The parameter @p scale may be used
+    /// for the integer-based computations when the result and previous
+    /// activations have different logical scaling factors.
+    ///
+    /// In the simplest case when the accumulation is the only post-op,
+    /// the computations would be:
+    ///
+    ///     dst[:] <- scale * dst[:] + op(...) // instead of dst[:] <- op(...)
+    ///
+    /// @note
+    ///     This post-op executes in-place and does not change the
+    ///     destination layout.
+    ///
+    /// @param scale Scaling factor.
+    void append_sum(float scale = 1.) {
+        error::wrap_c_api(dnnl_post_ops_append_sum(get(), scale),
+                "could not append a sum post-op");
+    }
+
+    /// Returns the parameters of an accumulation (sum) post-op.
+    ///
+    /// @param index Index of the sum post-op.
+    /// @param scale Scaling factor of the sum post-op.
+    void get_params_sum(int index, float &scale) const {
+        error::wrap_c_api(dnnl_post_ops_get_params_sum(get(), index, &scale),
+                "could not get parameters of a sum post-op");
+    }
+
+    /// Appends an elementwise post-op.
+    ///
+    /// The kind of this post-op is #dnnl::primitive::kind::eltwise.
+    ///
+    /// In the simplest case when the elementwise is the only post-op, the
+    /// computations would be:
+    ///
+    ///     dst[:] <- scale * eltwise_op (op(...)) // instead of dst[:] <- op(...)
+    ///
+    /// where eltwise_op is configured with the given parameters.
+    ///
+    /// @param scale Scaling factor.
+    /// @param algorithm Elementwise algorithm.
+    /// @param alpha Alpha parameter for the elementwise algorithm.
+    /// @param beta Beta parameter for the elementwise algorithm.
+    void append_eltwise(
+            float scale, algorithm algorithm, float alpha, float beta) {
+        error::wrap_c_api(dnnl_post_ops_append_eltwise(get(), scale,
+                                  convert_to_c(algorithm), alpha, beta),
+                "could not append an elementwise post-op");
+    }
+
+    /// Returns parameters of an elementwise post-up.
+    ///
+    /// @param index Index of the post-op.
+    /// @param scale Output scaling factor.
+    /// @param algorithm Output elementwise algorithm kind.
+    /// @param alpha Output alpha parameter for the elementwise algorithm.
+    /// @param beta Output beta parameter for the elementwise algorithm.
+    void get_params_eltwise(int index, float &scale, algorithm &algorithm,
+            float &alpha, float &beta) const {
+        dnnl_alg_kind_t c_alg;
+        error::wrap_c_api(dnnl_post_ops_get_params_eltwise(
+                                  get(), index, &scale, &c_alg, &alpha, &beta),
+                "could not get parameters of an elementwise post-op");
+        algorithm = static_cast<dnnl::algorithm>(c_alg);
+    }
+};
+
+/// @cond DO_NOT_DOCUMENT_THIS
+template <>
+struct handle_traits<dnnl_primitive_attr_t> {
+    static dnnl_status_t destructor(dnnl_primitive_attr_t p) {
+        return dnnl_primitive_attr_destroy(p);
+    }
+};
+/// @endcond
+
+/// Primitive attributes
+///
+/// @sa @ref dev_guide_attributes
+struct primitive_attr : public handle<dnnl_primitive_attr_t> {
+    using handle<dnnl_primitive_attr_t>::handle;
+
+    /// Constructs default (empty) primitive attributes.
+    primitive_attr() {
+        dnnl_primitive_attr_t result;
+        error::wrap_c_api(dnnl_primitive_attr_create(&result),
+                "could not create primitive attribute");
+        reset(result);
+    }
+
+    /// Creates primitive attributes from a C API ::dnnl_primitive_attr_t
+    /// handle. The resulting handle is not weak and the C handle will be
+    /// destroyed during the destruction of the C++ object.
+    ///
+    /// @param attr The C API primitive attributes.
+    primitive_attr(dnnl_primitive_attr_t attr)
+        : handle<dnnl_primitive_attr_t>(attr) {}
+
+    /// Returns the scratchpad mode.
+    scratchpad_mode get_scratchpad_mode() const {
+        dnnl_scratchpad_mode_t result;
+        error::wrap_c_api(
+                dnnl_primitive_attr_get_scratchpad_mode(get(), &result),
+                "could not get primitive scratchpad mode attribute");
+        return scratchpad_mode(result);
+    }
+
+    /// Sets scratchpad mode.
+    ///
+    /// @param mode Specified scratchpad mode.
+    void set_scratchpad_mode(scratchpad_mode mode) {
+        error::wrap_c_api(dnnl_primitive_attr_set_scratchpad_mode(
+                                  get(), dnnl::convert_to_c(mode)),
+                "could not set primitive scratchpad mode attribute");
+    }
+
+    /// Returns output scaling factors correspondence mask and values.
+    ///
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated output
+    ///     scaling factor is used for each index along that dimension. The
+    ///     mask value of 0 implies a common output scaling factor for the
+    ///     whole output tensor.
+    /// @param scales Vector of output scaling factors.
+    void get_output_scales(int &mask, std::vector<float> &scales) const {
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(dnnl_primitive_attr_get_output_scales(
+                                  get(), &count, &c_mask, &c_scales),
+                "could not get primitive output scales attribute");
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+    }
+
+    /// Sets output scaling factors correspondence mask and values.
+    ///
+    /// @note
+    ///     The order of dimensions does not depend on how elements are laid
+    ///     out in memory. For example:
+    ///     - for a 2D CNN activations tensor the order is always (n, c)
+    ///     - for a 4D CNN activations tensor the order is always (n, c, h, w)
+    ///     - for a 5D CNN weights tensor the order is always
+    ///        (g, oc, ic, kh, kw)
+    ///
+    /// Example usage:
+    /// @code
+    ///     int mb = 32, oc = 32,
+    ///         oh = 14, ow = 14; // convolution output params
+    ///     // unique output scales per output channel
+    ///     vector<float> scales = { ... };
+    ///     int oc_dim = 1; // mb_dim = 0, channel_dim = 1, height_dim = 2, ...
+    ///
+    ///     // construct a convolution descriptor
+    ///     dnnl::convolution::desc conv_d;
+    ///
+    ///     dnnl::primitive_attr attr;
+    ///     attr.set_output_scales(attr, oc, 1 << oc_dim, scales);
+    ///
+    ///     dnnl::primitive_desc conv_pd(conv_d, attr, engine);
+    /// @endcode
+    ///
+    /// @param mask Defines the correspondence between the output tensor
+    ///     dimensions and the @p scales vector. The set i-th bit indicates
+    ///     that a dedicated scaling factor is used for each index along that
+    ///     dimension. Set the mask to 0 to use a common output scaling factor
+    ///     for the whole output tensor.
+    /// @param scales Constant vector of output scaling factors. If the
+    ///     scaling factors are known at the time of this call, the following
+    ///     equality must hold:
+    ///     \f[scales.size() = \prod\limits_{d \in mask} output.dims[d].\f]
+    ///     Violations can only be detected when the attributes
+    ///     are used to create a primitive descriptor.
+    ///     If the scaling factors are not known at the time of the call,
+    ///     this vector must contain a single #DNNL_RUNTIME_F32_VAL value and
+    ///     the output scaling factors must be passed at execution time as an
+    ///     argument with index #DNNL_ARG_ATTR_OUTPUT_SCALES.
+    void set_output_scales(int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_output_scales(
+                        get(), (dnnl_dim_t)scales.size(), mask, scales.data()),
+                "could not set primitive output scales attribute");
+    }
+
+    /// Returns scaling factors correspondence mask and values for a given
+    /// memory argument.
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor is used for each index along that dimension. Set the mask to
+    ///     0 to use a common scaling factor for the whole output tensor.
+    /// @param scales Output vector of scaling factors.
+    void get_scales(int arg, int &mask, std::vector<float> &scales) const {
+        dnnl_dim_t count;
+        int c_mask;
+        const float *c_scales;
+        error::wrap_c_api(dnnl_primitive_attr_get_scales(
+                                  get(), arg, &count, &c_mask, &c_scales),
+                "could not get scales");
+        scales.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            scales[c] = c_scales[c];
+    }
+
+    /// Sets scaling factors for primitive operations for a given memory
+    /// argument.
+    ///
+    /// @sa dnnl_primitive_attr_set_scales
+    /// @sa dnnl::primitive_attr::set_output_scales
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p scales
+    ///     vector. The set i-th bit indicates that a dedicated scaling factor
+    ///     is used for each index along that dimension. Set the mask to 0 to
+    ///     use a common scaling factor for the whole output tensor.
+    /// @param scales Constant vector of scaling factors. The following equality
+    ///     must hold:
+    ///     \f[scales.size() = \prod\limits_{d \in mask} argument.dims[d].\f]
+    void set_scales(int arg, int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_scales(get(), arg,
+                        (dnnl_dim_t)scales.size(), mask, scales.data()),
+                "could not set scales");
+    }
+
+    /// Returns zero points correspondence mask and values.
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Zero points correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     zero_points vector. The set i-th bit indicates that a dedicated
+    ///     zero point is used for each index along that dimension. Set the
+    ///     mask to 0 to use a common zero point for the whole output tensor.
+    /// @param zero_points Output vector of zero points.
+    void get_zero_points(
+            int arg, int &mask, std::vector<int32_t> &zero_points) const {
+        dnnl_dim_t count;
+        int c_mask;
+        const int32_t *c_zero_points;
+        error::wrap_c_api(dnnl_primitive_attr_get_zero_points(
+                                  get(), arg, &count, &c_mask, &c_zero_points),
+                "could not get primitive zero points attribute");
+        zero_points.resize(count);
+
+        mask = c_mask;
+        for (dnnl_dim_t c = 0; c < count; ++c)
+            zero_points[c] = c_zero_points[c];
+    }
+
+    /// Sets zero points for primitive operations for a given memory argument.
+    ///
+    /// @sa dnnl_primitive_attr_set_zero_points
+    /// @sa dnnl::primitive_attr::set_output_scales
+    ///
+    /// @param arg Parameter argument index as passed to the
+    ///     primitive::execute() call.
+    /// @param mask Zero point correspondence mask that defines the
+    ///     correspondence between the tensor dimensions and the @p
+    ///     zero_points vector. The set i-th bit indicates that a dedicated
+    ///     zero point is used for each index along that dimension. Set the
+    ///     mask to 0 to use a common zero point for the whole output tensor.
+    /// @param zero_points Constant vector of zero points. If the zero points
+    ///     are known at the time of this call, the following equality must
+    ///     hold:
+    ///     \f[zero_points.size() = \prod\limits_{d \in mask} argument.dims[d].\f]
+    ///     If the zero points are not known at the time of the call, this
+    ///     vector must contain a single #DNNL_RUNTIME_F32_VAL value and the
+    ///     zero points must be passed at execution time as an argument with
+    ///     index #DNNL_ARG_ATTR_ZERO_POINTS.
+    void set_zero_points(
+            int arg, int mask, const std::vector<int32_t> &zero_points) {
+        error::wrap_c_api(dnnl_primitive_attr_set_zero_points(get(), arg,
+                                  (dnnl_dim_t)zero_points.size(), mask,
+                                  zero_points.data()),
+                "could not set primitive zero points attribute");
+    }
+
+    /// Returns post-ops previously set via set_post_ops().
+    ///
+    /// @returns Post-ops.
+    const post_ops get_post_ops() const {
+        post_ops result;
+        const_dnnl_post_ops_t c_result;
+        error::wrap_c_api(dnnl_primitive_attr_get_post_ops(get(), &c_result),
+                "could not get primitive post-ops attribute");
+        result.reset(const_cast<dnnl_post_ops_t>(c_result), true);
+        return result;
+    }
+
+    /// Sets post-ops.
+    ///
+    /// @note
+    ///     There is no way to check whether the post-ops would be supported
+    ///     by the target primitive. Any error will be reported
+    ///     by the respective primitive descriptor constructor.
+    ///
+    /// @param ops Post-ops object to copy post-ops from.
+    void set_post_ops(const post_ops ops) {
+        error::wrap_c_api(dnnl_primitive_attr_set_post_ops(get(), ops.get()),
+                "could not set primitive post-ops attribute");
+    }
+
+    /// Sets quantization scale and shift parameters for RNN data tensors.
+    ///
+    /// For performance reasons, the low-precision configuration of the RNN
+    /// primitives expect input activations to have the unsigned 8-bit integer
+    /// data type. The scale and shift parameters are used to quantize
+    /// floating-point data to unsigned integer and must be passed to the RNN
+    /// primitive using attributes.
+    ///
+    /// The quantization formula is `scale * (data + shift)`.
+    ///
+    /// @note
+    ///     Quantization scale and shift are common for src_layer, src_iter,
+    ///     dst_iter, and dst_layer.
+    ///
+    /// Example usage:
+    /// @code
+    ///     // RNN parameters
+    ///     int l = 2, t = 2, mb = 32, sic = 32, slc = 32, dic = 32, dlc = 32;
+    ///     // Activations quantization parameters
+    ///     float scale = ..., shift = ..;
+    ///
+    ///     primitive_attr attr;
+    ///
+    ///     // Set scale and shift for int8 quantization of activation
+    ///     attr.set_rnn_data_qparams(scale, shift);
+    ///
+    ///     // Create and configure rnn op_desc
+    ///     vanilla_rnn_forward::desc rnn_d(...);
+    ///     vanilla_rnn_forward::primitive_desc rnn_d(rnn_d, attr, engine);
+    /// @endcode
+    ///
+    /// @param scale The value to scale the data by.
+    /// @param shift The value to shift the data by.
+    void set_rnn_data_qparams(float scale, float shift) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_rnn_data_qparams(get(), scale, shift),
+                "could not get primitive RNN data quantization parameters "
+                "attributes");
+    }
+
+    /// Sets quantization scaling factors for RNN weights tensors. The
+    /// low-precision configuration of the RNN primitives expect input weights
+    /// to use the signed 8-bit integer data type. The scaling factors are
+    /// used to quantize floating-point data to signed integer and must be
+    /// passed to RNN primitives using attributes.
+    ///
+    /// @note
+    ///     The dimension order is always native and does not depend on the
+    ///     actual layout used. For example, five-dimensional weights always
+    ///     have (l, d, i, g, o) logical dimension ordering.
+    ///
+    /// @note
+    ///     Quantization scales are common for weights_layer and
+    ///     weights_iteration
+    ///
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor should be used each index along that dimension. Set the
+    ///     mask to 0 to use a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Constant vector of output scaling factors. The following
+    ///     equality must hold:
+    ///     \f[scales.size() = \prod\limits_{d \in mask} weights.dims[d].\f]
+    ///     Violations can only be detected when the attributes are used to
+    ///     create a primitive descriptor.
+    void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(get(),
+                                  (int)scales.size(), mask, scales.data()),
+                "could not get primitive RNN weights quantization parameters "
+                "attributes");
+    }
+};
+
+/// @} dnnl_api_attributes
 
 /// @addtogroup dnnl_api_primitives_common
 /// @{
