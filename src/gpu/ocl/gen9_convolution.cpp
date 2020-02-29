@@ -87,7 +87,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
         conf.ver = ver_16mb16c;
     else if ((is_16oc && is_16ic) || is_dw_16g)
         conf.ver = ver_8ow16c;
-    else if (is_1stconv && is_16oc && is_32oc)
+    else if (is_1stconv && is_16oc)
         conf.ver = ver_1stconv;
     else
         return status::unimplemented;
@@ -158,7 +158,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
                 conf.lws_d[0] = 16;
                 conf.lws_d[1] = 1;
                 conf.lws_d[2] = 1;
-                conf.gws_d[0] = (conf.oc / 2) * conf.ngroups;
+                conf.gws_d[0]
+                        = (is_32oc ? (conf.oc / 2) : conf.oc) * conf.ngroups;
                 conf.gws_d[1] = utils::div_up(conf.oh, conf.oh_block)
                         * utils::div_up(conf.ow, conf.ow_block) * conf.od;
                 conf.gws_d[2] = conf.mb % 2 == 0 ? conf.mb / 2

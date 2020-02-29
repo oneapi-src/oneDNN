@@ -40,6 +40,8 @@
 #define HAS_PAD_H (PH != 0 || PH_R != 0)
 #define HAS_PAD_W (PW != 0 || PW_R != 0)
 
+#define OC_UNROLL (OC % 32 == 0)
+
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 #if SUB_GROUP_SIZE != 1
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
@@ -52,10 +54,15 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
     half relu_negative_slope = eltwise_alpha;
     half sum_scale = sum_scale_;
 
-#if IC == 3 && OC % 32 == 0
+#if IC == 3 && OC % 16 == 0
 #if MB % 2 == 0
     // First convovution unrolled by MB2.
+#if OC_UNROLL
     const int oc = get_group_id(0) * 2;
+#else
+    const int oc = get_group_id(0);
+#endif
+
     const int sp = get_group_id(1);
     const int local_id = get_local_id(0);
     int mb = get_group_id(2) * 2;
@@ -76,27 +83,39 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 #if WITH_BIAS
     half8 C00 = bias[oc * OC_BLOCK + local_id];
     half8 C01 = C00;
+
+#if OC_UNROLL
     half8 C10 = bias[(oc + 1) * OC_BLOCK + local_id];
     half8 C11 = C10;
+
+#endif
 #else
     half8 C00 = 0.0, C01 = 0.0;
+#if OC_UNROLL
     half8 C10 = 0.0, C11 = 0.0;
+#endif
 #endif // WITH_BIAS
 #else
 #if WITH_BIAS
     half C00[OW_BLOCK];
     half C01[OW_BLOCK];
+#if OC_UNROLL
     half C10[OW_BLOCK];
     half C11[OW_BLOCK];
+#endif
     for (int i = 0; i < OW_BLOCK; i++) {
         C00[i] = bias[oc * OC_BLOCK + local_id];
         C01[i] = bias[oc * OC_BLOCK + local_id];
+#if OC_UNROLL
         C10[i] = bias[(oc + 1) * OC_BLOCK + local_id];
         C11[i] = bias[(oc + 1) * OC_BLOCK + local_id];
+#endif
     }
 #else
     half C00[OW_BLOCK] = {0.0}, C01[OW_BLOCK] = {0.0};
+#if OC_UNROLL
     half C10[OW_BLOCK] = {0.0}, C11[OW_BLOCK] = {0.0};
+#endif
 #endif // WITH_BIAS
 #endif // OW_BLOCK == 8
 
@@ -199,6 +218,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
                             C01[i], blockA2[i], blockB00, blockB01, blockB02);
                 }
 
+#if OC_UNROLL
                 blockB00 = as_half(intel_sub_group_block_read_us((const __global
                                 ushort *)&wei1[IC * KDHW_SIZE * OC_BLOCK]));
                 blockB01 = as_half(intel_sub_group_block_read_us(
@@ -215,7 +235,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
                     MULTIPLY_BLOCKS_8x8(
                             C11[i], blockA2[i], blockB00, blockB01, blockB02);
                 }
-
+#endif
 #undef TRANSPOSE_BLOCK_1
 #undef MULTIPLY_BLOCKS_8x8
             }
@@ -232,34 +252,31 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
             + ow * OC_BLOCK * MB_BLOCK + ((mb + 1) % MB_BLOCK) * OC_BLOCK;
 
 #if WITH_SUM == 1
-    half8 blockS00, blockS01, blockS10, blockS11;
-    if (ow == OW_LAST) {
-        for (int i = 0; i < OW - OW_LAST; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
-            blockS10[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-            blockS01[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
-            blockS11[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-        }
-    } else {
-        for (int i = 0; i < OW_BLOCK; i++) {
-            blockS00[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
-            blockS10[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write0[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-            blockS01[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
-            blockS11[i] = as_half(intel_sub_group_block_read_us((const __global
-                            ushort *)&dst_write1[OC_BLOCK * MB_BLOCK * ODHW_SIZE
-                    + i * OC_BLOCK * MB_BLOCK]));
-        }
+    half8 blockS00, blockS01;
+#if OC_UNROLL
+    half8 blockS10, blockS11;
+#endif // OC_UNROLL
+
+    int ow_bound = ow == OW_LAST ? OW - OW_LAST : OW_BLOCK;
+
+    for (int i = 0; i < ow_bound; i++) {
+        blockS00[i] = as_half(intel_sub_group_block_read_us(
+                (const __global ushort *)&dst_write0[i * OC_BLOCK * MB_BLOCK]));
+#if OC_UNROLL
+        blockS10[i] = as_half(intel_sub_group_block_read_us((const __global
+                        ushort *)&dst_write0[OC_BLOCK * MB_BLOCK * ODHW_SIZE
+                + i * OC_BLOCK * MB_BLOCK]));
+#endif // OC_UNROLL
+
+        blockS01[i] = as_half(intel_sub_group_block_read_us(
+                (const __global ushort *)&dst_write1[i * OC_BLOCK * MB_BLOCK]));
+#if OC_UNROLL
+        blockS11[i] = as_half(intel_sub_group_block_read_us((const __global
+                        ushort *)&dst_write1[OC_BLOCK * MB_BLOCK * ODHW_SIZE
+                + i * OC_BLOCK * MB_BLOCK]));
+#endif // OC_UNROLL
     }
+
     for (int i = 0; i < OW_BLOCK; i++) {
 #if SUM_SCALE == 1
         C00[i] += blockS00[i];
@@ -277,9 +294,13 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 
 #if WITH_ELTWISE == 1
     DO_ELTWISE(C00, OW_BLOCK, eltwise_alpha, eltwise_beta);
+#if OC_UNROLL
     DO_ELTWISE(C10, OW_BLOCK, eltwise_alpha, eltwise_beta);
+#endif
     DO_ELTWISE(C01, OW_BLOCK, eltwise_alpha, eltwise_beta);
+#if OC_UNROLL
     DO_ELTWISE(C11, OW_BLOCK, eltwise_alpha, eltwise_beta);
+#endif
 #endif // WITH_ELTWISE == 1
 
     if (ow == OW_LAST) {
@@ -287,39 +308,47 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write0[i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C00[i]));
+#if OC_UNROLL
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write0[OC_BLOCK * MB_BLOCK
                                     * ODHW_SIZE
                             + i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C10[i]));
-
+#endif
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write1[i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C01[i]));
+#if OC_UNROLL
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write1[OC_BLOCK * MB_BLOCK
                                     * ODHW_SIZE
                             + i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C11[i]));
+#endif
         }
     } else {
         for (int i = 0; i < OW_BLOCK; i++) {
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write0[i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C00[i]));
+#if OC_UNROLL
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write0[OC_BLOCK * MB_BLOCK
                                     * ODHW_SIZE
                             + i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C10[i]));
+#endif
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write1[i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C01[i]));
+
+#if OC_UNROLL
             intel_sub_group_block_write_us(
                     (__global ushort *)(&dst_write1[OC_BLOCK * MB_BLOCK
                                     * ODHW_SIZE
                             + i * OC_BLOCK * MB_BLOCK]),
                     as_ushort(C11[i]));
+#endif
         }
     }
 
