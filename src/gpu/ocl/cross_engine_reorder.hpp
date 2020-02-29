@@ -80,7 +80,6 @@ struct cross_engine_reorder_t : public primitive_impl_t {
 
         reorder_.reset(reorder_ptr);
 
-
         return status::success;
     }
 
