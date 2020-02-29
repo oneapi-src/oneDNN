@@ -272,14 +272,18 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
 
-    const int ndims = diff_src_d.ndims();
     const auto &jcp = kernel_->jcp;
-    const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     auto rtus_space = pd()->rtus_.reduce_src_
             ? scratchpad.template get<diff_src_data_t>(key_conv_rtus_space)
             : NULL;
     float *store_buffer = scratchpad.template get<float>(key_conv_store_wsp);
+    const int ndims = diff_src_d.ndims();
+    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
+    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
+    const int stride_w = pd()->desc()->strides[ndims - 3];
+
+    const int work_amount = jcp.mb * jcp.ngroups * jcp.nb_bcast;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -292,18 +296,14 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     const int nb_ic = jcp.nb_load;
     const int nb_oc = jcp.nb_reduce;
     const int os_block = jcp.bcast_block;
-
-    const int stride_d = (ndims == 5) ? pd()->desc()->strides[0] : 1;
-    const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
-    const int stride_w = pd()->desc()->strides[ndims - 3];
+    const int nb_oc_blocking = jcp.nb_reduce_blocking;
 
     int bcast_start {0}, bcast_end {0}, icb_start {0}, icb_end {0};
     balance2D(nthr, ithr, work_amount, bcast_start, bcast_end, jcp.nb_load,
             icb_start, icb_end, jcp.load_grp_count);
 
-    auto init_bcast = [&](const int icb, int iwork, int &n, int &g,
-                              int &bcast_step, int &od, int &oh, int &ow,
-                              int &id, int &ih, int &iw) {
+    auto init_bcast = [&](int iwork, int &n, int &g, int &bcast_step, int &od,
+                              int &oh, int &ow, int &id, int &ih, int &iw) {
         int osb {0};
         nd_iterator_init(iwork, n, jcp.mb, g, jcp.ngroups, osb, jcp.nb_bcast);
         bcast_step = step(jcp.nb_bcast_blocking, jcp.nb_bcast - osb,
@@ -311,9 +311,6 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         bcast_step = nstl::min(bcast_step, bcast_end - iwork);
 
         const int os = osb * os_block;
-        p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
-        rp.os = p.bcast_dim;
-
         od = os / (jcp.oh * jcp.ow);
         const int os_2d = os % (jcp.oh * jcp.ow);
         oh = os_2d / jcp.ow;
@@ -322,6 +319,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         ih = oh * stride_h;
         iw = ow * stride_w;
         rp.iw_start = iw;
+
+        p.bcast_dim = this_block_size(os, jcp.os, bcast_step * os_block);
+        rp.os = p.bcast_dim;
     };
 
     auto init_load = [&](int icb, int &load_step) {
@@ -332,14 +332,18 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
         rp.icb = p.load_dim / jcp.ic_block;
     };
 
-    auto init_reduce = [&]() {
-        p.reduce_dim = jcp.oc;
-        p.first_last_flag = 0 | FLAG_REDUCE_FIRST | FLAG_REDUCE_LAST;
+    auto init_reduce = [&](int ocb) {
+        const int nb_oc_blocking_step
+                = nstl::min(ocb + nb_oc_blocking, nb_oc) - ocb;
+        p.first_last_flag = 0 | (ocb == 0 ? FLAG_REDUCE_FIRST : 0)
+                | (ocb + nb_oc_blocking_step >= nb_oc ? FLAG_REDUCE_LAST : 0);
+
+        p.reduce_dim = this_block_size(
+                ocb * jcp.oc_block, jcp.oc, nb_oc_blocking_step * jcp.oc_block);
     };
 
-    auto inner_ker = [&](int icb, int n, int g, int od, int oh, int ow, int id,
-                             int ih, int iw) {
-        const int ocb = 0;
+    auto inner_ker = [&](int icb, int ocb, int n, int g, int od, int oh, int ow,
+                             int id, int ih, int iw) {
         const int _icb = g * nb_ic + icb;
         const size_t diff_src_off
                 = data_blk_off(diff_src_d, n, _icb, id, ih, iw);
@@ -363,28 +367,12 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
                 = rnd_up((jcp.load_dim / grp_count), jcp.load_block);
         const size_t str_size = jcp.bcast_dim * max_load_per_thread;
         p.store_buffer = store_buffer + ithr * str_size
-                + data_blk_off(diff_src_d, 0, 0, od, oh, ow);
+                + data_blk_off(diff_src_d, 0, 0, id, ih, iw);
         kernel_->jit_ker(&p);
         if (pd()->rtus_.reduce_src_) rtus_driver_->ker_(&rp);
     };
 
-    if (jcp.loop_order == loop_rlb) {
-        init_reduce();
-        int icb = icb_start;
-        while (icb < icb_end) {
-            int load_step;
-            init_load(icb, load_step);
-            int iwork = bcast_start;
-            while (iwork < bcast_end) {
-                int n {0}, g {0}, bcast_step, od, oh, ow, id, ih, iw;
-                init_bcast(0, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
-                iwork += bcast_step;
-            }
-            icb += load_step;
-        }
-        //XXX: this is the loop order for strided
-    } else if (jcp.loop_order == loop_lbr) {
+    if (jcp.loop_order == loop_lbr) {
         int icb = icb_start;
         while (icb < icb_end) {
             int load_step;
@@ -392,44 +380,14 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
             int iwork = bcast_start;
             while (iwork < bcast_end) {
                 int n, g, bcast_step, od, oh, ow, id, ih, iw;
-                init_bcast(
-                        icb, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-                init_reduce();
-                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
+                init_bcast(iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
+                for (int ocb = 0; ocb < nb_oc; ocb += nb_oc_blocking) {
+                    init_reduce(ocb);
+                    inner_ker(icb, ocb, n, g, od, oh, ow, id, ih, iw);
+                }
                 iwork += bcast_step;
             }
             icb += load_step;
-        }
-    } else if (jcp.loop_order == loop_rbl) {
-        // TODO not used
-        init_reduce();
-        int iwork = bcast_start;
-        while (iwork < bcast_end) {
-            int n, g, bcast_step, od, oh, ow, id, ih, iw;
-            init_bcast(0, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-            int icb = icb_start;
-            while (icb < icb_end) {
-                int load_step;
-                init_load(icb, load_step);
-                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
-                icb += load_step;
-            }
-            iwork += bcast_step;
-        }
-    } else if (jcp.loop_order == loop_blr) {
-        int iwork = bcast_start;
-        while (iwork < bcast_end) {
-            int n, g, bcast_step, od, oh, ow, id, ih, iw;
-            init_bcast(0, iwork, n, g, bcast_step, od, oh, ow, id, ih, iw);
-            int icb = icb_start;
-            while (icb < icb_end) {
-                int load_step;
-                init_load(icb, load_step);
-                init_reduce();
-                inner_ker(icb, n, g, od, oh, ow, id, ih, iw);
-                icb += load_step;
-            }
-            iwork += bcast_step;
         }
     } else {
         assert(!"unsupported loop order");

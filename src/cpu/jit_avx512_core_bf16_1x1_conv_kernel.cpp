@@ -196,7 +196,8 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                     }
                 }
             };
-            if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
+            if (one_of(jcp.prop_kind, forward_training, forward_inference,
+                        backward_data)) {
                 Label read_from_output;
                 Label read_done;
 
@@ -974,42 +975,50 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         int nb_reduce = div_up(jcp.reduce_dim, jcp.reduce_block);
         int nb_load = div_up(jcp.load_dim, jcp.load_block);
 
-        if (jcp.expl_bcast) {
-            if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL
-                    && spatial < BIG_SPATIAL)
-                reduce_blocking = nstl::min(jcp.reduce_dim, 160);
-            else if (spatial > SMALL_SPATIAL)
-                reduce_blocking = nstl::min(jcp.reduce_dim, 1024);
-            else
-                reduce_blocking = nstl::min(jcp.reduce_dim, 512);
+        if (jcp.prop_kind == backward_data && reduce_src) {
+            reduce_blocking = jcp.reduce_dim;
         } else {
-            reduce_blocking = nb_reduce;
-            if (spatial <= SMALL_SPATIAL && jcp.reduce_dim >= BIG_REDUCE_DIM)
-                reduce_blocking = 32;
-            else if (spatial > SMALL_SPATIAL
-                    && jcp.reduce_dim >= BIG_REDUCE_DIM)
-                reduce_blocking = 16;
-            reduce_blocking = best_divider(nb_reduce, 1, reduce_blocking, true);
-            reduce_blocking *= jcp.reduce_block;
-        }
-        // Check input data cache aliasing.
-        // For other ISA constants may be updated.
-        // 64 * 1024 is chosen due to 1MB L2 16-way cache.
-        // 7 is empirical value. It is about half of 16.
-        // So we leave about half of the set for other data - weights, dst
-        int way_size = (64 * 1024) / jcp.typesize_in;
-        int max_hits = 7;
-        if (jcp.bcast_dim * reduce_blocking > way_size * max_hits) {
-            int nrb = reduce_blocking / simd_w;
-            int sp = jcp.bcast_dim;
-            int wl = way_size / simd_w;
-            for (int start_off = 0; start_off < jcp.ur; start_off++) {
-                for (int off = start_off, hits = 0; off < sp * nrb; off += wl) {
-                    if (off % sp >= jcp.ur || ++hits < max_hits) continue;
-                    int max_r_blocking = simd_w * nstl::max(1, (off + wl) / sp);
-                    reduce_blocking
-                            = nstl::min(reduce_blocking, max_r_blocking);
-                    break;
+            if (jcp.expl_bcast) {
+                if (jcp.load_dim <= BIG_LOAD_DIM && spatial > SMALL_SPATIAL
+                        && spatial < BIG_SPATIAL)
+                    reduce_blocking = nstl::min(jcp.reduce_dim, 160);
+                else if (spatial > SMALL_SPATIAL)
+                    reduce_blocking = nstl::min(jcp.reduce_dim, 1024);
+                else
+                    reduce_blocking = nstl::min(jcp.reduce_dim, 512);
+            } else {
+                reduce_blocking = nb_reduce;
+                if (spatial <= SMALL_SPATIAL
+                        && jcp.reduce_dim >= BIG_REDUCE_DIM)
+                    reduce_blocking = 32;
+                else if (spatial > SMALL_SPATIAL
+                        && jcp.reduce_dim >= BIG_REDUCE_DIM)
+                    reduce_blocking = 16;
+                reduce_blocking
+                        = best_divider(nb_reduce, 1, reduce_blocking, true);
+                reduce_blocking *= jcp.reduce_block;
+            }
+            // Check input data cache aliasing.
+            // For other ISA constants may be updated.
+            // 64 * 1024 is chosen due to 1MB L2 16-way cache.
+            // 7 is empirical value. It is about half of 16.
+            // So we leave about half of the set for other data - weights, dst
+            int way_size = (64 * 1024) / jcp.typesize_in;
+            int max_hits = 7;
+            if (jcp.bcast_dim * reduce_blocking > way_size * max_hits) {
+                int nrb = reduce_blocking / simd_w;
+                int sp = jcp.bcast_dim;
+                int wl = way_size / simd_w;
+                for (int start_off = 0; start_off < jcp.ur; start_off++) {
+                    for (int off = start_off, hits = 0; off < sp * nrb;
+                            off += wl) {
+                        if (off % sp >= jcp.ur || ++hits < max_hits) continue;
+                        int max_r_blocking
+                                = simd_w * nstl::max(1, (off + wl) / sp);
+                        reduce_blocking
+                                = nstl::min(reduce_blocking, max_r_blocking);
+                        break;
+                    }
                 }
             }
         }
