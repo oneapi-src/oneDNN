@@ -158,7 +158,10 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
-        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * batch * M * N, 64);
+        acc = (acc_data_t *)malloc(sizeof(acc_data_t)
+                        * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
+                        * N,
+                64);
         need_free_acc = true;
     }
 
@@ -194,6 +197,10 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         size_t batch_start {}, batch_end {};
         balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
 
+        const bool reuse_acc = acc != (acc_data_t *)dst;
+        acc_data_t *curr_acc
+                = reuse_acc ? acc + ithr * acc_batch_stride : nullptr;
+
         std::vector<acc_data_t> src_compensation(M, 0);
         std::vector<acc_data_t> weights_compensation(N, 0);
 
@@ -202,7 +209,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
             const weights_data_t *curr_weights
                     = weights + b * weights_batch_stride;
             dst_data_t *curr_dst = dst + b * dst_batch_stride;
-            acc_data_t *curr_acc = acc + b * acc_batch_stride;
+            if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
             gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32, &K_s32, &alpha,
                     curr_weights, &ldb, &gemm_off_b, curr_src, &lda,

@@ -160,7 +160,10 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
-        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * batch * M * N, 64);
+        acc = (acc_data_t *)malloc(sizeof(acc_data_t)
+                        * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
+                        * N,
+                64);
         need_free_acc = true;
     }
 
@@ -194,12 +197,17 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     parallel(parallel_over_batch ? 0 : 1, [&](int ithr, int nthr) {
         size_t batch_start {}, batch_end {};
         balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
+
+        const bool reuse_acc = acc != (acc_data_t *)dst;
+        acc_data_t *curr_acc
+                = reuse_acc ? acc + ithr * acc_batch_stride : nullptr;
+
         for (size_t b = batch_start; b < batch_end; ++b) {
             const src_data_t *curr_src = src + b * src_batch_stride;
             const weights_data_t *curr_weights
                     = weights + b * weights_batch_stride;
             dst_data_t *curr_dst = dst + b * dst_batch_stride;
-            acc_data_t *curr_acc = acc + b * acc_batch_stride;
+            if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
             gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
                     curr_weights, &ldb, curr_src, &lda, &beta, curr_acc, &ldc);
