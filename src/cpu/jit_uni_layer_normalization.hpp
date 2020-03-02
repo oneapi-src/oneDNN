@@ -66,12 +66,14 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
 
         pd_t(const pd_t &other) : cpu_layer_normalization_fwd_pd_t(other) {
             copy_from(other);
+            reordered_stat_md_ = other.reordered_stat_md_;
         }
 
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_layer_normalization_fwd_pd_t::operator=(other);
             copy_from(other);
+            reordered_stat_md_ = other.reordered_stat_md_;
             return *this;
         }
         ~pd_t() = default;
