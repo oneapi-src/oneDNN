@@ -68,7 +68,7 @@ static inline bool use_reference_igemm(void) {
             && data_traits<a_dt>::data_type == data_type::s8
             && data_traits<b_dt>::data_type == data_type::u8;
     if (is_s8u8)
-        return !mayiuse(avx2) || mayiuse(avx512_mic);
+        return !mayiuse(sse41) || mayiuse(avx512_mic);
     else
         return !mayiuse(avx512_core);
 }

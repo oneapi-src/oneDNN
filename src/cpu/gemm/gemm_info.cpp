@@ -216,6 +216,17 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+            } else if (mayiuse(sse41)) {
+                this->um = 16;
+                this->un = 2;
+                this->uk = 1;
+                this->bm = 4096;
+                this->bn = 256;
+                this->bk = 256;
+
+                this->bk_traditional = 256;
+                this->blocking_small_k = 48;
+                this->bn_small_k = 24;
             }
             break;
 
@@ -328,6 +339,22 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                             = new jit_avx2_u8_copy_sum_bn_kern();
                     copy_b[do_trans][do_sum]
                             = new jit_avx2_u8_copy_sum_bt_kern();
+                } else if (mayiuse(sse41)) {
+                    copy_a[no_trans][no_sum] = new jit_sse41_u8_copy_an_kern();
+                    copy_a[do_trans][no_sum] = new jit_sse41_u8_copy_at_kern();
+
+                    copy_b[no_trans][no_sum] = new jit_sse41_u8_copy_bn_kern();
+                    copy_b[do_trans][no_sum] = new jit_sse41_u8_copy_bt_kern();
+
+                    copy_a[no_trans][do_sum]
+                            = new jit_sse41_u8_copy_sum_an_kern();
+                    copy_a[do_trans][do_sum]
+                            = new jit_sse41_u8_copy_sum_at_kern();
+
+                    copy_b[no_trans][do_sum]
+                            = new jit_sse41_u8_copy_sum_bn_kern();
+                    copy_b[do_trans][do_sum]
+                            = new jit_sse41_u8_copy_sum_bt_kern();
                 }
                 break;
 
@@ -397,6 +424,24 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                         = new jit_avx2_gemm_s8u8s32_kern(
                                                 isBeta0, doColSum, doRowSum);
                             }
+                } else if (mayiuse(sse41)) {
+                    kernel[no_beta0][no_alpha1][no_sum][no_sum]
+                            = new jit_sse41_kernel_gemm_s8u8s32_kern();
+                    kernel[no_beta0][no_alpha1][do_sum][no_sum]
+                            = new jit_sse41_kernel_c_gemm_s8u8s32_kern();
+                    kernel[no_beta0][no_alpha1][no_sum][do_sum]
+                            = new jit_sse41_kernel_r_gemm_s8u8s32_kern();
+                    kernel[no_beta0][no_alpha1][do_sum][do_sum]
+                            = new jit_sse41_kernel_b_gemm_s8u8s32_kern();
+
+                    kernel[do_beta0][no_alpha1][no_sum][no_sum]
+                            = new jit_sse41_kernel_b0_gemm_s8u8s32_kern();
+                    kernel[do_beta0][no_alpha1][do_sum][no_sum]
+                            = new jit_sse41_kernel_b0_c_gemm_s8u8s32_kern();
+                    kernel[do_beta0][no_alpha1][no_sum][do_sum]
+                            = new jit_sse41_kernel_b0_r_gemm_s8u8s32_kern();
+                    kernel[do_beta0][no_alpha1][do_sum][do_sum]
+                            = new jit_sse41_kernel_b0_b_gemm_s8u8s32_kern();
                 }
                 break;
 
@@ -557,25 +602,20 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
-            if (mayiuse(avx512_core)) {
+            if (mayiuse(sse41)) {
                 for (int isBeta0 : {no_beta0, do_beta0})
                     for (int doColSum : {no_sum, do_sum})
                         for (int doRowSum : {no_sum, do_sum})
                             if (!this->kernel[isBeta0][doColSum][doRowSum])
                                 return false;
 
-                if (data_traits<a_t>::data_type == data_type::s8)
+                if (!this->copyA || !this->copyB) return false;
+
+                if (mayiuse(avx512_core))
                     if (!this->gemv_s8u8s32_kernel || !this->gemv_u8s8s32_kernel
                             || !this->gemv_s8s8s32_kernel)
                         return false;
 
-                if (!this->copyA || !this->copyB) return false;
-            } else if (mayiuse(avx2)) {
-                for (int isBeta0 : {no_beta0, do_beta0})
-                    for (int doColSum : {no_sum, do_sum})
-                        for (int doRowSum : {no_sum, do_sum})
-                            if (!this->kernel[isBeta0][doColSum][doRowSum])
-                                return false;
             }
             break;
 

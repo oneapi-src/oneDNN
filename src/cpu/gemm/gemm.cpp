@@ -177,7 +177,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
             LDA, ao, B, LDB, bo, beta, C, LDC, co);
     if (status == dnnl_success) return status;
 
-    if (mayiuse(avx2) && !mayiuse(avx512_mic))
+    if (mayiuse(sse41) && !mayiuse(avx512_mic))
         status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA,
                 ao, B, LDB, bo, beta, C, LDC, co, false);
     else
@@ -202,7 +202,7 @@ dnnl_status_t gemm_s8x8s32(const char *transa, const char *transb,
     bool use_jit = mayiuse(avx512_core);
     bool use_s8u8 = true
             && utils::everyone_is(0, *ao, *bo) // so far a requirement
-            && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(avx2));
+            && IMPLICATION(USE_MKL_IGEMM == 0, mayiuse(sse41));
 
     if (use_jit)
         status = gemm_driver(transa, transb, offsetc, M, N, K, alpha, A, LDA,
