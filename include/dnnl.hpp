@@ -226,22 +226,30 @@ public:
 /// @cond DO_NOT_DOCUMENT_THIS
 template <>
 struct handle_traits<dnnl_memory_t> {
-    static constexpr auto destructor = &dnnl_memory_destroy;
+    static dnnl_status_t destructor(dnnl_memory_t p) {
+        return dnnl_memory_destroy(p);
+    }
 };
 
 template <>
 struct handle_traits<dnnl_primitive_desc_t> {
-    static constexpr auto destructor = &dnnl_primitive_desc_destroy;
+    static dnnl_status_t destructor(dnnl_primitive_desc_t p) {
+        return dnnl_primitive_desc_destroy(p);
+    }
 };
 
 template <>
 struct handle_traits<dnnl_primitive_t> {
-    static constexpr auto destructor = &dnnl_primitive_destroy;
+    static dnnl_status_t destructor(dnnl_primitive_t p) {
+        return dnnl_primitive_destroy(p);
+    }
 };
 
 template <>
 struct handle_traits<dnnl_primitive_desc_iterator_t> {
-    static constexpr auto destructor = &dnnl_primitive_desc_iterator_destroy;
+    static dnnl_status_t destructor(dnnl_primitive_desc_iterator_t p) {
+        return dnnl_primitive_desc_iterator_destroy(p);
+    }
 };
 /// @endcond
 
@@ -812,7 +820,9 @@ inline dnnl_query_t convert_to_c(query query) {
 /// @cond DO_NOT_DOCUMENT_THIS
 template <>
 struct handle_traits<dnnl_post_ops_t> {
-    static constexpr auto destructor = &dnnl_post_ops_destroy;
+    static dnnl_status_t destructor(dnnl_post_ops_t p) {
+        return dnnl_post_ops_destroy(p);
+    }
 };
 /// @endcond
 
@@ -925,7 +935,9 @@ struct post_ops : public handle<dnnl_post_ops_t> {
 /// @cond DO_NOT_DOCUMENT_THIS
 template <>
 struct handle_traits<dnnl_primitive_attr_t> {
-    static constexpr auto destructor = &dnnl_primitive_attr_destroy;
+    static dnnl_status_t destructor(dnnl_primitive_attr_t p) {
+        return dnnl_primitive_attr_destroy(p);
+    }
 };
 /// @endcond
 
@@ -1259,7 +1271,9 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
 /// @cond DO_NOT_DOCUMENT_THIS
 template <>
 struct handle_traits<dnnl_engine_t> {
-    static constexpr auto destructor = &dnnl_engine_destroy;
+    static dnnl_status_t destructor(dnnl_engine_t p) {
+        return dnnl_engine_destroy(p);
+    }
 };
 /// @endcond
 
@@ -1401,7 +1415,9 @@ private:
 /// @cond DO_NOT_DOCUMENT_THIS
 template <>
 struct handle_traits<dnnl_stream_t> {
-    static constexpr auto destructor = &dnnl_stream_destroy;
+    static dnnl_status_t destructor(dnnl_stream_t p) {
+        return dnnl_stream_destroy(p);
+    }
 };
 /// @endcond
 
