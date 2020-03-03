@@ -182,3 +182,9 @@ The layer normalization primitive is optimized for the following memory formats:
    highly suboptimal performance.
 
 4. Use in-place operations whenever possible.
+
+## Examples
+
+| Engine  | Name                                 | Comments
+| :--     | :--                                  | :--
+| CPU/GPU | @ref layer_normalization_example_cpp | @copydetails layer_normalization_example_cpp_short

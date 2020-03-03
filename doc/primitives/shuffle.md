@@ -119,3 +119,9 @@ The shuffle primitive doesn't support any post-ops or attributes.
 ## Performance Tips
 
 N/A
+
+## Examples
+
+| Engine  | Name                     | Comments
+| :--     | :--                      | :--
+| CPU/GPU | @ref shuffle_example_cpp | @copydetails shuffle_example_cpp_short

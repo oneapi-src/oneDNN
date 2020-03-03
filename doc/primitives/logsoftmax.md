@@ -128,3 +128,9 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
    - Non-optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
                     softmax axis 2 (C), format tag #dnnl_acdb, and
                     and \f$D \cdot B \ne 1\f$
+
+## Examples
+
+| Engine  | Name                        | Comments
+| :--     | :--                         | :--
+| CPU/GPU | @ref logsoftmax_example_cpp | @copydetails logsoftmax_example_cpp_short

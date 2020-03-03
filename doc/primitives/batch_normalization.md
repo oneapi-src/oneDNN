@@ -229,3 +229,9 @@ directly.
    lead to highly suboptimal performance.
 
 2. Use in-place operations whenever possible.
+
+## Examples
+
+| Engine  | Name                                 | Comments
+| :--     | :--                                  | :--
+| CPU/GPU | @ref batch_normalization_example_cpp | @copydetails batch_normalization_example_cpp_short

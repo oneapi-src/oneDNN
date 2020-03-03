@@ -82,3 +82,9 @@ meaning associated with any of tensors dimensions.
 
 1. Whenever possible, avoid specifying different memory formats for source
    tensors.
+
+## Examples
+
+| Engine  | Name                    | Comments
+| :--     | :--                     | :--
+| CPU/GPU | @ref binary_example_cpp | @copydetails binary_example_cpp_short

@@ -327,3 +327,9 @@ details on how to use and set these quantization parameters.
 2. **GPU**
     - No support for GRU
     - No support for Peephole LSTM
+
+## Examples
+
+| Engine  | Name                  | Comments
+| :--     | :--                   | :--
+| CPU/GPU | @ref lstm_example_cpp | @copydetails lstm_example_cpp_short

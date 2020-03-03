@@ -132,3 +132,9 @@ The LRN primitive doesn't support any post-ops or attributes.
    and `diff_src` (the format of the `diff_dst` and `diff_src` are always the
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
+
+## Examples
+
+| Engine  | Name                 | Comments
+| :--     | :--                  | :--
+| CPU/GPU | @ref lrn_example_cpp | @copydetails lrn_example_cpp_short

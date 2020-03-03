@@ -131,3 +131,9 @@ The following post-ops are supported by inner product primitives:
 - Use #dnnl::memory::format_tag::any for source, weights,
   and destinations memory format tags when create an inner product primitive
   to allow the library to choose the most appropriate memory format.
+
+## Examples
+
+| Engine  | Name                           | Comments
+| :--     | :--                            | :--
+| CPU/GPU | @ref inner_product_example_cpp | @copydetails inner_product_example_cpp_short

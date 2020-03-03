@@ -148,10 +148,11 @@ argument with index set to
   reused, it is best to force the primitive to use the same format as that used
   by the tensors.
 
-## Tutorials
+## Examples
 
-| Engine  | Name                               | Comments
-| :--     | :--                                | :--
-| CPU     | @ref cpu_sgemm_and_matmul_cpp      | @copydetails cpu_sgemm_and_matmul_cpp_short
-| CPU/GPU | @ref inference_int8_matmul_cpp     | @copydetails inference_int8_matmul_cpp_short
-| CPU     | @ref cpu_matmul_quantization_cpp   | @copydetails cpu_matmul_quantization_cpp_short
+| Engine  | Name                             | Comments
+| :--     | :--                              | :--
+| CPU/GPU | @ref matmul_example_cpp          | @copydetails matmul_example_cpp_short
+| CPU     | @ref cpu_sgemm_and_matmul_cpp    | @copydetails cpu_sgemm_and_matmul_cpp_short
+| CPU/GPU | @ref inference_int8_matmul_cpp   | @copydetails inference_int8_matmul_cpp_short
+| CPU     | @ref cpu_matmul_quantization_cpp | @copydetails cpu_matmul_quantization_cpp_short

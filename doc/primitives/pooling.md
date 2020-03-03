@@ -137,3 +137,9 @@ The pooling primitive does not support any post-ops or attributes.
 ## Performance Tips
 
 N/A
+
+## Examples
+
+| Engine  | Name                     | Comments
+| :--     | :--                      | :--
+| CPU/GPU | @ref pooling_example_cpp | @copydetails pooling_example_cpp_short

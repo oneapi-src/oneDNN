@@ -145,3 +145,9 @@ The eltwise primitive doesn't support any post-ops or attributes.
       operation doesn't require its \dst to compute the backward
       propagation (e.g., if the convolution operation satisfies these
       conditions).
+
+## Examples
+
+| Engine  | Name                     | Comments
+| :--     | :--                      | :--
+| CPU/GPU | @ref eltwise_example_cpp | @copydetails eltwise_example_cpp_short

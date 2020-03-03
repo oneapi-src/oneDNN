@@ -407,3 +407,9 @@ the convolution.)
 - Use #dnnl::memory::format_tag::any for source, weights, and destinations
   memory format tags when create a convolution primitive to allow the library
   to choose the most appropriate memory format.
+
+## Examples
+
+| Engine  | Name                         | Comments
+| :--     | :--                          | :--
+| CPU/GPU | @ref convolution_example_cpp | @copydetails convolution_example_cpp_short

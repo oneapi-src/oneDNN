@@ -82,3 +82,9 @@ The concat primitive doesn't support any post-ops or attributes.
    data type. For other cases, more general but slower code is working.
    Consider reordering sources to the same data format before using the concat
    primitive.
+
+## Examples
+
+| Engine  | Name                    | Comments
+| :--     | :--                     | :--
+| CPU/GPU | @ref concat_example_cpp | @copydetails concat_example_cpp_short
