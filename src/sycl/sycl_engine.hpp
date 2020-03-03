@@ -36,12 +36,15 @@ inline std::vector<cl::sycl::device> get_intel_sycl_devices(
         cl::sycl::info::device_type dev_type) {
     const int intel_vendor_id = 0x8086;
     auto devices = cl::sycl::device::get_devices(dev_type);
-    devices.erase(
-            std::remove_if(devices.begin(), devices.end(),
-                    [=](const cl::sycl::device &dev) {
-                        return dev.get_info<cl::sycl::info::device::vendor_id>()
-                                != intel_vendor_id;
-                    }),
+    devices.erase(std::remove_if(devices.begin(), devices.end(),
+                          [=](const cl::sycl::device &dev) {
+                              auto _vendor_id = dev.get_info<
+                                      cl::sycl::info::device::vendor_id>();
+                              auto _dev_type = dev.get_info<
+                                      cl::sycl::info::device::device_type>();
+                              return (_vendor_id != intel_vendor_id)
+                                      || (_dev_type != dev_type);
+                          }),
             devices.end());
     return devices;
 }
