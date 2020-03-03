@@ -29,7 +29,18 @@ else()
     return()
 endif()
 
+# Set the macro to look specifically for the minimal supported version. Some
+# implementations ignore this macro but the version will be checked after
+# find_package() anyway.
+set(CMAKE_REQUIRED_DEFINITIONS "-DCL_TARGET_OPENCL_VERSION=120")
 find_package(OpenCL REQUIRED)
+
+if(OpenCL_VERSION_STRING VERSION_LESS "1.2")
+    message(FATAL_ERROR
+        "OpenCL version ${OpenCL_VERSION_STRING} is not supported, must be 1.2 or greater.")
+endif()
+
+add_definitions(-DCL_TARGET_OPENCL_VERSION=120)
 
 set(DNNL_GPU_RUNTIME_CURRENT ${DNNL_GPU_RUNTIME})
 include_directories(${OpenCL_INCLUDE_DIRS})

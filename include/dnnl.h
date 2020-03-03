@@ -26,6 +26,12 @@
 
 /// @cond DO_NOT_DOCUMENT_THIS
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+
+// Set target version for OpenCL explicitly to suppress a compiler warning.
+#ifndef CL_TARGET_OPENCL_VERSION
+#define CL_TARGET_OPENCL_VERSION 120
+#endif
+
 #include <CL/cl.h>
 #endif
 /// @endcond
