@@ -88,8 +88,6 @@ private:
     const prb_t *p_ = NULL;
 };
 
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
-
 inline void map_off_to_mb_ic(
         const prb_t *p, int64_t off, int64_t &mb, int64_t &ic) {
     for (int i = p->ndims - 1; i > 1; i--)

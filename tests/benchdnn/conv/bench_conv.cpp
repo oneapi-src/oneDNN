@@ -39,7 +39,6 @@ std::vector<int64_t> mb {0};
 alg_t alg = DIRECT;
 attr_t attr;
 const char *pattern = NULL;
-const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%name%,%dir%,%cfg%,%alg%,%attr%,%DESC%,"
@@ -59,7 +58,6 @@ void reset_parameters() {
     alg = DIRECT;
     attr = attr_t();
     pattern = NULL;
-    skip_impl = "";
     allow_unimpl = false;
 }
 
@@ -112,7 +110,6 @@ int bench(int argc, char **argv) {
                 || parse_single_value_option(alg, str2alg, argv[0], "alg")
                 || parse_mb(mb, argv[0]) || parse_attr(attr, argv[0])
                 || parse_test_pattern_match(pattern, argv[0])
-                || parse_skip_impl(skip_impl, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])

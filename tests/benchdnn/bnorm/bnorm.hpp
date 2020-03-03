@@ -112,7 +112,6 @@ private:
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 inline size_t data_off(const prb_t *p, int64_t mb, int64_t c, int64_t d,
         int64_t h, int64_t w) {

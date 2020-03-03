@@ -40,7 +40,6 @@ std::vector<int> bia_mask;
 
 attr_t attr;
 bool allow_unimpl;
-const char *skip_impl = "";
 const char *perf_template_csv
         = "perf,%engine%,%name%,%cfg%,%attr%,%DESC%,"
           "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
@@ -65,7 +64,6 @@ void reset_parameters() {
     bia_mask = {defaults::bia_mask};
     attr = attr_t();
     allow_unimpl = false;
-    skip_impl = "";
 }
 
 void check_correctness(const desc_t *c) {
@@ -148,7 +146,6 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(bia_mask, atoi, argv[0], "bia_mask")
                 || parse_attr(attr, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_skip_impl(skip_impl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])
                 || parse_reset(reset_parameters, argv[0]);

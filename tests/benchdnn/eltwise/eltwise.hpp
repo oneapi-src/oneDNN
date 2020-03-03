@@ -91,8 +91,6 @@ private:
     const prb_t *p_ = NULL;
 };
 
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
-
 bool check_extreme_values(const float &a, const float &b, alg_t alg);
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,

@@ -96,7 +96,6 @@ private:
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 inline int compute_n_summands(const prb_t *p) {
     if (p->alg == ACROSS) {

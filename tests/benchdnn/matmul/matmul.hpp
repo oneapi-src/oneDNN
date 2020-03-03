@@ -118,7 +118,6 @@ struct prb_t : public desc_t {
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 /* some extra control parameters which shouldn't be placed in prb_t */
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);

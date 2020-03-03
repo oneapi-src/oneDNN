@@ -128,9 +128,6 @@ bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
         const std::string &option_name = "scaling");
 
 // plain types
-bool parse_skip_impl(const char *&skip_impl, const char *str,
-        const std::string &option_name = "skip-impl");
-
 bool parse_allow_unimpl(bool &allow_unimpl, const char *str,
         const std::string &option_name = "allow-unimpl");
 

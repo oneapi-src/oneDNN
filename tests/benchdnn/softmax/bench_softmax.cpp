@@ -38,7 +38,6 @@ std::vector<int64_t> mb {0};
 std::vector<bool> inplace {true};
 
 dims_t dims;
-const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%axis%,%DESC%,%-time%,%0time%";
@@ -53,7 +52,6 @@ void reset_parameters() {
     axis = {1};
     mb = {0};
     inplace = {true};
-    skip_impl = "";
     allow_unimpl = false;
 }
 
@@ -96,7 +94,7 @@ int bench(int argc, char **argv) {
                 || parse_dt(dt, argv[0]) || parse_tag(tag, argv[0])
                 || parse_vector_option(alg, str2alg, argv[0], "alg")
                 || parse_axis(axis, argv[0]) || parse_inplace(inplace, argv[0])
-                || parse_mb(mb, argv[0]) || parse_skip_impl(skip_impl, argv[0])
+                || parse_mb(mb, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])

@@ -126,8 +126,6 @@ private:
     const prb_t *p_ = NULL;
 };
 
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
-
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
         dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,

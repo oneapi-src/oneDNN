@@ -137,7 +137,6 @@ private:
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
 extern bool allow_unimpl; /* true means do not treat unimplemented as error */
 
 inline int64_t src_off_f(const prb_t *p, int64_t mb, int64_t ic, int64_t id,

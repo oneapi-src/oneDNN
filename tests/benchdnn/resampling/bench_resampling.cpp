@@ -38,7 +38,6 @@ std::vector<std::string> tag {tag::abx};
 std::vector<alg_t> alg {nearest};
 std::vector<int64_t> mb {0};
 
-const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%name%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%0time%";
@@ -51,7 +50,6 @@ void reset_parameters() {
     mb = {0};
     tag = {tag::abx};
     alg = {nearest};
-    skip_impl = "";
     allow_unimpl = false;
 }
 
@@ -91,7 +89,7 @@ int bench(int argc, char **argv) {
                 || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
                 || parse_dt(dt, argv[0]) || parse_tag(tag, argv[0])
                 || parse_vector_option(alg, str2alg, argv[0], "alg")
-                || parse_mb(mb, argv[0]) || parse_skip_impl(skip_impl, argv[0])
+                || parse_mb(mb, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])

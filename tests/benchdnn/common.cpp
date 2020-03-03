@@ -361,7 +361,7 @@ bool match_regex(const char *str, const char *pattern) {
 }
 #endif /* _WIN32 */
 
-bool maybe_skip(const char *skip_impl, const char *impl_str) {
+bool maybe_skip(const char *impl_str) {
     if (skip_impl == NULL || *skip_impl == '\0') return false;
 
     const std::string impl(impl_str);

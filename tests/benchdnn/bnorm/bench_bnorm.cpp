@@ -43,7 +43,6 @@ std::vector<bool> inplace {true};
 check_alg_t check_alg = ALG_AUTO;
 attr_t attr;
 const char *pattern = NULL;
-const char *skip_impl = "";
 bool allow_unimpl = false;
 const char *perf_template_csv
         = "perf,%engine%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%DESC%,"
@@ -61,7 +60,6 @@ void reset_parameters() {
     check_alg = ALG_AUTO;
     attr = attr_t();
     pattern = NULL;
-    skip_impl = "";
     allow_unimpl = false;
 }
 
@@ -110,7 +108,6 @@ int bench(int argc, char **argv) {
                 || parse_inplace(inplace, argv[0]) || parse_mb(mb, argv[0])
                 || parse_attr(attr, argv[0])
                 || parse_test_pattern_match(pattern, argv[0])
-                || parse_skip_impl(skip_impl, argv[0])
                 || parse_allow_unimpl(allow_unimpl, argv[0])
                 || parse_perf_template(perf_template, perf_template_def,
                         perf_template_csv, argv[0])
