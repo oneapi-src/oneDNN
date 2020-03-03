@@ -31,164 +31,260 @@
 
 #if DT_F32 == 1
 #define DATA_T float
+#define DATA2_T float2
+#define DATA4_T float4
 #define DATA8_T float8
 #define DATA_MAX FLT_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0f
 #define DATA_ONE 1.0f
 #define DEF_ACC_DATA_T float
+#define DEF_ACC_DATA2_T float2
+#define DEF_ACC_DATA4_T float4
 #define DEF_ACC_DATA8_T float8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (float)(v)
 #define TO_DEF_ACC_DATA_T(v) (float)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_float
+#define CONVERT_DATA2_T convert_float2
+#define CONVERT_DATA4_T convert_float4
 #define CONVERT_DATA8_T convert_float8
 #define CONVERT_FLOAT_T convert_float
+#define CONVERT_FLOAT2_T convert_float2
+#define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
 #define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read
 #define BLOCK_WRITE intel_sub_group_block_write
+#define BLOCK_READ2 intel_sub_group_block_read2
+#define BLOCK_READ4 intel_sub_group_block_read4
 #define BLOCK_READ8 intel_sub_group_block_read8
+#define BLOCK_WRITE2 intel_sub_group_block_write2
+#define BLOCK_WRITE4 intel_sub_group_block_write4
 #define BLOCK_WRITE8 intel_sub_group_block_write8
 
 #define AS_DATA_T as_float
+#define AS_DATA2_T as_float2
+#define AS_DATA4_T as_float4
 #define AS_DATA8_T as_float8
 
 #define AS_UINT_T as_uint
+#define AS_UINT2_T as_uint2
+#define AS_UINT4_T as_uint4
 #define AS_UINT8_T as_uint8
 
 #define BLOCK_DATA_T uint
+#define BLOCK_DATA2_T uint2
+#define BLOCK_DATA4_T uint4
 #define BLOCK_DATA8_T uint8
 #define AS_BLOCK_DATA_T as_uint
+#define AS_BLOCK_DATA2_T as_uint2
+#define AS_BLOCK_DATA4_T as_uint4
 #define AS_BLOCK_DATA8_T as_uint8
 #elif DT_F16 == 1
 
 #define DATA_T half
+#define DATA2_T half2
+#define DATA4_T half4
 #define DATA8_T half8
 #define DATA_MAX HALF_MAX
 #define DATA_MIN -DATA_MAX
 #define DATA_ZERO 0.0h
 #define DATA_ONE 1.0h
 #define DEF_ACC_DATA_T half
+#define DEF_ACC_DATA2_T half2
+#define DEF_ACC_DATA4_T half4
 #define DEF_ACC_DATA8_T half8
 #define POST_OP_DATA_T half
 #define TO_DATA_T(v) (half)(v)
 #define TO_DEF_ACC_DATA_T(v) (half)(v)
 #define DATA_TO_REF convert_half
 #define CONVERT_DATA_T convert_half
+#define CONVERT_DATA2_T convert_half2
+#define CONVERT_DATA4_T convert_half4
 #define CONVERT_DATA8_T convert_half8
 #define CONVERT_FLOAT_T convert_float
+#define CONVERT_FLOAT2_T convert_float2
+#define CONVERT_FLOAT4_T convert_float4
 #define CONVERT_FLOAT8_T convert_float8
 #define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
+#define BLOCK_READ2 intel_sub_group_block_read_us2
+#define BLOCK_READ4 intel_sub_group_block_read_us4
 #define BLOCK_READ8 intel_sub_group_block_read_us8
+#define BLOCK_WRITE2 intel_sub_group_block_write_us2
+#define BLOCK_WRITE4 intel_sub_group_block_write_us4
 #define BLOCK_WRITE8 intel_sub_group_block_write_us8
 #define AS_DATA_T as_half
+#define AS_DATA2_T as_half2
+#define AS_DATA4_T as_half4
 #define AS_DATA8_T as_half8
 
 #define AS_UINT_T as_ushort
+#define AS_UINT2_T as_ushort2
+#define AS_UINT4_T as_ushort4
 #define AS_UINT8_T as_ushort8
 
 #define BLOCK_DATA_T ushort
+#define BLOCK_DATA2_T ushort2
+#define BLOCK_DATA4_T ushort4
 #define BLOCK_DATA8_T ushort8
 #define AS_BLOCK_DATA_T as_ushort
+#define AS_BLOCK_DATA2_T as_ushort2
+#define AS_BLOCK_DATA4_T as_ushort4
 #define AS_BLOCK_DATA8_T as_ushort8
 #elif DT_BF16 == 1
 #define DATA_T ushort
 #define POST_OP_DATA_T float
+#define DATA2_T ushort2
+#define DATA4_T ushort4
 #define DATA8_T ushort8
 #define DATA_MAX as_float(0x7f7f0000)
 #define DATA_MIN (-DATA_MAX)
 #define DATA_ZERO 0.0f
 #define DATA_ONE 1.0f
 #define DEF_ACC_DATA_T float
+#define DEF_ACC_DATA2_T float2
+#define DEF_ACC_DATA4_T float4
 #define DEF_ACC_DATA8_T float8
 #define TO_DATA_T(v) convert_f32_to_bf16(v)
 #define TO_DEF_ACC_DATA_T(v) convert_bf16_to_f32(v)
 #define DATA_TO_REF convert_bf16_to_f32
 #define CONVERT_DATA_T convert_f32_to_bf16
+#define CONVERT_DATA2_T convert_f32_to_bf16_vec2
+#define CONVERT_DATA4_T convert_f32_to_bf16_vec4
 #define CONVERT_DATA8_T convert_f32_to_bf16_vec8
 #define CONVERT_FLOAT_T convert_bf16_to_f32
+#define CONVERT_FLOAT2_T convert_bf16_to_f32_vec2
+#define CONVERT_FLOAT4_T convert_bf16_to_f32_vec4
 #define CONVERT_FLOAT8_T convert_bf16_to_f32_vec8
 #define ROUND
 
 #define BLOCK_READ intel_sub_group_block_read_us
 #define BLOCK_WRITE intel_sub_group_block_write_us
+#define BLOCK_READ2 intel_sub_group_block_read_us2
+#define BLOCK_READ4 intel_sub_group_block_read_us4
 #define BLOCK_READ8 intel_sub_group_block_read_us8
+#define BLOCK_WRITE2 intel_sub_group_block_write_us2
+#define BLOCK_WRITE4 intel_sub_group_block_write_us4
 #define BLOCK_WRITE8 intel_sub_group_block_write_us8
 #define AS_DATA_T as_ushort
+#define AS_DATA2_T as_ushort2
+#define AS_DATA4_T as_ushort4
 #define AS_DATA8_T as_ushort8
 
 #define AS_UINT_T as_ushort
+#define AS_UINT2_T as_ushort2
+#define AS_UINT4_T as_ushort4
 #define AS_UINT8_T as_ushort8
 
 #define BLOCK_DATA_T ushort
+#define BLOCK_DATA2_T ushort2
+#define BLOCK_DATA4_T ushort4
 #define BLOCK_DATA8_T ushort8
 #define AS_BLOCK_DATA_T as_ushort
+#define AS_BLOCK_DATA2_T as_ushort2
+#define AS_BLOCK_DATA4_T as_ushort4
 #define AS_BLOCK_DATA8_T as_ushort8
 #elif DT_S8 == 1
 #define DATA_T char
+#define DATA2_T char2
+#define DATA4_T char4
 #define DATA8_T char8
 #define DATA_MAX CHAR_MAX
 #define DATA_MIN CHAR_MIN
 #define DATA_ZERO 0
 #define DATA_ONE 1
 #define DEF_ACC_DATA_T int
+#define DEF_ACC_DATA2_T int2
+#define DEF_ACC_DATA4_T int4
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (char)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_char_sat_rte
+#define CONVERT_DATA2_T convert_char2_sat_rte
+#define CONVERT_DATA4_T convert_char4_sat_rte
 #define CONVERT_DATA8_T convert_char8_sat_rte
 #define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
+#define BLOCK_READ2 intel_sub_group_block_read_uc2
+#define BLOCK_READ4 intel_sub_group_block_read_uc4
 #define BLOCK_READ8 intel_sub_group_block_read_uc8
+#define BLOCK_WRITE2 intel_sub_group_block_write_uc2
+#define BLOCK_WRITE4 intel_sub_group_block_write_uc4
 #define BLOCK_WRITE8 intel_sub_group_block_write_uc8
 #define AS_DATA_T as_char
+#define AS_DATA2_T as_char2
+#define AS_DATA4_T as_char4
 #define AS_DATA8_T as_char8
 
 #define AS_UINT_T as_uchar
+#define AS_UINT2_T as_uchar2
+#define AS_UINT4_T as_uchar4
 #define AS_UINT8_T as_uchar8
 
 #define BLOCK_DATA_T uchar
+#define BLOCK_DATA2_T uchar2
+#define BLOCK_DATA4_T uchar4
 #define BLOCK_DATA8_T uchar8
 #define AS_BLOCK_DATA_T as_uchar
+#define AS_BLOCK_DATA2_T as_uchar2
+#define AS_BLOCK_DATA4_T as_uchar4
 #define AS_BLOCK_DATA8_T as_uchar8
 #elif DT_U8 == 1
 #define DATA_T uchar
+#define DATA2_T uchar2
+#define DATA4_T uchar4
 #define DATA8_T uchar8
 #define DATA_MAX UCHAR_MAX
 #define DATA_MIN 0
 #define DATA_ZERO 0
 #define DATA_ONE 1
 #define DEF_ACC_DATA_T int
+#define DEF_ACC_DATA2_T int2
+#define DEF_ACC_DATA4_T int4
 #define DEF_ACC_DATA8_T int8
 #define POST_OP_DATA_T float
 #define TO_DATA_T(v) (uchar)(v)
 #define DATA_TO_REF convert_float
 #define CONVERT_DATA_T convert_uchar_sat_rte
+#define CONVERT_DATA2_T convert_uchar2_sat_rte
+#define CONVERT_DATA4_T convert_uchar4_sat_rte
 #define CONVERT_DATA8_T convert_uchar8_sat_rte
 #define ROUND rint
 
 #define BLOCK_READ intel_sub_group_block_read_uc
 #define BLOCK_WRITE intel_sub_group_block_write_uc
+#define BLOCK_READ2 intel_sub_group_block_read_uc2
+#define BLOCK_READ4 intel_sub_group_block_read_uc4
 #define BLOCK_READ8 intel_sub_group_block_read_uc8
+#define BLOCK_WRITE2 intel_sub_group_block_write_uc2
+#define BLOCK_WRITE4 intel_sub_group_block_write_uc4
 #define BLOCK_WRITE8 intel_sub_group_block_write_uc8
 #define AS_DATA_T as_uchar
+#define AS_DATA2_T as_uchar2
+#define AS_DATA4_T as_uchar4
 #define AS_DATA8_T as_uchar8
 
 #define AS_UINT_T as_uchar
+#define AS_UINT2_T as_uchar2
+#define AS_UINT4_T as_uchar4
 #define AS_UINT8_T as_uchar8
 
 #define BLOCK_DATA_T uchar
+#define BLOCK_DATA2_T uchar2
+#define BLOCK_DATA4_T uchar4
 #define BLOCK_DATA8_T uchar8
 #define AS_BLOCK_DATA_T as_uchar
+#define AS_BLOCK_DATA2_T as_uchar2
+#define AS_BLOCK_DATA4_T as_uchar4
 #define AS_BLOCK_DATA8_T as_uchar8
 #elif DT_S32 == 1
 #define DATA_T int
@@ -216,6 +312,43 @@
 #define VECT_FLOAT_T float
 #define AS_VECT_INT_T as_int
 #define AS_VECT_UINT_T as_uint
+#define AS_VECT_FLOAT_T as_float
+#elif VECT_DT_N == 2
+#define VECT_DATA_T DATA2_T
+#define VECT_DEF_ACC_DATA_T DEF_ACC_DATA2_T
+#define AS_VECT_DATA_T AS_DATA2_T
+#define VECT_BLOCK_READ BLOCK_READ2
+#define VECT_BLOCK_WRITE BLOCK_WRITE2
+#define VECT_UINT_READ intel_sub_group_block_read2
+#define VECT_UINT_WRITE intel_sub_group_block_write2
+#define VECT_BLOCK_DATA_T BLOCK_DATA2_T
+#define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA2_T
+#define CONVERT_VECT_FLOAT_T CONVERT_FLOAT2_T
+#define CONVERT_VECTOR_DATA_T CONVERT_DATA2_T
+#define VECT_INT_T int2
+#define VECT_UINT_T uint2
+#define VECT_FLOAT_T float2
+#define AS_VECT_INT_T as_int2
+#define AS_VECT_UINT_T as_uint2
+#define AS_VECT_FLOAT_T as_float2
+#elif VECT_DT_N == 4
+#define VECT_DATA_T DATA4_T
+#define VECT_DEF_ACC_DATA_T DEF_ACC_DATA4_T
+#define AS_VECT_DATA_T AS_DATA4_T
+#define VECT_BLOCK_READ BLOCK_READ4
+#define VECT_BLOCK_WRITE BLOCK_WRITE4
+#define VECT_UINT_READ intel_sub_group_block_read4
+#define VECT_UINT_WRITE intel_sub_group_block_write4
+#define VECT_BLOCK_DATA_T BLOCK_DATA4_T
+#define AS_VECT_BLOCK_DATA_T AS_BLOCK_DATA4_T
+#define CONVERT_VECT_FLOAT_T CONVERT_FLOAT4_T
+#define CONVERT_VECTOR_DATA_T CONVERT_DATA4_T
+#define VECT_INT_T int4
+#define VECT_UINT_T uint4
+#define VECT_FLOAT_T float4
+#define AS_VECT_INT_T as_int4
+#define AS_VECT_UINT_T as_uint4
+#define AS_VECT_FLOAT_T as_float4
 #elif VECT_DT_N == 8
 #define VECT_DATA_T DATA8_T
 #define VECT_DEF_ACC_DATA_T DEF_ACC_DATA8_T
@@ -233,6 +366,7 @@
 #define VECT_FLOAT_T float8
 #define AS_VECT_INT_T as_int8
 #define AS_VECT_UINT_T as_uint8
+#define AS_VECT_FLOAT_T as_float8
 #endif
 
 #ifdef SRC_DATA_T

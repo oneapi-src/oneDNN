@@ -14,13 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#define IC_BLOCK 16
+#if USE_NHWC
+
+#define VECT_DT_N IC_BLOCK
+
+#else
 
 #if MB_BLOCK == 16
 #define MB16
 #define VECT_DT_N 8
 #else
 #define VECT_DT_N 1
+#endif
+
 #endif
 
 #include "gpu/ocl/ocl_types.h"
@@ -146,8 +152,58 @@ KERNEL_ATTR
 __kernel void ref_bnorm_fwd(__global DATA_T *src, __global float *mean,
         __global float *variance, __global DATA_T *dst,
         __global float *scaleshift, __global int *ws, float eps) {
+#if USE_NHWC == 1
+    const int sp = GWS_GET_SP();
+    const int c = GWS_GET_IC() * IC_BLOCK;
 
-#if USE_16MB_UNROLL == 1
+#if SAVE_STATS == 0 && CALCULATE_STATS == 1
+    variance += IC;
+#endif
+
+    const uint d_off = sp * IC + c;
+    src += d_off;
+    dst += d_off;
+
+    VECT_FLOAT_T blockS0 = CONVERT_VECT_FLOAT_T(AS_VECT_DATA_T(
+            VECT_BLOCK_READ((const __global BLOCK_DATA_T *)&src[0])));
+
+#if USE_SCALESHIFT == 1
+    const VECT_FLOAT_T sm = AS_VECT_FLOAT_T(
+            VECT_UINT_READ((const __global VECT_UINT_T *)(scaleshift + c)));
+    const VECT_FLOAT_T sv = AS_VECT_FLOAT_T(VECT_UINT_READ(
+            (const __global VECT_UINT_T *)(scaleshift + c + IC)));
+#else
+    const float sm = 1.0f;
+    const float sv = 0.0f;
+#endif
+
+    VECT_FLOAT_T v_mean = AS_VECT_FLOAT_T(
+            VECT_UINT_READ((const __global VECT_UINT_T *)&mean[c]));
+    VECT_FLOAT_T v_variance = AS_VECT_FLOAT_T(
+            VECT_UINT_READ((const __global VECT_UINT_T *)&variance[c]));
+
+    VECT_FLOAT_T sqrt_variance = sm / sqrt(v_variance + eps);
+
+    VECT_FLOAT_T blockD0 = fma(blockS0 - (VECT_FLOAT_T)v_mean,
+            (VECT_FLOAT_T)sqrt_variance, (VECT_FLOAT_T)sv);
+
+#if FUSE_BN_RELU == 1
+    VECT_INT_T blockWS0 = isgreater(blockD0, (VECT_FLOAT_T)0.0f);
+    blockD0 = select((VECT_FLOAT_T)0.0f, blockD0, blockWS0);
+#if IS_TRAINING == 1
+    ws += d_off;
+    VECT_UINT_WRITE((__global uint *)&ws[0], AS_VECT_UINT_T(blockWS0));
+#endif
+#endif
+
+#if WITH_RELU
+    blockD0 = max(blockD0, (VECT_FLOAT_T)0.0f);
+#endif
+
+    VECT_BLOCK_WRITE((__global BLOCK_DATA_T *)&dst[0],
+            AS_VECT_BLOCK_DATA_T(CONVERT_VECTOR_DATA_T(blockD0)));
+
+#elif USE_16MB_UNROLL == 1
     const int n = GWS_GET_MB();
     const int c = GWS_GET_IC();
     const int d = GWS_GET_ID();

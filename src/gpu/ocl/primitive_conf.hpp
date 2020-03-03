@@ -310,10 +310,10 @@ struct bnorm_conf_t {
     data_type_t data_type;
 
     int ndims;
-    int mb, ic, mb_block;
+    int mb, ic, mb_block, ic_block;
     int reduce_stat_nblocks;
     int id, ih, iw;
-    bool with_relu, use_16mb_unroll;
+    bool with_relu, use_16mb_unroll, use_nhwc;
     bool is_forward, is_backward;
     bool use_scaleshift, save_stats, is_training;
     bool fuse_norm_relu, calculate_stats, calculate_diff_stats;

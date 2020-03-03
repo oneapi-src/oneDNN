@@ -68,15 +68,44 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(pd->engine());
 
+    conf.use_16mb_unroll = 0;
+    conf.use_nhwc = 0;
+    conf.mb_block = 1;
+    conf.ic_block = 1;
+
     const bool has_padding = !data_mdw.is_dense();
-    if (!has_padding
+    if (!has_padding && conf.is_forward && !conf.calculate_stats
+            && (conf.ic % 16) == 0
+            && data_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)) {
+        conf.use_nhwc = 1;
+
+        const size_t sp = conf.mb * conf.id * conf.ih * conf.iw;
+        const size_t num_ic_blocks = conf.ic / 16;
+
+        auto *dev_info = compute_engine->device_info();
+        size_t hw_threads = dev_info->hw_threads();
+
+        conf.ic_block = 8;
+        while ((num_ic_blocks & (conf.ic_block - 1)) != 0)
+            conf.ic_block >>= 1;
+
+        if (num_ic_blocks / conf.ic_block * sp < hw_threads) {
+            conf.ic_block = 1;
+        }
+
+        conf.dispatch = compute_engine->create_dispatch(data_mdw.md_);
+        conf.dispatch.define_dim("SP", 0, sp);
+        conf.dispatch.define_dim("IC", 1, conf.ic / conf.ic_block);
+        conf.dispatch.vectorize_dim("IC", 16);
+        conf.dispatch.generate();
+    } else if (!has_padding
             && data_mdw.matches_one_of_tag(nCw16c, nChw16c, nCdhw16c, NCw16n16c,
                     NChw16n16c, NCdhw16n16c)) {
         conf.mb_block = data_mdw.matches_one_of_tag(
                                 NCw16n16c, NChw16n16c, NCdhw16n16c)
                 ? 16
                 : 1;
-
+        conf.ic_block = 16;
         conf.use_16mb_unroll = 1;
 
         const int max_stat_nblocks = 256;
@@ -115,8 +144,6 @@ static status_t init_conf_common(bnorm_conf_t &conf, offsets_t &off,
         conf.dispatch.generate();
     } else {
         // Reference
-        conf.use_16mb_unroll = 0;
-        conf.mb_block = 1;
         conf.dispatch = compute_engine->create_dispatch();
         conf.dispatch.define_dim("IC", conf.ic);
         conf.dispatch.generate();
@@ -136,8 +163,10 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
     kernel_ctx.define_int("USE_16MB_UNROLL", conf.use_16mb_unroll);
+    kernel_ctx.define_int("USE_NHWC", conf.use_nhwc);
     kernel_ctx.define_int("REDUCE_STAT_NBLOCKS", conf.reduce_stat_nblocks);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
+    kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
 
     if (conf.is_forward)
         kernel_ctx.define_int("IS_FWD", 1);
