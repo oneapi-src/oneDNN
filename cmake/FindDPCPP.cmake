@@ -42,9 +42,11 @@ if(sycl_root_hints)
 endif()
 
 # XXX: workaround to use OpenCL from DPC++ package
-set(DPCPP_COMPILER_VERSION 10.0.0)
+set(DPCPP_COMPILER_VERSION 11.0.0)
 
 if(DEFINED ENV{DPCPP_ROOT})
+    list(INSERT CMAKE_PREFIX_PATH 0
+        $ENV{DPCPP_ROOT}/compiler/latest/${dpcpp_os}/lib/clang/10.0.0)
     list(INSERT CMAKE_PREFIX_PATH 0
         $ENV{DPCPP_ROOT}/compiler/latest/${dpcpp_os}/lib/clang/${DPCPP_COMPILER_VERSION})
 endif()
@@ -68,6 +70,7 @@ find_path(DPCPP_INCLUDE_DIRS
     PATH_SUFFIXES
         include
         lib/clang/${DPCPP_COMPILER_VERSION}/include
+        lib/clang/10.0.0/include
     NO_DEFAULT_PATH)
 
 find_library(DPCPP_LIBRARIES
