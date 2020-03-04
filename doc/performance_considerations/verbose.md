@@ -63,3 +63,18 @@ DNNL_VERBOSE output to tune DNNL code to align with
 @warning
 Verbose mode has non-negligible performance impact especially if the output
 rate is high.
+
+Extended verbosity engine debug [advanced]
+------------------------------------------
+
+Additional debug code is enabled for a `cmake -DDNNL_VERBOSE=EXTRA` build.
+This adds addtional verbosity levels to debug which implementations got skipped
+and some layers can be instrumented with code saying why they were skipped.
+Extra verbosity is enabled by default for debug builds, and the DNNL_VERBOSE
+environment variable now understands these values:
+
+| Value | Behavior
+| :- | :----
+| 3  | print unimimplemented`info, and maybe a reason for skipping
+| 4  | print even more implementations that were skipped
+Note: some features of DNNL_VERBOSE=EXTRA are not mainline yet.

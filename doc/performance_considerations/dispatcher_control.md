@@ -12,7 +12,7 @@ The environment variable can be set to an upper-case name of the ISA as
 defined by the `dnnl::cpu_isa` enumeration. For example,
 `DNNL_MAX_CPU_ISA=AVX2` will instruct DNNL to never dispatch to JIT-ed CPU
 primitive implementations that require ISA 'higher' than AVX2 like AVX512.
-The `DNNL_MAX_CPU_ISA=ALL` setting implies no restrictions.
+The `DNNL_MAX_CPU_ISA=FULL` setting implies no restrictions.
 
 The `dnnl::set_max_cpu_isa()` function allows changing the ISA at run-time.
 The limitation is that, it is possible to set the value only before the first
@@ -21,3 +21,12 @@ observe consistent CPU features both during generation and execution.
 
 This feature can be enabled or disabled at build time. See @ref
 dev_guide_build_options for more information.
+
+Environment setting `DNNL_MAX_CPU_ISA=VANILLA` and `FULL` apply to both x86
+and non-x86 systems.  The ordering of feature sets looks like:
+
+VANILLA --> ANY --> cpu-specific ... --> FULL
+
+- VANILLA is cross-platform code
+- ANY use the most basic features of the chipset
+- FULL uses the fullest set of features

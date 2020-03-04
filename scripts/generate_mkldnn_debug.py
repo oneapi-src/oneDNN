@@ -282,6 +282,10 @@ Input types.xml file can be obtained with CastXML[1]:
 $ castxml --castxml-cc-gnu-c clang --castxml-output=1 \\
         include/dnnl_types.h -o types.xml
 
+Older castxml might fare better with something like:
+$ castxml --castxml-cc-gnu-c clang -std=c89 --castxml-gccxml \\
+        include/dnnl_types.h -o types.xml
+
 [1] https://github.com/CastXML/CastXML''' % sys.argv[0])
     sys.exit(1)
 

@@ -14,7 +14,11 @@
 # limitations under the License.
 #===============================================================================
 
-cmake_minimum_required(VERSION 2.8.11)
+if (CMAKE_TOOLCHAIN_FILE)
+    cmake_minimum_required(VERSION 3.8) # nice Platform/ support
+else()
+    cmake_minimum_required(VERSION 2.8.11)
+endif()
 
 if(POLICY CMP0022)
     cmake_policy(SET CMP0022 NEW)
@@ -83,7 +87,11 @@ set(CMAKE_SRC_CCXX_FLAGS)       # SRC specifics
 set(CMAKE_EXAMPLE_CCXX_FLAGS)   # EXAMPLE specifics
 set(CMAKE_TEST_CCXX_FLAGS)      # TESTS specifics
 
-if(UNIX OR MINGW)
+if(NECVE) # toolchains may want minor mods
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
+    #string(APPEND CMAKE_CXX_FLAGS " -minit-stack=0xBad4Face")
+elseif(UNIX OR MINGW)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 endif()
@@ -98,9 +106,13 @@ include("cmake/OpenCL.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/MKL.cmake")
+include("cmake/cblas.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 include("cmake/coverage.cmake")
+if(NECVE) # toolchains may want additional help with cmake
+    #include("cmake/asm.cmake") # annotated assembler?
+endif()
 
 # Handle cases when OpenMP runtime is requested but not found: override CPU
 # runtime to be sequential
@@ -113,6 +125,10 @@ enable_testing()
 
 include_directories(include)
 
+# Prepare build variables for export to config.h, and format a final
+# DNNL_BUILD_TARGET string recording non-default build options.
+include("cmake/options-config.cmake")
+message(STATUS "DNNL_BUILD_STRING ${DNNL_BUILD_STRING}")
 configure_file(
     "${PROJECT_SOURCE_DIR}/include/dnnl_config.h.in"
     "${PROJECT_BINARY_DIR}/include/dnnl_config.h"
@@ -145,4 +161,9 @@ else()
     install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
     install(FILES THIRD-PARTY-PROGRAMS DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
     install(FILES ${PROJECT_BINARY_DIR}/README DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_NAME})
+endif()
+
+if(NECVE) # toolchain debug -- check that cmake found reasonable settings
+    message(STATUS, "Supported cmake feature checks:\n${CMAKE_CXX_COMPILE_FEATURES}")
+    show_cmake_stuff("At end of CMakeLists.txt")
 endif()
