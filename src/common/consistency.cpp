@@ -19,10 +19,12 @@ namespace dnnl {
 namespace impl {
 
 void Consistency::show(CondLocV const &cl) const {
+#if DNNL_VERBOSE_EXTRA /* this function will never be called by operator&& */
     if (dnnl_get_verbose() >= 3) {
         printf(" %s [%s:%d] %s\n", pfx, cl.file, cl.line, cl.cond_msg);
         fflush(stdout);
     }
+#endif
 }
 
 void Consistency::show(CondLocVV const &cl) const {

@@ -168,7 +168,7 @@ set(DNNL_VERBOSE "${DEFAULT_DNNL_VERBOSE}" CACHE STRING
     1, 2 become active.  Adds some runtime overhead.
     Release mode build default to DEFAULT verbosity.
     
-    EXTRA adds even more runtime overhead, and adds vebose levels 3,4(,5?).
+    EXTRA adds even more runtime overhead, and adds verbose levels 3,4(,5?).
     These also trace unsuccessful cpu_engine primitive creation.
     Some implementations may print a reason they were skipped.
     Debug mode builds default to EXTRA verbosity."

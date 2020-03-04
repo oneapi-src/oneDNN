@@ -15,7 +15,6 @@ DNNL supports the following build-time options.
 | DNNL_ENABLE_JIT_PROFILING   | **ON**, OFF                         | Enables integration with Intel(R) VTune(TM) Amplifier
 | DNNL_ENABLE_PRIMITIVE_CACHE | ON, **OFF**                         | Enables primitive cache
 | DNNL_ENABLE_MAX_CPU_ISA     | **ON**, OFF                         | Enables controlling CPU dispatcher at run-time
-| DNNL_ENABLE_MAX_CPU_ISA_VANILLA | **OFF**, ON                     | Enables extra support for CPU dispatch to VANILLA
 
 All other building options that can be found in CMake files are dedicated for
 the development/debug purposes and are subject to change without any notice.
@@ -60,10 +59,7 @@ DNNL JIT relies on ISA features obtained from the processor it is being run on.
 There are situations when it is necessary to control this behavior at run-time
 to, for example, test SSE4.1 code on an AVX2-capable processor. The
 `DNNL_ENABLE_MAX_CPU_ISA` build option controls the availability of this
-feature.  To include extra reference implementations to CPU dispatch to VANILLA
-C/C++ reference implementations (including dnnl's reference gemm), please
-configure with `DNNL_ENABLE_MAX_CPU_ISA_VANILLA`.  See @ref
-dev_guide_cpu_dispatcher_control for more information.
+feature. See @ref dev_guide_cpu_dispatcher_control for more information.
 
 ### Runtimes
 CPU engine can use OpenMP, TBB or sequential threading runtimes. OpenMP
@@ -125,18 +121,18 @@ The default x86 build uses `cmake -DCPU_ISA=ALL`, which provides Intel DNNL
 provides a well designed API appropriate for consideration on non-x86 systems.
 Firstly, you can build a reference-only version of libdnnl with no xbyak JIT
 support using `cmake -DCPU_ISA=VANILLA`.  Secondly, you create a fork/branch,
-add a cmake toolchain file, adjust compiler flags and tweak a few files source
-files adding support for your new CMAKE_SYSTEM_PROCESSOR and cross-compile with
-a configuration something like:
+add a cmake toolchain file, adjust compiler flags and tweak a few source
+files (use your new TARGET_mycpu preprocessor boolean as required).
+Cross-compile with a configuration something like:
 
 ~~~
 cmake -DTOOLCHAIN_FILE=cmake/mycpu.cmake -DCPU_ISA=VANILLA ..
 ~~~
 
-You will need add support for your CPU to a few files (dnnl_config.h.in,
-cpu_isa_traits).  Begin optimizing the VANILLA build by adjusting variables
-like cache and page sizes, alignment restrictions, optimization-related macros
-(OpenMP support has wide variations), etc.
+You will need add support for your CPU to a few files (dnnl_config.h.in, and
+eventually cpu_isa_traits).  Begin optimizing the VANILLA build by adjusting
+variables like cache and page sizes, alignment restrictions,
+optimization-related macros (OpenMP support has wide variations), etc.
 
 CPU_ISA config values have 3 cross-platform values, VANILLA, ANY and ALL.  You
 may begin with all equivalent.  ANY must run on the lowest variation of your chip,

@@ -28,5 +28,5 @@ and non-x86 systems.  The ordering of feature sets looks like:
 VANILLA --> ANY --> cpu-specific ... --> FULL
 
 - VANILLA is cross-platform code
-- ANY use the most basic features of the chipset
+- ANY use the most basic features (for completeness, useless for x86)
 - FULL uses the fullest set of features

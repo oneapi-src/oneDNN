@@ -30,7 +30,7 @@
  * after prefixing a for loop with an OpenMP macro.
  */
 //#define ENABLE_OPT_PRAGMAS 0 /* may help debug */
-#define ENABLE_OPT_PRAGMAS 1 /* old default (auto-determine) */
+#define ENABLE_OPT_PRAGMAS 1 /* old default (auto-determine?) */
 #endif
 
 #ifdef _MSC_VER // uses __pragma takes an unquoted arg UNTESTED (see z_magic.hpp)
@@ -144,7 +144,7 @@
 #define SIMD(...)
 
 #else /* A new system might begin by ignoring the optimization pragmas */
-#if ENABLE_OPT_PRAGMS
+#if ENABLE_OPT_PRAGMAS
 #warning "Please check if _Pragma macros can be defined for this platorm"
 #endif
 #define IVDEP()

@@ -1,4 +1,7 @@
-
+/** Expansion on ideas from Niels Dekker's large test suite for
+ * boost::value_initialized.
+ * \sa https://www.boost.org/doc/libs/1_60_0/libs/utility/value_init.htm
+ */
 #include <stdint.h>
 #include <type_traits>
 #include <iostream>

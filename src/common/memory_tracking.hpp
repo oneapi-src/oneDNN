@@ -293,9 +293,9 @@ struct registry_t {
 
 protected:
 #if TARGET_VE // other cpu may have lower alignment possible
-    enum { minimal_alignment = 128 };
-#else // x86 default
     enum { minimal_alignment = 16 };
+#else // x86 default
+    enum { minimal_alignment = 128 };
 #endif
     struct entry_t {
         size_t offset, size, capacity, alignment;
@@ -306,7 +306,11 @@ protected:
 };
 
 struct registrar_t {
+#if TARGET_VE // other cpu may have lower alignment possible
+    enum { default_alignment = 16 };
+#else // x86 default
     enum { default_alignment = 128 };
+#endif
 
     registrar_t(registry_t &registry) : registry_(registry), prefix_(0) {}
     registrar_t(registrar_t &parent, const key_t &prefix)
