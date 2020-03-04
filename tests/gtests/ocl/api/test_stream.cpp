@@ -104,8 +104,13 @@ TEST_F(ocl_stream_test_c, BasicInteropC) {
             "OpenCL GPU devices not found.");
 
     cl_int err;
+#ifdef CL_VERSION_2_0
+    cl_command_queue interop_ocl_queue = clCreateCommandQueueWithProperties(
+            ocl_ctx, ocl_dev, nullptr, &err);
+#else
     cl_command_queue interop_ocl_queue
             = clCreateCommandQueue(ocl_ctx, ocl_dev, 0, &err);
+#endif
     OCL_CHECK(err);
 
     dnnl_stream_t stream;
@@ -136,8 +141,13 @@ TEST_F(ocl_stream_test_cpp, BasicInteropC) {
             "OpenCL GPU devices not found.");
 
     cl_int err;
+#ifdef CL_VERSION_2_0
+    cl_command_queue interop_ocl_queue = clCreateCommandQueueWithProperties(
+            ocl_ctx, ocl_dev, nullptr, &err);
+#else
     cl_command_queue interop_ocl_queue
             = clCreateCommandQueue(ocl_ctx, ocl_dev, 0, &err);
+#endif
     OCL_CHECK(err);
 
     {
@@ -175,8 +185,13 @@ TEST_F(ocl_stream_test_c, InteropIncompatibleQueueC) {
             = clCreateContext(nullptr, 1, &cpu_ocl_dev, nullptr, nullptr, &err);
     OCL_CHECK(err);
 
+#ifdef CL_VERSION_2_0
+    cl_command_queue cpu_ocl_queue = clCreateCommandQueueWithProperties(
+            cpu_ocl_ctx, cpu_ocl_dev, nullptr, &err);
+#else
     cl_command_queue cpu_ocl_queue
             = clCreateCommandQueue(cpu_ocl_ctx, cpu_ocl_dev, 0, &err);
+#endif
     OCL_CHECK(err);
 
     dnnl_stream_t stream;
@@ -198,8 +213,13 @@ TEST_F(ocl_stream_test_cpp, InteropIncompatibleQueueCpp) {
             = clCreateContext(nullptr, 1, &cpu_ocl_dev, nullptr, nullptr, &err);
     OCL_CHECK(err);
 
+#ifdef CL_VERSION_2_0
+    cl_command_queue cpu_ocl_queue = clCreateCommandQueueWithProperties(
+            cpu_ocl_ctx, cpu_ocl_dev, nullptr, &err);
+#else
     cl_command_queue cpu_ocl_queue
             = clCreateCommandQueue(cpu_ocl_ctx, cpu_ocl_dev, 0, &err);
+#endif
     OCL_CHECK(err);
 
     catch_expected_failures([&] { stream s(eng, cpu_ocl_queue); }, true,
