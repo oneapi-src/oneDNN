@@ -66,11 +66,9 @@ protected:
         // Labels declaration
         Label vector_loop_start_label, vector_loop_end_label;
         Label rem_loop_start_label, rem_loop_end_label;
-        Label table_label;
 
         // Register map
         Reg64 loop_cnt(r11);  // loop counter
-        Reg64 table_reg(rbx); // table is used for data scale and shifts
 
         // We skip vmm0 as it can be used by the injector for masks on sse4.2
         Vmm G0(1), G1(2), tmp1_vmm(3);
@@ -91,9 +89,6 @@ protected:
         auto B_addr = [&](int i) {
             return ptr[addr_bias_reg + i * rnn_.dic * bias_dt_size];
         };
-
-        // initialize registers with addresses and constants
-        mov(table_reg, table_label);
 
         // both sigmoid and tanh use the same table so load address just once in rax
         sigmoid_injector_->load_table_addr();
