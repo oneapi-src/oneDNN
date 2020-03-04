@@ -138,6 +138,7 @@ argument index as specified by the following table.
 | \diffweights            | DNNL_ARG_DIFF_WEIGHTS    |
 | \diffbias               | DNNL_ARG_DIFF_BIAS       |
 | \diffdst                | DNNL_ARG_DIFF_DST        |
+| \f$depthwise\f$         | DNNL_ARG_ATTR_POST_OP_DW |
 
 
 ## Implementation Details

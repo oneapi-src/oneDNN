@@ -10,10 +10,11 @@ implemented through the @ref dev_guide_attributes mechanism.
 
 Currently the following post-ops are supported by the library:
 
-| Post-ops \ Primitive                                  | @ref dev_guide_convolution | @ref dev_guide_inner_product | @ref dev_guide_batch_normalization
-| :--                                                   | :--                        | :--                          | :--
-| [Eltwise](@ref dev_guide_attributes_post_ops_eltwise) | Partial                    | Partial                      | Partial
-| [Sum](@ref dev_guide_attributes_post_ops_sum)         | Partial                    | N/A                          | N/A
+| Post-ops \ Primitive                                              | @ref dev_guide_convolution | @ref dev_guide_inner_product | @ref dev_guide_batch_normalization
+| :--                                                               | :--                        | :--                          | :--
+| [Eltwise](@ref dev_guide_attributes_post_ops_eltwise)             | Partial                    | Partial                      | Partial
+| [Sum](@ref dev_guide_attributes_post_ops_sum)                     | Partial                    | N/A                          | N/A
+| [Depthwise](@ref dev_guide_attributes_post_ops_depthwise)         | Partial                    | N/A                          | N/A
 
 Just like @ref dev_guide_attributes, the post-ops are represented by
 an opaque structure (@ref dnnl_post_ops_t in C API and @ref dnnl::post_ops
@@ -134,6 +135,74 @@ with
     the destination; that is, the layout of the original destination is
     expected to be the same as the layout of the output destination.
 
+@anchor dev_guide_attributes_post_ops_depthwise
+### Depthwise Post-op
+
+Appends a Depthwise convolution as a post-op. This post-op can only be fused 
+with 1x1 convolution as generally seen in models (like MobileNet_v1) that use a
+stack of Separable convolutions: Depthwise convolution followed by 1x1
+convolution. The stack of these Separable convolutions (like in MobileNet_v1)
+provide an opportunity to fuse 1x1-Convolution with bandwidth-limited Depthwise
+convolution.
+
+The @ref dnnl::primitive::kind of this post-op
+is #dnnl::primitive::kind::convolution.
+
+There are two variants of this post-op: dw_k3s1p1 and dw_k3_s2p1 for stride-1
+and and stride-2 respectively.
+
+API:
+- C: @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1 
+- C++: @ref dnnl::post_ops::append_dw_k3s1p1 , @ref dnnl::post_ops::append_dw_k3s2p1
+
+For better readability, below we assume a 2D convolution and use the following
+notations:
+
+  `conv_1x1` Convolution with weights spatial=1 i.e., `kh` = `kw` = 1.
+
+  `conv_dw` Depthwise convolution with weights spatial=3 i.e., `kh` = `kw` = 3, 
+  `g` = `oc` = `ic` and `pad_l` = `pad_r` = {1, 1}.
+
+The Depthwise post-op replaces
+
+\f[
+    dst(:) = Conv_{1x1}(...)
+\f]
+
+with
+
+\f[
+    dst(:) = Conv_{dw}(Conv_{1x1}(...))
+\f]
+
+
+The final output dimensions of the after post-op is defined as
+
+\f[
+    dst_{conv_dw} = \{ n, oc_{1x1}, \operatorname{ceil}(oh_{conv_{1x1}}/stride),
+     \operatorname{ceil}(ow_{conv_{1x1}}/stride) \}
+\f]
+
+where `oh_conv_1x1`, `ow_conv_1x1` are height and width of conv_1x1 destination.
+
+![Fusion](images/img_depthwise_fusion.jpg)
+
+Supported data types
+
+| conv 1x1 output data type        | depthwise post-op output data type | depthwise post-op weights data type | depthwise post-op bias data type
+| :--                              | :--                                | :--                                 | :--
+| u8, s8                           | u8, s8, s32, f32                   | s8                                  | f32, s32
+| f32                              | f32                                | f32                                 | f32
+| bf16                             | bf16, f32                          | bf16                                | f32, bf16
+
+@note
+  * Currently only supported for 2D 1x1 convolution.
+
+  * Only eltwise post-op can be part of post-op chain (i.e., sum post-op is 
+    not supported)
+
+  * The `dst_1x1`, `wei_dw` and `dst_dw` are assumed to be #dnnl_format_tag_any.
+
 
 ## Examples of Chained Post-ops
 
@@ -152,7 +221,7 @@ dnnl::post_ops po;
 po.append_sum(
         /* scale = */ 1.f);
 po.append_eltwise(
-        /* scale     = */ 1.f
+        /* scale     = */ 1.f,
         /* alg kind  = */ dnnl::algorithm::eltwise_relu,
         /* neg slope = */ 0.f,
         /* unused for relu */ 0.f);
@@ -220,5 +289,68 @@ the tensors are designated by their names only; i.e., `(:)` is omitted):
                 )
             )
             + \beta
+        )
+\f]
+
+
+@anchor dev_guide_attributes_post_ops_depthwise_fusion
+### Relu -> Depthwise -> Relu
+
+An example of fusing depthwise convolution with 1x1 convolution in MobileNet.
+
+~~~cpp
+dnnl::post_ops po;
+
+po.append_eltwise(
+        /* scale     = */ 1.f,
+        /* alg kind  = */ dnnl::algorithm::eltwise_relu,
+        /* neg slope = */ 0.f,
+        /* unused for relu */ 0.f);
+
+po.append_dw_k3s1p1( /* or po.append_dw_k3s2p1 for depthwise with stride=2*/
+        /* depthwise weights data type = */ dnnl::memory::data_type::s8,
+        /* depthwise bias data type (undef implies no bias) = */ dnnl::memory::data_type::undef,
+        /* depthwise destination data type = */ dnnl::memory::data_type::u8,
+        /* mask for output scales of depthwise output = */ mask,
+        /* output scales for depthwise output = */ scales_depthwise)
+
+po.append_eltwise(
+        /* scale     = */ 1.f,
+        /* alg kind  = */ dnnl::algorithm::eltwise_relu,
+        /* neg slope = */ 0.f,
+        /* unused for relu */ 0.f);
+
+dnnl::primitive_attr attr;
+attr.set_output_scales(0, {output_scales_1x1_conv});
+attr.set_post_ops(po);
+
+auto cpd = convolution_forward::primitive_desc(conv_1x1, attr, engine);
+auto dw_weight_md = cpd.query(query::exec_arg_md,
+                DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_WEIGHTS);
+auto dw_bias_md = cpd.query(query::exec_arg_md,
+                DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
+
+~~~
+
+This will lead to the following primitive behaviour:
+
+\f[
+    dst 
+        = 
+        ReLU_{depthwise}
+        (
+            scales_{depthwise} \cdot
+            (
+                conv_{depthwise}
+                (
+                    ReLU_{1x1}
+                    (
+                        scales_{conv_{1x1}} \cdot
+                        (
+                            conv_{1x1}()
+                        )
+                    )
+                )
+            )
         )
 \f]

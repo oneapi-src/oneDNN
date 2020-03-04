@@ -2189,7 +2189,10 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     ///
     /// The Post-op can be defined as:
     ///
-    ///      dst[:] <- scales * (conv_dw( conv_1x1))
+    ///      dst[:] <- scales * (conv_dw(conv_1x1))
+    ///
+    /// See @ref dev_guide_attributes_post_ops_depthwise and
+    /// @ref dev_guide_attributes_post_ops_depthwise_fusion for more info.
     ///
     /// @param weights_data_type Weights data type of depthwise post-op
     /// @param bias_data_type Bias data type of depthwise post-op
@@ -2269,7 +2272,10 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     ///
     /// The Post-op can be defined as:
     ///
-    ///      dst[:] <- scales * (conv_dw( conv_1x1))
+    ///      dst[:] <- scales * (conv_dw(conv_1x1))
+    ///
+    /// See @ref dev_guide_attributes_post_ops_depthwise and
+    /// @ref dev_guide_attributes_post_ops_depthwise_fusion for more info.
     ///
     /// @param weights_data_type Weights data type of depthwise post-op
     /// @param bias_data_type Bias data type of depthwise post-op

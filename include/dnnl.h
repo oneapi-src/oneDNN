@@ -659,7 +659,10 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_eltwise(
 ///
 /// The Post-op can be defined as:
 ///
-///      dst[:] <- scales * (conv_dw( conv_1x1))
+///      dst[:] <- scales * (conv_dw(conv_1x1))
+///
+/// See @ref dev_guide_attributes_post_ops_depthwise and
+/// @ref dev_guide_attributes_post_ops_depthwise_fusion for more info.
 ///
 /// @param post_ops Post-ops.
 /// @param weights_data_type Weights data type of depthwise post-op
@@ -716,7 +719,10 @@ dnnl_status_t DNNL_API dnnl_post_ops_get_params_dw_k3s1p1(
 ///
 /// The Post-op can be defined as:
 ///
-///      dst[:] <- scales * (conv_dw( conv_1x1))
+///      dst[:] <- scales * (conv_dw(conv_1x1))
+///
+/// See @ref dev_guide_attributes_post_ops_depthwise and
+/// @ref dev_guide_attributes_post_ops_depthwise_fusion for more info.
 ///
 /// @param post_ops Post-ops.
 /// @param weights_data_type Weights data type of depthwise post-op
