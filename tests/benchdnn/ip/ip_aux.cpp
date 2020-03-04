@@ -125,8 +125,8 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (canonical || p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
-    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.dir != FWD_B) s << "--dir=" << p.dir << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << p.cfg << " ";
     if (canonical || p.stag != tag::any) s << "--stag=" << p.stag << " ";
     if (canonical || p.wtag != tag::any) s << "--wtag=" << p.wtag << " ";
     if (canonical || p.dtag != tag::any) s << "--dtag=" << p.dtag << " ";

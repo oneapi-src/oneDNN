@@ -136,8 +136,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (canonical || p.cfg != defaults::cfg)
-        s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.cfg != defaults::cfg) s << "--cfg=" << p.cfg << " ";
     if (canonical || p.stag != defaults::tag) s << "--stag=" << p.stag << " ";
     if (canonical || p.wtag != defaults::tag) s << "--wtag=" << p.wtag << " ";
     if (canonical || p.dtag != defaults::tag) s << "--dtag=" << p.dtag << " ";
@@ -160,7 +159,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--runtime_k=" << p.runtime_k << " ";
 
     if (canonical || p.bia_dt != defaults::bia_dt) {
-        s << "--bia_dt=" << dt2str(p.bia_dt) << " ";
+        s << "--bia_dt=" << p.bia_dt << " ";
 
         if (canonical || p.bia_mask != defaults::bia_mask)
             s << "--bia_mask=" << p.bia_mask << " ";

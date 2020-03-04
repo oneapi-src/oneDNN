@@ -106,19 +106,28 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
 }
 
 void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
+    std::stringstream ss;
+
     if (is_cfg_u8(cfg)
             && (policy != policy_t::COMMON && policy != policy_t::PER_OC)) {
+        ss << cfg;
+        const std::string cpp_pstr = ss.str();
+        const char *cfg_s = cpp_pstr.c_str();
         fprintf(stderr,
                 "%s driver: configuration `%s` requires scale policy "
                 "to be policy_t::COMMON or policy_t::PER_OC, exiting...\n",
-                driver_name, cfg2str(cfg));
+                driver_name, cfg_s);
         exit(2);
     }
+
     if (!(policy == policy_t::NONE || policy == policy_t::COMMON
                 || policy == policy_t::PER_OC)) {
+        ss << policy;
+        const std::string cpp_pstr = ss.str();
+        const char *policy_s = cpp_pstr.c_str();
         fprintf(stderr,
                 "rnn driver: scale_policy `%s` is not supported, exiting...\n",
-                attr_t::scale_t::policy2str(policy));
+                policy_s);
         exit(2);
     }
 }
@@ -210,9 +219,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--activation=" << activation2str(p.activation) << " ";
     if (canonical || p.direction != dnnl_unidirectional_left2right)
         s << "--direction=" << direction2str(p.direction) << " ";
-    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << p.cfg << " ";
     if (canonical || p.scale_policy != policy_t::NONE)
-        s << "--scaling=" << attr_t::scale_t::policy2str(p.scale_policy) << " ";
+        s << "--scaling=" << p.scale_policy << " ";
 
     s << static_cast<const desc_t &>(p);
 

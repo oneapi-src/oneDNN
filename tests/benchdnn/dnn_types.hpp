@@ -36,14 +36,6 @@ extern const char *undef;
 } // namespace tag
 
 struct dims_t : public std::vector<int64_t> {};
-dims_t off2dims_idx(const dims_t &dims, int64_t off);
-std::ostream &operator<<(std::ostream &s, const dims_t &dims);
-std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims);
-std::ostream &operator<<(
-        std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt);
-std::ostream &operator<<(
-        std::ostream &s, const std::vector<std::string> &v_tag);
-
 enum dir_t {
     DIR_UNDEF = 0,
     FLAG_DAT = 1,
@@ -61,11 +53,22 @@ enum dir_t {
     BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
 };
 dir_t str2dir(const char *str);
-const char *dir2str(dir_t dir);
 
 /* TODO: merge prop and dir_t (in favor of prop) */
 const char *prop2str(dnnl_prop_kind_t prop);
 dnnl_prop_kind_t prop2prop_kind(dir_t dir);
+
+dims_t off2dims_idx(const dims_t &dims, int64_t off);
+std::ostream &operator<<(std::ostream &s, const dims_t &dims);
+std::ostream &operator<<(std::ostream &s, dir_t dir);
+std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt);
+template <typename T>
+std::ostream &operator<<(std::ostream &s, const std::vector<T> &v) {
+    s << v[0];
+    for (size_t d = 1; d < v.size(); ++d)
+        s << ":" << v[d];
+    return s;
+}
 
 typedef int data_kind_t;
 enum { SRC = 0, WEI, BIA, DST, ACC, DATA, MEAN, VAR, SS, GWEI, DAT_TOTAL };
@@ -234,9 +237,11 @@ struct attr_t {
 using policy_t = attr_t::scale_t::policy_t;
 
 int str2attr(attr_t *attr, const char *str);
+std::ostream &operator<<(std::ostream &s, const policy_t &policy);
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale);
 std::ostream &operator<<(
         std::ostream &s, const attr_t::zero_points_t &zero_points);
+std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 

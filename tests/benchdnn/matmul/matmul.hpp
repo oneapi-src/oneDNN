@@ -120,7 +120,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p);
 /* some extra control parameters which shouldn't be placed in prb_t */
 
 const dt_conf_t *str2cfg(const char *str);
-const char *cfg2str(const dt_conf_t *cfg);
+std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
@@ -130,9 +130,7 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_cfg(std::ostream &s) const override {
-        s << cfg2str(p_->cfg);
-    }
+    virtual void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
     virtual void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);

@@ -103,7 +103,7 @@ extern const _dt_conf_t conf_f32bf16bf16;
 extern const _dt_conf_t conf_bf16f32bf16;
 
 const dt_conf_t *str2cfg(const char *str);
-const char *cfg2str(const dt_conf_t *cfg);
+std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg);
 
 float *generate_oscales(const attr_t::scale_t &oscale, int N);
@@ -160,9 +160,7 @@ struct perf_report_t : public base_perf_report_t {
         s << alg2str(p_->alg);
     }
 
-    virtual void dump_cfg(std::ostream &s) const override {
-        s << cfg2str(p_->cfg);
-    }
+    virtual void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
     virtual void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);

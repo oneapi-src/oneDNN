@@ -57,7 +57,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || !(p.sdt[0] == dnnl_f32 && p.sdt[1] == dnnl_f32))
         s << "--sdt=" << p.sdt << " ";
-    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << p.ddt << " ";
     if (canonical || !(p.stag[0] == tag::abx && p.stag[1] == tag::abx))
         s << "--stag=" << p.stag << " ";
     if (canonical || p.alg != ADD) s << "--alg=" << alg2str(p.alg) << " ";

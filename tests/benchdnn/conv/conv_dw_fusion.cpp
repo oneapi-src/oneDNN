@@ -284,10 +284,9 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
     std::stringstream dw_cfg_ss;
     if (p->cfg[DST].dt == f32 && p->cfg[WEI].dt == f32
             && fused_conv_po.dst_dt == f32)
-        dw_cfg_ss << dt2str(p->cfg[DST].dt); // f32 is a single name
+        dw_cfg_ss << p->cfg[DST].dt; // f32 is a single name
     else // else have all three dt in cfg name
-        dw_cfg_ss << dt2str(p->cfg[DST].dt) << dt2str(p->cfg[WEI].dt)
-                  << dt2str(fused_conv_po.dst_dt);
+        dw_cfg_ss << p->cfg[DST].dt << p->cfg[WEI].dt << fused_conv_po.dst_dt;
     auto p_dw_cfg = conv::str2cfg(dw_cfg_ss.str().c_str());
 
     auto stride = fused_conv_po.stride;

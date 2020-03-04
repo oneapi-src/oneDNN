@@ -213,7 +213,7 @@ extern const _dt_conf_t conf_f32u8f32f32;
 extern const _dt_conf_t conf_f32u8f32u8;
 
 const dt_conf_t *str2cfg(const char *str);
-const char *cfg2str(const dt_conf_t *cfg);
+std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 
 inline bool is_cfg_u8(const dt_conf_t *cfg) {
     return cfg == conf_u8u8u8u8 || cfg == conf_u8u8u8f32
@@ -336,9 +336,7 @@ struct perf_report_t : public base_perf_report_t {
         s << alg2str(p_->alg);
     }
 
-    virtual void dump_cfg(std::ostream &s) const override {
-        s << cfg2str(p_->cfg);
-    }
+    virtual void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
     virtual void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);

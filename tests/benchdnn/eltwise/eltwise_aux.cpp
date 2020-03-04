@@ -24,8 +24,8 @@ namespace eltwise {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << p.dir << " ";
+    if (canonical || p.dt != dnnl_f32) s << "--dt=" << p.dt << " ";
     if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
     s << "--alg=" << attr_t::post_ops_t::kind2str(p.alg) << " ";
     s << "--alpha=" << p.alpha << " ";

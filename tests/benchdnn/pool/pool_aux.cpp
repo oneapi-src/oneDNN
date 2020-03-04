@@ -203,8 +203,8 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
-    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
+    if (canonical || p.dir != FWD_D) s << "--dir=" << p.dir << " ";
+    if (canonical || p.cfg != conf_f32) s << "--cfg=" << p.cfg << " ";
     if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
     if (canonical || p.alg != MAX) s << "--alg=" << alg2str(p.alg) << " ";
 

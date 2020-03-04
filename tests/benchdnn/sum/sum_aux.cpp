@@ -47,7 +47,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || !has_default_dts || p.n_inputs() != 2)
         s << "--sdt=" << p.sdt << " ";
-    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << p.ddt << " ";
     if (canonical || !has_default_tags) s << "--stag=" << p.stag << " ";
     if (canonical || p.dtag != tag::undef) s << "--dtag=" << p.dtag << " ";
     s << "--scales=" << p.scales << " ";
