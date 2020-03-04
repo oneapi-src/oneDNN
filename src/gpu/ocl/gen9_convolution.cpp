@@ -198,7 +198,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
             break;
         case ver_1stconv:
             if (src_mdw.data_type() == f16) {
-                conf.mb_block = conf.mb % 16 == 0 ? 16 : 1;
+                //use single blocked kernel when mb % 32 != 0
+                conf.mb_block = conf.mb % 32 == 0 ? 16 : 1;
                 conf.oc_block = 16;
                 conf.ic_block = 16;
                 conf.ow_block = 8;
@@ -340,7 +341,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
             break;
         case ver_1stconv:
             src_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
-            dst_tag = conf.mb % 16 == 0
+            dst_tag = conf.mb_block % 16 == 0
                     ? utils::pick(
                             conf.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c)
                     : utils::pick(conf.ndims - 3, nCw16c, nChw16c, nCdhw16c);
