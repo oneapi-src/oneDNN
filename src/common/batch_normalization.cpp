@@ -38,7 +38,7 @@ status_t bnrm_desc_init(batch_normalization_desc_t *bnrm_desc,
             && IMPLICATION(prop_kind & backward, diff_data_desc != nullptr);
     if (!args_ok) return invalid_arguments;
 
-    auto bd = batch_normalization_desc_t();
+    auto bd = zero<batch_normalization_desc_t>();
     bd.primitive_kind = primitive_kind::batch_normalization;
     bd.prop_kind = prop_kind;
 

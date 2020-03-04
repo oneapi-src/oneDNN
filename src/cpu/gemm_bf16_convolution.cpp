@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu_target.h"
 #include "dnnl_types.h"
 
 #include "c_types_map.hpp"
@@ -30,7 +31,9 @@ namespace cpu {
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
+#if TARGET_X86_JIT /* this namespace is from jit_avx512_* files */
 using namespace dnnl::impl::cpu::bf16_support;
+#endif // TARGET_X86_JIT
 
 // This code is moved out from execute_backward_data() and
 // execute_backward_weights() to avoid warnings with gcc 7.x compilers:
@@ -48,6 +51,7 @@ void store_bfloat16_in_parallel(bfloat16_t *output_data, const float *acc_data,
     });
 }
 
+#if TARGET_X86_JIT
 template <data_type_t dst_data_type>
 gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     : ker_(nullptr)
@@ -273,6 +277,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::operator()(
         }
     });
 }
+#endif // TARGET_X86_JIT
 
 template <data_type_t dst_data_type>
 void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
@@ -307,7 +312,9 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
 
     const auto &post_ops = pd()->attr()->post_ops_;
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
+#if TARGET_X86_JIT // FIXME need a ref impl for post_ops
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
+#endif // TARGET_X86_JIT
 
     const int M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -376,10 +383,15 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
                     &this->beta_, _acc, &LDC);
 
             if (this->pd()->is_postprocess_required()) {
+#if TARGET_X86_JIT
                 size_t acc_str = LDC;
                 size_t dst_str = M;
                 (*pp_ker_)(dst_local, _acc, bias + g * jcp.oc, sum_scale,
                         dst_str, acc_str, m, jcp.nthr == 1);
+#else
+#warning "missing reference postprocess impl for gemm_bf16_convolution.cpp"
+                assert(!"missing ref postprocessing for gemm_bf16_convolution.cpp");
+#endif // TARGET_X86_JIT
             }
 
             nd_iterator_step(g, jcp.ngroups, n, jcp.mb, od, jcp.od, ohb, nb_oh,
@@ -694,3 +706,4 @@ template struct gemm_bf16_convolution_bwd_weights_t<data_type::bf16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

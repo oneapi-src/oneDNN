@@ -30,39 +30,41 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+/// @copydoc INSTANCE_CREATOR
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
+        // clang-format off
         /* f32 */
-        INSTANCE(gemm_inner_product_fwd_t<f32>),
-        INSTANCE(gemm_inner_product_bwd_data_t<f32>),
-        INSTANCE(gemm_inner_product_bwd_weights_t<f32>),
-        INSTANCE(ref_inner_product_fwd_t<f32>),
-        INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>),
-        INSTANCE(ref_inner_product_bwd_weights_t<f32>),
+        INSTANCE(gemm_inner_product_fwd_t<f32>)
+        INSTANCE(gemm_inner_product_bwd_data_t<f32>)
+        INSTANCE(gemm_inner_product_bwd_weights_t<f32>)
+        INSTANCE(ref_inner_product_fwd_t<f32>)
+        INSTANCE(ref_inner_product_bwd_data_t<f32, f32, f32, f32>)
+        INSTANCE(ref_inner_product_bwd_weights_t<f32>)
         /* bfloat16 */
-        INSTANCE(gemm_bf16_inner_product_fwd_t<f32>),
-        INSTANCE(gemm_bf16_inner_product_fwd_t<bf16>),
-        INSTANCE(gemm_bf16_inner_product_bwd_data_t<f32>),
-        INSTANCE(gemm_bf16_inner_product_bwd_data_t<bf16>),
-        INSTANCE(gemm_bf16_inner_product_bwd_weights_t<f32>),
-        INSTANCE(gemm_bf16_inner_product_bwd_weights_t<bf16>),
+        INSTANCE(gemm_bf16_inner_product_fwd_t<f32>)
+        INSTANCE(gemm_bf16_inner_product_fwd_t<bf16>)
+        INSTANCE(gemm_bf16_inner_product_bwd_data_t<f32>)
+        INSTANCE(gemm_bf16_inner_product_bwd_data_t<bf16>)
+        INSTANCE(gemm_bf16_inner_product_bwd_weights_t<f32>)
+        INSTANCE(gemm_bf16_inner_product_bwd_weights_t<bf16>)
         /* int */
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, f32>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, u8>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s8>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s32>),
-        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, f32>),
-        INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>),
-        INSTANCE(ref_inner_product_fwd_t<u8, s8, s8, s32>),
-        INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>),
-        INSTANCE(ref_inner_product_fwd_t<u8, s8, f32, s32>),
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, u8>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s8>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, s32>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<u8, f32>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, u8>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s8>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, s32>)
+        INSTANCE(gemm_x8s8s32x_inner_product_fwd_t<s8, f32>)
+        INSTANCE(ref_inner_product_fwd_t<u8, s8, u8, s32>)
+        INSTANCE(ref_inner_product_fwd_t<u8, s8, s8, s32>)
+        INSTANCE(ref_inner_product_fwd_t<u8, s8, s32, s32>)
+        INSTANCE(ref_inner_product_fwd_t<u8, s8, f32, s32>)
+        // clang-format on
         /* eol */
         nullptr,
 };
-#undef INSTANCE
 } // namespace
 
 const pd_create_f *get_inner_product_impl_list(

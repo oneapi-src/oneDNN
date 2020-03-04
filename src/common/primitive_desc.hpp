@@ -19,6 +19,7 @@
 
 #include <typeindex>
 
+#include "cpu_target.h"
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
@@ -206,9 +207,22 @@ protected:
 #define DECLARE_COMMON_PD_T_(impl_name, impl_type) \
     DECLARE_COMMON_PD_t(impl_name, impl_type, false)
 
+#if !TARGET_VE
+// x86 original version requires a third arg ONLY be USE_GLOBAL_SCRATCHPAD
 #define DECLARE_COMMON_PD_T(impl_name, impl_type, ...) \
     DECLARE_COMMON_PD_T_##__VA_ARGS__(impl_name, impl_type)
 
+#else // VE workaround: preprocessor error about missing '...'
+// ..... even though it actually did the right thing
+#define PD_MACRO_NAME(_1, _2, _3, NAME, ...) DECLARE_COMMON_PD##NAME
+// supply the 2-or-3-args macro name with exactly 2 args
+#define PD_MACRO_INVOKE(_1, _2, _3, NAME, ...) \
+    PD_MACRO_NAME(_1, _2, _3, NAME, ignored)(_1, _2)
+
+#define DECLARE_COMMON_PD_T(...) \
+    PD_MACRO_INVOKE(__VA_ARGS__, _T_USE_GLOBAL_SCRATCHPAD, _T_, ignored)
+
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
+#endif // PRIMITIVE_DESC_HPP

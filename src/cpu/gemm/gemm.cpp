@@ -20,20 +20,29 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
+#if MKLDNN_CPU_GEMM_JIT
 #include "jit_generator.hpp"
+#endif // MKLDNN_CPU_GEMM_JIT
 
 #include "gemm.hpp"
 
+#if MKLDNN_CPU_GEMM_JIT
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
+#endif // MKLDNN_CPU_GEMM_JIT
 #include "f32/ref_gemm_f32.hpp"
 
 #include "gemm_driver.hpp"
 #include "s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "s8x8s32/simple_gemm_s8s8s32.hpp"
 
-#include "common/bfloat16.hpp"
-#include "os_blas.hpp"
+#define MKLDNN_TRACE_EXTENDED_SGEMM 0
+#if MKLDNN_TRACE_EXTENDED_SGEMM
+#include <stdio.h>
+#endif
+
+#include "common/bfloat16.hpp" // XXX needed?
+#include "os_blas.hpp" // XXX needed?
 
 namespace dnnl {
 namespace impl {
@@ -97,6 +106,12 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
         bool trB = *transb == 't' || *transb == 'T';
         CBLAS_TRANSPOSE Cblas_trA = trA ? CblasTrans : CblasNoTrans;
         CBLAS_TRANSPOSE Cblas_trB = trB ? CblasTrans : CblasNoTrans;
+#if MKLDNN_TRACE_EXTENDED_SGEMM
+        printf("cblas_sgemm(%d,%c,%c;MNK=%d,%d,%d;alpha=%f"
+               ",A@ld=%d,B@ld=%d,beta=%f,C@ld=%d)\n",
+                CblasColMajor, *transa, *transb, *M, *N, *K, *alpha, *lda, *ldb,
+                *beta, *ldc);
+#endif
         cblas_sgemm(CblasColMajor, Cblas_trA, Cblas_trB, *M, *N, *K, *alpha, A,
                 *lda, B, *ldb, *beta, C, *ldc);
         if (bias) {
@@ -108,22 +123,33 @@ dnnl_status_t extended_sgemm(const char *transa, const char *transb,
             });
         }
         msan_unpoison_matrix(C, *M, *N, *ldc, sizeof(*C));
-        return dnnl_success;
+        return status;
     }
 #endif
-
-    if (mayiuse(sse41)) {
+    if (TARGET_X86_JIT && DNNL_ISA >= DNNL_ISA_SSE41 && mayiuse(sse41)) {
         float *dummy_ao = NULL;
         float *dummy_bo = NULL;
+
+#if MKLDNN_TRACE_EXTENDED_SGEMM
+        printf("gemm_driver(%c,%c,%s;MNK=%d,%d,%d;alpha=%f"
+               ",A@ld=%dx,B@ld=%dx,beta=%f,C@ld=%d,bias%s)\n",
+                *transa, *transb, (bias ? "C" : "x"), *M, *N, *K, *alpha, *lda,
+                *ldb, *beta, *ldc, (force_jit_nocopy_gemm ? "(nocopy)" : ""));
+#endif
         status = gemm_driver(transa, transb, bias ? "C" : NULL, M, N, K, alpha,
                 A, lda, dummy_ao, B, ldb, dummy_bo, beta, C, ldc, bias,
                 force_jit_nocopy_gemm);
     } else {
+#if MKLDNN_TRACE_EXTENDED_SGEMM
+        printf("ref_gemm<float>(%c,%c;MNK=%d,%d,%d;alpha=%f"
+               ",A@ld=%d,B@ld=%d,beta=%f,C@ld=%d,bias)\n",
+                *transa, *transb, *M, *N, *K, *alpha, *lda, *ldb, *beta, *ldc);
+#endif
         status = ref_gemm<float>(transa, transb, M, N, K, alpha, A, lda, B, ldb,
                 beta, C, ldc, bias);
     }
     return status;
-}
+} // namespace cpu
 
 // Tries calling Intel MKL cblas_gemm_s8u8s32 if applicable and available
 dnnl_status_t try_cblas_gemm_s8u8s32(const char *transa, const char *transb,
@@ -316,4 +342,4 @@ dnnl_status_t DNNL_API dnnl_gemm_bf16bf16f32(char transa, char transb,
     return gemm_bf16bf16f32(&transb, &transa, &N_s32, &M_s32, &K_s32, &alpha, B,
             &ldb_s32, A, &lda_s32, &beta, C, &ldc_s32);
 }
-}
+} //"C"

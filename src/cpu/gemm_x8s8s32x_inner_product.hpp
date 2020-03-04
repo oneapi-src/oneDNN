@@ -18,6 +18,7 @@
 #define GEMM_X8S8S32X_INNER_PRODUCT_HPP
 
 #include <assert.h>
+#include "cpu_isa_traits.hpp"
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
@@ -26,7 +27,9 @@
 
 #include "gemm/gemm.hpp"
 #include "gemm_inner_product_utils.hpp"
+#if TARGET_X86_JIT
 #include "jit_generator.hpp"
+#endif // TARGET_X86_JIT
 
 #include "cpu_inner_product_pd.hpp"
 
@@ -132,6 +135,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

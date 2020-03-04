@@ -33,11 +33,14 @@ struct verbose_t {
     int level;
 };
 
+/** get environment DNNL_VERBOSE (MKLDNN_VERBOSE) value.
+ * \note Do not confuse with `dnnl_get_verbose()`, which is the current
+ * verbosity, which also reflects calls to `dnnl_set_verbose(int)`. */
 int get_verbose();
 double get_msec();
 const char *get_isa_info();
 
-#if !defined(DISABLE_VERBOSE)
+#if DNNL_VERBOSE
 #define DNNL_VERBOSE_BUF_LEN 1024
 #else
 #define DNNL_VERBOSE_BUF_LEN 1
@@ -78,4 +81,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

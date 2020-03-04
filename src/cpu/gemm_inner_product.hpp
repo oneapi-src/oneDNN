@@ -24,7 +24,7 @@
 #include "utils.hpp"
 
 #include "gemm/gemm.hpp"
-#include "gemm_inner_product_utils.hpp"
+#include "gemm_inner_product_utils.hpp" // provides pp_kernel
 
 #include "cpu_inner_product_pd.hpp"
 
@@ -97,6 +97,7 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
+    // Note: pp_kernel REQUIRES jit
     inner_product_utils::pp_kernel_t<data_type, data_type> *pp_kernel_;
     bool postops_in_ip_;
     float beta_;
@@ -177,6 +178,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

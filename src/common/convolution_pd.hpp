@@ -23,6 +23,10 @@
 #include "primitive_desc.hpp"
 #include "utils.hpp"
 
+#ifdef DNNL_VERBOSE_EXTRA
+#include "consistency.hpp"
+#endif // NDEBUG
+
 namespace dnnl {
 namespace impl {
 
@@ -219,6 +223,21 @@ protected:
 
     bool expect_data_types(data_type_t src_dt, data_type_t wei_dt,
             data_type_t bia_dt, data_type_t dst_dt, data_type_t acc_dt) const {
+#if DNNL_VERBOSE_EXTRA
+#define AND_(...) SCHKVV(ok, __VA_ARGS__)
+        Consistency ok("conv_pd_fwd");
+        AND_((src_dt == data_type::undef
+                || invariant_src_md()->data_type == src_dt));
+        AND_((wei_dt == data_type::undef
+                || invariant_wei_md()->data_type == wei_dt));
+        AND_((dst_dt == data_type::undef
+                || invariant_dst_md()->data_type == dst_dt));
+        AND_((acc_dt == data_type::undef || desc_.accum_data_type == acc_dt));
+        if (with_bias() && bia_dt != data_type::undef) {
+            AND_(invariant_bia_md()->data_type == bia_dt);
+        }
+#undef AND_
+#else
         bool ok = true
                 && (src_dt == data_type::undef
                         || invariant_src_md()->data_type == src_dt)
@@ -230,6 +249,7 @@ protected:
                         || desc_.accum_data_type == acc_dt);
         if (with_bias() && bia_dt != data_type::undef)
             ok = ok && invariant_bia_md()->data_type == bia_dt;
+#endif
         return ok;
     }
 };

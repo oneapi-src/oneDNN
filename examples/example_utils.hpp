@@ -24,10 +24,32 @@
 #include <stdexcept>
 #include <stdlib.h>
 #include <string>
+#include "dnnl_debug.h"
 #include <initializer_list>
 
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
+
+// ostream output of memory objects (debug initialization/lifetime issues)
+inline std::ostream &operator<<(
+        std::ostream &os, dnnl_memory_desc_t const *const md) {
+    char str[121] = {'\0'};
+    int nchar = dnnl_md2fmt_str(&str[0], 120, md);
+    if (nchar) {
+        str[nchar] = '\0';
+        os << str;
+    } else {
+        os << "???";
+    }
+    return os;
+}
+inline std::ostream &operator<<(
+        std::ostream &os, dnnl::memory::desc const &mem) {
+    return os << &mem.data;
+}
+inline std::ostream &operator<<(std::ostream &os, dnnl::memory const &mem) {
+    return os << mem.get_desc(); // get the dnnl::memory::desc and print
+}
 
 // Exception class to indicate that the example uses a feature that is not
 // available on the current systems. It is not treated as an error then, but
@@ -176,4 +198,5 @@ inline void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
 #endif
 }
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

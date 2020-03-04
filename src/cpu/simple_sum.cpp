@@ -16,6 +16,7 @@
 
 #include "simple_sum.hpp"
 #include "bfloat16.hpp"
+#include "cpu_isa_traits.hpp"
 #include "dnnl_thread.hpp"
 
 namespace dnnl {
@@ -123,3 +124,4 @@ template struct simple_sum_t<data_type::bf16, data_type::f32>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

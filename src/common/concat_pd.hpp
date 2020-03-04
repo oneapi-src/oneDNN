@@ -41,7 +41,7 @@ struct concat_pd_t : public primitive_desc_t {
             src_mds_.push_back(src_mds[i]);
 
         // Fill a desc that is intended for internal use only
-        desc_ = concat_desc_t();
+        desc_ = utils::zero<concat_desc_t>();
         desc_.primitive_kind = primitive_kind::concat;
         desc_.dst_md = dst_md_;
         desc_.n = n_;

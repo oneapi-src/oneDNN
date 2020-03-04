@@ -16,7 +16,9 @@
 
 #include "cpu_engine.hpp"
 
+#if DNNL_TARGET_X86_JIT
 #include "cpu/jit_uni_softmax.hpp"
+#endif // DNNL_TARGET_X86_JIT
 #include "cpu/ref_softmax.hpp"
 
 namespace dnnl {
@@ -28,17 +30,18 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
-        INSTANCE(jit_uni_softmax_fwd_t<avx512_common>),
-        INSTANCE(jit_uni_softmax_fwd_t<avx2>),
-        INSTANCE(jit_uni_softmax_fwd_t<sse41>),
-        INSTANCE(ref_softmax_fwd_t<f32>),
-        INSTANCE(ref_softmax_bwd_t<f32>),
+        // clang-format off
+        INSTANCE_avx512(jit_uni_softmax_fwd_t<avx512_common>)
+        INSTANCE_avx2(jit_uni_softmax_fwd_t<avx2>)
+        INSTANCE_sse41(jit_uni_softmax_fwd_t<sse41>)
+        INSTANCE(ref_softmax_fwd_t<f32>)
+        INSTANCE(ref_softmax_bwd_t<f32>)
+        // clang-format on
         /* eol */
         nullptr,
 };
-#undef INSTANCE
 } // namespace
 
 const pd_create_f *get_softmax_impl_list(const softmax_desc_t *desc) {

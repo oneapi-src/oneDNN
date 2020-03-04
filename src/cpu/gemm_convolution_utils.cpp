@@ -24,7 +24,9 @@
 
 #include "common/bfloat16.hpp"
 #include "gemm_convolution_utils.hpp"
+#if TARGET_X86_JIT
 #include "jit_generator.hpp"
+#endif // TARGET_X86_JIT
 
 namespace dnnl {
 namespace impl {
@@ -1317,6 +1319,7 @@ void bwd_weights_reduction_par(int ithr, int nthr,
     size_t weights_start {0}, weights_end {0};
     balance211(weights_g_size, nthr, ithr, weights_start, weights_end);
 
+    // Note: no omp directive here (called from one of jcp.nthr)
     for (int i = 0; i < nthr; ++i) {
         const float *ws_i = weights_reduce_ws + i * weights_g_size;
         for (size_t s = weights_start; s < weights_end; ++s)
@@ -1329,3 +1332,4 @@ void bwd_weights_reduction_par(int ithr, int nthr,
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

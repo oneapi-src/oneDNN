@@ -18,8 +18,6 @@
 #include <cstring>
 #include <mutex>
 
-#include "utils.hpp"
-
 #include "cpu_isa_traits.hpp"
 
 namespace dnnl {
@@ -81,19 +79,28 @@ set_before_first_get_setting_t<cpu_isa_t> &max_cpu_isa() {
     return max_cpu_isa_setting;
 }
 
+// Attempt a "set before 1st get" of the max_cpu_isa() flag
 bool init_max_cpu_isa() {
-    if (max_cpu_isa().initialized()) return false;
+    if (max_cpu_isa().initialized()) { return false; }
 
-    cpu_isa_t max_cpu_isa_val = isa_all;
+    cpu_isa_t max_cpu_isa_val = isa_full; // x86:x86_full, VE:ve_full, ...
+
     char buf[64];
     if (getenv("DNNL_MAX_CPU_ISA", buf, sizeof(buf)) > 0) {
+        // string value --> cpu_isa_t max_cpu_isa_val;
+#define IF_HANDLE_CASE(CPU_ISA_T) \
+    if (std::strcmp(buf, cpu_isa_traits<CPU_ISA_T>::user_option_env) == 0) \
+    max_cpu_isa_val = CPU_ISA_T
+#define ELSEIF_HANDLE_CASE(CPU_ISA_T) else IF_HANDLE_CASE(CPU_ISA_T)
+        // allow case-insensitive compare
+        for (size_t i = 0u; i < sizeof(buf) && buf[i]; ++i)
+            buf[i] = toupper(buf[i]);
+        //printf(" getenv DNNL_MAX_CPU_ISA --> %s\n", &buf[0]);
 
-#define IF_HANDLE_CASE(cpu_isa) \
-    if (std::strcmp(buf, cpu_isa_traits<cpu_isa>::user_option_env) == 0) \
-    max_cpu_isa_val = cpu_isa
-#define ELSEIF_HANDLE_CASE(cpu_isa) else IF_HANDLE_CASE(cpu_isa)
-
-        IF_HANDLE_CASE(isa_all);
+        IF_HANDLE_CASE(vanilla); // "VANILLA" --> (CPU-agnostic ref impls)
+        ELSEIF_HANDLE_CASE(isa_any); // "ANY" --> x86_common or ve_common or ...
+        ELSEIF_HANDLE_CASE(isa_full); // "ALL" --> x86_full or ve_full or ...
+#if TARGET_X86
         ELSEIF_HANDLE_CASE(sse41);
         ELSEIF_HANDLE_CASE(avx);
         ELSEIF_HANDLE_CASE(avx2);
@@ -102,58 +109,66 @@ bool init_max_cpu_isa() {
         ELSEIF_HANDLE_CASE(avx512_core);
         ELSEIF_HANDLE_CASE(avx512_core_vnni);
         ELSEIF_HANDLE_CASE(avx512_core_bf16);
+        //else printf("Bad DNNL_MAX_CPU_ISA=%s environment for x86", buf);
+#elif TARGET_VE
+        ELSEIF_HANDLE_CASE(vednn);
+        ELSEIF_HANDLE_CASE(vejit);
+        //else printf("Bad DNNL_MAX_CPU_ISA=%s environment value for VE", buf);
+#endif
 
 #undef IF_HANDLE_CASE
 #undef ELSEIF_HANDLE_CASE
     }
 
+    //printf("init_max_cpu_isa->0x%x\n", max_cpu_isa_val);
     return max_cpu_isa().set(max_cpu_isa_val);
 }
-#endif
+#endif // DNNL_ENABLE_MAX_CPU_ISA
 
+#if defined(DNNL_ENABLE_MAX_CPU_ISA)
 cpu_isa_t get_max_cpu_isa(bool soft) {
     MAYBE_UNUSED(soft);
-#ifdef DNNL_ENABLE_MAX_CPU_ISA
     init_max_cpu_isa();
     return max_cpu_isa().get(soft);
-#else
-    return isa_all;
-#endif
 }
+
+#else
+cpu_isa_t get_max_cpu_isa(bool soft) {
+    MAYBE_UNUSED(soft);
+    return isa_full;
+}
+#endif // defined(DNNL_ENABLE_MAX_CPU_ISA)
 
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
 
+/** set max_cpu_isa() to the \c cpu_isa_t mask corresponding to a
+ * \c dnnl_cpu_isa_t.
+ * When a \c cpu_isa trait field matches the dnnl \c isa value,
+ * remember \c cpu_isa value.
+ *
+ * This decouples dnnl cpu_isa values [public] from cpu_isa [internal] ones.
+ *
+ * \c max_cpu_isa() ensures we set a value at most once (subsequent calls
+ * should fail).
+ */
 dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     using namespace dnnl::impl::status;
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
     using namespace dnnl::impl;
     using namespace dnnl::impl::cpu;
 
-    cpu_isa_t isa_to_set = isa_any;
-#define HANDLE_CASE(cpu_isa) \
-    case cpu_isa_traits<cpu_isa>::user_option_val: isa_to_set = cpu_isa; break;
-    switch (isa) {
-        HANDLE_CASE(isa_all);
-        HANDLE_CASE(sse41);
-        HANDLE_CASE(avx);
-        HANDLE_CASE(avx2);
-        HANDLE_CASE(avx512_mic);
-        HANDLE_CASE(avx512_mic_4ops);
-        HANDLE_CASE(avx512_core);
-        HANDLE_CASE(avx512_core_vnni);
-        HANDLE_CASE(avx512_core_bf16);
-        default: return invalid_arguments;
-    }
-    assert(isa_to_set != isa_any);
-#undef HANDLE_CASE
+    // XXX see if we can get rid of from_dnnl, at least in the header (see also tests/gtests/test_isa_*)
+    cpu_isa_t isa_to_set = ::dnnl::impl::cpu::from_dnnl(isa);
+    if (isa_to_set == isa_unknown) return invalid_arguments;
 
-    if (max_cpu_isa().set(isa_to_set))
+    if (::dnnl::impl::cpu::max_cpu_isa().set(isa_to_set))
         return success;
     else
         return invalid_arguments;
 #else
     return unimplemented;
-#endif
+#endif // DNNL_ENABLE_MAX_CPU_ISA
 }
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

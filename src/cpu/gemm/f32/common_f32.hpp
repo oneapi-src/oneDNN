@@ -16,6 +16,10 @@
 
 #ifndef COMMON_F32_HPP
 #define COMMON_F32_HPP
+#include "cpu_isa_traits.hpp"
+#if !TARGET_X86_JIT
+#error "common_f32.hpp requires a TARGET_X86_JIT build"
+#else
 
 #include "jit_generator.hpp"
 
@@ -169,4 +173,5 @@ public:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+#endif // TARGET_X86_JIT
 #endif // COMMON_F32_HPP

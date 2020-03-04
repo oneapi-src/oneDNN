@@ -16,6 +16,8 @@
 
 #ifndef COMMON_S16_HPP
 #define COMMON_S16_HPP
+#include "cpu_isa_traits.hpp"
+#if TARGET_X86_JIT
 
 #include "jit_generator.hpp"
 
@@ -56,4 +58,5 @@ public:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+#endif // TARGET_X86_JIT
 #endif // COMMON_S16_HPP

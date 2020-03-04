@@ -28,18 +28,20 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+/// @copydoc INSTANCE_CREATOR
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
-        INSTANCE(simple_resampling_fwd_t<f32>),
-        INSTANCE(simple_resampling_bwd_t<f32>),
-        INSTANCE(ref_resampling_fwd_t<f32>),
-        INSTANCE(ref_resampling_fwd_t<bf16>),
-        INSTANCE(ref_resampling_bwd_t<f32>),
-        INSTANCE(ref_resampling_bwd_t<bf16>),
+        // clang-format off
+        INSTANCE(simple_resampling_fwd_t<f32>)
+        INSTANCE(simple_resampling_bwd_t<f32>)
+        INSTANCE(ref_resampling_fwd_t<f32>)
+        INSTANCE(ref_resampling_bwd_t<f32>)
+        INSTANCE(ref_resampling_fwd_t<bf16>)
+        INSTANCE(ref_resampling_bwd_t<bf16>)
+        // clang-format on
         /* eol */
         nullptr,
 };
-#undef INSTANCE
 } // namespace
 
 const pd_create_f *get_resampling_impl_list(const resampling_desc_t *desc) {

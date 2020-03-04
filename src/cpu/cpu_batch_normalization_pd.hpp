@@ -36,6 +36,5 @@ struct cpu_batch_normalization_bwd_pd_t : public batch_normalization_bwd_pd_t {
 } // namespace impl
 } // namespace dnnl
 
-#endif
-
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+#endif

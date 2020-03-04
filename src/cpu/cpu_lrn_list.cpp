@@ -16,8 +16,10 @@
 
 #include "cpu_engine.hpp"
 
+#if DNNL_TARGET_X86_JIT
 #include "cpu/jit_avx512_common_lrn.hpp"
 #include "cpu/jit_uni_lrn.hpp"
+#endif // DNNL_TARGET_X86_JIT
 #include "cpu/ref_lrn.hpp"
 
 namespace dnnl {
@@ -29,23 +31,25 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+/// @copydoc INSTANCE_CREATOR
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
-        INSTANCE(jit_avx512_common_lrn_fwd_t<f32>),
-        INSTANCE(jit_avx512_common_lrn_bwd_t<f32>),
-        INSTANCE(jit_avx512_common_lrn_fwd_t<bf16>),
-        INSTANCE(jit_avx512_common_lrn_bwd_t<bf16>),
-        INSTANCE(jit_uni_lrn_fwd_t<avx2>),
-        INSTANCE(jit_uni_lrn_bwd_t<avx2>),
-        INSTANCE(jit_uni_lrn_fwd_t<sse41>),
-        INSTANCE(ref_lrn_fwd_t<f32>),
-        INSTANCE(ref_lrn_bwd_t<f32>),
-        INSTANCE(ref_lrn_fwd_t<bf16>),
-        INSTANCE(ref_lrn_bwd_t<bf16>),
+        // clang-format off
+        INSTANCE_avx512(jit_avx512_common_lrn_fwd_t<f32>)
+        INSTANCE_avx512(jit_avx512_common_lrn_bwd_t<f32>)
+        INSTANCE_avx512(jit_avx512_common_lrn_fwd_t<bf16>)
+        INSTANCE_avx512(jit_avx512_common_lrn_bwd_t<bf16>)
+        INSTANCE_avx2(jit_uni_lrn_fwd_t<avx2>)
+        INSTANCE_avx2(jit_uni_lrn_bwd_t<avx2>)
+        INSTANCE_sse41(jit_uni_lrn_fwd_t<sse41>)
+        INSTANCE(ref_lrn_fwd_t<f32>)
+        INSTANCE(ref_lrn_bwd_t<f32>)
+        INSTANCE(ref_lrn_fwd_t<bf16>)
+        INSTANCE(ref_lrn_bwd_t<bf16>)
+        // clang-format on
         /* eol */
         nullptr,
 };
-#undef INSTANCE
 } // namespace
 
 const pd_create_f *get_lrn_impl_list(const lrn_desc_t *desc) {

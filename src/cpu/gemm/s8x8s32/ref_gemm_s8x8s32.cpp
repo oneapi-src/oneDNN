@@ -19,9 +19,12 @@
 #include "ref_gemm_s8x8s32.hpp"
 
 #include "../f32/ref_gemm_f32.hpp"
+#include "cpu_isa_traits.hpp"
 #include "dnnl_thread.hpp"
 #include "dnnl_types.h"
+#if TARGET_X86_JIT
 #include "jit_generator.hpp"
+#endif // TARGET_X86_JIT
 #include "math_utils.hpp"
 #include "utils.hpp"
 
@@ -119,3 +122,4 @@ template dnnl_status_t ref_gemm_s8x8s32<int8_t>(const char *transa,
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

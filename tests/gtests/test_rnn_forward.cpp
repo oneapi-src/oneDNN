@@ -493,6 +493,7 @@ using cfg_f32 = test_rnn_params_t;
 #define NOT_RNN \
     { alg::undef, rnn_flags::undef, 0.0f, 0.0f }
 
+#if DNNL_ENABLE_RNN
 TEST_P(rnn_forward_test_f32, TestsRnn) {}
 CPU_INSTANTIATE_TEST_SUITE_P(TestRnn, rnn_forward_test_f32,
         ::testing::Values(
@@ -605,5 +606,6 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestGRUlbr, lbr_gru_forward_test_f32,
                         {fmt::tnc, fmt::ldnc, fmt::ldigo, fmt::ldigo,
                                 fmt::undef, fmt::ldgo, fmt::tnc, fmt::undef},
                         test_rnn_sizes_t(3, 1, 5, 1, 4, 4, 4, 4)}));
+#endif
 
 } // namespace dnnl

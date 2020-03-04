@@ -80,8 +80,10 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
                         && value <= numeric_limits<typename prec_traits<
                                         data_type::u8>::type>::max());
                 ws[off] = value;
-            } else
-                reinterpret_cast<int *>(ws)[off] = value;
+            } else {
+                typedef typename prec_traits<data_type::s32>::type s32_type;
+                reinterpret_cast<s32_type *>(ws)[off] = value;
+            }
         }
     };
 
@@ -290,5 +292,4 @@ template struct ref_pooling_bwd_t<data_type::bf16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

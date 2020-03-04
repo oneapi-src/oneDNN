@@ -19,10 +19,18 @@
 
 #include <assert.h>
 
-#include "dnnl.h"
-
 #include "../common/engine.hpp"
 #include "c_types_map.hpp"
+#include "cpu_isa_traits.hpp" // also give common/cpu_target.h
+#include "dnnl.h"
+
+#if 0 // oops, I removed the verbose create wrapper.(can be separate PR).
+/** This adds extra code to respect \c dnnl_set_verbose(int) or environment
+ * DNNL_VERBOSE values 3 and 4. It's activated by `cmake -DDNNL_VERBOSE=EXTRA`,
+ * and defaults to '1' for debug builds.
+ */
+#define VERBOSE_PRIMITIVE_SKIP DNNL_VERBOSE_EXTRA
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -112,6 +120,128 @@ public:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+
+/** \def INSTANCE_CREATOR(...)
+ * \b Each cpu_layer_list.cpp file should set this macro.
+ * Usually
+ * ```
+ * \#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
+ * // or equivalently
+ * // \#define INSTANCE_CREATOR(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+ * ```
+ * is appropriate.
+ *
+ * Some files, like \ref cpu_sum.cpp and \ref cpu_concat.cpp may use
+ * ```
+ * \#define INSTANCE_CREATOR(...) __VA_ARGS__::pd_t::create
+ * ```
+ *
+ * `cmake -DDNNL_VERBOSE=EXTRA` builds may wish to provide a generic wrapper to
+ * track impls that declined the invitation (and maybe why they declined) with a
+ * generic wrapper function like
+ * ```
+ * \#define INSTANCE_CREATOR(...) verbose_primitive_desc_create<__VA_ARGS__>
+ * ```
+ *
+ * (XXX include an example verbose func later)
+ */
+#if 1
+#define DEFAULT_INSTANCE_CREATOR(...) \
+    &primitive_desc_t::create<__VA_ARGS__::pd_t>,
+#else /* show a verbose mode one, for debugging, here */
+#endif
+
+/// @addtogroup impl_list_support Implementations included at different ISA levels.
+/**
+ * Two interesting cmake \e build choices will be:
+ *
+ * - -DDNNL_ISA=VANILLA (no x86 jit, also a start point for non-x86 cpu), or
+ * - -DDNNL_ISA=ALL     [default, support jit production for all x86 cpus]
+ *    - x86:     \e max compile-time jit level = AVX512, lower available too.
+ *    - non-x86: some other "max feature set" of implementations.
+ *
+ * The implementation lists in libdnnl can then be tuned to include \e no
+ * or \e all jit impls (or in between, for expert use, but runtime dispatch
+ * (XXX doc link here) is the preferred way.
+ *
+ * \ref cmake/options.cmake
+ * \detail
+ * Reference or other "all-C/C++" implementations should use the
+ * \c INSTANCE macro.  Jit impls \e requiring jit isa \e foo' \b must use an
+ * \c INSTANCE_foo macro.  This keeps impl lists in a terse format, and
+ * allows compile time pruning (particularly all the way to VANILLA).
+ *
+ * \note because INSTANCE macros can be empty, do not append a comma
+ * \note only a few \em coarse-grained INSTANCE_foo macros are available,
+ * (sse41, avx2, avx512, uni)
+ *
+ * Coarse-grained cmake \b DNNL_ISA_foo constants defined in \c dnnl_config.h
+ * are \b unrelated to \c cpu_isa_t or \c src/cpu/cpu_isa_traits.hpp .
+ *
+ * For readability in reference impls, it is conveniet to introduce
+ * \e DNNL_TARGET_bar 0/1 values, rather than testing various DNNL_ISA values
+ * (subject to change).
+ */
+//@{
+
+/** Ref impls [no jit, maximum portability to new cpus] should use this.
+ * JIT impl macros will look like INSTANCE_avx2(jit_avx2_layer_fwd_t). */
+#define INSTANCE(...) INSTANCE_CREATOR(__VA_ARGS__)
+
+// different avx512 types not distinguished
+#if DNNL_ISA >= DNNL_ISA_AVX512_MIC && DNNL_ISA <= DNNL_ISA_X86_FULL
+//#warning "cpu_engine WITH _avx512"
+#define INSTANCE_avx512(...) INSTANCE_CREATOR(__VA_ARGS__)
+#else
+#define INSTANCE_avx512(...)
+#endif
+
+#if DNNL_ISA >= DNNL_ISA_AVX2 && DNNL_ISA <= DNNL_ISA_X86_FULL
+//#warning "cpu_engine WITH _avx2"
+#define INSTANCE_avx2(...) INSTANCE_CREATOR(__VA_ARGS__)
+#else
+#define INSTANCE_avx2(...)
+#endif
+
+#if DNNL_ISA >= DNNL_ISA_AVX && DNNL_ISA <= DNNL_ISA_X86_FULL
+//#warning "cpu_engine WITH _avx"
+#define INSTANCE_avx(...) INSTANCE_CREATOR(__VA_ARGS__)
+#else
+#define INSTANCE_avx(...)
+#endif
+
+// no x86 jit specific to sse42
+
+#if DNNL_ISA >= DNNL_ISA_SSE41 && DNNL_ISA <= DNNL_ISA_X86_FUL_FULL
+//#warning "cpu_engine WITH _sse41"
+#define INSTANCE_sse41(...) INSTANCE_CREATOR(__VA_ARGS__)
+#else
+#define INSTANCE_sse41(...)
+#endif
+
+/** _uni CAN run on any ISA, but at runtime will choose highest available.
+ * This circumvents compile-time attempts to limit the ISA -- the runtime
+ * limit via environment variable DNNL_MAX_CPU_ISA should still work.
+ * Do we need INSTANCE_uni? or are all uni drivers now templated on ISA?
+ *
+ * XXX CHECKME this is not equiv to sse41 (does not strictly mandate) ??
+ */
+#if DNNL_ISA >= DNNL_ISA_X86 && DNNL_ISA <= DNNL_ISA_X86_FULL
+//#warning "cpu_engine WITH _uni"
+#define INSTANCE_uni(...) INSTANCE_CREATOR(__VA_ARGS__)
+#else
+#define INSTANCE_uni(...)
+#endif
+
+// Add implementations for non-x86 CPU here...
+#if 0 /*placeholder*/
+/** an implementation ONLY working for VE (Aurora) vector processor. */
+#if DNNL_ISA >= DNNL_ISA_VE && DNNL_ISA <= DNNL_ISA_VE_FULL
+#define INSTANCE_ve(...) INSTANCE_CREATOR(__VA_ARGS__)
+#else
+#define INSTANCE_ve(...)
+#endif
+#endif
 
 #endif
 

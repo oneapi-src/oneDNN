@@ -21,7 +21,10 @@
 #include "type_helpers.hpp" // common
 
 #include "cpu_batch_normalization_utils.hpp" // cpu
+#include "cpu_isa_traits.hpp"
+#if TARGET_X86_JIT
 #include "jit_generator.hpp" //cpu
+#endif // TARGET_X86_JIT
 #include "ncsp_batch_normalization.hpp" // cpu
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
@@ -478,6 +481,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
                             _src = nullptr; // to avoid compiler warning w/
                                     // gcc483
                     } else {
+                        assert(d_type != bf16);
                         _diff_src = reinterpret_cast<acc_data_t *>(
                                 diff_src + s_off);
                         _diff_dst = reinterpret_cast<const acc_data_t *>(
@@ -521,4 +525,4 @@ template struct ncsp_batch_normalization_bwd_t<bf16>;
 } // namespace impl
 } // namespace dnnl
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

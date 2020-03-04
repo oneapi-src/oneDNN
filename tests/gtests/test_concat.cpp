@@ -68,6 +68,7 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
             for_(memory::dim c = 0; c < C; c++)
             for_(memory::dim d = 0; d < D; d++)
             for_(memory::dim h = 0; h < H; h++)
+#pragma _NEC novector
             for (memory::dim w = 0; w < W; w++) {
                 auto src_idx = w + W * h + H * W * d + D * H * W * c
                         + C_PADDED * D * H * W * n;
@@ -92,6 +93,7 @@ class concat_test : public ::testing::TestWithParam<concat_test_params> {
 
 protected:
     virtual void SetUp() {
+        ::show_dnnl_build();
         auto data_type = data_traits<data_t>::data_type;
         SKIP_IF(data_type == memory::data_type::f16
                         && get_test_engine_kind() == engine::kind::cpu,
@@ -396,4 +398,5 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestConcat, concat_test_float, cases_concat_gpu());
 GPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat, concat_test_float16, cases_concat_gpu());
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 } // namespace dnnl

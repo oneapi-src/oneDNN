@@ -18,14 +18,17 @@
 #define GEMM_X8S8S32X_CONVOLUTION_HPP
 
 #include "c_types_map.hpp"
+#include "cpu_isa_traits.hpp"
 #include "memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
 #include "gemm_convolution_utils.hpp"
+#if TARGET_X86_JIT
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise_injector.hpp"
+#endif // TARGET_X86_JIT
 #include "ref_eltwise.hpp"
 
 #include "gemm/gemm.hpp"
@@ -154,13 +157,22 @@ private:
     // XXX: this is throwaway code that will become unnecessary when we have a
     // sufficiently advanced igemm jit generator that supports quantization,
     // relu, and whatnot
-    class pp_ker_t : jit_generator {
+    /** This kernel type DOES support a reference impl */
+    class pp_ker_t
+#if TARGET_X86_JIT
+        : jit_generator
+#endif // TARGET_X86_JIT
+    {
     public:
+#if TARGET_X86_JIT
         DECLARE_CPU_JIT_AUX_FUNCTIONS(
                 _gemm_x8s8s32x_convolution_fwd_t::pp_kernel);
+#endif // TARGET_X86_JIT
         pp_ker_t(const pd_t *pd);
         ~pp_ker_t() {
+#if TARGET_X86_JIT
             if (eltwise_injector_) delete eltwise_injector_;
+#endif // TARGET_X86_JIT
             if (eltwise_) delete eltwise_;
         }
 
@@ -172,7 +184,9 @@ private:
         size_t dst_os_stride_;
 
     private:
+#if TARGET_X86_JIT
         void generate();
+#endif // TARGET_X86_JIT
 
         struct ker_args {
             dst_data_t *dst;
@@ -198,7 +212,9 @@ private:
         bool do_sum_;
         bool do_signed_scaling_;
         size_t vlen_;
+#if TARGET_X86_JIT
         jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+#endif // TARGET_X86_JIT
         ref_eltwise_scalar_fwd_t *eltwise_;
     };
 
@@ -300,4 +316,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include "cpu_target.h"
+#if DNNL_ENABLE_RNN
 
 /*
   General architecture
@@ -1175,3 +1177,5 @@ template struct _ref_rnn_common_t<prop_kind::forward, data_type::u8,
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+#endif // DNNL_ENABLE_RNN
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

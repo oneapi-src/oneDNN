@@ -43,7 +43,7 @@ status_t deconv_desc_init(deconvolution_desc_t *deconv_desc,
 
     if (padding_r == nullptr) padding_r = padding_l;
 
-    auto dd = deconvolution_desc_t();
+    auto dd = zero<deconvolution_desc_t>();
     dd.primitive_kind = primitive_kind::deconvolution;
     dd.prop_kind = prop_kind;
     dd.alg_kind = alg_kind;

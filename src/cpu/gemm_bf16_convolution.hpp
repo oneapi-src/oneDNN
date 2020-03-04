@@ -16,6 +16,7 @@
 
 #ifndef CPU_GEMM_BF16_CONVOLUTION_HPP
 #define CPU_GEMM_BF16_CONVOLUTION_HPP
+#include "cpu_target.h"
 
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
@@ -25,8 +26,10 @@
 #include "cpu_reducer.hpp"
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
+#if TARGET_X86_JIT
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_uni_eltwise_injector.hpp"
+#endif // TARGET_X86_JIT
 
 namespace dnnl {
 namespace impl {
@@ -95,8 +98,10 @@ struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
                                  : utils::pick(ndims() - 3, oiw, oihw, oidhw);
         }
 
+        /** \todo gemm_bf16_convolution needs a ref postops impl. */
         bool post_ops_ok() const {
             auto const &po = attr()->post_ops_;
+#if TARGET_X86_JIT
             auto is_eltwise
                     = [&](int idx) { return po.entry_[idx].is_eltwise(); };
             auto is_sum = [&](int idx) { return po.entry_[idx].is_sum(); };
@@ -107,6 +112,9 @@ struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
                 case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
                 default: return false;
             }
+#else
+            if (po.len_ == 0) return true; // XXX need ref postops here!
+#endif // TARGET_X86_JIT
             return false;
         }
     };
@@ -120,11 +128,17 @@ struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
                 ? one
                 : zero;
 
+#if TARGET_X86_JIT
         if (this->pd()->is_postprocess_required())
             pp_ker_ = new pp_ker_t(this->pd());
+#endif // TARGET_X86_JIT
     }
 
-    ~gemm_bf16_convolution_fwd_t() { delete pp_ker_; }
+    ~gemm_bf16_convolution_fwd_t() {
+#if TARGET_X86_JIT
+        delete pp_ker_;
+#endif // TARGET_X86_JIT
+    }
 
     typedef typename prec_traits<dst_data_type>::type dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -140,6 +154,7 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
+#if TARGET_X86_JIT
     class pp_ker_t : jit_generator {
     public:
         DECLARE_CPU_JIT_AUX_FUNCTIONS(gemm_bf16_convolution_fwd_t::pp_kernel);
@@ -166,7 +181,7 @@ private:
             size_t oc_work;
         };
 
-        enum { default_unroll_2_pow_ = 2 };
+        enum {default_unroll_2_pow_ = 2};
 
         Xbyak::Reg64 reg_param = abi_param1;
         Xbyak::Reg64 reg_dst_base = rdx;
@@ -206,7 +221,8 @@ private:
         int data_reg_base_idx_;
         size_t vlen_;
         cpu_isa_t isa_;
-        bf16_emulation_t *bf16_emu_;
+        bf16_emulation_t
+                *bf16_emu_; /* note: defined in  jit_avx512_core_bf16cvt.hpp */
         jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
         void generate();
@@ -237,6 +253,9 @@ private:
             return Xbyak::Ymm(vreg_prev_dst_idx(iter));
         };
     };
+#else
+    typedef void *pp_ker_t;
+#endif // TARGET_X86_JIT
 
     acc_data_t beta_;
     pp_ker_t *pp_ker_;
@@ -388,4 +407,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

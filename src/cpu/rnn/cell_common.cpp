@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include "cpu_target.h"
+#if DNNL_ENABLE_RNN
 
 /*
  * Common for RNN and LSTM cell execution
@@ -40,11 +42,13 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_, src_iter_ld,
             1.0, scratch_gates_, rnn.gates_ws_ld);
 
+#if TARGET_X86_JIT
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
             diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
             weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
             states_t_l_copy_);
+#endif // TARGET_X86_JIT
 }
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
@@ -117,11 +121,13 @@ void common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         scratch_data_t *scratch_gates_, src_data_t *ws_grid_,
         scratch_data_t *scratch_cell_, src_data_t *states_t_l_copy_) {
     ws_diff_states_aoc<float> diff_states_t_l(rnn, diff_states_t_l_);
+#if TARGET_X86_JIT
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
             diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
             weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
             states_t_l_copy_);
+#endif // TARGET_X86_JIT
 
     /// bwd by data on the cell
     gemm_iter_f(w_iter_[0], scratch_gates_, diff_states_t_l_);
@@ -221,3 +227,5 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution) {
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+#endif // DNNL_ENABLE_RNN
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

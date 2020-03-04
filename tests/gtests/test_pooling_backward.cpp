@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
+
 namespace dnnl {
 
 struct test_pool_bwd_desc_t {
@@ -1167,3 +1168,4 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestPooling_ncdhw, pooling_bwd_test_float,
                                 1, 1, 1, 1, 1, 1)}));
 
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

@@ -42,7 +42,7 @@ status_t pooling_desc_init(pooling_desc_t *pool_desc, prop_kind_t prop_kind,
 
     if (padding_r == nullptr) padding_r = padding_l;
 
-    auto pd = pooling_desc_t();
+    auto pd = zero<pooling_desc_t>();
     pd.primitive_kind = primitive_kind::pooling;
     pd.prop_kind = prop_kind;
     pd.alg_kind = alg_kind;

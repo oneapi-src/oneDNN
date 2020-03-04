@@ -63,8 +63,8 @@ template <typename T>
 inline const T modulo(const T &dividend, const T &divisor) {
     static_assert(std::is_integral<T>::value, "T must be an integer type.");
     assert(divisor > 0);
-    T result = dividend % divisor;
-    return result < 0 ? result + divisor : result;
+    return (dividend % divisor /* nudge gcc toward branchless 'sar; and' */
+            + (divisor & (dividend % divisor < T(0) ? ~T(0) : T(0))));
 }
 
 template <typename T>
@@ -244,4 +244,4 @@ public:
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

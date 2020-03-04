@@ -136,3 +136,4 @@ template struct simple_concat_t<data_type::bf16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

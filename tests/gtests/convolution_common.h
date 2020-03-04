@@ -26,6 +26,9 @@
 
 #define ALGORITHM dnnl::algorithm::convolution_direct
 
+// Note: these are geared for testing JIT implementations.
+//       XXX should these change for !TARGET_X86_JIT builds?
+//       (maybe nchw or such is more common)
 #ifdef DIRECTION_FORWARD
 #define FMT_WEIGHTS_BLOCKED OIhw8i8o
 #define FMT_WEIGHTS_BLOCKED_G gOIhw8i8o

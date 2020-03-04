@@ -35,7 +35,7 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
             && one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min);
     if (!args_ok) return invalid_arguments;
 
-    auto bod = binary_desc_t();
+    auto bod = zero<binary_desc_t>();
     bod.primitive_kind = primitive_kind::binary;
     bod.alg_kind = alg_kind;
 

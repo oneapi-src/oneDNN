@@ -38,7 +38,7 @@ status_t resampling_desc_init(resampling_desc_t *resampling_desc,
             && utils::one_of(src_desc->ndims, 3, 4, 5);
     if (!args_ok) return invalid_arguments;
 
-    auto rd = resampling_desc_t();
+    auto rd = zero<resampling_desc_t>();
     rd.primitive_kind = primitive_kind::resampling;
     rd.prop_kind = prop_kind;
     rd.alg_kind = alg_kind;

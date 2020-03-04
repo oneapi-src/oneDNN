@@ -9850,9 +9850,17 @@ inline status set_jit_profiling_jitdumpdir(const std::string &dir) {
 }
 
 /// @copydoc dnnl_cpu_isa_t
+/// \note vanilla <= any < [cpu-specific] <= full support, however for
+/// runtime dispatch "ALL" means "no restrictions" (dnnl_cpu_isa_full).
 enum class cpu_isa {
-    /// @copydoc dnnl_cpu_isa_all
-    all = dnnl_cpu_isa_all,
+    // ----------- any DNNL_CPU target -----------------
+    /// @copydoc dnnl_cpu_isa_vanilla
+    vanilla = dnnl_cpu_isa_vanilla,
+    /// @copydoc dnnl_cpu_isa_any
+    any = dnnl_cpu_isa_any,
+    /// @copydoc dnnl_cpu_isa_full
+    full = dnnl_cpu_isa_full,
+    // -------------- x86-specific ---------------------
     /// @copydoc dnnl_cpu_isa_sse41
     sse41 = dnnl_cpu_isa_sse41,
     /// @copydoc dnnl_cpu_isa_avx
@@ -9869,12 +9877,17 @@ enum class cpu_isa {
     avx512_core_vnni = dnnl_cpu_isa_avx512_core_vnni,
     /// @copydoc dnnl_cpu_isa_avx512_core_bf16
     avx512_core_bf16 = dnnl_cpu_isa_avx512_core_bf16,
+    // ------------- VE-specific -----------------------
+    /// @copydoc dnnl_cpu_isa_vednn
+    vednn = dnnl_cpu_isa_vednn,
+    /// @copydoc dnnl_cpu_isa_vejit
+    vejit = dnnl_cpu_isa_vejit
 };
 
 /// @copydoc dnnl_set_max_cpu_isa()
 inline status set_max_cpu_isa(cpu_isa isa) {
     return static_cast<status>(
-            dnnl_set_max_cpu_isa(static_cast<dnnl_cpu_isa_t>(isa)));
+            ::dnnl_set_max_cpu_isa(static_cast<dnnl_cpu_isa_t>(isa)));
 }
 
 /// @} dnnl_api_service
@@ -9945,4 +9958,5 @@ inline void primitive::execute(
 
 /// @} dnnl_api
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

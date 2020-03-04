@@ -27,6 +27,9 @@
 #include <memory>
 #include <string>
 
+#include "cpu_target.h" // dnnl_config, with some extra build macro settings
+
+// XXX CHECKME where is DNNL_X86_64 used? is it equivalent to TARGET_X86?
 #if defined(__x86_64__) || defined(_M_X64)
 #define DNNL_X86_64
 #endif
@@ -62,7 +65,7 @@ namespace impl {
 
 #define DNNL_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
-    T &operator=(const T &) = delete;
+    T &operator=(const T &) = delete
 
 // Sanity check for 64 bits
 static_assert(sizeof(void *) == 8, "DNNL supports 64 bit only");
@@ -153,9 +156,25 @@ inline T &&forward(typename utils::remove_reference<T>::type &&t) {
     return static_cast<T &&>(t);
 }
 
+/** Zero memory of structs in DNNL's 'C' API.
+ * Buggy compilers \e might elide zeroing during statements like
+ * `auto x = CPodType();`, at least in some contexts that DNNL code triggers
+ *
+ * For DNNL purposes, setting such POD types (with trivial default
+ * constructors) to zero with `memset` is a good enough workaround. */
 template <typename T>
 inline typename remove_reference<T>::type zero() {
+    static_assert(
+            std::is_standard_layout<typename remove_reference<T>::type>::value,
+            "zero<T> should have standard layout");
     auto zero = typename remove_reference<T>::type();
+#if DNNL_BUG_VALUE_INITIALIZATION
+    // Adjust bug handling as required for bad compilers.
+    // So far bug is for pod types.
+    // Note some desc_t are non-POD, like dnnl_concat_desc_t with a std::vector
+    if (std::is_pod<typename remove_reference<T>::type>::value)
+        memset(&zero, 0, sizeof(T));
+#endif
     return zero;
 }
 
@@ -203,9 +222,19 @@ inline void array_copy(T *dst, const T *src, size_t size) {
 }
 template <typename T>
 inline bool array_cmp(const T *a1, const T *a2, size_t size) {
+#if defined(__ve)
+    bool ret = true;
+    for (size_t i = 0; i < size; ++i)
+        if (a1[i] != a2[i]) {
+            ret = false;
+            break;
+        }
+    return ret;
+#else
     for (size_t i = 0; i < size; ++i)
         if (a1[i] != a2[i]) return false;
     return true;
+#endif
 }
 template <typename T, typename U>
 inline void array_set(T *arr, const U &val, size_t size) {
@@ -293,6 +322,9 @@ inline typename remove_reference<T>::type rnd_dn(const T a, const U b) {
     return static_cast<typename remove_reference<T>::type>((a / b) * b);
 }
 
+/** For \c b>0, return largest exact divisor \f$div \in [1,b] \ni a\%div=0\f$.
+ * Intended for both \c a and \c b > 0 (although \c a could be negative)
+ * \pre \c b > 0 (unchecked, returns 0 if \c b==0 and \c b if \c b < 0). */
 template <typename T, typename U>
 inline typename remove_reference<T>::type max_div(const T a, const U b) {
     U div = b;
@@ -328,8 +360,13 @@ inline T nd_iterator_init(T start) {
 template <typename T, typename U, typename W, typename... Args>
 inline T nd_iterator_init(T start, U &x, const W &X, Args &&... tuple) {
     start = nd_iterator_init(start, utils::forward<Args>(tuple)...);
-    x = start % X;
-    return start / X;
+    x = static_cast<U>(
+            start % static_cast<T>(X)); // ignore "loss of precision" warnings
+    return start / static_cast<T>(X);
+    // XXX maybe do in "larger-of" type ?
+    //typedef decltype(start + x) TU_t;
+    //x = static_cast<U>( (TU_t)(start) % (TU_t)(X));
+    //return static_cast<T>(start / X);
 }
 
 inline bool nd_iterator_step() {
@@ -337,11 +374,20 @@ inline bool nd_iterator_step() {
 }
 template <typename U, typename W, typename... Args>
 inline bool nd_iterator_step(U &x, const W &X, Args &&... tuple) {
+#if !TARGET_VE // dnnl original
     if (nd_iterator_step(utils::forward<Args>(tuple)...)) {
         x = (x + 1) % X;
         return x == 0;
     }
     return false;
+#else // nc++: err(1813) Cannot branch into or out of OpenMP construct.
+    bool ret = false;
+    if (nd_iterator_step(utils::forward<Args>(tuple)...)) {
+        x = (x + 1) % X;
+        ret = (x == 0);
+    }
+    return ret;
+#endif
 }
 
 template <typename U, typename W, typename Y>
@@ -529,6 +575,5 @@ public:
 } // namespace impl
 } // namespace dnnl
 
-#endif
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
+#endif // UTILS_HPP

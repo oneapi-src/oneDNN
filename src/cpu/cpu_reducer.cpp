@@ -23,6 +23,12 @@
 
 #include "cpu_reducer.hpp"
 
+/* x86 jit builds by default elide the reference implementation,
+ * but libdnnl will include it for VANILLA builds and non-x86
+ * targets  (it is short and potentially reusable). */
+#define SIMPLE_IMPL (!TARGET_X86_JIT)
+//#define SIMPLE_IMPL 1 /*for debugging*/
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -90,8 +96,6 @@ void reduce_balancer_t::balance() {
 
 /* reducer jit-ted driver */
 
-using namespace Xbyak;
-
 template <impl::data_type_t data_type>
 struct reducer_2d_driver_t : public c_compatible {
     typedef typename prec_traits<data_type>::type data_t;
@@ -116,6 +120,9 @@ protected:
     bool nullify_dst_;
     void (*ker_)(data_t *dst, const data_t *srcs, size_t ny, size_t nx);
 };
+
+#if TARGET_X86_JIT
+using namespace Xbyak;
 
 template <impl::data_type_t data_type, cpu_isa_t isa>
 struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
@@ -277,18 +284,21 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type>,
                 const_cast<uint8_t *>(this->getCode()));
     }
 };
+#endif // TARGET_X86_JIT
 
 template <impl::data_type_t data_type>
 inline reducer_2d_driver_t<data_type> *create_reduce_2d_drv(int n_src,
         size_t src_ld, size_t src_step, size_t dst_step, bool nullify_dst) {
+#if TARGET_X86_JIT && !SIMPLE_IMPL
     if (mayiuse(avx512_common))
         return new reducer_2d_driver_f_s_32_t<data_type, avx512_common>(
                 n_src, src_ld, src_step, dst_step, nullify_dst);
     else if (mayiuse(avx2))
         return new reducer_2d_driver_f_s_32_t<data_type, avx2>(
                 n_src, src_ld, src_step, dst_step, nullify_dst);
-    assert(!"unimplemented");
-    return nullptr;
+    assert(!"unimplemented"); /*currently called from selected jit impls*/
+#endif // TARGET_X86_JIT && !SIMPLE_IMPL
+    return nullptr; /*SIMPLE_IMPL is OK with this*/
 }
 
 /* cpu_reducer_t */
@@ -345,19 +355,9 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
             = balancer().nthr_per_group_ == 1 || balancer().idle(ithr);
     if (redundant_reduction) return;
 
-#ifdef SIMPLE_IMPL
-    if (balancer().id_in_group(ithr) != 0)
-        return; /* only threads 0 do the reduction */
-
-    const int njobs_in_grp = balancer().ithr_njobs(ithr);
-    data_t *d = get_local_ptr(ithr, dst, scratchpad);
-    for (int id_in_grp = 1; id_in_grp < balancer_.nthr_per_group_;
-            ++id_in_grp) {
-        const data_t *space = get_local_ptr(ithr + id_in_grp, dst, scratchpad);
-        for (size_t i = 0; i < (size_t)njobs_in_grp * balancer().job_size_; ++i)
-            d[i] += space[i];
-    }
-#else
+#if !SIMPLE_IMPL
+    assert(TARGET_X86_JIT && drv_ != nullptr);
+    // v1.2 default behavior: ALWAYS assume jit driver exists (assert)
     using namespace utils;
 
     const int id_in_grp = balancer().id_in_group(ithr);
@@ -377,6 +377,19 @@ void cpu_reducer_t<data_type>::reduce_nolock(int ithr, data_t *dst,
     const size_t len = nstl::min(end * cl, reduction_size) - start * cl;
 
     (*drv_)(d, space, 1, len);
+#else /* for non-x86-jit builds, or x86-jit debug ... */
+    assert(drv_ == nullptr);
+    if (balancer().id_in_group(ithr) != 0)
+        return; /* only threads 0 do the reduction */
+
+    const int njobs_in_grp = balancer().ithr_njobs(ithr);
+    data_t *d = get_local_ptr(ithr, dst, scratchpad);
+    for (int id_in_grp = 1; id_in_grp < balancer().nthr_per_group_;
+            ++id_in_grp) {
+        const data_t *space = get_local_ptr(ithr + id_in_grp, dst, scratchpad);
+        for (size_t i = 0; i < (size_t)njobs_in_grp * balancer().job_size_; ++i)
+            d[i] += space[i];
+    }
 #endif
 }
 
@@ -452,18 +465,20 @@ void cpu_reducer_2d_t<data_type>::reduce_block(const data_t *space_base,
     data_t *d = dst + (start_y + ny_start) * conf_.dst_x_ + start_x + nx_start;
     const data_t *space = space_base + job * balancer().job_size_
             + ny_start * conf_.job_size_x_ + nx_start;
-#ifdef SIMPLE_IMPL
+#if !SIMPLE_IMPL
+    assert(TARGET_X86_JIT && drv_ != nullptr);
+    // v1.2 default behavior: ALWAYS assume jit driver exists (assert)
+    (*drv_)(d, space, ny_step, nx_step); // v1.2: this is the ONLY code path
+#else /* for non-x86-jit builds, or x86-jit debug ... */
+    assert(drv_ == nullptr);
     for (int idg = 0; idg < balancer().nthr_per_group_; ++idg) {
         const data_t *w = &space[idg * space_per_thread(balancer())];
-        for (int y = 0; y < ny_step; ++y)
-            for (int x = 0; x < nx_step; ++x) {
-                d[y * conf_.dst_x_ + x]
-                        = (idg == 0 ? 0 : d[y * conf_.dst_x_ + x])
-                        + w[y * conf_.job_size_x_ + x];
-            }
+        for_(int y = 0; y < ny_step; ++y)
+        for (int x = 0; x < nx_step; ++x) {
+            d[y * conf_.dst_x_ + x] = (idg == 0 ? 0 : d[y * conf_.dst_x_ + x])
+                    + w[y * conf_.job_size_x_ + x];
+        }
     }
-#else
-    (*drv_)(d, space, ny_step, nx_step);
 #endif
 }
 
@@ -557,4 +572,4 @@ template struct cpu_accumulator_1d_t<data_type::s32>;
 } // namespace impl
 } // namespace dnnl
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

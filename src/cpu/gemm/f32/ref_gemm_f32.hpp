@@ -32,4 +32,5 @@ dnnl_status_t ref_gemm(const char *transa, const char *transb, const int *M,
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif // REF_GEMM_F32_HPP

@@ -17,14 +17,14 @@
 #include <cstdint>
 #include <mutex>
 
-#include "gemm_info.hpp"
-
-#include "bf16/common_s16.hpp"
-#include "bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 #include "common/bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
 #include "dnnl_traits.hpp"
 #include "dnnl_types.h"
+#include "gemm_info.hpp"
+#if MKLDNN_CPU_GEMM_JIT
+#include "bf16/common_s16.hpp"
+#include "bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 #include "f32/common_f32.hpp"
 #include "f32/jit_avx2_kernel_sgemm_kern.hpp"
 #include "f32/jit_avx_gemv_t_f32_kern.hpp"
@@ -34,6 +34,7 @@
 #include "s8x8s32/jit_avx2_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_gemm_s8u8s32_kern.hpp"
 #include "s8x8s32/jit_avx512_core_kernel_gemv_s8x8s32_kern.hpp"
+#endif // MKLDNN_CPU_GEMM_JIT
 
 namespace dnnl {
 namespace impl {
@@ -285,6 +286,7 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 
     static std::once_flag initialized;
     std::call_once(initialized, [] {
+#if MKLDNN_CPU_GEMM_JIT
         const bool b_is_s8 = data_traits<b_t>::data_type == data_type::s8;
 
         static jit_generator *copy_a[2][2] = {{NULL}};
@@ -513,6 +515,8 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                         = gemv_u8s8s32_kernel->generate<gemv_u8s8s32_kernel_t>(
                                 mayiuse(avx512_core_vnni));
         }
+        // NO non-jit kernels.  copyA, copyB remain NULL
+#endif // MKLDNN_CPU_GEMM_JIT
     });
 
     int doSumA = this->bo != 0 ? do_sum : no_sum;
@@ -552,8 +556,10 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
 //      s8  : Intel AVX512, Intel DL Boost
 //      bf16 : Intel AVX512, Intel AVX512 BF16
 //      f32 : Intel SSE4.1, Intel AVX, Intel AVX2, Intel AVX512
+// must reflect what jit_init sets up
 template <typename a_t, typename b_t, typename c_t>
 bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
+#if MKLDNN_CPU_GEMM_JIT // must match the init_once
 
     switch (data_traits<a_t>::data_type) {
         case data_type::s8:
@@ -600,6 +606,7 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
             }
             break;
     }
+#endif
 
     // All kernels necessary have been found or ISA is not supported.
     return true;
@@ -632,3 +639,4 @@ template // For sgemm.
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

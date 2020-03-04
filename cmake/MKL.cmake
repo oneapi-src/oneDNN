@@ -24,7 +24,7 @@ set(MKL_cmake_included true)
 include("cmake/utils.cmake")
 include("cmake/options.cmake")
 
-if (NOT _DNNL_USE_MKL)
+if (NOT (DNNL_CPU_EXTERNAL_GEMM STREQUAL "MKL")) # options.cmake string
     return()
 endif()
 
@@ -62,7 +62,7 @@ detect_mkl("mkl_rt")
 
 if(HAVE_MKL)
     list(APPEND EXTRA_SHARED_LIBS ${MKLLIB})
-    add_definitions(-DUSE_MKL)
+    #add_definitions(-DUSE_MKL) # handled by dnnl_config.h.in + cpu_target.h
     include_directories(AFTER ${MKLINC})
 
     set(MSG "Intel(R) MKL:")

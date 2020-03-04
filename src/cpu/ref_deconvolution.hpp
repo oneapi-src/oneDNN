@@ -28,6 +28,12 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
 
+#if DNNL_VERBOSE_EXTRA
+#include "consistency.hpp"
+#include "dnnl_debug.h"
+#define AND_(...) SCHKV(ok, __VA_ARGS__)
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -146,12 +152,21 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
 
         status_t init() {
             using namespace format_tag;
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && is_fwd()
                     && utils::one_of(desc()->alg_kind,
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
                     && attr()->has_default_values();
+#else // track reason we could not use
+            Consistency ok("\ndeconvolution_fwd bad init:");
+            AND_(is_fwd());
+            AND_(utils::one_of(desc()->alg_kind, alg_kind::deconvolution_direct,
+                    alg_kind::deconvolution_winograd));
+            AND_(attr()->has_default_values());
+#endif
 
+#if !DNNL_VERBOSE_EXTRA
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any)
@@ -173,6 +188,30 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
             }
 
             return status::unimplemented;
+#else // debug
+            if (ok) {
+                OK_CHECK(init_convolution());
+                if (weights_md_.format_kind == format_kind::any) {
+                    OK_CHECK(weights_axes_permutation(&weights_md_,
+                            conv_pd_->weights_md(), with_groups()));
+                    // weights_md_ = desc_.weights_desc; // is this now done by weights_axes_permutation ? XXX CHECKME
+                }
+                if (src_md_.format_kind == format_kind::any)
+                    src_md_ = *conv_pd_->diff_dst_md();
+                if (dst_md_.format_kind == format_kind::any)
+                    dst_md_ = *conv_pd_->diff_src_md();
+                if (bias_md_.format_kind == format_kind::any)
+                    OK_CHECK(memory_desc_init_by_tag(bias_md_, x));
+
+                dst_tag_ = memory_desc_matches_one_of_tag(dst_md_,
+                        utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                        utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
+                        utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
+            }
+            if (ok) return status::success;
+
+            return status::unimplemented;
+#endif
         }
 
         virtual void init_scratchpad_md() override {
@@ -276,7 +315,6 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
                     return status::success;
                 delete conv_pd_;
             }
-
             return status::unimplemented;
         }
 
@@ -285,6 +323,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
             auto dsrc_type = desc()->diff_src_desc.data_type;
             auto wei_type = desc()->weights_desc.data_type;
             auto ddst_type = desc()->diff_dst_desc.data_type;
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && (utils::everyone_is(f32, dsrc_type, wei_type, ddst_type)
                             || (utils::one_of(dsrc_type, f32, bf16)
@@ -294,7 +333,18 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
                     && attr()->has_default_values();
+#else // debug
+            Consistency ok("\ndeconvolution_bwd_data bad init:");
+            AND_(desc()->prop_kind == prop_kind::backward_data);
+            AND_(utils::everyone_is(f32, dsrc_type, wei_type, ddst_type)
+                    || (utils::one_of(dsrc_type, f32, bf16)
+                            && utils::everyone_is(bf16, wei_type, ddst_type)));
+            AND_(utils::one_of(desc()->alg_kind, alg_kind::deconvolution_direct,
+                    alg_kind::deconvolution_winograd));
+            AND_(attr()->has_default_values());
+#endif
 
+#if !DNNL_VERBOSE_EXTRA
             if (ok) {
                 CHECK(init_convolution());
                 if (weights_md_.format_kind == format_kind::any)
@@ -307,7 +357,21 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
 
                 return status::success;
             }
-
+#else // debug
+            if (ok) {
+                OK_CHECK(init_convolution());
+                if (weights_md_.format_kind == format_kind::any) {
+                    OK_CHECK(weights_axes_permutation(&weights_md_,
+                            conv_pd_->weights_md(), with_groups()));
+                    // removed? XXX weights_md_ = desc_.weights_desc;
+                }
+                if (diff_src_md_.format_kind == format_kind::any)
+                    diff_src_md_ = *conv_pd_->dst_md();
+                if (diff_dst_md_.format_kind == format_kind::any)
+                    diff_dst_md_ = *conv_pd_->src_md();
+            }
+            if (ok) return status::success;
+#endif
             return status::unimplemented;
         }
 
@@ -403,6 +467,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
             auto src_type = desc()->src_desc.data_type;
             auto dwei_type = desc()->diff_weights_desc.data_type;
             auto ddst_type = desc()->diff_dst_desc.data_type;
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && (utils::everyone_is(f32, src_type, dwei_type, ddst_type)
                             || (utils::one_of(dwei_type, f32, bf16)
@@ -412,7 +477,18 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
                             alg_kind::deconvolution_direct,
                             alg_kind::deconvolution_winograd)
                     && attr()->has_default_values();
+#else // debug  XXX pare down once all tests pass on all cpus CHECKME
+            Consistency ok("\ndeconvolution_bwd_weights bad init:");
+            AND_(desc()->prop_kind == prop_kind::backward_weights);
+            AND_(utils::everyone_is(f32, src_type, dwei_type, ddst_type)
+                    || (utils::one_of(dwei_type, f32, bf16)
+                            && utils::everyone_is(bf16, src_type, ddst_type)));
+            AND_(utils::one_of(desc()->alg_kind, alg_kind::deconvolution_direct,
+                    alg_kind::deconvolution_winograd));
+            AND_(attr()->has_default_values());
+#endif
 
+#if !DNNL_VERBOSE_EXTRA
             if (ok) {
                 CHECK(init_convolution());
                 if (diff_weights_md_.format_kind == format_kind::any)
@@ -432,6 +508,27 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
                 return status::success;
             }
+#else
+            if (ok) {
+                OK_CHECK(init_convolution());
+                if (diff_weights_md_.format_kind == format_kind::any) {
+                    CHECK(weights_axes_permutation(&diff_weights_md_,
+                            conv_pd_->diff_weights_md(), with_groups()));
+                }
+                if (src_md_.format_kind == format_kind::any)
+                    src_md_ = *conv_pd_->diff_dst_md();
+                if (diff_dst_md_.format_kind == format_kind::any)
+                    diff_dst_md_ = *conv_pd_->src_md();
+                if (diff_bias_md_.format_kind == format_kind::any)
+                    CHECK(memory_desc_init_by_tag(diff_bias_md_, x));
+
+                dst_tag_ = memory_desc_matches_one_of_tag(diff_dst_md_,
+                        utils::pick(ndims() - 3, ncw, nchw, ncdhw),
+                        utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c),
+                        utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c));
+            }
+            if (ok) return status::success;
+#endif
 
             return status::unimplemented;
         }
@@ -471,9 +568,8 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
                 compute_bias<f32, f32>(ctx);
             else if (utils::everyone_is(bf16, dbia_type, ddst_type))
                 compute_bias<bf16, bf16>(ctx);
-            else if (dbia_type == f32 && ddst_type == bf16) {
+            else if (dbia_type == f32 && ddst_type == bf16)
                 compute_bias<f32, bf16>(ctx);
-            }
         }
         return status::success;
     }
@@ -501,6 +597,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

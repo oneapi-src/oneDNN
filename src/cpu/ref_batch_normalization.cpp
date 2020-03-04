@@ -249,21 +249,20 @@ void ref_batch_normalization_bwd_t<d_type>::execute_backward(
         acc_data_t diff_gamma = acc_data_t(0);
         acc_data_t diff_beta = acc_data_t(0);
 
-        for (dim_t n = 0; n < N; ++n)
-            for (dim_t d = 0; d < D; ++d)
-                for (dim_t h = 0; h < H; ++h)
-                    for (dim_t w = 0; w < W; ++w) {
-                        const size_t s_off = data_offset(data_d, n, c, d, h, w);
-                        acc_data_t dd;
-                        if (fuse_norm_relu && !ws[s_off])
-                            dd = 0;
-                        else
-                            dd = maybe_up_convert(diff_dst[data_offset(
-                                    diff_data_d, n, c, d, h, w)]);
-                        diff_gamma
-                                += (maybe_up_convert(src[s_off]) - v_mean) * dd;
-                        diff_beta += dd;
-                    }
+        for_(dim_t n = 0; n < N; ++n)
+        for_(dim_t d = 0; d < D; ++d)
+        for_(dim_t h = 0; h < H; ++h)
+        for (dim_t w = 0; w < W; ++w) {
+            const size_t s_off = data_offset(data_d, n, c, d, h, w);
+            acc_data_t dd;
+            if (fuse_norm_relu && !ws[s_off])
+                dd = 0;
+            else
+                dd = maybe_up_convert(
+                        diff_dst[data_offset(diff_data_d, n, c, d, h, w)]);
+            diff_gamma += (maybe_up_convert(src[s_off]) - v_mean) * dd;
+            diff_beta += dd;
+        }
         diff_gamma *= sqrt_variance;
 
         if (diff_scaleshift) {
@@ -301,4 +300,4 @@ template struct ref_batch_normalization_bwd_t<bf16>;
 } // namespace impl
 } // namespace dnnl
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

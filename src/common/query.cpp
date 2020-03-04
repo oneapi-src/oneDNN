@@ -21,6 +21,10 @@
 #include "engine.hpp"
 #include "primitive_desc.hpp"
 #include "utils.hpp"
+#if DNNL_VERBOSE_EXTRA
+#include "consistency.hpp"
+#define AND_(...) SCHKV(args_ok, __VA_ARGS__)
+#endif
 
 using namespace dnnl::impl;
 using namespace dnnl::impl::utils;
@@ -36,22 +40,39 @@ status_t dnnl_primitive_desc_query(const primitive_desc_t *primitive_desc,
 const memory_desc_t *dnnl_primitive_desc_query_md(
         const primitive_desc_t *primitive_desc, query_t what, int index) {
     const memory_desc_t *res_md = nullptr;
+#if DNNL_VERBOSE_EXTRA
+    Consistency args_ok("dnnl_primitive_desc_query_md args:");
+    AND_(primitive_desc != nullptr);
+    AND_((what & query::some_md) == query::some_md);
+    AND_(what != query::some_md);
+    AND_(dnnl_primitive_desc_query(primitive_desc, what, index, &res_md)
+            == success);
+#else
     bool args_ok = true && primitive_desc != nullptr
             && (what & query::some_md) == query::some_md
             && what != query::some_md
             && dnnl_primitive_desc_query(primitive_desc, what, index, &res_md)
                     == success;
+#endif
     return args_ok ? res_md : nullptr;
 }
 
 int dnnl_primitive_desc_query_s32(
         const primitive_desc_t *primitive_desc, query_t what, int index) {
     int res_s32;
+#if DNNL_VERBOSE_EXTRA
+    Consistency args_ok("dnnl_primitive_desc_query_s32 args:");
+    AND_(primitive_desc != nullptr);
+    AND_(one_of(what, query::num_of_inputs_s32, query::num_of_outputs_s32));
+    AND_(dnnl_primitive_desc_query(primitive_desc, what, index, &res_s32)
+            == success);
+    return args_ok ? res_s32 : 0;
+#else
     bool args_ok = primitive_desc != nullptr
             && one_of(what, query::num_of_inputs_s32, query::num_of_outputs_s32)
             && dnnl_primitive_desc_query(primitive_desc, what, index, &res_s32)
                     == success;
     return args_ok ? res_s32 : 0;
+#endif
 }
-
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

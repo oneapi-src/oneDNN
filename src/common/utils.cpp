@@ -34,6 +34,11 @@
 #include "dnnl.h"
 #include "utils.hpp"
 
+#if defined(__ve)
+// N/A      #include <stdatomic.h>
+#include <atomic> // avail ncc-2.3.20
+#endif
+
 namespace dnnl {
 namespace impl {
 
@@ -115,6 +120,8 @@ int32_t fetch_and_add(int32_t *dst, int32_t val) {
 #ifdef _WIN32
     return InterlockedExchangeAdd(reinterpret_cast<long *>(dst), val);
 #else
+    // XXX #elif defined(__ve) && __NEC_VERSION__ < 30000 use atomic_fetch_add(dst, val)
+    // o/w VE compile may compile but give undefined symbol during link.
     return __sync_fetch_and_add(dst, val);
 #endif
 }
@@ -194,3 +201,4 @@ dnnl_status_t dnnl_set_jit_profiling_flags(unsigned flags) {
 dnnl_status_t dnnl_set_jit_profiling_jitdumpdir(const char *dir) {
     return dnnl::impl::init_jit_profiling_jitdumpdir(dir, true);
 }
+/* vim: set et ts=4 sw=4 cino=^=l0,\:0,N-s: */

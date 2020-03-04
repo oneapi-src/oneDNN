@@ -42,7 +42,7 @@ status_t shuffle_desc_init(shuffle_desc_t *shuffle_desc, prop_kind_t prop_kind,
     if (memory_desc_wrapper(data_desc).has_runtime_dims_or_strides())
         return unimplemented;
 
-    auto sd = shuffle_desc_t();
+    auto sd = zero<shuffle_desc_t>();
     sd.primitive_kind = primitive_kind::shuffle;
     sd.prop_kind = prop_kind;
     sd.data_desc = *data_desc;

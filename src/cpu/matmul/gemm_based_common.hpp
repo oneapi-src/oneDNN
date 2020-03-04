@@ -24,6 +24,7 @@
 #include "type_helpers.hpp"
 
 #include "cpu/cpu_isa_traits.hpp"
+#include "gemm/gemm.hpp" // for GEMM_IMPL_STR
 
 #include "cpu_matmul_pd.hpp"
 
@@ -84,4 +85,5 @@ inline void book_acc_scratchpad(
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

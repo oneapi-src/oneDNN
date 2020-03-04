@@ -33,7 +33,7 @@ using namespace dnnl::impl::data_type;
 
 namespace dnnl {
 namespace impl {
-memory_desc_t glob_zero_md = memory_desc_t();
+memory_desc_t glob_zero_md = types::zero_md();
 }
 } // namespace dnnl
 
@@ -97,7 +97,7 @@ status_t dnnl_memory_desc_init_by_tag(memory_desc_t *memory_desc, int ndims,
             && memory_desc_sanity_check(ndims, dims, data_type, format_kind);
     if (!args_ok) return invalid_arguments;
 
-    auto md = memory_desc_t();
+    auto md = types::zero_md();
     md.ndims = ndims;
     array_copy(md.dims, dims, ndims);
     md.data_type = data_type;
@@ -135,7 +135,7 @@ status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
                     ndims, dims, data_type, format_kind::undef);
     if (!args_ok) return invalid_arguments;
 
-    auto md = memory_desc_t();
+    auto md = types::zero_md();
     md.ndims = ndims;
     array_copy(md.dims, dims, ndims);
     md.data_type = data_type;

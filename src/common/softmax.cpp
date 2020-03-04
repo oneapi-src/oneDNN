@@ -45,7 +45,7 @@ status_t softmax_desc_init(softmax_desc_t *softmax_desc,
                 || memory_desc_wrapper(diff_desc).has_runtime_dims_or_strides();
     if (runtime_dims_or_strides) return unimplemented;
 
-    auto sd = softmax_desc_t();
+    auto sd = zero<softmax_desc_t>();
     sd.primitive_kind = prim_kind;
     sd.prop_kind = prop_kind;
 

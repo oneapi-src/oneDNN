@@ -44,10 +44,14 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
         const bfloat16_t *A, const int *lda, const bfloat16_t *B,
         const int *ldb, const float *beta, float *C, const int *ldc);
 
-#ifdef USE_CBLAS
+#if defined(USE_MKL)
+#define GEMM_IMPL_STR "gemm:mkl"
+#elif defined(USE_CBLAS)
 #define GEMM_IMPL_STR "gemm:blas"
-#else
+#elif TARGET_X86_JIT
 #define GEMM_IMPL_STR "gemm:jit"
+#else
+#define GEMM_IMPL_STR "gemm:ref"
 #endif
 
 #if USE_MKL_IGEMM
@@ -73,4 +77,5 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
 #endif // GEMM_HPP

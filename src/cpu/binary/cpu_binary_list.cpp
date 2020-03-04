@@ -29,22 +29,25 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+/// @copydoc INSTANCE_CREATOR
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
+        // clang-format off
         /* fp */
-        INSTANCE(jit_uni_binary_t<f32>),
-        INSTANCE(jit_uni_binary_t<bf16>),
-        INSTANCE(ref_binary_t<f32>),
-        INSTANCE(ref_binary_t<bf16>),
+        INSTANCE_uni(jit_uni_binary_t<f32>)
+        INSTANCE_uni(jit_uni_binary_t<bf16>)
+        INSTANCE(ref_binary_t<f32>)
+        INSTANCE(ref_binary_t<bf16>)
         /* int */
-        INSTANCE(jit_uni_i8i8_binary_t<u8, u8>),
-        INSTANCE(jit_uni_i8i8_binary_t<u8, s8>),
-        INSTANCE(jit_uni_i8i8_binary_t<s8, s8>),
-        INSTANCE(jit_uni_i8i8_binary_t<s8, u8>),
-        INSTANCE(ref_binary_t<s8, u8, s8>),
-        INSTANCE(ref_binary_t<s8, s8, s8>),
-        INSTANCE(ref_binary_t<u8, s8, u8>),
-        INSTANCE(ref_binary_t<u8, u8, u8>),
+        INSTANCE_uni(jit_uni_i8i8_binary_t<u8, u8>)
+        INSTANCE_uni(jit_uni_i8i8_binary_t<u8, s8>)
+        INSTANCE_uni(jit_uni_i8i8_binary_t<s8, s8>)
+        INSTANCE_uni(jit_uni_i8i8_binary_t<s8, u8>)
+        INSTANCE(ref_binary_t<s8, u8, s8>)
+        INSTANCE(ref_binary_t<s8, s8, s8>)
+        INSTANCE(ref_binary_t<u8, s8, u8>)
+        INSTANCE(ref_binary_t<u8, u8, u8>)
+        // clang-format off
         /* eol */
         nullptr,
 };

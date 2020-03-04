@@ -32,7 +32,7 @@ status_t dnnl_matmul_desc_init(matmul_desc_t *matmul_desc,
     bool args_ok = !any_null(matmul_desc, src_md, weights_md, dst_md);
     if (!args_ok) return status::invalid_arguments;
 
-    auto op_d = matmul_desc_t();
+    auto op_d = zero<matmul_desc_t>();
     op_d.primitive_kind = primitive_kind::matmul;
 
     op_d.src_desc = *src_md;

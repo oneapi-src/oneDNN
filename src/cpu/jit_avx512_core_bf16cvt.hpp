@@ -122,6 +122,7 @@ struct bf16_emulation_t {
         host_->vpbroadcastd(selector_, scratch_.cvt32());
     }
 
+    // XXX some files may require ONLY bf16_emulation_t::get_isa() to succeed
     static cpu_isa_t get_isa() { return avx512_core; }
 
 private:

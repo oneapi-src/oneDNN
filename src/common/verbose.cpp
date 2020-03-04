@@ -24,7 +24,7 @@
 #include "dnnl_version.h"
 
 #include "c_types_map.hpp"
-#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/cpu_isa_traits.hpp" // for mayiuse
 #include "verbose.hpp"
 
 #include "batch_normalization_pd.hpp"
@@ -50,8 +50,14 @@
 #include "gpu/ocl/verbose.hpp"
 #endif
 
-/* DNNL CPU ISA info */
+/* DNNL CPU ISA names */
+#define VANILLA "Vanilla"
+#if TARGET_X86
 #define ISA_ANY "Intel 64"
+#elif TARGET_VE
+#define ISA_ANY "NEC Aurora (VE)"
+#endif
+
 #define SSE41 "Intel SSE4.1"
 #define AVX "Intel AVX"
 #define AVX2 "Intel AVX2"
@@ -65,6 +71,9 @@
     "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions"
 #define AVX512_CORE_BF16 \
     "Intel AVX-512 with Intel DL Boost and bfloat16 support"
+
+#define VEDNN "NEC Aurora (VE) with libvednn intrinsics"
+#define VEJIT "NEC Aurora (VE) with libvednn jit"
 
 namespace dnnl {
 namespace impl {
@@ -80,6 +89,7 @@ int get_verbose() {
     }
     static bool version_printed = false;
     if (!version_printed && verbose.get() > 0) {
+        printf("dnnl_verbose,info,verbose:%d\n", verbose.get());
         printf("dnnl_verbose,info,DNNL v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
@@ -113,6 +123,7 @@ double get_msec() {
 
 const char *get_isa_info() {
     using namespace dnnl::impl::cpu;
+#if TARGET_X86
     if (mayiuse(avx512_core_bf16)) return AVX512_CORE_BF16;
     if (mayiuse(avx512_mic_4ops)) return AVX512_MIC_4OPS;
     if (mayiuse(avx512_mic)) return AVX512_MIC;
@@ -122,7 +133,20 @@ const char *get_isa_info() {
     if (mayiuse(avx2)) return AVX2;
     if (mayiuse(avx)) return AVX;
     if (mayiuse(sse41)) return SSE41;
-    return ISA_ANY;
+    if (mayiuse(x86_common)) return ISA_ANY;
+    if (mayiuse(vanilla)) return VANILLA;
+    //return ISA_ANY;
+    return "unrecognized x86 isa : " __FILE__;
+#elif TARGET_VE
+    if (mayiuse(vejit)) return VEJIT;
+    if (mayiuse(vednn)) return VEDNN;
+    if (mayiuse(ve_common)) return ISA_ANY;
+    if (mayiuse(vanilla)) return VANILLA;
+    //return ISA_ANY;
+    return "unrecognized ve isa : " __FILE__;
+#else
+#error "unhandled get_isa_info() cpu target" __FILE__
+#endif
 }
 
 #if defined(DISABLE_VERBOSE)
@@ -1008,9 +1032,13 @@ dnnl_status_t dnnl_set_verbose(int level) {
     return success;
 }
 
+int dnnl_get_verbose() {
+    return dnnl::impl::verbose.get();
+}
+
 const dnnl_version_t *dnnl_version() {
-    static const dnnl_version_t ver
-            = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR, DNNL_VERSION_PATCH,
-                    DNNL_VERSION_HASH, DNNL_CPU_RUNTIME, DNNL_GPU_RUNTIME};
+    static const dnnl_version_t ver = {DNNL_VERSION_MAJOR, DNNL_VERSION_MINOR,
+            DNNL_VERSION_PATCH, DNNL_VERSION_HASH, DNNL_CPU_RUNTIME,
+            DNNL_GPU_RUNTIME, DNNL_CPU, DNNL_ISA};
     return &ver;
 }

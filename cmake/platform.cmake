@@ -87,6 +87,10 @@ if(MSVC)
         # unconditionally.
         append(CMAKE_CCXX_FLAGS "-Wno-pass-failed")
     endif()
+elseif(NECVE) # masquerades as GNU 6.0.0, but does not quite support all the flags
+    append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
+    append(CMAKE_CCXX_FLAGS "-Wall -Wunknown-pragma")
+    set(CMAKE_CCXX_FLAGS "${CMAKE_CCXX_FLAGS} -fdiag-parallel=2 -ffast-math")
 elseif(UNIX OR MINGW)
     append(CMAKE_CCXX_FLAGS "-Wall -Wno-unknown-pragmas")
     append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Werror")
@@ -190,3 +194,27 @@ if(APPLE)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${_rpath}")
     endforeach()
 endif()
+
+# toolchain builds may add checks for compiler/environment/library issues...
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles(
+    "#include <iostream>
+    struct Foo { Foo() : i(42) {} int i; };
+    // Some systems fail link : missing atexit c++ destructor function
+    thread_local static Foo foo;
+    int main(int argc,char**){ std::cout<<foo.i; }
+    "
+    #nc++ - 3.0.25 workaround; remove check, and tidy scratchpad.cpp when fixed
+    DNNL_OK_STATIC_THREAD_LOCAL_OBJECTS # as in scratchpad std::unique_ptr
+    )
+message(STATUS "DNNL_OK_STATIC_THREAD_LOCAL_OBJECTS ${DNNL_OK_STATIC_THREAD_LOCAL_OBJECTS}")
+if(NECVE) # most standard compilers comply with c++11, but...
+    # Note: This bug is pretty severe.  Try not to pollute mkl-dnn/master with 
+    #       workarounds for this bug.
+    include(CheckCXXSourceRuns)
+    file(READ cmake/test_value_initialized_bug.cpp _source)
+    check_cxx_source_runs("${_source}"
+        DNNL_OK_VALUE_INITIALIZATION)
+    message(STATUS "DNNL_OK_VALUE_INITIALIZATION ${DNNL_OK_VALUE_INITIALIZATION}")
+endif()
+# vim : set ts=4 sw=4 ai :

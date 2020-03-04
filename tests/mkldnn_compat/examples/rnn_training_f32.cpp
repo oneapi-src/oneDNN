@@ -28,6 +28,7 @@
 
 #include "example_utils.hpp"
 
+#if DNNL_ENABLE_RNN
 using namespace mkldnn;
 
 // User input is:
@@ -704,8 +705,10 @@ void simple_net(engine::kind engine_kind) {
 
     s.wait();
 }
+#endif // DNNL_ENABLE_RNN
 
 int main(int argc, char **argv) {
+#if DNNL_ENABLE_RNN
     try {
         simple_net(parse_engine_kind(argc, argv));
         std::cout << "Simple Net example passes!\n";
@@ -714,5 +717,8 @@ int main(int argc, char **argv) {
         std::cerr << "message: " << e.message << std::endl;
         return 1;
     }
+#else
+    std::cout << " disabled - no(rnn support" << std::endl;
+#endif
     return 0;
 }

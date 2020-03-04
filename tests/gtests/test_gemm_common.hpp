@@ -118,6 +118,8 @@ namespace impl {
 namespace cpu {
 
 // Get pack-size functions.
+// TODO: the "gemm_pack.hpp" header is not included,
+// so this must match original in src/cpu/gemm/gemm_pack.hpp XXX move the DNNL_API function up, and delete this copy-paste
 extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
         const int *K, const int *lda, const int *ldb, size_t *size,
@@ -1229,6 +1231,15 @@ protected:
         SKIP_IF(is_bf16bf16f32 && get_test_engine_kind() == engine::kind::cpu
                         && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "Skip test for systems that do not support avx512_core.");
+        // XXX Issue with using 'pack_gemm_bf16bf16f32_supported()' is that
+        //     it is "static inline" in src/cpu/gemm/gemm_pack.hpp).  It could
+        //     be provided as a macro ... so we can avoid introducing another
+        //     library symbol.
+        // Proposal:  move DNNL_API and some simple 'static bool inlines'
+        //            into src/cpu/gemm/os_blas.hpp, and include this
+        //            file via "cpu_isa_traits.hpp".  (package with mods
+        //            that add USE_MKL and USE_CBLAS as DNNL_foo options
+        //            into dnnl_config.h)
 
         bool pack = (p.pack_params.pack_a || p.pack_params.pack_b);
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu && pack,
@@ -1237,6 +1248,12 @@ protected:
                         || p.igemm_params.ob() != 0)
                         && pack,
                 "Packed GEMM doesn't support alpha or non-zero offset{A,B}.");
+        // XXX If we new had this function we could also remove some more
+        //     'skipped' tests.
+        //     Should we expose pack_sgemm_supported as DNNL_API ?
+        //     else use gemm.in.h as (defined(TARGET_X86_JIT) || defined(DNNL_USE_MKL))
+        //SKIP_IF(pack && !pack_sgemm_supported(),
+        //        "CPU does not support packed sgemm");
         SKIP_IF(data_traits<b_dt>::data_type == memory::data_type::u8
                         && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support s8u8s32 and u8u8s32 GEMM.");

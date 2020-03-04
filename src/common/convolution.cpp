@@ -18,6 +18,7 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "consistency.hpp" // debug: print reason for consistency failures
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -44,7 +45,7 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
 
     if (padding_r == nullptr) padding_r = padding_l;
 
-    auto cd = convolution_desc_t();
+    auto cd = zero<convolution_desc_t>();
     cd.primitive_kind = primitive_kind::convolution;
     cd.prop_kind = prop_kind;
     cd.alg_kind = alg_kind;
@@ -92,7 +93,20 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
     const int g = with_groups ? weights_desc->dims[0] : 1;
     const int bias_dim = prop_kind == backward_data ? src_desc->dims[1]
                                                     : dst_desc->dims[1];
-
+#define AND_(...) SCHKV(consistency, __VA_ARGS__) /* also avail: SCHK, SCHKVV */
+#if DNNL_VERBOSE_EXTRA // build allows some additional trace levels
+    Consistency consistency("conv_desc_init consistency:");
+    AND_(memory_desc_wrapper(weights_desc).nelems());
+    AND_(src_desc->ndims == dst_desc->ndims);
+    AND_(utils::one_of(src_desc->ndims, 3, 4, 5));
+    AND_(utils::one_of(
+            weights_desc->ndims, src_desc->ndims, src_desc->ndims + 1));
+    AND_((with_bias ? bias_desc->ndims == 1 : true));
+    AND_((with_bias ? bias_desc->dims[0] == bias_dim : true));
+    AND_(src_desc->dims[0] == dst_desc->dims[0]);
+    AND_(src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]);
+    AND_(dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0]);
+#else // default full build
     bool consistency = true && memory_desc_wrapper(weights_desc).nelems()
             && src_desc->ndims == dst_desc->ndims
             && utils::one_of(src_desc->ndims, 3, 4, 5)
@@ -103,6 +117,8 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
             && src_desc->dims[0] == dst_desc->dims[0]
             && src_desc->dims[1] == g * weights_desc->dims[with_groups + 1]
             && dst_desc->dims[1] == g * weights_desc->dims[with_groups + 0];
+
+#endif
     for (int i = 2; i < src_desc->ndims; ++i) {
         int src = src_desc->dims[i];
         int ker = weights_desc->dims[with_groups + i];
@@ -113,10 +129,19 @@ status_t conv_desc_init(convolution_desc_t *conv_desc, prop_kind_t prop_kind,
         int dst = dst_desc->dims[i];
         int ker_range = 1 + (ker - 1) * (dil + 1);
 
+#if DNNL_VERBOSE_EXTRA
+        AND_(str >= 1);
+        AND_(dil >= 0);
+        AND_(pad_l >= 0);
+        AND_(pad_r + str > 0);
+        AND_((src - ker_range + pad_l + pad_r) / str + 1 == dst);
+#else // default full build
         if (str < 1) return invalid_arguments;
         consistency = consistency && dil >= 0 && pad_l >= 0 && pad_r + str > 0
                 && (src - ker_range + pad_l + pad_r) / str + 1 == dst;
+#endif
     }
+#undef AND_
     if (!consistency) return invalid_arguments;
 
     *conv_desc = cd;
@@ -190,4 +215,4 @@ status_t dnnl_dilated_convolution_backward_weights_desc_init(
             dilates, padding_l, padding_r);
 }
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

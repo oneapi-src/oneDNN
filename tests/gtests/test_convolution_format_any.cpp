@@ -19,6 +19,7 @@
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
+
 namespace dnnl {
 
 using tag = memory::format_tag;

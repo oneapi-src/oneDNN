@@ -21,10 +21,19 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak
-    )
+# vanilla-x86 and non-x86 targets should ignore all x86 jit files
+if(NOT TARGET_X86_JIT)
+    message(STATUS "no x86 JIT: removing all '.*jit.*' source code")
+    message(STATUS "\nbegin:\n${SOURCES}\n")
+    #list(FILTER SOURCES EXCLUDE REGEX ".*(jit|xbyak).*") # not in older cmake
+    list_filter_exclude(SOURCES ".*(jit|xbyak).*") # equiv. as macro
+    message(STATUS "\nend:\n${SOURCES}\n")
+endif()
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+if(TARGET_X86_JIT)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/xbyak)
+endif()
 
 # Don't build sources from linux_perf direcotry if JIT Profiling isn't enabled.
 # NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.

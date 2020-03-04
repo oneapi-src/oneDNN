@@ -18,13 +18,15 @@
 
 #include "gemv_driver.hpp"
 
-#include "common/bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
 #include "dnnl_thread.hpp"
 #include "dnnl_types.h"
 #include "gemm_info.hpp"
 #include "gemm_utils.hpp"
+#if MKLDNN_CPU_GEMM_JIT
+#include "common/bfloat16.hpp"
 #include "jit_generator.hpp"
+#endif // MKLDNN_CPU_GEMM_JIT
 #include "nstl.hpp"
 
 namespace dnnl {
@@ -359,11 +361,13 @@ dnnl_status_t jump_to_gemv(const gemm_info_t<int8_t, int8_t, int32_t> *arg) {
     return dnnl_unimplemented;
 }
 
+#if MKLDNN_CPU_GEMM_JIT
 template <>
 dnnl_status_t jump_to_gemv(
         const gemm_info_t<bfloat16_t, bfloat16_t, float> *arg) {
     return dnnl_unimplemented;
 }
+#endif
 
 template <typename a_t, typename b_t, typename c_t>
 dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg) {
@@ -450,3 +454,4 @@ template // Instatiate gemv_f32
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

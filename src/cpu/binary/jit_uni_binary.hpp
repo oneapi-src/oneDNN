@@ -17,13 +17,14 @@
 #ifndef CPU_JIT_UNI_BINARY_HPP
 #define CPU_JIT_UNI_BINARY_HPP
 
+#include "cpu_isa_traits.hpp"
+#if DNNL_TARGET_X86_JIT
+
 #include <assert.h>
 
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
-
-#include "cpu_isa_traits.hpp"
 
 #include "cpu_binary_pd.hpp"
 
@@ -112,7 +113,7 @@ private:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
-#endif
+#endif // DNNL_TARGET_X86_JIT
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+#endif

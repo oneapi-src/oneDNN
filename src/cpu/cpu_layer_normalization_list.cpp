@@ -16,7 +16,9 @@
 
 #include "cpu_engine.hpp"
 
+#if TARGET_X86_JIT
 #include "cpu/jit_uni_layer_normalization.hpp"
+#endif // TARGET_X86_JIT
 #include "cpu/ref_layer_normalization.hpp"
 
 namespace dnnl {
@@ -28,18 +30,20 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+/// @copydoc INSTANCE_CREATOR
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
-        INSTANCE(jit_uni_layer_normalization_fwd_t),
-        INSTANCE(jit_uni_layer_normalization_bwd_t),
-        INSTANCE(ref_layer_normalization_fwd_t<f32>),
-        INSTANCE(ref_layer_normalization_bwd_t<f32>),
-        INSTANCE(ref_layer_normalization_fwd_t<bf16>),
-        INSTANCE(ref_layer_normalization_bwd_t<bf16>),
+        // clang-format off
+        INSTANCE_uni(jit_uni_layer_normalization_fwd_t)
+        INSTANCE_uni(jit_uni_layer_normalization_bwd_t)
+        INSTANCE(ref_layer_normalization_fwd_t<f32>)
+        INSTANCE(ref_layer_normalization_bwd_t<f32>)
+        INSTANCE(ref_layer_normalization_fwd_t<bf16>)
+        INSTANCE(ref_layer_normalization_bwd_t<bf16>)
+        // clang-format on
         /* eol */
         nullptr,
 };
-#undef INSTANCE
 } // namespace
 
 const pd_create_f *get_layer_normalization_impl_list(

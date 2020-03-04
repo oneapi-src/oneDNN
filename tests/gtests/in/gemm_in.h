@@ -14,6 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+// You could always test, and the test will SKIP
+//#define TEST_PACKED_GEMM 1
+// or you can target expected packed-gemm support cases
+#define TEST_PACKED_GEMM (defined(TARGET_X86_JIT) || defined(DNNL_USE_MKL))
+// or even expose the pack_sgemm_supported() function and SKIP_IF
+// in test_gemm_common.hpp
+
 #if defined(FP16) || defined(FP32) || defined(F16F16F32) || defined(BF16BF16F32)
 INST_TEST_CASE(TestGEMM,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {}, true,
@@ -75,16 +82,21 @@ CPU_INST_TEST_CASE(TestGEMV,
         test_params {'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 3000});
 
 #if defined(FP32) || defined(BF16BF16F32)
-INST_TEST_CASE(TestGEMM_packed,
+INST_TEST_CASE(
+        TestGEMM_packed,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},
                 true, dnnl_invalid_arguments},
         test_params {'n', 'n', 3, 2, 2, 1.0, 0.0, 1, 5, 8, {}, {true, false},
                 true, dnnl_invalid_arguments},
         test_params {'n', 't', 3, 2, 2, 1.0, 0.0, 3, 1, 8, {}, {true, true},
                 true, dnnl_invalid_arguments},
-        test_params {'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {true, true},
-                true, dnnl_invalid_arguments},
+        test_params {
+            'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {true, true}, true,
+                    dnnl_invalid_arguments
+        }
 
+#if TEST_PACKED_GEMM
+        ,
         make_test_params_pack(
                 {true, false}, 'N', 'n', 31, 21, 11, 1.0f, 1.5f, 61, 51, 81),
         make_test_params_pack(
@@ -141,7 +153,9 @@ INST_TEST_CASE(TestGEMM_packed,
         make_test_params_pack({true, true}, 'n', 't', 200, 200, 8000, 1.0f,
                 3.0f, 8000, 8000, 200),
         make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f,
-                3.0f, 200, 300, 300));
+                3.0f, 200, 300, 300)
+#endif // TEST_PACKED_GEMM
+);
 #endif
 
 #elif defined(BF16BF16BF16)
@@ -671,6 +685,26 @@ CPU_INST_TEST_CASE(TestGEMV_kblocking,
         test_params {'t', 'n', 1, 550, 7000, 1.0f, 1.0f, 7000, 550, 550,
                 fix_no_offsets});
 
+CPU_INST_TEST_CASE(TestGEMM_heavy,
+        test_params {'n', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
+                fix_use_oc},
+        test_params {'t', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
+                fix_use_oc},
+        test_params {'n', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
+                fix_use_oc},
+        test_params {'t', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
+                fix_use_oc},
+
+        test_params {'n', 'n', 3000, 3000, 3000, 2.19f, 1.99f, 3000, 3000, 3000,
+                fix_use_oc},
+        test_params {'t', 'n', 3000, 3000, 3000, 2.99f, 1.19f, 3000, 3000, 3000,
+                fix_use_oc},
+        test_params {'n', 't', 3000, 3000, 3000, 1.19f, 2.99f, 3000, 3000, 3000,
+                fix_use_oc},
+        test_params {'t', 't', 3000, 3000, 3000, 1.99f, 2.19f, 3000, 3000, 3000,
+                fix_use_oc});
+
+#if TEST_PACKED_GEMM
 CPU_INST_TEST_CASE(TestGEMM_packed,
         make_test_params_pack({false, true}, 'N', 'n', 30, 20, 10, 1.0f, 1.0f,
                 60, 50, 80, fix_use_oc),
@@ -768,25 +802,6 @@ CPU_INST_TEST_CASE(TestGEMM_packed,
         make_test_params_pack({false, true}, 'n', 'T', 1, 200, 200, 1.0f, 0.0f,
                 200, 200, 200, fix_no_offsets));
 
-CPU_INST_TEST_CASE(TestGEMM_heavy,
-        test_params {'n', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'t', 'n', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'n', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'t', 't', 3000, 3000, 3000, 1.0, 0.0, 3000, 3000, 3000,
-                fix_use_oc},
-
-        test_params {'n', 'n', 3000, 3000, 3000, 2.19f, 1.99f, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'t', 'n', 3000, 3000, 3000, 2.99f, 1.19f, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'n', 't', 3000, 3000, 3000, 1.19f, 2.99f, 3000, 3000, 3000,
-                fix_use_oc},
-        test_params {'t', 't', 3000, 3000, 3000, 1.99f, 2.19f, 3000, 3000, 3000,
-                fix_use_oc});
-
 CPU_INST_TEST_CASE(TestGEMM_packed_heavy,
         make_test_params_pack({false, true}, 'n', 'n', 3000, 3000, 3000, 1.0f,
                 0.0f, 3000, 3000, 3000, fix_use_oc),
@@ -820,5 +835,6 @@ CPU_INST_TEST_CASE(TestGEMM_packed_heavy,
                 3.0f, 8000, 8000, 200, row_use_oc),
         make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f,
                 0.0f, 200, 300, 300, col_use_oc));
+#endif //TEST_PACKED_GEMM
 
 #endif

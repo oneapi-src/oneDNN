@@ -13,6 +13,8 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+#include "cpu_target.h"
+#if DNNL_ENABLE_RNN
 
 /*
  * Cell execution GRU with linear before reset
@@ -180,3 +182,5 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru_lbr) {
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+#endif // DNNL_ENABLE_RNN
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

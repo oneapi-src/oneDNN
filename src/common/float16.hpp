@@ -20,9 +20,8 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
-#include <type_traits>
-
 #include "bit_cast.hpp"
+#include <type_traits>
 
 namespace dnnl {
 namespace impl {

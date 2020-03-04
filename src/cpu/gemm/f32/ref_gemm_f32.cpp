@@ -20,7 +20,10 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
+#include "cpu_isa_traits.hpp"
+#if TARGET_X86_JIT
 #include "jit_generator.hpp"
+#endif
 
 #include "gemm_utils_f32.hpp"
 #include "ref_gemm_f32.hpp"

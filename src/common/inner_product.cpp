@@ -34,7 +34,7 @@ status_t ip_desc_init(inner_product_desc_t *ip_desc, prop_kind_t prop_kind,
     bool args_ok = !any_null(ip_desc, src_desc, weights_desc, dst_desc);
     if (!args_ok) return invalid_arguments;
 
-    auto id = inner_product_desc_t();
+    auto id = zero<inner_product_desc_t>();
     id.primitive_kind = primitive_kind::inner_product;
     id.prop_kind = prop_kind;
 

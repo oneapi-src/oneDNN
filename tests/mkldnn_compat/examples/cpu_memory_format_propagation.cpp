@@ -102,10 +102,10 @@ void cpu_memory_format_propagation_tutorial() {
     ///
     /// To specify that a primitive should pick an optimized format for the
     /// specified computation parameters, we create memory descriptors with
-    /// memory format set to @ref mkldnn::memory::format_tag::any.
+    /// memory format set to @ref dnnl::memory::format_tag::any.
     ///
     /// This approach works only for a limited set of primitives: convolutions
-    /// and inner products. Additionally, @ref mkldnn::memory::format_tag::any
+    /// and inner products. Additionally, @ref dnnl::memory::format_tag::any
     /// can be specified for destination memory descriptors which implies that
     /// destination will have the same memory format as the source.
     ///
@@ -232,7 +232,7 @@ void cpu_memory_format_propagation_tutorial() {
     /// check if reorders are necessary based on the flags computed before and
     /// create and execute them immediately.
     ///
-    /// @note We call @ref mkldnn::stream::wait() before reorder primitives
+    /// @note We call @ref dnnl::stream::wait() before reorder primitives
     /// get out of scope and destroyed to accommodate for potentially
     /// asynchronous execution.
     ///

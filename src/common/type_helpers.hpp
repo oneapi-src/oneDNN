@@ -19,7 +19,9 @@
 
 #include <assert.h>
 #include <math.h>
+#include <string.h> // memset
 
+#include "cpu_target.h"
 #include "dnnl.h"
 
 #include "bit_cast.hpp"
@@ -159,10 +161,16 @@ inline bool rnn_packed_desc_is_equal(
 }
 
 inline memory_desc_t zero_md() {
-    auto zero = memory_desc_t();
+    auto zero = memory_desc_t(); // default-constructed "C" POD type
+#if DNNL_VALUE_INITIALIZATION_BUG /* a "good enough" workaround */
+    memset(&zero, 0, sizeof(memory_desc_t));
+#endif
     return zero;
 }
 
+// Following compares ALL elements of the struct (not just 'ndims==0' as in
+// dnnl.hpp memory::desc::is_zero)), so we had better be absolutely certain the
+// default-constructed POD type is fully initialized, in 'zero_md()' above.
 inline bool is_zero_md(const memory_desc_t *md) {
     return md == nullptr || *md == zero_md();
 }
@@ -621,4 +629,4 @@ inline bool is_runtime_value(int val) {
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

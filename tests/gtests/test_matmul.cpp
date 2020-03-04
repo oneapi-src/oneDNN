@@ -438,6 +438,9 @@ GPU_INSTANTIATE_TEST_SUITE_P(Generic_f16, iface, cases_f(data_type::f16));
 GPU_INSTANTIATE_TEST_SUITE_P(Generic_bf16, iface, cases_f(data_type::bf16));
 INSTANTIATE_TEST_SUITE_P(Generic_f32, iface, cases_f(data_type::f32));
 
+//INSTANTIATE_TEST_SUITE_P(Generic_bf16, iface, cases_f(data_type::bf16));
+// "could not create a primitive descriptor iterator" thrown in SetUp()
+
 static auto cases_x8 = [](memory::data_type src_dt, memory::data_type dst_dt) {
     std::vector<matmul_test_params> cases;
 

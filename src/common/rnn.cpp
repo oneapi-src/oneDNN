@@ -249,7 +249,7 @@ status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
                     dst_layer_desc, dst_iter_desc, dst_iter_c_desc}));
 
     // Create the descriptor
-    auto rd = rnn_desc_t();
+    dnnl_rnn_desc_t rd = zero<rnn_desc_t>();
 
     rd.primitive_kind = primitive_kind::rnn;
     rd.prop_kind = prop_kind;
@@ -341,7 +341,7 @@ status_t rnn_common_bwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
             diff_weights_iter_desc, diff_weights_peephole_desc, diff_bias_desc,
             diff_dst_layer_desc, diff_dst_iter_desc, diff_dst_iter_c_desc}));
 
-    auto rd = dnnl_rnn_desc_t();
+    auto rd = zero<rnn_desc_t>();
 
     rd.primitive_kind = primitive_kind::rnn;
     rd.prop_kind = prop_kind;

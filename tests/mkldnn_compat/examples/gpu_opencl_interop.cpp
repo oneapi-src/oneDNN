@@ -96,7 +96,7 @@ void gpu_opencl_interop_tutorial() {
     /// @subsection gpu_opencl_interop_cpp_sub1 Engine and stream
     ///
     /// All Intel MKL-DNN primitives and memory objects are attached to a
-    /// particular @ref mkldnn::engine, which is an abstraction of a
+    /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device to which they are
     /// attached, and the memory objects refer to memory residing on the
@@ -104,7 +104,7 @@ void gpu_opencl_interop_tutorial() {
     /// nor primitives that were created for one engine can be used on
     /// another.
     ///
-    /// To create engines, we must specify the @ref mkldnn::engine::kind
+    /// To create engines, we must specify the @ref dnnl::engine::kind
     /// and the index of the device of the given kind. In this example we use
     /// the first available GPU engine, so the index for the engine is 0.
     /// This example assumes OpenCL being a runtime for GPU. In such case,
@@ -116,7 +116,7 @@ void gpu_opencl_interop_tutorial() {
     engine eng(engine::kind::gpu, 0);
     // [Initialize engine]
 
-    /// In addition to an engine, all primitives require a @ref mkldnn::stream
+    /// In addition to an engine, all primitives require a @ref dnnl::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
     ///
@@ -260,7 +260,7 @@ void gpu_opencl_interop_tutorial() {
 ///
 /// Because we are using the Intel MKL-DNN C++ API, we use exceptions to handle
 /// errors (see @ref dev_guide_c_and_cpp_apis). The Intel MKL-DNN C++ API throws
-/// exceptions of type @ref mkldnn::error, which contains the error status
+/// exceptions of type @ref dnnl::error, which contains the error status
 /// (of type @ref mkldnn_status_t) and a human-readable error message accessible
 /// through the regular `what()` method.
 /// @page gpu_opencl_interop_cpp

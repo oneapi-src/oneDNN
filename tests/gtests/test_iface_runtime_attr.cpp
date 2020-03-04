@@ -198,6 +198,7 @@ CPU_TEST_F(runtime_attr_test, TestReorder) {
     CHECK_OK(reorder::primitive_desc(eng, src_md, eng, dst_md, gen_attr(true)));
 }
 
+#if DNNL_ENABLE_RNN
 TEST_F(runtime_attr_test, TestRNN) {
     memory::dim n = 1, t = 1, l = 10, c = 8, g = 4, d = 1;
     memory::desc src_layer_md {{t, n, c}, data_type::u8, tag::tnc};
@@ -230,6 +231,7 @@ TEST_F(runtime_attr_test, TestRNN) {
                 lstm_forward::primitive_desc(op_d, attr, eng));
     }
 }
+#endif // DNNL_ENABLE_RNN
 
 TEST_F(runtime_attr_test, TestShuffle) {
     memory::desc md {{1, 16, 3, 3}, data_type::f32, tag::abcd};

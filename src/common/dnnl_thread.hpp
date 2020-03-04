@@ -18,7 +18,9 @@
 #define DNNL_THREAD_HPP
 
 #include "utils.hpp"
-#include "z_magic.hpp"
+
+#define ENABLE_OMP_MACROS (DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP)
+#include "dnnl_omp.h" // omp compiler-portable macro definitions, if needed
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_SEQ
 #define DNNL_THR_SYNC 1
@@ -35,8 +37,6 @@ inline int dnnl_in_parallel() {
     return 0;
 }
 inline void dnnl_thr_barrier() {}
-
-#define PRAGMA_OMP(...)
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 #include <omp.h>
@@ -57,8 +57,6 @@ inline int dnnl_in_parallel() {
 inline void dnnl_thr_barrier() {
 #pragma omp barrier
 }
-
-#define PRAGMA_OMP(...) PRAGMA_MACRO(CHAIN2(omp, __VA_ARGS__))
 
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
 #include "tbb/parallel_for.h"
@@ -84,11 +82,13 @@ inline tbb::static_partitioner dnnl_tbb_partitioner() {
     return tbb::static_partitioner();
 }
 
-#define PRAGMA_OMP(...)
+#else
+#error "unsupported DNNL_CPU_THREADING_RUNTIME!"
 
 #endif
 
-// MSVC still supports omp 2.0 only
+#if 0 // moved to dnnl_omp.h (with more cpus/compilers, have more optimization macros)
+, have more optimization macros)// MSVC still supports omp 2.0 only
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
 #define PRAGMA_OMP_SIMD(...)
@@ -107,6 +107,7 @@ inline tbb::static_partitioner dnnl_tbb_partitioner() {
                         || (__GNUC__ == 6 && __GNUC_MINOR__ < 1)))
 #define simdlen(x)
 #endif // long simdlen if
+#endif // moved to dnnl_omp.h
 
 namespace dnnl {
 namespace impl {
@@ -167,4 +168,4 @@ void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

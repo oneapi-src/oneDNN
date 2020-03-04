@@ -50,7 +50,7 @@
 	@file xbyak.h
 	@brief Xbyak ; JIT assembler for x86(IA32)/x64 by C++
 	@author herumi
-	@url https://github.com/herumi/xbyak
+	@see https://github.com/herumi/xbyak
 	@note modified new BSD license
 	http://opensource.org/licenses/BSD-3-Clause
 */

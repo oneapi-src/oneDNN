@@ -16,7 +16,11 @@
 
 #include "gemm_inner_product_utils.hpp"
 #include "dnnl_thread.hpp"
+#if TARGET_X86_JIT
 #include "jit_uni_eltwise_injector.hpp"
+#else
+#include "ref_eltwise.hpp"
+#endif // TARGET_X86_JIT
 #include "math_utils.hpp"
 #include "simple_q10n.hpp"
 
@@ -32,37 +36,52 @@ using namespace math;
 template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
         const primitive_attr_t *attr, data_type_t bias_dt, bool skip_sum)
+#if TARGET_X86_JIT
+#define __J__(...) , __VA_ARGS__
+#else
+#define __J__(...)
+#endif
+    // clang-format off
     : ker_(nullptr)
-    , eltwise_injector_(nullptr)
     , ref_eltwise_(nullptr)
-    , bf16_emu_(nullptr)
+    __J__(eltwise_injector_(nullptr))
+    __J__(bf16_emu_(nullptr))
+    __J__(vreg_zero())
+    __J__(vreg_scale())
+    __J__(vreg_sum_scale())
     , OC_(OC)
     , MB_(MB)
     , bias_data_type_(bias_dt)
     , bias_data_type_size_(0)
+    , do_eltwise_(false)
+    , eltwise_()
     , do_scale_(false)
     , scale_idx_mult_(0)
-    , do_eltwise_(false)
     , do_sum_(false)
     , do_dst_zero_points_(false)
-    , sum_scale_(0)
-    , isa_(isa_any)
-    , max_OC_loop_unroll_(13)
-    , idx_compute_vreg_start_(0)
-    , idx_compute_vreg_max_(31)
-    , compute_vregs_per_iter_(1)
-    , compute_vreg_bias_shift_(0)
-    , compute_vreg_prev_dst_shift_(0)
-    , mb_blk_kernel(false) {
+    , sum_scale_(0) // XXX also only for jit?
+    __J__(isa_(isa_unknown)) // init so mayiuse --> false
+    __J__(max_OC_loop_unroll_(13))
+    __J__(idx_compute_vreg_start_(0))
+    __J__(idx_compute_vreg_max_(31))
+    __J__(compute_vregs_per_iter_(1))
+    __J__(compute_vreg_bias_shift_(0))
+    __J__(compute_vreg_prev_dst_shift_(0))
+    __J__(mb_blk_kernel(false))
+#undef __J__
+{
+    // clang-format on
     using namespace types;
-    using namespace Xbyak;
+    //using namespace Xbyak;
+
+    // generic setup...
 
     do_scale_ = !attr->output_scales_.has_default_values();
     if (do_scale_) {
         scale_idx_mult_ = (attr->output_scales_.mask_ == (1 << 1));
-        vreg_scale = Zmm(idx_compute_vreg_start_++);
+        //vreg_scale = Zmm(idx_compute_vreg_start_++);
     }
-    if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
+    //if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
 
     auto &p = attr->post_ops_;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -71,16 +90,33 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
 
     const int sum_ind = p.find(primitive_kind::sum);
     do_sum_ = sum_ind != -1 && !skip_sum;
+    if (do_sum_) { sum_scale_ = p.entry_[sum_ind].sum.scale; }
+
+    if (do_bias()) { bias_data_type_size_ = data_type_size(bias_data_type_); }
+
+    do_dst_zero_points_ = !attr->zero_points_.has_default_values(DNNL_ARG_DST);
+
+#if !TARGET_X86_JIT
+    // logic currently adjusted for clarity of jit vs nonjit path,
+    // but may wish to rearrange to remove duplicate x86 jit if clauses.
+    if (do_eltwise_)
+        ref_eltwise_ = new ref_eltwise_scalar_fwd_t(
+                eltwise_.alg, eltwise_.alpha, eltwise_.beta, eltwise_.scale);
+#else
+    using namespace Xbyak;
+    if (do_scale_) { vreg_scale = Zmm(idx_compute_vreg_start_++); }
+
+    if (dst_type == data_type::u8) vreg_zero = Zmm(idx_compute_vreg_start_++);
+
     if (do_sum_) {
-        sum_scale_ = p.entry_[sum_ind].sum.scale;
         vreg_sum_scale = Zmm(idx_compute_vreg_start_++);
         compute_vreg_prev_dst_shift_ = compute_vregs_per_iter_++;
     }
 
-    if (do_bias()) {
-        bias_data_type_size_ = data_type_size(bias_data_type_);
-        compute_vreg_bias_shift_ = compute_vregs_per_iter_++;
-    }
+    if (do_bias()) { compute_vreg_bias_shift_ = compute_vregs_per_iter_++; }
+
+    if (do_dst_zero_points_)
+        vreg_dst_zero_points = Zmm(idx_compute_vreg_start_++);
 
     if (!attr->zero_points_.has_default_values(DNNL_ARG_DST)) {
         do_dst_zero_points_ = true;
@@ -115,6 +151,8 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(size_t OC, size_t MB,
                     eltwise_reserved_2_);
         generate();
     }
+#endif // TARGET_X86_JIT
+    return;
 }
 
 template <data_type_t acc_type, data_type_t dst_type>
@@ -123,6 +161,7 @@ pp_kernel_t<acc_type, dst_type>::pp_kernel_t(
     : pp_kernel_t(pd->OC(), pd->MB(), pd->attr(),
             pd->desc()->bias_desc.data_type, skip_sum) {}
 
+#if TARGET_X86_JIT
 template <data_type_t acc_type, data_type_t dst_type>
 void pp_kernel_t<acc_type, dst_type>::compute_oc_channel_blk() {
     using namespace Xbyak;
@@ -515,7 +554,6 @@ void pp_kernel_t<acc_type, dst_type>::compute_mb_blk() {
         sub(reg_len, mb_oc_blk);
         jmp(mb_main_loop, T_NEAR);
     }
-    L(end_main_loop);
 
     if (mb_tail > 0) {
         Label mb_tail_loop, end_tail_loop;
@@ -592,7 +630,9 @@ void pp_kernel_t<acc_type, dst_type>::generate() {
 
     ker_ = getCode<decltype(ker_)>();
 }
+#endif // TARGET_X86_JIT
 
+/** "apply kernel", or apply reference impl. */
 template <data_type_t acc_type, data_type_t dst_type>
 void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         const acc_data_t *acc, const char *bias, const float *scales,
@@ -604,6 +644,7 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
 
     const size_t OC = this->runtime_oc() ? runtime_oc : OC_;
 
+#if TARGET_X86_JIT
     if (ker_) {
         // JIT
         ker_args args;
@@ -617,7 +658,9 @@ void pp_kernel_t<acc_type, dst_type>::operator()(dst_data_t *dst,
         args.len = end - start;
         args.oc_offset = oc_offset;
         ker_(&args);
-    } else {
+    } else
+#endif // TARGET_X86_JIT
+    {
         // Fallback
         size_t oc = start % OC;
         for (size_t i = start; i < end; i++) {
@@ -645,3 +688,4 @@ template class pp_kernel_t<f32, bf16>;
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

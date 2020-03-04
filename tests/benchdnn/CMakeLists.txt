@@ -53,16 +53,24 @@ if(WIN32 AND (NOT DNNL_BUILD_FOR_CI))
     )
 endif()
 
+find_program(HAVE_NUMACTL numactl)
+if($HAVE_NUMACTL)
+    set(BENCH_RUNNER numactl --cpunodebind=0 --membind=0) # Please adjust
+endif()
+
 # register benchdnn test case
 function(register_benchdnn_test name engine cmd)
     set(benchdnn_target ${name}_${engine})
+    # to run correctness AND performance, try something like:
+    #  export BENCHDNN_ARGS='--mode=CP'; make -C build VERBOSE=1 test_benchdnn_binary
+    # [TODO check how for WIN32)
 
     if(DNNL_BUILD_FOR_CI)
-       string(REPLACE " " ";" cmd
-            "benchdnn --engine=${engine} ${cmd}")
+        string(REPLACE " " ";" cmd
+            "benchdnn --engine=${engine} $$BENCHDNN_ARGS ${cmd}")
         if (ARGC GREATER 3)
             string(REPLACE " " ";" cmd2
-                "benchdnn --engine=${engine} ${ARGV3}")
+                "benchdnn --engine=${engine} $$BENCHDNN_ARGS ${ARGV3}")
         endif()
 
         add_test(${benchdnn_target} ${cmd})
@@ -72,10 +80,10 @@ function(register_benchdnn_test name engine cmd)
         endif()
     else()
         string(REPLACE " " ";" cmd
-            "$<TARGET_FILE:benchdnn> --engine=${engine} ${cmd}")
+            "$<TARGET_FILE:benchdnn> --engine=${engine} $$BENCHDNN_ARGS ${cmd}")
         if (ARGC GREATER 3)
             string(REPLACE " " ";" cmd2
-                "$<TARGET_FILE:benchdnn> --engine=${engine} ${ARGV3}")
+                "$<TARGET_FILE:benchdnn> --engine=${engine} $$BENCHDNN_ARGS ${ARGV3}")
         endif()
 
         if(WIN32)

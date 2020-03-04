@@ -40,7 +40,7 @@ status_t lnorm_desc_init(layer_normalization_desc_t *lnorm_desc,
             && (flags & ~(dnnl_use_global_stats | dnnl_use_scaleshift)) == 0;
     if (!args_ok) return invalid_arguments;
 
-    auto ld = layer_normalization_desc_t();
+    auto ld = zero<layer_normalization_desc_t>();
     ld.primitive_kind = primitive_kind::layer_normalization;
     ld.prop_kind = prop_kind;
 

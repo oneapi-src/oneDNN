@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include "cpu_target.h" // DNNL_ENABLE_BFLOAT16(0/1)
 
 #include "dnnl.h"
 
@@ -57,4 +58,5 @@ void add_floats_and_cvt_to_bfloat16(
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

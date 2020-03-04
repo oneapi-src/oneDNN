@@ -16,6 +16,8 @@
 
 #ifndef CPU_GEMM_BF16_INNER_PRODUCT_HPP
 #define CPU_GEMM_BF16_INNER_PRODUCT_HPP
+//#include "cpu_isa_traits.hpp"
+#include "cpu_target.h"
 
 #include <assert.h>
 
@@ -265,6 +267,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif
-
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

@@ -16,6 +16,7 @@
 
 #include <assert.h>
 
+#include "cpu_isa_traits.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu_engine.hpp"
@@ -47,5 +48,4 @@ status_t cpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

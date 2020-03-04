@@ -27,15 +27,17 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+/// @copydoc INSTANCE_CREATOR
+#define INSTANCE_CREATOR(...) DEFAULT_INSTANCE_CREATOR(__VA_ARGS__)
 static const pd_create_f impl_list[] = {
-        INSTANCE(ref_shuffle_t<4>), /* f32 or s32 */
-        INSTANCE(ref_shuffle_t<2>), /* bf16 */
-        INSTANCE(ref_shuffle_t<1>), /* s8 or u8 */
+        // clang-format off
+        INSTANCE(ref_shuffle_t<4>) /* f32 or s32 */
+        INSTANCE(ref_shuffle_t<2>) /* bf16 */
+        INSTANCE(ref_shuffle_t<1>) /* s8 or u8 */
+        // clang-format on
         /* eol */
         nullptr,
 };
-#undef INSTANCE
 } // namespace
 
 const pd_create_f *get_shuffle_impl_list(const shuffle_desc_t *desc) {

@@ -41,7 +41,7 @@ struct reorder_pd_t : public primitive_desc_t {
         , dst_md_(*dst_md) {
 
         // Fill a desc that is intended for internal use only
-        desc_ = reorder_desc_t();
+        desc_ = utils::zero<reorder_desc_t>();
         desc_.primitive_kind = primitive_kind::reorder;
         desc_.src_md = src_md_;
         desc_.dst_md = dst_md_;

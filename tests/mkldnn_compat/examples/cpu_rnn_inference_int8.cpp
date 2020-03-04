@@ -43,6 +43,7 @@
 
 #include "mkldnn.hpp"
 
+#if DNNL_ENABLE_RNN
 // MSVC doesn't support collapse clause in omp parallel
 #if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
 #define collapse(x)
@@ -888,8 +889,10 @@ void simple_net() {
     execute();
     s.wait();
 }
+#endif // DNNL_ENABLE_RNN
 
 int main(int argc, char **argv) {
+#if DNNL_ENABLE_RNN
     try {
         simple_net();
         std::cout << "ok\n";
@@ -897,5 +900,9 @@ int main(int argc, char **argv) {
         std::cerr << "status: " << e.status << std::endl;
         std::cerr << "message: " << e.message << std::endl;
     }
+#else
+    std::cerr << "message: "
+              << "development build -- no rnn support" << std::endl;
+#endif // DNNL_ENABLE_RNN
     return 0;
 }

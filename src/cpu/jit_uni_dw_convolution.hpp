@@ -20,6 +20,7 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
+#include "consistency.hpp"
 #include "cpu_barrier.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_reducer.hpp"
@@ -43,6 +44,7 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_impl_t {
                 jit_uni_dw_convolution_fwd_t);
 
         status_t init() {
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, src_type, data_type::undef,
@@ -53,12 +55,31 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_impl_t {
                     && attr()->has_default_values(
                             primitive_attr_t::skip_mask_t::post_ops)
                     && !has_zero_dim_memory() && set_default_formats();
+#else
+#define AND_(...) SCHKV(ok, __VA_ARGS__)
+            Consistency ok("jit_uni_dw_convolution:fwd");
+            AND_(is_fwd());
+            AND_(set_default_alg_kind(alg_kind::convolution_direct));
+            AND_(expect_data_types(src_type, src_type, data_type::undef,
+                    dst_type, data_type::f32));
+            AND_(IMPLICATION(this->with_bias(),
+                    utils::one_of(this->desc()->bias_desc.data_type,
+                            data_type::f32, data_type::bf16)));
+            AND_(attr()->has_default_values(
+                    primitive_attr_t::skip_mask_t::post_ops));
+            AND_(!has_zero_dim_memory());
+            AND_(set_default_formats());
+#endif
             if (!ok) return status::unimplemented;
 
             status_t status
                     = jit_uni_dw_conv_fwd_kernel<isa, src_type>::init_conf(jcp_,
                             *desc(), src_md(), *weights_md(), *dst_md(),
                             *attr());
+#if DNNL_VERBOSE_EXTRA
+            AND_(status == status::success);
+#undef AND_
+#endif
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -129,18 +150,32 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_impl_t {
                 jit_uni_dw_convolution_bwd_data_t);
 
         status_t init() {
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && desc()->prop_kind == prop_kind::backward_data
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(diff_src_type, diff_dst_type,
                             data_type::undef, diff_dst_type, data_type::f32)
                     && attr()->has_default_values() && !has_zero_dim_memory()
                     && set_default_formats();
-
+#else
+#define AND_(...) SCHKV(ok, __VA_ARGS__)
+            Consistency ok("jit_uni_dw_convolution:bwd_d");
+            AND_(desc()->prop_kind == prop_kind::backward_data);
+            AND_(set_default_alg_kind(alg_kind::convolution_direct));
+            AND_(expect_data_types(diff_src_type, diff_dst_type,
+                    data_type::undef, diff_dst_type, data_type::f32));
+            AND_(attr()->has_default_values() && !has_zero_dim_memory());
+            AND_(set_default_formats());
+#endif
             if (!ok) return status::unimplemented;
 
             status_t status = jit_uni_dw_conv_bwd_data_kernel<isa,
                     diff_dst_type>::init_conf(jcp_, *desc(), *diff_src_md(),
                     *weights_md(), *diff_dst_md());
+#if DNNL_VERBOSE_EXTRA
+            AND_(status == status::success);
+#undef AND_
+#endif
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();
@@ -212,6 +247,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_impl_t {
                 jit_uni_dw_convolution_bwd_weights);
 
         status_t init() {
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && desc()->prop_kind == prop_kind::backward_weights
                     && set_default_alg_kind(alg_kind::convolution_direct)
                     && expect_data_types(src_type, diff_weights_type,
@@ -222,6 +258,20 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_impl_t {
                                     data_type::f32, data_type::bf16))
                     && attr()->has_default_values() && !has_zero_dim_memory()
                     && set_default_formats();
+#else
+#define AND_(...) SCHKV(ok, __VA_ARGS__)
+            Consistency ok("jit_uni_dw_convolution:bwd_w");
+            AND_(desc()->prop_kind == prop_kind::backward_weights);
+            AND_(set_default_alg_kind(alg_kind::convolution_direct));
+            AND_(expect_data_types(src_type, diff_weights_type,
+                    data_type::undef, src_type, data_type::f32));
+            AND_(IMPLICATION(this->with_bias(),
+                    utils::one_of(this->desc()->diff_bias_desc.data_type,
+                            data_type::f32, data_type::bf16)));
+            AND_(attr()->has_default_values());
+            AND_(!has_zero_dim_memory());
+            AND_(set_default_formats());
+#endif
             if (!ok) return status::unimplemented;
 
             const int max_threads
@@ -230,6 +280,10 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_impl_t {
             status_t status = jit_uni_dw_conv_bwd_weights_kernel<isa,
                     src_type>::init_conf(jcp_, *desc(), *src_md(),
                     *diff_weights_md(), *diff_dst_md(), max_threads);
+#if DNNL_VERBOSE_EXTRA
+            AND_(status == status::success);
+#undef AND_
+#endif
             if (status != status::success) return status;
 
             auto scratchpad = scratchpad_registry().registrar();

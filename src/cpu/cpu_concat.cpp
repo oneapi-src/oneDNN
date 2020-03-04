@@ -26,7 +26,7 @@ namespace cpu {
 using cpd_create_f = dnnl::impl::engine_t::concat_primitive_desc_create_f;
 
 namespace {
-#define INSTANCE(...) __VA_ARGS__::pd_t::create
+#define INSTANCE_CREATOR(...) __VA_ARGS__::pd_t::create
 static const cpd_create_f cpu_concat_impl_list[] = {
         INSTANCE(simple_concat_t<data_type::f32>),
         INSTANCE(simple_concat_t<data_type::u8>),

@@ -29,6 +29,7 @@
 #include "dnnl.hpp"
 
 #include "example_utils.hpp"
+#if DNNL_ENABLE_RNN
 
 using namespace dnnl;
 
@@ -702,7 +703,14 @@ void simple_net(engine::kind engine_kind) {
 
     s.wait();
 }
+#endif // DNNL_ENABLE_RNN
 
 int main(int argc, char **argv) {
+#if DNNL_ENABLE_RNN
     return handle_example_errors(simple_net, parse_engine_kind(argc, argv));
+#else
+    std::cerr << "message: "
+              << "development build -- no rnn support" << std::endl;
+    return 0;
+#endif // DNNL_ENABLE_RNN
 }

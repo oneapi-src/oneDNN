@@ -55,18 +55,204 @@
 
 /// @endcond
 
+/// @addtogroup dnnl_api
+//@{
+/// [info] DNNL cmake Build Target String.
+/// To manage experimental builds, this string reports any non-standard
+/// <em>expert use only</em> options.  \e tests and \e benchdnn will
+/// print this string to avoid confusion in log files.
+#cmakedefine DNNL_BUILD_STRING "${DNNL_BUILD_STRING}"
+//@}
+
 // clang-format off
 
-// DNNL CPU threading runtime
+/// @addtogroup cmake_build cmake build options
+//@{
+
+///@addtogroup cmake_supported cmake supported options
+/// Not all options are exposed as config variables, however all
+/// nonstandard supported build options should appear in DNNL_BUILD_STRING
+//@{
+
+/// DNNL CPU threading runtime
 #cmakedefine DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_${DNNL_CPU_THREADING_RUNTIME}
 
-// DNNL CPU engine runtime
+/// DNNL CPU engine runtime
 #cmakedefine DNNL_CPU_RUNTIME DNNL_RUNTIME_${DNNL_CPU_RUNTIME}
 
-// DNNL GPU engine runtime
+/// DNNL GPU engine runtime
 #cmakedefine DNNL_GPU_RUNTIME DNNL_RUNTIME_${DNNL_GPU_RUNTIME}
 
+/// DNNL CPU enable runtime cpu dispatch.
+///   respect env DNNL_MAX_CPU_ISA, enable dnnl_set_max_cpu_isa(dnnl_cpu_isa_t)
+#cmakedefine DNNL_ENABLE_MAX_CPU_ISA
+
+/// DNNL verbosity, from `cmake -DDNNL_VERBOSE={NONE|DEFAULT|EXTRA}`.
+/// This is '1' at levels above NONE, which allows verbosity
+/// \ref dev-guide-verbose "levels 0[default, quiet], 1 and 2".
+#define DNNL_VERBOSE ${_DNNL_VERBOSE}
+
+/// OS/compiler workaround for CPU scratchpad (0/1 values)
+#define DNNL_USE_STATIC_THREAD_LOCAL_OBJECTS ${DNNL_USE_STATIC_THREAD_LOCAL_OBJECTS}
+#define DNNL_BUG_VALUE_INITIALIZATION        ${DNNL_BUG_VALUE_INITIALIZATION}
+
+//@}
+
+/// 
+/// @addtogroup cmake_extra Other building options (subject to change)
+//@{
+
+/** DNNL CPU build target 1,2,etc = x86, ve, etc.
+ * Cmake sets this automatically based on CMAKE_SYSTEM_PROCESSOR.
+ * So almost always it will have the value \c DNN_CPU_X86.
+ */
+#cmakedefine DNNL_CPU ${DNNL_CPU}
+
+/// cpu target expand capability from VANILLA-->ANY-->(cpu-specific)-->FULL.
+/// The cmake default is -DDNNL_ISA=FULL, which means "provide full support".
+/** \internal
+ * DNNL_ISA_ may prune \b some implementations from \c cpu_engine, but is
+ * non-normative.  For example, jit\_uni\_ drivers may circumvent this, so
+ * \ref dispatcher_control.md is a more general approach.
+ */
+#cmakedefine DNNL_ISA ${DNNL_ISA_VALUE}
+
+// DNNL_ISA==DNNL_ISA_VANILLA build is missing many bf16 impls, but
+// removing bf16 support from src,examples,tests touched 79 files.
+// Option can be reintroduced as separate PR [@kruus]
+// #define DNNL_ENABLE_BFLOAT16 ${DNNL_ENABLE_BFLOAT16_01}
+
+/// [debug] some targets cannot compile a correct ref impl yet.
+#define DNNL_ENABLE_RNN ${DNNL_ENABLE_RNN_01}
+
+/// [debug] trace cpu_engine 'create' attempts.
+/** Activates extra code when built with `cmake -DDNNL_VERBOSE=EXTRA`,
+ * which allows extra output at additional verbosity levels
+ * \ref dev-guide-verbose "levels 3 and 4".
+ *
+ * This allows tracing why cpu_engine skips various impls as it tries
+ * to create a primitive. Primitive creation will slow down even more.
+ * \ref consistency.hpp can help pinpoint the precise reason a
+ * particular init() failed. */
+// Code to trace reasons why init() declined --> separate PR [@kruus]
+#define DNNL_VERBOSE_EXTRA ${_DNNL_VERBOSE_EXTRA}
+
+/// [at own risk] gemm via MKL library.
+/// May provide support for packed and integer gemm variations not yet
+/// available via jit.
+/// Defined via `cmake -DDNNL_EXTERNAL_GEMM=MKL`
+//          #define DNNL_USE_MKL ${DNNL_USE_MKL_01}
+#cmakedefine DNNL_USE_MKL
+
+/// [at own risk] gemm via OS CBLAS (also implied by DNNL_USE_MKL)
+/// New: dnnl now comes with a reasonable reference gemm impl now,
+///      capable of running the tests in reasonable time frame,
+///      even without having cmake look for a cblas library.
+/// Defined via `cmake -DDNNL_EXTERNAL_GEMM=CBLAS`.
+///          or `cmake -DDNNL_EXTERNAL_GEMM=MKL`
+//          #define DNNL_USE_CBLAS ${DNNL_USE_CBLAS_01}
+#cmakedefine DNNL_USE_CBLAS
+
+//@}
+//@}
+
+/// @addtogroup cmake_build_constants cmake build constants
+//@{
+/// @group
+/// target processor
+//@{
+#cmakedefine DNNL_CPU_X86 ${DNNL_CPU_X86}
+#cmakedefine DNNL_CPU_VE  ${DNNL_CPU_VE}
+//#cmakedefine DNNL_CPU_SX  ${DNNL_CPU_SX} /* deprecated */
+//@}
+
+/// @group
+/// CPU_ISA_FOO cmake options describe flavors of the cpu build.
+/// May also serve to add \e extra capabilities like JIT,
+/// or external library features to the basic VANILLA builds.
+///@{
+/// @group
+/// All cpus support a few common settings.
+///@{
+/// Means "C/C++ code only, please".
+/// These layers in principle should run on any CPU.
+#cmakedefine DNNL_ISA_VANILLA ${DNNL_ISA_VANILLA}
+
+/// Almost like vanilla, except allows layers that may be a little less portable:
+/// - x86 layer that might use x86 jit (but not sse4.1)
+/// - non-x86 engine layer available only on a fork
+///   - even if pure C/C++, it might have very different loop treatment
+///     or optimizations and have large code difference from the official
+///     VANILLA implementations.
+/// This value is CPU-specific, and provided mostly for completeness
+#cmakedefine DNNL_ISA_ANY ${DNNL_ISA_ANY}
+
+/// pull out all the stops, all options & external support allowed.
+/// This value is CPU-specific.
+#cmakedefine DNNL_ISA_FULL     ${DNNL_ISA_FULL}
+///@}
+
+/** @group
+ * max x86 jit instruction set support.
+ * This might not be respected by jit all uni [unified] drivers.
+ * DNNL_ISA_FULL, on x86 cpu will be equivalent to DNNL_ISA_X86_FULL
+ */
+///@{
+#cmakedefine DNNL_ISA_X86              ${DNNL_ISA_X86} // for completeness (lowest x86 jit impl is really SSE41)
+#cmakedefine DNNL_ISA_SSE41            ${DNNL_ISA_SSE41}
+#cmakedefine DNNL_ISA_AVX              ${DNNL_ISA_AVX}
+#cmakedefine DNNL_ISA_AVX2             ${DNNL_ISA_AVX2}
+#cmakedefine DNNL_ISA_AVX512_MIC       ${DNNL_ISA_AVX512_MIC}
+#cmakedefine DNNL_ISA_AVX512_MIC_4OPS  ${DNNL_ISA_AVX512_MIC_4OPS}
+#cmakedefine DNNL_ISA_AVX512_CORE      ${DNNL_ISA_AVX512_CORE}
+#cmakedefine DNNL_ISA_AVX512_CORE_VNNI ${DNNL_ISA_AVX512_CORE_VNNI}
+#cmakedefine DNNL_ISA_AVX512_CORE_BF16 ${DNNL_ISA_AVX512_CORE_BF16}
+#cmakedefine DNNL_ISA_X86_FULL         ${DNNL_ISA_X86_FULL}
+///@}
+/// @group
+/// ve isa settings govern jit instruction set support
+///@{
+#cmakedefine DNNL_ISA_VE      ${DNNL_ISA_VE}    // equiv to vanilla
+#cmakedefine DNNL_ISA_VEDNN   ${DNNL_ISA_VEDNN}
+#cmakedefine DNNL_ISA_VEJIT   ${DNNL_ISA_VEJIT}
+#cmakedefine DNNL_ISA_VE_FULL ${DNNL_ISA_VE_FULL}
+///@}
+///@}
+
+/// @defgroup cmake_bool handy conditional tests for cmake build target
+/** \note \ref cpu_target.h can these into shorter internal versions.
+ * They expand to either 0 or 1. */
+//@{
+/** Turn conditions into 0/1 value.  Then -E compile and -dM will show a 0 or 1
+ * values (easier to read) XXX verify function CHECKME. */
+#define DNNL_EXPAND_01(...) !!(__VA_ARGS__)
+
+// deprecated. use other 0/1 DNNL_TARGET to express what you really mean.
+//#define DNNL_TARGET_VANILLA (DNNL_ISA == DNNL_ISA_VANILLA || DNNL_CPU == DNNL_CPU_VE/*temporarily*/)
+
+#define DNNL_TARGET_X86     (DNNL_CPU == DNNL_CPU_X86)
+#define DNNL_TARGET_X86_JIT (DNNL_TARGET_X86 && DNNL_ISA >= DNNL_ISA_X86 && DNNL_ISA <= DNNL_ISA_FULL)
+
+#define DNNL_TARGET_VE      (DNNL_CPU == DNNL_CPU_VE)
+#define DNNL_TARGET_VEDNN   (DNNL_TARGET_VE && DNNL_ISA >= DNNL_ISA_VEDNN && DNNL_ISA <= DNNL_ISA_FULL)
+#define DNNL_TARGET_VEJIT   (DNNL_TARGET_VE && DNNL_ISA >= DNNL_ISA_VEJIT && DNNL_ISA <= DNNL_ISA_FULL)
+
+//#define DNNL_TARGET_SX // \deprecated
+#if DNNL_TARGET_X86_JIT
+//#warning "DNNL_TARGET_X86_JIT is TRUE"
+#else
+//#warning "DNNL_TARGET_X86_JIT is FALSE"
+#endif
+//@}
+
 // clang-format on
+
+#if DNNL_TARGET_X86 + DNNL_TARGET_VE == 0
+#error "unknown target cpu.  no DNNL_TARGET_foo was set"
+#endif
+#if DNNL_TARGET_X86 + DNNL_TARGET_VE != 1
+#error "cannot have more than one target cpu"
+#endif
 
 #if defined(DNNL_CPU_RUNTIME) && defined(DNNL_GPU_RUNTIME)
 #if (DNNL_CPU_RUNTIME == DNNL_RUNTIME_NONE) \
@@ -81,4 +267,5 @@
 #error "BOTH DNNL_CPU_RUNTIME and DNNL_GPU_RUNTIME must be defined"
 #endif
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s syntax=cpp.doxygen
 #endif

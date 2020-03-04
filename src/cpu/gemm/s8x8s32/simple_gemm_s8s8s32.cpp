@@ -21,7 +21,9 @@
 #include "../gemm.hpp"
 #include "dnnl_thread.hpp"
 #include "dnnl_types.h"
-#include "jit_generator.hpp"
+#if TARGET_X86_JIT
+#include "jit_generator.hpp" // why? XXX
+#endif // TARGET_X86_JIT
 #include "math_utils.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
@@ -184,3 +186,4 @@ dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

@@ -140,9 +140,11 @@ protected:
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu
                         && src_data_type == memory::data_type::bf16,
                 "GPU does not support bfloat16 data type.");
+#if 0 // XXX ???
         SKIP_IF(src_data_type == memory::data_type::bf16
                         && !impl::cpu::mayiuse(impl::cpu::avx512_core),
                 "current ISA doesn't support bfloat16 data type");
+#endif
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
@@ -386,3 +388,4 @@ GPU_INST_TEST_CASE(sum_test_f16, 0)
 #undef CPU_INST_TEST_CASE
 #undef GPU_INST_TEST_CASE
 } // namespace dnnl
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

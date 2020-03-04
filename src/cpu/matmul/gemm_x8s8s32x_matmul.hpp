@@ -39,7 +39,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_impl_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("gemm:jit", gemm_x8s8s32x_matmul_t);
+        DECLARE_COMMON_PD_T("matmul-" GEMM_IMPL_STR, gemm_x8s8s32x_matmul_t);
 
         status_t init();
         const gemm_based::params_t &params() const { return params_; }
@@ -79,4 +79,5 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
 #endif

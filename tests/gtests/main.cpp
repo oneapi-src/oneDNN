@@ -46,6 +46,13 @@ protected:
 
 static void test_init(int argc, char *argv[]);
 
+class DnnlBuildPrinter : public EmptyTestEventListener {
+protected:
+    void OnTestProgramStart(const UnitTest & /*unit_test*/) override {
+        ::show_dnnl_build();
+    }
+};
+
 int main(int argc, char *argv[]) {
     int result;
     {
@@ -58,6 +65,9 @@ int main(int argc, char *argv[]) {
 
         auto *fail_handler = new assert_fail_handler_t();
         listeners.Append(fail_handler);
+
+        auto *dnnl_build_printer = new DnnlBuildPrinter();
+        listeners.Append(dnnl_build_printer);
 
 #if _WIN32
         // Safety cleanup.

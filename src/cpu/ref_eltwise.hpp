@@ -22,6 +22,9 @@
 #include "cpu_isa_traits.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+#if DNNL_VERBOSE_EXTRA
+#include "consistency.hpp"
+#endif
 
 #include "cpu_eltwise_pd.hpp"
 
@@ -69,6 +72,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
 
             const bool use_generic = !use_dense_ && !use_nCspBc_padded_;
 
+#if !DNNL_VERBOSE_EXTRA
             bool ok = true && is_fwd()
                     && everyone_is(data_type, desc()->data_desc.data_type)
                     /*bf16<->f32 cvt operators don't work on non-avx512_core*/
@@ -77,6 +81,18 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
                             mayiuse(avx512_core))
                     && IMPLICATION(use_generic, one_of(src_d.ndims(), 4, 5))
                     && attr()->has_default_values();
+#else // debug
+#define AND_(...) SCHKV(ok, __VA_ARGS__)
+            Consistency ok("\nref_eltwise_fwd_init !ok :");
+            AND_(is_fwd());
+            AND_(everyone_is(data_type, desc()->data_desc.data_type));
+            /*bf16<->f32 cvt operators don't work on non-avx512_core*/
+            AND_(IMPLICATION(desc()->data_desc.data_type == data_type::bf16,
+                    mayiuse(avx512_core)));
+            AND_(IMPLICATION(use_generic, one_of(src_d.ndims(), 4, 5)));
+            AND_(attr()->has_default_values());
+#undef AND_
+#endif
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -165,4 +181,4 @@ private:
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s

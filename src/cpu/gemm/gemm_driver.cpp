@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include <cstdint>
-#if defined(_MSC_VER)
+#if TARGET_VE || defined(_MSC_VER)
 #include <malloc.h>
 #endif
 
@@ -25,16 +25,20 @@
 #include "dnnl_traits.hpp"
 #include "dnnl_types.h"
 #include "f32/gemm_utils_f32.hpp"
+#if MKLDNN_CPU_GEMM_JIT
+//#warning "gemm WITH jit..."
 #include "f32/jit_avx512_common_gemm_f32.hpp"
 #include "f32/jit_avx_gemm_f32.hpp"
+#include "jit_generator.hpp"
+#include "s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
+#endif // MKLDNN_CPU_GEMM_JIT
+#include "cpu_isa_traits.hpp" // just for alignas?
 #include "gemm_info.hpp"
 #include "gemm_partition.hpp"
 #include "gemm_threading.hpp"
 #include "gemm_utils.hpp"
 #include "gemv_driver.hpp"
-#include "jit_generator.hpp"
 #include "nstl.hpp"
-#include "s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -345,7 +349,10 @@ void gemm_kernel(const dim_t m, const dim_t n, const dim_t k, const float alpha,
 
     // Since m and n are limited by blocking, stack overflow may not happen;
     // it's up to 32kB
-#if !defined(_MSC_VER)
+#if TARGET_VE
+    c_type *col_offset = (c_type *)alloca(sizeof(*col_offset) * m);
+    c_type *row_offset = (c_type *)alloca(sizeof(*row_offset) * n);
+#elif !defined(_MSC_VER)
     c_type col_offset[m];
     c_type row_offset[n];
 #else
@@ -1415,6 +1422,7 @@ template <typename a_type, typename b_type, typename c_type>
 static dnnl_status_t call_no_copy_sgemm(
         gemm_info_t<a_type, b_type, c_type> *arg) {
 
+#if MKLDNN_CPU_GEMM_JIT
     if (arg->packing == pack_type::none) {
         int m_s32 = (int)arg->m;
         int n_s32 = (int)arg->n;
@@ -1436,6 +1444,7 @@ static dnnl_status_t call_no_copy_sgemm(
                     (float *)arg->b, &ldb_s32, &arg->beta, (float *)arg->c,
                     &ldc_s32, (float *)arg->co);
     } else
+#endif // MKLDNN_CPU_GEMM_JIT
         return pack_no_copy(arg);
 }
 
@@ -1451,11 +1460,13 @@ static dnnl_status_t gemm_threading_driver(
 
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
+#if MKLDNN_CPU_GEMM_JIT
     if (!is_a_packed && !is_b_packed && jump_to_gemv_s8x8s32(arg))
         return dnnl_success;
 
     if (!is_a_packed && !is_b_packed && jump_to_gemv(arg) == dnnl_success)
         return dnnl_success;
+#endif // MKLDNN_CPU_GEMM_JIT
 
     if (is_a_packed && arg->bo != 0)
         if (!arg->a_packed->has_row_sums()) return dnnl_invalid_arguments;
@@ -1602,6 +1613,7 @@ static dnnl_status_t gemm_threading_driver(
     // to avoid OMP overhead that can occur due to changing thread counts.
     int nthr_spawn = force_threading ? nthr_max : nthr_goal;
 
+    // THIS ALWAYS INVOKES a JIT impl
     parallel(nthr_spawn, [&](int ithr, int nthr) {
         int nthr_eff = force_threading ? nthr_goal : nstl::min(nthr_goal, nthr);
 
@@ -1670,6 +1682,7 @@ static dnnl_status_t gemm_threading_driver(
                                 == data_type::f32);
                         assert(arg->packing == pack_type::none);
 
+#if MKLDNN_CPU_GEMM_JIT
                         if (mayiuse(avx512_core)) {
                             avx512_common_gemm_f32::sgemm_nocopy_driver(
                                     arg->transa == no_trans ? "N" : "T",
@@ -1686,6 +1699,9 @@ static dnnl_status_t gemm_threading_driver(
                                     (float *)c_eff, ldc_eff, NULL, NULL);
                         }
                         thread_arg[ithr].result = dnnl_success;
+#else
+            thread_arg[ithr].result = dnnl_invalid_arguments;
+#endif
                         break;
                 }
 
@@ -1815,3 +1831,5 @@ template // Instantiate sgemm
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
+
+// vim: et ts=4 sw=4 cindent cino=+2s,^=l0,\:0,N-s
