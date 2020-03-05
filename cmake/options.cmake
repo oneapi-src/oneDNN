@@ -82,7 +82,7 @@ set(DNNL_ISA_VE_FULL            32)
 #
 # TARGET_ARCH in https://github.com/intel/mkl-dnn/pull/658 disambiguates
 #     AARCH64 and ARM64 -- adjust here if xbyak and jit don't apply.
-if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
+if(${CMAKE_SYSTEM_PROCESSOR} MATCHES "^(x86_64|AMD64.*|aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
     set(DNNL_CPU ${DNNL_CPU_X86})
     set(DNNL_ISA_ANY ${DNNL_ISA_X86})
     set(DNNL_ISA_FULL ${DNNL_ISA_X86_FULL})

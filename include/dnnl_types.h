@@ -996,7 +996,6 @@ typedef struct {
     char reserved[64];
 } dnnl_memory_extra_desc_t;
 
-
 /// Memory descriptor. The description is based on a number of dimensions,
 /// dimensions themselves, plus information about elements type and memory
 /// format. Additionally, contains format-specific descriptions of the data
@@ -2050,7 +2049,8 @@ typedef struct {
     unsigned cpu_runtime; ///< CPU runtime
     unsigned gpu_runtime; ///< GPU runtime
     unsigned cpu; ///< DNNL_CPU build target DNNL_CPU_{X86|VE|...} (def X86)
-    unsigned isa; ///< DNNL_ISA build target DNNL_ISA_{FULL|VANILLA|...} (def FULL)
+    unsigned
+            isa; ///< DNNL_ISA build target DNNL_ISA_{FULL|VANILLA|...} (def FULL)
 } dnnl_version_t;
 
 /// Disable profiling completely
