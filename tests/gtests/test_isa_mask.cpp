@@ -34,7 +34,7 @@ const std::set<cpu_isa_t> cpu_isa_set
 
 struct isa_compat_info {
     cpu_isa_t this_isa;
-    const std::set<cpu_isa_t> cpu_isa_compatible;
+    std::set<cpu_isa_t> cpu_isa_compatible;
 };
 
 // This mostly duplicates isa_traits, but the idea is to *not* rely on that

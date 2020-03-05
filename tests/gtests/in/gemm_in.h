@@ -14,10 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-// You could always test, and the test will SKIP
-//#define TEST_PACKED_GEMM 1
-// or you can target expected packed-gemm support cases
-#define TEST_PACKED_GEMM (defined(TARGET_X86_JIT) || defined(DNNL_USE_MKL))
+#if (TARGET_X86_JIT || defined(DNNL_USE_MKL))
+#define TEST_PACKED_GEMM 1 /* include packed gemm support */
+#else
+#define TEST_PACKED_GEMM 0
+#endif
 // or even expose the pack_sgemm_supported() function and SKIP_IF
 // in test_gemm_common.hpp
 
