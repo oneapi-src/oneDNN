@@ -771,6 +771,8 @@ status_t gen9_convolution_bwd_data_t::execute_backward_data(
 
 static void bwd_w_compute_block_sizes(
         conv_conf_t &conf, const convolution_pd_t *pd) {
+    const bool is_1stconv = conf.ic_without_padding == 3;
+
     if (conf.is_depthwise) {
         conf.odb = 1;
         conf.ohb = 1;
@@ -781,7 +783,7 @@ static void bwd_w_compute_block_sizes(
                 * utils::div_up(conf.oh, conf.ohb)
                 * utils::div_up(conf.ow, conf.owb);
 
-        conf.mb_chunk = conf.mb / conf.mb_block;
+        conf.mb_chunk = utils::div_up(conf.mb, conf.mb_block);
         conf.nchunk = conf.osp_chunk * conf.mb_chunk;
         return;
     }
@@ -806,23 +808,27 @@ static void bwd_w_compute_block_sizes(
     conf.ohb = 1;
     conf.owb = 1;
 
-    int ic_nb_max = (conf.ver == ver_1stconv)
-            ? 1
-            : nstl::min(conf.ic / conf.ic_block, 16);
-    int oc_nb_max = nstl::min(conf.oc / conf.oc_block, 16);
-    int ic_nb = (conf.ver == ver_1stconv)
-            ? 1
-            : utils::max_div(conf.ic / conf.ic_block, ic_nb_max);
-    int oc_nb = utils::max_div(conf.oc / conf.oc_block, oc_nb_max);
+    int mb_nblk = utils::div_up(conf.mb, conf.mb_block);
+    int ic_nblk = utils::div_up(conf.ic, conf.ic_block);
+    int oc_nblk = utils::div_up(conf.oc, conf.oc_block);
+
+    int ic_nb_max = is_1stconv ? 1 : nstl::min(ic_nblk, 16);
+    int oc_nb_max = nstl::min(oc_nblk, 16);
+    int ic_nb = is_1stconv ? 1 : utils::max_div(ic_nblk, ic_nb_max);
+    int oc_nb = utils::max_div(oc_nblk, oc_nb_max);
+
+    int mb_nb_max = 1;
+    if (!is_1stconv && (conf.mb_block == 1) && (conf.ic % 1024 != 0)
+            && (conf.oc % 1024 != 0)) {
+        mb_nb_max = 4;
+    }
 
     auto get_nthr = [&]() {
-        int nthr = (conf.mb / conf.mb_block / mb_nb)
+        int nthr = utils::div_up(mb_nblk, mb_nb)
                 * utils::div_up(conf.od, conf.odb)
                 * utils::div_up(conf.oh, conf.ohb)
                 * utils::div_up(conf.ow, conf.owb) * conf.kh * conf.kw * conf.kd
-                * (conf.oc / conf.oc_block)
-                * (conf.ver == ver_1stconv ? 1 : conf.ic / conf.ic_block)
-                * conf.ngroups;
+                * oc_nblk * (is_1stconv ? 1 : ic_nblk) * conf.ngroups;
         return nthr;
     };
 
@@ -834,8 +840,7 @@ static void bwd_w_compute_block_sizes(
         size_t ispb = iwb * ihb * idb;
         size_t ospb = conf.owb * conf.ohb * conf.odb;
         size_t src_size = sizeof(float) * conf.mb_block
-                * (conf.ver == ver_1stconv ? conf.ic : ic_nb * conf.ic_block)
-                * ispb;
+                * (is_1stconv ? conf.ic : ic_nb * conf.ic_block) * ispb;
         size_t dst_size = sizeof(float) * conf.mb_block
                 * (oc_nb * conf.oc_block) * ospb;
 
@@ -861,13 +866,13 @@ static void bwd_w_compute_block_sizes(
         return true;
     };
 
-    if (conf.ver == ver_8ow16c || conf.ver == ver_1stconv)
+    if (utils::one_of(conf.ver, ver_nhwc, ver_8ow16c, ver_1stconv))
         conf.owb = conf.ow_block;
 
     // Increase spatial tile size as much as possible.
     for (int i = 0; i < 128; i++) {
         int owb_next;
-        if (conf.ver == ver_8ow16c || conf.ver == ver_1stconv) {
+        if (utils::one_of(conf.ver, ver_nhwc, ver_8ow16c, ver_1stconv)) {
             int ow_padded = utils::rnd_up(conf.ow, conf.ow_block);
             owb_next = conf.ow_block
                     * next_candidate(ow_padded / conf.ow_block,
@@ -882,16 +887,19 @@ static void bwd_w_compute_block_sizes(
 
         int odb_next = next_candidate(conf.od, conf.odb);
         try_next(conf.odb, odb_next);
+
+        int mb_nb_next = next_candidate(mb_nb_max, mb_nb);
+        try_next(mb_nb, mb_nb_next);
     }
 
-    conf.icb = (conf.ver == ver_1stconv) ? conf.ic : ic_nb * conf.ic_block;
+    conf.icb = is_1stconv ? conf.ic : ic_nb * conf.ic_block;
     conf.ocb = oc_nb * conf.oc_block;
 
     conf.osp_chunk = utils::div_up(conf.od, conf.odb)
             * utils::div_up(conf.oh, conf.ohb)
             * utils::div_up(conf.ow, conf.owb);
 
-    conf.mb_chunk = utils::div_up(conf.mb / conf.mb_block, mb_nb);
+    conf.mb_chunk = utils::div_up(mb_nblk, mb_nb);
 
     conf.nchunk = conf.mb_chunk * conf.osp_chunk;
 }
@@ -909,12 +917,17 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     set_default_conf(conf, cd, *src_md(), *diff_weights_md(), *diff_dst_md(),
             *diff_weights_md(1), *attr());
 
+    const bool is_nhwc
+            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
+            || dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef;
+
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
             && (conf.oc_without_padding == 1);
     conf.is_depthwise = is_depthwise;
 
-    if (is_1stconv || conf.with_groups) {
+    if (is_1stconv || conf.with_groups || is_nhwc) {
         conf.ic = conf.ic_without_padding;
         conf.oc = conf.oc_without_padding;
     } else {
@@ -923,13 +936,15 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     }
 
     conf.ngroups_without_padding = conf.ngroups;
-    if (is_depthwise) conf.ngroups = utils::rnd_up(conf.ngroups, 16);
+    if (is_depthwise && !is_nhwc)
+        conf.ngroups = utils::rnd_up(conf.ngroups, 16);
     const bool is_dw_16g = (conf.is_depthwise && conf.ngroups % 16 == 0);
 
     const bool is_16ic = conf.ic % 16 == 0;
     const bool is_16oc = conf.oc % 16 == 0;
-    const bool use_16mb_unroll = !(conf.mb == 1 || conf.mb % 16 != 0)
-            && !is_1stconv && ((is_16ic && is_16oc) || is_dw_16g);
+    const bool use_16mb_unroll = !is_nhwc
+            && !(conf.mb == 1 || conf.mb % 16 != 0) && !is_1stconv
+            && ((is_16ic && is_16oc) || is_dw_16g);
 
     conf.mb_block = 1;
     conf.oc_block = 1;
@@ -939,7 +954,9 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     conf.ow_block = 1;
     conf.osp_chunk = 1;
     conf.mb_chunk = 1;
-    if (use_16mb_unroll)
+    if (is_nhwc)
+        conf.ver = ver_nhwc;
+    else if (use_16mb_unroll)
         conf.ver = ver_16mb16c;
     else if (conf.mb % 16 != 0 && ((is_16oc && is_16ic) || is_dw_16g))
         conf.ver = ver_8ow16c;
@@ -948,26 +965,24 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     else
         return status::unimplemented;
 
-    status_t status = status::success;
-
     switch (conf.ver) {
         case ver_1stconv:
         case ver_8ow16c:
+        case ver_nhwc:
             conf.mb_block = 1;
             conf.oc_block = 16;
-            conf.ic_block = conf.ver == ver_8ow16c ? 16 : 1;
+            conf.ic_block = is_1stconv ? 1 : 16;
             conf.ow_block = 8;
-            bwd_w_compute_block_sizes(conf, this);
             break;
         case ver_16mb16c:
             conf.mb_block = 16;
             conf.oc_block = 16;
             conf.ic_block = 16;
             conf.ow_block = 1;
-            bwd_w_compute_block_sizes(conf, this);
             break;
-        default: status = status::unimplemented;
     }
+
+    bwd_w_compute_block_sizes(conf, this);
 
     conf.sub_group_size = 16;
     conf.lws_d[0] = 16;
@@ -975,18 +990,37 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     conf.lws_d[2] = 1;
 
     if (conf.is_depthwise) {
-        conf.gws_d[0] = conf.ngroups;
+        conf.gws_d[0] = utils::rnd_up(conf.ngroups, 16);
     } else {
-        conf.gws_d[0] = conf.ver == ver_1stconv
-                ? conf.ocb * conf.ngroups
-                : conf.ocb * (conf.icb / 16) * conf.ngroups;
+        conf.gws_d[0] = is_1stconv ? conf.ocb * conf.ngroups
+                                   : conf.ocb * (conf.icb / 16) * conf.ngroups;
     }
     conf.gws_d[1] = conf.kh * conf.kw * conf.kd;
-    conf.gws_d[2] = conf.nchunk * (conf.ic / conf.icb) * (conf.oc / conf.ocb);
+    conf.gws_d[2] = conf.nchunk * utils::div_up(conf.ic, conf.icb)
+            * utils::div_up(conf.oc, conf.ocb);
 
     format_tag_t src_tag, dst_tag, wei_tag;
 
     switch (conf.ver) {
+        case ver_nhwc:
+            src_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
+            dst_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
+            if (is_1stconv) {
+                wei_tag = conf.with_groups ? utils::pick(
+                                  conf.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                                           : utils::pick(conf.ndims - 3, Owi16o,
+                                                   Ohwi16o, Odhwi16o);
+            } else if (conf.is_depthwise) {
+                wei_tag = utils::pick(
+                        conf.ndims - 3, Goiw16g, Goihw16g, Goidhw16g);
+            } else {
+                wei_tag = conf.with_groups
+                        ? utils::pick(conf.ndims - 3, gIOw16i16o, gIOhw16i16o,
+                                gIOdhw16i16o)
+                        : utils::pick(conf.ndims - 3, IOw16i16o, IOhw16i16o,
+                                IOdhw16i16o);
+            }
+            break;
         case ver_1stconv:
             assert(!conf.is_depthwise);
             src_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);
@@ -1017,9 +1051,8 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
                                         : utils::pick(conf.ndims - 3, IOw16i16o,
                                                 IOhw16i16o, IOdhw16i16o));
             break;
-        default: status = status::unimplemented;
+        default: return status::unimplemented;
     }
-    if (status != status::success) return status;
 
     if (src_mdw.format_kind() == format_kind::any) {
         conf.src_tag = src_tag;
@@ -1041,6 +1074,9 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
         conf.dst_tag = dst_mdw.matches_one_of_tag(dst_tag);
     }
     if (conf.dst_tag != dst_tag) return status::unimplemented;
+
+    conf.is_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
+    conf.is_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
     return status::success;
 }

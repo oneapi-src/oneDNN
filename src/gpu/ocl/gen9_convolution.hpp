@@ -253,6 +253,12 @@ struct gen9_convolution_bwd_weights_t : public primitive_impl_t {
     };
 
     status_t init() override {
+        const char *kernel_name;
+        if (pd()->conf.is_nhwc) {
+            kernel_name = "gen9_conv_nhwc_bwd_weights";
+        } else {
+            kernel_name = "gen9_conv_bwd_weights";
+        }
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
 
@@ -260,8 +266,7 @@ struct gen9_convolution_bwd_weights_t : public primitive_impl_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_kernel(
-                &kernel_, "gen9_conv_bwd_weights", kernel_ctx);
+        compute_engine->create_kernel(&kernel_, kernel_name, kernel_ctx);
         if (!kernel_) return status::runtime_error;
 
         return status::success;
