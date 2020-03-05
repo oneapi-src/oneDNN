@@ -53,7 +53,7 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
 
     if (p.scale_policy == policy_t::PER_OC) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
-                *dnnl_attr, p.dic * p.n_gates(), 0x18, p.wei_oc_scales));
+                *dnnl_attr, p.dhc * p.n_gates(), 0x18, p.wei_oc_scales));
     } else if (p.scale_policy == policy_t::COMMON && p.wei_scale != 1.) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
                 *dnnl_attr, 1, 0, &p.wei_scale));
@@ -102,7 +102,7 @@ int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             const float current_scale = p.scale_policy == policy_t::PER_OC
-                    ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                    ? p.wei_oc_scales[idx % (p.dhc * p.n_gates())]
                     : p.wei_scale;
             float val_f32 = mem_fp.get_elem(idx);
             //int8_t val_s8 = saturate<dnnl_s8>(val_f32);
@@ -180,7 +180,7 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             val = MAX2(MIN2(val, max), min);
 
             const float current_scale = need_recompute_scale
-                    ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                    ? p.wei_oc_scales[idx % (p.dhc * p.n_gates())]
                     : scale;
             val = (val - shift) / current_scale; // change only int8-case
 
@@ -206,7 +206,7 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
             for (int64_t idx = idx_start; idx < idx_end; ++idx) {
                 const float current_scale = need_recompute_scale
-                        ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                        ? p.wei_oc_scales[idx % (p.dhc * p.n_gates())]
                         : scale;
 
                 float val = ((float *)mem_fp)[idx];
@@ -252,7 +252,7 @@ int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     // for forward and backward passes, and computed as 1 over maximum of
     // the accumulation chain:
     // - ~n_gates on FWD
-    // - ~dic * n_gates on BWD_D
+    // - ~dhc * n_gates on BWD_D
     // - ~mb * n_gates on BWD_W
     //
     // This makes tparam relatively small for the forward pass (compare to
@@ -404,12 +404,12 @@ inline int init_pd(
     dnnl_dims_t input_dims = {p.n_iter, p.mb, p.slc};
     // bidirectional = 2, s for lstm = 2, for all other = 1
     dnnl_dims_t weights_input_dims
-            = {p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dic};
+            = {p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dhc};
     dnnl_dims_t weights_states_dims
-            = {p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dic};
-    dnnl_dims_t weights_peephole_dims = {p.n_layer, p.n_dir(), 3, p.dic};
+            = {p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dhc};
+    dnnl_dims_t weights_peephole_dims = {p.n_layer, p.n_dir(), 3, p.dhc};
     dnnl_dims_t bias_dims
-            = {p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dic};
+            = {p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dhc};
     // dnnl_tnc
     int64_t lastlay_dlc
             = (p.direction == dnnl_bidirectional_concat) ? 2 * p.dlc : p.dlc;
@@ -430,11 +430,11 @@ inline int init_pd(
                 = states_d.format_desc.blocking.strides[d + 1]
                 * states_d.dims[d + 1];
 
-    dnnl_dims_t c_states_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
+    dnnl_dims_t c_states_dims = {p.n_layer, p.n_dir(), p.mb, p.dhc};
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&c_states_d, 4, c_states_dims,
                      p.cfg[c_states].dt, dnnl_ldnc),
             WARN);
-    c_states_d.format_desc.blocking.strides[2] = p.dic + the_stride;
+    c_states_d.format_desc.blocking.strides[2] = p.dhc + the_stride;
     for (int d = 1; d >= 0; --d)
         c_states_d.format_desc.blocking.strides[d]
                 = c_states_d.format_desc.blocking.strides[d + 1]
@@ -466,24 +466,24 @@ inline int init_pd(
             WARN);
     dst_last_layer_d.format_desc.blocking.strides[0] += the_stride;
 
-    dnnl_dims_t dst_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
+    dnnl_dims_t dst_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dhc};
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_last_iteration_d, 4,
                      dst_last_iteration_dims, p.cfg[dst_last_iteration].dt,
                      dnnl_ldnc),
             WARN);
-    dst_last_iteration_d.format_desc.blocking.strides[2] = p.dic + the_stride;
+    dst_last_iteration_d.format_desc.blocking.strides[2] = p.dhc + the_stride;
     for (int d = 1; d >= 0; --d)
         dst_last_iteration_d.format_desc.blocking.strides[d]
                 = dst_last_iteration_d.format_desc.blocking.strides[d + 1]
                 * dst_last_iteration_d.dims[d + 1];
 
-    dnnl_dims_t dst_c_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
+    dnnl_dims_t dst_c_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dhc};
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_c_last_iteration_d, 4,
                      dst_c_last_iteration_dims, p.cfg[dst_c_last_iteration].dt,
                      dnnl_ldnc),
             WARN);
 
-    dst_c_last_iteration_d.format_desc.blocking.strides[2] = p.dic + the_stride;
+    dst_c_last_iteration_d.format_desc.blocking.strides[2] = p.dhc + the_stride;
     for (int d = 1; d >= 0; --d)
         dst_c_last_iteration_d.format_desc.blocking.strides[d]
                 = dst_c_last_iteration_d.format_desc.blocking.strides[d + 1]

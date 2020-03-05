@@ -157,7 +157,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
     _ref_rnn_common_t(const pd_t *apd) : primitive_impl_t(apd) {
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
-        /// iterations and layer to one if slc != dic and sic != dic
+        /// iterations and layer to one if slc != dhc and sic != dhc
         /// respectively
         ///
         auto set_pack_funcs = [](bool packed_gemm, gemm_t &g, bool pack_w,
@@ -255,7 +255,7 @@ private:
 
     float (*activation_func)(float dd, float s, float alpha, float cliping);
     void bias_prepare(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int n_bias, int n_gates, int dic,
+            int n_dir, int n_bias, int n_gates, int dhc,
             const memory_storage_t &ws, const memory_storage_t &scales,
             const memory_storage_t &wei_layer, const memory_storage_t &wei_iter,
             const memory_storage_t &bias) const;
@@ -264,7 +264,7 @@ private:
             const memory_storage_t &input,
             const memory_storage_t &diff_dst_layer) const;
     void copy_init_iter(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int batch, int sic, int dic, const memory_storage_t &ws,
+            int n_dir, int batch, int sic, int dhc, const memory_storage_t &ws,
             const memory_storage_t &firstit_states,
             const memory_storage_t &firstit_c_states,
             const memory_storage_t &diff_dst_iter,
@@ -276,14 +276,14 @@ private:
             const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
             const float shift, const float scale, const bool dequantize) const;
     void copy_res_iter(compute::compute_stream_t *compute_stream, int n_layer,
-            int n_dir, int batch, int sic, int dic,
+            int n_dir, int batch, int sic, int dhc,
             const memory_storage_t &dst_last_iter,
             const memory_storage_t &dst_last_iter_c,
             const memory_storage_t &diff_src_iter,
             const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
             const float shift, const float scale, const bool dequantize) const;
     void gates_reduction(const exec_ctx_t &ctx, int dir, int lay, int iter,
-            int n_gates, int dic, int batch, const memory_storage_t &gates,
+            int n_gates, int dhc, int batch, const memory_storage_t &gates,
             const memory_storage_t &diff_bias) const;
     void ws_set(compute::compute_stream_t *compute_stream,
             const memory_storage_t &workspace, const cl_ulong ws_offset,

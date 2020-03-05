@@ -32,11 +32,11 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
     if (rnn.need_gemm_layer(cell_position)) {
-        (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
+        (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
                 src_layer_ld, 0.0, scratch_gates_, rnn.gates_ws_ld);
     }
-    (this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb, rnn.sic,
+    (this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb, rnn.sic,
             1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_, src_iter_ld,
             1.0, scratch_gates_, rnn.gates_ws_ld);
 
@@ -66,21 +66,21 @@ void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
             rnn, diff_weights_peephole_);
 
     parallel(0, [&](int ithr, int nthr) {
-        int g_dic_start {}, g_dic_stop {};
+        int g_dhc_start {}, g_dhc_stop {};
         const int gates_to_process = 5; // 3 -- weights peephole +
                 // 2 -- bias (process a pair at once)
-        balance211(gates_to_process * rnn.dic, nthr, ithr, g_dic_start,
-                g_dic_stop);
-        int g = g_dic_start / rnn.dic;
-        int dic = g_dic_start % rnn.dic;
-        while (g_dic_start++ < g_dic_stop) {
+        balance211(gates_to_process * rnn.dhc, nthr, ithr, g_dhc_start,
+                g_dhc_stop);
+        int g = g_dhc_start / rnn.dhc;
+        int dhc = g_dhc_start % rnn.dhc;
+        while (g_dhc_start++ < g_dhc_stop) {
             if (g < 3) {
                 // weights peephole
                 auto &c_states = g < 2 ? c_states_tm1_l : c_states_t_l;
                 const int scratch_g = g < 2 ? g : 3;
                 for (int mb = 0; mb < rnn.mb; ++mb) {
-                    diff_weights_peephole(g, dic) += c_states(mb, dic)
-                            * scratch_gates(mb, scratch_g, dic);
+                    diff_weights_peephole(g, dhc) += c_states(mb, dhc)
+                            * scratch_gates(mb, scratch_g, dhc);
                 }
             } else {
                 // bias
@@ -88,12 +88,12 @@ void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
                 const int bias_g_end = bias_g_start + 2;
                 for (int bias_g = bias_g_start; bias_g < bias_g_end; ++bias_g) {
                     for (int mb = 0; mb < rnn.mb; ++mb)
-                        diff_bias_[bias_g * rnn.dic + dic]
-                                += scratch_gates(mb, bias_g, dic);
+                        diff_bias_[bias_g * rnn.dhc + dhc]
+                                += scratch_gates(mb, bias_g, dhc);
                 }
             }
-            if (++dic == rnn.dic) {
-                dic = 0;
+            if (++dhc == rnn.dhc) {
+                dhc = 0;
                 g++;
             }
         }
@@ -152,23 +152,23 @@ template <>
 rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
     auto gemm_layer = [&](const float *A, const float *B, float *C) {
         (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_layer_ld, B,
+                rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld, B,
                 rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
     };
     auto gemm_iter = [&](const float *A, const float *B, float *C) {
         (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_iter_ld, B,
+                rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_iter_ld, B,
                 rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
     };
     auto gemm_weights_layer = [&](const float *A, const float *B, float *C) {
         auto src_layer_ld = rnn.src_layer_ld(cell_position);
-        gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, A,
+        gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
                 rnn.gates_ws_ld, B, src_layer_ld, 1.0, C,
                 rnn.diff_weights_layer_ld);
     };
     auto gemm_weights_iter = [&](const float *A, const float *B, float *C) {
         auto src_iter_ld = rnn.src_iter_ld(cell_position);
-        gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic, rnn.mb, 1.0, A,
+        gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0, A,
                 rnn.gates_ws_ld, B, src_iter_ld, 1.0, C,
                 rnn.diff_weights_iter_ld);
     };
@@ -186,25 +186,25 @@ template <>
 rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution) {
     auto gemm_layer = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
         (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_layer_ld, B,
+                rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld, B,
                 rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
     };
     auto gemm_iter = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
         (this->*gemm_iter_func)('N', 'N', rnn.sic, rnn.mb,
-                rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_iter_ld, B,
+                rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_iter_ld, B,
                 rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
     };
     auto gemm_weights_layer
             = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
                   auto src_layer_ld = rnn.src_layer_ld(cell_position);
-                  gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, A,
+                  gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
                           rnn.gates_ws_ld, B, src_layer_ld, 1.0, C,
                           rnn.diff_weights_layer_ld);
               };
     auto gemm_weights_iter
             = [&](const bfloat16_t *A, const bfloat16_t *B, float *C) {
                   auto src_iter_ld = rnn.src_iter_ld(cell_position);
-                  gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.sic, rnn.mb, 1.0, A,
+                  gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb, 1.0, A,
                           rnn.gates_ws_ld, B, src_iter_ld, 1.0, C,
                           rnn.diff_weights_iter_ld);
               };

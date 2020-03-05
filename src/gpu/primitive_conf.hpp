@@ -251,7 +251,7 @@ struct rnn_conf_t {
     int batch;
     int slc;
     int sic;
-    int dic;
+    int dhc;
     int dlc;
     int wic;
     int n_parts_weights_iter, n_parts_weights_layer;

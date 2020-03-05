@@ -136,7 +136,7 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
 
     /* canonical form:
-     * lXtXmbXsicXslcXdicXdlcX
+     * lXtXmbXsicXslcXdhcXdlcX
      *
      * where: X is number, S - string
      * note: symbol `_` is ignored
@@ -144,7 +144,7 @@ int str2desc(desc_t *desc, const char *str) {
      * implicit rules:
      *  - default values:
      *      l = 1, t = 1, mb = 2
-     *  - if slc/dlc/dic is undefined => slc/dlc/dic = sic
+     *  - if slc/dlc/dhc is undefined => slc/dlc/dhc = sic
      */
 
     d.n_layer = 1;
@@ -173,7 +173,7 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(mb);
         CASE_N(sic);
         CASE_N(slc);
-        CASE_N(dic);
+        CASE_N(dhc);
         CASE_N(dlc);
         if (*s == 'n') {
             d.name = s + 1;
@@ -188,7 +188,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.sic == 0) return FAIL;
     if (d.slc == 0) d.slc = d.sic;
     if (d.dlc == 0) d.dlc = d.sic;
-    if (d.dic == 0) d.dic = d.sic;
+    if (d.dhc == 0) d.dhc = d.sic;
 
     *desc = d;
 
@@ -197,7 +197,7 @@ int str2desc(desc_t *desc, const char *str) {
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     s << "l" << d.n_layer << "t" << d.n_iter << "mb" << d.mb << "sic" << d.sic
-      << "slc" << d.slc << "dic" << d.dic << "dlc" << d.dlc;
+      << "slc" << d.slc << "dhc" << d.dhc << "dlc" << d.dlc;
 
     if (d.name) s << "n" << d.name;
 
@@ -380,7 +380,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     int64_t fwd_acc_dim
             = 2 * p.n_gates() + 1; // factor 2 is because of the sum of 2 GEMMs
     if (p.alg == VANILLA_GRU) fwd_acc_dim *= p.sic;
-    int64_t bwdd_acc_dim = p.n_gates() * p.dic;
+    int64_t bwdd_acc_dim = p.n_gates() * p.dhc;
     int64_t bwdw_acc_dim = p.mb;
     int64_t acc_dim = fwd_acc_dim;
     if (p.prop == dnnl_backward) acc_dim *= MAX2(bwdd_acc_dim, bwdw_acc_dim);
@@ -732,7 +732,7 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
         wei_scale = int8_wei_range / fp_range;
     } else if (scale_policy == policy_t::PER_OC) {
         float K = int8_wei_range / fp_range;
-        const auto nelems = dic * n_gates();
+        const auto nelems = dhc * n_gates();
         for (int64_t i = 0; i < nelems; i++) {
             wei_oc_scales[i] = K * (1. + (float)i / nelems);
         }
@@ -755,7 +755,7 @@ void prb_t::set_tparams(float fp_min, float fp_max) {
         // For BWD_W, we cannot assume sparssness though since the
         // gates and diff_dst_* are dense.
         int64_t fwd_acc_dim = n_gates();
-        int64_t bwdd_acc_dim = dic;
+        int64_t bwdd_acc_dim = dhc;
         int64_t bwdw_acc_dim = mb;
         int64_t acc_dim = 0;
         if (prop == dnnl_backward)

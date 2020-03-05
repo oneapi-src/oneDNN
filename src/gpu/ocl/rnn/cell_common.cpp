@@ -68,7 +68,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         gemm_primitive(ctx, w_state, offset_w_state, workspace, offset_states,
                 scratch_gates, offset_scratch_gates, gemm_iter_fwd);
 
-        (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
+        (this->*elemwise_func)(ctx, dir, lay, iter, dhc, wic, batch, workspace,
                 scratch_gates, scales, bias, tm_scales);
 
     } else { // backward
@@ -78,7 +78,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
         AOC<size_t, 3> off_weights_st(
                 weights_states, n_layer, n_dir, n_parts_weights_iter);
 
-        (this->*elemwise_func)(ctx, dir, lay, iter, dic, wic, batch, workspace,
+        (this->*elemwise_func)(ctx, dir, lay, iter, dhc, wic, batch, workspace,
                 scratch_gates, scales, bias, tm_scales);
 
         cl_ulong offset_w_state = (cl_ulong)(off_weights_st(lay, dir, 0))
@@ -134,7 +134,7 @@ cell_execution_sig((_ref_rnn_common_t<aprop>::cell_execution)) {
                     offset_workspace_iter, diff_weights_iter,
                     offset_weights_iter, gemm_diff_wei_iter);
         }
-        gates_reduction(ctx, dir, lay, iter, n_gates, dic, batch, scratch_gates,
+        gates_reduction(ctx, dir, lay, iter, n_gates, dhc, batch, scratch_gates,
                 diff_bias);
     }
 }

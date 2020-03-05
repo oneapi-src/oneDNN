@@ -44,18 +44,18 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn,
     // an issue with lambdas inside omp simd loops
 #define body_loop(i, k) \
     for (int j = 0; j < rnn.mb; j++) \
-        diff_bias_[i * rnn.dic + k] \
-                += ws_gates_[j * rnn.gates_ws_ld + i * rnn.dic + k];
+        diff_bias_[i * rnn.dhc + k] \
+                += ws_gates_[j * rnn.gates_ws_ld + i * rnn.dhc + k];
 
     // @todo block k on simd-width to enable vectorization in
     // parallel_nd path
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_OMP && _OPENMP >= 201307
 #pragma omp parallel for simd collapse(2)
     for (int i = 0; i < rnn.n_gates; i++)
-        for (int k = 0; k < rnn.dic; k++)
+        for (int k = 0; k < rnn.dhc; k++)
             body_loop(i, k);
 #else
-    parallel_nd(rnn.n_gates, rnn.dic, [&](int i, int k) { body_loop(i, k); });
+    parallel_nd(rnn.n_gates, rnn.dhc, [&](int i, int k) { body_loop(i, k); });
 #endif
 
 #undef body_loop
@@ -204,7 +204,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
     _ref_rnn_common_t(const pd_t *apd)
         : primitive_impl_t(apd), rnn_postgemm_(nullptr) {
         /// @todo set max_feature_size assuming that we limit the number of
-        /// iterations and layer to one if slc != dic and sic != dic
+        /// iterations and layer to one if slc != dhc and sic != dhc
         /// respectively
 
         bias_preparation_func = &class_name::bias_prepare;

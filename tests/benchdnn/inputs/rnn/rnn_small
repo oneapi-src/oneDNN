@@ -1,8 +1,8 @@
-# Here only SIC=DIC cases as they need to be supported by GRU and LBR_GRU
+# Here only SIC=DHC cases as they need to be supported by GRU and LBR_GRU
 l1t1mb1sic128
 l1t1mb12sic128
 l1t1mb32sic72
-l1t1mb12sic64slc128dic64dlc64
-l1t1mb32sic130slc64dic130dlc130
-l1t1mb18sic128slc64dic128dlc128
+l1t1mb12sic64slc128dhc64dlc64
+l1t1mb32sic130slc64dhc130dlc130
+l1t1mb18sic128slc64dhc128dlc128
 

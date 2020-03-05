@@ -168,7 +168,7 @@ status_t check_dim_consistency(const rnn_desc_t &r) {
     const dim_t SLC = r.src_layer_desc.dims[2];
     const dim_t SIC = r.weights_iter_desc.dims[2];
     const dim_t DLC = r.dst_layer_desc.dims[2];
-    const dim_t DIC = r.weights_layer_desc.dims[4];
+    const dim_t DHC = r.weights_layer_desc.dims[4];
 
     const bool extra_bias = r.cell_kind == alg_kind::lbr_gru;
     const dim_t dlc_multiplier
@@ -176,36 +176,36 @@ status_t check_dim_consistency(const rnn_desc_t &r) {
 
     bool args_ok = IMPLICATION(utils::one_of(r.cell_kind, alg_kind::vanilla_gru,
                                        alg_kind::lbr_gru),
-                           SIC == DIC)
-            && dlc_multiplier * DIC == DLC
+                           SIC == DHC)
+            && dlc_multiplier * DHC == DLC
             && IMPLICATION(L > 1, dlc_multiplier * SLC == DLC)
-            && IMPLICATION(T > 1, SIC == DIC);
+            && IMPLICATION(T > 1, SIC == DHC);
     if (!args_ok) return invalid_arguments;
 
     CHECK(expect_dims(r.src_layer_desc, {T, N, SLC}, false));
     CHECK(expect_dims(r.src_iter_desc, {L, D, N, SIC}));
-    CHECK(expect_dims(r.src_iter_c_desc, {L, D, N, DIC}));
-    CHECK(expect_dims(r.weights_layer_desc, {L, D, SLC, G, DIC}, false));
-    CHECK(expect_dims(r.weights_iter_desc, {L, D, SIC, G, DIC}, false));
-    CHECK(expect_dims(r.weights_peephole_desc, {L, D, 3, DIC}));
-    CHECK(expect_dims(r.bias_desc, {L, D, G + extra_bias, DIC}));
+    CHECK(expect_dims(r.src_iter_c_desc, {L, D, N, DHC}));
+    CHECK(expect_dims(r.weights_layer_desc, {L, D, SLC, G, DHC}, false));
+    CHECK(expect_dims(r.weights_iter_desc, {L, D, SIC, G, DHC}, false));
+    CHECK(expect_dims(r.weights_peephole_desc, {L, D, 3, DHC}));
+    CHECK(expect_dims(r.bias_desc, {L, D, G + extra_bias, DHC}));
     CHECK(expect_dims(r.dst_layer_desc, {T, N, DLC}, false));
-    CHECK(expect_dims(r.dst_iter_desc, {L, D, N, DIC}));
-    CHECK(expect_dims(r.dst_iter_c_desc, {L, D, N, DIC}));
+    CHECK(expect_dims(r.dst_iter_desc, {L, D, N, DHC}));
+    CHECK(expect_dims(r.dst_iter_c_desc, {L, D, N, DHC}));
 
     if (r.prop_kind == prop_kind::backward) {
         CHECK(expect_dims(r.diff_src_layer_desc, {T, N, SLC}, false));
         CHECK(expect_dims(r.diff_src_iter_desc, {L, D, N, SIC}));
-        CHECK(expect_dims(r.diff_src_iter_c_desc, {L, D, N, DIC}));
+        CHECK(expect_dims(r.diff_src_iter_c_desc, {L, D, N, DHC}));
         CHECK(expect_dims(
-                r.diff_weights_layer_desc, {L, D, SLC, G, DIC}, false));
+                r.diff_weights_layer_desc, {L, D, SLC, G, DHC}, false));
         CHECK(expect_dims(
-                r.diff_weights_iter_desc, {L, D, SIC, G, DIC}, false));
-        CHECK(expect_dims(r.diff_weights_peephole_desc, {L, D, 3, DIC}));
-        CHECK(expect_dims(r.diff_bias_desc, {L, D, G + extra_bias, DIC}));
+                r.diff_weights_iter_desc, {L, D, SIC, G, DHC}, false));
+        CHECK(expect_dims(r.diff_weights_peephole_desc, {L, D, 3, DHC}));
+        CHECK(expect_dims(r.diff_bias_desc, {L, D, G + extra_bias, DHC}));
         CHECK(expect_dims(r.diff_dst_layer_desc, {T, N, DLC}, false));
-        CHECK(expect_dims(r.diff_dst_iter_desc, {L, D, N, DIC}));
-        CHECK(expect_dims(r.diff_dst_iter_c_desc, {L, D, N, DIC}));
+        CHECK(expect_dims(r.diff_dst_iter_desc, {L, D, N, DHC}));
+        CHECK(expect_dims(r.diff_dst_iter_c_desc, {L, D, N, DHC}));
     }
 
     return success;

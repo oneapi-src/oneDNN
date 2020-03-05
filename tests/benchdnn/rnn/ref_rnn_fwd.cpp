@@ -29,34 +29,34 @@ void prepare_bias(const prb_t &p, float *bias_with_compensation_,
         const float *bias_, const float *weights_layer_,
         const float *weights_iter_) {
     AOC<const float> weights_layer(
-            weights_layer_, p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dic);
+            weights_layer_, p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dhc);
     AOC<const float> weights_iter(
-            weights_iter_, p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dic);
+            weights_iter_, p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dhc);
 
-    AOC<const float> bias(bias_, p.n_layer, p.n_dir(), p.n_gates(), p.dic);
+    AOC<const float> bias(bias_, p.n_layer, p.n_dir(), p.n_gates(), p.dhc);
     AOC<float> bias_with_compensation(
-            bias_with_compensation_, p.n_layer, p.n_dir(), p.n_gates(), p.dic);
+            bias_with_compensation_, p.n_layer, p.n_dir(), p.n_gates(), p.dhc);
 
     for (int layer = 0; layer < p.n_layer; ++layer)
         for (int dir = 0; dir < p.n_dir(); ++dir)
             for (int gate = 0; gate < p.n_gates(); ++gate)
-                for (int dic = 0; dic < p.dic; ++dic) {
+                for (int dhc = 0; dhc < p.dhc; ++dhc) {
                     float weights_compensation = 0;
                     for (int sic = 0; sic < p.sic; ++sic)
                         weights_compensation
-                                += weights_iter(layer, dir, sic, gate, dic);
+                                += weights_iter(layer, dir, sic, gate, dhc);
                     for (int slc = 0; slc < p.slc; ++slc)
                         weights_compensation
-                                += weights_layer(layer, dir, slc, gate, dic);
+                                += weights_layer(layer, dir, slc, gate, dhc);
 
                     float scale = p.data_scale;
                     if (p.scale_policy == policy_t::PER_OC)
-                        scale *= p.wei_oc_scales[gate * p.dic + dic];
+                        scale *= p.wei_oc_scales[gate * p.dhc + dhc];
                     else if (p.scale_policy == policy_t::COMMON)
                         scale *= p.wei_scale;
 
-                    bias_with_compensation(layer, dir, gate, dic)
-                            = bias(layer, dir, gate, dic)
+                    bias_with_compensation(layer, dir, gate, dhc)
+                            = bias(layer, dir, gate, dhc)
                             - weights_compensation * p.data_shift / scale;
                 }
 }
@@ -71,7 +71,7 @@ void copy_init_fwd(const prb_t &p, float *ws_, const float *src_layer_,
     AOC<const float> firstit_states(
             firstit_states_, p.n_layer, p.n_dir(), p.mb * p.sic);
     AOC<const float> firstit_c_states(
-            firstit_c_states_, p.n_layer, p.n_dir(), p.mb * p.dic);
+            firstit_c_states_, p.n_layer, p.n_dir(), p.mb * p.dhc);
 
     int64_t lay_dest = (lay_dir == bottom2top) ? 0 : p.n_layer + 1;
     int64_t it_dest = (iter_dir == left2right) ? 0 : p.n_iter + 1;
@@ -94,7 +94,7 @@ void copy_init_fwd(const prb_t &p, float *ws_, const float *src_layer_,
                     p.data_scale, p.data_shift);
 
         if (p.alg == VANILLA_LSTM)
-            copy(p.mb, p.dic, p.dic, p.wc, &firstit_c_states(lay, dir_val, 0),
+            copy(p.mb, p.dhc, p.dhc, p.wc, &firstit_c_states(lay, dir_val, 0),
                     &ws(lay + 1, dir_val, it_dest, C, 0));
     }
 }
@@ -104,9 +104,9 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
         int64_t dir_val, rnn_action_t action, bool is_concat = false) {
     int64_t lastlay_c = is_concat ? 2 * p.dlc : p.dlc;
-    AOC<float> lastit_states(lastit_states_, p.n_layer, p.n_dir(), p.mb, p.dic);
+    AOC<float> lastit_states(lastit_states_, p.n_layer, p.n_dir(), p.mb, p.dhc);
     AOC<float> lastit_c_states(
-            lastit_c_states_, p.n_layer, p.n_dir(), p.mb, p.dic);
+            lastit_c_states_, p.n_layer, p.n_dir(), p.mb, p.dhc);
     AOC<float> lastlay_states(lastlay_states_, p.n_iter, p.mb, lastlay_c);
     AOC<const float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2,
             p.n_states(), p.mb, p.wc);
@@ -143,16 +143,16 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
     // Copy states iteration
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
         if (p.alg == VANILLA_LSTM) {
-            copy(p.mb, p.dic, p.wc, p.dic,
+            copy(p.mb, p.dhc, p.wc, p.dhc,
                     &ws(lay + 1, dir_val, it_source, C, 0, 0),
                     &lastit_c_states(lay, dir_val, 0, 0));
         }
 
-        copy(p.mb, p.dic, p.wc, p.dic,
+        copy(p.mb, p.dhc, p.wc, p.dhc,
                 &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, 0, 0));
         if (p.is_int8() && p.cfg[dst_last_iteration].dt != dnnl_u8)
-            data_deq10n(p.mb, p.dic, p.dic, &lastit_states(lay, dir_val, 0, 0),
+            data_deq10n(p.mb, p.dhc, p.dhc, &lastit_states(lay, dir_val, 0, 0),
                     p.data_scale, p.data_shift);
     }
 }
@@ -194,33 +194,33 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
         const float *weights_peephole_, const float *bias_, float *dst_iter_,
         float *dst_iter_c_, float *dst_layer_, float *ws_, float *gates_) {
 
-    assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));
+    assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
     bool is_lbr = p.alg == LBR_GRU;
     bool is_concat = p.direction == dnnl_bidirectional_concat;
 
     float *bias_with_compensation = nullptr;
     if (p.is_int8()) {
         bias_with_compensation = new float[p.n_layer * p.n_dir()
-                * (p.n_gates() + is_lbr) * p.dic];
+                * (p.n_gates() + is_lbr) * p.dhc];
         prepare_bias(p, bias_with_compensation, bias_, weights_layer_,
                 weights_iter_h_);
         bias_ = bias_with_compensation;
     }
 
     AOC<const float> weights_peephole(
-            weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dic);
+            weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dhc);
     AOC<const float> bias(
-            bias_, p.n_layer, p.n_dir(), (p.n_gates() + is_lbr) * p.dic);
+            bias_, p.n_layer, p.n_dir(), (p.n_gates() + is_lbr) * p.dhc);
     AOC<const float> weights_layer(
-            weights_layer_, p.n_layer, p.n_dir(), p.n_gates() * p.dic, p.slc);
+            weights_layer_, p.n_layer, p.n_dir(), p.n_gates() * p.dhc, p.slc);
     AOC<const float> weights_iter(
-            weights_iter_h_, p.n_layer, p.n_dir(), p.n_gates() * p.dic, p.sic);
+            weights_iter_h_, p.n_layer, p.n_dir(), p.n_gates() * p.dhc, p.sic);
     AOC<float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.n_states(),
             p.mb, p.wc);
     AOC<float> gates(
-            gates_, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.n_gates(), p.dic);
+            gates_, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.n_gates(), p.dhc);
 
-    int64_t ws_local_size = is_lbr * p.mb * p.n_gates() * p.dic;
+    int64_t ws_local_size = is_lbr * p.mb * p.n_gates() * p.dhc;
     float *ws_local_ = new float[ws_local_size];
 
     auto process_direction = [&](rnn_iter_direction_t iter_dir,
@@ -295,12 +295,12 @@ void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
             || p.direction == dnnl_bidirectional_sum
             || p.direction == dnnl_bidirectional_concat);
 
-    assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));
+    assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
     int64_t ws_size = (p.n_layer + 2) * p.n_dir() * (p.n_iter + 2)
             * p.n_states() * p.mb * p.wc;
     auto *ws = new float[ws_size];
     int64_t gates_size
-            = p.n_layer * p.n_dir() * p.n_iter * p.mb * p.n_gates() * p.dic;
+            = p.n_layer * p.n_dir() * p.n_iter * p.mb * p.n_gates() * p.dhc;
     auto *gates = new float[gates_size];
 
     rnn_linear_fwd(p, (float *)src_iter_m, (float *)src_iter_c_m,

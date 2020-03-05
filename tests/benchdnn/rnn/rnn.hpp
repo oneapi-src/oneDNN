@@ -107,7 +107,7 @@ private:
 struct desc_t {
     int64_t sic;
     int64_t slc;
-    int64_t dic;
+    int64_t dhc;
     int64_t dlc;
     int64_t wc;
     int64_t mb;
@@ -270,7 +270,7 @@ struct prb_t : public desc_t {
 
         if (mb) this->mb = mb;
         count_ops();
-        wc = MAX2(sic, MAX2(slc, dic));
+        wc = MAX2(sic, MAX2(slc, dhc));
 
         wei_oc_scales = nullptr;
         linear_scales = nullptr;
@@ -283,7 +283,7 @@ struct prb_t : public desc_t {
 
         if (scale_policy == policy_t::PER_OC)
             wei_oc_scales
-                    = (float *)zmalloc(sizeof(float) * dic * n_gates(), 64);
+                    = (float *)zmalloc(sizeof(float) * dhc * n_gates(), 64);
         set_qparams(-1., 1.);
     }
     ~prb_t() {
@@ -295,7 +295,7 @@ struct prb_t : public desc_t {
         // Here, we count only the ops in GEMM portion as there is no
         // theoretical number of ops for the post-gemm operations
         int64_t num_cells = (int64_t)n_dir() * n_layer * n_iter;
-        int64_t cell_ops = (int64_t)2 * (n_gates() * dic) * mb * (sic + slc);
+        int64_t cell_ops = (int64_t)2 * (n_gates() * dhc) * mb * (sic + slc);
         int64_t prop_multiplier = prop == dnnl_backward ? 2 : 1;
         ops = prop_multiplier * num_cells * cell_ops;
     }
@@ -370,7 +370,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->n_layer << "," << p_->n_iter << "," << p_->mb << "," << p_->sic
-          << "," << p_->slc << "," << p_->dic << "," << p_->dlc;
+          << "," << p_->slc << "," << p_->dhc << "," << p_->dlc;
     }
 
     virtual void dump_rnn_activation(std::ostream &s) const override {
@@ -501,8 +501,8 @@ inline size_t ldgo_off_with_G_f(
 
 inline void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off,
         int64_t &l, int64_t &d, int64_t &b, int64_t &c) {
-    c = off % p.dic;
-    off /= p.dic;
+    c = off % p.dhc;
+    off /= p.dhc;
     b = off % G;
     off /= G;
     d = off % p.n_dir();

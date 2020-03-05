@@ -106,9 +106,9 @@ static status_t init_conf(rnn_conf_t &conf, const rnn_pd_t *rnn_pd,
     conf.batch = rnn.mb;
     conf.slc = rnn.slc;
     conf.sic = rnn.sic;
-    conf.dic = rnn.dic;
+    conf.dhc = rnn.dhc;
     conf.dlc = rnn.dlc;
-    conf.wic = nstl::max(conf.slc, nstl::max(conf.sic, conf.dic));
+    conf.wic = nstl::max(conf.slc, nstl::max(conf.sic, conf.dhc));
 
     conf.n_parts_weights_iter = rnn.n_parts_weights_iter;
     conf.n_parts_weights_layer = rnn.n_parts_weights_layer;
@@ -239,7 +239,7 @@ static status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
 
     kernel_ctx.define_int("SLC", conf.slc);
     kernel_ctx.define_int("SIC", conf.sic);
-    kernel_ctx.define_int("DIC", conf.dic);
+    kernel_ctx.define_int("DHC", conf.dhc);
     kernel_ctx.define_int("WIC", conf.wic);
 
     kernel_ctx.define_int("N_PARTS_WEI_ST", conf.n_parts_weights_iter);
@@ -556,10 +556,10 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
     int ls_multiplier
             = (this->direction() == dnnl_bidirectional_concat) ? 2 : 1;
 
-    ok = ok && (ls_multiplier * this->DIC() == this->DLC())
+    ok = ok && (ls_multiplier * this->DHC() == this->DLC())
             && ((ls_multiplier * this->SLC()) == this->DLC()
                     || (this->L() == 1))
-            && (this->SIC() == this->DIC() || (this->T() == 1));
+            && (this->SIC() == this->DHC() || (this->T() == 1));
     if (!ok) return status::unimplemented;
 
     set_rnn_conf(rnn_conf, *this->desc(), this->weights_md(0),
@@ -617,7 +617,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
     int n_gates = rnn_conf.n_gates;
     int slc = rnn_conf.slc;
     int sic = rnn_conf.sic;
-    int dic = rnn_conf.dic;
+    int dhc = rnn_conf.dhc;
 
     int layer_merged_size
             = rnn_conf.merge_gemm_layer ? batch * rnn_conf.n_iter : batch;
@@ -630,13 +630,13 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
         case prop_kind::forward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            create_gemm_pd(&gemm_layer_fwd_pd_, n_gates * dic,
+                            create_gemm_pd(&gemm_layer_fwd_pd_, n_gates * dhc,
                                     layer_merged_size, slc,
                                     rnn_conf.weights_layer_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
                                     rnn_conf.acc_data_type, false, 0.0),
-                            create_gemm_pd(&gemm_iter_fwd_pd_, n_gates * dic,
+                            create_gemm_pd(&gemm_iter_fwd_pd_, n_gates * dhc,
                                     batch, sic, rnn_conf.weights_iter_ld,
                                     rnn_conf.states_ws_ld, rnn_conf.gates_ws_ld,
                                     weights_type, src_type,
@@ -646,27 +646,27 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init() {
             gemm_ok = true
                     && utils::everyone_is(status::success,
                             create_gemm_pd(&gemm_iter_bwd_pd_, sic, batch,
-                                    n_gates * dic, rnn_conf.weights_iter_ld,
+                                    n_gates * dhc, rnn_conf.weights_iter_ld,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.diff_states_ws_ld, weights_type,
                                     src_type, rnn_conf.acc_data_type, false,
                                     0.0f),
                             create_gemm_pd(&gemm_layer_bwd_pd_, slc,
-                                    layer_merged_size, n_gates * dic,
+                                    layer_merged_size, n_gates * dhc,
                                     rnn_conf.weights_layer_ld,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.diff_states_ws_ld, weights_type,
                                     src_type, rnn_conf.acc_data_type, false,
                                     0.0f),
                             create_gemm_pd(&gemm_diff_wei_layer_pd_,
-                                    n_gates * dic, slc, layer_merged_size,
+                                    n_gates * dhc, slc, layer_merged_size,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.states_ws_ld,
                                     rnn_conf.diff_weights_layer_ld,
                                     weights_type, src_type,
                                     rnn_conf.acc_data_type, true, 1.0f),
                             create_gemm_pd(&gemm_diff_wei_iter_pd_,
-                                    n_gates * dic, sic, iter_merged_size,
+                                    n_gates * dhc, sic, iter_merged_size,
                                     rnn_conf.scratch_gates_ld,
                                     rnn_conf.states_ws_ld,
                                     rnn_conf.diff_weights_iter_ld, weights_type,
@@ -723,7 +723,7 @@ status_t _ref_rnn_common_t<aprop>::init() {
 #endif
 
     if (pd()->rnn_conf.is_int8) {
-        size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dic
+        size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
                 * sizeof(float); // G * O * sizeof(float);
         memory_storage_t *temp_buf_ptr;
         engine()->create_memory_storage(&temp_buf_ptr, size);
@@ -909,7 +909,7 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
 
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
-        int lay, int iter, int n_gates, int dic, int batch,
+        int lay, int iter, int n_gates, int dhc, int batch,
         const memory_storage_t &scratch_gates,
         const memory_storage_t &diff_bias) const {
     auto *compute_stream
@@ -922,7 +922,7 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(3, diff_bias);
     arg_list.set(4, scratch_gates);
 
-    auto nd_range = compute::nd_range_t({n_gates, dic});
+    auto nd_range = compute::nd_range_t({n_gates, dhc});
     compute_stream->parallel_for(nd_range, gates_reduction_kernel_, arg_list);
 }
 
@@ -957,7 +957,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 
             for (int i = 0; i < n_iter; i++) {
                 int iter = (aprop == prop_kind::forward) ? i : n_iter - i - 1;
-                (this->*cell_func)(ctx, dir, lay, iter, dic, slc, sic, wic,
+                (this->*cell_func)(ctx, dir, lay, iter, dhc, slc, sic, wic,
                         batch, n_layer, n_dir, n_iter, n_gates, n_states,
                         n_bias, offset_wei_input_, n_parts_weights_layer,
                         offset_wei_state_, n_parts_weights_iter, bias,
@@ -1020,7 +1020,7 @@ grid_execution_sig((_ref_rnn_common_t<aprop>::linear_execution)) {
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::bias_prepare(
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-        int n_bias, int n_gates, int dic, const memory_storage_t &ws,
+        int n_bias, int n_gates, int dhc, const memory_storage_t &ws,
         const memory_storage_t &scales, const memory_storage_t &wei_layer,
         const memory_storage_t &wei_iter, const memory_storage_t &bias) const {
 
@@ -1036,7 +1036,7 @@ void _ref_rnn_common_t<aprop>::bias_prepare(
     arg_list.set(5, data_shift);
     arg_list.set(6, data_scale);
     compute_stream->parallel_for(
-            compute::nd_range_t({dic, n_bias, n_layer * n_dir}),
+            compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
             bias_prepare_kernel_, arg_list);
 }
 
@@ -1069,7 +1069,7 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_init_iter(
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-        int batch, int sic, int dic, const memory_storage_t &ws,
+        int batch, int sic, int dhc, const memory_storage_t &ws,
         const memory_storage_t &firstit_states,
         const memory_storage_t &firstit_c_states,
         const memory_storage_t &diff_dst_iter,
@@ -1093,7 +1093,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(
         arg_list.set(1, diff_dst_iter);
         arg_list.set(2, diff_dst_iter_c);
         compute_stream->parallel_for(
-                compute::nd_range_t({dic, batch, n_layer * n_dir}),
+                compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_init_iter_kernel_, arg_list);
     }
 }
@@ -1101,7 +1101,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_res_layer(
         compute::compute_stream_t *compute_stream, bool lr, bool rl, int n_iter,
-        int batch, int slc, int dic, const memory_storage_t &dst_last_layer,
+        int batch, int slc, int dhc, const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
         const float shift, const float scale, const bool dequantize) const {
 
@@ -1114,7 +1114,7 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(
         arg_list.set(4, shift);
         arg_list.set(5, scale);
         arg_list.set(6, (int)dequantize);
-        compute_stream->parallel_for(compute::nd_range_t({dic, batch, n_iter}),
+        compute_stream->parallel_for(compute::nd_range_t({dhc, batch, n_iter}),
                 copy_res_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
@@ -1130,7 +1130,7 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(
 template <prop_kind_t aprop>
 void _ref_rnn_common_t<aprop>::copy_res_iter(
         compute::compute_stream_t *compute_stream, int n_layer, int n_dir,
-        int batch, int sic, int dic, const memory_storage_t &dst_last_iter,
+        int batch, int sic, int dhc, const memory_storage_t &dst_last_iter,
         const memory_storage_t &dst_last_iter_c,
         const memory_storage_t &diff_src_iter,
         const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
@@ -1145,7 +1145,7 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(
         arg_list.set(4, scale);
         arg_list.set(5, (int)dequantize);
         compute_stream->parallel_for(
-                compute::nd_range_t({dic, batch, n_layer * n_dir}),
+                compute::nd_range_t({dhc, batch, n_layer * n_dir}),
                 copy_res_iter_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
@@ -1265,9 +1265,9 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     int batch = rnn.mb;
     int slc = rnn.slc;
     int sic = rnn.sic;
-    int dic = rnn.dic;
+    int dhc = rnn.dhc;
     int dlc = rnn.dlc;
-    int wic = nstl::max(slc, nstl::max(sic, dic));
+    int wic = nstl::max(slc, nstl::max(sic, dhc));
 
     bool is_orig_gru = rnn_pd->cell_kind() == alg_kind::vanilla_gru;
     int n_parts_weights_iter = rnn.n_parts_weights_iter;
@@ -1330,7 +1330,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         DPRINT("  batch           = %d\n", batch);
         DPRINT("  slc             = %d\n", slc);
         DPRINT("  sic             = %d\n", sic);
-        DPRINT("  dic             = %d\n", dic);
+        DPRINT("  dhc             = %d\n", dhc);
         DPRINT("  dlc             = %d\n", dlc);
         DPRINT("  wic             = %d\n", wic);
         DPRINT("%s\n", "+++++++++++++++");
@@ -1400,7 +1400,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
         if (status != status::success) return status;
         utils::array_copy((float *)tmp_ptr,
                 pd()->attr()->rnn_weights_qparams_.scales_,
-                rnn.n_gates * rnn.dic);
+                rnn.n_gates * rnn.dhc);
         status = scales_buf_->unmap_data(tmp_ptr);
         if (status != status::success) return status;
     }
@@ -1408,15 +1408,15 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     // XXX: this function is used for calculating offsets for buffers and not
     // used for packing weights
     (this->*weights_state_pack_func)(n_layer, n_dir, n_weights_state, n_gates,
-            batch, dic, sic, offset_wei_state_, n_parts_weights_iter,
+            batch, dhc, sic, offset_wei_state_, n_parts_weights_iter,
             rnn.parts_weights_iter, w_state_native_);
     (this->*weights_input_pack_func)(n_layer, n_dir, n_weights_input, n_gates,
-            batch, dic, slc, offset_wei_input_, n_parts_weights_layer,
+            batch, dhc, slc, offset_wei_input_, n_parts_weights_layer,
             rnn.parts_weights_layer, w_input_native_);
 
     // bias prepare if needed
     if (rnn.copy_bias) {
-        bias_prepare(compute_stream, n_layer, n_dir, n_bias, n_gates, dic,
+        bias_prepare(compute_stream, n_layer, n_dir, n_bias, n_gates, dhc,
                 workspace_, *scales_buf_, w_input_native_, w_state_native_,
                 bias_native_);
     }
@@ -1431,7 +1431,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
             workspace_, input_native_, diff_dst_layer_native_);
     const bool quantize = pd()->with_src_iter()
             && pd()->src_md(1)->data_type == data_type::f32 && rnn.is_int8;
-    copy_init_iter(compute_stream, n_layer, n_dir, batch, sic, dic, workspace_,
+    copy_init_iter(compute_stream, n_layer, n_dir, batch, sic, dhc, workspace_,
             states_native_, c_states_native_, diff_dst_iter_native_,
             diff_dst_iter_c_native_, shift, scale, quantize);
 
@@ -1439,7 +1439,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     WS_PRINT(compute_stream, workspace_);
 
     // run the execution on the grid
-    (this->*grid_computation)(ctx, dic, slc, sic, wic, batch, n_layer, n_dir,
+    (this->*grid_computation)(ctx, dhc, slc, sic, wic, batch, n_layer, n_dir,
             n_iter, n_gates, n_states, n_bias, offset_wei_input_,
             n_parts_weights_layer, offset_wei_state_, n_parts_weights_iter,
             bias_native_, workspace_, scratch_gates, w_input_native_,
@@ -1454,12 +1454,12 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const bool dequantize_l
             = pd()->dst_md(0)->data_type == data_type::f32 && rnn.is_int8;
-    copy_res_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc, dic,
+    copy_res_layer(compute_stream, is_lr, is_rl, n_iter, batch, slc, dhc,
             dst_last_layer_native_, diff_src_layer_native_, workspace_, shift,
             scale, dequantize_l);
     const bool dequantize_i = pd()->with_dst_iter()
             && pd()->dst_md(1)->data_type == data_type::f32 && rnn.is_int8;
-    copy_res_iter(compute_stream, n_layer, n_dir, batch, sic, dic,
+    copy_res_iter(compute_stream, n_layer, n_dir, batch, sic, dhc,
             dst_last_iter_native_, dst_last_iter_c_native_,
             diff_src_iter_native_, diff_src_iter_c_native_, workspace_, shift,
             scale, dequantize_i);

@@ -117,10 +117,10 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         rnn_utils::ws_gates_aoc<scratch_data_t> scratch_cell(
                 rnn, scratch_cell_);
         utils::array_offset_calculator<src_data_t, 2> ws_Wh_b(
-                ws_grid_, rnn.mb, rnn.dic);
+                ws_grid_, rnn.mb, rnn.dhc);
 
-        // Todo: add parallelization on dic for the batch 1 case
-        // Assumption: the kernel runs a loop on dic elements
+        // Todo: add parallelization on dhc for the batch 1 case
+        // Assumption: the kernel runs a loop on dhc elements
         parallel_nd(rnn.mb, [&](int i) {
             void *param1_ = &ws_gates(i, 0, 0); // RNN, LSTM, GRU
             void *param2_ = &scratch_gates(i, 0, 0); // RNN, LSTM, GRU
@@ -188,10 +188,10 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         utils::array_offset_calculator<scratch_data_t, 2> hG1(
                 scratch_cell_, rnn.states_nld, rnn.states_ws_ld);
         utils::array_offset_calculator<src_data_t, 2> ws_grid(
-                ws_grid_, rnn.mb, rnn.dic);
+                ws_grid_, rnn.mb, rnn.dhc);
 
-        // Todo: add parallelization on dic for the batch 1 case
-        // Assumption: the kernel runs a loop on dic elements
+        // Todo: add parallelization on dhc for the batch 1 case
+        // Assumption: the kernel runs a loop on dhc elements
         parallel_nd(rnn.mb, [&](int i) {
             void *param1_, *param2_, *param4_, *param5_, *param7_, *param8_,
                     *param9_;
@@ -414,7 +414,7 @@ protected:
             uni_vbroadcastss(tmp1, ptr[weights_scales_reg]);
         else {
             auto scales_ptr = ptr[weights_scales_reg
-                    + gate * rnn_.dic * qscale_dt_size];
+                    + gate * rnn_.dhc * qscale_dt_size];
             if (packed)
                 uni_vmovups(tmp1, scales_ptr);
             else

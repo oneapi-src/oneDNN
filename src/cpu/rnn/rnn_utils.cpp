@@ -110,11 +110,11 @@ bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.mb = src_layer_d.dims()[1];
     rnn.sic = weights_iter_d.dims()[2];
     rnn.slc = weights_layer_d.dims()[2];
-    rnn.dic = weights_layer_d.dims()[4];
+    rnn.dhc = weights_layer_d.dims()[4];
     rnn.dlc = dst_layer_d.dims()[2];
 
     // set workspace (not)leading dimensions
-    rnn.gates_ld = rnn.dic * rnn.n_gates;
+    rnn.gates_ld = rnn.dhc * rnn.n_gates;
     rnn.gates_nld = rnn.mb;
     rnn.states_nld = rnn.mb;
 
@@ -122,7 +122,7 @@ bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     // Assumption: weights datatype size is the same as state datatype size
     int sizeof_states_dt = types::data_type_size(weights_layer_d.data_type());
     rnn.states_ws_ld = get_good_ld(
-            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)), sizeof_states_dt);
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof_states_dt);
     // Assumption: {src,dst}_layer has tnc layout, {src,dst}_iter has ldnc,
     rnn.src_layer_ld_ = src_layer_d.blocking_desc().strides[1];
     rnn.dst_layer_ld_ = dst_layer_d.blocking_desc().strides[1];
@@ -175,7 +175,7 @@ bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
     rnn.force_nocopy = !mayiuse(avx512_mic) && mayiuse(avx)
             && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
-                    || (rnn.is_training && rnn.dic < 500));
+                    || (rnn.is_training && rnn.dhc < 500));
 
     /* Decide to copy bias */
     rnn.copy_bias = rnn.is_int8();
@@ -202,8 +202,8 @@ bool rnn_utils::init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
-            int m_p = rnn.is_fwd ? (parts[p] * rnn.dic) : feature_size;
-            int k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dic);
+            int m_p = rnn.is_fwd ? (parts[p] * rnn.dhc) : feature_size;
+            int k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dhc);
             int n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
@@ -342,11 +342,11 @@ void rnn_utils::set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                                     * rnn.states_ws_ld * sizeof_acc_dt
                                                      : 0);
     /// workspace needed for lbr GRU
-    rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dic * sizeof_acc_dt;
+    rnn.ws_per_cell = (size_t)rnn.is_lbr * rnn.mb * rnn.dhc * sizeof_acc_dt;
     rnn.ws_grid_comp_size = (size_t)rnn.is_lbr * rnn.is_training * rnn.n_layer
             * rnn.n_dir * rnn.n_iter * rnn.ws_per_cell * sizeof(float);
     /// bias ws needed to add compensation in int8
-    rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic
+    rnn.ws_bias_size = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc
             * sizeof(float);
 }
 

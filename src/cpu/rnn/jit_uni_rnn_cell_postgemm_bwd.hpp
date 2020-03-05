@@ -88,13 +88,13 @@ protected:
 
         // helper lambda to address the gates and biases
         auto sg_addr = [&](int i) {
-            return ptr[addr_scratch_gates_reg + i * rnn_.dic * scratch_dt_size];
+            return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size];
         };
         auto wg_addr = [&](int i) {
-            return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
+            return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
         };
         // auto sc_addr = [&](int i) {
-        //     return ptr[addr_scratch_cell_reg + i * rnn_.dic * scratch_dt_size];
+        //     return ptr[addr_scratch_cell_reg + i * rnn_.dhc * scratch_dt_size];
         // };
 
         // initialize registers with addresses and constants
@@ -110,7 +110,7 @@ protected:
 
         uni_vxorps(Vmm(zero_idx), Vmm(zero_idx), Vmm(zero_idx));
 
-        mov(loop_cnt, rnn_.dic * scratch_dt_size);
+        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen_scratch);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 

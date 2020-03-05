@@ -25,7 +25,7 @@ template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::rnn_elemwise)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    auto nd_range = compute::nd_range_t({dic, batch});
+    auto nd_range = compute::nd_range_t({dhc, batch});
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
             : elemwise_bwd_kernel_;
@@ -49,7 +49,7 @@ template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    auto nd_range = compute::nd_range_t({dic, batch});
+    auto nd_range = compute::nd_range_t({dhc, batch});
     const compute::kernel_t &kernel = (aprop == prop_kind::forward)
             ? elemwise_fwd_kernel_
             : elemwise_bwd_kernel_;
@@ -73,7 +73,7 @@ template <prop_kind_t aprop>
 elemwise_sig((_ref_rnn_common_t<aprop>::lstm_elemwise_u8s8)) {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    auto nd_range = compute::nd_range_t({dic, batch});
+    auto nd_range = compute::nd_range_t({dhc, batch});
     const compute::kernel_t &kernel = elemwise_fwd_kernel_;
 
     float data_shift = pd()->attr()->rnn_data_qparams_.shift_;

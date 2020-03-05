@@ -63,7 +63,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             float gate_i_arg
                     = to_float(scratch_gates(i, 0, j), 0, j) + bias(0, j);
             if (rnn.is_lstm_peephole)
@@ -181,7 +181,7 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
                 ? saturate<float>(s) * (1.f / (weights_scales[0] * data_scale))
                 : saturate<float>(s)
                         * (1.f
-                                / (weights_scales[gate * rnn.dic + j]
+                                / (weights_scales[gate * rnn.dhc + j]
                                         * data_scale));
     };
 
@@ -231,7 +231,7 @@ void lstm_bwd_postgemm_template(T1 func1, T2 to_src_dt, const float *cscale,
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             float Ct = c_states_t_l(i, j);
             /// @todo save it in the workspace in fwd pass or recompute it to
             /// save bw

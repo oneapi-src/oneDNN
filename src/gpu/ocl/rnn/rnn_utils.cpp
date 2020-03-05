@@ -105,10 +105,10 @@ void rnn_utils::init_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.mb = src_layer_d.dims()[1];
     rnn.sic = weights_iter_d.dims()[2];
     rnn.slc = weights_layer_d.dims()[2];
-    rnn.dic = weights_layer_d.dims()[4];
+    rnn.dhc = weights_layer_d.dims()[4];
     rnn.dlc = dst_layer_d.dims()[2];
 
-    rnn.gates_ld = rnn.dic * rnn.n_gates;
+    rnn.gates_ld = rnn.dhc * rnn.n_gates;
     rnn.gates_nld = rnn.mb;
     rnn.states_nld = rnn.mb;
 
@@ -236,11 +236,11 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     // diff states to copmute bwd pass (training only)
     // intermediate results from the gates
     rnn.states_ws_ld = get_good_ld(
-            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)), sizeof_states_dt);
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof_states_dt);
     rnn.gates_ws_ld = get_good_ld(rnn.gates_ld,
             rnn.dt_conf == all_f16 ? sizeof(cl_half) : sizeof(cl_float));
     rnn.diff_states_ws_ld = get_good_ld(
-            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dic)), sizeof(cl_float));
+            nstl::max(rnn.slc, nstl::max(rnn.sic, rnn.dhc)), sizeof(cl_float));
     rnn.scratch_gates_ld = get_good_ld(rnn.gates_ld, rnn.scratch_gates_elsz);
 
     bool is_lstm = rd.cell_kind == dnnl_vanilla_lstm;
@@ -262,7 +262,7 @@ void rnn_utils::set_rnn_conf(conf_t &rnn, const rnn_desc_t &rd,
     rnn.scratch_gates_size = (size_t)rnn.n_iter_scratch_gates * rnn.gates_nld
             * rnn.scratch_gates_ld * rnn.scratch_gates_elsz;
     rnn.ws_bias_size
-            = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dic * aux_elsz;
+            = (size_t)rnn.n_layer * rnn.n_dir * rnn.n_bias * rnn.dhc * aux_elsz;
 
     // set other sizes, placeholder for GRU
     rnn.ws_cell_comp_elsz = aux_elsz;
