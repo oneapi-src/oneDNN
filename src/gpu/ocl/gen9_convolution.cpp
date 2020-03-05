@@ -745,6 +745,30 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
+status_t gen9_convolution_bwd_data_t::execute_backward_data(
+        const exec_ctx_t &ctx) const {
+    auto *compute_stream
+            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
+
+    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
+    auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
+    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
+    auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
+
+    const auto &conf = pd()->conf;
+
+    compute::kernel_arg_list_t arg_list;
+    arg_list.set(0, diff_src);
+    arg_list.set(1, weights);
+    arg_list.set(2, diff_dst);
+    arg_list.set(3, bias);
+
+    auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
+    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
+
+    return status;
+}
+
 static void bwd_w_compute_block_sizes(
         conv_conf_t &conf, const convolution_pd_t *pd) {
     if (conf.is_depthwise) {
@@ -1109,30 +1133,6 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(5, conf.eltwise.beta);
     arg_list.set(6, conf.eltwise.scale);
     arg_list.set(7, conf.sum_scale);
-
-    auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-    status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
-
-    return status;
-}
-
-status_t gen9_convolution_bwd_data_t::execute_backward_data(
-        const exec_ctx_t &ctx) const {
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-
-    auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
-    auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
-    auto &diff_src = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SRC);
-    auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
-
-    const auto &conf = pd()->conf;
-
-    compute::kernel_arg_list_t arg_list;
-    arg_list.set(0, diff_src);
-    arg_list.set(1, weights);
-    arg_list.set(2, diff_dst);
-    arg_list.set(3, bias);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
     status_t status = compute_stream->parallel_for(nd_range, kernel_, arg_list);
