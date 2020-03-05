@@ -46,7 +46,7 @@ namespace cpu {
 // TODO: move this to jit_generator class?
 namespace {
 
-// cpu_age_size_t enum values moved to cpu_isa_traits.hpp
+// cpu_page_size_t enum values moved to cpu_isa_traits.hpp
 
 typedef enum {
     MAX_CODE_SIZE = 256 * 1024,

@@ -37,12 +37,12 @@ TEST(isa_set_once_test, TestISASetOnce) {
 #include "dnnl_debug.h"
 #include "src/cpu/cpu_isa_traits.hpp"
 
-#include <iomanip>
-#include <iostream>
-using std::cout;
-using std::dec;
-using std::endl;
-using std::hex;
+//#include <iomanip>
+//#include <iostream>
+//using std::cout;
+//using std::dec;
+//using std::endl;
+//using std::hex;
 
 namespace dnnl {
 
@@ -104,18 +104,18 @@ TEST(isa_set_once_test, TestISASetOnce) {
     using dnnl::impl::cpu::
             mayiuse; // decl as a static inline in dnnl::impl::cpu::anon
 
-    printf(" interesting values:\n");
-    printf(" dnnl_cpu_isa_vanilla = %d\n", dnnl_cpu_isa_vanilla);
-    printf(" dnnl_cpu_isa_any     = %d\n", dnnl_cpu_isa_any);
-    printf(" dnnl_cpu_isa_full    = %d\n", dnnl_cpu_isa_full);
-    printf(" DNNL_ISA (cmake)     = %d\n", DNNL_ISA);
-    cout << " Test using dnnl_cpu_isa_t " << STR(DNNL_CPU_ISA_T) " = 0x" << hex
-         << DNNL_CPU_ISA_T << dec << endl;
+    //printf(" interesting values:\n");
+    //printf(" dnnl_cpu_isa_vanilla = %d\n", dnnl_cpu_isa_vanilla);
+    //printf(" dnnl_cpu_isa_any     = %d\n", dnnl_cpu_isa_any);
+    //printf(" dnnl_cpu_isa_full    = %d\n", dnnl_cpu_isa_full);
+    //printf(" DNNL_ISA (cmake)     = %d\n", DNNL_ISA);
+    //cout << " Test using dnnl_cpu_isa_t " << STR(DNNL_CPU_ISA_T) " = 0x" << hex
+    //     << DNNL_CPU_ISA_T << dec << endl;
 
     impl::cpu::cpu_isa_t cpuisa_flags = impl::cpu::from_dnnl(DNNL_CPU_ISA_T);
-    printf("%s 0x%lx --> cpu_isa_t cpuisa_flags = 0x%lx\n",
-            STRINGIFY(DNNL_CPU_ISA_T), (long)DNNL_CPU_ISA_T,
-            (long)cpuisa_flags);
+    //printf("%s 0x%lx --> cpu_isa_t cpuisa_flags = 0x%lx\n",
+    //        STRINGIFY(DNNL_CPU_ISA_T), (long)DNNL_CPU_ISA_T,
+    //        (long)cpuisa_flags);
     ASSERT_TRUE(cpuisa_flags != impl::cpu::isa_unknown);
 
     static const bool c_api = 1; // Both must compile
@@ -123,24 +123,24 @@ TEST(isa_set_once_test, TestISASetOnce) {
         // test the 'C' interface (can do either the C or C++ version, not both)
         // used extern "C" version of set_max_cpu_isa
         auto st = dnnl_set_max_cpu_isa(DNNL_CPU_ISA_T);
-        printf("first time calling dnnl_set_max_cpu_isa(0x%lx) returned %s\n",
-                (long)DNNL_CPU_ISA_T, dnnl_status2str(st));
+        //printf("first time calling dnnl_set_max_cpu_isa(0x%lx) returned %s\n",
+        //        (long)DNNL_CPU_ISA_T, dnnl_status2str(st));
         ASSERT_TRUE(st == dnnl_success || st == dnnl_unimplemented);
 
         // safer: also call get_max_cpu_isa directly (ensure "set once" event)
         int max_cpu_isa = (int)impl::cpu::get_max_cpu_isa();
-        printf(" get_max_cpu_isa() returns %d\n", max_cpu_isa);
+        //printf(" get_max_cpu_isa() returns %d\n", max_cpu_isa);
         ASSERT_TRUE(max_cpu_isa != impl::cpu::isa_unknown);
         // this now becomes a secondary test,
         // desirable, but not really absolutely necessary
-        printf(" mayiuse(cpuisa_flags=%d)?\n", (int)cpuisa_flags);
+        //printf(" mayiuse(cpuisa_flags=%d)?\n", (int)cpuisa_flags);
         ASSERT_TRUE(mayiuse(cpuisa_flags));
 
-        printf(" dnnl_set_max_cpu_isa(DNNL_CPU_ISA_T=%d)\n",
-                (int)DNNL_CPU_ISA_T);
+        //printf(" dnnl_set_max_cpu_isa(DNNL_CPU_ISA_T=%d)\n",
+        //        (int)DNNL_CPU_ISA_T);
         st = dnnl_set_max_cpu_isa(DNNL_CPU_ISA_T);
-        printf(" second time calling dnnl_set_max_cpu_isa(0x%lx) returned %s\n",
-                (long)DNNL_CPU_ISA_T, dnnl_status2str(st));
+        //printf(" second time calling dnnl_set_max_cpu_isa(0x%lx) returned %s\n",
+        //        (long)DNNL_CPU_ISA_T, dnnl_status2str(st));
         ASSERT_TRUE(st == dnnl_invalid_arguments || st == dnnl_unimplemented);
     } else {
         // equivalent C++ test
