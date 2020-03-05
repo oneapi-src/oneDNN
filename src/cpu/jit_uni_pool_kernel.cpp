@@ -58,8 +58,9 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
                                                          : isa;
 
     bool args_ok = true && mayiuse(isa)
-            && IMPLICATION(src_d.is_plain(),
-                    dst_d.is_plain() && src_d.data_type() == dst_d.data_type())
+            && IMPLICATION(src_d.is_plain() || dst_d.is_plain(),
+                    src_d.is_plain() && dst_d.is_plain()
+                            && src_d.data_type() == dst_d.data_type())
             && IMPLICATION(jpp.is_bf16, mayiuse(avx512_core))
             && utils::one_of(pd.alg_kind, pooling_max,
                     pooling_avg_include_padding, pooling_avg_exclude_padding);
@@ -141,16 +142,16 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     // scratchpad for c_block slice of input and/or output
     using namespace memory_tracking::names;
-    int nthr = dnnl_get_max_threads();
+    int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
     if (src_d.is_plain())
         scratchpad.book(key_pool_src_plain2blocked_cvt,
-                jpp.dt_size * jpp.c_block * jpp.id * jpp.ih * jpp.iw * nthr);
+                jpp.dt_size * jpp.c_block * jpp.id * jpp.ih * jpp.iw * nscr);
     if (dst_d.is_plain()) {
         scratchpad.book(key_pool_dst_plain2blocked_cvt,
-                jpp.dt_size * jpp.c_block * jpp.od * jpp.oh * jpp.ow * nthr);
+                jpp.dt_size * jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr);
         scratchpad.book(key_pool_ind_plain2blocked_cvt,
                 sizeof(uint32_t) * jpp.c_block * jpp.od * jpp.oh * jpp.ow
-                        * nthr);
+                        * nscr);
     }
 
     return status::success;

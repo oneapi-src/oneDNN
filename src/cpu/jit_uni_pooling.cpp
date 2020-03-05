@@ -336,6 +336,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
 
     if (diff_dst_d.is_plain() && c_tail != 0) {
         parallel(0, [&](int ithr, int nthr) {
+            if (ithr >= nstl::min(nthr, jpp.mb * jpp.nb_c)) return;
             wsp_data_t *__restrict wsp_ptr
                     = cvt_slice_dst_wsp + ithr * diff_dst_slice_size;
             for_(dim_t c = c_tail; c < jpp.c_block; c++)

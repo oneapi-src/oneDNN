@@ -140,8 +140,7 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
 
         format_tag_t plain_fmt_tag() {
             using namespace format_tag;
-            return (utils::one_of(isa, avx512_common, avx512_core)
-                           && ndims() < 5)
+            return (isa == avx512_core && ndims() < 5)
                     ? utils::pick(ndims() - 3, ncw, nchw)
                     : format_tag::undef;
         }
