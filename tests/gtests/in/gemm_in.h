@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#if (TARGET_X86_JIT || defined(DNNL_USE_MKL))
-#define TEST_PACKED_GEMM 1 /* include packed gemm support */
+#if TARGET_X86_JIT || defined(DNNL_USE_MKL)
+#define TEST_PACKED_GEMM 1
 #else
 #define TEST_PACKED_GEMM 0
 #endif
@@ -83,21 +83,17 @@ CPU_INST_TEST_CASE(TestGEMV,
         test_params {'t', 't', 1, 3000, 2000, 1.0f, 1.0f, 1, 2000, 3000});
 
 #if defined(FP32) || defined(BF16BF16F32)
-INST_TEST_CASE(
-        TestGEMM_packed,
+#if TEST_PACKED_GEMM
+INST_TEST_CASE(TestGEMM_packed,
         test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},
                 true, dnnl_invalid_arguments},
         test_params {'n', 'n', 3, 2, 2, 1.0, 0.0, 1, 5, 8, {}, {true, false},
                 true, dnnl_invalid_arguments},
         test_params {'n', 't', 3, 2, 2, 1.0, 0.0, 3, 1, 8, {}, {true, true},
                 true, dnnl_invalid_arguments},
-        test_params {
-            'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {true, true}, true,
-                    dnnl_invalid_arguments
-        }
+        test_params {'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {true, true},
+                true, dnnl_invalid_arguments},
 
-#if TEST_PACKED_GEMM
-        ,
         make_test_params_pack(
                 {true, false}, 'N', 'n', 31, 21, 11, 1.0f, 1.5f, 61, 51, 81),
         make_test_params_pack(
@@ -154,9 +150,19 @@ INST_TEST_CASE(
         make_test_params_pack({true, true}, 'n', 't', 200, 200, 8000, 1.0f,
                 3.0f, 8000, 8000, 200),
         make_test_params_pack({false, true}, 't', 'n', 200, 300, 8000, 1.0f,
-                3.0f, 200, 300, 300)
+                3.0f, 200, 300, 300));
+#else // repetitious!  tracking down MSVC incomprehensible error:
+//       '#': invalid character: possibly the result of a macro expansion ...
+INST_TEST_CASE(TestGEMM_packed_subset,
+        test_params {'t', 'n', 3, 2, 1, 1.0, 0.0, 2, 5, 8, {}, {false, true},
+                true, dnnl_invalid_arguments},
+        test_params {'n', 'n', 3, 2, 2, 1.0, 0.0, 1, 5, 8, {}, {true, false},
+                true, dnnl_invalid_arguments},
+        test_params {'n', 't', 3, 2, 2, 1.0, 0.0, 3, 1, 8, {}, {true, true},
+                true, dnnl_invalid_arguments},
+        test_params {'n', 'd', 3, 2, 1, 1.0, 0.0, 3, 3, 3, {}, {true, true},
+                true, dnnl_invalid_arguments});
 #endif // TEST_PACKED_GEMM
-);
 #endif
 
 #elif defined(BF16BF16BF16)
