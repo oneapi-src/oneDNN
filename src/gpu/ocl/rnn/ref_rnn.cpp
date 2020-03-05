@@ -810,10 +810,11 @@ gemm_sig((_ref_rnn_common_t<aprop>::gemm_primitive)) {
             ? ctx.output(DNNL_ARG_WORKSPACE)
             : ctx.input(DNNL_ARG_WORKSPACE);
 
+    std::unique_ptr<memory_storage_t> scratchpad;
     if (pd()->rnn_conf.use_workspace) {
         workspace->memory_storage()->get_data_handle(&scratchpad_ptr);
     } else {
-        auto scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
+        scratchpad = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_rnn_space);
         scratchpad->get_data_handle(&scratchpad_ptr);
     }

@@ -92,8 +92,8 @@ std::unique_ptr<memory_storage_t> ocl_memory_storage_t::get_sub_storage(
     assert(err == CL_SUCCESS);
 
     cl_buffer_region buffer_region = {offset, size};
-    cl_mem sub_buffer = clCreateSubBuffer(mem_object(), mem_flags,
-            CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
+    ocl_wrapper_t<cl_mem> sub_buffer = clCreateSubBuffer(mem_object(),
+            mem_flags, CL_BUFFER_CREATE_TYPE_REGION, &buffer_region, &err);
     assert(err == CL_SUCCESS);
 
     auto sub_storage = new ocl_memory_storage_t(this->engine());
