@@ -237,7 +237,7 @@ status_t rnn_common_fwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
     if (!args_ok) return invalid_arguments;
 
     if (cell_kind == dnnl_vanilla_lstm) {
-        // check if optional *_iter is provided than *_iter_c is provided too
+        // check if optional *_iter is provided then *_iter_c is provided too
         args_ok = args_ok && xnor_md(src_iter_desc, src_iter_c_desc)
                 && xnor_md(dst_iter_desc, dst_iter_c_desc);
         if (!args_ok) return invalid_arguments;
@@ -319,14 +319,15 @@ status_t rnn_common_bwd_desc_init(dnnl_rnn_desc_t *rnn_desc,
     if (!args_ok) return invalid_arguments;
 
     if (cell_kind == dnnl_vanilla_lstm) {
-        // check if optional *_iter is provided than *_iter_c is provided too
+        // check if optional *_iter is provided then *_iter_c is provided too
         args_ok = args_ok && xnor_md(src_iter_desc, src_iter_c_desc)
                 && xnor_md(dst_iter_desc, dst_iter_c_desc);
         if (!args_ok) return invalid_arguments;
     }
 
-    // check if optional *_iter is provided, diff_*_iter should is provided too
+    // check if optional md is provided then diff_md is provided too
     args_ok = args_ok && xnor_md(bias_desc, diff_bias_desc)
+            && xnor_md(weights_peephole_desc, diff_weights_peephole_desc)
             && xnor_md(src_iter_desc, diff_src_iter_desc)
             && xnor_md(src_iter_c_desc, src_iter_c_desc)
             && xnor_md(dst_iter_desc, diff_dst_iter_desc)
