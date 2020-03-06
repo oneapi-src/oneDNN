@@ -9,16 +9,19 @@ The inner product primitive (sometimes called fully connected) treats each
 activation in the minibatch as a vector and computes its product with a
 weights 2D tensor producing a 2D tensor as an output.
 
-More precisely, let \src, \weights, \bias and \dst be \f$N
-\times IC\f$, \f$OC \times IC\f$, \f$OC\f$, \f$N \times OC\f$ tensors (the
-variable names follow the standard @ref dev_guide_conventions). Then:
+More precisely, let \src, \weights, \bias and \dst be \f$N \times IC\f$,
+\f$OC \times IC\f$, \f$OC\f$, and \f$N \times OC\f$ tensors, respectively
+(variable names follow the standard @ref dev_guide_conventions). Then:
 
 \f[\dst(n, oc) = \bias(oc) + \sum_{ic=0}^{IC-1} \src(n, ic) \cdot \weights(oc, ic)\f]
 
-In case when the \src and \weights tensors have spatial dimension these are
-flattened to 2D. For example, if these are 4D \f$N \times IC' \times IH \times
-IW\f$ tensors, then the formula above is applied with \f$IC = IC' \cdot IH \cdot
-IW\f$.
+In cases where the \src and \weights tensors have spatial dimensions, they are
+flattened to 2D. For example, if they are 4D
+\f$N \times IC' \times IH \times IW\f$ and
+\f$OC \times IC' \times KH \times KW\f$ tensors, then the formula above is
+applied with \f$IC = IC' \cdot IH \cdot IW\f$. In such cases, the \src and
+\weights tensors must have equal spatial dimensions (e.g. \f$KH = IH\f$ and
+\f$KW = IW\f$ for 4D tensors).
 
 #### Difference Between Forward Training and Forward Inference
 
