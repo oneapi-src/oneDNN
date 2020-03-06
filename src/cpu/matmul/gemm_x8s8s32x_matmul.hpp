@@ -69,6 +69,13 @@ struct gemm_x8s8s32x_matmul_t : public primitive_impl_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
+    void post_process_src_and_weights_zero_points(
+            std::vector<acc_data_t> &src_comp,
+            std::vector<acc_data_t> &wei_comp, dim_t M, dim_t N, dim_t K,
+            const src_data_t *src, dim_t src_s0, dim_t src_s1,
+            const weights_data_t *wei, dim_t wei_s0, dim_t wei_s1,
+            acc_data_t *acc, int ldc, acc_data_t src_zero_point,
+            acc_data_t wei_zero_point) const;
 
     using pp_kernel_t = inner_product_utils::pp_kernel_t<acc_type, dst_type>;
     std::unique_ptr<pp_kernel_t> pp_kernel_;

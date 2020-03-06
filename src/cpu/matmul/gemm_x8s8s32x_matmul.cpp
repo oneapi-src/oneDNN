@@ -111,6 +111,38 @@ gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::pd_t::init() {
 }
 
 template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
+void gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::
+        post_process_src_and_weights_zero_points(
+                std::vector<acc_data_t> &src_comp,
+                std::vector<acc_data_t> &wei_comp, dim_t M, dim_t N, dim_t K,
+                const src_data_t *src, dim_t src_s0, dim_t src_s1,
+                const weights_data_t *wei, dim_t wei_s0, dim_t wei_s1,
+                acc_data_t *acc, int ldc, acc_data_t src_zero_point,
+                acc_data_t wei_zero_point) const {
+    if (wei_zero_point) {
+        for_(dim_t m = 0; m < M; ++m)
+        for (dim_t k = 0; k < K; ++k) {
+            if (k == 0) src_comp[m] = acc_data_t(0);
+            src_comp[m] += src[src_s0 * m + src_s1 * k];
+        }
+    }
+
+    if (src_zero_point) {
+        for_(dim_t k = 0; k < K; ++k)
+        for (dim_t n = 0; n < N; ++n) {
+            if (k == 0) wei_comp[n] = acc_data_t(0);
+            wei_comp[n] += wei[wei_s0 * k + wei_s1 * n];
+        }
+    }
+
+    for_(dim_t m = 0; m < M; ++m)
+    for (dim_t n = 0; n < N; ++n)
+        acc[m * ldc + n] += 0 - src_zero_point * wei_comp[n]
+                - wei_zero_point * src_comp[m]
+                + src_zero_point * wei_zero_point * (int)K;
+}
+
+template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
 status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         const exec_ctx_t &ctx) const {
     using math::get_bias;
@@ -128,9 +160,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
     src_data_t gemm_off_a = (src_data_t)src_zero_point;
     weights_data_t gemm_off_b = (weights_data_t)weights_zero_point;
-    bool post_process_src_and_weights_zero_points = false;
+    bool post_process_src_and_weights_zero_points_outside_of_gemm = false;
     if (gemm_off_a != src_zero_point || gemm_off_b != weights_zero_point) {
-        post_process_src_and_weights_zero_points = true;
+        post_process_src_and_weights_zero_points_outside_of_gemm = true;
         gemm_off_a = gemm_off_b = 0;
     }
     const float dst_zero_point_f32 = (float)dst_zero_point;
@@ -185,7 +217,6 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
-    const int32_t gemm_off_c = 0;
 
     const auto src_batch_stride = src_d.blocking_desc().strides[0];
     const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
@@ -193,74 +224,89 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     const auto acc_batch_stride = M * N;
 
     const bool parallel_over_batch = batch > 1;
-    parallel(parallel_over_batch ? 0 : 1, [&, gemm_off_c](int ithr, int nthr) {
-        size_t batch_start {}, batch_end {};
-        balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
+    if (parallel_over_batch) {
+        parallel(parallel_over_batch ? 0 : 1, [&](int ithr, int nthr) {
+            size_t batch_start {}, batch_end {};
+            balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
 
-        const bool reuse_acc = acc != (acc_data_t *)dst;
-        acc_data_t *curr_acc
-                = reuse_acc ? acc + ithr * acc_batch_stride : nullptr;
+            const bool reuse_acc = acc != (acc_data_t *)dst;
+            acc_data_t *curr_acc
+                    = reuse_acc ? acc + ithr * acc_batch_stride : nullptr;
+
+            std::vector<acc_data_t> src_compensation(M, 0);
+            std::vector<acc_data_t> weights_compensation(N, 0);
+
+            // icc 17.0 has a bug with capturing const variables with value known
+            // at compilation time in lambdas
+            const int32_t gemm_off_c = 0;
+
+            for (size_t b = batch_start; b < batch_end; ++b) {
+                const src_data_t *curr_src = src + b * src_batch_stride;
+                const weights_data_t *curr_weights
+                        = weights + b * weights_batch_stride;
+                dst_data_t *curr_dst = dst + b * dst_batch_stride;
+                if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
+
+                gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32, &K_s32,
+                        &alpha, curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
+                        &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
+
+                // if igemm cannot handle src and weights zero points
+                if (post_process_src_and_weights_zero_points_outside_of_gemm) {
+                    printf("post process\n");
+                    post_process_src_and_weights_zero_points(src_compensation,
+                            weights_compensation, M, N, K, curr_src,
+                            src_strides[0], src_strides[1], curr_weights,
+                            weights_strides[0], weights_strides[1], curr_acc,
+                            ldc, src_zero_point, weights_zero_point);
+                }
+
+                bool postops_in_matmul
+                        = need_post_processing(pd(), dst_zero_point_f32);
+                assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
+
+                if (postops_in_matmul) {
+                    (*pp_kernel_)(curr_dst, curr_acc, bias, scales, 0, M * N,
+                            (size_t)N, &dst_zero_point_f32);
+                }
+            }
+        });
+    } else {
+        // icc 17.0 has a bug with capturing const variables with value known
+        // at compilation time in lambdas
+        const int32_t gemm_off_c = 0;
+
+        gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32, &K_s32, &alpha,
+                weights, &ldb, &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc,
+                &ldc, &gemm_off_c);
 
         std::vector<acc_data_t> src_compensation(M, 0);
         std::vector<acc_data_t> weights_compensation(N, 0);
 
-        for (size_t b = batch_start; b < batch_end; ++b) {
-            const src_data_t *curr_src = src + b * src_batch_stride;
-            const weights_data_t *curr_weights
-                    = weights + b * weights_batch_stride;
-            dst_data_t *curr_dst = dst + b * dst_batch_stride;
-            if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
-
-            gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32, &K_s32, &alpha,
-                    curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
-                    &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
-
-            // if igemm cannot handle src and weights zero points
-            if (post_process_src_and_weights_zero_points) {
-                if (weights_zero_point) {
-                    for_(dim_t m = 0; m < M; ++m)
-                    for (dim_t k = 0; k < K; ++k) {
-                        if (k == 0) src_compensation[m] = acc_data_t(0);
-                        src_compensation[m] += curr_src[src_strides[0] * m
-                                + src_strides[1] * k];
-                    }
-                }
-
-                if (src_zero_point) {
-                    for_(dim_t k = 0; k < K; ++k)
-                    for (dim_t n = 0; n < N; ++n) {
-                        if (k == 0) weights_compensation[n] = acc_data_t(0);
-                        weights_compensation[n]
-                                += curr_weights[weights_strides[0] * k
-                                        + weights_strides[1] * n];
-                    }
-                }
-
-                for_(dim_t m = 0; m < M; ++m)
-                for (dim_t n = 0; n < N; ++n)
-                    curr_acc[m * ldc + n] += 0
-                            - src_zero_point * weights_compensation[n]
-                            - weights_zero_point * src_compensation[m]
-                            + src_zero_point * weights_zero_point * (int)K;
-            }
-
-            bool postops_in_matmul
-                    = need_post_processing(pd(), dst_zero_point_f32);
-            assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
-
-            if (postops_in_matmul) {
-                const bool force_sequential = !parallel_over_batch
-                        || pp_kernel_->sequential_kernel();
-                parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-                    size_t start {}, end {};
-                    balance211((size_t)(M * N), nthr, ithr, start, end);
-                    (*pp_kernel_)(curr_dst, curr_acc, bias, scales, start, end,
-                            (size_t)N, &dst_zero_point_f32);
-                });
-            }
+        // if igemm cannot handle src and weights zero points
+        if (post_process_src_and_weights_zero_points_outside_of_gemm) {
+            printf("post process\n");
+            post_process_src_and_weights_zero_points(src_compensation,
+                    weights_compensation, M, N, K, src, src_strides[0],
+                    src_strides[1], weights, weights_strides[0],
+                    weights_strides[1], acc, ldc, src_zero_point,
+                    weights_zero_point);
         }
-    });
 
+        bool postops_in_matmul = need_post_processing(pd(), dst_zero_point_f32);
+        assert(IMPLICATION(postops_in_matmul, params.has_pp_kernel_));
+
+        if (postops_in_matmul) {
+            const bool force_sequential = pp_kernel_->sequential_kernel();
+
+            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+                size_t start {}, end {};
+                balance211((size_t)(M * N), nthr, ithr, start, end);
+                (*pp_kernel_)(dst, acc, bias, scales, start, end, (size_t)N,
+                        &dst_zero_point_f32);
+            });
+        }
+    }
     if (need_free_acc) free(acc);
 
     return status::success;
