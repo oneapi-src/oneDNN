@@ -89,8 +89,8 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             : jcp.nb_load_blocking_max;
 
     // Begin: declare Variables needed for dw conv.
-    data_t *pbuf;
-    size_t row_offset;
+    data_t *pbuf {nullptr};
+    size_t row_offset {};
     const int nb_buffer = jcp.nb_load_blocking;
     const int jcp_dw_kh = 3;
     std::vector<data_t *> addrs;

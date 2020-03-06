@@ -123,7 +123,7 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
     const int stride_h = (ndims == 3) ? 1 : pd()->desc()->strides[ndims - 4];
     const int stride_w = pd()->desc()->strides[ndims - 3];
 
-    float *oscales;
+    float *oscales {nullptr};
     if (jcp.signed_input && jcp.ver != ver_vnni)
         oscales = scratchpad.get<float>(key_conv_adjusted_scales);
     else
@@ -159,8 +159,8 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
             ? types::data_type_size(dw_pd->desc()->bias_desc.data_type)
             : 0;
 
-    int32_t *compensation_dw;
-    float *dw_oscales;
+    int32_t *compensation_dw {nullptr};
+    float *dw_oscales {nullptr};
     if (jcp.with_dw_conv) {
         offset = dw_weights_d.size() - dw_weights_d.additional_buffer_size();
         w = const_cast<wei_data_t *>(weights_dw);
@@ -173,8 +173,8 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
             dw_oscales = dw_pd->attr()->output_scales_.scales_;
     }
 
-    dst_data_t *pbuf;
-    size_t row_offset;
+    dst_data_t *pbuf {nullptr};
+    size_t row_offset {};
     const int nb_buffer = jcp.nb_load_blocking;
     std::vector<dst_data_t *> addrs;
     // End
@@ -367,11 +367,12 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
             par_conv_dw.ur_w = (size_t)(jcp_dw.ow);
             par_conv_dw.owb = jcp_dw.ow;
             par_conv_dw.oc_blocks = ocb;
-            par_conv_dw.compensation = jcp_dw.signed_input
+            par_conv_dw.compensation = compensation_dw
                     ? &compensation_dw[ocb * jcp_dw.ch_block]
-                    : 0;
-            par_conv_dw.scales
-                    = &dw_oscales[jcp_dw.is_oc_scale * ocb * jcp_dw.ch_block];
+                    : nullptr;
+            par_conv_dw.scales = dw_oscales
+                    ? &dw_oscales[jcp_dw.is_oc_scale * ocb * jcp_dw.ch_block]
+                    : nullptr;
 
             kernel_dw_->jit_ker(&par_conv_dw);
 
