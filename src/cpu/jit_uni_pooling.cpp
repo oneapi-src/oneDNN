@@ -124,114 +124,156 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(
     });
 }
 
+namespace jit_uni_pooling_utils {
+struct trans_wrapper_t {
+    trans_wrapper_t(data_type_t inp_dt, dim_t inp_str, data_type_t out_dt,
+            dim_t out_str, dim_t ysize, dim_t xsize)
+        : inp_dt_size_(types::data_type_size(inp_dt))
+        , out_dt_size_(types::data_type_size(out_dt))
+        , inp_str_(inp_str)
+        , out_str_(out_str)
+        , nb_x_(xsize / 8)
+        , nb_y_(ysize / 8)
+        , x_tail_(xsize % 8)
+        , y_tail_(ysize % 8) {
+        using namespace cpu::tr;
+
+        auto create_ker = [=](dim_t ys, dim_t y_inp_str, dim_t y_out_str,
+                                  dim_t xs, dim_t x_inp_str, dim_t x_out_str) {
+            tr::prb_t prb;
+            kernel_t::desc_t desc;
+
+            prb.ndims = 2;
+            prb.ioff = 0;
+            prb.ooff = 0;
+            prb.scale_type = scale_type_t::NONE;
+            prb.beta = 0;
+            prb.nodes[0].ss = prb.nodes[1].ss = 1;
+
+            prb.itype = inp_dt;
+            prb.otype = out_dt;
+
+            prb.nodes[0].n = ys;
+            prb.nodes[0].is = y_inp_str;
+            prb.nodes[0].os = y_out_str;
+
+            prb.nodes[1].n = xs;
+            prb.nodes[1].is = x_inp_str;
+            prb.nodes[1].os = x_out_str;
+
+            kernel_t::desc_init(desc, prb, 2);
+            return kernel_t::create(desc);
+        };
+
+        if (nb_x_ * nb_y_ > 0)
+            ker_.reset(create_ker(8, inp_str_, 1, 8, 1, out_str_));
+
+        if (x_tail_)
+            ker_x_tail_.reset(create_ker(8, inp_str_, 1, x_tail_, 1, out_str_));
+
+        if (y_tail_)
+            ker_y_tail_.reset(
+                    create_ker(y_tail_, inp_str_, 1, xsize, 1, out_str_));
+    }
+
+    void exec(const void *inp, void *out) {
+        dim_t x_blocked = nb_x_ * 8;
+        dim_t y_blocked = nb_y_ * 8;
+
+        auto call_ker = [&](tr::kernel_t &ker, dim_t inp_y, dim_t inp_x,
+                                dim_t out_y, dim_t out_x) {
+            tr::call_param_t cp;
+            cp.scale = 0;
+
+            dim_t inp_off = (inp_y * inp_str_ + inp_x) * inp_dt_size_;
+            dim_t out_off = (out_y * out_str_ + out_x) * out_dt_size_;
+            cp.in = (uint8_t *)inp + inp_off;
+            cp.out = (uint8_t *)out + out_off;
+            (ker)(&cp);
+        };
+
+        for (dim_t by = 0; by < nb_y_; by++) {
+            for (dim_t bx = 0; bx < nb_x_; bx++)
+                call_ker(*ker_, 8 * by, 8 * bx, 8 * bx, 8 * by);
+
+            if (x_tail_)
+                call_ker(*ker_x_tail_, 8 * by, x_blocked, x_blocked, 8 * by);
+        }
+        if (y_tail_) call_ker(*ker_y_tail_, y_blocked, 0, 0, y_blocked);
+    }
+
+    ~trans_wrapper_t() {}
+
+private:
+    std::unique_ptr<tr::kernel_t> ker_;
+    std::unique_ptr<tr::kernel_t> ker_x_tail_;
+    std::unique_ptr<tr::kernel_t> ker_y_tail_;
+
+    const size_t inp_dt_size_;
+    const size_t out_dt_size_;
+
+    const dim_t inp_str_;
+    const dim_t out_str_;
+    const dim_t nb_x_;
+    const dim_t nb_y_;
+    const dim_t x_tail_;
+    const dim_t y_tail_;
+};
+} // namespace jit_uni_pooling_utils
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
     : primitive_impl_t(apd)
-    , trans_inp_kernel_(nullptr)
-    , trans_out_kernel_(nullptr)
-    , trans_inp_tail_kernel_(nullptr)
-    , trans_out_tail_kernel_(nullptr)
-    , trans_ind_kernel_(nullptr)
-    , trans_ind_tail_kernel_(nullptr) {
+    , diff_dst_trans_(nullptr)
+    , diff_dst_tail_trans_(nullptr)
+    , ind_trans_(nullptr)
+    , ind_tail_trans_(nullptr)
+    , diff_src_trans_(nullptr)
+    , diff_src_tail_trans_(nullptr) {
     kernel_ = new jit_uni_pool_kernel<isa>(pd()->jpp_);
 
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
-    if (diff_src_d.is_plain() && diff_dst_d.is_plain()) {
-        using namespace cpu::tr;
-        const auto &jpp = pd()->jpp_;
-        auto diff_src_sp_size = (dim_t)jpp.id * jpp.ih * jpp.iw;
-        auto diff_dst_sp_size = (dim_t)jpp.od * jpp.oh * jpp.ow;
+    const auto &jpp = pd()->jpp_;
+    if (jpp.is_plain) {
+        using namespace jit_uni_pooling_utils;
+        auto diff_src_sp = (dim_t)jpp.id * jpp.ih * jpp.iw;
+        auto diff_dst_sp = (dim_t)jpp.od * jpp.oh * jpp.ow;
+        dim_t nb_c = jpp.c_without_padding / jpp.c_block;
         dim_t c_tail = jpp.c_without_padding % jpp.c_block;
-
-        cpu::tr::prb_t inp_prb, out_prb;
-        inp_prb.ndims = out_prb.ndims = 2;
-        inp_prb.ioff = out_prb.ioff = 0;
-        inp_prb.ooff = out_prb.ooff = 0;
-        inp_prb.scale_type = out_prb.scale_type = scale_type_t::NONE;
-        inp_prb.beta = out_prb.beta = 0;
-
-        inp_prb.itype = d_type;
-        inp_prb.otype = data_type::f32;
-        // channels
-        inp_prb.nodes[0].n = jpp.c_block;
-        inp_prb.nodes[0].is = diff_dst_sp_size;
-        inp_prb.nodes[0].os = 1;
-        inp_prb.nodes[0].ss = 1;
-        // spatial
-        inp_prb.nodes[1].n = diff_dst_sp_size;
-        inp_prb.nodes[1].is = 1;
-        inp_prb.nodes[1].os = jpp.c_block;
-        inp_prb.nodes[1].ss = 1;
-
-        out_prb.itype = data_type::f32;
-        out_prb.otype = d_type;
-        // spatial
-        out_prb.nodes[0].n = diff_src_sp_size;
-        out_prb.nodes[0].is = jpp.c_block;
-        out_prb.nodes[0].os = 1;
-        out_prb.nodes[0].ss = 1;
-        // channels
-        out_prb.nodes[1].n = jpp.c_block;
-        out_prb.nodes[1].is = 1;
-        out_prb.nodes[1].os = diff_src_sp_size;
-        out_prb.nodes[1].ss = 1;
-
-        kernel_t::desc_t inp_desc, out_desc;
-
-        kernel_t::desc_init(inp_desc, inp_prb, 2);
-        kernel_t::desc_init(out_desc, out_prb, 2);
-
-        trans_inp_kernel_ = kernel_t::create(inp_desc);
-        trans_out_kernel_ = kernel_t::create(out_desc);
-
-        if (c_tail != 0) {
-            // Tails
-            cpu::tr::prb_t inp_tail_prb, out_tail_prb;
-
-            inp_tail_prb = inp_prb;
-            out_tail_prb = out_prb;
-
-            // channels
-            inp_tail_prb.nodes[0].n = c_tail;
-
-            // channels
-            out_tail_prb.nodes[1].n = c_tail;
-
-            kernel_t::desc_t inp_tail_desc, out_tail_desc;
-
-            kernel_t::desc_init(inp_tail_desc, inp_tail_prb, 2);
-            kernel_t::desc_init(out_tail_desc, out_tail_prb, 2);
-
-            trans_inp_tail_kernel_ = kernel_t::create(inp_tail_desc);
-            trans_out_tail_kernel_ = kernel_t::create(out_tail_desc);
-        }
         const memory_desc_wrapper indices_d(pd()->workspace_md());
-        const size_t ind_size = indices_d.size();
-        if (ind_size) {
-            cpu::tr::prb_t ind_prb = inp_prb;
-            ind_prb.itype = indices_d.data_type();
-            ind_prb.otype = indices_d.data_type();
+        bool have_indeces = indices_d.data_type() != data_type::undef;
 
-            kernel_t::desc_t ind_desc;
-
-            kernel_t::desc_init(ind_desc, ind_prb, 2);
-
-            trans_ind_kernel_ = kernel_t::create(ind_desc);
-            if (c_tail != 0) {
-                cpu::tr::prb_t ind_tail_prb = ind_prb;
-
-                // channels
-                ind_tail_prb.nodes[0].n = c_tail;
-
-                kernel_t::desc_t ind_tail_desc;
-
-                kernel_t::desc_init(ind_tail_desc, ind_tail_prb, 2);
-
-                trans_ind_tail_kernel_ = kernel_t::create(ind_tail_desc);
-            }
+        if (nb_c) {
+            diff_dst_trans_ = new trans_wrapper_t(d_type, diff_dst_sp, wsp_dt_,
+                    jpp.c_block, jpp.c_block, diff_dst_sp);
+            diff_src_trans_ = new trans_wrapper_t(wsp_dt_, jpp.c_block, d_type,
+                    diff_src_sp, diff_src_sp, jpp.c_block);
+            if (have_indeces)
+                ind_trans_ = new trans_wrapper_t(indices_d.data_type(),
+                        diff_dst_sp, indices_d.data_type(), jpp.c_block,
+                        jpp.c_block, diff_dst_sp);
+        }
+        if (c_tail) {
+            diff_dst_tail_trans_ = new trans_wrapper_t(d_type, diff_dst_sp,
+                    wsp_dt_, jpp.c_block, c_tail, diff_dst_sp);
+            diff_src_tail_trans_ = new trans_wrapper_t(wsp_dt_, jpp.c_block,
+                    d_type, diff_src_sp, diff_src_sp, c_tail);
+            if (have_indeces)
+                ind_tail_trans_ = new trans_wrapper_t(indices_d.data_type(),
+                        diff_dst_sp, indices_d.data_type(), jpp.c_block, c_tail,
+                        diff_dst_sp);
         }
     }
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_pooling_bwd_t<isa, d_type>::~jit_uni_pooling_bwd_t() {
+    delete kernel_;
+
+    delete diff_dst_trans_;
+    delete diff_dst_tail_trans_;
+    delete ind_trans_;
+    delete ind_tail_trans_;
+    delete diff_src_trans_;
+    delete diff_src_tail_trans_;
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
@@ -246,15 +288,14 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
 
     const auto &jpp = pd()->jpp_;
 
-    auto diff_src_sp_size = (dim_t)jpp.id * jpp.ih * jpp.iw;
-    auto diff_src_slice_size = diff_src_sp_size * jpp.c_block;
-    auto diff_dst_sp_size = (dim_t)jpp.od * jpp.oh * jpp.ow;
-    auto diff_dst_slice_size = diff_dst_sp_size * jpp.c_block;
+    auto diff_src_sp = (dim_t)jpp.id * jpp.ih * jpp.iw;
+    auto diff_src_slice = diff_src_sp * jpp.c_block;
+    auto diff_dst_sp = (dim_t)jpp.od * jpp.oh * jpp.ow;
+    auto diff_dst_slice = diff_dst_sp * jpp.c_block;
     dim_t c_tail = jpp.c_without_padding % jpp.c_block;
 
     // scratchpad for c_block slice of src and/or dst
-    const data_type_t wsp_dt = data_type::f32; //  d_type;
-    typedef typename prec_traits<wsp_dt>::type wsp_data_t;
+    typedef typename prec_traits<wsp_dt_>::type wsp_data_t;
 
     wsp_data_t *__restrict cvt_slice_src_wsp {nullptr};
     wsp_data_t *__restrict cvt_slice_dst_wsp {nullptr};
@@ -263,12 +304,12 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
 
     // if spatial size == 1 && jpp.c_without_padding != jpp.c
     // then we don't need to transpose data
-    bool transpose_diff_src = diff_src_d.is_plain()
-            && (diff_src_sp_size > 1 || jpp.c_without_padding != jpp.c
-                    || d_type != wsp_dt);
-    bool transpose_diff_dst = diff_dst_d.is_plain()
-            && (indices || diff_dst_sp_size > 1
-                    || jpp.c_without_padding != jpp.c || d_type != wsp_dt);
+    bool transpose_diff_src = jpp.is_plain
+            && (diff_src_sp > 1 || jpp.c_without_padding != jpp.c
+                    || d_type != wsp_dt_);
+    bool transpose_diff_dst = jpp.is_plain
+            && (indices || diff_dst_sp > 1 || jpp.c_without_padding != jpp.c
+                    || d_type != wsp_dt_);
 
     if (transpose_diff_src)
         cvt_slice_src_wsp = scratchpad.template get<wsp_data_t>(
@@ -291,32 +332,23 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
         assert(pd()->ndims() != 3 || utils::everyone_is(0, ih, oh));
 
-        if (diff_src_d.is_plain()) {
-            if (transpose_diff_src) {
-                wsp_data_t *wsp_
-                        = cvt_slice_src_wsp + ithr * diff_src_slice_size;
-                arg.src = (const void *)&wsp_[ih * jpp.iw * jpp.c_block];
-            } else
-                arg.src = diff_src
-                        + diff_src_d.blk_off(n, b_c * jpp.c_block, ih);
+        auto c_off = jpp.is_plain ? b_c * jpp.c_block : b_c;
+        if (transpose_diff_src) {
+            wsp_data_t *wsp_ = cvt_slice_src_wsp + ithr * diff_src_slice;
+            arg.src = (const void *)&wsp_[ih * jpp.iw * jpp.c_block];
         } else
-            arg.src = &diff_src[diff_src_d.blk_off(n, b_c, ih)];
+            arg.src = &diff_src[diff_src_d.blk_off(n, c_off, ih)];
 
-        if (diff_dst_d.is_plain()) {
-            if (transpose_diff_dst) {
-                wsp_data_t *wsp_
-                        = cvt_slice_dst_wsp + ithr * diff_dst_slice_size;
-                arg.dst = (const void *)&wsp_[oh * jpp.ow * jpp.c_block];
-            } else
-                arg.dst = diff_dst
-                        + diff_dst_d.blk_off(n, b_c * jpp.c_block, oh);
+        if (transpose_diff_dst) {
+            wsp_data_t *wsp_ = cvt_slice_dst_wsp + ithr * diff_dst_slice;
+            arg.dst = (const void *)&wsp_[oh * jpp.ow * jpp.c_block];
         } else
-            arg.dst = &diff_dst[diff_dst_d.blk_off(n, b_c, oh)];
+            arg.dst = &diff_dst[diff_dst_d.blk_off(n, c_off, oh)];
 
         if (indices) {
             if (transpose_diff_dst) {
                 char *wsp_ = cvt_slice_ind_wsp
-                        + ithr * diff_dst_slice_size * ind_dt_size;
+                        + ithr * diff_dst_slice * ind_dt_size;
                 arg.indices = (const void *)&wsp_[oh * jpp.ow * jpp.c_block
                         * ind_dt_size];
             } else {
@@ -334,71 +366,58 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         (*kernel_)(&arg);
     };
 
-    auto trans_exec = [&](tr::kernel_t *trans_ker, const void *inp, void *out) {
-        tr::call_param_t cp;
-        cp.in = inp;
-        cp.out = out;
-        cp.scale = 0;
-        trans_ker->operator()(&cp);
+    using namespace jit_uni_pooling_utils;
+    auto trans_exec = [&](trans_wrapper_t *trans, trans_wrapper_t *trans_tail,
+                              dim_t cs, const void *inp, void *out) {
+        if (cs == jpp.c_block)
+            trans->exec(inp, out);
+        else
+            trans_tail->exec(inp, out);
     };
 
     auto process_block = [&](int ithr, int n, int b_c) {
-        if (diff_src_d.is_plain()) {
-            if (transpose_diff_src) {
-                const wsp_data_t zero_val = 0;
-                wsp_data_t *src_diff_base_ptr
-                        = cvt_slice_src_wsp + ithr * diff_src_slice_size;
-                for (dim_t idx = 0; idx < diff_src_slice_size; ++idx)
-                    src_diff_base_ptr[idx] = zero_val;
-            } else {
-                const data_t zero_val = 0;
-                data_t *src_diff_base_ptr = &diff_src[diff_src_d.blk_off(
-                        n, jpp.c_block * b_c, 0)];
-                for (dim_t idx = 0; idx < diff_src_slice_size; ++idx)
-                    src_diff_base_ptr[idx] = zero_val;
-            }
+        if (transpose_diff_src) {
+            const wsp_data_t zero_val = 0;
+            wsp_data_t *src_diff_base_ptr
+                    = cvt_slice_src_wsp + ithr * diff_src_slice;
+            for (dim_t idx = 0; idx < diff_src_slice; ++idx)
+                src_diff_base_ptr[idx] = zero_val;
         } else {
             const data_t zero_val = 0;
-            data_t *src_diff_base_ptr
-                    = &diff_src[diff_src_d.blk_off(n, b_c, 0)];
-            for (dim_t idx = 0; idx < diff_src_slice_size; ++idx)
+            data_t *src_diff_base_ptr = &diff_src[diff_src_d.blk_off(
+                    n, jpp.is_plain ? b_c * jpp.c_block : b_c, 0)];
+            for (dim_t idx = 0; idx < diff_src_slice; ++idx)
                 src_diff_base_ptr[idx] = zero_val;
         }
 
-        if (transpose_diff_dst) {
-            wsp_data_t *__restrict wsp_
-                    = cvt_slice_dst_wsp + ithr * diff_dst_slice_size;
-            const data_t *__restrict diff_dst_
-                    = diff_dst + diff_dst_d.blk_off(n, b_c * jpp.c_block, 0);
+        dim_t cs = nstl::min(
+                jpp.c_without_padding - b_c * jpp.c_block, jpp.c_block);
 
-            const char *__restrict indices_ = indices ? indices
+        if (transpose_diff_dst) {
+            wsp_data_t *wsp_ = cvt_slice_dst_wsp + ithr * diff_dst_slice;
+            const data_t *diff_dst_
+                    = diff_dst + diff_dst_d.blk_off(n, b_c * jpp.c_block, 0);
+            const char *indices_ = indices ? indices
                             + ind_dt_size
                                     * indices_d.blk_off(n, b_c * jpp.c_block, 0)
-                                                      : nullptr;
-            char *__restrict indices_wsp_ = indices ? cvt_slice_ind_wsp
-                            + ithr * diff_dst_slice_size * ind_dt_size
-                                                    : nullptr;
-            if (b_c < jpp.nb_c - 1 || c_tail == 0) {
-                trans_exec(trans_inp_kernel_, diff_dst_, wsp_);
-                if (indices)
-                    trans_exec(trans_ind_kernel_, indices_, indices_wsp_);
-            } else {
-                trans_exec(trans_inp_tail_kernel_, diff_dst_, wsp_);
-                if (indices)
-                    trans_exec(trans_ind_tail_kernel_, indices_, indices_wsp_);
-            }
+                                           : nullptr;
+            char *indices_wsp_ = indices
+                    ? cvt_slice_ind_wsp + ithr * diff_dst_slice * ind_dt_size
+                    : nullptr;
+            trans_exec(
+                    diff_dst_trans_, diff_dst_tail_trans_, cs, diff_dst_, wsp_);
+            if (indices)
+                trans_exec(ind_trans_, ind_tail_trans_, cs, indices_,
+                        indices_wsp_);
         }
         for (int oh = 0; oh < jpp.oh; ++oh)
             ker(ithr, n, b_c, oh);
         if (transpose_diff_src) {
-            wsp_data_t *__restrict wsp_
-                    = cvt_slice_src_wsp + ithr * diff_src_slice_size;
-            data_t *__restrict diff_src_
+            wsp_data_t *wsp_ = cvt_slice_src_wsp + ithr * diff_src_slice;
+            data_t *diff_src_
                     = diff_src + diff_src_d.blk_off(n, b_c * jpp.c_block, 0);
-            if (b_c < jpp.nb_c - 1 || c_tail == 0)
-                trans_exec(trans_out_kernel_, wsp_, diff_src_);
-            else
-                trans_exec(trans_out_tail_kernel_, wsp_, diff_src_);
+            trans_exec(
+                    diff_src_trans_, diff_src_tail_trans_, cs, wsp_, diff_src_);
         }
     };
 
@@ -406,16 +425,16 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         const size_t work_amount = (size_t)jpp.mb * jpp.nb_c;
         if ((size_t)ithr >= work_amount) return;
 
-        if (diff_dst_d.is_plain() && c_tail != 0) {
+        if (transpose_diff_dst && c_tail != 0) {
             wsp_data_t *__restrict wsp_ptr
-                    = cvt_slice_dst_wsp + ithr * diff_dst_slice_size;
-            for_(dim_t s = 0; s < diff_dst_sp_size; s++)
+                    = cvt_slice_dst_wsp + ithr * diff_dst_slice;
+            for_(dim_t s = 0; s < diff_dst_sp; s++)
             for (dim_t c = c_tail; c < jpp.c_block; c++)
                 wsp_ptr[s * jpp.c_block + c] = 0.f;
 
-            char *__restrict ind_ptr = cvt_slice_ind_wsp
-                    + ithr * diff_dst_slice_size * ind_dt_size;
-            for_(dim_t s = 0; s < diff_dst_sp_size; s++)
+            char *__restrict ind_ptr
+                    = cvt_slice_ind_wsp + ithr * diff_dst_slice * ind_dt_size;
+            for_(dim_t s = 0; s < diff_dst_sp; s++)
             for_(dim_t c = c_tail; c < jpp.c_block; c++)
             for (size_t i = 0; i < ind_dt_size; i++)
                 ind_ptr[(s * jpp.c_block + c) * ind_dt_size + i] = 0;

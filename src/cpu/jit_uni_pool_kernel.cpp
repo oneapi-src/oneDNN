@@ -41,26 +41,43 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const memory_desc_wrapper dst_d(
             ppd->is_fwd() ? ppd->dst_md() : ppd->diff_dst_md());
 
-    if (src_d.is_plain() && src_d.data_type() == data_type::bf16
-            && dst_d.is_plain() && dst_d.data_type() == data_type::bf16) {
+    const int ndims = src_d.ndims();
+    using namespace format_tag;
+    auto desired_fmt_tag = utils::one_of(isa, avx512_common, avx512_core)
+            ? utils::pick(ndims - 3, nCw16c, nChw16c, nCdhw16c)
+            : utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+
+    auto plain_fmt_tag = (isa == avx512_core && ndims < 5)
+            ? utils::pick(ndims - 3, ncw, nchw)
+            : format_tag::undef;
+
+    auto fmt_tag = (src_d.matches_tag(desired_fmt_tag)
+                           && dst_d.matches_tag(desired_fmt_tag))
+            ? desired_fmt_tag
+            : (src_d.matches_tag(plain_fmt_tag)
+                      && dst_d.matches_tag(plain_fmt_tag))
+                    ? plain_fmt_tag
+                    : format_tag::undef;
+
+    if (fmt_tag == plain_fmt_tag && src_d.data_type() == data_type::bf16
+            && dst_d.data_type() == data_type::bf16) {
         // plain layout allowed for BWD_D only now:
         // transform input to blocked f32, call f32 jit, transform result to
         // plain output
         jpp.is_bf16 = false;
         jpp.dt_size = types::data_type_size(data_type::f32);
+        jpp.is_plain = true;
     } else {
         jpp.is_bf16 = (src_d.data_type() == data_type::bf16
                 && dst_d.data_type() == data_type::bf16);
         jpp.dt_size = types::data_type_size(src_d.data_type());
+        jpp.is_plain = false;
     }
 
     jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
                                                          : isa;
 
-    bool args_ok = true && mayiuse(isa)
-            && IMPLICATION(src_d.is_plain() || dst_d.is_plain(),
-                    src_d.is_plain() && dst_d.is_plain()
-                            && src_d.data_type() == dst_d.data_type())
+    bool args_ok = true && mayiuse(isa) && (fmt_tag != format_tag::undef)
             && IMPLICATION(jpp.is_bf16, mayiuse(avx512_core))
             && utils::one_of(pd.alg_kind, pooling_max,
                     pooling_avg_include_padding, pooling_avg_exclude_padding);
@@ -68,7 +85,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     bool is_avx512 = utils::one_of(isa, avx512_common, avx512_core);
     const int simd_w = is_avx512 ? 16 : 8;
-    const int ndims = src_d.ndims();
 
     jpp.ndims = ndims;
     jpp.mb = src_d.dims()[0];

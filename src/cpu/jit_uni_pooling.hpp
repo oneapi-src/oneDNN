@@ -98,6 +98,10 @@ private:
     jit_uni_pool_kernel<isa> *kernel_;
 };
 
+namespace jit_uni_pooling_utils {
+struct trans_wrapper_t;
+}
+
 template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_pooling_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
@@ -113,9 +117,7 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
                     && !is_fwd() && !has_zero_dim_memory()
                     && everyone_is(d_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
-                    && attr()->has_default_values()
-                    && is_format_ok(diff_dst_md())
-                    && is_format_ok(diff_src_md());
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == alg_kind::pooling_max) {
@@ -126,39 +128,12 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
             return jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this);
         }
 
-        bool is_format_ok(const memory_desc_t *md) {
-            return memory_desc_matches_tag(*md, desired_fmt_tag())
-                    || memory_desc_matches_tag(*md, plain_fmt_tag());
-        }
-
-        format_tag_t desired_fmt_tag() {
-            using namespace format_tag;
-            return utils::one_of(isa, avx512_common, avx512_core)
-                    ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
-                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
-        }
-
-        format_tag_t plain_fmt_tag() {
-            using namespace format_tag;
-            return (isa == avx512_core && ndims() < 5)
-                    ? utils::pick(ndims() - 3, ncw, nchw)
-                    : format_tag::undef;
-        }
-
         jit_pool_conf_t jpp_;
     };
 
     jit_uni_pooling_bwd_t(const pd_t *apd);
 
-    ~jit_uni_pooling_bwd_t() {
-        delete kernel_;
-        delete trans_inp_kernel_;
-        delete trans_out_kernel_;
-        delete trans_inp_tail_kernel_;
-        delete trans_out_tail_kernel_;
-        delete trans_ind_kernel_;
-        delete trans_ind_tail_kernel_;
-    }
+    ~jit_uni_pooling_bwd_t();
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -183,12 +158,13 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_uni_pool_kernel<isa> *kernel_;
 
-    tr::kernel_t *trans_inp_kernel_;
-    tr::kernel_t *trans_out_kernel_;
-    tr::kernel_t *trans_inp_tail_kernel_;
-    tr::kernel_t *trans_out_tail_kernel_;
-    tr::kernel_t *trans_ind_kernel_;
-    tr::kernel_t *trans_ind_tail_kernel_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_dst_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_dst_tail_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *ind_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *ind_tail_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_src_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_src_tail_trans_;
+    static constexpr data_type_t wsp_dt_ = data_type::f32;
 };
 
 } // namespace cpu
