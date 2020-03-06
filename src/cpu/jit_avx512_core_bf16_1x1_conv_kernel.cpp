@@ -416,8 +416,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
             int bcast_pl_idx = use_bcast_count % pipeline;
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
                 // TODO: try to enable jcp.expl_bcast version
-                if (jcp.ver == ver_avx512_core && jcp.expl_bcast
-                        && load_loop_blk > 1) {
+                if (jcp.expl_bcast && load_loop_blk > 1) {
                     vpbroadcastd(vreg_bcast,
                             pipeline_bcast_ptr(
                                     i_reduce, i_ur, false, bcast_pl_idx));
@@ -435,8 +434,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                             vmovups(vreg_load(i_load),
                                     load_ptr(i_reduce, i_load));
                     }
-                    if (jcp.ver == ver_avx512_core && jcp.expl_bcast
-                            && load_loop_blk > 1) {
+                    if (jcp.expl_bcast && load_loop_blk > 1) {
                         if (!isa_has_bf16(jcp.isa)) {
                             auto acc = vreg_accum(i_load, i_ur);
                             auto wei = vreg_load(i_load);
@@ -507,14 +505,12 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
                     vmovups(vreg_load(i_load), load_ptr(i_reduce, i_load));
             }
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
-                if (jcp.ver == ver_avx512_core && jcp.expl_bcast
-                        && load_loop_blk > 1)
+                if (jcp.expl_bcast && load_loop_blk > 1)
                     vpbroadcastd(vreg_bcast, bcast_ptr(i_reduce, i_ur, false));
                 for (int i_load = 0; i_load < load_loop_blk; ++i_load) {
                     if (!isa_has_bf16(jcp.isa))
                         vmovups(vreg_load(i_load), load_ptr(i_reduce, i_load));
-                    if (jcp.ver == ver_avx512_core && jcp.expl_bcast
-                            && load_loop_blk > 1) {
+                    if (jcp.expl_bcast && load_loop_blk > 1) {
                         if (!isa_has_bf16(jcp.isa)) {
                             auto acc = vreg_accum(i_load, i_ur);
                             auto wei = vreg_load(i_load);
@@ -1131,7 +1127,8 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.bcast_block = jcp.ic_block;
 
         jcp.ur = jcp.bcast_block;
-        jcp.expl_bcast = (jcp.reduce_block <= 19) ? true : false;
+        // TODO: try to enable jcp.expl_bcast version
+        jcp.expl_bcast = false;
 
         jcp.reduce_loop_unroll = jcp.reduce_block;
         jcp.reduce_loop_bcast_step
