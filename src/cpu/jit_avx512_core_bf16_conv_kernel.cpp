@@ -2239,9 +2239,15 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     }
 #ifndef BF16_CONV_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
     const int tr_round = 4;
-    // TODO: try to optimize required memory size
-    int tr_pad = rnd_up(nstl::max(1, nstl::max(jcp.l_pad, jcp.r_pad)),
-                            tr_round);
+    // Logic for tr_pad calculation: transpose is used in the extern kernel.
+    // There is a memory usage optimization where physical padding is shared
+    // between transpose buffers. In calculating on a row, data is read from the
+    // input 2 elements at a time due to the bf16 broadcast. Calculation starts
+    // at the beginning of the left padding and ends at the end of the right
+    // padding. Because elements are read two at a time, we may need r_pad + 1
+    // padding on the right. As such, the shared padding is the max of l_pad and
+    // r_pad + 1, rounded as necessary for the transpose data format.
+    int tr_pad = rnd_up(nstl::max(jcp.l_pad, jcp.r_pad + 1), tr_round);
     jcp.tr_iw = rnd_up(div_up(jcp.iw, jcp.stride_w) + tr_pad, tr_round)
                     * jcp.stride_w;
     jcp.tr_src_num_guard_elems = tr_pad; // upper bound
