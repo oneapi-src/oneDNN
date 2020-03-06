@@ -96,7 +96,7 @@ void cross_engine_reorder_tutorial() {
     /// @subsection cross_engine_reorder_cpp_sub1 Engine and stream
     ///
     /// All Intel MKL-DNN primitives and memory objects are attached to a
-    /// particular @ref mkldnn::engine, which is an abstraction of a
+    /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device they are attached
     /// to, and the memory objects refer to memory residing on the
@@ -104,7 +104,7 @@ void cross_engine_reorder_tutorial() {
     /// nor primitives that were created for one engine can be used on
     /// another.
     ///
-    /// To create engines, we must specify the @ref mkldnn::engine::kind
+    /// To create engines, we must specify the @ref dnnl::engine::kind
     /// and the index of the device of the given kind. There is only one CPU
     /// engine and one GPU engine, so the index for both engines must be 0.
     ///
@@ -114,7 +114,7 @@ void cross_engine_reorder_tutorial() {
     auto gpu_engine = engine(engine::kind::gpu, 0);
     // [Initialize engine]
 
-    /// In addition to an engine, all primitives require a @ref mkldnn::stream
+    /// In addition to an engine, all primitives require a @ref dnnl::stream
     /// for the execution. The stream encapsulates an execution context and is
     /// tied to a particular engine.
     ///
@@ -149,17 +149,17 @@ void cross_engine_reorder_tutorial() {
     /// more general @ref dev_guide_eltwise primitive, which applies a specified
     /// function to each element of the source tensor.
     ///
-    /// Just as in the case of @ref mkldnn::memory, a user should always go
+    /// Just as in the case of @ref dnnl::memory, a user should always go
     /// through (at least) three creation steps (which, however, can sometimes
     /// be combined thanks to C++11):
     /// 1. Initialize an operation descriptor (in the case of this example,
-    ///    @ref mkldnn::eltwise_forward::desc), which defines the operation
+    ///    @ref dnnl::eltwise_forward::desc), which defines the operation
     ///    parameters including a GPU memory descriptor.
     /// 2. Create an operation primitive descriptor (here @ref
     ///    mkldnn::eltwise_forward::primitive_desc) on a GPU engine, which is a
     ///    **lightweight** descriptor of the actual algorithm that
     ///    **implements** the given operation.
-    /// 3. Create a primitive (here @ref mkldnn::eltwise_forward) that can be
+    /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
     ///    executed on GPU memory objects to compute the operation by a GPU
     ///    engine.
     ///
@@ -255,7 +255,7 @@ void cross_engine_reorder_tutorial() {
 ///
 /// Since we are using the Intel MKL-DNN C++ API, we use exceptions to handle
 /// errors (see @ref dev_guide_c_and_cpp_apis).
-/// The Intel MKL-DNN C++ API throws exceptions of type @ref mkldnn::error,
+/// The Intel MKL-DNN C++ API throws exceptions of type @ref dnnl::error,
 /// which contains the error status (of type @ref mkldnn_status_t) and a
 /// human-readable error message accessible through regular `what()` method.
 /// @snippet cross_engine_reorder.cpp Main
