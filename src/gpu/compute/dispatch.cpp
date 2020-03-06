@@ -64,10 +64,21 @@ dispatch_t::dispatch_t(const compute_engine_t *engine, const memory_desc_t *md)
 
     if (md && md->format_kind == dnnl_blocked) {
         md_ndims_ = md->ndims;
-        auto *strides = md->format_desc.blocking.strides;
+        auto &blocking = md->format_desc.blocking;
+        auto *strides = blocking.strides;
         std::pair<int, dim_t> sorted_strides[DNNL_MAX_NDIMS];
-        for (int i = 0; i < md->ndims; ++i)
+        for (int i = 0; i < md->ndims; ++i) {
             sorted_strides[i] = {i, strides[i]};
+            for (int j = 0; j < blocking.inner_nblks; j++) {
+                if (blocking.inner_idxs[j] == i) {
+                    int str = 1;
+                    for (int k = j + 1; k < blocking.inner_nblks; k++)
+                        str *= blocking.inner_blks[k];
+                    sorted_strides[i] = {i, str};
+                    break;
+                }
+            }
+        }
         std::sort(sorted_strides, sorted_strides + md->ndims,
                 [](const std::pair<int, dim_t> &a,
                         const std::pair<int, dim_t> &b) {

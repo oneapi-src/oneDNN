@@ -92,7 +92,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_fwd", nullptr, nullptr, nullptr, nullptr};
-        if (pd()->conf.use_16mb_unroll && pd()->conf.calculate_stats) {
+        if (pd()->conf.calculate_stats) {
             kernel_names[1] = "calculate_mean";
             kernel_names[2] = "calculate_variance";
             kernel_names[3] = "reduce_mean";
@@ -182,12 +182,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         CHECK(status);
 
         std::vector<const char *> kernel_names
-                = {"ref_bnorm_bwd", nullptr, nullptr};
-
-        if (pd()->conf.use_16mb_unroll) {
-            kernel_names[1] = "calculate_stats";
-            kernel_names[2] = "reduce_stats";
-        }
+                = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
 
         std::vector<compute::kernel_t> kernels;
         status = compute_engine->create_kernels(
