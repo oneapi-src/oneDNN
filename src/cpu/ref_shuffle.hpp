@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
+#include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -33,7 +34,7 @@ namespace impl {
 namespace cpu {
 
 template <int data_type_size>
-struct ref_shuffle_t : public primitive_impl_t {
+struct ref_shuffle_t : public primitive_t {
     struct pd_t : public cpu_shuffle_pd_t {
         using cpu_shuffle_pd_t::cpu_shuffle_pd_t;
 
@@ -67,7 +68,7 @@ struct ref_shuffle_t : public primitive_impl_t {
         format_tag_t dat_tag_;
     };
 
-    ref_shuffle_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {
         const int axis_size = pd()->axis_size();
         const int group_size = pd()->group_size();
         const int transpose_row
@@ -105,7 +106,7 @@ struct ref_shuffle_t : public primitive_impl_t {
 private:
     template <format_tag_t tag>
     void execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int *rev_transposed_;
 };
 

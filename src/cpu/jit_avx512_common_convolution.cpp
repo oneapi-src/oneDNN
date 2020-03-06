@@ -918,7 +918,7 @@ template <data_type_t src_type, data_type_t diff_dst_type,
 jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         diff_weights_type>::
         jit_avx512_common_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_impl_t(apd)
+    : primitive_t(apd)
     , kernel_(nullptr)
     , trans_kernel_(nullptr)
     , acc_ker_(nullptr)

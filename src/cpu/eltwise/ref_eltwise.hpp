@@ -20,6 +20,7 @@
 #include <assert.h>
 #include "c_types_map.hpp"
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -45,7 +46,7 @@ public:
 };
 
 template <impl::data_type_t data_type>
-struct ref_eltwise_fwd_t : public primitive_impl_t {
+struct ref_eltwise_fwd_t : public primitive_t {
     struct pd_t : public cpu_eltwise_fwd_pd_t {
         using cpu_eltwise_fwd_pd_t::cpu_eltwise_fwd_pd_t;
 
@@ -80,7 +81,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
         bool use_dense_, use_nCspBc_padded_;
     };
 
-    ref_eltwise_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_eltwise_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -97,11 +98,11 @@ private:
     void execute_forward_nCspBc_padded(const exec_ctx_t &ctx) const;
     void execute_forward_dense(const exec_ctx_t &ctx) const;
     void execute_forward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <impl::data_type_t data_type>
-struct ref_eltwise_bwd_t : public primitive_impl_t {
+struct ref_eltwise_bwd_t : public primitive_t {
     struct pd_t : public cpu_eltwise_bwd_pd_t {
         using cpu_eltwise_bwd_pd_t::cpu_eltwise_bwd_pd_t;
 
@@ -147,7 +148,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
         }
     };
 
-    ref_eltwise_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_eltwise_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<data_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -161,7 +162,7 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
 private:
     void execute_backward_dense(const exec_ctx_t &ctx) const;
     void execute_backward_generic(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

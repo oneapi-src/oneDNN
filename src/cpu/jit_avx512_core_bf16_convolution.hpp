@@ -25,6 +25,7 @@
 #include "cpu_barrier.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_reducer.hpp"
+#include "primitive.hpp"
 
 #include "jit_avx512_core_bf16_conv_kernel.hpp"
 #include "jit_transpose_src_utils.hpp"
@@ -33,7 +34,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
+struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -75,8 +76,7 @@ struct jit_avx512_core_bf16_convolution_fwd_t : public primitive_impl_t {
         jit_conv_conf_t jcp_;
     };
 
-    jit_avx512_core_bf16_convolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd) {
+    jit_avx512_core_bf16_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = new jit_avx512_core_bf16_fwd_kernel(
                 pd()->jcp_, *pd()->attr());
     }
@@ -106,12 +106,12 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_bf16_fwd_kernel *kernel_;
 };
 
-struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
+struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -145,7 +145,7 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
     };
 
     jit_avx512_core_bf16_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_impl_t(apd) {
+        : primitive_t(apd) {
         kernel_ = new jit_avx512_core_bf16_bwd_data_kernel(pd()->jcp_);
     }
     ~jit_avx512_core_bf16_convolution_bwd_data_t() { delete kernel_; };
@@ -167,12 +167,11 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
     void execute_backward_data_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_bf16_bwd_data_kernel *kernel_;
 };
 
-struct jit_avx512_core_bf16_convolution_bwd_weights_t
-    : public primitive_impl_t {
+struct jit_avx512_core_bf16_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -257,7 +256,7 @@ private:
     void reduce_and_convert_diff_weights(const thread_info_t *) const;
     void compute_diff_bias(const thread_info_t *, const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     size_t tr_src_buf_number(const thread_info_t *ti, int g, int ic) const;
     size_t tr_diff_dst_buf_number(const thread_info_t *ti, int g, int oc) const;

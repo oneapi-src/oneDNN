@@ -19,6 +19,7 @@
 
 #include "engine.hpp"
 #include "memory_tracking.hpp"
+#include "primitive.hpp"
 #include "reorder_pd.hpp"
 
 #include "cpu_sum_pd.hpp"
@@ -27,7 +28,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct ref_sum_t : public primitive_impl_t {
+struct ref_sum_t : public primitive_t {
     struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
@@ -112,11 +113,11 @@ struct ref_sum_t : public primitive_impl_t {
         };
     };
 
-    ref_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_sum_t(const pd_t *apd) : primitive_t(apd) {
         const int n = pd()->n_inputs() + pd()->need_output_reorder();
         reorders_.resize(n);
         for (int i = 0; i < n; ++i)
-            pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
+            pd()->reorder_pds_[i]->create_primitive_iface(&reorders_[i]);
     }
 
     ~ref_sum_t() {
@@ -155,8 +156,8 @@ struct ref_sum_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    std::vector<primitive_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    std::vector<primitive_iface_t *> reorders_;
 };
 
 } // namespace cpu

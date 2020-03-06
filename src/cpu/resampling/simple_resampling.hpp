@@ -26,6 +26,7 @@
 #include "cpu_isa_traits.hpp"
 
 #include "cpu_resampling_pd.hpp"
+#include "primitive.hpp"
 #include "resampling_utils.hpp"
 
 namespace dnnl {
@@ -33,7 +34,7 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-struct simple_resampling_fwd_t : public primitive_impl_t {
+struct simple_resampling_fwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_fwd_pd_t {
         using cpu_resampling_fwd_pd_t::cpu_resampling_fwd_pd_t;
 
@@ -60,7 +61,7 @@ struct simple_resampling_fwd_t : public primitive_impl_t {
         }
     };
 
-    simple_resampling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    simple_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {
         if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
             interpolate = &simple_resampling_fwd_t::nearest;
         else {
@@ -117,12 +118,12 @@ private:
             dim_t stride_d, dim_t stride_h, dim_t stride_w, dim_t od, dim_t oh,
             dim_t ow) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_forward(const exec_ctx_t &ctx) const;
 };
 
 template <impl::data_type_t data_type>
-struct simple_resampling_bwd_t : public primitive_impl_t {
+struct simple_resampling_bwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_bwd_pd_t {
         using cpu_resampling_bwd_pd_t::cpu_resampling_bwd_pd_t;
 
@@ -149,7 +150,7 @@ struct simple_resampling_bwd_t : public primitive_impl_t {
         }
     };
 
-    simple_resampling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    simple_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {
         if (pd()->desc()->alg_kind == alg_kind::resampling_nearest)
             interpolate = &simple_resampling_bwd_t::nearest;
         else {
@@ -225,7 +226,7 @@ private:
             const float *diff_dst, dim_t stride_d, dim_t stride_h,
             dim_t stride_w, dim_t id, dim_t ih, dim_t iw) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_backward(const exec_ctx_t &ctx) const;
 };
 

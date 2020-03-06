@@ -28,6 +28,7 @@
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -159,7 +160,7 @@ private:
 };
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_impl_t {
+struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         using cpu_deconvolution_fwd_pd_t::cpu_deconvolution_fwd_pd_t;
 
@@ -203,7 +204,7 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_impl_t {
     };
 
     _jit_avx512_core_x8s8s32x_deconvolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd) {
+        : primitive_t(apd) {
         kernel_ = new jit_avx512_core_x8s8s32x_deconv_fwd_kernel(
                 pd()->jcp_, *pd()->attr());
     }
@@ -231,7 +232,7 @@ private:
     void execute_forward_1d(const exec_ctx_t &ctx) const;
     void execute_forward_2d(const exec_ctx_t &ctx) const;
     void execute_forward_3d(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
 

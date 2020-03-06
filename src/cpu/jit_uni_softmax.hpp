@@ -26,6 +26,7 @@
 #include "cpu_isa_traits.hpp"
 #include "cpu_softmax_pd.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,7 +38,7 @@ struct driver_t;
 }
 
 template <cpu_isa_t isa>
-struct jit_uni_softmax_fwd_t : public primitive_impl_t {
+struct jit_uni_softmax_fwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_fwd_pd_t {
         using cpu_softmax_fwd_pd_t::cpu_softmax_fwd_pd_t;
 
@@ -93,12 +94,12 @@ struct jit_uni_softmax_fwd_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     softmax_impl::driver_t<isa> *softmax_driver_;
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_softmax_bwd_t : public primitive_impl_t {
+struct jit_uni_softmax_bwd_t : public primitive_t {
     struct pd_t : public cpu_softmax_bwd_pd_t {
         using cpu_softmax_bwd_pd_t::cpu_softmax_bwd_pd_t;
 
@@ -156,7 +157,7 @@ struct jit_uni_softmax_bwd_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     softmax_impl::driver_t<isa> *softmax_driver_;
 };

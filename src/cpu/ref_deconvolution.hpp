@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "c_types_map.hpp"
+#include "primitive.hpp"
 #include "primitive_iterator.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -78,7 +79,7 @@ static status_t conv_descr_create(
             dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 }
 
-struct ref_deconvolution_fwd_t : public primitive_impl_t {
+struct ref_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -184,8 +185,8 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
         format_tag_t dst_tag_;
     };
 
-    ref_deconvolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+    ref_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
+        pd()->conv_pd_->create_primitive_iface((primitive_iface_t **)&conv_p_);
     }
     ~ref_deconvolution_fwd_t() { delete conv_p_; }
 
@@ -233,11 +234,11 @@ private:
     template <data_type_t dst_type, data_type_t bia_type>
     void compute_bias(const exec_ctx_t &ctx) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *conv_p_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *conv_p_;
 };
 
-struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
+struct ref_deconvolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -320,8 +321,8 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
-    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {
+        pd()->conv_pd_->create_primitive_iface(&conv_p_);
     }
     ~ref_deconvolution_bwd_data_t() { delete conv_p_; }
 
@@ -340,11 +341,11 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *conv_p_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *conv_p_;
 };
 
-struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
+struct ref_deconvolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -444,8 +445,8 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
         format_tag_t dst_tag_;
     };
 
-    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {
-        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {
+        pd()->conv_pd_->create_primitive_iface(&conv_p_);
     }
     ~ref_deconvolution_bwd_weights_t() { delete conv_p_; }
 
@@ -479,7 +480,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void compute_bwd_bias(float *diff_bias, const float *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type>
@@ -494,7 +495,7 @@ private:
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bias(const exec_ctx_t &ctx) const;
-    primitive_t *conv_p_;
+    primitive_iface_t *conv_p_;
 };
 
 } // namespace cpu

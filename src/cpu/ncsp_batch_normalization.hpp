@@ -26,13 +26,14 @@
 #include "utils.hpp"
 
 #include "cpu_batch_normalization_pd.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct ncsp_batch_normalization_fwd_t : public primitive_impl_t {
+struct ncsp_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
         using cpu_batch_normalization_fwd_pd_t::
                 cpu_batch_normalization_fwd_pd_t;
@@ -93,7 +94,7 @@ struct ncsp_batch_normalization_fwd_t : public primitive_impl_t {
     typedef typename prec_traits<d_type>::type data_t;
     typedef float acc_data_t;
 
-    ncsp_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ncsp_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~ncsp_batch_normalization_fwd_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -103,11 +104,11 @@ struct ncsp_batch_normalization_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <data_type_t d_type>
-struct ncsp_batch_normalization_bwd_t : public primitive_impl_t {
+struct ncsp_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
         using cpu_batch_normalization_bwd_pd_t::
                 cpu_batch_normalization_bwd_pd_t;
@@ -168,7 +169,7 @@ struct ncsp_batch_normalization_bwd_t : public primitive_impl_t {
     typedef typename prec_traits<d_type>::type data_t;
     typedef float acc_data_t;
 
-    ncsp_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ncsp_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~ncsp_batch_normalization_bwd_t() {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -178,7 +179,7 @@ struct ncsp_batch_normalization_bwd_t : public primitive_impl_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

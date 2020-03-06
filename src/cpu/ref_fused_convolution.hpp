@@ -18,12 +18,13 @@
 #define CPU_REF_FUSED_CONVOLUTION_HPP
 
 #include "jit_uni_1x1_conv_utils.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct ref_fused_convolution_fwd_t : public primitive_impl_t {
+struct ref_fused_convolution_fwd_t : public primitive_t {
 
     struct arg_cache_t {
         struct arg_info_t {
@@ -317,12 +318,12 @@ struct ref_fused_convolution_fwd_t : public primitive_impl_t {
         }
     };
 
-    ref_fused_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_fused_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
 
         const auto &op_pds = pd()->op_pds_;
         for (const auto &op_pd : op_pds) {
-            primitive_t *p = nullptr;
-            op_pd->create_primitive(&p);
+            primitive_iface_t *p = nullptr;
+            op_pd->create_primitive_iface(&p);
             primitives_.push_back(p);
         }
 
@@ -387,8 +388,8 @@ struct ref_fused_convolution_fwd_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    std::vector<primitive_t *> primitives_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    std::vector<primitive_iface_t *> primitives_;
     memory_desc_t user_scratchpad_md_;
 };
 

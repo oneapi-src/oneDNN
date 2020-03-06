@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_batch_normalization_fwd_t : public primitive_impl_t {
+struct ref_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public gpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -113,7 +114,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -121,7 +122,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
     compute::kernel_t calculate_mean_kernel_;
     compute::kernel_t reduce_mean_kernel_;
@@ -129,7 +130,7 @@ private:
     compute::kernel_t reduce_variance_kernel_;
 };
 
-struct ref_batch_normalization_bwd_t : public primitive_impl_t {
+struct ref_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public gpu_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -196,7 +197,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
@@ -204,7 +205,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
     compute::kernel_t calculate_stats_kernel_;
     compute::kernel_t reduce_stats_kernel_;

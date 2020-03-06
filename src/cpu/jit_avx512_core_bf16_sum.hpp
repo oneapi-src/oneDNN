@@ -21,6 +21,7 @@
 
 #include "cpu_sum_pd.hpp" // cpu
 #include "jit_avx512_core_bf16cvt.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -162,7 +163,7 @@ private:
 };
 
 template <data_type_t src_data_type, data_type_t dst_data_type>
-struct jit_bf16_sum_t : public primitive_impl_t {
+struct jit_bf16_sum_t : public primitive_t {
     struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
@@ -202,7 +203,7 @@ struct jit_bf16_sum_t : public primitive_impl_t {
         jit_sum_conf_t jsp_;
     };
 
-    jit_bf16_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
+    jit_bf16_sum_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = new jit_avx512_core_bf16_sum_kernel(pd()->jsp_);
     }
 
@@ -215,7 +216,7 @@ struct jit_bf16_sum_t : public primitive_impl_t {
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_bf16_sum_kernel *kernel_;
 };
 

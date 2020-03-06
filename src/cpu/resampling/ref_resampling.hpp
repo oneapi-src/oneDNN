@@ -26,13 +26,14 @@
 #include "cpu_isa_traits.hpp"
 
 #include "cpu_resampling_pd.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <impl::data_type_t data_type>
-struct ref_resampling_fwd_t : public primitive_impl_t {
+struct ref_resampling_fwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_fwd_pd_t {
         using cpu_resampling_fwd_pd_t::cpu_resampling_fwd_pd_t;
 
@@ -52,7 +53,7 @@ struct ref_resampling_fwd_t : public primitive_impl_t {
         }
     };
 
-    ref_resampling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_resampling_fwd_t() {}
 
@@ -64,12 +65,12 @@ struct ref_resampling_fwd_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_forward(const exec_ctx_t &ctx) const;
 };
 
 template <impl::data_type_t data_type>
-struct ref_resampling_bwd_t : public primitive_impl_t {
+struct ref_resampling_bwd_t : public primitive_t {
     struct pd_t : public cpu_resampling_bwd_pd_t {
         using cpu_resampling_bwd_pd_t::cpu_resampling_bwd_pd_t;
 
@@ -89,7 +90,7 @@ struct ref_resampling_bwd_t : public primitive_impl_t {
         }
     };
 
-    ref_resampling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_resampling_bwd_t() {}
 
@@ -101,7 +102,7 @@ struct ref_resampling_bwd_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_backward(const exec_ctx_t &ctx) const;
 };
 

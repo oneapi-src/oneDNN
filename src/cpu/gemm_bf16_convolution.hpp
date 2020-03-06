@@ -27,13 +27,14 @@
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t dst_data_type>
-struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
+struct gemm_bf16_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -112,7 +113,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
     };
 
     gemm_bf16_convolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), pp_ker_(nullptr) {
+        : primitive_t(apd), pp_ker_(nullptr) {
         const auto &post_ops = pd()->attr()->post_ops_;
         const acc_data_t one = 1.0, zero = 0.0;
         beta_ = dst_data_type == data_type::f32
@@ -138,7 +139,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     class pp_ker_t : jit_generator {
     public:
@@ -243,7 +244,7 @@ private:
 };
 
 template <data_type_t diff_src_data_type>
-struct gemm_bf16_convolution_bwd_data_t : public primitive_impl_t {
+struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -289,7 +290,7 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_impl_t {
         }
     };
 
-    gemm_bf16_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_bf16_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -303,11 +304,11 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_impl_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <data_type_t diff_wei_data_type>
-struct gemm_bf16_convolution_bwd_weights_t : public primitive_impl_t {
+struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -356,7 +357,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_impl_t {
     };
 
     gemm_bf16_convolution_bwd_weights_t(const pd_t *apd)
-        : primitive_impl_t(apd), acc_ker_(nullptr) {
+        : primitive_t(apd), acc_ker_(nullptr) {
         acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();
     }
 
@@ -379,7 +380,7 @@ private:
             diff_wei_data_t *weights_base) const;
 
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
 };

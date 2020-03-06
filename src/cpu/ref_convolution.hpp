@@ -25,6 +25,7 @@
 
 #include "cpu_convolution_pd.hpp"
 #include "eltwise/ref_eltwise.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -33,7 +34,7 @@ namespace cpu {
 template <impl::data_type_t src_type, impl::data_type_t wei_type = src_type,
         impl::data_type_t dst_type = src_type,
         impl::data_type_t acc_type = dst_type>
-struct ref_convolution_fwd_t : public primitive_impl_t {
+struct ref_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         using cpu_convolution_fwd_pd_t::cpu_convolution_fwd_pd_t;
 
@@ -99,7 +100,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         }
     };
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
         for (int idx = 0; idx < dnnl_post_ops::capacity; ++idx)
             eltwises_[idx] = nullptr;
         auto &post_ops = pd()->attr()->post_ops_;
@@ -127,14 +128,14 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     ref_eltwise_scalar_fwd_t *eltwises_[dnnl_post_ops::capacity];
 };
 
 template <impl::data_type_t diff_src_type, impl::data_type_t wei_type,
         impl::data_type_t diff_dst_type,
         impl::data_type_t acc_type = diff_src_type>
-struct ref_convolution_bwd_data_t : public primitive_impl_t {
+struct ref_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         using cpu_convolution_bwd_data_pd_t::cpu_convolution_bwd_data_pd_t;
 
@@ -174,7 +175,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         }
     };
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<diff_src_type>::type diff_src_data_t;
     typedef typename prec_traits<wei_type>::type wei_data_t;
@@ -188,13 +189,13 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <impl::data_type_t src_type, impl::data_type_t diff_wei_type,
         impl::data_type_t diff_dst_type,
         impl::data_type_t acc_type = diff_wei_type>
-struct ref_convolution_bwd_weights_t : public primitive_impl_t {
+struct ref_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         using cpu_convolution_bwd_weights_pd_t::
                 cpu_convolution_bwd_weights_pd_t;
@@ -221,7 +222,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         }
     };
 
-    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<diff_wei_type>::type diff_wei_data_t;
@@ -235,7 +236,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

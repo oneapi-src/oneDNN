@@ -21,6 +21,7 @@
 
 #include "c_types_map.hpp"
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -34,7 +35,7 @@ namespace cpu {
 
 template <data_type_t src0_type, data_type_t src1_type = src0_type,
         data_type_t dst_type = src0_type>
-struct ref_binary_t : public primitive_impl_t {
+struct ref_binary_t : public primitive_t {
     struct pd_t : public cpu_binary_pd_t {
         using cpu_binary_pd_t::cpu_binary_pd_t;
 
@@ -73,7 +74,7 @@ struct ref_binary_t : public primitive_impl_t {
         }
     };
 
-    ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_binary_t(const pd_t *apd) : primitive_t(apd) {
         int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
         if (e_idx != -1)
             eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
@@ -92,7 +93,7 @@ struct ref_binary_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_ref(const exec_ctx_t &ctx) const;
 
     std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;

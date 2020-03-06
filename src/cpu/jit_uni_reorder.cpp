@@ -28,6 +28,7 @@
 
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
+#include "primitive.hpp"
 
 // #define TR_DEBUG
 #if defined(TR_DEBUG)
@@ -1025,7 +1026,7 @@ static void prb_thread_kernel_balance(
     }
 }
 
-struct jit_uni_reorder_t : public primitive_impl_t {
+struct jit_uni_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -1101,7 +1102,7 @@ struct jit_uni_reorder_t : public primitive_impl_t {
         int nthr_;
     };
 
-    jit_uni_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {
+    jit_uni_reorder_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = tr::kernel_t::create(pd()->ker_desc_);
         assert(kernel_);
     }
@@ -1235,7 +1236,7 @@ struct jit_uni_reorder_t : public primitive_impl_t {
     enum { ndims_driver_max = 4 };
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     tr::kernel_t *kernel_;
 };
 

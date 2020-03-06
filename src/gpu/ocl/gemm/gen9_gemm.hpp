@@ -359,7 +359,7 @@ private:
     int eu_count_ = 0;
     int threads_ = 0;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     bool use_nocopy() const {
         bool transa = (pd()->desc()->transa == dnnl_trans);

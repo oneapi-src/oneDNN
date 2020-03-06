@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_resampling_pd.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_resampling_fwd_t : public primitive_impl_t {
+struct ref_resampling_fwd_t : public primitive_t {
     struct pd_t : public gpu_resampling_fwd_pd_t {
         pd_t(engine_t *engine, const resampling_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -71,7 +72,7 @@ struct ref_resampling_fwd_t : public primitive_impl_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_resampling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_resampling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_resampling_fwd_t() = default;
 
@@ -131,11 +132,11 @@ struct ref_resampling_fwd_t : public primitive_impl_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_resampling_bwd_t : public primitive_impl_t {
+struct ref_resampling_bwd_t : public primitive_t {
     struct pd_t : public gpu_resampling_bwd_pd_t {
         pd_t(engine_t *engine, const resampling_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -173,7 +174,7 @@ struct ref_resampling_bwd_t : public primitive_impl_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_resampling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_resampling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_resampling_bwd_t() = default;
 
@@ -235,7 +236,7 @@ struct ref_resampling_bwd_t : public primitive_impl_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 

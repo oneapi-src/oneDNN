@@ -18,6 +18,7 @@
 #define GPU_OCL_REF_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
@@ -29,7 +30,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_convolution_fwd_t : public primitive_impl_t {
+struct ref_convolution_fwd_t : public primitive_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
         using gpu_convolution_fwd_pd_t::gpu_convolution_fwd_pd_t;
 
@@ -195,7 +196,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -203,12 +204,12 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
     std::unique_ptr<memory_t> scales_mem_;
 };
 
-struct ref_convolution_bwd_data_t : public primitive_impl_t {
+struct ref_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         using gpu_convolution_bwd_data_pd_t::gpu_convolution_bwd_data_pd_t;
 
@@ -257,7 +258,7 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
@@ -265,11 +266,11 @@ struct ref_convolution_bwd_data_t : public primitive_impl_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_convolution_bwd_weights_t : public primitive_impl_t {
+struct ref_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public gpu_convolution_bwd_weights_pd_t {
         using gpu_convolution_bwd_weights_pd_t::
                 gpu_convolution_bwd_weights_pd_t;
@@ -319,7 +320,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
         return status::success;
     }
 
-    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
@@ -327,7 +328,7 @@ struct ref_convolution_bwd_weights_t : public primitive_impl_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 

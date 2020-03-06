@@ -25,12 +25,13 @@
 
 #include "jit_primitive_conf.hpp"
 #include "jit_sse41_conv_kernel_f32.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct jit_sse41_convolution_fwd_t : public primitive_impl_t {
+struct jit_sse41_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -77,7 +78,7 @@ struct jit_sse41_convolution_fwd_t : public primitive_impl_t {
         }
     };
 
-    jit_sse41_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    jit_sse41_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = new jit_sse41_conv_fwd_kernel_f32(pd()->jcp_, *pd()->attr());
     }
     ~jit_sse41_convolution_fwd_t() { delete kernel_; };
@@ -91,7 +92,7 @@ struct jit_sse41_convolution_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_sse41_conv_fwd_kernel_f32 *kernel_;
 };
 

@@ -122,24 +122,27 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
             const dnnl::impl::op_desc_t *desc) const = 0;
 
     template <typename F>
-    dnnl::impl::status_t get_primitive(dnnl::impl::primitive_t **primitive,
-            const dnnl::impl::primitive_desc_t *pd,
-            const F &create_primitive_impl, bool use_global_scratchpad) {
+    dnnl::impl::status_t get_primitive_iface(
+            dnnl::impl::primitive_iface_t **primitive_iface,
+            const dnnl::impl::primitive_desc_t *pd, const F &create_primitive,
+            bool use_global_scratchpad) {
 
-        auto print_verbose = [](int level, bool is_cache_hit,
-                                     dnnl::impl::primitive_t *p, double time) {
-            if (level >= 2) {
+        auto print_verbose =
+                [](int level, bool is_cache_hit,
+                        const dnnl::impl::primitive_iface_t *p_iface,
+                        double time) {
+                    if (level >= 2) {
 #ifdef DNNL_ENABLE_PRIMITIVE_CACHE
-                const char *str = is_cache_hit
-                        ? "dnnl_verbose,create:cache_hit"
-                        : "dnnl_verbose,create:cache_miss";
+                        const char *str = is_cache_hit
+                                ? "dnnl_verbose,create:cache_hit"
+                                : "dnnl_verbose,create:cache_miss";
 #else
-                const char *str = "dnnl_verbose,create";
+                        const char *str = "dnnl_verbose,create";
 #endif
-                printf("%s,%s,%g\n", str, p->pd()->info(), time);
-                fflush(0);
-            }
-        };
+                        printf("%s,%s,%g\n", str, p_iface->pd()->info(), time);
+                        fflush(0);
+                    }
+                };
 
         double ms = dnnl::impl::get_msec();
 
@@ -149,55 +152,57 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
 
         // lock cache
         recursive_mutex_.lock();
-        dnnl::impl::primitive_t *p = nullptr;
-        auto primitive_impl = primitive_cache_->get(key);
-        if (primitive_impl) {
+        dnnl::impl::primitive_iface_t *p_iface = nullptr;
+        auto primitive = primitive_cache_->get(key);
+        if (primitive) {
             // cache hit
             // unlock cache because it's safe to create a wrapper in parallel
             recursive_mutex_.unlock();
-            // create a wrapper for primitive_impl
-            auto status
-                    = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_t>(p,
-                            new dnnl::impl::primitive_t(
-                                    primitive_impl, use_global_scratchpad));
+            // create a wrapper for primitive
+            auto status = dnnl::impl::safe_ptr_assign<
+                    dnnl::impl::primitive_iface_t>(p_iface,
+                    new dnnl::impl::primitive_iface_t(
+                            primitive, use_global_scratchpad));
             if (status != dnnl::impl::status::success) return status;
 
             ms = dnnl::impl::get_msec() - ms;
-            print_verbose(dnnl::impl::get_verbose(), true, p, ms);
-            (*primitive) = p;
+            print_verbose(dnnl::impl::get_verbose(), true, p_iface, ms);
+            (*primitive_iface) = p_iface;
             return status;
         }
 
         // cache miss
-        // create a requested primitive_impl
-        primitive_impl = create_primitive_impl();
-        // create a wrapper over created primitive_impl
-        auto status = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_t>(p,
-                new dnnl::impl::primitive_t(
-                        primitive_impl, use_global_scratchpad));
+        // create a requested primitive
+        primitive = create_primitive();
+        // create a wrapper over created primitive
+        auto status
+                = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_iface_t>(
+                        p_iface,
+                        new dnnl::impl::primitive_iface_t(
+                                primitive, use_global_scratchpad));
 
         if (status != dnnl::impl::status::success) {
             recursive_mutex_.unlock();
             return status;
         }
 
-        status = p->init();
+        status = p_iface->init();
         if (status != dnnl::impl::status::success) {
             recursive_mutex_.unlock();
-            delete p;
+            delete p_iface;
             return status;
         }
 
         // update op_desc and attr pointers in the key
-        key.op_desc_ = p->pd()->op_desc();
-        key.attr_ = p->pd()->attr();
+        key.op_desc_ = p_iface->pd()->op_desc();
+        key.attr_ = p_iface->pd()->attr();
 
-        primitive_cache_->add(key, p->get_primitive_impl());
+        primitive_cache_->add(key, p_iface->get_primitive());
         recursive_mutex_.unlock();
 
         ms = dnnl::impl::get_msec() - ms;
-        print_verbose(dnnl::impl::get_verbose(), false, p, ms);
-        (*primitive) = p;
+        print_verbose(dnnl::impl::get_verbose(), false, p_iface, ms);
+        (*primitive_iface) = p_iface;
         return status;
     }
 

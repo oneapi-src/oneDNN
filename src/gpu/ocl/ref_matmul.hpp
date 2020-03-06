@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_matmul_t : public primitive_impl_t {
+struct ref_matmul_t : public primitive_t {
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
@@ -186,7 +187,7 @@ struct ref_matmul_t : public primitive_impl_t {
         int eltwise_idx_ = -1;
     };
 
-    ref_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_matmul_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init() override {
         auto *compute_engine
@@ -281,7 +282,7 @@ struct ref_matmul_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
     compute::kernel_t kernel_;
     std::unique_ptr<memory_storage_t> a0_mem_storage_;

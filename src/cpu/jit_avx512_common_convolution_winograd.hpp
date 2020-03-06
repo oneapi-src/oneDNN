@@ -22,6 +22,7 @@
 #include "memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
+#include "primitive.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
@@ -85,7 +86,7 @@ private:
 
 struct jit_avx512_common_convolution_winograd_fwd_t
     : _jit_avx512_common_convolution_winograd_t<true>,
-      public primitive_impl_t {
+      public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -135,7 +136,7 @@ struct jit_avx512_common_convolution_winograd_fwd_t
 
     jit_avx512_common_convolution_winograd_fwd_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<true>(apd->jcp_)
-        , primitive_impl_t(apd) {}
+        , primitive_t(apd) {}
 
     ~jit_avx512_common_convolution_winograd_fwd_t() {};
 
@@ -152,12 +153,12 @@ struct jit_avx512_common_convolution_winograd_fwd_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_data_t
     : _jit_avx512_common_convolution_winograd_t<false>,
-      public primitive_impl_t {
+      public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -206,7 +207,7 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
 
     jit_avx512_common_convolution_winograd_bwd_data_t(const pd_t *apd)
         : _jit_avx512_common_convolution_winograd_t<false>(apd->jcp_)
-        , primitive_impl_t(apd) {}
+        , primitive_t(apd) {}
 
     ~jit_avx512_common_convolution_winograd_bwd_data_t() {};
 
@@ -222,11 +223,11 @@ struct jit_avx512_common_convolution_winograd_bwd_data_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 struct jit_avx512_common_convolution_winograd_bwd_weights_t
-    : public primitive_impl_t {
+    : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -274,7 +275,7 @@ struct jit_avx512_common_convolution_winograd_bwd_weights_t
     };
 
     jit_avx512_common_convolution_winograd_bwd_weights_t(const pd_t *apd)
-        : primitive_impl_t(apd), kernel_(nullptr) {
+        : primitive_t(apd), kernel_(nullptr) {
         kernel_ = new jit_avx512_common_conv_winograd_bwd_weights_kernel_f32(
                 pd()->jcp_);
     }
@@ -294,7 +295,7 @@ private:
     void _maybe_execute_diff_bias_copy(float *diff_bias,
             const memory_tracking::grantor_t &scratchpad) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_common_conv_winograd_bwd_weights_kernel_f32 *kernel_;
 };
 

@@ -30,6 +30,7 @@
 
 #include "cpu_rnn_pd.hpp"
 #include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "primitive.hpp"
 #include "rnn_utils.hpp"
 
 namespace dnnl {
@@ -63,7 +64,7 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
 
 template <prop_kind_t aprop, impl::data_type_t src_type,
         impl::data_type_t weights_type, impl::data_type_t acc_type>
-struct _ref_rnn_common_t : public primitive_impl_t {
+struct _ref_rnn_common_t : public primitive_t {
     static constexpr impl::data_type_t scratch_type
             = aprop == prop_kind::forward ? acc_type : src_type;
 
@@ -235,7 +236,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
     };
 
     _ref_rnn_common_t(const pd_t *apd)
-        : primitive_impl_t(apd), rnn_postgemm_(nullptr) {
+        : primitive_t(apd), rnn_postgemm_(nullptr) {
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dhc and sic != dhc
         /// respectively
@@ -342,7 +343,7 @@ private:
             const gemm_acc_t *ws_diff_states_iter_,
             const gemm_acc_t *ws_diff_states_iter_c_) const;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     size_t ws_gates_offset_;
     size_t ws_ht_offset_;

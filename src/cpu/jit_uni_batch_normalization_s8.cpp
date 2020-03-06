@@ -502,7 +502,7 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::pd_t::init() {
 template <cpu_isa_t isa>
 jit_uni_batch_normalization_s8_fwd_t<isa>::jit_uni_batch_normalization_s8_fwd_t(
         const pd_t *apd)
-    : primitive_impl_t(apd) {
+    : primitive_t(apd) {
     bnorm_driver_ = new bnorm_s8_impl::driver_t<isa>(pd());
 }
 

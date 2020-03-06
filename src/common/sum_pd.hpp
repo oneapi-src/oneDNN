@@ -157,10 +157,11 @@ protected:
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
-    virtual status_t create_primitive(primitive_t **p) const override { \
-        auto status = this->engine()->get_primitive( \
-                p, this, [=] { return std::make_shared<__VA_ARGS__>(this); }, \
-                false); \
+    virtual status_t create_primitive_iface(primitive_iface_t **p_iface) \
+            const override { \
+        auto status = this->engine()->get_primitive_iface( \
+                p_iface, this, \
+                [=] { return std::make_shared<__VA_ARGS__>(this); }, false); \
         return status; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \

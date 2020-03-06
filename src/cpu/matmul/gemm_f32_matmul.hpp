@@ -28,13 +28,14 @@
 
 #include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace matmul {
 
-struct gemm_f32_matmul_t : public primitive_impl_t {
+struct gemm_f32_matmul_t : public primitive_t {
     struct pd_t : public cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
 
@@ -48,7 +49,7 @@ struct gemm_f32_matmul_t : public primitive_impl_t {
         gemm_based::params_t params_;
     };
 
-    gemm_f32_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {
+    gemm_f32_matmul_t(const pd_t *apd) : primitive_t(apd) {
         if (pd()->params().has_pp_kernel_)
             pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(),
                     &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
@@ -70,7 +71,7 @@ struct gemm_f32_matmul_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
 
     using pp_kernel_t = inner_product_utils::pp_kernel_t<acc_type, dst_type>;

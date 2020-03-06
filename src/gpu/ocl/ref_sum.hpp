@@ -17,6 +17,7 @@
 #ifndef GPU_OCL_REF_SUM_HPP
 #define GPU_OCL_REF_SUM_HPP
 
+#include "common/primitive.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_sum_pd.hpp"
@@ -26,7 +27,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_sum_t : public primitive_impl_t {
+struct ref_sum_t : public primitive_t {
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
         pd_t(const pd_t &rhs) : gpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
@@ -82,11 +83,11 @@ struct ref_sum_t : public primitive_impl_t {
         std::vector<const reorder_pd_t *> reorder_pds_;
     };
 
-    ref_sum_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_sum_t(const pd_t *apd) : primitive_t(apd) {
         const int n = pd()->n_inputs();
         reorders_.resize(n);
         for (int i = 0; i < n; ++i)
-            pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
+            pd()->reorder_pds_[i]->create_primitive_iface(&reorders_[i]);
     }
 
     ~ref_sum_t() {
@@ -108,8 +109,8 @@ struct ref_sum_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    std::vector<primitive_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    std::vector<primitive_iface_t *> reorders_;
 };
 
 } // namespace ocl

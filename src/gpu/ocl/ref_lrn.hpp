@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_lrn_pd.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_lrn_fwd_t : public primitive_impl_t {
+struct ref_lrn_fwd_t : public primitive_t {
     struct pd_t : public gpu_lrn_fwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
                 const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
@@ -80,7 +81,7 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_lrn_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_lrn_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_lrn_fwd_t() = default;
 
@@ -158,11 +159,11 @@ struct ref_lrn_fwd_t : public primitive_impl_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct ref_lrn_bwd_t : public primitive_impl_t {
+struct ref_lrn_bwd_t : public primitive_t {
     struct pd_t : public gpu_lrn_bwd_pd_t {
         pd_t(engine_t *engine, const lrn_desc_t *adesc,
                 const primitive_attr_t *attr, const lrn_fwd_pd_t *hint_fwd_pd)
@@ -210,7 +211,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_lrn_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_lrn_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_lrn_bwd_t() = default;
 
@@ -285,7 +286,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     compute::kernel_t kernel_;
 };

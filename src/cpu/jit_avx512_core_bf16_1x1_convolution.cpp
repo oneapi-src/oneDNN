@@ -577,7 +577,7 @@ template struct jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
 template <data_type_t diff_weights_type>
 jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
         jit_avx512_core_bf16_1x1_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_impl_t(apd)
+    : primitive_t(apd)
     , kernel_(nullptr)
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)

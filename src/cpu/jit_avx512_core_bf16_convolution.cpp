@@ -604,7 +604,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
 
 jit_avx512_core_bf16_convolution_bwd_weights_t ::
         jit_avx512_core_bf16_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_impl_t(apd)
+    : primitive_t(apd)
     , kernel_(nullptr)
     , acc_ker_(nullptr)
     , reducer_bias_(nullptr)

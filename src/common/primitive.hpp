@@ -24,11 +24,35 @@
 #include "c_types_map.hpp"
 #include "memory_storage.hpp"
 #include "memory_tracking.hpp"
+#include "primitive_desc.hpp"
 #include "primitive_exec_types.hpp"
-#include "primitive_impl.hpp"
 #include "scratchpad.hpp"
 
 #include <type_traits>
+
+namespace dnnl {
+namespace impl {
+
+struct primitive_t : public c_compatible {
+    primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
+    virtual ~primitive_t() { delete pd_; }
+
+    virtual status_t init() { return status::success; }
+    engine_t *engine() const { return pd_->engine(); }
+    const primitive_desc_t *pd() const { return pd_; }
+    primitive_kind_t kind() const { return pd_->kind(); }
+    virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+
+protected:
+    const primitive_desc_t *pd_;
+
+private:
+    primitive_t() = delete;
+    DNNL_DISALLOW_COPY_AND_ASSIGN(primitive_t);
+};
+
+} // namespace impl
+} // namespace dnnl
 
 #define ARG_TYPE(t) \
     typename std::remove_cv<typename std::remove_pointer<t>::type>::type
@@ -40,19 +64,17 @@
     static_cast<ARG_TYPE(type) *>(CTX_OUT_STORAGE(arg).data_handle())
 
 struct dnnl_primitive : public dnnl::impl::c_compatible {
-    dnnl_primitive(
-            const std::shared_ptr<dnnl::impl::primitive_impl_t> &primitive_impl,
+    dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
             bool use_global_scratchpad);
 
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
     const dnnl::impl::primitive_desc_t *pd() const;
-    const std::shared_ptr<dnnl::impl::primitive_impl_t> &
-    get_primitive_impl() const;
+    const std::shared_ptr<dnnl::impl::primitive_t> &get_primitive() const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
 private:
-    std::shared_ptr<dnnl::impl::primitive_impl_t> primitive_impl_;
+    std::shared_ptr<dnnl::impl::primitive_t> primitive_;
     std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
 
     dnnl_primitive() = delete;
@@ -61,4 +83,4 @@ private:
 
 #endif
 
-// vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s
+// vim: et ts=4 sw=4 cindent cino^=l0,\:0,N-s

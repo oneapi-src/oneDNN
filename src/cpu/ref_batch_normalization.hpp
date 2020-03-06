@@ -25,13 +25,14 @@
 
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t d_type>
-struct ref_batch_normalization_fwd_t : public primitive_impl_t {
+struct ref_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -59,7 +60,7 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
         }
     };
 
-    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -70,11 +71,11 @@ struct ref_batch_normalization_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <data_type_t d_type>
-struct ref_batch_normalization_bwd_t : public primitive_impl_t {
+struct ref_batch_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -105,7 +106,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
         }
     };
 
-    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_batch_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     typedef typename prec_traits<d_type>::type data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -115,7 +116,7 @@ struct ref_batch_normalization_bwd_t : public primitive_impl_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

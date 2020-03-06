@@ -23,6 +23,7 @@
 #include "eltwise/ref_eltwise.hpp"
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
+#include "primitive.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
@@ -30,7 +31,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct gemm_convolution_fwd_t : public primitive_impl_t {
+struct gemm_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -94,7 +95,7 @@ struct gemm_convolution_fwd_t : public primitive_impl_t {
     };
 
     gemm_convolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), eltwise_(nullptr) {
+        : primitive_t(apd), eltwise_(nullptr) {
         const auto &post_ops = pd()->attr()->post_ops_;
         const data_t one = 1.0, zero = 0.0;
         beta_ = post_ops.find(primitive_kind::sum) >= 0 ? one : zero;
@@ -116,14 +117,14 @@ struct gemm_convolution_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     data_t beta_;
 
     ref_eltwise_scalar_fwd_t *eltwise_;
 };
 
-struct gemm_convolution_bwd_data_t : public primitive_impl_t {
+struct gemm_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -169,7 +170,7 @@ struct gemm_convolution_bwd_data_t : public primitive_impl_t {
         }
     };
 
-    gemm_convolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -180,10 +181,10 @@ struct gemm_convolution_bwd_data_t : public primitive_impl_t {
 
 private:
     void execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
-struct gemm_convolution_bwd_weights_t : public primitive_impl_t {
+struct gemm_convolution_bwd_weights_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -229,7 +230,7 @@ struct gemm_convolution_bwd_weights_t : public primitive_impl_t {
         }
     };
 
-    gemm_convolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::f32>::type data_t;
 
@@ -240,7 +241,7 @@ struct gemm_convolution_bwd_weights_t : public primitive_impl_t {
 
 private:
     void execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

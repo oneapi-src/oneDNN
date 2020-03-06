@@ -21,6 +21,7 @@
 #include "primitive_desc.hpp"
 
 #include "cpu_reorder_pd.hpp"
+#include "primitive.hpp"
 #include "simple_q10n.hpp"
 
 namespace dnnl {
@@ -28,7 +29,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t type_i, data_type_t type_o>
-struct wino_reorder_t : public primitive_impl_t {
+struct wino_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -91,7 +92,7 @@ struct wino_reorder_t : public primitive_impl_t {
         }
     };
 
-    wino_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {
+    wino_reorder_t(const pd_t *apd) : primitive_t(apd) {
         const memory_desc_wrapper src_d(pd()->src_md());
         const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -410,7 +411,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     int r_, w_alpha_;
     int ic_, oc_, or_ic_, or_oc_, kh_, kw_;
     int oc_block_, ic_block_, oc2_block_, ic2_block_;

@@ -50,21 +50,23 @@ status_t dnnl_primitive_desc_destroy(primitive_desc_t *primitive_desc) {
     return success;
 }
 
-status_t dnnl_primitive_create(
-        primitive_t **primitive, const primitive_desc_t *primitive_desc) {
-    if (utils::any_null(primitive, primitive_desc)) return invalid_arguments;
-    return primitive_desc->create_primitive(primitive);
+status_t dnnl_primitive_create(primitive_iface_t **primitive_iface,
+        const primitive_desc_t *primitive_desc) {
+    if (utils::any_null(primitive_iface, primitive_desc))
+        return invalid_arguments;
+    return primitive_desc->create_primitive_iface(primitive_iface);
 }
 
-status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
-        int nargs, const dnnl_exec_arg_t *c_args) {
-    bool ok = true && !utils::any_null(primitive, stream)
-            && primitive->engine() == stream->engine()
+status_t dnnl_primitive_execute(const primitive_iface_t *primitive_iface,
+        stream_t *stream, int nargs, const dnnl_exec_arg_t *c_args) {
+    bool ok = true && !utils::any_null(primitive_iface, stream)
+            && primitive_iface->engine() == stream->engine()
             && IMPLICATION(nargs > 0, c_args != nullptr);
     if (!ok) return invalid_arguments;
 
     exec_args_t args;
-    status_t status = cvt_primtive_args(primitive->pd(), nargs, c_args, args);
+    status_t status
+            = cvt_primtive_args(primitive_iface->pd(), nargs, c_args, args);
     if (status != status::success) return status;
 
     stream->before_exec_hook();
@@ -73,13 +75,13 @@ status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
 
     if (get_verbose()) {
         double ms = get_msec();
-        status = primitive->execute(ctx);
+        status = primitive_iface->execute(ctx);
         stream->wait();
         ms = get_msec() - ms;
-        printf("dnnl_verbose,exec,%s,%g\n", primitive->pd()->info(), ms);
+        printf("dnnl_verbose,exec,%s,%g\n", primitive_iface->pd()->info(), ms);
         fflush(0);
     } else {
-        status = primitive->execute(ctx);
+        status = primitive_iface->execute(ctx);
     }
 
     stream->after_exec_hook();
@@ -90,25 +92,26 @@ status_t dnnl_primitive_execute(const primitive_t *primitive, stream_t *stream,
 }
 
 status_t dnnl_primitive_get_primitive_desc(
-        const primitive_t *primitive, const primitive_desc_t **primitive_desc) {
-    if (utils::any_null(primitive, primitive_desc)) return invalid_arguments;
+        const primitive_iface_t *primitive_iface,
+        const primitive_desc_t **primitive_desc) {
+    if (utils::any_null(primitive_iface, primitive_desc))
+        return invalid_arguments;
     return safe_ptr_assign<const primitive_desc_t>(
-            *primitive_desc, primitive->pd());
+            *primitive_desc, primitive_iface->pd());
 }
 
-status_t dnnl_primitive_destroy(primitive_t *primitive) {
-    if (primitive != nullptr) delete primitive;
+status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
+    if (primitive_iface != nullptr) delete primitive_iface;
     return success;
 }
 
 // primitive_t implementation
-dnnl_primitive::dnnl_primitive(
-        const std::shared_ptr<primitive_impl_t> &primitive_impl,
+dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
         bool use_global_scratchpad = false)
-    : primitive_impl_(primitive_impl), scratchpad_(nullptr) {
+    : primitive_(primitive), scratchpad_(nullptr) {
 
     const size_t scratchpad_size
-            = primitive_impl_->pd()->scratchpad_size(scratchpad_mode::library);
+            = primitive_->pd()->scratchpad_size(scratchpad_mode::library);
 
     if (scratchpad_size) {
         auto *scratchpad_ptr = create_scratchpad(
@@ -118,26 +121,24 @@ dnnl_primitive::dnnl_primitive(
 }
 
 status_t dnnl_primitive::init() {
-    return primitive_impl_->init();
+    return primitive_->init();
 }
 
 engine_t *dnnl_primitive::engine() const {
-    return primitive_impl_->engine();
+    return primitive_->engine();
 }
 
 const primitive_desc_t *dnnl_primitive::pd() const {
-    return primitive_impl_->pd();
+    return primitive_->pd();
 }
 
-const std::shared_ptr<primitive_impl_t> &
-dnnl_primitive::get_primitive_impl() const {
-    return primitive_impl_;
+const std::shared_ptr<primitive_t> &dnnl_primitive::get_primitive() const {
+    return primitive_;
 }
 
 status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     const memory_storage_t *mem_storage = nullptr;
-    if (primitive_impl_->pd()->attr()->scratchpad_mode_
-            == scratchpad_mode::user) {
+    if (primitive_->pd()->attr()->scratchpad_mode_ == scratchpad_mode::user) {
         memory_t *scratchpad_memory = ctx.output(DNNL_ARG_SCRATCHPAD);
         mem_storage = scratchpad_memory ? scratchpad_memory->memory_storage()
                                         : nullptr;
@@ -146,9 +147,9 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     }
 
     ctx.set_scratchpad_grantor(
-            primitive_impl_->pd()->scratchpad_registry().grantor(mem_storage));
+            primitive_->pd()->scratchpad_registry().grantor(mem_storage));
 
-    auto status = primitive_impl_->execute(ctx);
+    auto status = primitive_->execute(ctx);
     return status;
 }
 

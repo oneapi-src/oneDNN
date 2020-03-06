@@ -223,7 +223,7 @@ template struct jit_uni_dw_convolution_bwd_data_t<sse41, data_type::f32>;
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
         jit_uni_dw_convolution_bwd_weights_t(const pd_t *apd)
-    : primitive_impl_t(apd), acc_ker_(nullptr), kernel_(nullptr) {
+    : primitive_t(apd), acc_ker_(nullptr), kernel_(nullptr) {
     kernel_ = new jit_uni_dw_conv_bwd_weights_kernel<isa, src_type>(pd()->jcp_);
     if (pd()->jcp_.nthr_mb > 1 && isa != sse41)
         acc_ker_ = new cpu_accumulator_1d_t<data_type::f32>();

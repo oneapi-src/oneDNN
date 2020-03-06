@@ -18,6 +18,7 @@
 #define GPU_OCL_REF_DECONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
@@ -82,7 +83,7 @@ static status_t conv_descr_create(
             dd->strides, dd->dilates, dd->padding[0], dd->padding[1]);
 }
 
-struct ref_deconvolution_fwd_t : public primitive_impl_t {
+struct ref_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public gpu_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -164,7 +165,7 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
         primitive_desc_t *conv_pd_;
     };
 
-    ref_deconvolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_deconvolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_deconvolution_fwd_t() { delete conv_p_; }
 
@@ -185,15 +186,14 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
 
     status_t init() override {
         // Creating convolution primitve
-        status_t conv_status
-                = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+        status_t conv_status = pd()->conv_pd_->create_primitive_iface(&conv_p_);
         return conv_status;
     }
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *conv_p_ = nullptr;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *conv_p_ = nullptr;
 };
 
-struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
+struct ref_deconvolution_bwd_data_t : public primitive_t {
     struct pd_t : public gpu_deconvolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -262,7 +262,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
         primitive_desc_t *conv_pd_;
     };
 
-    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_deconvolution_bwd_data_t() { delete conv_p_; }
 
@@ -282,17 +282,16 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
     }
 
     status_t init() override {
-        status_t conv_status
-                = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+        status_t conv_status = pd()->conv_pd_->create_primitive_iface(&conv_p_);
         return conv_status;
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *conv_p_ = nullptr;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *conv_p_ = nullptr;
 };
 
-struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
+struct ref_deconvolution_bwd_weights_t : public primitive_t {
     struct pd_t : public gpu_deconvolution_bwd_weights_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -365,7 +364,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
         primitive_desc_t *conv_pd_;
     };
 
-    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_deconvolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_deconvolution_bwd_weights_t() { delete conv_p_; }
 
@@ -404,8 +403,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
     status_t init() override {
         // Creating convolution primitve
-        status_t conv_status
-                = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+        status_t conv_status = pd()->conv_pd_->create_primitive_iface(&conv_p_);
         if (conv_status != status::success) return conv_status;
 
         if (!pd()->with_bias()) return conv_status;
@@ -448,8 +446,8 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *conv_p_ = nullptr;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *conv_p_ = nullptr;
     compute::kernel_t bias_kernel;
     size_t gws[3];
     data_type_t dst_data_type = data_type::undef;

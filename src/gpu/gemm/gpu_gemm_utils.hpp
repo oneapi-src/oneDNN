@@ -81,8 +81,8 @@ inline status_t prepare_zero_points(const primitive_attr_t *attr,
     return s;
 }
 
-inline const gpu_gemm_t *gemm_impl(const primitive_t *p) {
-    return utils::downcast<gpu_gemm_t *>(p->get_primitive_impl().get());
+inline const gpu_gemm_t *gemm_impl(const primitive_iface_t *p_iface) {
+    return utils::downcast<gpu_gemm_t *>(p_iface->get_primitive().get());
 }
 
 } // namespace gemm_utils

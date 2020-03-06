@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
@@ -58,7 +59,7 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
 }
 } // namespace
 
-struct gemm_inner_product_fwd_t : public primitive_impl_t {
+struct gemm_inner_product_fwd_t : public primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -128,7 +129,7 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
     };
 
     status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
+        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
         if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
@@ -148,7 +149,7 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     ~gemm_inner_product_fwd_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -157,13 +158,13 @@ struct gemm_inner_product_fwd_t : public primitive_impl_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    primitive_t *gemm_ = nullptr;
+    primitive_iface_t *gemm_ = nullptr;
     compute::kernel_t bias_kernel_;
 };
 
-struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
+struct gemm_inner_product_bwd_data_t : public primitive_t {
     struct pd_t : public gpu_inner_product_bwd_data_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -225,12 +226,12 @@ struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
     };
 
     status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
+        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
         if (gemm_status != status::success) return gemm_status;
         return status::success;
     }
 
-    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
     ~gemm_inner_product_bwd_data_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -239,12 +240,12 @@ struct gemm_inner_product_bwd_data_t : public primitive_impl_t {
 
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    primitive_t *gemm_ = nullptr;
+    primitive_iface_t *gemm_ = nullptr;
 };
 
-struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
+struct gemm_inner_product_bwd_weights_t : public primitive_t {
     using gpu_ip_bwd_weights_pd_t = gpu_inner_product_bwd_weights_pd_t;
     struct pd_t : public gpu_ip_bwd_weights_pd_t {
         pd_t(engine_t *engine, const inner_product_desc_t *adesc,
@@ -317,7 +318,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
     };
 
     status_t init() override {
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
+        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
         if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
@@ -337,7 +338,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
         return status::success;
     }
 
-    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
     ~gemm_inner_product_bwd_weights_t() { delete gemm_; }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -346,8 +347,8 @@ struct gemm_inner_product_bwd_weights_t : public primitive_impl_t {
 
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *gemm_ = nullptr;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *gemm_ = nullptr;
     compute::kernel_t bias_kernel_;
 };
 

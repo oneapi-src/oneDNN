@@ -22,6 +22,7 @@
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_sum_pd.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -37,7 +38,7 @@ struct sum_bf16_params_t {
 } // namespace
 
 template <data_type_t src_data_type, data_type_t dst_data_type = src_data_type>
-struct simple_sum_t : public primitive_impl_t {
+struct simple_sum_t : public primitive_t {
     struct pd_t : public cpu_sum_pd_t {
         using cpu_sum_pd_t::cpu_sum_pd_t;
 
@@ -116,7 +117,7 @@ struct simple_sum_t : public primitive_impl_t {
         }
     };
 
-    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
@@ -126,7 +127,7 @@ struct simple_sum_t : public primitive_impl_t {
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

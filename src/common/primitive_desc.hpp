@@ -129,8 +129,8 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     virtual dnnl::impl::status_t query(
             dnnl::impl::query_t what, int idx, void *result) const;
 
-    virtual dnnl::impl::status_t create_primitive(
-            dnnl::impl::primitive_t **primitive) const = 0;
+    virtual dnnl::impl::status_t create_primitive_iface(
+            dnnl::impl::primitive_iface_t **p_iface) const = 0;
 
     virtual const char *name() const { return "dnnl_primitive_desc"; }
 
@@ -191,9 +191,11 @@ protected:
 
 #define DECLARE_COMMON_PD_t(impl_name, impl_type, use_global_scratchpad) \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual status_t create_primitive(primitive_t **p) const override { \
-        auto status = this->engine()->get_primitive( \
-                p, this, [=] { return std::make_shared<impl_type>(this); }, \
+    virtual status_t create_primitive_iface(primitive_iface_t **p_iface) \
+            const override { \
+        auto status = this->engine()->get_primitive_iface( \
+                p_iface, this, \
+                [=] { return std::make_shared<impl_type>(this); }, \
                 use_global_scratchpad); \
         return status; \
     } \

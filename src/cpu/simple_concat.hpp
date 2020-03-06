@@ -21,13 +21,14 @@
 
 #include "cpu_concat_pd.hpp"
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <data_type_t data_type>
-struct simple_concat_t : public primitive_impl_t {
+struct simple_concat_t : public primitive_t {
     struct pd_t : public cpu_concat_pd_t {
         using cpu_concat_pd_t::cpu_concat_pd_t;
 
@@ -160,14 +161,14 @@ struct simple_concat_t : public primitive_impl_t {
         }
     };
 
-    simple_concat_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_concat_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

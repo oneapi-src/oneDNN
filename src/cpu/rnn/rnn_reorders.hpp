@@ -23,6 +23,7 @@
 #include "cpu_reorder_pd.hpp"
 #include "dnnl_thread.hpp"
 #include "gemm/gemm_pack.hpp"
+#include "primitive.hpp"
 #include "simple_q10n.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
@@ -32,7 +33,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t type_i, data_type_t type_o>
-struct rnn_data_reorder_t : public primitive_impl_t {
+struct rnn_data_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -70,7 +71,7 @@ struct rnn_data_reorder_t : public primitive_impl_t {
         }
     };
 
-    rnn_data_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    rnn_data_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
@@ -93,11 +94,11 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <data_type_t type_i>
-struct rnn_weights_reorder_s8_t : public primitive_impl_t {
+struct rnn_weights_reorder_s8_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -181,7 +182,7 @@ struct rnn_weights_reorder_s8_t : public primitive_impl_t {
         }
     };
 
-    rnn_weights_reorder_s8_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    rnn_weights_reorder_s8_t(const pd_t *apd) : primitive_t(apd) {}
 
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
@@ -407,11 +408,11 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 template <data_type_t type_i, data_type_t type_o>
-struct rnn_weights_reorder_t : public primitive_impl_t {
+struct rnn_weights_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -488,7 +489,7 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
         }
     };
 
-    rnn_weights_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
 private:
     typedef typename prec_traits<type_i>::type in_data_t;
@@ -590,7 +591,7 @@ private:
         return status::success;
     }
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

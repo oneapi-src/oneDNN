@@ -18,6 +18,7 @@
 #define GPU_OCL_REF_SHUFFLE_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_shuffle_pd.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
@@ -29,7 +30,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_shuffle_t : public primitive_impl_t {
+struct ref_shuffle_t : public primitive_t {
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
 
@@ -62,7 +63,7 @@ struct ref_shuffle_t : public primitive_impl_t {
         offsets_t off;
     };
 
-    ref_shuffle_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t init() override {
         auto *compute_engine
@@ -87,7 +88,7 @@ struct ref_shuffle_t : public primitive_impl_t {
 private:
     template <format_tag_t tag>
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 

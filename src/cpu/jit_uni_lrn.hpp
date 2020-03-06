@@ -23,6 +23,7 @@
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_lrn_pd.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -34,7 +35,7 @@ template <cpu_isa_t isa>
 struct jit_uni_lrn_bwd_kernel_f32;
 
 template <cpu_isa_t isa>
-struct jit_uni_lrn_fwd_t : public primitive_impl_t {
+struct jit_uni_lrn_fwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_fwd_pd_t {
         using cpu_lrn_fwd_pd_t::cpu_lrn_fwd_pd_t;
 
@@ -58,13 +59,13 @@ struct jit_uni_lrn_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_uni_lrn_fwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
 
 template <cpu_isa_t isa>
-struct jit_uni_lrn_bwd_t : public primitive_impl_t {
+struct jit_uni_lrn_bwd_t : public primitive_t {
     struct pd_t : public cpu_lrn_bwd_pd_t {
         using cpu_lrn_bwd_pd_t::cpu_lrn_bwd_pd_t;
 
@@ -88,7 +89,7 @@ struct jit_uni_lrn_bwd_t : public primitive_impl_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };

@@ -23,8 +23,8 @@
 
 #include "c_types_map.hpp"
 #include "dnnl.h"
+#include "primitive.hpp"
 #include "primitive_hashing.hpp"
-#include "primitive_impl.hpp"
 #include "type_helpers.hpp"
 
 namespace dnnl {
@@ -32,7 +32,7 @@ namespace impl {
 
 struct primitive_cache_t : public c_compatible {
     using key_type = primitive_hashing::key_t;
-    using value_type = std::shared_ptr<primitive_impl_t>;
+    using value_type = std::shared_ptr<primitive_t>;
 
     virtual void add(const key_type &key, const value_type &impl) = 0;
     virtual value_type get(const key_type &key) = 0;

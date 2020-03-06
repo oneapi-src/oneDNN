@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
+#include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
@@ -30,7 +31,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct rnn_weights_reorder_t : public primitive_impl_t {
+struct rnn_weights_reorder_t : public primitive_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
@@ -101,12 +102,12 @@ struct rnn_weights_reorder_t : public primitive_impl_t {
         return status::success;
     }
 
-    rnn_weights_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
     std::unique_ptr<memory_storage_t> temp_buf;
     std::unique_ptr<memory_storage_t> scales_buf;

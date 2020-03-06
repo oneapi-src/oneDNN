@@ -23,6 +23,7 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
+#include "primitive.hpp"
 
 #include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
 #include "jit_avx512_core_x8s8s32x_convolution.hpp"
@@ -33,8 +34,7 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
-    : public primitive_impl_t {
+struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -301,7 +301,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
     friend void init_rtus_driver(conv_t *self);
 
     jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+        : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
         kernel_ = new jit_avx512_core_x8s8s32x_1x1_conv_kernel(
                 pd()->jcp_, *pd()->attr());
 
@@ -337,7 +337,7 @@ private:
             const src_data_t *src, const wei_data_t *weights, const char *bias,
             const wei_data_t *weights_dw, const char *bias_dw, dst_data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_avx512_core_x8s8s32x_1x1_conv_kernel *kernel_;
     rtus_driver_t<avx512_common> *rtus_driver_;
     using dw_conv_kernel_t = jit_avx512_core_x8s8s32x_fwd_kernel;

@@ -27,6 +27,7 @@
 #include "gemm_convolution_utils.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
+#include "primitive.hpp"
 
 #include "gemm/gemm.hpp"
 
@@ -35,7 +36,7 @@ namespace impl {
 namespace cpu {
 
 template <data_type_t src_type, data_type_t dst_type>
-struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
+struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -136,7 +137,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_impl_t {
     };
 
     _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), pp_ker_(nullptr) {
+        : primitive_t(apd), pp_ker_(nullptr) {
         pp_ker_ = new pp_ker_t(pd());
     }
     ~_gemm_x8s8s32x_convolution_fwd_t() { delete pp_ker_; }
@@ -203,7 +204,7 @@ private:
         ref_eltwise_scalar_fwd_t *eltwise_;
     };
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     void execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_thr(const int ithr, const int nthr,
             const src_data_t *src_base, const wei_data_t *wei_base,
@@ -215,7 +216,7 @@ private:
 };
 
 template <data_type_t dst_type>
-struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
+struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
     struct pd_t : public cpu_convolution_bwd_data_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -276,8 +277,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_impl_t {
         }
     };
 
-    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd)
-        : primitive_impl_t(apd) {}
+    _gemm_u8s8s32x_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
     typedef typename prec_traits<data_type::u8>::type diff_dst_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -295,7 +295,7 @@ private:
             const diff_dst_data_t *diff_dst_base, const wei_data_t *wei_base,
             const char *bia_base, diff_src_data_t *diff_src_base,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 } // namespace cpu

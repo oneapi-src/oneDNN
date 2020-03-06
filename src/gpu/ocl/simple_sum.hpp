@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -32,7 +33,7 @@ namespace gpu {
 namespace ocl {
 
 template <data_type_t data_type>
-struct simple_sum_t : public primitive_impl_t {
+struct simple_sum_t : public primitive_t {
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
 
@@ -58,7 +59,7 @@ struct simple_sum_t : public primitive_impl_t {
         }
     };
 
-    simple_sum_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t init() override {
         auto *compute_engine
@@ -77,7 +78,7 @@ struct simple_sum_t : public primitive_impl_t {
     typedef typename prec_traits<data_type>::type data_t;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 

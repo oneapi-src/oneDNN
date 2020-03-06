@@ -20,6 +20,7 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -34,7 +35,7 @@ namespace cpu {
 struct binary_kernel_t;
 
 template <data_type_t src_type>
-struct jit_uni_binary_t : public primitive_impl_t {
+struct jit_uni_binary_t : public primitive_t {
     struct pd_t : public cpu_binary_pd_t {
         using cpu_binary_pd_t::cpu_binary_pd_t;
 
@@ -104,7 +105,7 @@ struct jit_uni_binary_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     std::unique_ptr<binary_kernel_t> kernel_;
 };

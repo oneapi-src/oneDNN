@@ -445,7 +445,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
 jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
         const pd_t *apd)
-    : primitive_impl_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
+    : primitive_t(apd), kernel_(nullptr), rtus_driver_(nullptr) {
     kernel_ = new jit_avx2_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
     reducer_weights_
             = new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_);

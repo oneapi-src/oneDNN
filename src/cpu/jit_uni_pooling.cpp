@@ -225,7 +225,7 @@ private:
 } // namespace jit_uni_pooling_utils
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
-    : primitive_impl_t(apd)
+    : primitive_t(apd)
     , diff_dst_trans_(nullptr)
     , diff_dst_tail_trans_(nullptr)
     , ind_trans_(nullptr)

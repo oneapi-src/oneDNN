@@ -141,9 +141,9 @@ dnnl_status_t gemm_generic(cl_command_queue queue, const char *transa,
             offset_c * types::data_type_size(c_type));
 
     // Create primitive
-    std::unique_ptr<primitive_t> gemm_prim;
-    primitive_t *gemm_prim_ptr;
-    status = pd->create_primitive(&gemm_prim_ptr);
+    std::unique_ptr<primitive_iface_t> gemm_prim;
+    primitive_iface_t *gemm_prim_ptr;
+    status = pd->create_primitive_iface(&gemm_prim_ptr);
     if (status != status::success) return status;
     gemm_prim.reset(gemm_prim_ptr);
 
@@ -291,9 +291,9 @@ dnnl_status_t gemm_x8x8s32(cl_command_queue queue, const char *transa,
             offset_co * types::data_type_size(c_type));
 
     // Create primitive
-    std::unique_ptr<primitive_t> gemm_prim;
-    primitive_t *gemm_prim_ptr;
-    status = pd->create_primitive(&gemm_prim_ptr);
+    std::unique_ptr<primitive_iface_t> gemm_prim;
+    primitive_iface_t *gemm_prim_ptr;
+    status = pd->create_primitive_iface(&gemm_prim_ptr);
     if (status != status::success) return status;
     gemm_prim.reset(gemm_prim_ptr);
 

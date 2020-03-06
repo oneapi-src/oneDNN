@@ -28,7 +28,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct gen9_pooling_fwd_t : public primitive_impl_t {
+struct gen9_pooling_fwd_t : public primitive_t {
     struct pd_t : public gpu_pooling_fwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -98,7 +98,7 @@ struct gen9_pooling_fwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    gen9_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gen9_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -106,11 +106,11 @@ struct gen9_pooling_fwd_t : public primitive_impl_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 
-struct gen9_pooling_bwd_t : public primitive_impl_t {
+struct gen9_pooling_bwd_t : public primitive_t {
     struct pd_t : public gpu_pooling_bwd_pd_t {
         pd_t(engine_t *engine, const pooling_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -166,7 +166,7 @@ struct gen9_pooling_bwd_t : public primitive_impl_t {
         return status::success;
     }
 
-    gen9_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gen9_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
@@ -174,7 +174,7 @@ struct gen9_pooling_bwd_t : public primitive_impl_t {
 
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     compute::kernel_t kernel_;
 };

@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory.hpp"
+#include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -37,7 +38,7 @@ namespace ocl {
 // For GPU -> CPU reorder, it includes 2 steps:
 // 1. GPU reorder
 // 2. GPU -> CPU copying
-struct cross_engine_reorder_t : public primitive_impl_t {
+struct cross_engine_reorder_t : public primitive_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
@@ -74,8 +75,8 @@ struct cross_engine_reorder_t : public primitive_impl_t {
     virtual status_t init() override {
         status_t status;
 
-        primitive_t *reorder_ptr;
-        status = pd()->reorder_->create_primitive(&reorder_ptr);
+        primitive_iface_t *reorder_ptr;
+        status = pd()->reorder_->create_primitive_iface(&reorder_ptr);
         if (status != status::success) return status;
 
         reorder_.reset(reorder_ptr);
@@ -83,14 +84,14 @@ struct cross_engine_reorder_t : public primitive_impl_t {
         return status::success;
     }
 
-    cross_engine_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    cross_engine_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
-    std::unique_ptr<primitive_t> reorder_;
+    std::unique_ptr<primitive_iface_t> reorder_;
 };
 
 } // namespace ocl

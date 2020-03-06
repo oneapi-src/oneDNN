@@ -191,7 +191,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
 private:
     compute::kernel_t kernel_;

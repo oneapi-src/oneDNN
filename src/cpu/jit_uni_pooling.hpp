@@ -27,13 +27,14 @@
 #include "cpu_pooling_pd.hpp"
 #include "jit_uni_pool_kernel.hpp"
 #include "jit_uni_reorder.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
-struct jit_uni_pooling_fwd_t : public primitive_impl_t {
+struct jit_uni_pooling_fwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
         using cpu_pooling_fwd_pd_t::cpu_pooling_fwd_pd_t;
 
@@ -61,7 +62,7 @@ struct jit_uni_pooling_fwd_t : public primitive_impl_t {
         jit_pool_conf_t jpp_;
     };
 
-    jit_uni_pooling_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    jit_uni_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = new jit_uni_pool_kernel<isa>(pd()->jpp_);
     }
 
@@ -86,7 +87,7 @@ private:
     void execute_forward(const data_t *src, data_t *dst, char *indices) const;
     void execute_forward_3d(
             const data_t *src, data_t *dst, char *indices) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_pool_kernel<isa> *kernel_;
 };
 
@@ -95,7 +96,7 @@ struct trans_wrapper_t;
 }
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
-struct jit_uni_pooling_bwd_t : public primitive_impl_t {
+struct jit_uni_pooling_bwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
         using cpu_pooling_bwd_pd_t::cpu_pooling_bwd_pd_t;
 
@@ -147,7 +148,7 @@ private:
             data_t *diff_src, const exec_ctx_t &ctx) const;
     void execute_backward_3d(const data_t *diff_dst, const char *indices,
             data_t *diff_src) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_uni_pool_kernel<isa> *kernel_;
 
     jit_uni_pooling_utils::trans_wrapper_t *diff_dst_trans_;

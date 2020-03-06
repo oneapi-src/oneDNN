@@ -25,6 +25,7 @@
 #include "utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
+#include "primitive.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
@@ -38,8 +39,7 @@ struct jit_avx512_core_u8s8s32x_wino_conv_src_trans_t;
 struct jit_avx512_core_u8s8s32x_wino_conv_dst_trans_t;
 
 template <data_type_t dst_data_type>
-struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t
-    : public primitive_impl_t {
+struct jit_avx512_core_u8s8s32x_wino_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -115,7 +115,7 @@ private:
     void execute_forward_mbN(const src_data_t *src, const wei_data_t *wei,
             const char *bia, dst_data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t *kernel_;
     jit_avx512_core_u8s8s32x_wino_conv_src_trans_t *src_trans_;

@@ -21,6 +21,7 @@
 #include "dnnl_thread.hpp"
 #include "jit_uni_layer_normalization_kernels.hpp"
 #include "memory_tracking.hpp"
+#include "primitive.hpp"
 #include "reorder_pd.hpp"
 #include "utils.hpp"
 
@@ -50,7 +51,7 @@ static status_t create_reorder_pd(engine_t *engine,
     return status;
 }
 
-struct jit_uni_layer_normalization_fwd_t : public primitive_impl_t {
+struct jit_uni_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -131,8 +132,9 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_impl_t {
     };
 
     jit_uni_layer_normalization_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), reorder_(nullptr) {
-        if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
+        : primitive_t(apd), reorder_(nullptr) {
+        if (pd()->reorder_pd_)
+            pd()->reorder_pd_->create_primitive_iface(&reorder_);
         stat_kernel_ = new statistics_kernel_t(pd());
         data_kernel_ = new data_kernel_t(pd());
     }
@@ -185,14 +187,14 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_impl_t {
 
 private:
     void execute_forward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     statistics_kernel_t *stat_kernel_;
     data_kernel_t *data_kernel_;
-    primitive_t *reorder_;
+    primitive_iface_t *reorder_;
 };
 
-struct jit_uni_layer_normalization_bwd_t : public primitive_impl_t {
+struct jit_uni_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
         pd_t(engine_t *engine, const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -276,8 +278,9 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_impl_t {
     };
 
     jit_uni_layer_normalization_bwd_t(const pd_t *apd)
-        : primitive_impl_t(apd), reorder_(nullptr) {
-        if (pd()->reorder_pd_) pd()->reorder_pd_->create_primitive(&reorder_);
+        : primitive_t(apd), reorder_(nullptr) {
+        if (pd()->reorder_pd_)
+            pd()->reorder_pd_->create_primitive_iface(&reorder_);
         diff_ss_kernel_ = new diff_ss_kernel_t(pd());
         diff_data_kernel_ = new diff_data_kernel_t(pd());
     }
@@ -325,8 +328,8 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_impl_t {
 
 private:
     void execute_backward(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *reorder_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *reorder_;
     diff_ss_kernel_t *diff_ss_kernel_;
     diff_data_kernel_t *diff_data_kernel_;
 };

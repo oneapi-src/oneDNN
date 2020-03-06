@@ -23,6 +23,7 @@
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "math_utils.hpp"
+#include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -1343,7 +1344,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 /* high level class declaration */
 
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
-struct simple_reorder_t : public primitive_impl_t {
+struct simple_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
 
@@ -1383,7 +1384,7 @@ struct simple_reorder_t : public primitive_impl_t {
         }
     };
 
-    simple_reorder_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL, spec>::execute(
@@ -1391,7 +1392,7 @@ struct simple_reorder_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 };
 
 #undef SIMPLE_REORDER_TEMPL_DECL

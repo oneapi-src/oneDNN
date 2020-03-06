@@ -25,6 +25,7 @@
 
 #include "cpu_batch_normalization_pd.hpp"
 #include "cpu_isa_traits.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,7 +37,7 @@ struct driver_t;
 }
 
 template <cpu_isa_t isa>
-struct jit_uni_batch_normalization_s8_fwd_t : public primitive_impl_t {
+struct jit_uni_batch_normalization_s8_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
         pd_t(engine_t *engine, const batch_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -58,7 +59,7 @@ struct jit_uni_batch_normalization_s8_fwd_t : public primitive_impl_t {
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     bnorm_s8_impl::driver_t<isa> *bnorm_driver_;
 };

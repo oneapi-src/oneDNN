@@ -21,12 +21,13 @@
 #include "reorder_pd.hpp"
 
 #include "cpu_concat_pd.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct ref_concat_t : public primitive_impl_t {
+struct ref_concat_t : public primitive_t {
     struct pd_t : public cpu_concat_pd_t {
         pd_t(engine_t *engine, const primitive_attr_t *attr,
                 const memory_desc_t *dst_md, int n, int concat_dim,
@@ -114,11 +115,11 @@ struct ref_concat_t : public primitive_impl_t {
         }
     };
 
-    ref_concat_t(const pd_t *apd) : primitive_impl_t(apd) {
+    ref_concat_t(const pd_t *apd) : primitive_t(apd) {
         const size_t n = pd()->reorder_pds_.size();
         reorders_.resize(n);
         for (size_t i = 0; i < n; ++i)
-            pd()->reorder_pds_[i]->create_primitive(&reorders_[i]);
+            pd()->reorder_pds_[i]->create_primitive_iface(&reorders_[i]);
     }
 
     ~ref_concat_t() {
@@ -130,7 +131,7 @@ struct ref_concat_t : public primitive_impl_t {
         const auto n = pd()->n_inputs();
 
         auto execute_reorder
-                = [&](const primitive_t *reorder, const memory_arg_t &src,
+                = [&](const primitive_iface_t *reorder, const memory_arg_t &src,
                           const memory_arg_t &dst) {
                       exec_args_t r_args;
                       r_args[DNNL_ARG_SRC] = src;
@@ -174,8 +175,8 @@ struct ref_concat_t : public primitive_impl_t {
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    std::vector<primitive_t *> reorders_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    std::vector<primitive_iface_t *> reorders_;
 };
 
 } // namespace cpu

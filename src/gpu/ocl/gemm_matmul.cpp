@@ -116,7 +116,7 @@ status_t gemm_matmul_t::execute(const exec_ctx_t &ctx) const {
     gemm_desc.bias_type = bia_dt;
 
     gemm_exec_ctx_t gemm_ctx(ctx.stream(), gemm_args, &gemm_desc);
-    status_t gemm_status = gemm_impl(gemm_.get())->execute(gemm_ctx);
+    status_t gemm_status = gemm_impl(gemm_)->execute(gemm_ctx);
     if (gemm_status != status::success) return gemm_status;
 
     return status::success;

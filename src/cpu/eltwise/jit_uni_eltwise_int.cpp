@@ -362,7 +362,7 @@ status_t jit_uni_eltwise_int_fwd_t<isa, d_type>::pd_t::init() {
 template <cpu_isa_t isa, data_type_t d_type>
 jit_uni_eltwise_int_fwd_t<isa, d_type>::jit_uni_eltwise_int_fwd_t(
         const pd_t *apd)
-    : primitive_impl_t(apd) {
+    : primitive_t(apd) {
     const auto &desc = *pd()->desc();
     kernel_ = new jit_uni_relu_kernel_int<isa>(desc);
 }

@@ -720,7 +720,7 @@ using primitive_desc_t = dnnl_primitive_desc;
 using primitive_attr_t = dnnl_primitive_attr;
 using post_ops_t = dnnl_post_ops;
 using memory_t = dnnl_memory;
-using primitive_t = dnnl_primitive;
+using primitive_iface_t = dnnl_primitive;
 
 using stream_flags_t = dnnl_stream_flags_t;
 namespace stream_flags {

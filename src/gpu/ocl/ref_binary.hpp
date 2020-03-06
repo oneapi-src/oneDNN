@@ -18,6 +18,7 @@
 #define GPU_OCL_REF_BINARY_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_binary_pd.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
@@ -29,7 +30,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_binary_t : public primitive_impl_t {
+struct ref_binary_t : public primitive_t {
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
 
@@ -125,7 +126,7 @@ struct ref_binary_t : public primitive_impl_t {
         binary_conf_t conf;
     };
 
-    ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_binary_t(const pd_t *apd) : primitive_t(apd) {}
 
     ~ref_binary_t() {}
 
@@ -149,7 +150,7 @@ struct ref_binary_t : public primitive_impl_t {
 
 private:
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     compute::kernel_t kernel_;
 };
 

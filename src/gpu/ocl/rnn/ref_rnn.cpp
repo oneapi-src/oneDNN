@@ -758,22 +758,24 @@ status_t _ref_rnn_common_t<aprop>::init() {
         case prop_kind::forward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            pd()->gemm_layer_fwd_pd_->create_primitive(
+                            pd()->gemm_layer_fwd_pd_->create_primitive_iface(
                                     &gemm_layer_fwd_),
-                            pd()->gemm_iter_fwd_pd_->create_primitive(
+                            pd()->gemm_iter_fwd_pd_->create_primitive_iface(
                                     &gemm_iter_fwd_));
             break;
         case prop_kind::backward:
             gemm_ok = true
                     && utils::everyone_is(status::success,
-                            pd()->gemm_layer_bwd_pd_->create_primitive(
+                            pd()->gemm_layer_bwd_pd_->create_primitive_iface(
                                     &gemm_layer_bwd_),
-                            pd()->gemm_iter_bwd_pd_->create_primitive(
+                            pd()->gemm_iter_bwd_pd_->create_primitive_iface(
                                     &gemm_iter_bwd_),
-                            pd()->gemm_diff_wei_layer_pd_->create_primitive(
-                                    &gemm_diff_wei_layer_),
-                            pd()->gemm_diff_wei_iter_pd_->create_primitive(
-                                    &gemm_diff_wei_iter_));
+                            pd()->gemm_diff_wei_layer_pd_
+                                    ->create_primitive_iface(
+                                            &gemm_diff_wei_layer_),
+                            pd()->gemm_diff_wei_iter_pd_
+                                    ->create_primitive_iface(
+                                            &gemm_diff_wei_iter_));
             break;
         default: assert(!"unknown prop_kind"); return status::invalid_arguments;
     }

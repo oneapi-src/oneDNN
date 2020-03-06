@@ -21,6 +21,7 @@
 #include <stdio.h>
 
 #include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
@@ -54,7 +55,7 @@ enum gemm_kind_t {
 };
 
 template <prop_kind_t aprop>
-struct _ref_rnn_common_t : public primitive_impl_t {
+struct _ref_rnn_common_t : public primitive_t {
 
     using class_name = _ref_rnn_common_t<aprop>;
 
@@ -154,7 +155,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
     status_t init() override;
 
-    _ref_rnn_common_t(const pd_t *apd) : primitive_impl_t(apd) {
+    _ref_rnn_common_t(const pd_t *apd) : primitive_t(apd) {
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dhc and sic != dhc
@@ -235,7 +236,7 @@ struct _ref_rnn_common_t : public primitive_impl_t {
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
     grid_execution_sig(linear_execution);
     // grid_execution_sig(wavefront_execution);
@@ -306,12 +307,12 @@ private:
     compute::kernel_t gates_reduction_kernel_;
 
     // GEMM primitives.
-    primitive_t *gemm_layer_fwd_ = nullptr;
-    primitive_t *gemm_iter_fwd_ = nullptr;
-    primitive_t *gemm_layer_bwd_ = nullptr;
-    primitive_t *gemm_iter_bwd_ = nullptr;
-    primitive_t *gemm_diff_wei_layer_ = nullptr;
-    primitive_t *gemm_diff_wei_iter_ = nullptr;
+    primitive_iface_t *gemm_layer_fwd_ = nullptr;
+    primitive_iface_t *gemm_iter_fwd_ = nullptr;
+    primitive_iface_t *gemm_layer_bwd_ = nullptr;
+    primitive_iface_t *gemm_iter_bwd_ = nullptr;
+    primitive_iface_t *gemm_diff_wei_layer_ = nullptr;
+    primitive_iface_t *gemm_diff_wei_iter_ = nullptr;
 
     std::unique_ptr<memory_storage_t> scales_buf_;
     std::unique_ptr<memory_storage_t> tm_scales_buf_;

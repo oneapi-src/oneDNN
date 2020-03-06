@@ -817,7 +817,7 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_t ::pd_t::jit_conf(
 
 jit_avx512_core_f32_wino_conv_2x3_fwd_t::
         jit_avx512_core_f32_wino_conv_2x3_fwd_t(const pd_t *apd)
-    : primitive_impl_t(apd) {
+    : primitive_t(apd) {
     kernel_ = new jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t(
             pd()->jcp_, *pd()->attr());
     src_trans_ = new jit_avx512_core_f32_wino_conv_2x3_src_trans_t(

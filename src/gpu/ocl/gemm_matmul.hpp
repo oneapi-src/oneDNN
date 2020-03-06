@@ -17,6 +17,7 @@
 #ifndef GPU_OCL_GEMM_MATMUL_HPP
 #define GPU_OCL_GEMM_MATMUL_HPP
 
+#include "common/primitive.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
 
@@ -58,7 +59,7 @@ status_t create_gemm_pd(primitive_desc_t **gemm_pd, engine_t *engine,
 }
 } // namespace
 
-struct gemm_matmul_t : public primitive_impl_t {
+struct gemm_matmul_t : public primitive_t {
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
@@ -169,21 +170,19 @@ struct gemm_matmul_t : public primitive_impl_t {
     };
 
     virtual status_t init() override {
-        primitive_t *gemm_ptr;
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_ptr);
+        status_t gemm_status = pd()->gemm_pd_->create_primitive_iface(&gemm_);
         if (gemm_status != status::success) return gemm_status;
-        gemm_.reset(gemm_ptr);
         return status::success;
     }
 
-    gemm_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    gemm_matmul_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
 
 private:
-    std::unique_ptr<primitive_t> gemm_;
+    primitive_iface_t *gemm_ = nullptr;
 };
 
 } // namespace ocl

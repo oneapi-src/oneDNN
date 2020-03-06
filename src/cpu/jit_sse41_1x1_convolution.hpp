@@ -26,12 +26,13 @@
 #include "jit_sse41_1x1_conv_kernel_f32.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
 #include "jit_uni_dw_convolution.hpp"
+#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-struct jit_sse41_1x1_convolution_fwd_t : public primitive_impl_t {
+struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         pd_t(engine_t *engine, const convolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -213,7 +214,7 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_impl_t {
         }
     };
 
-    jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_impl_t(apd) {
+    jit_sse41_1x1_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
         kernel_ = new jit_sse41_1x1_conv_kernel_f32(pd()->jcp_, *pd()->attr());
         if (pd()->jcp_.with_dw_conv) {
             kernel_dw_ = new dw_conv_kernel_t(pd()->dw_conv_pd_->jcp_);
@@ -238,7 +239,7 @@ private:
             const data_t *weights, const data_t *bias, const data_t *weights_dw,
             const data_t *bias_dw, data_t *dst,
             const memory_tracking::grantor_t &scratchpad) const;
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
     jit_sse41_1x1_conv_kernel_f32 *kernel_;
     using dw_conv_kernel_t = jit_uni_dw_conv_fwd_kernel_f32<sse41>;
     dw_conv_kernel_t *kernel_dw_ = nullptr;

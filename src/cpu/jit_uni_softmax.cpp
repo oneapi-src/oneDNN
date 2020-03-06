@@ -676,7 +676,7 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
 
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
-    : primitive_impl_t(apd)
+    : primitive_t(apd)
     , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
 
 template <cpu_isa_t isa>
@@ -714,7 +714,7 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
 
 template <cpu_isa_t isa>
 jit_uni_softmax_bwd_t<isa>::jit_uni_softmax_bwd_t(const pd_t *apd)
-    : primitive_impl_t(apd)
+    : primitive_t(apd)
     , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
 
 template <cpu_isa_t isa>

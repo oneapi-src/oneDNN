@@ -25,6 +25,7 @@
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
+#include "primitive.hpp"
 
 #include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
@@ -34,8 +35,7 @@ namespace impl {
 namespace cpu {
 
 template <impl::data_type_t src_type, impl::data_type_t dst_type>
-struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
-    : public primitive_impl_t {
+struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_deconvolution_fwd_pd_t {
         pd_t(engine_t *engine, const deconvolution_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -125,8 +125,8 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
     };
 
     jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t(const pd_t *apd)
-        : primitive_impl_t(apd) {
-        pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
+        : primitive_t(apd) {
+        pd()->conv_pd_->create_primitive_iface(&conv_p_);
     }
 
     ~jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t() { delete conv_p_; }
@@ -136,8 +136,8 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t
     }
 
 private:
-    const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    primitive_t *conv_p_;
+    const pd_t *pd() const { return (const pd_t *)primitive_t::pd(); }
+    primitive_iface_t *conv_p_;
 };
 
 } // namespace cpu
