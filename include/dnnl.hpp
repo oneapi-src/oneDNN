@@ -1357,6 +1357,9 @@ struct memory : public handle<dnnl_memory_t> {
         ///    and output gate.
         ///  - For GRU cells, the gates order is update, reset and output gate.
         ldgoi = abdec,
+        /// 4D LSTM projection tensor in the format (num_layers, num_directions,
+        /// num_channels_in_hidden_state, num_channels_in_recurrent_projection).
+        ldio = abcd,
         /// 4D RNN bias tensor in the format (num_layers, num_directions,
         /// num_gates, output_channels).
         ///

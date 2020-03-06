@@ -461,6 +461,9 @@ typedef enum {
     ///    and output gate.
     ///  - For GRU cells, the gates order is update, reset and output gate.
     dnnl_ldgoi = dnnl_abdec,
+    /// 4D LSTM projection tensor in the format (num_layers, num_directions,
+    /// num_channels_in_hidden_state, num_channels_in_recurrent_projection).
+    dnnl_ldio = dnnl_abcd,
     /// 4D RNN bias tensor in the format (num_layers, num_directions,
     /// num_gates, output_channels).
     ///

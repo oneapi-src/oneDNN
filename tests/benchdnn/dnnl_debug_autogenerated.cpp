@@ -254,6 +254,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(ldnc);
     CASE(ldigo);
     CASE(ldgoi);
+    CASE(ldio);
     CASE(ldgo);
     CASE(nCdhw16c);
     CASE(nCdhw4c);
