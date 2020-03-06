@@ -80,7 +80,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
             && ((is_16ic && is_16oc) || is_dw_16g)
             && IMPLICATION(src_mdw.data_type() == f16, conf.mb % 32 == 0)
             && IMPLICATION(src_mdw.data_type() == f16 && conf.is_depthwise,
-                    conf.ngroups % 32 == 0);
+                    conf.ngroups % 16 == 0);
 
     const bool is_32oc
             = IMPLICATION(src_mdw.data_type() == f16, conf.oc % 32 == 0);
