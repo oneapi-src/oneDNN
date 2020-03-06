@@ -27,8 +27,8 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-const char *get_ocl_kernel_source(const char *kernel_name) {
-    static const std::unordered_map<std::string, const char *> kernel_list = {
+const char **get_ocl_kernel_source(const char *kernel_name) {
+    static const std::unordered_map<std::string, const char ** > kernel_list = {
         @OCL_KERNEL_LIST_ENTRIES@
     };
 

@@ -97,16 +97,26 @@ status_t ocl_gpu_engine_t::create_stream(
     return ocl_stream_t::create_stream(stream, this, queue);
 }
 
+cl_uint count_lines(const char *code[]) {
+    cl_uint i = 0;
+    const char *code_line = code[i];
+    while (strcmp("END_OF_KERNEL", code_line)) {
+        ++i;
+        code_line = code[i];
+    }
+    return i;
+}
+
 status_t ocl_gpu_engine_t::create_kernels(
         std::vector<compute::kernel_t> *kernels,
         const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) const {
     const std::string &options = kernel_ctx.options();
 
-    std::vector<const char *> code_strings;
+    std::vector<const char **> code_strings;
     code_strings.reserve(kernel_names.size());
     for (auto *kernel_name : kernel_names) {
-        const char *code = get_ocl_kernel_source(kernel_name);
+        const char **code = get_ocl_kernel_source(kernel_name);
         code_strings.push_back(code);
     }
 
@@ -114,11 +124,12 @@ status_t ocl_gpu_engine_t::create_kernels(
     for (size_t i = 0; i < kernel_names.size(); ++i) {
         if (!kernel_names[i] || (*kernels)[i]) continue;
 
-        const char *code = code_strings[i];
+        const char **code = code_strings[i];
 
+        cl_uint count = count_lines(code);
         cl_int err;
-        cl_program program
-                = clCreateProgramWithSource(context(), 1, &code, nullptr, &err);
+        cl_program program = clCreateProgramWithSource(
+                context(), count, code, nullptr, &err);
         OCL_CHECK(err);
 
         cl_device_id dev = device();

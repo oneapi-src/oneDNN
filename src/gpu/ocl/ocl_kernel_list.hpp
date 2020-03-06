@@ -22,7 +22,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-const char *get_ocl_kernel_source(const char *kernel_name);
+const char **get_ocl_kernel_source(const char *kernel_name);
 
 } // namespace ocl
 } // namespace gpu

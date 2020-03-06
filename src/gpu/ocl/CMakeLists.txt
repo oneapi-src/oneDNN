@@ -46,7 +46,7 @@ function(parse_ocl_kernels cl_name cl_path)
     endforeach()
 
     set(OCL_KERNEL_LIST_EXTERN
-        "${OCL_KERNEL_LIST_EXTERN}\nextern const char *${cl_name}_kernel;"
+        "${OCL_KERNEL_LIST_EXTERN}\nextern const char *${cl_name}_kernel[];"
         PARENT_SCOPE)
     set(OCL_KERNEL_LIST_ENTRIES "${entries}" PARENT_SCOPE)
 
