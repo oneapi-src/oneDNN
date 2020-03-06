@@ -1742,8 +1742,8 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
     assert(IMPLICATION(data_traits<a_type>::data_type == data_type::bf16,
             mayiuse(avx512_core) && !force_nocopy));
 
-    // gemm_driver supports 8-bit integer Intel AVX512, Intel AVX2, Intel
-    // SSE4.1 and Intel DL Boost.
+    // gemm_driver supports 8-bit integer Intel AVX512, Intel AVX2, Intel AVX,
+    // Intel SSE4.1 and Intel DL Boost.
     assert(IMPLICATION(is_int8, mayiuse(sse41) && !mayiuse(avx512_mic)));
 
     // gemm_driver supports sgemm for Intel AVX512, Intel AVX2, Intel AVX,

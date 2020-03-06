@@ -216,6 +216,17 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                 this->bk_traditional = 256;
                 this->blocking_small_k = 48;
                 this->bn_small_k = 24;
+            } else if (mayiuse(avx)) {
+                this->um = 16;
+                this->un = 2;
+                this->uk = 1;
+                this->bm = 4096;
+                this->bn = 256;
+                this->bk = 256;
+
+                this->bk_traditional = 256;
+                this->blocking_small_k = 48;
+                this->bn_small_k = 24;
             } else if (mayiuse(sse41)) {
                 this->um = 16;
                 this->un = 2;
@@ -339,6 +350,22 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                             = new jit_avx2_u8_copy_sum_bn_kern();
                     copy_b[do_trans][do_sum]
                             = new jit_avx2_u8_copy_sum_bt_kern();
+                } else if (mayiuse(avx)) {
+                    copy_a[no_trans][no_sum] = new jit_avx_u8_copy_an_kern();
+                    copy_a[do_trans][no_sum] = new jit_avx_u8_copy_at_kern();
+
+                    copy_b[no_trans][no_sum] = new jit_avx_u8_copy_bn_kern();
+                    copy_b[do_trans][no_sum] = new jit_avx_u8_copy_bt_kern();
+
+                    copy_a[no_trans][do_sum]
+                            = new jit_avx_u8_copy_sum_an_kern();
+                    copy_a[do_trans][do_sum]
+                            = new jit_avx_u8_copy_sum_at_kern();
+
+                    copy_b[no_trans][do_sum]
+                            = new jit_avx_u8_copy_sum_bn_kern();
+                    copy_b[do_trans][do_sum]
+                            = new jit_avx_u8_copy_sum_bt_kern();
                 } else if (mayiuse(sse41)) {
                     copy_a[no_trans][no_sum] = new jit_sse41_u8_copy_an_kern();
                     copy_a[do_trans][no_sum] = new jit_sse41_u8_copy_at_kern();
@@ -424,6 +451,24 @@ void gemm_info_t<a_t, b_t, c_t>::jit_init(void) {
                                         = new jit_avx2_gemm_s8u8s32_kern(
                                                 isBeta0, doColSum, doRowSum);
                             }
+                } else if (mayiuse(avx)) {
+                    kernel[no_beta0][no_alpha1][no_sum][no_sum]
+                            = new jit_avx_kernel_gemm_s8u8s32_kern();
+                    kernel[no_beta0][no_alpha1][do_sum][no_sum]
+                            = new jit_avx_kernel_c_gemm_s8u8s32_kern();
+                    kernel[no_beta0][no_alpha1][no_sum][do_sum]
+                            = new jit_avx_kernel_r_gemm_s8u8s32_kern();
+                    kernel[no_beta0][no_alpha1][do_sum][do_sum]
+                            = new jit_avx_kernel_b_gemm_s8u8s32_kern();
+
+                    kernel[do_beta0][no_alpha1][no_sum][no_sum]
+                            = new jit_avx_kernel_b0_gemm_s8u8s32_kern();
+                    kernel[do_beta0][no_alpha1][do_sum][no_sum]
+                            = new jit_avx_kernel_b0_c_gemm_s8u8s32_kern();
+                    kernel[do_beta0][no_alpha1][no_sum][do_sum]
+                            = new jit_avx_kernel_b0_r_gemm_s8u8s32_kern();
+                    kernel[do_beta0][no_alpha1][do_sum][do_sum]
+                            = new jit_avx_kernel_b0_b_gemm_s8u8s32_kern();
                 } else if (mayiuse(sse41)) {
                     kernel[no_beta0][no_alpha1][no_sum][no_sum]
                             = new jit_sse41_kernel_gemm_s8u8s32_kern();
