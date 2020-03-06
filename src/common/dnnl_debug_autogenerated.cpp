@@ -264,6 +264,7 @@ const char *dnnl_fmt_tag2str(dnnl_format_tag_t v) {
     if (v == dnnl_ldnc) return "ldnc";
     if (v == dnnl_ldigo) return "ldigo";
     if (v == dnnl_ldgoi) return "ldgoi";
+    if (v == dnnl_ldio) return "ldio";
     if (v == dnnl_ldgo) return "ldgo";
     if (v == dnnl_nCdhw16c) return "nCdhw16c";
     if (v == dnnl_nCdhw4c) return "nCdhw4c";

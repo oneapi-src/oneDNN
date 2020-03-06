@@ -349,6 +349,7 @@ const format_tag_t ntc = dnnl_ntc;
 const format_tag_t ldnc = dnnl_ldnc;
 const format_tag_t ldigo = dnnl_ldigo;
 const format_tag_t ldgoi = dnnl_ldgoi;
+const format_tag_t ldio = dnnl_ldio;
 const format_tag_t ldgo = dnnl_ldgo;
 const format_tag_t nCdhw16c = dnnl_nCdhw16c;
 const format_tag_t nCdhw4c = dnnl_nCdhw4c;
