@@ -291,7 +291,7 @@ primitive for each input and output memory object.
 ## Data Representation
 
 In the DNNL programming model, the RNN primitive is one of a few that support
-the placeholder memory format #dnnl::memory::format::any (shortened to `any`
+the placeholder memory format #dnnl::memory::format_tag::any (shortened to `any`
 from now on) and can define data and weight memory objects format based on the
 primitive parameters.
 
