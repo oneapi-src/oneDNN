@@ -553,6 +553,7 @@ struct jit_pool_conf_t {
 
     int dt_size;
     bool is_bf16;
+    bool is_plain;
 
     cpu_isa_t isa;
 };
