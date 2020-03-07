@@ -530,11 +530,17 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
 
     set_default_conf(conf, cd, *diff_src_md(), *weights_md(), *diff_dst_md(),
             *weights_md(1), *attr());
-
+    const bool is_nhwc
+            = src_mdw.matches_one_of_tag(nwc, nhwc, ndhwc) != format_tag::undef
+            || dst_mdw.matches_one_of_tag(nwc, nhwc, ndhwc)
+                    != format_tag::undef;
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
             && (conf.oc_without_padding == 1);
+    conf.is_nhwc = is_nhwc;
     conf.is_depthwise = is_depthwise;
+
+    if (is_nhwc && (is_depthwise || is_1stconv)) return status::unimplemented;
 
     if (is_1stconv || conf.with_groups) {
         conf.ic = conf.ic_without_padding;
@@ -543,16 +549,15 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
         conf.ic = utils::rnd_up(conf.ic_without_padding, 16);
         conf.oc = utils::rnd_up(conf.oc_without_padding, 16);
     }
-
     conf.ngroups_without_padding = conf.ngroups;
     if (is_depthwise) conf.ngroups = utils::rnd_up(conf.ngroups, 16);
     const bool is_dw_16g = (conf.is_depthwise && conf.ngroups % 16 == 0);
 
     const bool is_16ic = conf.ic % 16 == 0;
     const bool is_16oc = conf.oc % 16 == 0;
-    const bool use_16mb_unroll = !(conf.mb == 1 || conf.mb % 16 != 0)
-            && !is_1stconv && ((is_16ic && is_16oc) || is_dw_16g);
-
+    const bool use_16mb_unroll = !is_nhwc
+            && !(conf.mb == 1 || conf.mb % 16 != 0) && !is_1stconv
+            && ((is_16ic && is_16oc) || is_dw_16g);
     conf.mb_block = 1;
     conf.oc_block = 1;
     conf.ic_block = 1;
@@ -560,7 +565,9 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
     conf.oh_block = 1;
     conf.ow_block = 1;
     conf.icb = 1;
-    if (use_16mb_unroll)
+    if (is_nhwc)
+        conf.ver = ver_nhwc;
+    else if (use_16mb_unroll)
         conf.ver = ver_16mb16c;
     else if (conf.mb % 16 != 0 && ((is_16oc && is_16ic) || is_dw_16g))
         conf.ver = ver_8ow16c;
@@ -568,7 +575,6 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
         return status::unimplemented;
 
     status_t status = status::success;
-
     switch (conf.ver) {
         case ver_16mb16c:
             conf.mb_block = 16;
@@ -602,12 +608,15 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
             }
             break;
         case ver_8ow16c:
+        case ver_nhwc: {
             conf.mb_block = 1;
             conf.oc_block = 16;
             conf.ic_block = 16;
             conf.od_block = 1;
             conf.ih_block = 1;
-            conf.iw_block = nstl::max(8, utils::max_div(conf.iw, 16));
+            int max_iw_block = 16;
+            if (conf.ver == ver_nhwc) { max_iw_block = (conf.kw > 1) ? 8 : 16; }
+            conf.iw_block = nstl::max(8, utils::max_div(conf.iw, max_iw_block));
             conf.sub_group_size = 16;
             if (conf.is_depthwise) {
                 conf.icb = conf.ngroups;
@@ -633,12 +642,21 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
                 conf.gws_d[2] = conf.mb * (conf.ic / conf.icb) * conf.ngroups;
             }
             break;
+        }
         default: status = status::unimplemented;
     }
 
     format_tag_t src_tag, dst_tag, wei_tag;
 
     switch (conf.ver) {
+        case ver_nhwc:
+            src_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
+            dst_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
+            wei_tag = conf.with_groups ? utils::pick(conf.ndims - 3, gOIw16o16i,
+                              gOIhw16o16i, gOIdhw16o16i)
+                                       : utils::pick(conf.ndims - 3, OIw16o16i,
+                                               OIhw16o16i, OIdhw16o16i);
+            break;
         case ver_16mb16c:
             src_tag = utils::pick(
                     conf.ndims - 3, NCw16n16c, NChw16n16c, NCdhw16n16c);
@@ -723,6 +741,8 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("DH", conf.dilate_h);
     kernel_ctx.define_int("DW", conf.dilate_w);
     kernel_ctx.define_int("OC_PADDED", conf.oc);
+    kernel_ctx.define_int("OC_WO_PADDING", conf.oc_without_padding);
+    kernel_ctx.define_int("IC_WO_PADDING", conf.ic_without_padding);
     kernel_ctx.define_int("MB_BLOCK", conf.mb_block);
     kernel_ctx.define_int("IH_BLOCK", conf.ih_block);
     kernel_ctx.define_int("IW_BLOCK", conf.iw_block);

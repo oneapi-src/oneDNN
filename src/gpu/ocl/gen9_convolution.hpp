@@ -179,11 +179,14 @@ struct gen9_convolution_bwd_data_t : public primitive_impl_t {
 
     status_t init() override {
         const char *kernel_name = nullptr;
-        if (pd()->conf.is_depthwise)
+        if (pd()->conf.is_depthwise) {
             kernel_name = "gen9_conv_dw_bwd_data";
-        else
-            kernel_name = "gen9_conv_bwd_data";
-
+        } else {
+            if (pd()->conf.is_nhwc)
+                kernel_name = "gen9_conv_nhwc_bwd_data";
+            else
+                kernel_name = "gen9_conv_bwd_data";
+        }
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
 

@@ -52,6 +52,6 @@ g1mb16ic32id9ih1iw9oc32od3oh1ow5kd3kh1kw1sd3sh1sw3pd1ph0pw2dd1dh0dw0
 g1mb32ic16id12ih5iw5oc32od14oh2ow4kd1kh3kw2sd1sh2sw2pd1ph1pw2dd0dh1dw1
 g1ic32id2ih13iw15oc32od4oh15ow9kd1kh2kw3sd1sh1sw2pd1ph2pw2dd1dh1dw0
 
-# bwd_w, nhwc
+# bwd_d, bwd_w, nhwc
 --skip-impl="ref"
---dir=BWD_WB --stag=axb --mb=1,16 --batch=set_gpu
+--dir=BWD_D,BWD_WB --stag=axb --mb=1,16 --batch=set_gpu
