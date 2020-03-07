@@ -98,6 +98,10 @@ status_t jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_conf(
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
 
+    const int ndims = src_d.ndims();
+    // Currently this kernel only supports 2D convolutions.
+    if (ndims != 4) return status::unimplemented;
+
     auto dat_tag = one_of(isa, avx512_common, avx512_core) ? nChw16c : nChw8c;
     auto wei_tag = one_of(isa, avx512_common, avx512_core) ? Goihw16g : Goihw8g;
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;

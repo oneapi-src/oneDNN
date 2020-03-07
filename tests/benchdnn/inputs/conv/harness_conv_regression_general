@@ -186,3 +186,6 @@ mb1_ic16oc16_id2ih10iw1_kd2kh3kw1_dd0dh2dw0n"3d_dilated_check"
 # Test correctness of 1x1 strided convolution with different layouts src and dst
 --reset --stag=abx,axb --dir=FWD_B,BWD_D,BWD_WB
 ic256ih56oc512oh28kh1sh2ph0n"strided_1x1_with_mixed_data_layouts"
+
+# Depthwise uni-jit kernel is only supported for 2D convolutions.
+--reset --stag=abx --dtag=abx --wtag=goiw mb1_g16ic16oc16_iw4ow4kw2sw1
