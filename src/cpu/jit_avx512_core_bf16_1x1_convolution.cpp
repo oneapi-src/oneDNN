@@ -258,7 +258,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 init_load(ocb, ocb_end, load_step);
                 int iwork = bcast_start;
                 while (iwork < bcast_end) {
-                    int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                    int n {0}, g {0}, bcast_step {0}, od {0}, oh {0}, ow {0},
+                            id {0}, ih {0}, iw {0};
                     init_bcast(iwork, bcast_end, n, g, bcast_step, od, oh, ow,
                             id, ih, iw);
                     for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
@@ -273,7 +274,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         } else if (jcp.loop_order == loop_blr) {
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                int n {0}, g {0}, bcast_step {0}, od {0}, oh {0}, ow {0},
+                        id {0}, ih {0}, iw {0};
                 init_bcast(iwork, bcast_end, n, g, bcast_step, od, oh, ow, id,
                         ih, iw);
                 int ocb = ocb_start;
@@ -371,7 +373,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             int oh_1x1 = 0;
             auto bcast_iter = bcast_start;
             while (bcast_iter < bcast_end) {
-                int n, g, oh_dw;
+                int n {0}, g {0}, oh_dw {0};
                 nd_iterator_init(bcast_iter, n, jcp.mb, g, jcp.ngroups, oh_dw,
                         jcp_dw.oh);
                 if (oh_dw == 0) oh_1x1 = 0; // Reset over mb boundary
