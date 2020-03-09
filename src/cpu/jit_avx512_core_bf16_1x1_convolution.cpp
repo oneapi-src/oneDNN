@@ -250,6 +250,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
                             int ocb_end) {
+        if (bcast_start >= bcast_end || ocb_start >= ocb_end) return;
         if (jcp.loop_order == loop_lbr) {
             int ocb = ocb_start;
             while (ocb < ocb_end) {
@@ -392,8 +393,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 ker_dw(n, g * nb_oc + ocb_start, load_step, oh_dw);
 
                 bcast_iter += nb_bcast_blocking;
-                ocb_start += load_step;
             }
+            ocb_start += load_step;
         }
     };
 

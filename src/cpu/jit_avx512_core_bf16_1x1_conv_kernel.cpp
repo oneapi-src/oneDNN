@@ -146,8 +146,9 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                     backward_data))
             return EVEX_compress_addr(aux_reg_output_data,
-                    (i_load * jcp.bcast_dim + i_ur) * jcp.load_block
-                            * jcp.typesize_out * scale);
+                    (i_load * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                            + i_ur)
+                            * jcp.load_block * jcp.typesize_out * scale);
         else
             return ptr[aux_reg_output_data
                     + (i_load ? reg_output_stride * i_load
@@ -719,11 +720,19 @@ bool jit_avx512_core_bf16_1x1_conv_kernel::post_ops_ok(
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
+    auto is_convolution
+            = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
-    switch (p.len_) {
+    int dw_idx = p.find(primitive_kind::convolution);
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+
+    switch (len) {
         case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+        case 1: // eltwise OR sum OR Convolution
+            return is_eltwise(0) || is_sum(0) || is_convolution(0);
+        case 2: // sum -> eltwise OR eltwise -> convolution
+            return (is_sum(0) && is_eltwise(1))
+                    || (is_eltwise(0) && is_convolution(1));
         default: return false;
     }
 
@@ -794,8 +803,12 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    jcp.with_dw_conv = dw_conv_ind != -1;
+    // Using dw_conv_ind as upper-bound below, as post-ops after it will be
+    // handled in depthwise convolution.
+    jcp.with_sum = p.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
@@ -876,6 +889,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                 backward_data)) {
         jcp.nthr = nthreads;
         if (one_of(jcp.prop_kind, forward_inference, forward_training)) {
+            if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
             jcp.reduce_dim = jcp.ic;
             jcp.reduce_block = jcp.ic_block;
 
@@ -1200,7 +1214,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     assert(IMPLICATION(jcp.uses_permw_transposition,
             jcp.reduce_dim % jcp.reduce_block == 0));
 
-    jcp.ur_tail = jcp.bcast_dim % jcp.ur;
+    jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
     jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;
