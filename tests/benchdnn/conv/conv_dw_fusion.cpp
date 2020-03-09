@@ -270,6 +270,7 @@ std::unique_ptr<prb_t> get_first_conv_prb(const prb_t *p) {
 std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
     const auto &po = p->attr.post_ops;
     int fusion_index = po.convolution_index();
+    if(fusion_index == -1) return nullptr;
     const auto &fused_conv_po = po.entry[fusion_index].convolution;
 
     attr_t fusion_attr;
@@ -462,6 +463,7 @@ int doit(const prb_t *p, res_t *r) {
 
     // Fill next convolution
     std::unique_ptr<prb_t> p1 = get_fused_conv_prb(p);
+    if(!p1) SAFE(FAIL, CRIT);
 
     dnnl_primitive_desc_t cpd1;
     SAFE(init_pd(engine_tgt, p1.get(), cpd1, r), WARN);
@@ -534,10 +536,11 @@ int doit(const prb_t *p, res_t *r) {
         args0.set(DNNL_ARG_SRC, src_dt0);
         args0.set(DNNL_ARG_WEIGHTS, wei_dt0);
         args0.set(DNNL_ARG_BIAS, bia_dt0);
-        args0.set(DNNL_ARG_DST, src_dt1);
+        args0.set(DNNL_ARG_DST, dst_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
 
         DNN_SAFE(execute_and_wait(c0, stream_tgt, args0), WARN);
+        SAFE(src_dt1.reorder(dst_dt0), WARN);
 
         args1.set(DNNL_ARG_SRC, src_dt1);
         args1.set(DNNL_ARG_WEIGHTS, wei_dt1);
@@ -572,7 +575,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(r->timer, c0, args);
+    measure_perf(r->timer, c, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(c));
     DNN_SAFE_V(dnnl_primitive_destroy(c0));
