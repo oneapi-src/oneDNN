@@ -279,7 +279,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         row_offset = dw_conv_buffer_size_ / jcp_dw.kh;
         addrs.resize(jcp_dw.kh);
 
-        int bcast_start {0}, bcast_end {0}, ocb_start, ocb_end;
+        int bcast_start {0}, bcast_end {0}, ocb_start {0}, ocb_end {0};
         balance2D(nthr, ithr, jcp.mb * jcp.ngroups * jcp_dw.oh, bcast_start,
                 bcast_end, nb_oc, ocb_start, ocb_end, 1);
 

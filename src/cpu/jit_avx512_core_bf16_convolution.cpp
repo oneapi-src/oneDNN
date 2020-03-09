@@ -875,8 +875,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
                 balance211(work_amount, nthr_oc_b_, ti->ithr_oc_b, tr_start,
                         tr_end);
 
-                int g;
-                int ic_b;
+                int g {0}, ic_b {0};
                 nd_iterator_init(tr_start, g, ti->g_work, ic_b, ti->ic_b_work,
                         j, ih_e - ih_s);
 
@@ -910,8 +909,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_2d(
                 balance211(work_amount, nthr_ic_b_, ti->ithr_ic_b, tr_start,
                         tr_end);
 
-                int g;
-                int oc_b;
+                int g {0}, oc_b {0};
                 nd_iterator_init(tr_start, g, ti->g_work, oc_b, ti->oc_b_work,
                         j, oh_e - oh_s);
 
@@ -1054,8 +1052,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                 balance211(work_amount, nthr_oc_b_, ti->ithr_oc_b, tr_start,
                         tr_end);
 
-                int g;
-                int ic_b;
+                int g {0}, ic_b {0};
 
                 nd_iterator_init(tr_start, g, ti->g_work, ic_b, ti->ic_b_work,
                         d, id_e - id_s);
@@ -1092,8 +1089,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights_3d(
                 balance211(work_amount, nthr_ic_b_, ti->ithr_ic_b, tr_start,
                         tr_end);
 
-                int g;
-                int oc_b;
+                int g {0}, oc_b {0};
 
                 nd_iterator_init(tr_start, g, ti->g_work, oc_b, ti->oc_b_work,
                         d, od_e - od_s);
