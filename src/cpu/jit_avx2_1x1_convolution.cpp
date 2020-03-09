@@ -160,7 +160,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const int _icb = g * nb_ic + icb;
 
         p.output_data = jcp.with_dw_conv
-                ? pbuf + (ih % jcp_dw_kh) * row_offset
+                ? pbuf + (oh % jcp_dw_kh) * row_offset
                 : &dst[data_blk_off(dst_d, n, _ocb, od, oh, ow)];
         p.bias_data = &bias[_ocb * jcp.oc_block];
 
