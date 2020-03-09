@@ -231,7 +231,7 @@ void jit_avx2_x8s8s32x_1x1_convolution_fwd_t<src_type,
         const int _icb = g;
 
         p.output_data = jcp.with_dw_conv
-                ? pbuf + (ih % jcp_dw.kh) * row_offset
+                ? pbuf + (oh % jcp_dw.kh) * row_offset
                 : &dst[data_blk_off(dst_d, n, _ocb * jcp.oc_block, od, oh, ow)];
         p.load_data
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)

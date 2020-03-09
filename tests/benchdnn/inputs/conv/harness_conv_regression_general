@@ -189,3 +189,20 @@ ic256ih56oc512oh28kh1sh2ph0n"strided_1x1_with_mixed_data_layouts"
 
 # Depthwise uni-jit kernel is only supported for 2D convolutions.
 --reset --stag=abx --dtag=abx --wtag=goiw mb1_g16ic16oc16_iw4ow4kw2sw1
+
+# dw fusion with strides, skip 1x1's that doesn't support strides.
+--reset
+--skip-impl="ref_fused_convolution"
+--cfg=f32,u8s8u8
+--attr=post_ops='relu;dw_k3s1p1;sqrt';
+ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
+
+--allow-unimpl=true
+--cfg=bf16bf16bf16
+ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
+
+# dw fusion with reorder
+--reset
+--cfg=f32
+--attr=post_ops='relu;dw_k3s1p1;sqrt';
+ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"

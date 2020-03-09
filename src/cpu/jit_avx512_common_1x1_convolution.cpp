@@ -174,7 +174,7 @@ void jit_avx512_common_1x1_convolution_fwd_t<src_type, wei_type,
         const int _ocb = g * nb_oc + ocb;
         const size_t dst_off = data_blk_off(dst_d, n, _ocb, od, oh, ow);
 
-        p.output_data = jcp.with_dw_conv ? pbuf + (ih % jcp_dw_kh) * row_offset
+        p.output_data = jcp.with_dw_conv ? pbuf + (oh % jcp_dw_kh) * row_offset
                                          : &dst[dst_off];
         p.bias_data = &bias[_ocb * jcp.oc_block];
         p.load_data

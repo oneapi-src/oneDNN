@@ -215,7 +215,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         const int _ocb = g * nb_oc + ocb;
 
         void *output_data = jcp.with_dw_conv
-                ? (void *)(pbuf + (ih % jcp_dw.kh) * row_offset)
+                ? (void *)(pbuf + (oh % jcp_dw.kh) * row_offset)
                 : (void *)(&dst[data_blk_off(dst_d, n, _ocb, od, oh, ow)
                         * dst_d.data_type_size()]);
         p.output_data = output_data;
