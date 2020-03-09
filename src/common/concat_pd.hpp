@@ -224,11 +224,19 @@ protected:
         _pd->init_scratchpad_md(); \
         return safe_ptr_assign<concat_pd_t>(*concat_pd, _pd); \
     } \
-    virtual status_t create_primitive_iface(primitive_iface_t **p_iface) \
-            const override { \
-        auto status = this->engine()->get_primitive_iface( \
-                p_iface, this, \
-                [=] { return std::make_shared<__VA_ARGS__>(this); }, false); \
+    virtual status_t create_primitive_iface( \
+            primitive_iface_t **primitive_iface) const override { \
+        primitive_iface_t *p_iface = nullptr; \
+        auto status = dnnl::impl::safe_ptr_assign<primitive_iface_t>(p_iface, \
+                new primitive_iface_t( \
+                        std::make_shared<__VA_ARGS__>(this), false)); \
+        if (status != status::success) { return status; } \
+        status = p_iface->init(); \
+        if (status != status::success) { \
+            delete p_iface; \
+            return status; \
+        } \
+        (*primitive_iface) = p_iface; \
         return status; \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \

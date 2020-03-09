@@ -32,6 +32,7 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 #include "gpu/compute/kernel_arg_list.hpp"
 
 namespace dnnl {

@@ -56,11 +56,6 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
 
-// XXX: allows to have threading related functions in a limited scope
-int dnnl_engine::dnnl_get_max_threads() {
-    return ::dnnl_get_max_threads();
-}
-
 size_t dnnl_engine_get_count(engine_kind_t kind) {
     auto ef = get_engine_factory(kind, get_default_runtime(kind));
     return ef != nullptr ? ef->count() : 0;

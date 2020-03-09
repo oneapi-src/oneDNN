@@ -25,6 +25,7 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_reducer.hpp"
 #include "primitive.hpp"
+#include "primitive_hashing.hpp"
 
 #include "jit_avx512_common_1x1_conv_kernel.hpp"
 #include "jit_transpose_src_utils.hpp"

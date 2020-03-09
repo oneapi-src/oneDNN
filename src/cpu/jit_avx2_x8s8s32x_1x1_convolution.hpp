@@ -24,6 +24,7 @@
 
 #include "cpu_convolution_pd.hpp"
 #include "primitive.hpp"
+#include "primitive_hashing.hpp"
 
 #include "jit_avx2_x8s8s32x_1x1_conv_kernel.hpp"
 #include "jit_avx2_x8s8s32x_convolution.hpp"

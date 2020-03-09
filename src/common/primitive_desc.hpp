@@ -22,6 +22,7 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "engine.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "primitive_attr.hpp"
@@ -191,12 +192,22 @@ protected:
 
 #define DECLARE_COMMON_PD_t(impl_name, impl_type, use_global_scratchpad) \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
-    virtual status_t create_primitive_iface(primitive_iface_t **p_iface) \
-            const override { \
-        auto status = this->engine()->get_primitive_iface( \
-                p_iface, this, \
-                [=] { return std::make_shared<impl_type>(this); }, \
-                use_global_scratchpad); \
+    virtual status_t create_primitive_iface( \
+            primitive_iface_t **primitive_iface) const override { \
+        primitive_iface_t *p_iface = nullptr; \
+        auto status \
+                = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_iface_t>( \
+                        p_iface, \
+                        new dnnl::impl::primitive_iface_t( \
+                                std::make_shared<impl_type>(this), \
+                                use_global_scratchpad)); \
+        if (status != dnnl::impl::status::success) { return status; } \
+        status = p_iface->init(); \
+        if (status != dnnl::impl::status::success) { \
+            delete p_iface; \
+            return status; \
+        } \
+        (*primitive_iface) = p_iface; \
         return status; \
     } \
     virtual const char *name() const override { return impl_name; } \

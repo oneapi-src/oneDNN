@@ -29,6 +29,7 @@
 #include "jit_uni_1x1_conv_utils.hpp"
 #include "jit_uni_dw_convolution.hpp"
 #include "primitive.hpp"
+#include "primitive_hashing.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -23,13 +23,12 @@
 
 #include "c_types_map.hpp"
 #include "dnnl.h"
-#include "primitive.hpp"
 #include "primitive_hashing.hpp"
 #include "type_helpers.hpp"
 
 namespace dnnl {
 namespace impl {
-
+struct primitive_t;
 struct primitive_cache_t : public c_compatible {
     using key_type = primitive_hashing::key_t;
     using value_type = std::shared_ptr<primitive_t>;
