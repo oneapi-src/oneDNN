@@ -87,19 +87,23 @@ void check_correctness() {
             case alg_t::GELU_ERF:
                 // Skip everything but alpha = 0 and beta = 0
                 if (i_alpha != 0 || i_beta != 0) continue;
+                break;
             case alg_t::ELU:
             case alg_t::RELU:
             case alg_t::SWISH:
                 // Test any alpha value but beta = 0
                 if (i_beta != 0) continue;
+                break;
             case alg_t::ELU_DST:
             case alg_t::RELU_DST:
             case alg_t::BRELU:
                 // Test non-negative alpha value but beta = 0
                 if (i_alpha < 0 || i_beta != 0) continue;
+                break;
             case alg_t::CLIP:
                 // Test beta >= alpha values
                 if (i_beta < i_alpha) continue;
+                break;
 
             default:; // Test any alpha and beta values
         };
