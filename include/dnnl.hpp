@@ -1245,6 +1245,8 @@ struct memory : public handle<dnnl_memory_t> {
         bcda = dnnl_bcda,
         /// permuted 4D tensor
         cdba = dnnl_cdba,
+        /// permuted 4D tensor
+        dcab = dnnl_dcab,
 
         /// plain 5D tensor
         abcde = dnnl_abcde,
@@ -1325,6 +1327,8 @@ struct memory : public handle<dnnl_memory_t> {
 
         /// 4D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::abcd
         goiw = abcd,
+        /// 4D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::dcab
+        wigo = dcab,
         /// 5D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::abcde
         goihw = abcde,
         /// 5D CNN weights tensor with groups; an alias for #dnnl::memory::format_tag::decab

@@ -72,6 +72,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(bcdea);
     CASE(cba);
     CASE(cdba);
+    CASE(dcab);
     CASE(cdeba);
     CASE(decab);
     CASE(defcab);
@@ -244,6 +245,7 @@ dnnl_format_tag_t str2fmt_tag(const char *str) {
     CASE(odhwi);
     CASE(idhwo);
     CASE(goiw);
+    CASE(wigo);
     CASE(goihw);
     CASE(hwigo);
     CASE(giohw);

@@ -424,17 +424,25 @@ static const impl_list_map_t regular_impl_list_map {
 static const impl_list_map_t comp_s8s8_impl_list_map {
     // f32 -> s8
     {{f32, s8, 3}, {
+        REG_SR(f32, any, s8, wio, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, oiw, s8, OIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wio, s8, OIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, oiw, s8, OIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wio, s8, OIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, oiw, s8, OIw4o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wio, s8, OIw4o4i, fmt_order::keep, spec::conv_s8s8),
 
         nullptr,
     }},
     {{f32, s8, 4}, {
         REG_SR(f32, any, s8, hwio, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, any, s8, wigo, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goiw, s8, gOIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wigo, s8, gOIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goiw, s8, gOIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wigo, s8, gOIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goiw, s8, gOIw4o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wigo, s8, gOIw4o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, oihw, s8, OIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, hwio, s8, OIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, hwio, s8, OIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
@@ -442,7 +450,9 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
         REG_SR(f32, hwio, s8, OIhw4o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, oihw, s8, OIhw4o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goiw, s8, Goiw16g, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wigo, s8, Goiw16g, fmt_order::keep, spec::conv_s8s8),
         REG_SR(f32, goiw, s8, Goiw8g, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(f32, wigo, s8, Goiw8g, fmt_order::keep, spec::conv_s8s8),
 
         nullptr,
     }},
@@ -478,17 +488,25 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
     }},
     // s8 -> s8
     {{s8, s8, 3}, {
+        REG_SR(s8, any, s8, wio, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, oiw, s8, OIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wio, s8, OIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, oiw, s8, OIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wio, s8, OIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, oiw, s8, OIw4o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wio, s8, OIw4o4i, fmt_order::keep, spec::conv_s8s8),
 
         nullptr,
     }},
     {{s8, s8, 4}, {
         REG_SR(s8, any, s8, hwio, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, any, s8, wigo, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goiw, s8, gOIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wigo, s8, gOIw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goiw, s8, gOIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wigo, s8, gOIw2i8o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goiw, s8, gOIw4o4i, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wigo, s8, gOIw4o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, hwio, s8, OIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, oihw, s8, OIhw4i16o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, hwio, s8, OIhw2i8o4i, fmt_order::keep, spec::conv_s8s8),
@@ -496,7 +514,9 @@ static const impl_list_map_t comp_s8s8_impl_list_map {
         REG_SR(s8, hwio, s8, OIhw4o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, oihw, s8, OIhw4o4i, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goiw, s8, Goiw16g, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wigo, s8, Goiw16g, fmt_order::keep, spec::conv_s8s8),
         REG_SR(s8, goiw, s8, Goiw8g, fmt_order::keep, spec::conv_s8s8),
+        REG_SR(s8, wigo, s8, Goiw8g, fmt_order::keep, spec::conv_s8s8),
 
         nullptr,
     }},
