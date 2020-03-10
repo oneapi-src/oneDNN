@@ -69,7 +69,10 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
         }
 
         ~pd_t() {
-            if (dw_conv_pd_) delete dw_conv_pd_;
+            if (dw_conv_pd_) {
+                delete dw_conv_pd_;
+                dw_conv_pd_ = nullptr;
+            };
         }
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_fwd_t);
@@ -192,11 +195,16 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
                 = new typename jit_uni_dw_convolution_fwd_t<avx512_core, sdt, \
                         ddt>::pd_t(engine(), dw_conv_pd_->desc(), \
                         dw_conv_pd_->attr(), nullptr); \
-        if (fusable_pd->init() != status::success) \
+        if (fusable_pd->init() != status::success) { \
+            delete fusable_pd; \
             return status::unimplemented; \
+        } \
         auto key1 = primitive_hashing::key_t(fusable_pd, 0); \
         auto key2 = primitive_hashing::key_t(dw_conv_pd_, 0); \
-        if (!(key1 == key2)) return status::unimplemented; \
+        if (!(key1 == key2)) { \
+            delete fusable_pd; \
+            return status::unimplemented; \
+        } \
         jcp_dw = static_cast<decltype(fusable_pd)>(dw_conv_pd_)->jcp_; \
         break; \
     }

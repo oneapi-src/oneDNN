@@ -69,7 +69,10 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
         }
 
         ~pd_t() {
-            if (dw_conv_pd_) delete dw_conv_pd_;
+            if (dw_conv_pd_) {
+                delete dw_conv_pd_;
+                dw_conv_pd_ = nullptr;
+            }
         }
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_int8_1x1:",
@@ -192,16 +195,16 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t
             // than the fusable_pd. In this case, fallback to reference fusion.
 #define CASE(sdt, ddt) \
     case ddt: { \
-        auto fusable_pd \
-                = new typename jit_avx512_core_x8s8s32x_convolution_fwd_t<sdt, \
-                        ddt>::pd_t(engine(), dw_conv_pd_->desc(), \
-                        dw_conv_pd_->attr(), nullptr); \
+        using dw_pd_t \
+                = jit_avx512_core_x8s8s32x_convolution_fwd_t<sdt, ddt>::pd_t; \
+        auto fusable_pd = std::unique_ptr<dw_pd_t>(new dw_pd_t( \
+                engine(), dw_conv_pd_->desc(), dw_conv_pd_->attr(), nullptr)); \
         if (fusable_pd->init() != status::success) \
             return status::unimplemented; \
-        auto key1 = primitive_hashing::key_t(fusable_pd, 0); \
+        auto key1 = primitive_hashing::key_t(fusable_pd.get(), 0); \
         auto key2 = primitive_hashing::key_t(dw_conv_pd_, 0); \
         if (!(key1 == key2)) return status::unimplemented; \
-        jcp_dw = static_cast<decltype(fusable_pd)>(dw_conv_pd_)->jcp_; \
+        jcp_dw = static_cast<dw_pd_t *>(dw_conv_pd_)->jcp_; \
         break; \
     }
             if (jcp_1x1.dst_dt == data_type::u8) {
@@ -314,7 +317,7 @@ private:
     rtus_driver_t<avx512_common> *rtus_driver_;
     using dw_conv_kernel_t = jit_avx512_core_x8s8s32x_fwd_kernel;
     dw_conv_kernel_t *kernel_dw_ = nullptr;
-}; // namespace cpu
+};
 
 } // namespace cpu
 } // namespace impl

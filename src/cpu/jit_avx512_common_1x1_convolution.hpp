@@ -68,7 +68,10 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
         }
 
         ~pd_t() {
-            if (dw_conv_pd_) delete dw_conv_pd_;
+            if (dw_conv_pd_) {
+                delete dw_conv_pd_;
+                dw_conv_pd_ = nullptr;
+            }
         }
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
@@ -178,17 +181,17 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
                     engine(), dw_po_index);
             if (status != status::success) return status::unimplemented;
 
-            auto fusable_pd
-                    = new jit_avx512_common_dw_convolution_fwd_t::pd_t(engine(),
-                            dw_conv_pd_->desc(), dw_conv_pd_->attr(), nullptr);
-            status = fusable_pd->init();
-            if (status != status::success) { return status; }
+            using dw_pd_t = jit_avx512_common_dw_convolution_fwd_t::pd_t;
+            auto fusable_pd = std::unique_ptr<dw_pd_t>(new dw_pd_t(engine(),
+                    dw_conv_pd_->desc(), dw_conv_pd_->attr(), nullptr));
+            status = fusable_pd.get()->init();
+            if (status != status::success) return status;
 
             // Check if the fusable_pd matches with the primitive_desc returned
             // by dnnl_primitive_desc_create(). If it doesn't match, then there
             // probably exists a more optimized version of depthwise convolution
             // than the fusable_pd. In this case, fallback to reference fusion.
-            auto key1 = primitive_hashing::key_t(fusable_pd, 0);
+            auto key1 = primitive_hashing::key_t(fusable_pd.get(), 0);
             auto key2 = primitive_hashing::key_t(dw_conv_pd_, 0);
             if (!(key1 == key2)) return status::unimplemented;
 
