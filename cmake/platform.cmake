@@ -37,7 +37,7 @@ set(CMAKE_CCXX_NOWARN_FLAGS)
 set(CMAKE_CCXX_NOEXCEPT_FLAGS)
 set(DEF_ARCH_OPT_FLAGS)
 
-# Compatibility with MKL-DNN
+# Compatibility with Intel MKL-DNN
 if($ENV{MKLDNN_WERROR})
     set(DNNL_WERROR $ENV{MKLDNN_WERROR})
 endif()

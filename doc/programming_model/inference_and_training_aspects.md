@@ -193,7 +193,7 @@ with DNNL:
    propagation. This is required only for the primitives that produce
    `workspace`, because it might be different for different implementations.
 
-10. When creating your working memory and mkl-dnn memory descriptor, specify
+10. When creating your working memory and memory descriptor, specify
    the type of memory you want to work with. This can be either 16-bit Brain Float
    (bf16) or 32-bit Floating Point (fp32). More details about using bf16 for training
    are detailed in the section @ref dev_guide_training_bf16.
