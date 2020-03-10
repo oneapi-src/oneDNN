@@ -84,6 +84,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_resampling.cpp
                               test_isa_mask.cpp
                               test_isa_iface.cpp
+                              test_global_scratchpad.cpp
                               )
 
 # Some tests will fail on AArch64 and need to be skipped.
