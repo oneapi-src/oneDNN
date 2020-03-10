@@ -2,7 +2,7 @@
 
 Please include a summary of the change. Please also include relevant
 motivation and context. See
-[contribution guidelines](https://github.com/intel/mkl-dnn/blob/master/CONTRIBUTING.md)
+[contribution guidelines](https://github.com/oneapi-src/oneDNN/blob/master/CONTRIBUTING.md)
 for more details. If the change fixes an issue not documented in the project's
 Github issue tracker, please document all steps necessary to reproduce it.
 

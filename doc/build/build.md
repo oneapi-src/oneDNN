@@ -3,11 +3,11 @@ Build from Source {#dev_guide_build}
 
 ## Download the Source Code
 
-Download [DNNL source code](https://github.com/intel/mkl-dnn/archive/master.zip)
-or clone [the repository](https://github.com/intel/mkl-dnn.git).
+Download [DNNL source code](https://github.com/oneapi-src/oneDNN/archive/master.zip)
+or clone [the repository](https://github.com/oneapi-src/oneDNN.git).
 
 ~~~sh
-git clone https://github.com/intel/mkl-dnn.git
+git clone https://github.com/oneapi-src/oneDNN.git
 ~~~
 
 ## Build the Library

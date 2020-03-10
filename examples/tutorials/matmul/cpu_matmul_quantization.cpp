@@ -158,7 +158,7 @@ void compute_q10n_params(const char *message, const std::vector<float> &v,
 
 #ifndef OMIT_WORKAROUND_FOR_SKX
     // Read more in CPU / Section 1 here:
-    // https://intel.github.io/mkl-dnn/dev_guide_int8_computations.html
+    // https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html
     if (std::is_same<T, uint8_t>::value) max_int /= 2;
 #endif
 

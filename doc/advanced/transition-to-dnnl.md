@@ -139,5 +139,5 @@ library) can be found
 Also it is worth mentioning that DNNL team finally switched to the mandatory
 code formatting based on `_clang-format` file in the root of the repository.
 The corresponding changes were done by
-[this](https://github.com/intel/mkl-dnn/commit/56ef626d6627e93da039c15e032603e1a4bc8af4)
+[this](https://github.com/oneapi-src/oneDNN/commit/56ef626d6627e93da039c15e032603e1a4bc8af4)
 and neighbor commits.
