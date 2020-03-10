@@ -74,11 +74,9 @@
             const float *w_iter_comp, const float *w_layer_comp) const
 
 #define rnn_weights_assign_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, const memory_desc_t *md, int nld, \
-            int ld, int OC_size, int IC_size, const int n_parts, \
-            const int *gates_per_part, const size_t *part_weights_pack_size, \
-            weights_data_t **weights_, const weights_data_t *w_, \
-            float **bias_, const float *b_, float *scratch_bias_) const
+    void f(const rnn_utils::rnn_conf_t &rnn, const memory_desc_t *md, \
+            int n_parts, const int *gates_per_part, weights_data_t **weights_, \
+            const weights_data_t *w_) const
 
 namespace dnnl {
 namespace impl {

@@ -1067,15 +1067,11 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
     (this->*bias_preparation_func)(rnn, ptr_bias, bias, ws_bias);
 
     (this->*weights_iter_assign_func)(rnn, pd()->weights_md(1),
-            rnn.weights_iter_nld, rnn.weights_iter_ld, rnn.dhc, rnn.sic,
-            rnn.n_parts_weights_iter, rnn.parts_weights_iter,
-            rnn.part_weights_iter_pack_size, ptr_wei_iter, w_iter, ptr_bias,
-            bias, ws_bias);
+            rnn.n_parts_weights_iter, rnn.parts_weights_iter, ptr_wei_iter,
+            w_iter);
     (this->*weights_layer_assign_func)(rnn, pd()->weights_md(0),
-            rnn.weights_layer_nld, rnn.weights_layer_ld, rnn.dhc, rnn.slc,
-            rnn.n_parts_weights_layer, rnn.parts_weights_layer,
-            rnn.part_weights_layer_pack_size, ptr_wei_layer, w_layer, ptr_bias,
-            bias, ws_bias);
+            rnn.n_parts_weights_layer, rnn.parts_weights_layer, ptr_wei_layer,
+            w_layer);
 
     (this->*bias_finalization_func)(rnn, ws_bias, w_iter_comp, w_layer_comp);
 
