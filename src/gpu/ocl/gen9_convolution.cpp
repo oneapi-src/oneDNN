@@ -116,9 +116,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
                     conf.oc_block = 16;
                     conf.ic_block = 16;
 
-                    int max_ow_block
-                            = (conf.kw > 1 && conf.stride_w > 1) ? 18 : 24;
-
+                    int max_ow_block = (conf.kw > 1) ? 8 : 16;
                     if (conf.oc <= 64 && conf.ic <= 64) max_ow_block = 8;
 
                     conf.ow_block = utils::max_div(conf.ow, max_ow_block);
