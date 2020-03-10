@@ -10,8 +10,7 @@ memory to facilitate performing operations fast and in the most convenient way.
 
 This article is devoted to **data format** -- one form of data representation
 that describes how multidimensional arrays (nD) are stored in linear (1D) memory
-address space and why this is important for
-[Deep Neural Network Library (DNNL)](https://github.com/intel/mkl-dnn/).
+address space and why this is important for DNNL.
 
 @note For the purpose of this article, data *format* and *layout* are used
 interchangeably.
@@ -116,9 +115,9 @@ in this example.
 
 One can create memory with **NCHW** data layout using
 #dnnl_nchw of the enum type #dnnl_format_tag_t defined in
-[dnnl_types.h](https://github.com/intel/mkl-dnn/blob/master/include/dnnl_types.h)
+[dnnl_types.h](https://github.com/oneapi-src/oneDNN/blob/master/include/dnnl_types.h)
 for the C API, and dnnl::memory::format_tag::nchw defined in
-[dnnl.hpp](https://github.com/intel/mkl-dnn/blob/master/include/dnnl.hpp)
+[dnnl.hpp](https://github.com/oneapi-src/oneDNN/blob/master/include/dnnl.hpp)
 for the C++ API.
 
 

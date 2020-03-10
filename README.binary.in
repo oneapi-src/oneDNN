@@ -9,15 +9,15 @@ for Intel Architecture Processors and Intel Processor Graphics.
 This package contains DNNL v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
 
 You can find information about the latest version and release notes
-at DNNL Github (https://github.com/intel/mkl-dnn/releases).
+at DNNL Github (https://github.com/oneapi-src/oneDNN/releases).
 
 Documentation
 -------------
 
-* Developer guide (https://intel.github.io/mkl-dnn/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
+* Developer guide (https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
 explains programming model, supported functionality, details of primitives
 implementations and includes annotated examples.
-* API reference (https://intel.github.io/mkl-dnn/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
+* API reference (https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
 provides comprehensive reference of the library API.
 
 System Requirements
@@ -86,7 +86,7 @@ Support
 -------
 
 Please submit your questions, feature requests, and bug reports on the
-GitHub issues page (https://github.com/intel/mkl-dnn/issues/new/choose).
+GitHub issues page (https://github.com/oneapi-src/oneDNN/issues/new/choose).
 
 You may reach out to project maintainers privately at dnnl.maintainers@intel.com.
 

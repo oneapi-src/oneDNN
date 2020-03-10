@@ -1,7 +1,7 @@
 # benchdnn
 
 **benchdnn** is a standalone correctness and performance benchmark for
-[Deep Neural Network Library (DNNL)](https://github.com/intel/mkl-dnn).
+[Deep Neural Network Library (DNNL)](https://github.com/oneapi-src/oneDNN).
 
 The purpose of the benchmark is extended and robust correctness verification of
 the primitives provided by DNNL.
