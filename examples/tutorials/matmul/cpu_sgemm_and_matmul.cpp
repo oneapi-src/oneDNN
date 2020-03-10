@@ -38,7 +38,7 @@
 ///    To indicate the unknown dimensions and floating point values, you should
 ///    use #DNNL_RUNTIME_DIM_VAL and #DNNL_RUNTIME_F32_VAL respectively.
 /// 2. The shapes of the input and output matrices are passed at creation time,
-///    similar to the traditional DNNL / Intel MKL-DNN programming model.
+///    as in DNNL programming model.
 ///    This enables creating a highly specialized kernel for the given problem
 ///    sizes with the loss of generality.
 ///

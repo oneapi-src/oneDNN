@@ -1,4 +1,5 @@
 /*******************************************************************************
+/*******************************************************************************
 * Copyright 2019-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -406,7 +407,7 @@ static auto RCNNForwardBlocked_cases = []() {
                     {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
-// This tests compatibility with MKL-DNN 0.14
+// This tests compatibility with Intel MKL-DNN v0.14
 static auto RegressionWeightFormat_cases = []() {
     return ::testing::Values(lrn_params {fwd_training, across, fmt::oihw,
             fmt::oihw, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
@@ -463,7 +464,7 @@ INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c, lrn_f32,
         GoogleNetV1Forward_nChw16c_cases());
 INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNForwardBlocked, lrn_f32, RCNNForwardBlocked_cases());
-// This tests compatibility with MKL-DNN 0.14
+// This tests compatibility with Intel MKL-DNN v0.14
 INSTANTIATE_TEST_SUITE_P(
         TestLRNRegressionWeightFormat, lrn_f32, RegressionWeightFormat_cases());
 INSTANTIATE_TEST_SUITE_P(
@@ -528,7 +529,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c, lrn_fp16,
         GoogleNetV1Forward_nChw16c_cases());
 GPU_INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNForwardBlocked, lrn_fp16, RCNNForwardBlocked_cases());
-// This tests compatibility with MKL-DNN 0.14
+// This tests compatibility with Intel MKL-DNN v0.14
 GPU_INSTANTIATE_TEST_SUITE_P(TestLRNRegressionWeightFormat, lrn_fp16,
         RegressionWeightFormat_cases());
 GPU_INSTANTIATE_TEST_SUITE_P(

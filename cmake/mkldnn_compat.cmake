@@ -27,7 +27,7 @@ macro(mkldnn_compat_var dnnl_var mkldnn_var props)
         else()
             set(${dnnl_var} "${${mkldnn_var}}")
         endif()
-        message(STATUS "MKL-DNN compat: "
+        message(STATUS "Intel MKL-DNN compat: "
             "set ${dnnl_var} to ${mkldnn_var} with value `${${dnnl_var}}`")
     endif()
 endmacro()
