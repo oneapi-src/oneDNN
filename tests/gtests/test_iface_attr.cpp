@@ -275,61 +275,42 @@ TEST_F(attr_test, DepthwiseFusion) {
     engine e {engine_kind, 0};
 
     std::vector<float> scales {3};
+    std::vector<memory::data_type> test_dts {
+            memory::data_type::f32, memory::data_type::s8};
 
-    for (auto dt : {memory::data_type::f32, memory::data_type::bf16,
-                 memory::data_type::s8}) {
+    if (impl::cpu::mayiuse(impl::cpu::avx512_core))
+        test_dts.push_back(memory::data_type::bf16);
+
+    for (auto dt : test_dts) {
 
         memory::desc dat_md {
                 {1024, 512, 512, 512}, dt, memory::format_tag::any};
         memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::any};
 
+        auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
+                algorithm::convolution_auto, dat_md, wht_md, dat_md, {1, 1},
+                {0, 0}, {0, 0});
+
         std::string impl_info_unfused;
-        dnnl::primitive_attr attr;
-        dnnl::post_ops ops;
-
-        bool exception = false;
-        // primitive_desc without fusion
-        try {
-
-            auto pd = convolution_forward::primitive_desc {
-                    {prop_kind::forward_inference,
-                            algorithm::convolution_direct, dat_md, wht_md,
-                            dat_md, {1, 1}, {0, 0}, {0, 0}},
-                    attr, e};
-            impl_info_unfused = pd.impl_info_str();
-        } catch (error &) {
-            // TODO: Create test-suite with params and skip test with msg.
-            if (dt == memory::data_type::bf16
-                    && !impl::cpu::mayiuse(impl::cpu::avx512_core))
-                continue;
-            exception = true;
-        }
-
-        ASSERT_TRUE(!exception);
+        ASSERT_NO_THROW(
+                auto pd = convolution_forward::primitive_desc(cd_desc, e);
+                impl_info_unfused = pd.impl_info_str(););
 
         // skip if above unfused impl is not jitted.
         if (impl_info_unfused.compare(0, 3, "jit") != 0) continue;
 
+        dnnl::primitive_attr attr;
+        dnnl::post_ops ops;
         ops.append_dw_k3s1p1(dt, dt, dt, 1 << 1, scales);
         attr.set_post_ops(ops);
 
-        exception = false;
         std::string impl_info_fused;
+        ASSERT_NO_THROW(
+                auto pd = convolution_forward::primitive_desc(cd_desc, attr, e);
+                impl_info_fused = pd.impl_info_str(););
 
-        // primitive_desc with fusion
-        try {
-
-            auto pd = convolution_forward::primitive_desc {
-                    {prop_kind::forward_inference,
-                            algorithm::convolution_direct, dat_md, wht_md,
-                            dat_md, {1, 1}, {0, 0}, {0, 0}},
-                    attr, e};
-            impl_info_fused = pd.impl_info_str();
-        } catch (error &) { exception = true; };
-
-        ASSERT_TRUE(!exception);
         // Make sure ref fused impl is not deployed.
-        ASSERT_TRUE(impl_info_fused.compare(0, 3, "ref") != 0);
+        ASSERT_EQ(impl_info_fused, impl_info_unfused);
     }
 }
 
