@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2019 Intel Corporation
+* Copyright 2017-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -66,8 +66,8 @@ struct global_scratchpad_t : public scratchpad_t {
     global_scratchpad_t(engine_t *engine, size_t size) {
         UNUSED(engine);
         if (size > size_) {
-            auto *mem_storage = create_scratchpad_memory_storage(engine, size);
-            mem_storage_.reset(mem_storage);
+            delete mem_storage_;
+            mem_storage_ = create_scratchpad_memory_storage(engine, size);
             size_ = size;
         }
         reference_count_++;
@@ -76,23 +76,28 @@ struct global_scratchpad_t : public scratchpad_t {
     ~global_scratchpad_t() {
         reference_count_--;
         if (reference_count_ == 0) {
-            mem_storage_.reset();
+            delete mem_storage_;
+            mem_storage_ = nullptr;
             size_ = 0;
         }
     }
 
     virtual const memory_storage_t *get_memory_storage() const override {
-        return mem_storage_.get();
+        return mem_storage_;
     }
 
 private:
-    thread_local static std::unique_ptr<memory_storage_t> mem_storage_;
+    thread_local static memory_storage_t *mem_storage_;
     thread_local static size_t size_;
     thread_local static unsigned int reference_count_;
 };
 
-thread_local std::unique_ptr<memory_storage_t>
-        global_scratchpad_t::mem_storage_(nullptr);
+// CAVEAT: avoid having non-trivially-constructed thread-local objects. Their
+// construction order may depends on the program execution and the final
+// destruction order may be such that a thread-local object is destroyed
+// before all its users are destroyed thus causing a crash at exit.
+// Tested by tests/gtests/test_global_scratchad.cpp
+thread_local memory_storage_t *global_scratchpad_t::mem_storage_ = nullptr;
 thread_local size_t global_scratchpad_t::size_ = 0;
 thread_local unsigned int global_scratchpad_t::reference_count_ = 0;
 

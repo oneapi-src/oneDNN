@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2016-2019 Intel Corporation
+# Copyright 2016-2020 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -84,6 +84,7 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_resampling.cpp
                               test_isa_mask.cpp
                               test_isa_iface.cpp
+                              test_global_scratchpad.cpp
                               )
 
 # Workaround for an Intel compiler bug: stack unwinding does not restore
