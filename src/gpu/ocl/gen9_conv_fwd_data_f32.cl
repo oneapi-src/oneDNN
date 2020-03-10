@@ -281,7 +281,7 @@ gen9_conv_fwd_f32(const __global float *src,
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
-#if NHWC == 1
+#if SRC_NHWC == 1
     src += mb * IC * IDHW_SIZE + iw * IC + ih * IW * IC + id * IH * IW * IC;
 #else
     src += mb * IC * IDHW_SIZE + iw + ih * IW + id * IH * IW;
@@ -300,7 +300,7 @@ gen9_conv_fwd_f32(const __global float *src,
 #endif
                 continue;
             }
-#if NHWC == 1
+#if SRC_NHWC == 1
             const __global float *src1 = src + kd * (1 + DD) * IH * IW * IC
                     + kh * (1 + DH) * IW * IC + local_id;
 #define SP_OFF IC

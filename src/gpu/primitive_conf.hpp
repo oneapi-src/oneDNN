@@ -164,13 +164,13 @@ struct conv_conf_t {
     post_ops_t::entry_t::eltwise_t eltwise;
 
     bool is_depthwise;
+    bool is_nhwc;
     float relu_negative_slope;
     float sum_scale;
     int scale_idx_mult, rmode;
     int ver;
     format_tag_t src_tag, dst_tag, wei_tag;
-    bool is_nchw;
-    bool is_nhwc;
+    bool is_src_nchw, is_src_nhwc;
 
     data_type_t src_data_type;
     data_type_t weights_data_type;

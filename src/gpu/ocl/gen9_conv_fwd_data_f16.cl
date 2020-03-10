@@ -121,11 +121,11 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
-#if NHWC == 1
+#if SRC_NHWC == 1
     src += mb * IC * IDHW_SIZE + iw * IC + ih * IW * IC + id * IH * IW * IC;
 #else
     src += mb * IC * IDHW_SIZE + iw + ih * IW + id * IH * IW;
-#endif // NHWC == 1
+#endif // SRC_NHWC == 1
 
     wei += oc * OC_BLOCK * IC * KDHW_SIZE;
 
@@ -140,7 +140,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
             if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH) {
                 continue;
             }
-#if NHWC == 1
+#if SRC_NHWC == 1
             const __global half *src1 = src + kd * (1 + DD) * IH * IW * IC
                     + kh * (1 + DH) * IW * IC + local_id;
 #define SP_OFF IC
@@ -151,7 +151,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
                     + kh * (1 + DH) * IW + local_id * IDHW_SIZE
                     + IC * IDHW_SIZE;
 #define SP_OFF 1
-#endif // NHWC == 1
+#endif // SRC_NHWC == 1
 
             half tempA1[SW * OW_BLOCK + KW * (1 + DW)];
             half tempA2[SW * OW_BLOCK + KW * (1 + DW)];
@@ -395,11 +395,11 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
 
     int ih = oh * SH - PH;
     int iw = ow * SW - PW;
-#if NHWC == 1
+#if SRC_NHWC == 1
     src += mb * IC * IDHW_SIZE + iw * IC + ih * IW * IC + id * IH * IW * IC;
 #else
     src += mb * IC * IDHW_SIZE + iw + ih * IW + id * IH * IW;
-#endif // NHWC == 1
+#endif // SRC_NHWC == 1
 
     wei += oc * OC_BLOCK * IC * KDHW_SIZE;
 
@@ -414,7 +414,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
             if (ih + kh * (1 + DH) < 0 || ih + kh * (1 + DH) >= IH) {
                 continue;
             }
-#if NHWC == 1
+#if SRC_NHWC == 1
             const __global half *src1 = src + kd * (1 + DD) * IH * IW * IC
                     + kh * (1 + DH) * IW * IC + local_id;
 #define SP_OFF IC
@@ -422,7 +422,7 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
             const __global half *src1 = src + kd * (1 + DD) * IH * IW
                     + kh * (1 + DH) * IW + local_id * IDHW_SIZE;
 #define SP_OFF 1
-#endif // NHWC == 1
+#endif // SRC_NHWC == 1
 
             half tempA1[SW * OW_BLOCK + KW * (1 + DW)];
             int k = iw;

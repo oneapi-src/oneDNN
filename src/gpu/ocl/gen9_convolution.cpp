@@ -53,6 +53,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
             && (conf.oc_without_padding == 1);
+
+    conf.is_nhwc = is_nhwc;
     conf.is_depthwise = is_depthwise;
 
     if (is_nhwc && (is_depthwise || is_1stconv)) return status::unimplemented;
@@ -425,8 +427,8 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     }
     if (conf.dst_tag != dst_tag) return status::unimplemented;
 
-    conf.is_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
-    conf.is_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
+    conf.is_src_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
+    conf.is_src_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
     return status;
 }
@@ -507,10 +509,10 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("LWS_1", conf.lws_d[1]);
     kernel_ctx.define_int("LWS_2", conf.lws_d[2]);
 
-    if (conf.is_nchw)
-        kernel_ctx.define_int("NCHW", 1);
-    else if (conf.is_nhwc)
-        kernel_ctx.define_int("NHWC", 1);
+    if (conf.is_src_nchw)
+        kernel_ctx.define_int("SRC_NCHW", 1);
+    else if (conf.is_src_nhwc)
+        kernel_ctx.define_int("SRC_NHWC", 1);
 
     kernel_ctx.print_options();
     return status::success;
@@ -684,8 +686,8 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_conf() {
     }
     if (conf.dst_tag != dst_tag) return status::unimplemented;
 
-    conf.is_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
-    conf.is_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
+    conf.is_src_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
+    conf.is_src_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
     return status::success;
 }
@@ -925,6 +927,8 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     const bool is_1stconv = conf.ic_without_padding == 3;
     const bool is_depthwise = conf.with_groups && (conf.ic_without_padding == 1)
             && (conf.oc_without_padding == 1);
+
+    conf.is_nhwc = is_nhwc;
     conf.is_depthwise = is_depthwise;
 
     if (is_1stconv || conf.with_groups || is_nhwc) {
@@ -1075,8 +1079,8 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_conf() {
     }
     if (conf.dst_tag != dst_tag) return status::unimplemented;
 
-    conf.is_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
-    conf.is_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
+    conf.is_src_nchw = utils::one_of(src_tag, ncw, nchw, ncdhw);
+    conf.is_src_nhwc = utils::one_of(src_tag, nwc, nhwc, ndhwc);
 
     return status::success;
 }
