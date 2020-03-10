@@ -334,23 +334,6 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         (*kernel_)(&arg);
     };
 
-    if (diff_dst_d.is_plain() && c_tail != 0) {
-        parallel(0, [&](int ithr, int nthr) {
-            if (ithr >= nstl::min(nthr, jpp.mb * jpp.nb_c)) return;
-            wsp_data_t *__restrict wsp_ptr
-                    = cvt_slice_dst_wsp + ithr * diff_dst_slice_size;
-            for_(dim_t c = c_tail; c < jpp.c_block; c++)
-            for (dim_t s = 0; s < diff_dst_sp_size; s++)
-                wsp_ptr[s * jpp.c_block + c] = 0.f;
-            char *__restrict ind_ptr = cvt_slice_ind_wsp
-                    + ithr * diff_dst_slice_size * ind_dt_size;
-            for_(dim_t c = c_tail; c < jpp.c_block; c++)
-            for (dim_t s = 0; s < diff_dst_sp_size; s++)
-                for (size_t i = 0; i < ind_dt_size; i++)
-                    ind_ptr[(s * jpp.c_block + c) * ind_dt_size + i] = 0;
-        });
-    }
-
     auto trans_exec = [&](tr::kernel_t *trans_ker, const void *inp, void *out) {
         tr::call_param_t cp;
         cp.in = inp;
@@ -359,8 +342,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         trans_ker->operator()(&cp);
     };
 
-    parallel_nd(jpp.mb, jpp.nb_c, [&](int n, int b_c) {
-        int ithr = dnnl_get_thread_num();
+    auto process_block = [&](int ithr, int n, int b_c) {
         if (diff_src_d.is_plain()) {
             if (transpose_diff_src) {
                 const wsp_data_t zero_val = 0;
@@ -417,6 +399,35 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
                 trans_exec(trans_out_kernel_, wsp_, diff_src_);
             else
                 trans_exec(trans_out_tail_kernel_, wsp_, diff_src_);
+        }
+    };
+
+    parallel(0, [&](int ithr, int nthr) {
+        const size_t work_amount = (size_t)jpp.mb * jpp.nb_c;
+        if (ithr >= work_amount) return;
+
+        if (diff_dst_d.is_plain() && c_tail != 0) {
+            wsp_data_t *__restrict wsp_ptr
+                    = cvt_slice_dst_wsp + ithr * diff_dst_slice_size;
+            for_(dim_t s = 0; s < diff_dst_sp_size; s++)
+            for (dim_t c = c_tail; c < jpp.c_block; c++)
+                wsp_ptr[s * jpp.c_block + c] = 0.f;
+
+            char *__restrict ind_ptr = cvt_slice_ind_wsp
+                    + ithr * diff_dst_slice_size * ind_dt_size;
+            for_(dim_t s = 0; s < diff_dst_sp_size; s++)
+            for_(dim_t c = c_tail; c < jpp.c_block; c++)
+            for (size_t i = 0; i < ind_dt_size; i++)
+                ind_ptr[(s * jpp.c_block + c) * ind_dt_size + i] = 0;
+        }
+
+        size_t start {0}, end {0};
+        balance211(work_amount, nthr, ithr, start, end);
+        int n {0}, b_c {0};
+        utils::nd_iterator_init(start, n, jpp.mb, b_c, jpp.nb_c);
+        for (size_t iwork = start; iwork < end; ++iwork) {
+            process_block(ithr, n, b_c);
+            utils::nd_iterator_step(n, jpp.mb, b_c, jpp.nb_c);
         }
     });
 }
