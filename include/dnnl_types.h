@@ -95,7 +95,7 @@ typedef enum {
 
 /// Memory format tag specification.
 ///
-/// DNNL formats describe physical data layout. The physical layout
+/// oneDNN formats describe physical data layout. The physical layout
 /// is described as a sequence of the dimensions as they are laid out in the
 /// memory (from the outer-most to the inner-most). Note that this order
 /// doesn't affect the logical order of the dimensions that is kept in the
@@ -138,7 +138,7 @@ typedef enum {
 ///    For example, #dnnl_nc is used to denote 2D CNN activations tensor
 ///    memory format, where channels are the innermost dimension and batch is an
 ///    outermost one. Moreover, #dnnl_nc is just an alias to #dnnl_ab,
-///    since for DNNL CNN primitives the logical dimensions of
+///    since for oneDNN CNN primitives the logical dimensions of
 ///    activations tensors come in order: batch, channels, spatial.
 ///    In other words, batch corresponds to the first logical dimension (`a`),
 ///    channels correspond to the second one (`b`).

@@ -14,7 +14,7 @@ instruction, at the cost of reduced (but acceptable) accuracy.
 
 There are different ways to use lower precision to perform inference.  Please
 go through the @ref dev_guide_attributes_quantization page to get the initial
-understanding of what kind of quantization model DNNL supports.
+understanding of what kind of quantization model oneDNN supports.
 
 ### Quantization Process
 To operate with int8 data types from a higher-precision format (for example,
@@ -110,17 +110,17 @@ Finally, the quantized input values for the 8-bit operation are calculated as:
 
 These arrays are the new inputs for the int8 net.
 
-## DNNL Support for Low-Precision int8 Primitives
+## int8 Support
 
-DNNL supports low-precision computations for inference through the
-int8 primitives. int8 primitives are ordinary DNNL primitives that
+oneDNN supports low-precision computations for inference through the
+int8 primitives. int8 primitives are ordinary oneDNN primitives that
 have their input and output parameters configured to 8-bit types. int8
 primitives are optimized for high performance on the compatible hardware
 (see @ref dev_guide_data_types).
 
-### DNNL Attributes
+### Attributes
 
-DNNL primitive behavior may be extended for additional
+oneDNN primitive behavior may be extended for additional
 functionalities involving output data transformation. These additional features
 are configured via **primitive attributes**. The primitive attributes
 definition is an opaque structure for passing extra parameters to a primitive
@@ -131,12 +131,12 @@ primitive creation*.
 
 The **scaling factor**, as previously described, is known prior to the
 inference operation where the values are calculated from a set of formulas. In
-DNNL, the scaling factor is applied to the output of a primitive.
+oneDNN, the scaling factor is applied to the output of a primitive.
 Moreover, to perform input transformations (for example, source, bias, and
-weights), DNNL performs quantizing and dequantizing of data for int8
+weights), oneDNN performs quantizing and dequantizing of data for int8
 through the **Reorder Primitive**.
 
-DNNL has two formats for defining the output scaling factor. Depending
+oneDNN has two formats for defining the output scaling factor. Depending
 on the configuration set by the scaling mask, either the output is scaled
 uniformly across all the dimensions (_mask = 0_) or a set of scaling values is
 applied to specific dimensions, as explained below:
@@ -162,7 +162,7 @@ logical dimensions as [*d0, d1, ..., dn-1*]). For example:
 
 Mask is always applied to the logical dimension; this is independent of
 the dimension format that the primitive might select. The dimensions in
-DNNL are defined as follows:
+oneDNN are defined as follows:
 + 2D dimensional data the order of dimensions is always: (n, c)
 + 4D dimensional data the order is always: (n, c, h, w)
 + 5D dimensional weights the order is always: (g, oc, ic, kh, kw)

@@ -3,7 +3,7 @@ Version 1.0 Transition Guide {#dev_guide_transition_to_v1}
 
 > **NOTE**
 >
-> Starting with version 1.1 Intel(R) MKL-DNN is renamed to DNNL.
+> Starting with version 1.1 Intel MKL-DNN is renamed to DNNL.
 > For consistency, only this guide uses Intel MKL-DNN nomenclature.
 
 ## Introduction

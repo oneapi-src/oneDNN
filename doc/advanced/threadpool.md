@@ -1,8 +1,8 @@
-Using DNNL with threadpool-based threading {#dev_guide_threadpool}
+Using oneDNN with threadpool-based threading {#dev_guide_threadpool}
 ==================================================================
 
-When DNNL is built with the threadpool CPU runtime (see @ref
-dev_guide_build_options), DNNL requires a user to implement a threadpool
+When oneDNN is built with the threadpool CPU runtime (see @ref
+dev_guide_build_options), oneDNN requires a user to implement a threadpool
 interface to enable the library to perform computations using multiple
 threads.
 

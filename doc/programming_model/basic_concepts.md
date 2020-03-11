@@ -3,21 +3,21 @@ Basic Concepts {#dev_guide_basic_concepts}
 
 ## Introduction
 
-In this page, an outline of the DNNL programming model is presented, and the key
-concepts are discussed, including *Primitives*, *Engines*, *Streams*, and
-*Memory Objects*. In essence, the DNNL programming model consists in executing
+In this page, an outline of the oneDNN programming model is presented, and the
+key concepts are discussed, including *Primitives*, *Engines*, *Streams*, and
+*Memory Objects*. In essence, the oneDNN programming model consists in executing
 one or several *primitives* to process data in one or several *memory objects*.
 The execution is performed on an *engine* in the context of a *stream*. The
 relationship between these entities is briefly presented in Figure 1, which also
-includes additional concepts relevant to the DNNL programming model, such as
+includes additional concepts relevant to the oneDNN programming model, such as
 primitive *attributes* and *descriptors*. These concepts are described below in
 much more details.
 
-@img{img_programming_model.png,Figure 1: Overview of DNNL programming model. Blue rectangles denote DNNL objects\, and red lines denote dependencies between objects.,60%,}
+@img{img_programming_model.png,Figure 1: Overview of oneDNN programming model. Blue rectangles denote oneDNN objects\, and red lines denote dependencies between objects.,60%,}
 
 ### Primitives
 
-DNNL is built around the notion of a *primitive* (@ref dnnl::primitive). A
+oneDNN is built around the notion of a *primitive* (@ref dnnl::primitive). A
 *primitive* is a functor object that encapsulates a particular computation such
 as forward convolution, backward LSTM computations, or a data transformation
 operation. Additionally, using primitive *attributes* (@ref
@@ -29,9 +29,9 @@ a primitive can store state.
 
 One part of the primitive’s state is immutable. For example, convolution
 primitives store parameters like tensor shapes and can pre-compute other
-dependent parameters like cache blocking. This approach allows DNNL primitives
+dependent parameters like cache blocking. This approach allows oneDNN primitives
 to pre-generate code specifically tailored for the operation to be performed.
-The DNNL programming model assumes that the time it takes to perform the
+The oneDNN programming model assumes that the time it takes to perform the
 pre-computations is amortized by reusing the same primitive to perform
 computations multiple times.
 
@@ -61,7 +61,7 @@ passed to primitives during execution.
 
 ## Levels of Abstraction
 
-DNNL has multiple levels of abstractions for primitives and memory objects
+oneDNN has multiple levels of abstractions for primitives and memory objects
 in order to expose maximum flexibility to its users.
 
 On the *logical* level, the library provides the following abstractions:

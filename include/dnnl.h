@@ -3578,7 +3578,7 @@ dnnl_status_t DNNL_API dnnl_stream_attr_destroy(dnnl_stream_attr_t attr);
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
 /// Sets a threadpool to be used by the execution stream. Always returns
-/// dnnl_invalid_arguments unless DNNL is built with threadpool runtime.
+/// dnnl_invalid_arguments unless oneDNN is built with threadpool runtime.
 ///
 /// @sa @ref dev_guide_threadpool
 ///
@@ -3591,7 +3591,7 @@ dnnl_status_t DNNL_API dnnl_stream_attr_set_threadpool(
         dnnl_stream_attr_t attr, void *threadpool);
 
 /// Returns a threadpool to be used by the execution stream. Always returns
-/// dnnl_invalid_arguments unless DNNL is built with threadpool runtime.
+/// dnnl_invalid_arguments unless oneDNN is built with threadpool runtime.
 ///
 /// @sa @ref dev_guide_threadpool
 ///
@@ -3751,7 +3751,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_flags(unsigned flags);
 /// @returns #dnnl_unimplemented/#dnnl::status::unimplemented on Windows.
 dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 
-/// Sets the maximal ISA DNNL can dispatch to on the CPU. See
+/// Sets the maximal ISA the library can dispatch to on the CPU. See
 /// #dnnl_cpu_isa_t and #dnnl::cpu_isa for the list of the values accepted by
 /// the C and C++ API functions respectively.
 ///
@@ -3771,7 +3771,7 @@ dnnl_status_t DNNL_API dnnl_set_jit_profiling_jitdumpdir(const char *dir);
 ///
 /// @sa @ref dev_guide_cpu_dispatcher_control for more details
 ///
-/// @param isa Maximal ISA DNNL should dispatch to. Pass
+/// @param isa Maximal ISA the library should dispatch to. Pass
 ///     #dnnl_cpu_isa_all/#dnnl::cpu_isa::all to remove ISA restrictions.
 /// @returns #dnnl_success/#dnnl::status::success on success and a
 ///     #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the @p isa

@@ -17,7 +17,7 @@
 #ifndef OS_BLAS_HPP
 #define OS_BLAS_HPP
 
-/* DNNL provides gemm functionality on its own using jit generated
+/* oneDNN provides gemm functionality on its own using jit generated
  * kernels. This is the only official supported option.
  *
  * However, for the debugging purposes we keep (internally) an ability

@@ -121,7 +121,7 @@ where now
     \frac{\alpha_{\src} \cdot \alpha_{\weights}(oc)}{\alpha_{\dst}}\f$.
 
 It is worth mentioning that a user has to prepare quantized weights accordingly.
-For DNNL provides reorders that can perform per-channel scaling:
+For oneDNN provides reorders that can perform per-channel scaling:
 
 \f[
     \weights_{int8}(oc, ic, kh, kw) =
@@ -146,7 +146,7 @@ enough quantization API.
 The most common data type for data tensors during INT8 inference is
  #dnnl::memory::data_type::s8 and #dnnl::memory::data_type::u8. All the
 scaling factors related to tensors are not attached in any way to the
-DNNL memory objects and should be maintained by users.
+oneDNN memory objects and should be maintained by users.
 
 The library essentially extends the ability of the primitives to scale the
 output before storing the result to the memory with the destination data type.

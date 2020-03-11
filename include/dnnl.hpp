@@ -74,17 +74,17 @@
     } while (0)
 #endif
 
-/// @addtogroup dnnl_api DNNL API
+/// @addtogroup dnnl_api oneDNN API
 /// @{
 
-/// DNNL namespace
+/// oneDNN namespace
 namespace dnnl {
 
 /// @addtogroup dnnl_api_utils Utilities
 /// Utility types and definitions.
 /// @{
 
-/// DNNL exception class.
+/// oneDNN exception class.
 ///
 /// This class captures the status returned by a failed C API function and
 /// the error message from the call site.
@@ -122,11 +122,11 @@ void validate_container_size(const T &v, const char *error_message,
 }
 /// @endcond
 
-/// A class that provides the destructor for a DNNL C API handle.
+/// A class that provides the destructor for a oneDNN C API handle.
 template <typename T>
 struct handle_traits {};
 
-/// DNNL C API handle wrapper class.
+/// oneDNN C API handle wrapper class.
 ///
 /// This class is used as the base class for primitive (dnnl::primitive),
 /// engine (dnnl::engine), and stream (dnnl::stream) classes, as well as
@@ -136,7 +136,7 @@ struct handle_traits {};
 /// Otherwise, it follows `std::shared_ptr` semantics.
 ///
 /// @note
-///     The implementation stores DNNL C API handles in a `std::shared_ptr`
+///     The implementation stores oneDNN C API handles in a `std::shared_ptr`
 ///     with deleter set to a dummy function in the weak mode.
 ///
 template <typename T, typename traits = handle_traits<T>>
@@ -1017,7 +1017,7 @@ struct stream_attr : public handle<dnnl_stream_attr_t> {
     }
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    /// Sets the threadpool attribute. Always throws unless DNNL is built with
+    /// Sets the threadpool attribute. Always throws unless oneDNN is built with
     /// threadpool runtime.
     ///
     /// @sa @ref dev_guide_threadpool
@@ -1029,7 +1029,7 @@ struct stream_attr : public handle<dnnl_stream_attr_t> {
                 "could not set stream threadpool attribute");
     }
 
-    /// Returns the threadpool attribute. Always throws unless DNNL is built
+    /// Returns the threadpool attribute. Always throws unless oneDNN is built
     /// with threadpool runtime.
     ///
     /// @sa @ref dev_guide_threadpool
@@ -10404,7 +10404,7 @@ struct resampling_backward : public primitive {
 
 /// @addtogroup dnnl_api_service Service
 ///
-/// A set of functions that aid in DNNL debugging and profiling.
+/// A set of functions that aid in oneDNN debugging and profiling.
 ///
 /// @{
 

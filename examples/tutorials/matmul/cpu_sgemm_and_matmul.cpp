@@ -33,12 +33,12 @@
 /// We will show two modes for the MatMul primitive:
 /// 1. The shapes of the input and output matrices are passed at execution time.
 ///    This enables you to create a primitive only once and use it for different
-///    matrices, just like normal SGEMM (though with a handle -- DNNL
+///    matrices, just like normal SGEMM (though with a handle -- oneDNN
 ///    primitive).
 ///    To indicate the unknown dimensions and floating point values, you should
 ///    use #DNNL_RUNTIME_DIM_VAL and #DNNL_RUNTIME_F32_VAL respectively.
 /// 2. The shapes of the input and output matrices are passed at creation time,
-///    as in DNNL programming model.
+///    as in oneDNN programming model.
 ///    This enables creating a highly specialized kernel for the given problem
 ///    sizes with the loss of generality.
 ///
@@ -165,12 +165,12 @@ void dynamic_matmul_execute(matmul &matmul_p, char transA, char transB,
     dims a_strides = tolower(transA) == 'n' ? dims {lda, 1} : dims {1, lda};
     dims b_strides = tolower(transB) == 'n' ? dims {ldb, 1} : dims {1, ldb};
 
-    // Wrap raw pointers into DNNL memories (with proper shapes)
+    // Wrap raw pointers into oneDNN memories (with proper shapes)
     memory A_m({{M, K}, memory::data_type::f32, a_strides}, eng, (void *)A);
     memory B_m({{K, N}, memory::data_type::f32, b_strides}, eng, (void *)B);
     memory C_m({{M, N}, memory::data_type::f32, {ldc, 1}}, eng, (void *)C);
 
-    // Prepare DNNL memory for alpha
+    // Prepare oneDNN memory for alpha
     memory alpha_m({{1}, memory::data_type::f32, {1}}, eng, &alpha);
 
     // Execute the MatMul primitive
@@ -212,7 +212,7 @@ void static_matmul_create_and_execute(char transA, char transB, int64_t M,
     matmul::primitive_desc matmul_pd(matmul_d, attr, eng);
     matmul matmul_p(matmul_pd);
 
-    // Wrap raw pointers into DNNL memory objects
+    // Wrap raw pointers into oneDNN memory objects
     memory A_m(a_md, eng, (void *)A);
     memory B_m(b_md, eng, (void *)B);
     memory C_m(c_md, eng, (void *)C);

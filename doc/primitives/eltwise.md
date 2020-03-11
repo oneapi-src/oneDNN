@@ -16,7 +16,7 @@ where \f$\overline{s} = (s_n, .., s_0)\f$.
 
 The following operations are supported:
 
-| Operation    | DNNL algorithm kind        | Forward formula | Backward formula (from src) | Backward formula (from dst) |
+| Operation    | oneDNN algorithm kind      | Forward formula | Backward formula (from src) | Backward formula (from dst) |
 | :--          | :--                        | :--             | :--                         | :--
 | abs          | #dnnl_eltwise_abs          | \f$ d = \begin{cases} s & \text{if}\ s > 0 \\ -s & \text{if}\ s \leq 0 \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ s > 0 \\ -dd & \text{if}\ s < 0 \\ 0 & \text{if}\ s = 0 \end{cases} \f$ | --
 | bounded_relu | #dnnl_eltwise_bounded_relu | \f$ d = \begin{cases} \alpha & \text{if}\ s > \alpha \geq 0 \\ s & \text{if}\ 0 < s \leq \alpha \\ 0 & \text{if}\ s \leq 0 \end{cases} \f$ | \f$ ds = \begin{cases} dd & \text{if}\ 0 < s \leq \alpha, \\ 0 & \text{otherwise}\ \end{cases} \f$ | --

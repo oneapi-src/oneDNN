@@ -349,7 +349,7 @@ protected:
                                 && p.alpha != 0.0))
                         && (data_type == memory::data_type::s32
                                 || data_type == memory::data_type::s8),
-                "DNNL only supports relu w/ slope=0 for integers");
+                "oneDNN only supports relu w/ slope=0 for integers");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }

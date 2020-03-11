@@ -1,8 +1,8 @@
 Inference {#dev_guide_inference}
 ================================
 
-DNNL includes primitives for operations throughout a deep learning
-network topology. However, it is important to note the scope of DNNL
+oneDNN includes primitives for operations throughout a deep learning
+network topology. However, it is important to note the scope of oneDNN
 is limited to performance critical functionality and the library does not
 provide all the functions necessary to implement deep learning workloads, for
 instance data preprocessing or computing loss function.  The soft-max
@@ -12,13 +12,13 @@ library is depicted in the following image:
 
 @img{img_inference_scope.jpg,,80%,}
 
-## Best Practices for Inference in DNNL
+## Best Practices for Inference
 
 ## fp32 Inference
 
 **Use Forward Inference Primitives**
 
-DNNL provides a forward pass
+oneDNN provides a forward pass
 version of each primitive, that avoids storing information required for a
 backward pass (as in training).
 
@@ -30,22 +30,22 @@ auto conv_descr = convolution_forward::desc(prop_kind::forward_inference, ...);
 
 **Layout Propagation**
 
-Compute-intensive DNNL primitives execute with highest performance
+Compute-intensive oneDNN primitives execute with highest performance
 on CPU-friendly data formats. Please see description of data formats
 [here](@ref memory_format_propagation_cpp).
 
 Performance gains are maximized by reordering once, and then propagating the
 CPU-friendly format through as many layers as possible in your topology. 
-DNNL provides the `format_tag=any` for memory descriptors that will be
+oneDNN provides the `format_tag=any` for memory descriptors that will be
 passed to compute-intensive primitives. The compute-intensive primitive types
-in DNNL are @ref dev_guide_convolution, @ref dev_guide_inner_product,
+in oneDNN are @ref dev_guide_convolution, @ref dev_guide_inner_product,
 and @ref dev_guide_rnn.
 
 To accomplish this propagation in a robust manner, its is recommended to
 follow these steps:
 
 A. On compute-intensive operations:
-* Pass the `format_tag=any` when creating DNNL **memory descriptor**
+* Pass the `format_tag=any` when creating oneDNN **memory descriptor**
   for source, destination, and weights memory
 * Use these three *memory descriptors* with 'format _tag=any` to create
   **operation descriptor**
@@ -68,7 +68,7 @@ B. On non-intensive operations:
 Now let's take a look at the code syntax to accomplish the compute-intensive
 steps:
 
-Pass the `format_tag=any` when creating DNNL **memory descriptor**
+Pass the `format_tag=any` when creating oneDNN **memory descriptor**
 for source, destination, and weights memory
 ~~~cpp
 source_mem_descr = memory::desc(args*, memory::format_tag::any);
@@ -125,7 +125,7 @@ There is JIT compilation overhead associated with primitive creation. It is
 recommended to reuse any primitive that you can, and only create them once.
 
 **Fused Primitives**\
-DNNL provides fused versions of primitives that attach a non-intensive
+oneDNN provides fused versions of primitives that attach a non-intensive
 operation to the end of a compute-intensive operation and then executes both
 in a single pass, reducing the number of memory accesses needed
 for the combined operations.
@@ -168,25 +168,25 @@ auto conv_prim_descr = convolution_forward::primitive_desc(conv_descr, attrs, en
 
 ## int8 Inference
 
-DNNL supports low precision int8 for inference execution. Note that not all
+oneDNN supports low precision int8 for inference execution. Note that not all
  primitives have int8 versions. Sometimes the speed benefits would be minimal,
 or the loss in accuracy is not acceptable. Also the soft-max classifier only
 supports fp32, so int8 inference will require a reorder before executing this
 primitive.
 
-By default, the DNNL reorder primitive does not scale upon casting to int8.
+By default, the oneDNN reorder primitive does not scale upon casting to int8.
 In order to compress fp32 data to int8 precision while still preserving
 the entire shape of the distribution, a process called **quantization** must
 applied. Quantization will scale the data based on its range to efficiently fill
 the bits available for int8 type.
 
 To achieve quantization upon casting, the user must provide a few inputs to
-DNNL in order to use int8 inference:
+oneDNN in order to use int8 inference:
 
 * Specify data type at creation of primitive descriptor (int8 in this case)
-* Provide a scaling factor for DNNL reorder primitive
+* Provide a scaling factor for oneDNN reorder primitive
 * Provide an output scaling factor the operation primitive
 
 Please see the dedicated [section](@ref dev_guide_inference_int8) on low
-precision computations in DNNL for a detailed discussion, including how
+precision computations in oneDNN for a detailed discussion, including how
 to calculate the scaling factors.

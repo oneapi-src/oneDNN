@@ -65,7 +65,7 @@ namespace impl {
     T &operator=(const T &) = delete;
 
 // Sanity check for 64 bits
-static_assert(sizeof(void *) == 8, "DNNL supports 64 bit only");
+static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 
 #define CHECK(f) \
     do { \
@@ -82,7 +82,7 @@ namespace utils {
  * Rationale: msvs c++ (and even some c) headers contain special pragma that
  * injects msvs-version check into object files in order to abi-mismatches
  * during the static linking. This makes sense if e.g. std:: objects are passed
- * through between application and library, which is not the case for DNNL
+ * through between application and library, which is not the case for oneDNN
  * (since there is no any c++-rt dependent stuff, ideally...). */
 
 /* SFINAE helper -- analogue to std::enable_if */

@@ -29,7 +29,7 @@ executing on hardware that supports
 [Intel DL Boost bfloat16 instructions](https://software.intel.com/sites/default/files/managed/c5/15/architecture-instruction-set-extensions-programming-reference.pdf),
 `bf16` may offer an increase in computational throughput.
 
-## DNNL Support for bfloat16 Primitives
+## bfloat16 Support
 
 Most of the primitives have been updated to support the `bf16` data type for
 source and weights tensors. Destination tensors can be specified to have either
@@ -37,13 +37,13 @@ the `bf16` or `f32` data type. The latter is intended for cases in which the
 output is to be fed to operations that do not support bfloat16 or require
 better precision.
 
-## Bfloat16 Workflow
+## bfloat16 Workflow
 
 The main difference between implementing training with the `f32` data type and
 with the `bf16` data type is the way the weights updates are treated. With the
 `f32` data type, the weights gradients have the same data type as the weights
 themselves. This is not necessarily the case with the `bf16` data type as
-DNNL allows some flexibility here. For example, one could maintain a
+oneDNN allows some flexibility here. For example, one could maintain a
 master copy of all the weights, computing weights gradients in `f32` and
 converting the result to `bf16` afterwards.
 

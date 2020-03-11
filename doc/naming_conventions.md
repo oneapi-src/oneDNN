@@ -1,7 +1,7 @@
 Naming Conventions {#dev_guide_conventions}
 ===========================================
 
-The DNNL documentation relies on a set of standard naming
+oneDNN documentation relies on a set of standard naming
 conventions for variables. This section describes these conventions.
 
 ## Variable (Tensor) Names
@@ -16,14 +16,14 @@ to the \src and \weights respectively:
 \f[ \diffsrc = df_{\src}(\diffdst, \src, \weights, \dst), \f] and
 \f[ \diffweights = df_{\weights}(\diffdst, \src, \weights, \dst). \f]
 
-While DNNL uses _src_, _dst_, and _weights_ as generic names for the
+While oneDNN uses _src_, _dst_, and _weights_ as generic names for the
 activations and learnable tensors, for a specific operation there might be
 commonly used and widely known specific names for these tensors.
 For instance, the [convolution](@ref dev_guide_convolution) operation has a
-learnable tensor called bias. For usability reasons, DNNL primitives
+learnable tensor called bias. For usability reasons, oneDNN primitives
 use such names in initialization or other functions to simplify the coding.
 
-To summarize, DNNL uses the following commonly used notations for
+To summarize, oneDNN uses the following commonly used notations for
 tensors:
 
 | Name                  | Meaning
@@ -46,7 +46,7 @@ tensors:
 
 ## Formulas and Verbose Output
 
-DNNL uses the following notations in the documentation formulas and verbose
+oneDNN uses the following notations in the documentation formulas and verbose
 output. Here, lower-case letters are used to denote indices in a particular
 spatial dimension, the sizes of which are denoted by corresponding upper-case
 letters.
@@ -91,7 +91,7 @@ The following notations are used when describing RNN primitives.
 
 ## Memory Formats Tags
 
-When describing tensor memory formats, which is the DNNL term for the
+When describing tensor memory formats, which is the oneDNN term for the
 way that the data is laid out in memory, documentation uses letters of the
 English alphabet to describe an order of dimensions and their semantics.
 
@@ -118,7 +118,7 @@ last block in the in-memory representation will contain padding zeroes.
 @todo Picture here
 
 Since there are many widely used names for specific deep learning domains like
-convolutional neural networks (CNNs), DNNL also supports memory
+convolutional neural networks (CNNs), oneDNN also supports memory
 format tags in which dimensions have specifically assigned meaning like 'image
 width', 'image height', etc. The following table summarizes notations used in
 such memory format tags.

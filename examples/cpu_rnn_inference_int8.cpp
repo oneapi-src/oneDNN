@@ -31,7 +31,7 @@
 ///  - one primitive for all subsequent iterations in the decoder. Note that
 ///    in this example, this primitive computes the states in place.
 ///  - the attention mechanism is implemented separately as there is no support
-///    for the context vectors in DNNL yet
+///    for the context vectors in oneDNN yet
 
 #include <assert.h>
 

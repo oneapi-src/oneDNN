@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-# Test DNNL for embeddability
+# Test oneDNN for embeddability
 # by imitating a project that includes the library
 #
 # To test run:
@@ -36,9 +36,9 @@ if(POLICY CMP0054)
     set(NONE "some-value")
 endif()
 
-# include DNNL
+# include oneDNN
 set(DNNL_DIR "../../..")
-add_subdirectory(${DNNL_DIR} DNNL)
+add_subdirectory(${DNNL_DIR} oneDNN)
 include_directories(${DNNL_DIR}/include)
 
 add_executable(project_app main.c)

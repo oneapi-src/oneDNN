@@ -62,7 +62,7 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &cpd, res_t *r) {
         SAFE(init_status, WARN);
 
     const char *impl_str = query_impl_info(cpd);
-    BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
+    BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
 
     return OK;
 }

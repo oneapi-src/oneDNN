@@ -1,15 +1,15 @@
-Deep Neural Network Library (DNNL)
-==================================
+oneAPI Deep Neural Network Library (oneDNN)
+===========================================
 
-Deep Neural Network Library (DNNL) is an
+oneAPI Deep Neural Network Library (oneDNN) is an
 open-source performance library for deep learning applications. The library
 includes basic building blocks for neural networks optimized
 for Intel Architecture Processors and Intel Processor Graphics.
 
-This package contains DNNL v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
+This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
 
 You can find information about the latest version and release notes
-at DNNL Github (https://github.com/oneapi-src/oneDNN/releases).
+at oneDNN Github (https://github.com/oneapi-src/oneDNN/releases).
 
 Documentation
 -------------
@@ -23,7 +23,7 @@ provides comprehensive reference of the library API.
 System Requirements
 -------------------
 
-DNNL supports systems based on Intel 64 or AMD64 architecture.
+oneDNN supports systems based on Intel 64 or AMD64 architecture.
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
@@ -34,7 +34,7 @@ The library is optimized for the following CPUs:
 * Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
 * future Intel Xeon Scalable processor (code name Cooper Lake)
 
-DNNL detects instruction set architecture (ISA) in the runtime and uses
+oneDNN detects instruction set architecture (ISA) in the runtime and uses
 just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA.
 
@@ -98,7 +98,7 @@ prior notification in future releases:
 License
 -------
 
-DNNL is licensed under Apache License Version 2.0. Refer to the "LICENSE"
+oneDNN is licensed under Apache License Version 2.0. Refer to the "LICENSE"
 file for the full license text and copyright notice.
 
 This distribution includes third party software governed by separate license

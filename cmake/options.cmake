@@ -27,7 +27,7 @@ set(options_cmake_included true)
 # ========
 
 option(DNNL_VERBOSE
-    "allows DNNL be verbose whenever DNNL_VERBOSE
+    "allows oneDNN be verbose whenever DNNL_VERBOSE
     environment variable set to 1" ON) # enabled by default
 
 option(DNNL_ENABLE_CONCURRENT_EXEC
@@ -43,7 +43,7 @@ option(DNNL_ENABLE_PRIMITIVE_CACHE "enables primitive cache.
     # disabled by default
 
 option(DNNL_ENABLE_MAX_CPU_ISA
-    "enables control of CPU ISA detected by DNNL via DNNL_MAX_CPU_ISA
+    "enables control of CPU ISA detected by oneDNN via DNNL_MAX_CPU_ISA
     environment variable and dnnl_set_max_cpu_isa() function" ON)
 
 # =============================
@@ -51,16 +51,16 @@ option(DNNL_ENABLE_MAX_CPU_ISA
 # =============================
 
 set(DNNL_LIBRARY_TYPE "SHARED" CACHE STRING
-    "specifies whether DNNL library should be SHARED or STATIC")
+    "specifies whether oneDNN library should be SHARED or STATIC")
 option(DNNL_BUILD_EXAMPLES "builds examples"  ON)
 option(DNNL_BUILD_TESTS "builds tests" ON)
-option(DNNL_BUILD_FOR_CI "specifies whether DNNL library should be built for CI" OFF)
+option(DNNL_BUILD_FOR_CI "specifies whether oneDNN library should be built for CI" OFF)
 option(DNNL_WERROR "treat warnings as errors" OFF)
 
 set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
     "specifies installation mode; supports DEFAULT or BUNDLE.
 
-    When BUNDLE option is set DNNL will be installed as a bundle
+    When BUNDLE option is set oneDNN will be installed as a bundle
     which contains examples and benchdnn.")
 
 set(DNNL_CODE_COVERAGE "OFF" CACHE STRING
@@ -98,7 +98,7 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
 # ======================
 
 option(DNNL_ENABLE_JIT_PROFILING
-    "Enable registration of DNNL kernels that are generated at
+    "Enable registration of oneDNN kernels that are generated at
     runtime with Intel VTune Amplifier (on by default). Without the
     registrations, Intel VTune Amplifier would report data collected inside
     the kernels as `outside any known module`."
