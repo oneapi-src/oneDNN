@@ -57,8 +57,6 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     conf.is_nhwc = is_nhwc;
     conf.is_depthwise = is_depthwise;
 
-    if (is_nhwc && is_depthwise) return status::unimplemented;
-
     if (is_1stconv || conf.with_groups) {
         conf.ic = conf.ic_without_padding;
         if (is_1stconv && conf.oc_without_padding % 16 != 0)
@@ -141,15 +139,23 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
 
                     int max_oc_block
                             = (conf.ic * conf.kh * conf.kw > 2048) ? 12 : 16;
-                    conf.ocb = conf.oc_block
-                            * utils::max_div(
-                                    conf.oc / conf.oc_block, max_oc_block);
+                    if (conf.is_depthwise) {
+                        conf.ocb = conf.ngroups;
+                    } else {
+                        conf.ocb = conf.oc_block
+                                * utils::max_div(
+                                        conf.oc / conf.oc_block, max_oc_block);
+                    }
 
                     conf.gws_d[0] = conf.ocb;
                     conf.gws_d[1] = utils::div_up(conf.oh, conf.oh_block)
                             * utils::div_up(conf.ow, conf.ow_block) * conf.od;
-                    conf.gws_d[2]
-                            = conf.mb * (conf.oc / conf.ocb) * conf.ngroups;
+                    if (conf.is_depthwise) {
+                        conf.gws_d[2] = conf.mb;
+                    } else {
+                        conf.gws_d[2]
+                                = conf.mb * (conf.oc / conf.ocb) * conf.ngroups;
+                    }
                     break;
                 }
                 default: return status::unimplemented; break;
@@ -339,6 +345,9 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
                                   conf.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
                                            : utils::pick(conf.ndims - 3, Owi16o,
                                                    Ohwi16o, Odhwi16o);
+            } else if (conf.is_depthwise) {
+                wei_tag = utils::pick(
+                        conf.ndims - 3, Goiw16g, Goihw16g, Goidhw16g);
             } else {
                 wei_tag = conf.with_groups
                         ? utils::pick(conf.ndims - 3, gOIw16i16o, gOIhw16i16o,
@@ -486,6 +495,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
     kernel_ctx.define_int("OC_BLOCK", conf.oc_block);
     kernel_ctx.define_int("IC_BLOCK", conf.ic_block);
+    kernel_ctx.define_int("G_WO_PADDING", conf.ngroups_without_padding);
     kernel_ctx.define_int("IC_WO_PADDING", conf.ic_without_padding);
     kernel_ctx.define_int("OC_WO_PADDING", conf.oc_without_padding);
     kernel_ctx.define_int("OC_GROUP", conf.lws_d[0] / 8);
