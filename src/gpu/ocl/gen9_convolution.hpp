@@ -88,17 +88,17 @@ struct gen9_convolution_fwd_t : public primitive_impl_t {
 
     status_t init() override {
         const char *kernel_name = nullptr;
-        if (pd()->conf.is_depthwise)
+        if (pd()->conf.is_nhwc && pd()->conf.src_data_type == data_type::f32) {
+            kernel_name = "gen9_conv_nhwc_fwd_f32";
+        } else if (pd()->conf.is_depthwise) {
             kernel_name = "gen9_conv_dw_fwd";
-        else if (pd()->desc()->src_desc.data_type == data_type::f16)
+        } else if (pd()->desc()->src_desc.data_type == data_type::f16) {
             kernel_name = "gen9_conv_fwd_f16";
-        else if (pd()->desc()->src_desc.data_type == data_type::f32) {
-            if (pd()->conf.is_nhwc)
-                kernel_name = "gen9_conv_nhwc_fwd_f32";
-            else
-                kernel_name = "gen9_conv_fwd_f32";
-        } else
+        } else if (pd()->desc()->src_desc.data_type == data_type::f32) {
+            kernel_name = "gen9_conv_fwd_f32";
+        } else {
             assert(!"not expected");
+        }
 
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
