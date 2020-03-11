@@ -57,7 +57,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     conf.is_nhwc = is_nhwc;
     conf.is_depthwise = is_depthwise;
 
-    if (is_nhwc && (is_depthwise || is_1stconv)) return status::unimplemented;
+    if (is_nhwc && is_depthwise) return status::unimplemented;
 
     if (is_1stconv || conf.with_groups) {
         conf.ic = conf.ic_without_padding;
@@ -114,7 +114,7 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
                 case f32: {
                     conf.mb_block = 1;
                     conf.oc_block = 16;
-                    conf.ic_block = 16;
+                    conf.ic_block = is_1stconv ? 1 : 16;
 
                     int max_ow_block = (conf.kw > 1) ? 8 : 16;
                     if (conf.oc <= 64 && conf.ic <= 64) max_ow_block = 8;
@@ -334,10 +334,18 @@ status_t gen9_convolution_fwd_t::pd_t::init_conf() {
         case ver_nhwc:
             src_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
             dst_tag = utils::pick(conf.ndims - 3, nwc, nhwc, ndhwc);
-            wei_tag = conf.with_groups ? utils::pick(conf.ndims - 3, gOIw16i16o,
-                              gOIhw16i16o, gOIdhw16i16o)
-                                       : utils::pick(conf.ndims - 3, OIw16i16o,
-                                               OIhw16i16o, OIdhw16i16o);
+            if (is_1stconv) {
+                wei_tag = conf.with_groups ? utils::pick(
+                                  conf.ndims - 3, gOwi16o, gOhwi16o, gOdhwi16o)
+                                           : utils::pick(conf.ndims - 3, Owi16o,
+                                                   Ohwi16o, Odhwi16o);
+            } else {
+                wei_tag = conf.with_groups
+                        ? utils::pick(conf.ndims - 3, gOIw16i16o, gOIhw16i16o,
+                                gOIdhw16i16o)
+                        : utils::pick(conf.ndims - 3, OIw16i16o, OIhw16i16o,
+                                OIdhw16i16o);
+            }
             break;
         case ver_1stconv:
             src_tag = utils::pick(conf.ndims - 3, ncw, nchw, ncdhw);

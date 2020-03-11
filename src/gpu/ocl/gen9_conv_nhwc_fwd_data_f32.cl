@@ -27,31 +27,24 @@
 // - due to 16-bytes alignment requred, intel_sub_groups_block_write usage
 //   is limited
 
+#define ENABLE_KW_BUF (KW >= 5)
+
 #define CASE_3D (ID > 1)
-
 #define KDHW_SIZE (KD * KH * KW)
-
 #define HAS_PAD_D (PD != 0 || PD_R != 0)
 #define HAS_PAD_H (PH != 0 || PH_R != 0)
-#define HAS_PAD_W (PW != 0 || PW_R != 0)
-
-#define IS_1x1x1 (KH == 1 && KW == 1 && KD == 1)
-
-#define DO_ELTWISE(blockC, nelems, alpha, beta, scale) \
-    do { \
-        for (uint i = 0; i < nelems; i++) \
-            blockC[i] = fwd_eltwise(blockC[i], alpha, beta, scale); \
-    } while (0)
 
 inline float read_ic_block(const __global float *ptr, int off) {
+    const int local_id = get_local_id(0);
+#if IC == 3
+    return (local_id < IC) ? *ptr : 0.0f;
+#else
 #if IC_WO_PADDING % IC_BLOCK != 0
     int tail = IC_WO_PADDING - off;
-    if (tail < IC_BLOCK) {
-        const int local_id = get_local_id(0);
-        return (local_id < tail) ? ptr[local_id] : 0.0f;
-    }
+    if (tail < IC_BLOCK) { return (local_id < tail) ? ptr[local_id] : 0.0f; }
 #endif
     return as_float(intel_sub_group_block_read((const __global uint *)ptr));
+#endif
 }
 
 inline float read_oc_block(const __global float *ptr, int off) {
@@ -66,20 +59,25 @@ inline float read_oc_block(const __global float *ptr, int off) {
 }
 
 inline void write_oc_block(__global float *ptr, int off, float value) {
+    const int local_id = get_local_id(0);
 #if OC_WO_PADDING % OC_BLOCK != 0
     int tail = OC_WO_PADDING - off;
     if (tail < OC_BLOCK) {
-        const int local_id = get_local_id(0);
         if (local_id < tail) ptr[local_id] = value;
         return;
     }
 #endif
     if (OC_WO_PADDING % 4 != 0) {
-        const int local_id = get_local_id(0);
         ptr[local_id] = value;
         return;
     }
     return intel_sub_group_block_write((__global uint *)ptr, as_uint(value));
+}
+
+void multiply_blocks_8x8_ic3(float *res, float blockA, const float *blockB) {
+    *res = fma(blockB[0], intel_sub_group_shuffle(blockA, 0), *res);
+    *res = fma(blockB[1], intel_sub_group_shuffle(blockA, 1), *res);
+    *res = fma(blockB[2], intel_sub_group_shuffle(blockA, 2), *res);
 }
 
 void multiply_blocks_8x8(
@@ -93,10 +91,7 @@ void multiply_blocks_8x8(
 }
 
 __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2)))
-#if SUB_GROUP_SIZE != 1
-__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE)))
-#endif
-__kernel void
+__attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) __kernel void
 gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
         const __global float *bias, __global float *dst, float eltwise_alpha,
         float eltwise_beta, float eltwise_scale, float sum_scale) {
@@ -131,13 +126,14 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
 
     wei += goc * KDHW_SIZE * OC_BLOCK * IC + g * IC * OC * KDHW_SIZE;
 
-#if IS_1x1x1 && (HAS_PAD_D || HAS_PAD_H)
+#if (KD == 1 && KH == 1) && (HAS_PAD_D || HAS_PAD_H)
     const bool dh_out_of_range = (id < 0 || id >= ID || ih < 0 || ih >= IH);
 #else
     const bool dh_out_of_range = false;
 #endif
 
-    for (int icb = 0; !dh_out_of_range && (icb < IC); icb += IC_BLOCK) {
+    const int icb_max = dh_out_of_range ? 0 : (IC == 3 ? 1 : IC);
+    for (int icb = 0; icb < icb_max; icb += IC_BLOCK) {
         __attribute__((opencl_unroll_hint(1))) // attr:no-format
         for (int kd = 0; kd < KD; ++kd) {
 #if HAS_PAD_D && (KD > 1)
@@ -152,29 +148,67 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
                 const __global float *src1 = src
                         + kd * (1 + DD) * IH * IW * G * IC_WO_PADDING
                         + kh * (1 + DH) * IW * G * IC_WO_PADDING;
-
+                if (IC == 3) src1 += local_id;
+#if ENABLE_KW_BUF
+                float tempA[SW * OW_BLOCK + KW * (1 + DW)] = {0.0f};
+                __attribute__((opencl_unroll_hint(
+                        SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+                for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
+                    if ((i + iw) >= 0 && (i + iw) < IW) {
+                        tempA[i] = read_ic_block(
+                                &src1[i * G * IC_WO_PADDING], icb);
+                    }
+                }
+#endif
                 __attribute__((opencl_unroll_hint(KW))) // attr:no-format
                 for (int kw = 0; kw < KW; ++kw) {
+#if IC == 3
                     const __global float *wei1 = wei
-                            + (kd * KH * KW + kh * KW + kw) * OC_BLOCK
-                                    * IC_BLOCK;
+                            + (kd * KH * KW + kh * KW + kw) * IC * OC_BLOCK;
+#else
+                    const __global float *wei1 = wei
+                            + (kd * KH * KW + kh * KW + kw) * IC_BLOCK
+                                    * OC_BLOCK;
+#endif
 
-                    float8 blockB00 = as_float8(intel_sub_group_block_read8(
-                            (const __global uint *)wei1));
-                    float8 blockB01 = as_float8(intel_sub_group_block_read8(
-                            (const __global uint *)(wei1 + 8 * IC_BLOCK)));
-
-                    float blockA[OW_BLOCK];
-                    __attribute__((opencl_unroll_hint(
-                            OW_BLOCK))) for (int i = 0; i < OW_BLOCK; i++) {
+                    float blockA[OW_BLOCK] = {0.0f};
+#if ENABLE_KW_BUF
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
+                        blockA[i] = tempA[i * SW + kw * (1 + DW)];
+                    }
+#else
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
                         int iw_off = i * SW + kw * (1 + DW);
-                        if (iw + iw_off < 0 || iw + iw_off >= IW) {
-                            blockA[i] = 0.0f;
-                        } else {
+                        if (iw + iw_off >= 0 && iw + iw_off < IW) {
                             blockA[i] = read_ic_block(
                                     &src1[iw_off * G * IC_WO_PADDING], icb);
                         }
                     }
+#endif
+
+#if IC == 3
+                    float blockB[IC];
+                    __attribute__((opencl_unroll_hint(IC))) // attr:no-format
+                    for (int i = 0; i < IC; i++) {
+                        blockB[i] = as_float(intel_sub_group_block_read(
+                                (const __global uint *)wei1 + i * OC_BLOCK));
+                    }
+
+                    __attribute__((
+                            opencl_unroll_hint(OW_BLOCK))) // attr:no-format
+                    for (int i = 0; i < OW_BLOCK; i++) {
+                        multiply_blocks_8x8_ic3(
+                                &blockC00[i], blockA[i], blockB);
+                    }
+#else
+                    float8 blockB00 = as_float8(intel_sub_group_block_read8(
+                            (const __global uint *)wei1));
+                    float8 blockB01 = as_float8(intel_sub_group_block_read8(
+                            (const __global uint *)(wei1 + 8 * OC_BLOCK)));
 
                     __attribute__((
                             opencl_unroll_hint(OW_BLOCK))) // attr:no-format
@@ -182,11 +216,12 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
                         multiply_blocks_8x8(
                                 &blockC00[i], blockA[i], blockB00, blockB01);
                     }
+#endif
                 }
             }
         }
         src += IC_BLOCK;
-        wei += OC_BLOCK * KDHW_SIZE * IC_BLOCK;
+        wei += KDHW_SIZE * IC_BLOCK * OC_BLOCK;
     }
 
     __global float *dst_write0 = dst + mb * OD * OH * OW * G * OC_WO_PADDING;
@@ -211,7 +246,10 @@ gen9_conv_nhwc_fwd_f32(const __global float *src, const __global float *wei,
 #endif // WITH_SUM
 
 #if WITH_ELTWISE == 1
-    DO_ELTWISE(blockC00, OW_BLOCK, eltwise_alpha, eltwise_beta, eltwise_scale);
+    for (int i = 0; i < OW_BLOCK; i++) {
+        blockC00[i] = fwd_eltwise(
+                blockC00[i], eltwise_alpha, eltwise_beta, eltwise_scale);
+    }
 #endif
 
     // Save
