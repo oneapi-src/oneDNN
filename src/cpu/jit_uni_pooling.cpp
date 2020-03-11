@@ -404,7 +404,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
 
     parallel(0, [&](int ithr, int nthr) {
         const size_t work_amount = (size_t)jpp.mb * jpp.nb_c;
-        if (ithr >= work_amount) return;
+        if ((size_t)ithr >= work_amount) return;
 
         if (diff_dst_d.is_plain() && c_tail != 0) {
             wsp_data_t *__restrict wsp_ptr
