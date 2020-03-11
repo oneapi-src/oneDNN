@@ -52,6 +52,7 @@ struct gemm_exec_ctx_t {
         : stream_(other.stream())
         , args_(args)
         , gemm_desc_(gemm_desc)
+        , resource_mapper_(other.get_resource_mapper())
         , scratchpad_grantor_(other.grantor_handle()) {}
 
     stream_t *stream() const { return stream_; }
@@ -68,10 +69,16 @@ struct gemm_exec_ctx_t {
         return *scratchpad_grantor_;
     }
 
+    const resource_mapper_t *resource_mapper() const {
+        assert(resource_mapper_);
+        return resource_mapper_;
+    }
+
 private:
     stream_t *stream_;
     gemm_exec_args_t args_;
     gemm_desc_t *gemm_desc_ = nullptr;
+    const resource_mapper_t *resource_mapper_ = nullptr;
     const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };
 

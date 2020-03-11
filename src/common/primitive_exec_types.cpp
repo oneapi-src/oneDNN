@@ -95,5 +95,14 @@ memory_desc_wrapper exec_ctx_t::memory_mdw(
     return memory_desc_wrapper(args_.at(arg).mem->md());
 }
 
+const resource_mapper_t *exec_ctx_t::get_resource_mapper() const {
+    assert(resource_mapper_);
+    return resource_mapper_;
+}
+
+void exec_ctx_t::set_resource_mapper(const resource_mapper_t *resource_mapper) {
+    resource_mapper_ = resource_mapper;
+}
+
 } // namespace impl
 } // namespace dnnl

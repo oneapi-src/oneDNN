@@ -53,13 +53,15 @@ status_t cvt_primtive_args(const primitive_desc_t *pd, int nargs,
         const dnnl_exec_arg_t *c_args, exec_args_t &args);
 
 /** Primitive execution context (helps passing stream, memories, and events. */
+struct resource_mapper_t;
 struct exec_ctx_t {
     exec_ctx_t(stream_t *stream) : stream_(stream) {}
     exec_ctx_t(stream_t *stream, exec_args_t &&args)
         : stream_(stream), args_(std::move(args)) {}
     exec_ctx_t(const exec_ctx_t &other, exec_args_t &&args)
         : stream_(other.stream_)
-        , args_(std::move(args)) {}
+        , args_(std::move(args))
+        , resource_mapper_(other.resource_mapper_) {}
 
     stream_t *stream() const { return stream_; }
     const exec_args_t &args() const { return args_; }
@@ -99,9 +101,13 @@ struct exec_ctx_t {
         return scratchpad_grantor_;
     }
 
+    const resource_mapper_t *get_resource_mapper() const;
+    void set_resource_mapper(const resource_mapper_t *resource_mapper);
+
 private:
     stream_t *stream_;
     exec_args_t args_;
+    const resource_mapper_t *resource_mapper_ = nullptr;
     const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
 };
 

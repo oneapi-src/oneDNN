@@ -137,6 +137,7 @@ dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
                 pd_->engine(), scratchpad_size, use_global_scratchpad);
         scratchpad_.reset(scratchpad_ptr);
     }
+    primitive_->create_resource(pd()->engine(), resource_mapper_);
 }
 
 engine_t *dnnl_primitive::engine() const {
@@ -164,6 +165,7 @@ status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     auto scratchpad_grantor
             = primitive_->pd()->scratchpad_registry().grantor(mem_storage);
     ctx.set_scratchpad_grantor(&scratchpad_grantor);
+    ctx.set_resource_mapper(&resource_mapper_);
 
     auto status = primitive_->execute(ctx);
     return status;

@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 
+struct resource_mapper_t;
 struct primitive_t : public c_compatible {
     primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
     virtual ~primitive_t() = default;
@@ -41,6 +42,9 @@ struct primitive_t : public c_compatible {
     std::shared_ptr<primitive_desc_t> pd() const { return pd_; }
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+
+    virtual void create_resource(
+            engine_t *engine, resource_mapper_t &resource_mapper) const {}
 
 protected:
     std::shared_ptr<primitive_desc_t> pd_;
@@ -62,6 +66,69 @@ struct nested_scratchpad_t {
 private:
     std::unique_ptr<memory_storage_t> scratchpad_mem_storage_;
     std::unique_ptr<memory_tracking::grantor_t> grantor_;
+};
+
+// The resource_t abstraction is a base class for all resource classes.
+// Those are responsible for holding a part of a primitive implementation that
+// cannot be stored in the primitive cache as part of the implementation.
+// Currently, there are two such things:
+// 1. Any memory (memory_t, memory_storage_t, etc...), because it contains
+// an engine.
+// 2. (for GPU only) compiled kernels, because they are context dependent.
+//
+// The idea is that each primitive implementation should be able to create
+// a resource and put there everything it needs to run, which cannot be stored
+// in the cache as part of the primitive implementation. To create the resource
+// each primitive implementation can override a function `create_resource`.
+//
+// This abstraction takes ownership of all content it holds hence it should be
+// responsible for destroying it as well.
+struct resource_t : public c_compatible {
+    virtual ~resource_t() = default;
+};
+
+// The resource_mapper_t is an abstraction for holding resources for
+// a particular primitive implementation and providing corresponding mapping.
+//
+// Interacting with the mapper happens in two steps:
+// 1. Initialization. Each derived from impl::primitive_t class may define
+// `create_resource` member function that is responsible for creating a
+// certain derived from resource_t object and filling it with some content,
+// e.g. memory for scales, OpenCL kernels etc...
+// 2. Passing it to the execution function which extracts needed resources and
+// uses them at execution time. The mapper is passed to the execution function
+// with the execution context.
+//
+// The resource_mapper_t takes ownership of all resources (currently,
+// there is only ocl_resource_t) hence it should be responsible for
+// destroying them as well.
+struct resource_mapper_t {
+    using key_t = const primitive_t;
+    using mapped_t = resource_t;
+
+    resource_mapper_t() = default;
+
+    bool has_resource(const primitive_t *p) const {
+        return primitive_to_resource_.count(p);
+    }
+
+    void add(key_t *p, mapped_t *r) {
+        assert(primitive_to_resource_.count(p) == 0);
+        primitive_to_resource_.emplace(std::piecewise_construct,
+                std::forward_as_tuple(p), std::forward_as_tuple(r));
+    }
+
+    template <typename T>
+    const T *get(key_t *p) const {
+        assert(primitive_to_resource_.count(p));
+        return utils::downcast<T *>(primitive_to_resource_.at(p).get());
+    }
+
+    DNNL_DISALLOW_COPY_AND_ASSIGN(resource_mapper_t);
+
+private:
+    std::unordered_map<key_t *, std::unique_ptr<mapped_t>>
+            primitive_to_resource_;
 };
 
 } // namespace impl
@@ -89,6 +156,7 @@ private:
     std::shared_ptr<dnnl::impl::primitive_t> primitive_;
     std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
     std::unique_ptr<dnnl::impl::primitive_desc_iface_t> pd_;
+    dnnl::impl::resource_mapper_t resource_mapper_;
 
     dnnl_primitive() = delete;
     DNNL_DISALLOW_COPY_AND_ASSIGN(dnnl_primitive);
