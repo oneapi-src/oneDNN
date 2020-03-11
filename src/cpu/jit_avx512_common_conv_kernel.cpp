@@ -4568,7 +4568,6 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
             // general condition to simplify dilations
             && IMPLICATION(jcp.dilate_d != 0, jcp.stride_d == 1)
             && IMPLICATION(jcp.dilate_h != 0, jcp.stride_h == 1)
-            && IMPLICATION(jcp.dilate_w != 0, jcp.stride_w == 1)
             // special condition to simplify dilations in compute_oh_loop_common
             && IMPLICATION(jcp.dilate_h != 0, ext_kh <= jcp.ih);
     if (!ok) return status::unimplemented;
