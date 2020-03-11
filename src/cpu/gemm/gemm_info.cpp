@@ -660,7 +660,6 @@ bool gemm_info_t<a_t, b_t, c_t>::hasKernels(void) {
                     if (!this->gemv_s8u8s32_kernel || !this->gemv_u8s8s32_kernel
                             || !this->gemv_s8s8s32_kernel)
                         return false;
-
             }
             break;
 
