@@ -183,7 +183,7 @@ struct ref_lrn_bwd_t : public primitive_impl_t {
                             alg_kind::lrn_within_channel)
                     && utils::one_of(desc()->data_desc.data_type,
                             data_type::f32, data_type::bf16)
-                    && set_default_formats_common() && data_md_ == diff_data_md_
+                    && set_default_formats_common()
                     && attr()->has_default_values()
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::f16,
