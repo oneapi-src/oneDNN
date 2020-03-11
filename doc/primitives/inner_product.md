@@ -87,7 +87,7 @@ tensors:
 | 3D      | \f$N \times C \times D \times H \times W\f$ | \f$N \times C\f$ | \f$OC \times IC \times KD \times KH \times KW\f$
 
 Memory format of data and weights memory objects is critical for inner
-product primitive performance. In the DNNL programming model, inner
+product primitive performance. In the oneDNN programming model, inner
 product primitive is one of the few primitives that support the placeholder
 format #dnnl::memory::format_tag::any (shortened to `any` from
 now on) and can define data and weight memory objects formats based on the

@@ -543,11 +543,11 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     if (r) {
         const char *impl_str = query_impl_info(cpd);
         if (maybe_skip(impl_str)) {
-            BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+            BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
             DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
             return r->state = SKIPPED, OK;
         } else {
-            BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
+            BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
         }
     }
 

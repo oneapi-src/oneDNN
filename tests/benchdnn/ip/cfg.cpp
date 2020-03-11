@@ -58,7 +58,7 @@ const _dt_conf_t conf_bf16bf16f32 = {
 const _dt_conf_t conf_bf16bf16bf16 = {
         /* eps is 1e-2 because of loss in precision of
      * output when converted from fp32 to bf16.
-     * DNNL output is compared against reference computed in fp32.*/
+     * oneDNN output is compared against reference computed in fp32.*/
         {dnnl_bf16, -int_max_exact, int_max_exact, -64, 64, 0, .35, 1. / 128,
                 1e-2},
         {dnnl_bf16, -int_max_exact, int_max_exact, -128, 128, 0, 1.0, 1. / 256,

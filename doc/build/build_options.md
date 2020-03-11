@@ -1,7 +1,7 @@
 Build Options {#dev_guide_build_options}
 ====================================
 
-DNNL supports the following build-time options.
+oneDNN supports the following build-time options.
 
 | Option                      | Supported values (defaults in bold) | Description
 | :---                        | :---                                | :---
@@ -30,13 +30,13 @@ The default value is `"OFF"`.
 
 ## CPU Options
 Intel Architecture Processors and compatible devices are supported by
-DNNL CPU engine. The CPU engine is built by default and cannot
+oneDNN CPU engine. The CPU engine is built by default and cannot
 be disabled at build time.
 
 ### Targeting Specific Architecture
-DNNL uses JIT code generation to implement most of its functionality
+oneDNN uses JIT code generation to implement most of its functionality
 and will choose the best code based on detected processor features. However,
-some DNNL functionality will still benefit from targeting a specific
+some oneDNN functionality will still benefit from targeting a specific
 processor architecture at build time. You can use `DNNL_ARCH_OPT_FLAGS` CMake
 option for this.
 
@@ -55,7 +55,7 @@ should be set to an empty string (`""`) if the resulting library needs to be
 portable.
 
 ### Runtime CPU dispatcher control
-DNNL JIT relies on ISA features obtained from the processor it is being run
+oneDNN JIT relies on ISA features obtained from the processor it is being run
 on.  There are situations when it is necessary to control this behavior at
 run-time to, for example, test SSE4.1 code on an AVX2-capable processor. The
 `DNNL_ENABLE_MAX_CPU_ISA` build option controls the availability of this
@@ -67,7 +67,7 @@ threading is the default build mode. This behavior is controlled by the
 `DNNL_CPU_RUNTIME` CMake option.
 
 #### OpenMP
-DNNL uses OpenMP runtime library provided by the compiler.
+oneDNN uses OpenMP runtime library provided by the compiler.
 
 @warning
 Because different OpenMP runtimes may not be binary-compatible, it's important
@@ -78,7 +78,7 @@ both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
 #### TBB
-To build DNNL with TBB support, set `DNNL_CPU_RUNTIME` to `TBB`:
+To build oneDNN with TBB support, set `DNNL_CPU_RUNTIME` to `TBB`:
 
 ~~~sh
 $ cmake -DDNNL_CPU_RUNTIME=TBB ..
@@ -91,7 +91,7 @@ installation path or pass the path directly to CMake:
 $ cmake -DDNNL_CPU_RUNTIME=TBB -DTBBROOT=/opt/intel/path/tbb ..
 ~~~
 
-DNNL has limited optimizations for Intel TBB and has some functional
+oneDNN has limited optimizations for Intel TBB and has some functional
 limitations if built with Intel TBB.
 
 Functional limitations:
@@ -99,7 +99,7 @@ Functional limitations:
   by data and backward by weights propagation.
 
 #### Threadpool
-To build DNNL with support for threadpool threading, set `DNNL_CPU_RUNTIME` to
+To build oneDNN with support for threadpool threading, set `DNNL_CPU_RUNTIME` to
 `THREADPOOL`
 
 ~~~sh
@@ -124,7 +124,7 @@ TBB plus more:
   across available worker threads.
 
 ## GPU Options
-Intel Processor Graphics is supported by DNNLs GPU engine. GPU engine
+Intel Processor Graphics is supported by oneDNN GPU engine. GPU engine
 is disabled in the default build configuration.
 
 ### Runtimes

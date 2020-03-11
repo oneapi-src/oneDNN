@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-# Creates cmake config for MKLDNN based on DNNL one
+# Creates cmake config for MKLDNN based on oneDNN one
 # (by replacing DNNL with MKLDNN)
 # Parameters:
 #   DIR -- path to cmake install dir

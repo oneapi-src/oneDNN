@@ -70,8 +70,8 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...")
 endif()
 
-set(PROJECT_NAME "DNNL")
-set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
+set(PROJECT_NAME "oneDNN")
+set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
 set(PROJECT_VERSION "1.4.0")
 
 set(LIB_NAME dnnl)
@@ -84,7 +84,7 @@ else()
 endif()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR "DNNL supports 64 bit platforms only")
+    message(FATAL_ERROR "oneDNN supports 64 bit platforms only")
 endif()
 
 # Set the target architecture.

@@ -91,7 +91,7 @@ threadpool_iface *get_active_threadpool();
 inline int dnnl_get_max_threads() {
     using namespace dnnl::impl::threadpool_utils;
     dnnl::threadpool_iface *tp = get_active_threadpool();
-    // This is the maximum number of threads DNNL would use
+    // This is the maximum number of threads oneDNN would use
     int def_max_threads = std::thread::hardware_concurrency();
     assert(def_max_threads > 0);
     // Use the default value if the threadpool-provided is outside the range

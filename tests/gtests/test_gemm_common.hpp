@@ -1170,7 +1170,7 @@ struct run_test_gemm {
             auto status = dnnl_gemm<a_dt, b_dt, c_dt>::call(
                     p, zero_mem, zero_mem, zero_mem, zero_mem);
             if (status != dnnl_success)
-                throw error(status, "dnnl gemm returned error");
+                throw error(status, "oneDNN gemm returned error");
             return;
         }
 
@@ -1204,7 +1204,7 @@ struct run_test_gemm {
         }
 
         if (status != dnnl_success)
-            throw error(status, "dnnl gemm returned error");
+            throw error(status, "oneDNN gemm returned error");
     }
 };
 

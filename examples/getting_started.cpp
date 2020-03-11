@@ -33,15 +33,15 @@ using namespace dnnl;
 
 /// @page getting_started_cpp Getting started
 ///
-/// This C++ API example demonstrates the basics of the DNNL programming model.
+/// This C++ API example demonstrates the basics of the oneDNN programming model.
 ///
 /// > Example code: @ref getting_started.cpp
 ///
-/// This C++ API example demonstrates the basics of the DNNL programming model:
-/// - How to create DNNL memory objects.
-///   - How to get data from the user's buffer into a DNNL memory object.
+/// This C++ API example demonstrates the basics of the oneDNN programming model:
+/// - How to create oneDNN memory objects.
+///   - How to get data from the user's buffer into a oneDNN memory object.
 ///   - How a tensor's logical dimensions and memory object formats relate.
-/// - How to create DNNL primitives.
+/// - How to create oneDNN primitives.
 /// - How to execute the primitives.
 ///
 /// The example uses the ReLU operation and comprises the following steps:
@@ -59,10 +59,10 @@ using namespace dnnl;
 ///
 /// @section getting_started_cpp_headers Public headers
 ///
-/// To start using DNNL we must first include the @ref dnnl.hpp
+/// To start using oneDNN we must first include the @ref dnnl.hpp
 /// header file in the program. We also include @ref dnnl_debug.h in
 /// example_utils.hpp, which contains some debugging facilities like returning
-/// a string representation for common DNNL C types.
+/// a string representation for common oneDNN C types.
 
 // [Prologue]
 
@@ -73,7 +73,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// @page getting_started_cpp
     /// @subsection getting_started_cpp_sub1 Engine and stream
     ///
-    /// All DNNL primitives and memory objects are attached to a
+    /// All oneDNN primitives and memory objects are attached to a
     /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device they are attached
@@ -103,9 +103,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// In the simple cases, when a program works with one device only (e.g.
     /// only on CPU), an engine and a stream can be created once and used
     /// throughout the program. Some frameworks create singleton objects that
-    /// hold DNNL engine and stream and use them throughout the code.
+    /// hold oneDNN engine and stream and use them throughout the code.
 
-    /// @subsection getting_started_cpp_sub2 Data preparation (code outside of DNNL)
+    /// @subsection getting_started_cpp_sub2 Data preparation (code outside of oneDNN)
     ///
     /// Now that the preparation work is done, let's create some data to work
     /// with. We will create a 4D tensor in NHWC format, which is quite
@@ -117,7 +117,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// typical to have the batch dimension even when working with a single
     /// image.
     ///
-    /// In DNNL, all CNN primitives assume that tensors have the batch
+    /// In oneDNN, all CNN primitives assume that tensors have the batch
     /// dimension, which is always the first logical dimension (see also @ref
     /// dev_guide_conventions).
     ///
@@ -152,10 +152,10 @@ void getting_started_tutorial(engine::kind engine_kind) {
                     image[off] = -std::cos(off / 10.f);
                 }
     // [Create user's data]
-    /// @subsection getting_started_cpp_sub3 Wrapping data into a DNNL memory object
+    /// @subsection getting_started_cpp_sub3 Wrapping data into a oneDNN memory object
     ///
     /// Now, having the image ready, let's wrap it in a @ref dnnl::memory
-    /// object to be able to pass the data to DNNL primitives.
+    /// object to be able to pass the data to oneDNN primitives.
     ///
     /// Creating @ref dnnl::memory comprises two steps:
     ///   1. Initializing the @ref dnnl::memory::desc struct (also referred to
@@ -204,7 +204,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
 
     /// The first thing to notice here is that we pass dimensions as `{N, C,
     /// H, W}` while it might seem more natural to pass `{N, H, W, C}`, which
-    /// better corresponds to the user's code. This is because DNNL
+    /// better corresponds to the user's code. This is because oneDNN
     /// CNN primitives like ReLU always expect tensors in the following form:
     ///
     /// | Spatial dim | Tensor dimensions
@@ -222,7 +222,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// Now that the logical order of dimension is defined, we need to specify
     /// the memory format (the third parameter), which describes how logical
     /// indices map to the offset in memory. This is the place where the user's
-    /// format NHWC comes into play. DNNL has different @ref
+    /// format NHWC comes into play. oneDNN has different @ref
     /// dnnl::memory::format_tag values that cover the most popular memory
     /// formats like NCHW, NHWC, CHWN, and some others.
     ///
@@ -289,7 +289,7 @@ void getting_started_tutorial(engine::kind engine_kind) {
     ///    results in better performance.
     ///
     /// @note
-    ///     Memory allocated outside of the library and passed to Intel DNNL
+    ///     Memory allocated outside of the library and passed to oneDNN
     ///     should have good alignment for better performance.
     ///
     /// In the subsequent section we will show how to get the buffer (pointer)
@@ -318,9 +318,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
     /// 3. Create a primitive (here @ref dnnl::eltwise_forward) that can be
     ///    executed on memory objects to compute the operation.
     ///
-    /// DNNL separates steps 2 and 3 to enable the user to inspect details of a
+    /// oneDNN separates steps 2 and 3 to enable the user to inspect details of a
     /// primitive implementation prior to creating the primitive.  This may be
-    /// expensive, because, for example, DNNL generates the optimized
+    /// expensive, because, for example, oneDNN generates the optimized
     /// computational code on the fly.
     ///
     ///@note
@@ -460,9 +460,9 @@ void getting_started_tutorial(engine::kind engine_kind) {
 ///
 /// We now just call everything we prepared earlier.
 ///
-/// Because we are using the DNNL C++ API, we use exceptions to handle errors
+/// Because we are using the oneDNN C++ API, we use exceptions to handle errors
 /// (see @ref dev_guide_c_and_cpp_apis).
-/// The DNNL C++ API throws exceptions of type @ref dnnl::error,
+/// The oneDNN C++ API throws exceptions of type @ref dnnl::error,
 /// which contains the error status (of type @ref dnnl_status_t) and a
 /// human-readable error message accessible through regular `what()` method.
 /// @page getting_started_cpp
@@ -475,7 +475,7 @@ int main(int argc, char **argv) {
     try {
         getting_started_tutorial(engine_kind);
     } catch (dnnl::error &e) {
-        std::cout << "DNNL error caught: " << std::endl
+        std::cout << "oneDNN error caught: " << std::endl
                   << "\tStatus: " << dnnl_status2str(e.status) << std::endl
                   << "\tMessage: " << e.what() << std::endl;
         exit_code = 1;
@@ -524,7 +524,7 @@ int main(int argc, char **argv) {
 /// we should get the following output:
 ///
 /// ~~~
-/// DNNL error caught:
+/// oneDNN error caught:
 ///         Status: invalid_arguments
 ///         Message: could not execute a primitive
 /// Example failed.

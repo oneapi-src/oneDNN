@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     {
         ::testing::InitGoogleTest(&argc, argv);
 
-        // Parse DNNL command line arguments
+        // Parse oneDNN command line arguments
         test_init(argc, argv);
 
         TestEventListeners &listeners = UnitTest::GetInstance()->listeners();

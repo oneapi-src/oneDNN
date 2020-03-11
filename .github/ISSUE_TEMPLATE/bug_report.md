@@ -11,11 +11,11 @@ Provide a short summary of the issue. Sections below provide guidance on what
 factors are considered important to reproduce an issue.
 
 # Version
-Report DNNL version and githash. Version information is printed to stdout
+Report oneDNN version and githash. Version information is printed to stdout
 in [verbose mode](https://oneapi-src.github.io/oneDNN/dev_guide_verbose.html).
 
 # Environment
-DNNL includes hardware-specific optimizations and may behave
+oneDNN includes hardware-specific optimizations and may behave
 differently on depending on the compiler and build environment. Include
 the following information to help reproduce the issue:
 * CPU make and model (try `lscpu`; if your `lscpu` does not list CPU flags,

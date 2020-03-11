@@ -1,11 +1,10 @@
 API {#dev_guide_c_and_cpp_apis}
 ==========================================
 
-Deep Neural Network Library (DNNL) has
-both **C** and **C++ APIs** available to users for convenience. There is almost
-a one-to-one correspondence as far as features are concerned, so users can
-choose based on language preference and switch back and forth in their projects
-if they desire. Most of the users choose **C++ API** though.
+oneDNN has both **C** and **C++ APIs** available to users for convenience.
+There is almost a one-to-one correspondence as far as features are concerned,
+so users can choose based on language preference and switch back and forth
+in their projects if they desire. Most of the users choose **C++ API** though.
 
 The differences are shown in the table below.
 
@@ -21,7 +20,7 @@ The differences are shown in the table below.
 
 ## Input validation notes
 
-DNNL performs limited input validation to minimize the performance
+oneDNN performs limited input validation to minimize the performance
 overheads. The user application is responsible for sanitizing
 inputs passed to the library. Examples of the inputs that may result in
 unexpected consequences:
@@ -30,7 +29,7 @@ unexpected consequences:
 * While the `bf16` 16-bit floating point data type has range close to 32-bit
   floating point data type, there is a significant reduction in precision.
 
-As DNNL API accepts raw pointers as parameters it's the calling code
+As oneDNN API accepts raw pointers as parameters it's the calling code
 responsibility to
 * Allocate memory and validate the buffer sizes before passing them
 to the library

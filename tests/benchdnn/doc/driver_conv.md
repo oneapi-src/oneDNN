@@ -80,10 +80,10 @@ The table below shows supported name configurations for this driver:
 
 ## Essence of Testing
 
-DNNL supports different data types, such as single-precision floating
+oneDNN supports different data types, such as single-precision floating
 point (`dnnl_f32`) and signed/unsigned integer of different lengths
 (`dnnl_{s,u}{8,16,32}`). We need to cover all those cases with tests. It is
-essential to test real convolution sizes, because DNNL provides
+essential to test real convolution sizes, because oneDNN provides
 different optimizations depending on the convolution parameters. There is no
 single unified approach inside, so it would not be enough to test only a few
 convolutions (also known as unit tests).

@@ -41,7 +41,7 @@ struct threadpool_iface {
     /// Returns threadpool behavior flags bit mask (see below).
     virtual uint64_t get_flags() const = 0;
 
-    /// If set, parallel_for() returns immediately and DNNL needs implement
+    /// If set, parallel_for() returns immediately and oneDNN needs implement
     /// waiting for the submitted closures to finish execution on its own.
     static constexpr uint64_t ASYNCHRONOUS = 1;
 

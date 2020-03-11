@@ -1,9 +1,9 @@
 Linking to the Library {#dev_guide_link}
 ===========================================
 
-Deep Neural Network Library (DNNL)
-includes several header files providing C and C++ APIs for the functionality
-and one or several libraries depending on how DNNL was built.
+oneDNN includes several header files providing C and C++ APIs
+for the functionality and one or several libraries depending
+on how oneDNN was built.
 
 ## Header Files
 
@@ -21,26 +21,26 @@ and one or several libraries depending on how DNNL was built.
 
 | File                | Description
 | :---                | :---
-| lib/libdnnl.so      | DNNL dynamic library
-| lib/libdnnl.a       | DNNL static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
+| lib/libdnnl.so      | oneDNN dynamic library
+| lib/libdnnl.a       | oneDNN static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ### macOS
 
 | File                   | Description
 | :---                   | :---
-| lib/libdnnl.dylib      | DNNL dynamic library
-| lib/libdnnl.a          | DNNL static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
+| lib/libdnnl.dylib      | oneDNN dynamic library
+| lib/libdnnl.a          | oneDNN static library (if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
 ### Windows
 
 | File         | Description
 | :---         | :---
-| bin\dnnl.dll | DNNL dynamic library
-| lib\dnnl.lib | DNNL import or full static library (the latter if built with `DNNL_LIBRARY_TYPE=STATIC`)
+| bin\dnnl.dll | oneDNN dynamic library
+| lib\dnnl.lib | oneDNN import or full static library (the latter if built with `DNNL_LIBRARY_TYPE=STATIC`)
 
-## Linking to DNNL
+## Linking to oneDNN
 
-The examples below assume that DNNL is installed in the directory
+The examples below assume that oneDNN is installed in the directory
 defined in the `DNNLROOT` environment variable.
 
 ### Linux/macOS
@@ -59,11 +59,11 @@ or `DYLD_LIBRARY_PATH` (macOS) environment variable or the `rpath` mechanism.
 
 #### Support for macOS hardened runtime
 
-DNNL requires the
+oneDNN requires the
 [com.apple.security.cs.allow-unsigned-executable-memory](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_security_cs_allow-unsigned-executable-memory)
 entitlement when it is integrated with an application that uses the macOS
 [hardened runtime](https://developer.apple.com/documentation/security/hardened_runtime_entitlements).
-This requirement comes from the fact that DNNL generates executable code on
+This requirement comes from the fact that oneDNN generates executable code on
 the fly and does not sign it.
 
 It can be enabled in Xcode or passed to `codesign` like this:
@@ -85,7 +85,7 @@ Example `Entitlements.plist`:
 ### Windows
 
 To link the application from the command line, set up the `LIB` and `INCLUDE`
-environment variables to point to the locations of the DNNL headers and
+environment variables to point to the locations of the oneDNN headers and
 libraries.
 
 ~~~bat

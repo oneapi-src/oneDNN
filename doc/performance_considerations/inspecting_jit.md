@@ -1,7 +1,7 @@
 Inspecting JIT Code {#dev_guide_inspecting_jit}
 ===============================================
 
-DNNL uses just-in-time compilation (JIT) to generate optimal code
+oneDNN uses just-in-time compilation (JIT) to generate optimal code
 for some functions based on input parameters and instruction set supported
 by the system. The library provides a mechanism to save the generated code
 into a file for inspection. 

@@ -20,7 +20,7 @@
 
 /// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
 /// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with OpenCL* extensions API in DNNL.
+/// Graphics with OpenCL* extensions API in oneDNN.
 ///
 /// > Example code: @ref gpu_opencl_interop.cpp
 ///
@@ -40,11 +40,11 @@
 /// @page gpu_opencl_interop_cpp
 /// @section gpu_opencl_interop_cpp_headers Public headers
 ///
-/// To start using DNNL, we must first include the @ref dnnl.hpp
+/// To start using oneDNN, we must first include the @ref dnnl.hpp
 /// header file in the application. We also include CL/cl.h for using
 /// OpenCL APIs and @ref dnnl_debug.h, which  contains some debugging
 /// facilities such as returning a string representation
-/// for common DNNL C types.
+/// for common oneDNN C types.
 /// All C++ API types and functions reside in the `dnnl` namespace.
 /// For simplicity of the example we import this namespace.
 /// @page gpu_opencl_interop_cpp
@@ -99,7 +99,7 @@ void gpu_opencl_interop_tutorial() {
     /// @page gpu_opencl_interop_cpp
     /// @subsection gpu_opencl_interop_cpp_sub1 Engine and stream
     ///
-    /// All DNNL primitives and memory objects are attached to a
+    /// All oneDNN primitives and memory objects are attached to a
     /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device to which they are
@@ -133,7 +133,7 @@ void gpu_opencl_interop_tutorial() {
     dnnl::stream strm(eng);
     // [Initialize stream]
 
-    /// @subsection  gpu_opencl_interop_cpp_sub2 Wrapping data into DNNL memory object
+    /// @subsection  gpu_opencl_interop_cpp_sub2 Wrapping data into oneDNN memory object
     ///
     /// Next, we create a memory object. We need to specify dimensions of our
     /// memory by passing a memory::dims object. Then we create a memory
@@ -194,7 +194,7 @@ void gpu_opencl_interop_tutorial() {
     // [oclexecution]
 
     /// @subsection gpu_opencl_interop_cpp_sub4 Create and execute a primitive
-    /// There are three steps to create an operation primitive in DNNL:
+    /// There are three steps to create an operation primitive in oneDNN:
     /// 1. Create an operation descriptor.
     /// 2. Create a primitive descriptor.
     /// 3. Create a primitive.

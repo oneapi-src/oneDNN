@@ -61,7 +61,7 @@ systems and the reasons behind them.
 ### 1. Inputs of mixed type: u8 and s8
 
 The Intel(R) Instruction Set Architecture has special instructions that enable
-multiplying and adding the vectors of u8 and s8 very efficiently. DNNL
+multiplying and adding the vectors of u8 and s8 very efficiently. oneDNN
 enables int8 support using these particular instructions.
 
 Unfortunately, these instructions do not have the counterparts that work with
@@ -74,7 +74,7 @@ case are covered in the
 *System examples: Intel Xeon Processor E7 v3 Family (formerly Haswell),
 Intel Xeon Scalable processor x1xx series (formerly Skylake).*
 
-DNNL implements matrix multiplication such as operations with u8 and s8
+oneDNN implements matrix multiplication such as operations with u8 and s8
 operands on the Intel AVX2 and Intel AVX512 Instruction Set by using a sequence
 of `VPMADDUBSW, VPMADDWD, VPADDD` instructions [[1]](@ref dg_i8_ref_sdm):
 
@@ -130,7 +130,7 @@ precise result is concerned, one of the possible instruction sequences would be
 where the first ones casts the s8/u8 values to s16. Unfortunately, using them
 would lead to 2x lower performance.
 
-When one input is of type u8 and the other one is of type s8, DNNL
+When one input is of type u8 and the other one is of type s8, oneDNN
 assumes that it is the user's responsibility to choose the quantization
 parameters so that no overflow/saturation occurs. For instance, a user can use
 u7 `[0, 127]` instead of u8 for the unsigned input, or s7 `[-64, 63]` instead
@@ -194,9 +194,9 @@ multiply and add two vectors of the s8 data type as efficiently as it is
 for the mixed case. However, in real-world applications the inputs are
 typically signed.
 
-To overcome this issue, DNNL employs a trick: at run-time, it adds 128
+To overcome this issue, oneDNN employs a trick: at run-time, it adds 128
 to one of the s8 input to make it of type u8 instead. Once the result is
-computed, DNNL subtracts the extra value it added by replacing the s8
+computed, oneDNN subtracts the extra value it added by replacing the s8
 with u8. This subtracted value sometimes referred as a **compensation**.
 
 Conceptually the formula is:

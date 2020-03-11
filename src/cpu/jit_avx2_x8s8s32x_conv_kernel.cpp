@@ -971,7 +971,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         } else if (jcp.ngroups != 1
                 && ((jcp.ic % jcp.ic_block != 0)
                         || (jcp.oc % jcp.oc_block != 0))) {
-            /* For grouped convolutions, DNNL doesn't support padding.
+            /* For grouped convolutions, oneDNN doesn't support padding.
              * When channels per group is not multiple of 8:
              * - Use Xmm when channels per group is multiple of 4.
              * - Otherwise return unimplemented */

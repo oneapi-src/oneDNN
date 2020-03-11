@@ -50,7 +50,7 @@
 #include "gpu/ocl/verbose.hpp"
 #endif
 
-/* DNNL CPU ISA info */
+/* oneDNN CPU ISA info */
 #define ISA_ANY "Intel 64"
 #define SSE41 "Intel SSE4.1"
 #define AVX "Intel AVX"
@@ -82,7 +82,7 @@ int get_verbose() {
     }
     static bool version_printed = false;
     if (!version_printed && verbose.get() > 0) {
-        printf("dnnl_verbose,info,DNNL v%d.%d.%d (commit %s)\n",
+        printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
         printf("dnnl_verbose,info,cpu,runtime:%s\n",

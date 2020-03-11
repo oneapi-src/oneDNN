@@ -63,7 +63,7 @@ struct example_allows_unimplemented : public std::exception {
 inline const char *engine_kind2str_upper(dnnl::engine::kind kind);
 
 // Runs example function with signature void() and catches errors.
-// Returns `0` on success, `1` or DNNL error, and `2` on example error.
+// Returns `0` on success, `1` or oneDNN error, and `2` on example error.
 inline int handle_example_errors(
         std::initializer_list<dnnl::engine::kind> engine_kinds,
         std::function<void()> example) {
@@ -75,7 +75,7 @@ inline int handle_example_errors(
         std::cout << e.message << std::endl;
         exit_code = 0;
     } catch (dnnl::error &e) {
-        std::cout << "DNNL error caught: " << std::endl
+        std::cout << "oneDNN error caught: " << std::endl
                   << "\tStatus: " << dnnl_status2str(e.status) << std::endl
                   << "\tMessage: " << e.what() << std::endl;
         exit_code = 1;

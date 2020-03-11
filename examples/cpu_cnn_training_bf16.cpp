@@ -111,7 +111,7 @@ void simple_net() {
     } catch (error &e) {
         if (e.status == dnnl_unimplemented)
             throw example_allows_unimplemented {
-                    "DNNL does not have bf16 convolution implementation "
+                    "oneDNN does not have bf16 convolution implementation "
                     "that supports this system.\n"
                     "Please refer to the developer guide for details."};
 

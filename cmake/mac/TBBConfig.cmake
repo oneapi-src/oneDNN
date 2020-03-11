@@ -34,7 +34,7 @@ if (NOT _tbbmalloc_proxy_ix EQUAL -1)
     endif()
 endif()
 
-# DNNL changes: use TBBROOT to locate Intel TBB
+# oneDNN changes: use TBBROOT to locate Intel TBB
 # get_filename_component(_tbb_root "${CMAKE_CURRENT_LIST_FILE}" PATH)
 # get_filename_component(_tbb_root "${_tbb_root}" PATH)
 if (NOT TBBROOT)

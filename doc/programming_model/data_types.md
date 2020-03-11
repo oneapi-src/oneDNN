@@ -1,7 +1,7 @@
 Data Types {#dev_guide_data_types}
 ==================================
 
-DNNL functionality supports a number of numerical
+oneDNN functionality supports a number of numerical
 data types. IEEE single precision floating point (fp32) is considered
 to be the golden standard in deep learning applications and is supported
 in all the library functions. The purpose of low precision data types
@@ -18,7 +18,7 @@ in comparison to fp32.
 
 ## Inference and Training
 
-DNNL supports training and inference with the following data types:
+oneDNN supports training and inference with the following data types:
 
 | Usage mode | CPU                | GPU        |
 | :---       | :---               | :---       |
@@ -41,10 +41,10 @@ guide.
 
 ## Hardware Limitations
 
-While all the platforms DNNL supports have hardware acceleration for
+While all the platforms oneDNN supports have hardware acceleration for
 fp32 arithmetics, that is not the case for other data types. Considering that
 performance is the main purpose of the low precision data types support,
-DNNL implements this functionality only for the platforms that have
+oneDNN implements this functionality only for the platforms that have
 hardware acceleration for these data types. The table below summarizes the
 current support matrix:
 
@@ -56,7 +56,7 @@ current support matrix:
 | s8, u8    | Intel AVX512, Intel DL Boost    | not supported |
 
 @note
-  DNNL has functional bfloat16 support on processors with
+  oneDNN has functional bfloat16 support on processors with
   Intel AVX512 Byte and Word Instructions (AVX512BW) support for validation
   purposes. The performance of bfloat16 primitives on platforms without
   hardware acceleration for bfloat16 is 3-4x lower in comparison to
