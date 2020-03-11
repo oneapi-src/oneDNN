@@ -67,7 +67,7 @@ POST_OP_DATA_T bounded_relu_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
 }
 POST_OP_DATA_T bounded_relu_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
-    return dd * (0 < s && s < alpha ? 1 : 0);
+    return dd * (0 < s && s <= alpha ? 1 : 0);
 }
 
 POST_OP_DATA_T soft_relu_fwd(POST_OP_DATA_T s) {
