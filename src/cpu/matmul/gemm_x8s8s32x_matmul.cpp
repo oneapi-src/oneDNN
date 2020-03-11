@@ -225,7 +225,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
-        parallel(parallel_over_batch ? 0 : 1, [&](int ithr, int nthr) {
+        // XXX: pass by copying to avoid gcc bug with c++14 standard
+        parallel(parallel_over_batch ? 0 : 1, [=](int ithr, int nthr) {
             size_t batch_start {}, batch_end {};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
 
