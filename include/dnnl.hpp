@@ -1290,6 +1290,8 @@ struct memory : public handle<dnnl_memory_t> {
         /// plain 4D tensor
         abcd = dnnl_abcd,
         /// permuted 4D tensor
+        abdc = dnnl_abdc,
+        /// permuted 4D tensor
         acdb = dnnl_acdb,
         /// permuted 4D tensor
         bacd = dnnl_bacd,
@@ -1414,6 +1416,9 @@ struct memory : public handle<dnnl_memory_t> {
         /// 4D LSTM projection tensor in the format (num_layers, num_directions,
         /// num_channels_in_hidden_state, num_channels_in_recurrent_projection).
         ldio = abcd,
+        /// 4D LSTM projection tensor in the format (num_layers, num_directions,
+        /// num_channels_in_recurrent_projection, num_channels_in_hidden_state).
+        ldoi = abdc,
         /// 4D RNN bias tensor in the format (num_layers, num_directions,
         /// num_gates, output_channels).
         ///
