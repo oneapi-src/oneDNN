@@ -370,9 +370,9 @@ inline int best_divider(int value, int min_divider, int max_divider,
     return x_divider;
 }
 
-inline status_t get_depthwise_primitive_desc(primitive_desc_t **pd,
+inline status_t get_depthwise_conv_desc(convolution_desc_t &cd_dw,
         const memory_desc_t &src_dw_md, const primitive_attr_t &attr_1x1,
-        engine_t *engine, int dw_po_index) {
+        primitive_attr_t &attr_dw, int dw_po_index) {
 
     const memory_desc_wrapper src_dw_d(src_dw_md);
     const int ndims = src_dw_d.ndims();
@@ -384,7 +384,6 @@ inline status_t get_depthwise_primitive_desc(primitive_desc_t **pd,
 
     // Create new attributes with scales from depthwise post-op and copy
     // post-ops after depthwise post-op.
-    primitive_attr_t attr_dw;
     auto &dw_po = attr_1x1.post_ops_.entry_[dw_po_index].depthwise_conv;
     if (utils::one_of(
                 dw_po.dst_dt, data_type::u8, data_type::s8, data_type::s32)
@@ -433,14 +432,10 @@ inline status_t get_depthwise_primitive_desc(primitive_desc_t **pd,
     dnnl_memory_desc_init_by_tag(
             &dst_md, ndims, dst_tz, dw_po.dst_dt, format_tag::any);
 
-    convolution_desc_t cd_dw;
     CHECK(conv_desc_init(&cd_dw, prop_kind::forward_inference,
             alg_kind::convolution_auto, &src_md, &weights_md,
             with_bias ? &bias_md : nullptr, &dst_md, stride_tz, nullptr, pad_tz,
             pad_tz));
-
-    CHECK(dnnl_primitive_desc_create(
-            pd, (op_desc_t *)&cd_dw, &attr_dw, engine, NULL));
 
     return status::success;
 }

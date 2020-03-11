@@ -87,9 +87,9 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
     }
 
     float *bias_dw = nullptr;
-    auto &jcp_dw = pd()->jcp_dw_;
     if (pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS)->data_type
             == data_type::bf16) {
+        auto &jcp_dw = pd()->jcp_dw();
         memory_tracking::grantor_t dw_scratchpad(
                 scratchpad, memory_tracking::names::prefix_fusion);
         auto bias_in = CTX_IN_MEM(
@@ -158,9 +158,9 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             : jcp.nb_load_blocking_max;
 
     // Begin: declare Variables needed for dw conv.
-    auto &jcp_dw = pd()->jcp_dw_;
     dst_data_t *pbuf; //bf16->bf16 fusion
     size_t row_offset;
+    const int jcp_dw_kh = 3;
     const int nb_buffer = jcp.nb_load_blocking;
     std::vector<decltype(pbuf)> addrs;
 
@@ -215,7 +215,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         const int _ocb = g * nb_oc + ocb;
 
         void *output_data = jcp.with_dw_conv
-                ? (void *)(pbuf + (oh % jcp_dw.kh) * row_offset)
+                ? (void *)(pbuf + (oh % jcp_dw_kh) * row_offset)
                 : (void *)(&dst[data_blk_off(dst_d, n, _ocb, od, oh, ow)
                         * dst_d.data_type_size()]);
         p.output_data = output_data;
@@ -297,6 +297,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     };
 
     auto ker_dw = [&](int n, int ocb_start, int load_step, int &dw_oh) {
+        auto &jcp_dw = pd()->jcp_dw();
         int oh_1x1 = nstl::max(dw_oh * jcp_dw.stride_h - jcp_dw.t_pad, 0);
 
         for (int i = 0; i < jcp_dw.kh; ++i)
@@ -355,6 +356,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 scratchpad, memory_tracking::names::prefix_fusion);
         const auto dw_conv_buffer
                 = dw_scratchpad.get<dst_data_t>(key_fusion_inout_buffer);
+        auto &jcp_dw = pd()->jcp_dw();
 
         const auto dw_conv_buffer_size_
                 = jcp_dw.kh * jcp.ow * nb_buffer * jcp.oc_block;

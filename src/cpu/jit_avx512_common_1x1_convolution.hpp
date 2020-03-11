@@ -47,32 +47,19 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
             , dw_conv_pd_(nullptr) {}
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
-            jcp_ = other.jcp_;
-            rtus_ = other.rtus_;
-            if (other.dw_conv_pd_)
-                dw_conv_pd_ = static_cast<decltype(dw_conv_pd_)>(
-                        other.dw_conv_pd_->clone());
+            copy(other);
         }
 
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_convolution_fwd_pd_t::operator=(other);
-            jcp_ = other.jcp_;
-            rtus_ = other.rtus_;
-            if (dw_conv_pd_) delete dw_conv_pd_;
-            if (other.dw_conv_pd_)
-                dw_conv_pd_ = static_cast<decltype(dw_conv_pd_)>(
-                        other.dw_conv_pd_->clone());
+            clear();
+            copy(other);
 
             return *this;
         }
 
-        ~pd_t() {
-            if (dw_conv_pd_) {
-                delete dw_conv_pd_;
-                dw_conv_pd_ = nullptr;
-            }
-        }
+        ~pd_t() { clear(); }
 
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx512_common, ""),
                 jit_avx512_common_1x1_convolution_fwd_t);
@@ -153,6 +140,23 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
+        void clear() {
+            if (dw_conv_pd_) {
+                delete dw_conv_pd_;
+                dw_conv_pd_ = nullptr;
+            }
+            return;
+        }
+
+        void copy(const pd_t &other) {
+            jcp_ = other.jcp_;
+            rtus_ = other.rtus_;
+            if (other.dw_conv_pd_)
+                dw_conv_pd_ = static_cast<decltype(dw_conv_pd_)>(
+                        other.dw_conv_pd_->clone());
+            return;
+        }
+
         status_t depthwise_po_init() {
 
             using namespace memory_tracking;
@@ -163,6 +167,16 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
             const auto nthr = dnnl_get_max_threads();
             auto l2_cache = get_cache_size(2, true) * nthr;
 
+            // Note: A robust fusion implementation would be to check if both
+            // 1x1 conv and dw conv that are considered here for fusion are
+            // optimal independently. This would require creating a new
+            // primitive_desc through primitive_iterator & check if they match.
+            // Due to concern that these creations and/or checks could be heavy,
+            // for 1x1: Check that no better ISA is available.
+            // for dw: Always fuse with same ISA.
+            // Caveat: May be a better dw conv exists.
+
+            // TODO: Add a check if better ISA exists following above note.
             bool ok = true && is_fwd()
                     && (attr_1x1.post_ops_.find(primitive_kind::sum) == -1)
                     // TODO: Below may be further tuned.
@@ -175,26 +189,16 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
 
             int dw_po_index
                     = attr_1x1.post_ops_.find(primitive_kind::convolution);
+            convolution_desc_t cd_dw;
+            primitive_attr_t attr_dw;
+            CHECK(get_depthwise_conv_desc(
+                    cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
-            auto status = get_depthwise_primitive_desc(
-                    (primitive_desc_t **)&dw_conv_pd_, src_md, attr_1x1,
-                    engine(), dw_po_index);
-            if (status != status::success) return status::unimplemented;
-
-            using dw_pd_t = jit_avx512_common_dw_convolution_fwd_t::pd_t;
-            auto fusable_pd = std::unique_ptr<dw_pd_t>(new dw_pd_t(engine(),
-                    dw_conv_pd_->desc(), dw_conv_pd_->attr(), nullptr));
-            status = fusable_pd.get()->init();
-            if (status != status::success) return status;
-
-            // Check if the fusable_pd matches with the primitive_desc returned
-            // by dnnl_primitive_desc_create(). If it doesn't match, then there
-            // probably exists a more optimized version of depthwise convolution
-            // than the fusable_pd. In this case, fallback to reference fusion.
-            auto key1 = primitive_hashing::key_t(fusable_pd.get(), 0);
-            auto key2 = primitive_hashing::key_t(dw_conv_pd_, 0);
-            if (!(key1 == key2)) return status::unimplemented;
-
+            // Make copy of pd_t to keep original pd_t unmodified.
+            auto fusable_pd = jit_avx512_common_dw_convolution_fwd_t::pd_t(
+                    engine_, &cd_dw, &attr_dw, nullptr);
+            CHECK(fusable_pd.init());
+            dw_conv_pd_ = fusable_pd.clone();
             auto &jcp_dw = dw_conv_pd_->jcp_;
 
             ok = true
@@ -229,9 +233,9 @@ struct jit_avx512_common_1x1_convolution_fwd_t : public primitive_impl_t {
             registrar_t scratchpad(scratchpad_registry_);
             registrar_t dw_scratchpad(scratchpad, names::prefix_fusion);
 
-            size_t dw_conv_buffer_size_ = (size_t)nthr * jcp_dw.kh * jcp_1x1.ow
+            size_t dw_conv_buffer_size_ = (size_t)nthr * jcp_dw.kh * jcp_dw.iw
                     * jcp_dw.dw_conv_buffer_oc
-                    * types::data_type_size(jcp_dw.dst_dt);
+                    * types::data_type_size(dw_conv_pd_->src_md()->data_type);
             assert(dw_conv_buffer_size_);
             dw_scratchpad.book(memory_tracking::names::key_fusion_inout_buffer,
                     dw_conv_buffer_size_);

@@ -118,6 +118,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     const int nb_buffer = jcp.nb_load_blocking;
     const int jcp_dw_kh = 3;
     std::vector<data_t *> addrs;
+    void (*dw_jit_ker)(jit_conv_call_s *) = nullptr;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -213,7 +214,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     };
 
     auto ker_dw = [&](int n, int ocb_start, int load_step, int &dw_oh) {
-        auto &jcp_dw = pd()->dw_conv_pd_->jcp_;
+        auto &jcp_dw = pd()->jcp_dw();
 
         int oh_1x1 = nstl::max(dw_oh * jcp_dw.stride_h - jcp_dw.t_pad, 0);
 
@@ -258,7 +259,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
             par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
 
-            kernel_dw_->jit_ker(&par_conv_dw);
+            dw_jit_ker(&par_conv_dw);
 
             for (int i = 0; i < jcp_dw.kh; ++i)
                 addrs[i] += wch_stride;
@@ -271,7 +272,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                 scratchpad, memory_tracking::names::prefix_fusion);
         auto dw_conv_buffer
                 = dw_scratchpad.get<data_t>(key_fusion_inout_buffer);
-        auto &jcp_dw = pd()->dw_conv_pd_->jcp_;
+        auto &jcp_dw = pd()->jcp_dw();
+        dw_jit_ker = kernel_dw_avx2 ? kernel_dw_avx2->jit_ker
+                                    : kernel_dw_sse41->jit_ker;
 
         const auto dw_conv_buffer_size_
                 = (size_t)jcp_dw.kh * jcp.ow * nb_buffer * jcp.oc_block;

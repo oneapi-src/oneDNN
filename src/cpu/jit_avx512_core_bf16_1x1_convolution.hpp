@@ -42,38 +42,21 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
             : cpu_convolution_fwd_pd_t(engine, adesc, attr, hint_fwd_pd)
             , jcp_()
             , rtus_()
-            , jcp_dw_()
             , dw_conv_pd_(nullptr) {}
 
         pd_t(const pd_t &other) : cpu_convolution_fwd_pd_t(other) {
-            jcp_ = other.jcp_;
-            rtus_ = other.rtus_;
-            jcp_dw_ = other.jcp_dw_;
-            if (other.dw_conv_pd_)
-                dw_conv_pd_ = static_cast<decltype(dw_conv_pd_)>(
-                        other.dw_conv_pd_->clone());
+            copy(other);
         }
 
         pd_t &operator=(const pd_t &other) {
             DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
             cpu_convolution_fwd_pd_t::operator=(other);
-            jcp_ = other.jcp_;
-            rtus_ = other.rtus_;
-            jcp_dw_ = other.jcp_dw_;
-            if (dw_conv_pd_) delete dw_conv_pd_;
-            if (dw_conv_pd_)
-                dw_conv_pd_ = static_cast<decltype(dw_conv_pd_)>(
-                        other.dw_conv_pd_->clone());
-
+            clear();
+            copy(other);
             return *this;
         }
 
-        ~pd_t() {
-            if (dw_conv_pd_) {
-                delete dw_conv_pd_;
-                dw_conv_pd_ = nullptr;
-            };
-        }
+        ~pd_t() { clear(); }
         DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_bf16_1x1:", jcp_.isa, ""),
                 jit_avx512_core_bf16_1x1_convolution_fwd_t);
 
@@ -140,12 +123,24 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
+        const jit_conv_conf_t &jcp_dw() const {
+            using namespace data_type;
+            if (dw_conv_pd_->dst_md()->data_type == bf16) {
+                return static_cast<const dw_pd_t<bf16> *>(dw_conv_pd_)->jcp_;
+            } else {
+                return static_cast<const dw_pd_t<f32> *>(dw_conv_pd_)->jcp_;
+            }
+        }
+
         jit_1x1_conv_conf_t jcp_;
         reduce_to_unit_stride_t rtus_;
-        jit_conv_conf_t jcp_dw_;
         cpu_convolution_fwd_pd_t *dw_conv_pd_ = nullptr;
 
     protected:
+        template <data_type_t ddt>
+        using dw_pd_t = typename jit_uni_dw_convolution_fwd_t<avx512_core,
+                data_type::bf16, ddt>::pd_t;
+
         bool set_default_formats() {
             using namespace format_tag;
             auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
@@ -156,16 +151,43 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
             return set_default_formats_common(dat_tag, wei_tag, dat_tag);
         }
 
+        void clear() {
+            if (dw_conv_pd_) {
+                delete dw_conv_pd_;
+                dw_conv_pd_ = nullptr;
+            };
+            return;
+        }
+
+        void copy(const pd_t &other) {
+            jcp_ = other.jcp_;
+            rtus_ = other.rtus_;
+            if (other.dw_conv_pd_)
+                dw_conv_pd_ = static_cast<decltype(dw_conv_pd_)>(
+                        other.dw_conv_pd_->clone());
+            return;
+        }
+
         status_t depthwise_po_init() {
             using namespace memory_tracking;
             auto &jcp_1x1 = jcp_;
-            auto &jcp_dw = jcp_dw_;
+            jit_conv_conf_t *jcp_dw = nullptr;
             auto &attr_1x1 = attr_;
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);
             const auto nthr = dnnl_get_max_threads();
             auto l2_cache = get_cache_size(2, true) * nthr;
 
+            // Note: A robust fusion implementation would be to check if both
+            // 1x1 conv and dw conv that are considered here for fusion are
+            // optimal independently. This would require creating a new
+            // primitive_desc through primitive_iterator & check if they match.
+            // Due to concern that these creations and/or checks could be heavy,
+            // for 1x1: Check that no better ISA is available.
+            // for dw: Always fuse with same ISA.
+            // Caveat: May be a better dw conv exists.
+
+            // TODO: Add a check if better ISA exists following above note.
             bool ok = true && is_fwd()
                     && (attr_1x1.post_ops_.find(primitive_kind::sum) == -1)
                     // TODO: Below may be further tuned.
@@ -179,39 +201,25 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
             int dw_po_index
                     = attr_1x1.post_ops_.find(primitive_kind::convolution);
 
-            auto status = get_depthwise_primitive_desc(
-                    (primitive_desc_t **)&dw_conv_pd_, src_md, attr_1x1,
-                    engine(), dw_po_index);
-            if (status != status::success) return status::unimplemented;
+            convolution_desc_t cd_dw;
+            primitive_attr_t attr_dw;
+            CHECK(get_depthwise_conv_desc(
+                    cd_dw, src_md, attr_1x1, attr_dw, dw_po_index));
 
-            auto dw_dst_dt = dw_conv_pd_->dst_md()->data_type;
-            // Check if the fusable_pd matches with the primitive_desc returned
-            // by dnnl_primitive_desc_create(). If it doesn't match, then there
-            // probably exists a more optimized version of depthwise convolution
-            // than the fusable_pd. In this case, fallback to reference fusion.
-#define CASE(sdt, ddt) \
-    case ddt: { \
-        auto fusable_pd \
-                = new typename jit_uni_dw_convolution_fwd_t<avx512_core, sdt, \
-                        ddt>::pd_t(engine(), dw_conv_pd_->desc(), \
-                        dw_conv_pd_->attr(), nullptr); \
-        if (fusable_pd->init() != status::success) { \
-            delete fusable_pd; \
-            return status::unimplemented; \
-        } \
-        auto key1 = primitive_hashing::key_t(fusable_pd, 0); \
-        auto key2 = primitive_hashing::key_t(dw_conv_pd_, 0); \
-        if (!(key1 == key2)) { \
-            delete fusable_pd; \
-            return status::unimplemented; \
-        } \
-        jcp_dw = static_cast<decltype(fusable_pd)>(dw_conv_pd_)->jcp_; \
+            auto dw_dst_dt = cd_dw.dst_desc.data_type;
+
+#define CASE(dt) \
+    case dt: { \
+        auto fusable_pd = dw_pd_t<dt>(engine(), &cd_dw, &attr_dw, nullptr); \
+        CHECK(fusable_pd.init()); \
+        dw_conv_pd_ = fusable_pd.clone(); \
+        jcp_dw = &(static_cast<dw_pd_t<dt> *>(dw_conv_pd_)->jcp_); \
         break; \
     }
             if (jcp_1x1.dst_dt == data_type::bf16) {
                 switch (dw_dst_dt) {
-                    CASE(data_type::bf16, data_type::bf16);
-                    CASE(data_type::bf16, data_type::f32);
+                    CASE(data_type::bf16);
+                    CASE(data_type::f32);
                     default: return status::unimplemented;
                 }
             } else
@@ -222,7 +230,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
                     && (dnnl_memory_desc_equal(&src_md, dw_conv_pd_->src_md(0)))
                     && (jcp_1x1.oc_without_padding % jcp_1x1.oc_block == 0)
                     && IMPLICATION(
-                            jcp_dw.ow_block, jcp_dw.ow_block == jcp_dw.ow);
+                            jcp_dw->ow_block, jcp_dw->ow_block == jcp_dw->ow);
             if (!ok) return status::unimplemented;
 
             assert(dw_conv_pd_->dst_md(0)->format_kind != format_kind::any);
@@ -232,17 +240,17 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
                     dw_conv_pd_->weights_md(1)->format_kind
                             != format_kind::any));
 
-            jcp_dw.is_fused_conv = true;
+            jcp_dw->is_fused_conv = true;
             // TODO: Support/experiment arbitary oc_work in dw conv.
             // Until then we keep ch_work perfectly divisible.
             while (jcp_1x1.nb_load % jcp_1x1.nb_load_blocking != 0)
                 --jcp_1x1.nb_load_blocking;
             jcp_1x1.nb_load_blocking_max = jcp_1x1.nb_load_blocking;
 
-            while (jcp_1x1.nb_load_blocking % jcp_dw.nb_ch_blocking != 0)
-                --jcp_dw.nb_ch_blocking;
+            while (jcp_1x1.nb_load_blocking % jcp_dw->nb_ch_blocking != 0)
+                --jcp_dw->nb_ch_blocking;
 
-            jcp_dw.dw_conv_buffer_oc
+            jcp_dw->dw_conv_buffer_oc
                     = jcp_1x1.nb_load_blocking * jcp_1x1.oc_block;
             jcp_1x1.bcast_loop_output_step
                     = jcp_1x1.ur * jcp_1x1.load_block * jcp_1x1.typesize_out;
@@ -250,14 +258,14 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
             registrar_t scratchpad(scratchpad_registry_);
             registrar_t dw_scratchpad(scratchpad, names::prefix_fusion);
 
-            size_t dw_conv_buffer_size_ = (size_t)nthr * jcp_dw.kh * jcp_1x1.ow
-                    * jcp_dw.dw_conv_buffer_oc
-                    * types::data_type_size(jcp_dw.dst_dt);
+            size_t dw_conv_buffer_size_ = (size_t)nthr * jcp_dw->kh * jcp_dw->iw
+                    * jcp_dw->dw_conv_buffer_oc
+                    * types::data_type_size(dw_conv_pd_->src_md()->data_type);
             assert(dw_conv_buffer_size_);
             dw_scratchpad.book(memory_tracking::names::key_fusion_inout_buffer,
                     dw_conv_buffer_size_);
 
-            dw_conv_kernel_t::init_scratchpad(dw_scratchpad, jcp_dw);
+            dw_conv_kernel_t::init_scratchpad(dw_scratchpad, *jcp_dw);
 
             return status::success;
         }
@@ -271,7 +279,7 @@ struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_impl_t {
                 pd()->jcp_, *pd()->attr());
 
         if (pd()->jcp_.with_dw_conv) {
-            kernel_dw_ = new dw_conv_kernel_t(pd()->jcp_dw_);
+            kernel_dw_ = new dw_conv_kernel_t(pd()->jcp_dw());
         }
 
         init_rtus_driver<avx512_common>(this);
