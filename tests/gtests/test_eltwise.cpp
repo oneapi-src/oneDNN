@@ -361,7 +361,10 @@ protected:
         strm = stream(eng);
 
         Forward();
-        Backward();
+        if (data_type == memory::data_type::f32
+                || data_type == memory::data_type::bf16) {
+            Backward();
+        }
     }
 
     void Forward() {
