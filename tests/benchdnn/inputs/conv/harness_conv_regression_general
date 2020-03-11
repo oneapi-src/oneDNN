@@ -188,3 +188,9 @@ g16mb1ic16id3ih3iw3oc16od3oh3ow3kd3kh3kw3sd1sh1sw1pd1ph1pw1n"check_int8_3d_depth
 --reset --stag=nchw,nhwc
 --dir=FWD_B,BWD_D,BWD_WB
 ic256ih56oc512oh28kh1sh2ph0n"strided_1x1_with_mixed_data_layouts"
+
+# Test fix for Seg-fault in bwd_w with padding + dilation
+--reset --dir=BWD_W --allow-unimpl=true --skip-impl="ref:gemm"
+mb1ic16ih2iw30oc1oh1ow30kh2kw3ph0pw17dh0dw16n"bwd-w_check_dilation_padding_1"
+mb1ic16ih2iw84oc1oh1ow84kh2kw3ph0pw29dh0dw28n"bwd-w_check_dilation_padding_2"
+mb1ic16ih2iw70oc1oh1ow10kh2kw3ph0pw0dh0dw29n"bwd_w_check_large-dilation"
