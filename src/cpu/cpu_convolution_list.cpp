@@ -175,6 +175,8 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, f32>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, f32>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<s8, f32>),
+        INSTANCE(ref_convolution_fwd_t<s8, s8, f32, s32>),
+        INSTANCE(ref_fused_convolution_fwd_t),
         nullptr,
     }},
     {{forward, s8, s8, s32}, {
@@ -183,6 +185,8 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, s32>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, s32>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<s8, s32>),
+        INSTANCE(ref_convolution_fwd_t<s8, s8, s32, s32>),
+        INSTANCE(ref_fused_convolution_fwd_t),
         nullptr,
     }},
     {{forward, s8, s8, s8}, {
@@ -191,6 +195,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, s8>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, s8>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<s8, s8>),
+        INSTANCE(ref_convolution_fwd_t<s8, s8, s8, s32>),
         INSTANCE(ref_fused_convolution_fwd_t),
         nullptr,
     }},
@@ -200,6 +205,7 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
         INSTANCE(jit_avx2_x8s8s32x_1x1_convolution_fwd_t<s8, u8>),
         INSTANCE(jit_avx2_x8s8s32x_convolution_fwd_t<s8, u8>),
         INSTANCE(_gemm_x8s8s32x_convolution_fwd_t<s8, u8>),
+        INSTANCE(ref_convolution_fwd_t<s8, s8, u8, s32>),
         INSTANCE(ref_fused_convolution_fwd_t),
         nullptr,
     }},
@@ -265,6 +271,24 @@ static const std::map<conv_impl_key_t, std::vector<pd_create_f>> impl_list_map {
     {{backward_data, u8, s8, u8}, {
         INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<u8>),
         INSTANCE(ref_convolution_bwd_data_t<u8, s8, u8, s32>),
+        nullptr,
+    }},
+    // BWD int8 (diff_dst:s8)
+    {{backward_data, f32, s8, s8}, {
+        INSTANCE(_gemm_u8s8s32x_convolution_bwd_data_t<f32>),
+        INSTANCE(ref_convolution_bwd_data_t<f32, s8, s8, s32>),
+        nullptr,
+    }},
+    {{backward_data, s32, s8, s8}, {
+        INSTANCE(ref_convolution_bwd_data_t<s32, s8, s8, s32>),
+        nullptr,
+    }},
+    {{backward_data, s8, s8, s8}, {
+        INSTANCE(ref_convolution_bwd_data_t<s8, s8, s8, s32>),
+        nullptr,
+    }},
+    {{backward_data, u8, s8, s8}, {
+        INSTANCE(ref_convolution_bwd_data_t<u8, s8, s8, s32>),
         nullptr,
     }},
 };

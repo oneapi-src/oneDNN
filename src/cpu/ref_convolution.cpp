@@ -661,6 +661,10 @@ template struct ref_convolution_fwd_t<u8, s8, f32, s32>;
 template struct ref_convolution_fwd_t<u8, s8, s32, s32>;
 template struct ref_convolution_fwd_t<u8, s8, s8, s32>;
 template struct ref_convolution_fwd_t<u8, s8, u8, s32>;
+template struct ref_convolution_fwd_t<s8, s8, f32, s32>;
+template struct ref_convolution_fwd_t<s8, s8, s32, s32>;
+template struct ref_convolution_fwd_t<s8, s8, s8, s32>;
+template struct ref_convolution_fwd_t<s8, s8, u8, s32>;
 
 template struct ref_convolution_bwd_data_t<f32, f32, f32, f32>;
 
@@ -668,6 +672,10 @@ template struct ref_convolution_bwd_data_t<f32, s8, u8, s32>;
 template struct ref_convolution_bwd_data_t<s32, s8, u8, s32>;
 template struct ref_convolution_bwd_data_t<s8, s8, u8, s32>;
 template struct ref_convolution_bwd_data_t<u8, s8, u8, s32>;
+template struct ref_convolution_bwd_data_t<f32, s8, s8, s32>;
+template struct ref_convolution_bwd_data_t<s32, s8, s8, s32>;
+template struct ref_convolution_bwd_data_t<s8, s8, s8, s32>;
+template struct ref_convolution_bwd_data_t<u8, s8, s8, s32>;
 
 template struct ref_convolution_bwd_weights_t<f32, f32, f32, f32>;
 
