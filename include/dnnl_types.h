@@ -183,6 +183,7 @@ typedef enum {
 
     // Permuted plain formats
 
+    dnnl_abdc, ///< permuted 4D tensor
     dnnl_abdec, ///< permuted 5D tensor
     dnnl_acb, ///< permuted 3D tensor
     dnnl_acbde, ///< permuted 5D tensor
@@ -464,6 +465,9 @@ typedef enum {
     /// 4D LSTM projection tensor in the format (num_layers, num_directions,
     /// num_channels_in_hidden_state, num_channels_in_recurrent_projection).
     dnnl_ldio = dnnl_abcd,
+    /// 4D LSTM projection tensor in the format (num_layers, num_directions,
+    /// num_channels_in_recurrent_projection, num_channels_in_hidden_state).
+    dnnl_ldoi = dnnl_abdc,
     /// 4D RNN bias tensor in the format (num_layers, num_directions,
     /// num_gates, output_channels).
     ///

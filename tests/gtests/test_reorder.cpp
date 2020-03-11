@@ -198,7 +198,8 @@ CPU_INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
                 cfg_f32 {fmt::chwn, fmt::nChw16c, {28, 96, 10, 10}},
                 cfg_f32 {fmt::nChw16c, fmt::chwn, {28, 96, 10, 10}},
                 cfg_f32 {fmt::nhwc, fmt::nChw16c, {2, 64, 4, 4}},
-                cfg_f32 {fmt::nChw16c, fmt::nhwc, {2, 64, 4, 4}}));
+                cfg_f32 {fmt::nChw16c, fmt::nhwc, {2, 64, 4, 4}},
+                cfg_f32 {fmt::abcd, fmt::abdc, {10, 10, 10, 10}}));
 
 CPU_INSTANTIATE_TEST_SUITE_P(Weights_0, reorder_simple_test_f32_f32,
         ::testing::Values(cfg_f32 {fmt::hwio, fmt::oihw, {32, 32, 3, 3}},
