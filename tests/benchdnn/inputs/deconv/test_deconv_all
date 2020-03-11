@@ -19,7 +19,7 @@
 --cfg=s8s8s32,u8s8s8 --batch=deconv_2d
 
 --attr=oscale=none;
---cfg=u8s8s32,s8s8s8 --batch=deconv_2d
+--cfg=u8s8f32,u8s8s32,s8s8s8 --batch=deconv_2d
 
 # 3D
 --attr=oscale=common:3.14;post_ops='relu:0.5;sum'
