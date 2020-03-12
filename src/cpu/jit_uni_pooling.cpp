@@ -239,14 +239,14 @@ jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
         dim_t nb_c = jpp.c_without_padding / jpp.c_block;
         dim_t c_tail = jpp.c_without_padding % jpp.c_block;
         const memory_desc_wrapper indices_d(pd()->workspace_md());
-        bool have_indeces = indices_d.data_type() != data_type::undef;
+        bool have_indices = indices_d.data_type() != data_type::undef;
 
         if (nb_c) {
             diff_dst_trans_ = new trans_wrapper_t(d_type, diff_dst_sp, wsp_dt_,
                     jpp.c_block, jpp.c_block, diff_dst_sp);
             diff_src_trans_ = new trans_wrapper_t(wsp_dt_, jpp.c_block, d_type,
                     diff_src_sp, diff_src_sp, jpp.c_block);
-            if (have_indeces)
+            if (have_indices)
                 ind_trans_ = new trans_wrapper_t(indices_d.data_type(),
                         diff_dst_sp, indices_d.data_type(), jpp.c_block,
                         jpp.c_block, diff_dst_sp);
@@ -256,7 +256,7 @@ jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
                     wsp_dt_, jpp.c_block, c_tail, diff_dst_sp);
             diff_src_tail_trans_ = new trans_wrapper_t(wsp_dt_, jpp.c_block,
                     d_type, diff_src_sp, diff_src_sp, c_tail);
-            if (have_indeces)
+            if (have_indices)
                 ind_tail_trans_ = new trans_wrapper_t(indices_d.data_type(),
                         diff_dst_sp, indices_d.data_type(), jpp.c_block, c_tail,
                         diff_dst_sp);
