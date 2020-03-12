@@ -35,6 +35,19 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
+union plan_element_t {
+    struct {
+        int i0 : 31;
+        int kid0 : 1;
+        int j0 : 31;
+        int kid1 : 1;
+    };
+    struct {
+        int32_t next_id;
+        int32_t done_count;
+    };
+};
+
 struct gen9_gemm_t : public gpu_gemm_t {
 
     enum class type {
@@ -101,7 +114,60 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             attr()->post_ops_.find(sum) == 0
                                     && attr()->post_ops_.find(eltwise) == 1);
             if (!ok) return status::unimplemented;
+
+            auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
+                    compute_engine->device_info());
+
+            eu_count_ = dev_info->eu_count();
+            hw_threads_ = dev_info->hw_threads();
+
+            gemm_type_ = get_gemm_type(engine);
+            init_scratchpad();
+
             return status::success;
+        }
+
+        void init_scratchpad() {
+            switch (gemm_type_) {
+                case type::copy_based: init_scratchpad_copy_based(); break;
+                case type::no_copy: init_scratchpad_nocopy(); break;
+                case type::no_copy_if_even_off: {
+                    init_scratchpad_copy_based();
+                    init_scratchpad_nocopy();
+                    break;
+                }
+                case type::no_copy_superkernel:
+                    init_scratchpad_nocopy_superkernel();
+                    break;
+                case type::no_copy_k_unroll: init_scratchpad_nocopy(); break;
+            }
+        }
+
+        void init_scratchpad_nocopy() {
+            int unroll_m, unroll_n, unroll_k;
+            bool transa = (desc()->transa == dnnl_trans);
+            bool transb = (desc()->transb == dnnl_trans);
+
+            gen9_gemm_nocopy_kernel_t::get_unrolls(transa, transb, unroll_m,
+                    unroll_n, unroll_k, desc()->c_type);
+            auto m = desc()->m;
+            auto n = desc()->n;
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_gemm_flag,
+                    ((m + unroll_m - 1) / unroll_m)
+                            * ((n + unroll_n - 1) / unroll_n) * sizeof(int));
+        }
+
+        void init_scratchpad_copy_based() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(
+                    memory_tracking::names::key_gemm_tmp_buffer, 128 << 20);
+        }
+
+        void init_scratchpad_nocopy_superkernel() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
+                    max_plan_size());
         }
 
         bool with_eltwise() const {
@@ -148,25 +214,139 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     : dnnl_alg_kind_undef;
         }
 
+        bool use_superkernel(engine_t *engine) const {
+            if (disable_superkernel) return false;
+
+            if (desc()->c_type != data_type::f32) return false;
+            if (desc()->a_type != desc()->c_type
+                    || desc()->b_type != desc()->c_type)
+                return false;
+
+            // Older OpenCL runtimes spill registers very badly with superkernels
+            //  (~2% resulting efficiency). Avoid using superkernels for these
+            //  versions.
+            auto *compute_engine
+                    = utils::downcast<compute::compute_engine_t *>(engine);
+            auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
+                    compute_engine->device_info());
+            compute::runtime_version_t min_version = {19, 11, 12599};
+
+            if (dev_info->runtime_version() < min_version) return false;
+
+            bool transa = (desc()->transa == dnnl_trans);
+            auto k = desc()->k;
+
+            return !transa && (hw_threads_ > 0) && (k >= 384);
+        }
+
+        bool use_nocopy_k_unroll() const {
+            bool transa = (desc()->transa == dnnl_trans);
+            bool transb = (desc()->transb == dnnl_trans);
+
+            auto m = desc()->m;
+            auto n = desc()->n;
+            auto k = desc()->k;
+            auto lda = desc()->lda;
+            auto ldb = desc()->ldb;
+            auto c_type = desc()->c_type;
+
+            if (!utils::one_of(c_type, data_type::f32, data_type::f16))
+                return false;
+
+            // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
+            if (c_type == data_type::f16)
+                if ((lda & 1) || (ldb & 1)) return false;
+
+            if (c_type == data_type::f32)
+                return ((n == 1) && transa && !transb && (m <= 1024)
+                        && (k >= 128));
+
+            if (c_type == data_type::f16)
+                return ((n == 1) && transa && !transb && (m <= 1024)
+                        && (k >= 384));
+
+            return false;
+        }
+
+        bool use_nocopy() const {
+            bool transa = (desc()->transa == dnnl_trans);
+            bool transb = (desc()->transb == dnnl_trans);
+
+            auto m = desc()->m;
+            auto n = desc()->n;
+            auto k = desc()->k;
+            auto lda = desc()->lda;
+            auto ldb = desc()->ldb;
+
+            if (!utils::one_of(desc()->c_type, data_type::f32, data_type::f16))
+                return false;
+            if (desc()->a_type != desc()->c_type
+                    || desc()->b_type != desc()->c_type)
+                return false;
+            if (desc()->acc_type != desc()->c_type) return false;
+
+            // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
+            if (desc()->c_type == data_type::f16)
+                if ((lda & 1) || (ldb & 1)) return false;
+
+            if (transa && !transb) return (m < 1024 || n < 1024);
+
+            if (desc()->c_type == data_type::f16) {
+                if (!(lda & 0x3FF) && (n >= 256)) return false;
+                if (!transa && transb && (k <= 64)) return false;
+            }
+
+            return true;
+        }
+
+        type get_gemm_type(engine_t *engine) const {
+            return use_nocopy_k_unroll()
+                    ? type::no_copy_k_unroll
+                    : !use_nocopy() ? type::copy_based
+                                    : use_superkernel(engine)
+                                    ? type::no_copy_superkernel
+                                    : (desc()->c_type == data_type::f16)
+                                            ? type::no_copy_if_even_off
+                                            : type::no_copy;
+        }
+
+        size_t max_plan_size() const {
+
+            auto m = desc()->m;
+            auto n = desc()->n;
+            bool transa = (desc()->transa == dnnl_trans);
+            bool transb = (desc()->transb == dnnl_trans);
+
+            int unroll_m[2], unroll_n;
+            gen9_gemm_nocopy_superkernel_t::get_unrolls(
+                    transa, transb, unroll_m, unroll_n);
+
+            auto max_threads = utils::div_up(m, unroll_m[1])
+                    * utils::div_up(n, unroll_n);
+
+            return sizeof(plan_element_t) * (max_threads + 1);
+        }
+
         size_t dyn_offset_a = 0;
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
+        int hw_threads_ = 0;
+        int eu_count_ = 0;
+
+        type gemm_type_ = type::copy_based;
+
+    protected:
+#ifdef _WIN32
+        bool disable_superkernel = true;
+#else
+        bool disable_superkernel = false;
+#endif
     };
 
     gen9_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-        auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
-                compute_engine->device_info());
-
-        eu_count_ = dev_info->eu_count();
-        hw_threads_ = dev_info->hw_threads();
-
-        gemm_type_ = get_gemm_type(engine);
-
-        switch (gemm_type_) {
+        switch (pd()->gemm_type_) {
             case type::copy_based: return init_copy_based(engine);
             case type::no_copy: return init_nocopy(engine);
             case type::no_copy_if_even_off: {
@@ -206,10 +386,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
     status_t init_copy_based(engine_t *engine) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
-
-        memory_storage_t *temp_buf_ptr;
-        engine->create_memory_storage(&temp_buf_ptr, 128 << 20);
-        temp_buf_.reset(temp_buf_ptr);
 
         for (bool beta0 : {false, true}) {
             if (beta0 && pd()->beta() != 0) continue;
@@ -270,16 +446,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         gen9_gemm_nocopy_kernel_t::get_unrolls(transa, transb, unroll_m,
                 unroll_n, unroll_k, pd()->desc()->c_type);
-        auto m = pd()->desc()->m;
-        auto n = pd()->desc()->n;
 
-        memory_storage_t *flag_ptr;
-        engine->create_memory_storage(&flag_ptr,
-                ((m + unroll_m - 1) / unroll_m)
-                        * ((n + unroll_n - 1) / unroll_n) * sizeof(int));
-        flag_.reset(flag_ptr);
-
-        bool with_k_unroll = use_nocopy_k_unroll();
+        bool with_k_unroll = pd()->use_nocopy_k_unroll();
 
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
@@ -301,10 +469,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
         if (pd()->desc()->c_type != data_type::f32 || pd()->desc()->transa)
             return status::unimplemented;
 
-        memory_storage_t *temp_buf_ptr;
-        engine->create_memory_storage(&temp_buf_ptr, max_plan_size());
-        temp_buf_.reset(temp_buf_ptr);
-
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
@@ -319,17 +483,10 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 "gen9_gemm_nocopy_superkernel_f32", kernel_ctx);
         if (!nocopy_superbinary_) return status::runtime_error;
 
-        return init_superkernel_plan();
+        return status::success;
     }
 
     virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
-
-protected:
-#ifdef _WIN32
-    bool disable_superkernel = true;
-#else
-    bool disable_superkernel = false;
-#endif
 
 private:
     status_t launch_beta(const gemm_exec_ctx_t &ctx,
@@ -367,9 +524,6 @@ private:
             float alpha, float beta, int last_k_block, float eltwise_alpha,
             float eltwise_beta, float eltwise_scale) const;
 
-    size_t max_plan_size() const;
-    status_t init_superkernel_plan();
-
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
     virtual status_t execute_superkernel(const gemm_exec_ctx_t &ctx) const;
 
@@ -379,109 +533,7 @@ private:
     compute::binary_t nocopy_binary_;
     compute::binary_t nocopy_superbinary_;
 
-    std::unique_ptr<memory_storage_t> temp_buf_;
-    std::unique_ptr<memory_storage_t> flag_;
-
-    type gemm_type_ = type::copy_based;
-    int hw_threads_ = 0;
-    int eu_count_ = 0;
-    int threads_ = 0;
-
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-
-    bool use_nocopy() const {
-        bool transa = (pd()->desc()->transa == dnnl_trans);
-        bool transb = (pd()->desc()->transb == dnnl_trans);
-
-        auto m = pd()->desc()->m;
-        auto n = pd()->desc()->n;
-        auto k = pd()->desc()->k;
-        auto lda = pd()->desc()->lda;
-        auto ldb = pd()->desc()->ldb;
-
-        if (!utils::one_of(
-                    pd()->desc()->c_type, data_type::f32, data_type::f16))
-            return false;
-        if (pd()->desc()->a_type != pd()->desc()->c_type
-                || pd()->desc()->b_type != pd()->desc()->c_type)
-            return false;
-        if (pd()->desc()->acc_type != pd()->desc()->c_type) return false;
-
-        // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
-        if (pd()->desc()->c_type == data_type::f16)
-            if ((lda & 1) || (ldb & 1)) return false;
-
-        if (transa && !transb) return (m < 1024 || n < 1024);
-
-        if (pd()->desc()->c_type == data_type::f16) {
-            if (!(lda & 0x3FF) && (n >= 256)) return false;
-            if (!transa && transb && (k <= 64)) return false;
-        }
-
-        return true;
-    }
-
-    bool use_superkernel(engine_t *engine) const {
-        if (disable_superkernel) return false;
-
-        if (pd()->desc()->c_type != data_type::f32) return false;
-        if (pd()->desc()->a_type != pd()->desc()->c_type
-                || pd()->desc()->b_type != pd()->desc()->c_type)
-            return false;
-
-        // Older OpenCL runtimes spill registers very badly with superkernels
-        //  (~2% resulting efficiency). Avoid using superkernels for these
-        //  versions.
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-        auto *dev_info = utils::downcast<const ocl_gpu_device_info_t *>(
-                compute_engine->device_info());
-        compute::runtime_version_t min_version = {19, 11, 12599};
-
-        if (dev_info->runtime_version() < min_version) return false;
-
-        bool transa = (pd()->desc()->transa == dnnl_trans);
-        auto k = pd()->desc()->k;
-
-        return !transa && (hw_threads_ > 0) && (k >= 384);
-    }
-
-    bool use_nocopy_k_unroll() const {
-        bool transa = (pd()->desc()->transa == dnnl_trans);
-        bool transb = (pd()->desc()->transb == dnnl_trans);
-
-        auto m = pd()->desc()->m;
-        auto n = pd()->desc()->n;
-        auto k = pd()->desc()->k;
-        auto lda = pd()->desc()->lda;
-        auto ldb = pd()->desc()->ldb;
-        auto c_type = pd()->desc()->c_type;
-
-        if (!utils::one_of(c_type, data_type::f32, data_type::f16))
-            return false;
-
-        // f16 no-copy kernels require even lda, ldb, offset_a, and offset_b.
-        if (c_type == data_type::f16)
-            if ((lda & 1) || (ldb & 1)) return false;
-
-        if (c_type == data_type::f32)
-            return ((n == 1) && transa && !transb && (m <= 1024) && (k >= 128));
-
-        if (c_type == data_type::f16)
-            return ((n == 1) && transa && !transb && (m <= 1024) && (k >= 384));
-
-        return false;
-    }
-
-    type get_gemm_type(engine_t *engine) const {
-        return use_nocopy_k_unroll() ? type::no_copy_k_unroll
-                                     : !use_nocopy() ? type::copy_based
-                                                     : use_superkernel(engine)
-                                ? type::no_copy_superkernel
-                                : (pd()->desc()->c_type == data_type::f16)
-                                        ? type::no_copy_if_even_off
-                                        : type::no_copy;
-    }
 };
 
 } // namespace ocl

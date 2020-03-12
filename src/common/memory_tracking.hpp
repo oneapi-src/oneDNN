@@ -179,6 +179,8 @@ enum {
     key_fusion_forward_scratchpad,
     key_fusion_inout_buffer,
     key_gemm_int_c_in_acc_dt,
+    key_gemm_tmp_buffer,
+    key_gemm_flag,
     key_iprod_bias_bf16_convert_wsp,
     key_iprod_dst_bf16_convert_wsp,
     key_iprod_int_dat_in_acc_dt,
