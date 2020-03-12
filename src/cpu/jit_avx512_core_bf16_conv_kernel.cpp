@@ -2999,31 +2999,22 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 
     auto emit_block = [&]() {
         auto pad_ow = jcp.tr_ow;
-
         int ow_per_oc = 2;
-        int ow4u = rnd_up(pad_ow, 4 * ow_per_oc);
         int def_step_size = 16;
-
-        bool has_w_tail = (pad_ow % def_step_size != 0
-                || pad_ow % (4 * ow_per_oc) != 0);
+        bool has_w_tail = pad_ow % def_step_size != 0;
         bool full_w_unroll = pad_ow / def_step_size < 2 + has_w_tail;
 
         auto emit_step = [&](int ur_ow, bool is_w_tail) {
-            assert(ur_ow % 4 == 0);
-            int tail_size = ow4u % ur_ow;
+            int tail_size = pad_ow % ur_ow;
             int this_ur_ow = (is_w_tail && tail_size) ? tail_size : ur_ow;
-            int ow_last_chunk4 = pad_ow % (4 * ow_per_oc);
-            int ow_zero_tail4
-                    = ow_last_chunk4 ? (4 * ow_per_oc) - ow_last_chunk4 : 0;
-
             auto numloads = 1;
 
+            assert(this_ur_ow % ow_per_oc == 0);
             int steps = this_ur_ow / ow_per_oc;
-            for (int oi4 = 0; oi4 < steps; oi4 += numloads) {
-                for (int oi1 = 0; oi1 < numloads; oi1++) {
-                    int oi = oi4 + oi1;
-                    if (!is_w_tail
-                            || oi < (this_ur_ow - ow_zero_tail4) / ow_per_oc) {
+            for (int oi_base = 0; oi_base < steps; oi_base += numloads) {
+                for (int oi_offset = 0; oi_offset < numloads; oi_offset++) {
+                    int oi = oi_base + oi_offset;
+                    if (oi < steps) {
                         vmovups(zmm_out(oi), out_addr(oi));
                     } else {
                         auto zmm = zmm_out(oi);
@@ -3032,14 +3023,14 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
                 }
 
                 for (int ic1 = 0; ic1 < jcp.ic_block; ic1++) {
-                    vdpbf16ps(zmm_ker(ic1), zmm_out(oi4),
-                            inp_addr(ow_per_oc * oi4, ic1));
+                    vdpbf16ps(zmm_ker(ic1), zmm_out(oi_base),
+                            inp_addr(ow_per_oc * oi_base, ic1));
                 }
             }
         };
 
         if (full_w_unroll) {
-            emit_step(ow4u, true);
+            emit_step(pad_ow, true);
         } else {
             Label w_loop;
             int num_w_iters = pad_ow / def_step_size;
