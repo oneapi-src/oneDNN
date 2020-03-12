@@ -910,16 +910,17 @@ static inline bool nocopy_checker_avx512(int nthr, const int transa,
 
     bool is_lda_verybad = lda % VERYBAD_LD_MULT == 0;
 
-    // Crude threshold to nocopy kernels if copy overhead is significant
-    // and nthr greater than 1.
-    if (nthr > 1 && 1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH
+    // Copy-based performs better for TN case with small N in sequential case.
+    if (nthr == 1 && is_TN_case && m > 100
+            && ((m < 1200 && n < 200 && k < 1200)
+                    || (is_lda_bad && is_ldb_bad)))
+        return false;
+
+    // Crude threshold for nocopy kernels if copy overhead is significant.
+    if (1.0 / m + 1.0 / n >= FORCE_NOCOPY_THRESH
             && !(is_lda_verybad && is_NT_case)) {
         return true;
     }
-
-    // Copy-based performs better for TN case with small N in sequential case.
-    if (nthr == 1 && is_TN_case && m > 100 && m < 1200 && n < 200 && k < 1200)
-        return false;
 
     // Copy strategy usually performs better than nocopy on "bad" leading
     // dimensions.
