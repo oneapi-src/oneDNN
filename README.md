@@ -1,15 +1,20 @@
 oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
-> **Note**
->
-> Starting with version 1.1 the library is renamed to DNNL. Please read
-> [Intel MKL-DNN to DNNL Transition Guide](https://oneapi-src.github.io/oneDNN/dev_guide_transition_to_dnnl.html).
+> This software was previously known as 
+> **Intel Math Kernel Library for Deep Neural Networks (Intel MKL-DNN)**
+> and
+> **Deep Neural Network Library (DNNL)**.
 
-> **Note**
+> With the launch of [oneAPI](https://www.oneapi.com/) we changed the project
+> name and repository location to be consistent with the rest of oneAPI
+> libraries:
+> * Short library name changed to **oneDNN**.
+> * Repository moved from `intel/mkl-dnn` to `oneapi-src/oneDNN`. Existing 
+> links to the code and documentation will continue to work.
 >
-> Version 1.0 brings incompatible changes to the 0.20 version. Please read
-> [Version 1.0 Transition Guide](https://oneapi-src.github.io/oneDNN/dev_guide_transition_to_v1.html).
+> There are no changes to API, environment variable or build options
+> planned at this point.
 
 oneAPI Deep Neural Network Library (oneDNN) is an
 open-source performance library for deep learning applications. The library
