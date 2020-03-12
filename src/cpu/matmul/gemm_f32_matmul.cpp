@@ -166,7 +166,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const bool parallel_over_batch = batch > 1;
     if (parallel_over_batch) {
-        parallel(parallel_over_batch ? 0 : 1, [&](int ithr, int nthr) {
+        parallel(0, [&](int ithr, int nthr) {
             size_t batch_start {}, batch_end {};
             balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
             for (size_t b = batch_start; b < batch_end; ++b) {
