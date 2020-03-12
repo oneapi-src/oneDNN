@@ -196,6 +196,7 @@ struct inner_product_conf_t {
     bool with_bias, has_spatial;
     bool is_forward, is_backward_data, is_backward_weights;
     compute::dispatch_t dispatch;
+    bool reorder_dst = false;
 
     data_type_t src_dt;
     data_type_t wei_dt;

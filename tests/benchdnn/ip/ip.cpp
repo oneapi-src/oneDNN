@@ -175,36 +175,121 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_data(const engine_t &engine_tgt, data_kind_t kind, const prb_t *p,
-        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
-    const auto nelems = mem_dt.nelems();
-    if (nelems == 0) return OK;
+int fill_src(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
+    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    dnn_mem_t extra_mem;
+    if (need_extra_mem) {
+        const auto tag = get_abx_tag(mem_dt.md_.ndims);
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, engine_tgt);
+    }
+    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
 
-    assert(mem_dt.nelems() == mem_fp.nelems());
+    const auto &c = p->cfg[SRC];
+    const int range = c.f_max - c.f_min + 1;
 
-    dnn_mem_t mem_00(
-            mem_dt.md_, dnnl_f32, get_abx_tag(mem_dt.md_.ndims), engine_tgt);
+    dnnl::impl::parallel_nd(p->mb, p->ic, p->id, p->ih, p->iw,
+            [&](int mb, int ic, int id, int ih, int iw) {
+                const int gen
+                        = 101 * id + 103 * ih + 107 * iw + 109 * mb + 113 * ic;
+                const bool non_base = flip_coin(gen, c.f_sparsity);
+                const float value
+                        = non_base ? c.f_min + gen * 1 % range : c.f_base;
 
-    const auto &c = p->cfg[kind];
-
-    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
-        int64_t chunk_size = (nelems + nthr - 1) / nthr;
-        int64_t idx_start = ithr * chunk_size;
-        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
-        std::minstd_rand msr;
-        std::uniform_int_distribution<> gen(c.f_min, c.f_max);
-        msr.discard(kind + idx_start);
-        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
-            auto val = (float)gen(msr) * c.f_scale;
-            mem_00.set_elem(idx, val);
-        }
-    });
+                ((float *)mem_00)[src_off_f(p, mb, ic, id, ih, iw)] = value;
+            });
 
     SAFE(mem_dt.reorder(mem_00), WARN);
-    SAFE(mem_fp.reorder(mem_dt), WARN);
+    if (need_extra_mem) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+
     return OK;
 }
 
+int fill_wei(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
+    const bool s8_s8 = p->cfg[WEI].dt == dnnl_s8 && p->cfg[SRC].dt == dnnl_s8;
+    const bool diff_data_type = mem_dt.dt() != mem_fp.dt();
+    const bool check_reorder = diff_data_type && !s8_s8;
+
+    dnn_mem_t extra_mem;
+    if (check_reorder) {
+        const auto tag = get_abx_tag(mem_dt.md_.ndims);
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, engine_tgt);
+    }
+    dnn_mem_t &mem_00 = check_reorder ? extra_mem : mem_fp;
+
+    const auto &c = p->cfg[WEI];
+    const int range = c.f_max - c.f_min + 1;
+
+    dnnl::impl::parallel_nd(p->oc, p->ic, p->id, p->ih, p->iw,
+            [&](int oc, int ic, int kd, int kh, int kw) {
+                const int gen
+                        = 127 * kd + 131 * kh + 137 * kw + 139 * oc + 149 * ic;
+                const bool non_base = flip_coin(gen, c.f_sparsity);
+                const float value
+                        = non_base ? c.f_min + gen * 1 % range : c.f_base;
+                ((float *)mem_00)[wei_off_f(p, oc, ic, kd, kh, kw)] = value;
+            });
+
+    SAFE(mem_dt.reorder(mem_00), WARN);
+    if (check_reorder) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+
+    return OK;
+}
+
+int fill_bia(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
+    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    dnn_mem_t extra_mem;
+    if (need_extra_mem)
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, dnnl_x, engine_tgt);
+    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
+
+    const size_t nelems = mem_00.nelems();
+    if (nelems == 0) return OK;
+
+    const auto &c = p->cfg[BIA];
+    const int range = c.f_max - c.f_min + 1;
+
+    for (size_t i = 0; i < nelems; ++i) {
+        const int gen = (int)(151 * i);
+        const bool non_base = flip_coin(gen, c.f_sparsity);
+        const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
+
+        ((float *)mem_00)[i] = value;
+    }
+
+    SAFE(mem_dt.reorder(mem_00), WARN);
+    if (need_extra_mem) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+    return OK;
+}
+
+int fill_dst(const engine_t &engine_tgt, const prb_t *p, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp, res_t *r) {
+    const bool need_extra_mem = mem_dt.dt() != mem_fp.dt();
+    dnn_mem_t extra_mem;
+    if (need_extra_mem) {
+        const auto tag = get_abx_tag(mem_dt.md_.ndims);
+        extra_mem = dnn_mem_t(mem_dt.md_, dnnl_f32, tag, engine_tgt);
+    }
+    dnn_mem_t &mem_00 = need_extra_mem ? extra_mem : mem_fp;
+
+    const auto &c = p->cfg[DST];
+    const int range = c.f_max - c.f_min + 1;
+
+    dnnl::impl::parallel_nd(p->mb, p->oc, [&](int mb, int oc) {
+        const int gen = 173 * mb + 179 * oc;
+        const bool non_base = flip_coin(gen, c.f_sparsity);
+        const float value = non_base ? c.f_min + gen * 1 % range : c.f_base;
+
+        ((float *)mem_00)[dst_off_f(p, mb, oc)] = value;
+    });
+
+    SAFE(mem_dt.reorder(mem_00), WARN);
+    if (need_extra_mem) { SAFE(mem_fp.reorder(mem_dt), WARN); }
+
+    return OK;
+}
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt;
@@ -251,10 +336,10 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
     dnn_mem_t dst_fp(dst_md, fp, dnnl_nc, engine_tgt);
 
-    SAFE(fill_data(engine_tgt, SRC, p, src_dt, src_fp, r), WARN);
-    SAFE(fill_data(engine_tgt, WEI, p, wei_dt, wei_fp, r), WARN);
-    SAFE(fill_data(engine_tgt, BIA, p, bia_dt, bia_fp, r), WARN);
-    SAFE(fill_data(engine_tgt, DST, p, dst_dt, dst_fp, r), WARN);
+    SAFE(fill_src(engine_tgt, p, src_dt, src_fp, r), WARN);
+    SAFE(fill_wei(engine_tgt, p, wei_dt, wei_fp, r), WARN);
+    SAFE(fill_bia(engine_tgt, p, bia_dt, bia_fp, r), WARN);
+    SAFE(fill_dst(engine_tgt, p, dst_dt, dst_fp, r), WARN);
 
     args_t args;
 

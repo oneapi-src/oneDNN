@@ -183,6 +183,7 @@ enum {
     key_gemm_flag,
     key_iprod_bias_bf16_convert_wsp,
     key_iprod_dst_bf16_convert_wsp,
+    key_iprod_dst_reorder,
     key_iprod_int_dat_in_acc_dt,
     key_lnorm_tmp_mean,
     key_lnorm_tmp_var,
