@@ -190,6 +190,9 @@ struct pool_conf_t {
     data_type_t src_dt;
     alg_kind_t alg;
     bool is_training, is_backward;
+    bool use_mb_block, use_c_block;
+    int vect_dt_n;
+    int nvect;
     compute::dispatch_t dispatch;
     int sub_group_size;
 };
