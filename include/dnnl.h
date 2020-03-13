@@ -3664,6 +3664,34 @@ dnnl_status_t DNNL_API dnnl_stream_destroy(dnnl_stream_t stream);
 
 /// @} dnnl_api_stream
 
+/// @addtogroup dnnl_api_primitive_cache
+/// @{
+
+/// Returns a number of primitives that can be held in the primitive cache
+/// at a time.
+///
+/// @param capacity Primitive cache capacity to query. Concurrently
+/// accessing @p capacity is safe.
+/// @returns #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the
+///     @p capacity value is invalid, and #dnnl_success/#dnnl::status::success on
+///     success.
+dnnl_status_t DNNL_API dnnl_get_primitive_cache_capacity(int *capacity);
+
+/// Sets a number of primitives that can be held in the primitive cache
+/// at a time.
+///
+/// @param capacity Primitive cache capacity to set. If a new @p capacity is
+/// less than a number of primitives that the primitive cache already has
+/// then the excess entries will be evicted. Setting the @p capacity to 0
+/// clears the primitive cache and disables it. Concurrently modifying
+/// @p capacity is safe.
+/// @returns #dnnl_invalid_arguments/#dnnl::status::invalid_arguments if the
+///     @p capacity value is invalid, and #dnnl_success/#dnnl::status::success on
+///     success.
+dnnl_status_t DNNL_API dnnl_set_primitive_cache_capacity(int capacity);
+
+/// @} dnnl_api_primitive_cache
+
 /// @addtogroup dnnl_api_service
 /// @{
 

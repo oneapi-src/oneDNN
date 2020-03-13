@@ -72,6 +72,10 @@ if(UNIX OR MINGW)
 # No Windows support for: test_c_symbols.c
 endif()
 
+if(DNNL_ENABLE_PRIMITIVE_CACHE)
+    add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
+endif()
+
 add_subdirectory(gtests)
 add_subdirectory(benchdnn)
 add_subdirectory(mkldnn_compat)

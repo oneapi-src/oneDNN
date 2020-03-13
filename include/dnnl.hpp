@@ -10484,6 +10484,25 @@ inline status set_max_cpu_isa(cpu_isa isa) {
 
 /// @} dnnl_api_service
 
+/// @addtogroup dnnl_api_primitive_cache Primitive Cache
+/// @{
+
+/// @copydoc dnnl_get_primitive_cache_capacity(int *capacity)
+inline int get_primitive_cache_capacity() {
+    int result = 0;
+    error::wrap_c_api(dnnl_get_primitive_cache_capacity(&result),
+            "could not get primitive cache capacity");
+    return result;
+}
+
+/// @copydoc dnnl_set_primitive_cache_capacity(int capacity)
+inline void set_primitive_cache_capacity(int capacity) {
+    error::wrap_c_api(dnnl_set_primitive_cache_capacity(capacity),
+            "could not set primitive cache capacity");
+}
+
+/// @} dnnl_api_primitive_cache
+
 /// @addtogroup dnnl_api_blas BLAS functions
 ///
 /// A subset of Basic Linear ALgebra (BLAS) functions that perform
@@ -10572,6 +10591,7 @@ inline void primitive::execute(const stream &stream,
                               (int)c_args.size(), c_args.data()),
             "could not execute a primitive");
 }
+
 /// @endcond
 
 #undef DNNL_DEFINE_BITMASK_OPS
