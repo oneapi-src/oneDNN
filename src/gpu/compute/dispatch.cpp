@@ -254,12 +254,13 @@ void dispatch_t::generate() {
     if (vec_dim_idx != -1) {
         int gws_index = dims_[vec_dim_idx].gws_index;
         int vec_size = dims_[vec_dim_idx].vector_size;
+        int nblocks = dims_[vec_dim_idx].size / dims_[vec_dim_idx].block;
         // XXX: max 256 work items per group
         lws[gws_index]
                 = utils::max_div(gws[gws_index] / vec_size, 256 / vec_size)
                 * vec_size;
-        lws[gws_index] = utils::max_div(dims_[vec_dim_idx].size / vec_size,
-                                 lws[gws_index] / vec_size)
+        lws[gws_index] = utils::max_div(nblocks / vec_size,
+                                 (int)lws[gws_index] / vec_size)
                 * vec_size;
         with_lws = true;
 
