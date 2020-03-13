@@ -398,10 +398,8 @@ static char *dirname(char *path) {
                     ? OK
                     : FAIL);
     path[0] = '\0';
-    if (drive != NULL)
-        SAFE_V(strncat_s(path, PATH_MAX, drive, _MAX_DRIVE) == 0 ? OK : FAIL);
-    if (dir != NULL)
-        SAFE_V(strncat_s(path, PATH_MAX, dir, _MAX_DIR) == 0 ? OK : FAIL);
+    SAFE_V(strncat_s(path, PATH_MAX, drive, _MAX_DRIVE) == 0 ? OK : FAIL);
+    SAFE_V(strncat_s(path, PATH_MAX, dir, _MAX_DIR) == 0 ? OK : FAIL);
     if (path[0] == '\0') {
         path[0] = '.';
         path[1] = '\0';
