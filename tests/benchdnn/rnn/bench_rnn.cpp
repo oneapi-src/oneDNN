@@ -42,10 +42,11 @@ void check_correctness(const settings_t &s) {
     for (const auto &i_mb : s.mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
-        check_case_validity(i_cfg, i_scale_policy);
+        const dt_conf_t *cfg = str2cfg(i_cfg.c_str());
+        check_case_validity(cfg, i_scale_policy);
         dnnl_prop_kind_t prop_kind = prop2prop_kind(i_prop);
 
-        const prb_t p(s.desc, i_cfg, prop_kind, i_alg, i_with_peephole,
+        const prb_t p(s.desc, cfg, prop_kind, i_alg, i_with_peephole,
                 i_direction, s.attr, i_scale_policy, s.flags, i_activation,
                 s.alpha, s.beta, i_skip_nonlinear, i_mb);
         std::stringstream ss;
@@ -74,10 +75,11 @@ int bench(int argc, char **argv) {
     using namespace parser;
     static settings_t s;
     for (; argc > 0; --argc, ++argv) {
+        auto cstr2str = [](const char *str) { return std::string(str); };
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
                 || parse_dir(s.prop, argv[0], "prop")
-                || parse_cfg(s.cfg, str2cfg, argv[0])
+                || parse_cfg(s.cfg, cstr2str, argv[0])
                 || parse_vector_option(s.alg, str2alg, argv[0], "alg")
                 || parse_vector_option(
                         s.direction, str2direction, argv[0], "direction")

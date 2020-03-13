@@ -21,6 +21,8 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <string>
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
@@ -221,7 +223,7 @@ struct settings_t {
     desc_t desc;
 
     std::vector<dir_t> prop {FWD_D};
-    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> cfg {"f32"};
     std::vector<alg_t> alg {VANILLA_RNN};
     std::vector<dnnl_rnn_direction_t> direction {
             dnnl_unidirectional_left2right};

@@ -210,7 +210,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.prop != prop2prop_kind(def.prop[0]))
         s << "--prop=" << prop2str(p.prop) << " ";
-    if (canonical || p.cfg != def.cfg[0]) s << "--cfg=" << p.cfg << " ";
+    if (canonical || p.cfg != str2cfg(def.cfg[0].c_str()))
+        s << "--cfg=" << p.cfg << " ";
     if (canonical || p.alg != def.alg[0])
         s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.direction != def.direction[0])
