@@ -249,4 +249,10 @@ std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
     SAFE_V(FAIL);
     return s;
 }
+
+bool is_cfg_u8(const dt_conf_t *cfg) {
+    return cfg == conf_u8u8u8u8 || cfg == conf_u8u8u8f32
+            || cfg == conf_f32u8f32f32 || cfg == conf_f32u8f32u8;
+}
+
 } // namespace rnn

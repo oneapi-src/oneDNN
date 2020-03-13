@@ -39,26 +39,9 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_u8s8s32;
-extern const _dt_conf_t conf_u8s8s8;
-extern const _dt_conf_t conf_u8s8u8;
-extern const _dt_conf_t conf_bf16bf16f32;
-extern const _dt_conf_t conf_bf16bf16bf16;
-extern const _dt_conf_t conf_f32bf16bf16;
-extern const _dt_conf_t conf_bf16f32bf16;
 
 const int64_t LD_GOOD = INT64_MAX;
 const int64_t LD_NONE = INT64_MAX - 1;
-
-// default driver setting
-namespace defaults {
-extern const dt_conf_t *cfg; // = conf_f32;
-const std::string tag(tag::abx);
-const int64_t ld = LD_NONE;
-const bool runtime_val = false;
-const dnnl_data_type_t bia_dt = dnnl_data_type_undef;
-const int bia_mask = 2;
-} // namespace defaults
 
 struct desc_t {
     int ndims; // if 2, mb = 1.
@@ -68,6 +51,37 @@ struct desc_t {
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
+
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    desc_t desc;
+
+    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> stag {tag::abx}, wtag {tag::abx}, dtag {tag::abx};
+    std::vector<int64_t> ld_src {LD_NONE}, ld_wei {LD_NONE}, ld_dst {LD_NONE};
+    std::vector<bool> runtime_mb {false}, runtime_m {false}, runtime_n {false},
+            runtime_k {false};
+    std::vector<dnnl_data_type_t> bia_dt {dnnl_data_type_undef};
+    std::vector<int> bia_mask {2};
+    attr_t attr = {};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%name%,%cfg%,%attr%,%DESC%,"
+              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template_def
+            = "perf,%engine%,%name%,%prb%,"
+              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, const std::string &stag,

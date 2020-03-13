@@ -19,8 +19,6 @@
 
 #include <sstream>
 
-#include "dnnl.h"
-
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
@@ -29,44 +27,15 @@
 
 namespace eltwise {
 
-std::vector<dir_t> dir {FWD_D};
-std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<std::string> tag {tag::abx};
-std::vector<alg_t> alg {attr_t::post_ops_t::RELU};
-std::vector<float> scales {0, 0.25, -0.25};
-std::vector<float> alpha {scales};
-std::vector<float> beta {scales};
-std::vector<int64_t> mb {0};
-std::vector<bool> inplace {true};
-
-dims_t dims;
-bool allow_unimpl = false;
-const char *perf_template_csv
-        = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%0time%";
-const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
-const char *perf_template = perf_template_def;
-
-void reset_parameters() {
-    dir = {FWD_D};
-    dt = {dnnl_f32};
-    tag = {tag::abx};
-    alg = {attr_t::post_ops_t::RELU};
-    alpha = scales;
-    beta = scales;
-    mb = {0};
-    inplace = {true};
-    allow_unimpl = false;
-}
-
-void check_correctness() {
-    for_(const auto &i_dir : dir)
-    for_(const auto &i_dt : dt)
-    for_(const auto &i_tag : tag)
-    for_(const auto &i_alg : alg)
-    for_(const auto &i_alpha : alpha)
-    for_(const auto &i_beta : beta)
-    for_(auto i_inplace : inplace)
-    for (const auto &i_mb : mb) {
+void check_correctness(const settings_t &s) {
+    for_(const auto &i_dir : s.dir)
+    for_(const auto &i_dt : s.dt)
+    for_(const auto &i_tag : s.tag)
+    for_(const auto &i_alg : s.alg)
+    for_(const auto &i_alpha : s.alpha)
+    for_(const auto &i_beta : s.beta)
+    for_(auto i_inplace : s.inplace)
+    for (const auto &i_mb : s.mb) {
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
             case alg_t::ABS:
@@ -106,7 +75,7 @@ void check_correctness() {
             default:; // Test any alpha and beta values
         };
 
-        const prb_t p(dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
+        const prb_t p(s.dims, i_dir, i_dt, i_tag, i_alg, i_alpha, i_beta,
                 i_inplace, i_mb);
         std::stringstream ss;
         ss << p;
@@ -118,10 +87,10 @@ void check_correctness() {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
-            perf_report_t pr(perf_template);
+            perf_report_t pr(s.perf_template);
             pr.report(&p, &res, pstr);
         }
 
@@ -132,24 +101,25 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     driver_name = "eltwise";
     using namespace parser;
+    static settings_t s;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false || parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
-                || parse_dt(dt, argv[0]) || parse_tag(tag, argv[0])
-                || parse_vector_option(alpha, atof, argv[0], "alpha")
-                || parse_vector_option(beta, atof, argv[0], "beta")
+        const bool parsed_options = parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
+                || parse_dt(s.dt, argv[0]) || parse_tag(s.tag, argv[0])
+                || parse_vector_option(s.alpha, atof, argv[0], "alpha")
+                || parse_vector_option(s.beta, atof, argv[0], "beta")
                 || parse_vector_option(
-                        alg, attr_t::post_ops_t::str2kind, argv[0], "alg")
-                || parse_inplace(inplace, argv[0]) || parse_mb(mb, argv[0])
-                || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_perf_template(perf_template, perf_template_def,
-                        perf_template_csv, argv[0])
-                || parse_reset(reset_parameters, argv[0]);
+                        s.alg, attr_t::post_ops_t::str2kind, argv[0], "alg")
+                || parse_inplace(s.inplace, argv[0]) || parse_mb(s.mb, argv[0])
+                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_perf_template(s.perf_template, s.perf_template_def,
+                        s.perf_template_csv, argv[0])
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_dims(dims, argv[0]);
-            check_correctness();
+            parse_dims(s.dims, argv[0]);
+            check_correctness(s);
         }
     }
 

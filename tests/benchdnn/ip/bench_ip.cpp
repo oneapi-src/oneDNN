@@ -14,14 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <float.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <sstream>
-
-#include "dnnl.h"
 
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
@@ -31,42 +27,15 @@
 
 namespace ip {
 
-std::vector<dir_t> dir {FWD_B};
-std::vector<const dt_conf_t *> cfg {conf_f32};
-std::vector<std::string> stag {tag::any};
-std::vector<std::string> wtag {tag::any};
-std::vector<std::string> dtag {tag::any};
-std::vector<int64_t> mb {0};
-
-attr_t attr;
-bool allow_unimpl = false;
-const char *perf_template_csv
-        = "perf,%engine%,%name%,%dir%,%cfg%,%attr%,%DESC%,"
-          "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-const char *perf_template_def
-        = "perf,%engine%,%name%,%prb%,"
-          "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-const char *perf_template = perf_template_def;
-
-void reset_parameters() {
-    dir = {FWD_B};
-    cfg = {conf_f32};
-    stag = {tag::any};
-    wtag = {tag::any};
-    dtag = {tag::any};
-    mb = {0};
-    attr = attr_t();
-    allow_unimpl = false;
-}
-
-void check_correctness(const desc_t *c) {
-    for_(const auto &i_dir : dir)
-    for_(const auto &i_cfg : cfg)
-    for_(const auto &i_stag : stag)
-    for_(const auto &i_wtag : wtag)
-    for_(const auto &i_dtag : dtag)
-    for (const auto &i_mb : mb) {
-        const prb_t p(*c, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, attr);
+void check_correctness(const settings_t &s) {
+    for_(const auto &i_dir : s.dir)
+    for_(const auto &i_cfg : s.cfg)
+    for_(const auto &i_stag : s.stag)
+    for_(const auto &i_wtag : s.wtag)
+    for_(const auto &i_dtag : s.dtag)
+    for (const auto &i_mb : s.mb) {
+        const prb_t p(
+                s.desc, i_mb, i_dir, i_cfg, i_stag, i_wtag, i_dtag, s.attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -77,10 +46,10 @@ void check_correctness(const desc_t *c) {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
-            perf_report_t pr(perf_template);
+            perf_report_t pr(s.perf_template);
             pr.report(&p, &res, pstr);
         }
 
@@ -91,24 +60,24 @@ void check_correctness(const desc_t *c) {
 int bench(int argc, char **argv) {
     driver_name = "ip";
     using namespace parser;
+    static settings_t s;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false || parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
-                || parse_cfg(cfg, str2cfg, argv[0])
-                || parse_tag(stag, argv[0], "stag")
-                || parse_tag(wtag, argv[0], "wtag")
-                || parse_tag(dtag, argv[0], "dtag") || parse_mb(mb, argv[0])
-                || parse_attr(attr, argv[0])
-                || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_perf_template(perf_template, perf_template_def,
-                        perf_template_csv, argv[0])
-                || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
+                || parse_cfg(s.cfg, str2cfg, argv[0])
+                || parse_tag(s.stag, argv[0], "stag")
+                || parse_tag(s.wtag, argv[0], "wtag")
+                || parse_tag(s.dtag, argv[0], "dtag") || parse_mb(s.mb, argv[0])
+                || parse_attr(s.attr, argv[0])
+                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_perf_template(s.perf_template, s.perf_template_def,
+                        s.perf_template_csv, argv[0])
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            desc_t c;
-            SAFE_V(str2desc(&c, argv[0]));
-            check_correctness(&c);
+            SAFE_V(str2desc(&s.desc, argv[0]));
+            check_correctness(s);
         }
     }
 

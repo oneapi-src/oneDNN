@@ -90,6 +90,15 @@ static bool parse_cfg(T &vec, F process_func, const char *str,
     return parse_vector_option(vec, process_func, str, option_name);
 }
 
+template <typename S>
+bool parse_reset(S &settings, const char *str,
+        const std::string &option_name = "reset") {
+    const std::string pattern = get_pattern(option_name);
+    if (pattern.find(str, 0, pattern.size() - 1) == eol) return false;
+    settings.reset();
+    return true;
+}
+
 // vector types
 bool parse_dir(std::vector<dir_t> &dir, const char *str,
         const std::string &option_name = "dir");
@@ -137,9 +146,6 @@ bool parse_fast_ref_gpu(
 bool parse_perf_template(const char *&pt, const char *pt_def,
         const char *pt_csv, const char *str,
         const std::string &option_name = "perf-template");
-
-bool parse_reset(void (*reset_func)(), const char *str,
-        const std::string &option_name = "reset");
 
 bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name = "batch");

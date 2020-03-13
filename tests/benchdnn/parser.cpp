@@ -131,16 +131,6 @@ bool parse_perf_template(const char *&pt, const char *pt_def,
     return false;
 }
 
-bool parse_reset(void (*reset_func)(), const char *str,
-        const std::string &option_name /* = "reset"*/) {
-    const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size() - 1) != eol) {
-        reset_func();
-        return true;
-    }
-    return false;
-}
-
 bool parse_batch(const bench_f bench, const char *str,
         const std::string &option_name /* = "batch"*/) {
     const std::string pattern = get_pattern(option_name);

@@ -135,16 +135,17 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || p.dir != FWD_D) s << "--dir=" << p.dir << " ";
-    if (canonical || p.dt != dnnl_f32) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
-    if (canonical || p.flags != (flags_t)0)
+    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
+    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
+    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
+    if (canonical || p.flags != def.flags[0])
         s << "--flags=" << flags2str(p.flags) << " ";
-    if (canonical || p.check_alg != ALG_AUTO)
+    if (canonical || p.check_alg != def.check_alg)
         s << "--check-alg=" << check_alg2str(p.check_alg) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
-    if (canonical || p.inplace != true)
+    if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << static_cast<const desc_t &>(p);

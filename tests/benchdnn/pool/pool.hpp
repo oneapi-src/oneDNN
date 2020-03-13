@@ -77,6 +77,33 @@ extern const _dt_conf_t conf_f32;
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    desc_t desc;
+
+    std::vector<dir_t> dir {FWD_D};
+    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> tag {tag::abx};
+    std::vector<alg_t> alg {MAX};
+    std::vector<int64_t> mb {0};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%name%,%dir%,%cfg%,%tag%,%alg%,%DESC%,%-time%,%"
+              "0time%";
+    const char *perf_template_def
+            = "perf,%engine%,%name%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
             const std::string &tag, alg_t alg, int64_t mb = 0)

@@ -19,8 +19,6 @@
 
 #include <sstream>
 
-#include "dnnl.h"
-
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
@@ -29,49 +27,28 @@
 
 namespace sum {
 
-std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
-std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<std::string>> stag;
-std::vector<std::string> dtag {tag::undef};
-std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
-
-dims_t dims;
-bool allow_unimpl = false;
-const char *perf_template_csv
-        = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";
-const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
-const char *perf_template = perf_template_def;
-
-void reset_parameters() {
-    sdt = {{dnnl_f32, dnnl_f32}};
-    ddt = {dnnl_f32};
-    stag.clear();
-    dtag = {tag::undef};
-    scales = {{0.25}, {1}, {4}};
-    allow_unimpl = false;
-}
-
-void check_correctness() {
-    for (const auto &i_sdt : sdt) {
+void check_correctness(const settings_t &s) {
+    for (const auto &i_sdt : s.sdt) {
         // unlike concat, number of inputs is defined by amount of elements in
         // sdt, not by dims. As we allow to pass multiple values separated by
         // comma for sdt, setting default tag has to happen when sdt is known,
         // thus, inside the loop. E.g.: --sdt=f32:f32,f32:f32:f32 3x4x5x6
-        const bool empty_stag = stag.empty();
-        if (empty_stag) stag = {{i_sdt.size(), "abx"}};
+        const std::vector<std::vector<std::string>> def_stag {
+                {i_sdt.size(), "abx"}};
+        auto &upd_stag = s.stag.empty() ? def_stag : s.stag;
 
-        for_(const auto &i_ddt : ddt)
-        for_(const auto &i_stag : stag)
-        for (const auto &i_dtag : dtag) {
+        for_(const auto &i_ddt : s.ddt)
+        for_(const auto &i_stag : upd_stag)
+        for (const auto &i_dtag : s.dtag) {
             if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
                 SAFE_V(FAIL);
 
-            for (const auto &i_scales : scales) {
+            for (const auto &i_scales : s.scales) {
                 // expect either single scale value, or 1:1 match of dt and scale
                 if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
                     SAFE_V(FAIL);
 
-                const prb_t p(dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales);
+                const prb_t p(s.dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales);
                 std::stringstream ss;
                 ss << p;
                 const std::string cpp_pstr = ss.str();
@@ -82,41 +59,40 @@ void check_correctness() {
                 int status = doit(&p, &res);
 
                 bool want_perf_report = false;
-                parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+                parse_result(
+                        res, want_perf_report, s.allow_unimpl, status, pstr);
 
                 if (want_perf_report && bench_mode & PERF) {
-                    perf_report_t pr(perf_template);
+                    perf_report_t pr(s.perf_template);
                     pr.report(&p, &res, pstr);
                 }
 
                 benchdnn_stat.tests++;
             }
         }
-
-        // has to be cleared as sdt can bring different number of inputs
-        if (empty_stag) stag.clear();
     }
 }
 
 int bench(int argc, char **argv) {
     driver_name = "sum";
     using namespace parser;
+    static settings_t s;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false || parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_multi_dt(sdt, argv[0])
-                || parse_dt(ddt, argv[0], "ddt")
-                || parse_multi_tag(stag, argv[0])
-                || parse_tag(dtag, argv[0], "dtag")
-                || parse_multivector_option(scales, atof, argv[0], "scales")
-                || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_perf_template(perf_template, perf_template_def,
-                        perf_template_csv, argv[0])
-                || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_multi_dt(s.sdt, argv[0])
+                || parse_dt(s.ddt, argv[0], "ddt")
+                || parse_multi_tag(s.stag, argv[0])
+                || parse_tag(s.dtag, argv[0], "dtag")
+                || parse_multivector_option(s.scales, atof, argv[0], "scales")
+                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_perf_template(s.perf_template, s.perf_template_def,
+                        s.perf_template_csv, argv[0])
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_dims(dims, argv[0]);
-            check_correctness();
+            parse_dims(s.dims, argv[0]);
+            check_correctness(s);
         }
     }
 

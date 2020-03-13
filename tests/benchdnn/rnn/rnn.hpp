@@ -205,20 +205,46 @@ typedef struct dt_conf_t {
 } _dt_conf_t[data_kind_total];
 
 extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_bf16;
-extern const _dt_conf_t conf_f16;
-extern const _dt_conf_t conf_u8u8u8u8;
-extern const _dt_conf_t conf_u8u8u8f32;
-extern const _dt_conf_t conf_f32u8f32f32;
-extern const _dt_conf_t conf_f32u8f32u8;
 
 const dt_conf_t *str2cfg(const char *str);
 std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
+bool is_cfg_u8(const dt_conf_t *cfg);
 
-inline bool is_cfg_u8(const dt_conf_t *cfg) {
-    return cfg == conf_u8u8u8u8 || cfg == conf_u8u8u8f32
-            || cfg == conf_f32u8f32f32 || cfg == conf_f32u8f32u8;
-}
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    desc_t desc;
+
+    std::vector<dir_t> prop {FWD_D};
+    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<alg_t> alg {VANILLA_RNN};
+    std::vector<dnnl_rnn_direction_t> direction {
+            dnnl_unidirectional_left2right};
+    std::vector<activation_t> activation {UNDEF};
+    std::vector<bool> skip_nonlinear {false}, with_peephole {false};
+    std::vector<int64_t> mb {0};
+    std::vector<policy_t> scale_policy {policy_t::NONE};
+    attr_t attr = {};
+    bool allow_unimpl = false;
+    unsigned int flags = 0x0;
+    float alpha = 0.9f, beta = 0.0f;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%"
+              ","
+              "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template_def
+            = "perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
+              "%0time%,%0Gflops%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,

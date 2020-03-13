@@ -206,22 +206,24 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || p.prop != dnnl_forward)
+    if (canonical || p.prop != prop2prop_kind(def.prop[0]))
         s << "--prop=" << prop2str(p.prop) << " ";
-    if (canonical || p.alg != VANILLA_RNN)
+    if (canonical || p.cfg != def.cfg[0]) s << "--cfg=" << p.cfg << " ";
+    if (canonical || p.alg != def.alg[0])
         s << "--alg=" << alg2str(p.alg) << " ";
-    if (canonical || p.skip_nonlinear != false)
-        s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
-    if (canonical || p.with_peephole != false)
-        s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
-    if (canonical || p.activation != UNDEF)
-        s << "--activation=" << activation2str(p.activation) << " ";
-    if (canonical || p.direction != dnnl_unidirectional_left2right)
+    if (canonical || p.direction != def.direction[0])
         s << "--direction=" << direction2str(p.direction) << " ";
-    if (canonical || p.cfg != conf_f32) s << "--cfg=" << p.cfg << " ";
-    if (canonical || p.scale_policy != policy_t::NONE)
+    if (canonical || p.activation != def.activation[0])
+        s << "--activation=" << activation2str(p.activation) << " ";
+    if (canonical || p.skip_nonlinear != def.skip_nonlinear[0])
+        s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
+    if (canonical || p.with_peephole != def.with_peephole[0])
+        s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
+    if (canonical || p.scale_policy != def.scale_policy[0])
         s << "--scaling=" << p.scale_policy << " ";
+    if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
 

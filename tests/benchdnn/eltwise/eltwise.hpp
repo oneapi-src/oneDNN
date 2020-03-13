@@ -31,6 +31,33 @@ namespace eltwise {
 
 using alg_t = attr_t::post_ops_t::kind_t;
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    dims_t dims;
+
+    std::vector<dir_t> dir {FWD_D};
+    std::vector<dnnl_data_type_t> dt {dnnl_f32};
+    std::vector<std::string> tag {tag::abx};
+    std::vector<alg_t> alg {alg_t::RELU};
+    std::vector<float> scales {0, 0.25, -0.25}, alpha {scales}, beta {scales};
+    std::vector<int64_t> mb {0};
+    std::vector<bool> inplace {true};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%DESC%,%-time%,%0time%";
+    const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, float alpha, float beta,
@@ -73,9 +100,7 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_alg(std::ostream &s) const override {
-        s << attr_t::post_ops_t::kind2str(p_->alg);
-    }
+    virtual void dump_alg(std::ostream &s) const override { s << p_->alg; }
 
     virtual void dump_desc(std::ostream &s) const override { s << p_->dims; }
 

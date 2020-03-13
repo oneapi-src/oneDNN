@@ -54,14 +54,14 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     using ::operator<<;
 
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || !(p.sdt[0] == dnnl_f32 && p.sdt[1] == dnnl_f32))
-        s << "--sdt=" << p.sdt << " ";
-    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << p.ddt << " ";
-    if (canonical || !(p.stag[0] == tag::abx && p.stag[1] == tag::abx))
-        s << "--stag=" << p.stag << " ";
-    if (canonical || p.alg != ADD) s << "--alg=" << alg2str(p.alg) << " ";
-    if (canonical || p.inplace != true)
+    if (canonical || p.sdt != def.sdt[0]) s << "--sdt=" << p.sdt << " ";
+    if (canonical || p.ddt != def.ddt[0]) s << "--ddt=" << p.ddt << " ";
+    if (canonical || p.stag != def.stag[0]) s << "--stag=" << p.stag << " ";
+    if (canonical || p.alg != def.alg[0])
+        s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 

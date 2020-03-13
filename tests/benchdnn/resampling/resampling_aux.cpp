@@ -142,11 +142,13 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || p.dir != FWD_D) s << "--dir=" << p.dir << " ";
-    if (canonical || p.dt != dnnl_f32) s << "--dt=" << p.dt << " ";
-    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
-    if (canonical || p.alg != nearest) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
+    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
+    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
+    if (canonical || p.alg != def.alg[0])
+        s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);
 
