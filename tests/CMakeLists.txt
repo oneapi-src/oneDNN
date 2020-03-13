@@ -71,4 +71,7 @@ endif()
 add_subdirectory(gtests)
 add_subdirectory(benchdnn)
 add_subdirectory(mkldnn_compat)
-add_subdirectory(noexcept)
+if(UNIX OR MINGW)
+    add_subdirectory(noexcept)
+endif()
+
