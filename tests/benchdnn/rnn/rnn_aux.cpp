@@ -105,23 +105,19 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
     return "unknown direction";
 }
 
-void check_case_validity(const dt_conf_t *cfg, policy_t policy) {
-    std::stringstream ss;
-
-    if (is_cfg_u8(cfg)
+void check_case_validity(const dt_conf_t &cfg, policy_t policy) {
+    if (cfg.is_int8()
             && (policy != policy_t::COMMON && policy != policy_t::PER_OC)) {
-        ss << cfg;
-        const std::string cpp_pstr = ss.str();
-        const char *cfg_s = cpp_pstr.c_str();
         fprintf(stderr,
                 "%s driver: configuration `%s` requires scale policy "
                 "to be policy_t::COMMON or policy_t::PER_OC, exiting...\n",
-                driver_name, cfg_s);
+                driver_name, cfg.str().c_str());
         exit(2);
     }
 
     if (!(policy == policy_t::NONE || policy == policy_t::COMMON
                 || policy == policy_t::PER_OC)) {
+        std::stringstream ss;
         ss << policy;
         const std::string cpp_pstr = ss.str();
         const char *policy_s = cpp_pstr.c_str();
@@ -210,8 +206,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.prop != prop2prop_kind(def.prop[0]))
         s << "--prop=" << prop2str(p.prop) << " ";
-    if (canonical || p.cfg != str2cfg(def.cfg[0].c_str()))
-        s << "--cfg=" << p.cfg << " ";
+    if (canonical || p.cfg.str() != def.cfg[0])
+        s << "--cfg=" << p.cfg.str() << " ";
     if (canonical || p.alg != def.alg[0])
         s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.direction != def.direction[0])
@@ -713,7 +709,7 @@ int compare_dst_c_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
 }
 
 void prb_t::set_qparams(float fp_min, float fp_max) {
-    if (!is_cfg_u8(cfg)) {
+    if (!cfg.is_int8()) {
         data_shift = 0.;
         data_scale = 1.;
         wei_scale = 1.;

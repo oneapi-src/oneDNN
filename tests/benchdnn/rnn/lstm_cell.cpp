@@ -36,7 +36,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     AOC<float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
 
     auto maybe_deq_w = [&](float g, int64_t oc) {
-        if (!is_cfg_u8(p.cfg)) return g;
+        if (!p.cfg.is_int8()) return g;
         float scale = 1.;
         if (p.scale_policy == policy_t::PER_OC)
             scale = p.wei_oc_scales[oc];
@@ -47,7 +47,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     };
 
     auto maybe_q_d = [&](float h) {
-        if (!is_cfg_u8(p.cfg)) return h;
+        if (!p.cfg.is_int8()) return h;
         float fp = p.data_scale * h + p.data_shift;
         if (fp > p.cfg[input].max) fp = p.cfg[input].max;
         if (fp < p.cfg[input].min) fp = p.cfg[input].min;

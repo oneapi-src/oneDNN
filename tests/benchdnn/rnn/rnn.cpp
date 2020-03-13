@@ -223,7 +223,7 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr,
         bool flip_sign = false) {
-    dt_conf_t c = p.cfg[kind];
+    const dt_conf_t::entry_t &c = p.cfg[kind];
     return fill_memory(p, kind, mem_dt, mem_fp, c.dt, c.f_mean, c.f_stddev,
             c.f_min, c.f_max, attr, flip_sign);
 }
@@ -308,7 +308,7 @@ int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     if (need_adjust)
         adjust_factor = expect_c_state_mean / p.cfg[c_states].f_mean;
 
-    dt_conf_t c = p.cfg[c_states];
+    const dt_conf_t::entry_t &c = p.cfg[c_states];
     return fill_memory(p, c_states, mem_dt, mem_fp, c.dt,
             c.f_mean * adjust_factor, c.f_stddev * adjust_factor,
             c.f_min * adjust_factor, c.f_max * adjust_factor, attr);
@@ -317,7 +317,7 @@ int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
 int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
 
-    dt_conf_t c = p.cfg[kind];
+    const dt_conf_t::entry_t &c = p.cfg[kind];
     if (c.dt == dnnl_s8) return fill_memory(p, kind, mem_dt, mem_fp, attr);
 
     auto dims = mem_fp.md_.dims;

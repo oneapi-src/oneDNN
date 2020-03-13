@@ -42,13 +42,12 @@ void check_correctness(const settings_t &s) {
     for (const auto &i_mb : s.mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
-        const dt_conf_t *cfg = str2cfg(i_cfg.c_str());
+        const dt_conf_t &cfg = dt_conf_t::create(i_cfg);
         check_case_validity(cfg, i_scale_policy);
-        dnnl_prop_kind_t prop_kind = prop2prop_kind(i_prop);
 
-        const prb_t p(s.desc, cfg, prop_kind, i_alg, i_with_peephole,
-                i_direction, s.attr, i_scale_policy, s.flags, i_activation,
-                s.alpha, s.beta, i_skip_nonlinear, i_mb);
+        const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole, i_direction,
+                s.attr, i_scale_policy, s.flags, i_activation, s.alpha, s.beta,
+                i_skip_nonlinear, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();

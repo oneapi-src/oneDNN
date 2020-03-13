@@ -196,21 +196,26 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
 * on final check the resulting values should be in [min .. max] range, the
 * relative difference should not exceed eps
 */
+struct dt_conf_t {
+    struct entry_t {
+        dnnl_data_type_t dt;
+        int min, max; // representative
+        float f_min, f_max; // fill range
+        float f_mean, f_stddev; // parameters of normal distribution
+        double eps; // acceptable error
+    };
 
-typedef struct dt_conf_t {
-    dnnl_data_type_t dt;
-    int min, max; /* representative */
-    float f_min, f_max; /* fill range */
-    float f_mean,
-            f_stddev; /* mean and std deviation of normally distributed data */
-    double eps; /* acceptable error */
-} _dt_conf_t[data_kind_total];
+    dt_conf_t(const std::string &str) : str_(str) {}
 
-extern const _dt_conf_t conf_f32;
+    virtual const entry_t &operator[](rnn_data_kind_t kind) const = 0;
 
-const dt_conf_t *str2cfg(const char *str);
-std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
-bool is_cfg_u8(const dt_conf_t *cfg);
+    const std::string &str() const { return str_; }
+    bool is_int8() const { return operator[](input).dt == dnnl_u8; }
+
+    static const dt_conf_t &create(const std::string &str);
+
+    std::string str_;
+};
 
 struct settings_t {
     settings_t() = default;
@@ -249,14 +254,14 @@ struct settings_t {
 };
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,
-            alg_t alg, bool with_peephole, dnnl_rnn_direction_t direction,
+    prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
+            bool with_peephole, dnnl_rnn_direction_t direction,
             const attr_t &attr, policy_t scale_policy, unsigned int flags,
             activation_t activation, float alpha, float beta,
             bool skip_nonlinear, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
-        , prop(prop)
+        , prop(prop2prop_kind(prop))
         , alg(alg)
         , with_peephole(with_peephole)
         , direction(direction)
@@ -321,7 +326,7 @@ struct prb_t : public desc_t {
     bool is_int8() const { return cfg[input].dt == dnnl_u8; }
     bool is_lstm_peephole() const { return with_peephole; }
 
-    const dt_conf_t *cfg;
+    const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
     alg_t alg;
     bool with_peephole;
@@ -364,7 +369,9 @@ struct perf_report_t : public base_perf_report_t {
         s << alg2str(p_->alg);
     }
 
-    virtual void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
+    virtual void dump_cfg(std::ostream &s) const override {
+        s << p_->cfg.str();
+    }
 
     virtual void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);
@@ -553,7 +560,7 @@ inline void inv_tnc_off_f(
     assert(off == 0);
 }
 
-void check_case_validity(const dt_conf_t *cfg, policy_t policy);
+void check_case_validity(const dt_conf_t &cfg, policy_t policy);
 
 int doit(const prb_t &p, res_t *res);
 int bench(int argc, char **argv);
