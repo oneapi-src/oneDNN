@@ -1599,9 +1599,9 @@ static dnnl_status_t gemm_threading_driver(
 
     char *shared_mem = NULL;
 
-    // For active force_threading, always use the maximum number of threads
-    // to avoid OMP overhead that can occur due to changing thread counts.
-    int nthr_spawn = force_threading ? nthr_max : nthr_goal;
+    // Always use the maximum number of threads to avoid OMP overhead that can
+    // occur due to change thread counts.
+    int nthr_spawn = dnnl_thr_syncable() ? nthr_max : nthr_goal;
 
     parallel(nthr_spawn, [&](int ithr, int nthr) {
         int nthr_eff = force_threading ? nthr_goal : nstl::min(nthr_goal, nthr);
