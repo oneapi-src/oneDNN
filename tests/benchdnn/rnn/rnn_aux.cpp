@@ -105,6 +105,36 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
     return "unknown direction";
 }
 
+const char *data_kind2str(data_kind_t kind) {
+#define CASE(KIND) \
+    if (kind == KIND) return STRINGIFY(KIND)
+    CASE(INPUT);
+    CASE(STATES);
+    CASE(C_STATES);
+    CASE(WEIGHTS_INPUT);
+    CASE(WEIGHTS_STATES);
+    CASE(WEIGHTS_PEEPHOLE);
+    CASE(BIAS);
+    CASE(DST_LAST_LAYER);
+    CASE(DST_LAST_ITERATION);
+    CASE(DST_C_LAST_ITERATION);
+
+    CASE(DST_DIFF_INPUT);
+    CASE(DST_DIFF_STATES);
+    CASE(DST_DIFF_C_STATES);
+    CASE(DST_DIFF_WEIGHTS_INPUT);
+    CASE(DST_DIFF_WEIGHTS_STATES);
+    CASE(DST_DIFF_WEIGHTS_PEEPHOLE);
+    CASE(DST_DIFF_BIAS);
+    CASE(DIFF_LAST_LAYER);
+    CASE(DIFF_LAST_ITERATION);
+    CASE(DIFF_C_LAST_ITERATION);
+#undef CASE
+
+    assert(!"incorrect rnn data kind");
+    return "incorrect rnn data kind";
+}
+
 void check_case_validity(const dt_conf_t &cfg, policy_t policy) {
     if (cfg.is_int8()
             && (policy != policy_t::COMMON && policy != policy_t::PER_OC)) {
@@ -356,11 +386,11 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
-int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
 
-    const char *skind = rnn_data_kind2str(kind);
+    const char *skind = data_kind2str(kind);
 
     diff_norm_t diff_norm;
     size_t errors = 0;
@@ -394,11 +424,11 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     /* Note: we do an eltwise comparison only when:
        - we use skip_nonlinear;
        - we do not use skip_nonlinear and we test only one cell execution;
-       - for int8 computations the tensor is not dst_c_last_iteration;
+       - for int8 computations the tensor is not DST_C_LAST_ITERATION;
        If the above conditions are not met, we check only norm-1,
        norm-2 and inf-norm.
 
-       Rough rationale for the `dst_c_last_iteration` exception in int8 case:
+       Rough rationale for the `DST_C_LAST_ITERATION` exception in int8 case:
        - The formula for one-step c-state is:
          c_t = f_t * c_{t−1} + i_t * c~_t.
          Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
@@ -406,15 +436,15 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
        - In int8 case we don't have much control over these components and
          cannot surmount potential cancellations, if any.
          In practice, I observed that the relative element-wise error of values
-         in `dst_c_last_iteration` was bigger (up-to 8e-5) whenever the values
+         in `DST_C_LAST_ITERATION` was bigger (up-to 8e-5) whenever the values
          themselves were smaller (which indirectly means the problem is exactly
          in the cancellation). Unfortunately, this even happened with only one
          layer and one time stamp.
        - So, for now the solution is to use l1- l2- and l_inf-norms to validate
-         `dst_c_last_iteration`. When we switch testing on using precise
+         `DST_C_LAST_ITERATION`. When we switch testing on using precise
          integer arithmetic based on modulo operation in rnn_tparams (instead of
          current unreliable re-scaling), this testing weakness should go away.
-       - Just an obvious side note: `dst_last_layer` and `dst_last_iteration`
+       - Just an obvious side note: `DST_LAST_LAYER` and `DST_LAST_ITERATION`
          are immediate dequantization of the corresponding u8 tensors. Hence,
          as long as we get precise u8 intermediate results (and so far we do),
          the f32 result should be pretty accurate -- the dequantization is just
@@ -422,7 +452,7 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     */
     bool check_norm0
             = (p.skip_nonlinear || ((p.n_layer == 1) && (p.n_iter == 1)));
-    if (p.is_int8() && kind == dst_c_last_iteration) check_norm0 = false;
+    if (p.is_int8() && kind == DST_C_LAST_ITERATION) check_norm0 = false;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
@@ -461,8 +491,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
                             oc = 0, b = 0;
                     switch (kind) {
-                        case input:
-                        case dst_diff_input:
+                        case INPUT:
+                        case DST_DIFF_INPUT:
                             inv_ntc_off_f(p, i, n, t, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -471,8 +501,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, n, t, c, fp, dt, diff, rel_diff);
                             break;
-                        case states:
-                        case dst_diff_states:
+                        case STATES:
+                        case DST_DIFF_STATES:
                             inv_ldnc_off_f(p, i, l, d, n, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -482,8 +512,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, n, c, fp, dt, diff, rel_diff);
                             break;
-                        case weights_input:
-                        case dst_diff_weights_input:
+                        case WEIGHTS_INPUT:
+                        case DST_DIFF_WEIGHTS_INPUT:
                             inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -494,8 +524,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     skind, l, d, w, ic, oc, fp, dt, diff,
                                     rel_diff);
                             break;
-                        case weights_states:
-                        case dst_diff_weights_states:
+                        case WEIGHTS_STATES:
+                        case DST_DIFF_WEIGHTS_STATES:
                             inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -506,8 +536,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     skind, l, d, w, ic, oc, fp, dt, diff,
                                     rel_diff);
                             break;
-                        case weights_peephole:
-                        case dst_diff_weights_peephole:
+                        case WEIGHTS_PEEPHOLE:
+                        case DST_DIFF_WEIGHTS_PEEPHOLE:
                             inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -517,8 +547,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, b, c, fp, dt, diff, rel_diff);
                             break;
-                        case bias:
-                        case dst_diff_bias:
+                        case BIAS:
+                        case DST_DIFF_BIAS:
                             inv_bias_ldgo_off_f(p, i, l, d, b, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -528,8 +558,8 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, b, c, fp, dt, diff, rel_diff);
                             break;
-                        case dst_last_layer:
-                        case diff_last_layer:
+                        case DST_LAST_LAYER:
+                        case DIFF_LAST_LAYER:
                             inv_tnc_off_f(p, i, t, n, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -538,12 +568,12 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, t, n, c, fp, dt, diff, rel_diff);
                             break;
-                        case c_states:
-                        case dst_last_iteration:
-                        case dst_c_last_iteration:
-                        case dst_diff_c_states:
-                        case diff_last_iteration:
-                        case diff_c_last_iteration:
+                        case C_STATES:
+                        case DST_LAST_ITERATION:
+                        case DST_C_LAST_ITERATION:
+                        case DST_DIFF_C_STATES:
+                        case DIFF_LAST_ITERATION:
+                        case DIFF_C_LAST_ITERATION:
                             inv_ldnc_off_f(p, i, l, d, n, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -565,58 +595,58 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
                     b = 0;
 
             switch (kind) {
-                case input:
+                case INPUT:
                     inv_ntc_off_f(p, i, n, t, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
                     break;
-                case states:
+                case STATES:
                     inv_ldnc_off_f(p, i, l, d, n, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, n, c, fp, dt);
                     break;
-                case weights_input:
+                case WEIGHTS_INPUT:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, w, ic, oc, fp, dt);
                     break;
-                case weights_states:
+                case WEIGHTS_STATES:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, w, ic, oc, fp, dt);
                     break;
-                case weights_peephole:
+                case WEIGHTS_PEEPHOLE:
                     inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, b, c, fp, dt);
                     break;
-                case bias:
+                case BIAS:
                     inv_bias_ldgo_off_f(p, i, l, d, b, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, b, c, fp, dt);
                     break;
-                case dst_last_layer:
+                case DST_LAST_LAYER:
                     inv_tnc_off_f(p, i, t, n, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
                     break;
-                case c_states:
-                case dst_last_iteration:
-                case dst_c_last_iteration:
+                case C_STATES:
+                case DST_LAST_ITERATION:
+                case DST_C_LAST_ITERATION:
                     inv_ldnc_off_f(p, i, l, d, n, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
@@ -675,37 +705,37 @@ int compare_dat(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
 
 int compare_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
-    return compare_dat(p, input, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, INPUT, mem_dt, mem_fp, r, final_compare);
 }
 int compare_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
-    return compare_dat(p, states, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, STATES, mem_dt, mem_fp, r, final_compare);
 }
 int compare_weights_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
-    return compare_dat(p, weights_input, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, WEIGHTS_INPUT, mem_dt, mem_fp, r, final_compare);
 }
 int compare_weights_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
-    return compare_dat(p, weights_states, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, WEIGHTS_STATES, mem_dt, mem_fp, r, final_compare);
 }
 int compare_bias(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
         bool final_compare = false) {
-    return compare_dat(p, bias, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, BIAS, mem_dt, mem_fp, r, final_compare);
 }
 int compare_dst_last_layer(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         res_t *r, bool final_compare = false) {
-    return compare_dat(p, dst_last_layer, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, DST_LAST_LAYER, mem_dt, mem_fp, r, final_compare);
 }
 int compare_dst_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
-    return compare_dat(p, dst_last_iteration, mem_dt, mem_fp, r, final_compare);
+    return compare_dat(p, DST_LAST_ITERATION, mem_dt, mem_fp, r, final_compare);
 }
 
 int compare_dst_c_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     return compare_dat(
-            p, dst_c_last_iteration, mem_dt, mem_fp, r, final_compare);
+            p, DST_C_LAST_ITERATION, mem_dt, mem_fp, r, final_compare);
 }
 
 void prb_t::set_qparams(float fp_min, float fp_max) {
@@ -719,10 +749,10 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     /* Set parameters for quantization of src and weights from fp32 data
      * in [-1, 1] to int8 data in a range specified in cfg */
     float fp_range = fp_max - fp_min;
-    float int8_src_range = cfg[input].f_max - cfg[input].f_min,
-          int8_wei_range = cfg[weights_input].f_max - cfg[weights_input].f_min;
+    float int8_src_range = cfg[INPUT].f_max - cfg[INPUT].f_min,
+          int8_wei_range = cfg[WEIGHTS_INPUT].f_max - cfg[WEIGHTS_INPUT].f_min;
 
-    data_shift = cfg[input].f_mean;
+    data_shift = cfg[INPUT].f_mean;
     data_scale = int8_src_range / fp_range;
 
     if (scale_policy == policy_t::COMMON) {

@@ -119,7 +119,7 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
                     it, nb, action == action_concat ? p.dlc : 0);
             copy(1, p.dlc, p.wc, lastlay_c, from, to, action, p.is_int8());
 
-            if (p.is_int8() && p.cfg[dst_last_layer].dt != dnnl_u8) {
+            if (p.is_int8() && p.cfg[DST_LAST_LAYER].dt != dnnl_u8) {
                 float data_shift = p.data_shift;
                 bool do_deq10n = true;
 
@@ -151,7 +151,7 @@ void copy_res_fwd(const prb_t &p, float *lastit_states_,
         copy(p.mb, p.dhc, p.wc, p.dhc,
                 &ws(lay + 1, dir_val, it_source, H, 0, 0),
                 &lastit_states(lay, dir_val, 0, 0));
-        if (p.is_int8() && p.cfg[dst_last_iteration].dt != dnnl_u8)
+        if (p.is_int8() && p.cfg[DST_LAST_ITERATION].dt != dnnl_u8)
             data_deq10n(p.mb, p.dhc, p.dhc, &lastit_states(lay, dir_val, 0, 0),
                     p.data_scale, p.data_shift);
     }

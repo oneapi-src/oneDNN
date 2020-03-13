@@ -47,6 +47,39 @@ dnnl_alg_kind_t activation2kind(activation_t alg);
 dnnl_rnn_direction_t str2direction(const char *str);
 const char *direction2str(dnnl_rnn_direction_t direction);
 
+enum data_kind_t {
+    INPUT,
+    STATES,
+    C_STATES,
+    WEIGHTS_INPUT,
+    WEIGHTS_STATES,
+    BIAS,
+    DST_LAST_ITERATION,
+    DST_C_LAST_ITERATION,
+    DST_LAST_LAYER,
+
+    DST_DIFF_INPUT,
+    DST_DIFF_STATES,
+    DST_DIFF_C_STATES,
+    DST_DIFF_WEIGHTS_INPUT,
+    DST_DIFF_WEIGHTS_STATES,
+    DST_DIFF_BIAS,
+    DIFF_LAST_ITERATION,
+    DIFF_C_LAST_ITERATION,
+    DIFF_LAST_LAYER,
+
+    // FIXME: adding peephole related weights to the appropriate places will
+    // cause false-positive accuracy check failures in unrelated test cases
+    // (e.g.  backward vanilla RNN for bf16) due to the data fill seed being
+    // dependent on the position of the tensor kind in the enum: adding
+    // `WEIGHTS_PEEPHOLE` before `dst_*` and `*diff_*` results in initializing
+    // the corresponding tensors differently.
+    // We need a more robust way of testing RNN.
+    WEIGHTS_PEEPHOLE,
+    DST_DIFF_WEIGHTS_PEEPHOLE,
+};
+const char *data_kind2str(data_kind_t kind);
+
 const int H = 0;
 const int C = 1;
 
@@ -120,69 +153,6 @@ struct desc_t {
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
-enum rnn_data_kind_t {
-    input,
-    states,
-    c_states,
-    weights_input,
-    weights_states,
-    bias,
-    dst_last_iteration,
-    dst_c_last_iteration,
-    dst_last_layer,
-
-    dst_diff_input,
-    dst_diff_states,
-    dst_diff_c_states,
-    dst_diff_weights_input,
-    dst_diff_weights_states,
-    dst_diff_bias,
-    diff_last_iteration,
-    diff_c_last_iteration,
-    diff_last_layer,
-
-    // FIXME: adding peephole related weights to the appropriate places will
-    // cause false-positive accuracy check failures in unrelated test cases
-    // (e.g.  backward vanilla RNN for bf16) due to the data fill seed being
-    // dependent on the position of the tensor kind in the enum: adding
-    // `weights_peephole` before `dst_*` and `*diff_*` results in initializing
-    // the corresponding tensors differently.
-    // We need a more robust way of testing RNN.
-    weights_peephole,
-    dst_diff_weights_peephole,
-
-    data_kind_total // should be last to provide the total number of data kinds
-};
-
-inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
-    switch (kind) {
-        case input: return "INPUT";
-        case states: return "STATES";
-        case c_states: return "STATES";
-        case weights_input: return "WEIGHTS_INPUT";
-        case weights_states: return "WEIGHTS_STATES";
-        case weights_peephole: return "WEIGHTS_PEEPHOLE";
-        case bias: return "BIAS";
-        case dst_last_layer: return "DST_LAST_LAYER";
-        case dst_last_iteration: return "DST_LAST_ITERATION";
-        case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
-
-        case dst_diff_input: return "DST_DIFF_INPUT";
-        case dst_diff_states: return "DST_DIFF_STATES";
-        case dst_diff_c_states: return "DST_DIFF_C_STATES";
-        case dst_diff_weights_input: return "DST_DIFF_WEIGHTS_INPUT";
-        case dst_diff_weights_states: return "DST_DIFF_WEIGHTS_STATES";
-        case dst_diff_weights_peephole: return "DST_DIFF_WEIGHTS_PEEPHOLE";
-        case dst_diff_bias: return "DST_DIFF_BIAS";
-        case diff_last_layer: return "DIFF_LAST_LAYER";
-        case diff_last_iteration: return "DIFF_LAST_ITERATION";
-        case diff_c_last_iteration: return "DIFF_C_LAST_ITERATION";
-        default:
-            assert(!"incorrect rnn data kind");
-            return "incorrect rnn data kind";
-    }
-}
-
 /** configuration structure, that controls initial data filling + error check
 *
 * dt defines precision
@@ -207,10 +177,10 @@ struct dt_conf_t {
 
     dt_conf_t(const std::string &str) : str_(str) {}
 
-    virtual const entry_t &operator[](rnn_data_kind_t kind) const = 0;
+    virtual const entry_t &operator[](data_kind_t kind) const = 0;
 
     const std::string &str() const { return str_; }
-    bool is_int8() const { return operator[](input).dt == dnnl_u8; }
+    bool is_int8() const { return operator[](INPUT).dt == dnnl_u8; }
 
     static const dt_conf_t &create(const std::string &str);
 
@@ -286,7 +256,7 @@ struct prb_t : public desc_t {
         // used, they get dereferenced when built in debug mode.
         linear_scales = (float *)zmalloc(sizeof(float) * n_gates(), 64);
         // Here we use the range of INPUT to set the scales
-        set_tparams(cfg[input].f_min, cfg[input].f_max);
+        set_tparams(cfg[INPUT].f_min, cfg[INPUT].f_max);
 
         if (scale_policy == policy_t::PER_OC)
             wei_oc_scales
@@ -323,7 +293,7 @@ struct prb_t : public desc_t {
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
-    bool is_int8() const { return cfg[input].dt == dnnl_u8; }
+    bool is_int8() const { return cfg[INPUT].dt == dnnl_u8; }
     bool is_lstm_peephole() const { return with_peephole; }
 
     const dt_conf_t &cfg;

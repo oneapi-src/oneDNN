@@ -34,12 +34,11 @@ std::set<const dt_conf_t *> cfg_list;
 #define CFG(name) \
     struct conf_##name##_t : dt_conf_t { \
         using dt_conf_t::dt_conf_t; \
-        virtual const entry_t &operator[]( \
-                rnn_data_kind_t kind) const override; \
+        virtual const entry_t &operator[](data_kind_t kind) const override; \
     } conf_##name(STRINGIFY(name)); \
     static auto __reg_##name = cfg_list.insert(&conf_##name); \
-    const dt_conf_t::entry_t &conf_##name##_t::operator[]( \
-            rnn_data_kind_t kind) const
+    const dt_conf_t::entry_t &conf_##name##_t::operator[](data_kind_t kind) \
+            const
 
 // f32
 #define MIN_F32 0.0f
@@ -67,12 +66,12 @@ dt_conf_t::entry_t BF16_ENTRY_F32 {dnnl_f32, -f32_max_exact, f32_max_exact,
         MIN_F32, MAX_F32, MEAN_F32, STDDEV_F32, EPS_BF16};
 
 CFG(bf16) {
-    CASE(input, BF16_ENTRY_BF16);
-    CASE(states, BF16_ENTRY_BF16);
-    CASE(weights_input, BF16_ENTRY_BF16);
-    CASE(weights_states, BF16_ENTRY_BF16);
-    CASE(dst_last_iteration, BF16_ENTRY_BF16);
-    CASE(dst_last_layer, BF16_ENTRY_BF16);
+    CASE(INPUT, BF16_ENTRY_BF16);
+    CASE(STATES, BF16_ENTRY_BF16);
+    CASE(WEIGHTS_INPUT, BF16_ENTRY_BF16);
+    CASE(WEIGHTS_STATES, BF16_ENTRY_BF16);
+    CASE(DST_LAST_ITERATION, BF16_ENTRY_BF16);
+    CASE(DST_LAST_LAYER, BF16_ENTRY_BF16);
     DEFAULT(BF16_ENTRY_F32);
 }
 
@@ -109,58 +108,58 @@ dt_conf_t::entry_t U8_ENTRY_F32 {dnnl_f32, -f32_max_exact, f32_max_exact,
         MIN_F32, MAX_F32, MEAN_F32, STDDEV_F32, EPS_F32};
 
 CFG(u8u8u8u8) {
-    CASE(input, U8_ENTRY_U8);
-    CASE(states, U8_ENTRY_U8);
-    CASE(c_states, U8_ENTRY_F32);
-    CASE(weights_input, U8_ENTRY_S8);
-    CASE(weights_states, U8_ENTRY_S8);
-    CASE(weights_peephole, U8_ENTRY_F32);
-    CASE(bias, U8_ENTRY_F32);
-    CASE(dst_last_iteration, U8_ENTRY_U8);
-    CASE(dst_c_last_iteration, U8_ENTRY_F32);
-    CASE(dst_last_layer, U8_ENTRY_U8_EXACT);
+    CASE(INPUT, U8_ENTRY_U8);
+    CASE(STATES, U8_ENTRY_U8);
+    CASE(C_STATES, U8_ENTRY_F32);
+    CASE(WEIGHTS_INPUT, U8_ENTRY_S8);
+    CASE(WEIGHTS_STATES, U8_ENTRY_S8);
+    CASE(WEIGHTS_PEEPHOLE, U8_ENTRY_F32);
+    CASE(BIAS, U8_ENTRY_F32);
+    CASE(DST_LAST_ITERATION, U8_ENTRY_U8);
+    CASE(DST_C_LAST_ITERATION, U8_ENTRY_F32);
+    CASE(DST_LAST_LAYER, U8_ENTRY_U8_EXACT);
     END_LIST;
 }
 
 CFG(u8u8u8f32) {
-    CASE(input, U8_ENTRY_U8);
-    CASE(states, U8_ENTRY_U8);
-    CASE(c_states, U8_ENTRY_F32);
-    CASE(weights_input, U8_ENTRY_S8);
-    CASE(weights_states, U8_ENTRY_S8);
-    CASE(weights_peephole, U8_ENTRY_F32);
-    CASE(bias, U8_ENTRY_F32);
-    CASE(dst_last_iteration, U8_ENTRY_U8);
-    CASE(dst_c_last_iteration, U8_ENTRY_F32);
-    CASE(dst_last_layer, U8_ENTRY_F32);
+    CASE(INPUT, U8_ENTRY_U8);
+    CASE(STATES, U8_ENTRY_U8);
+    CASE(C_STATES, U8_ENTRY_F32);
+    CASE(WEIGHTS_INPUT, U8_ENTRY_S8);
+    CASE(WEIGHTS_STATES, U8_ENTRY_S8);
+    CASE(WEIGHTS_PEEPHOLE, U8_ENTRY_F32);
+    CASE(BIAS, U8_ENTRY_F32);
+    CASE(DST_LAST_ITERATION, U8_ENTRY_U8);
+    CASE(DST_C_LAST_ITERATION, U8_ENTRY_F32);
+    CASE(DST_LAST_LAYER, U8_ENTRY_F32);
     END_LIST;
 }
 
 CFG(f32u8f32u8) {
-    CASE(input, U8_ENTRY_U8);
-    CASE(states, U8_ENTRY_F32);
-    CASE(c_states, U8_ENTRY_F32);
-    CASE(weights_input, U8_ENTRY_S8);
-    CASE(weights_states, U8_ENTRY_S8);
-    CASE(weights_peephole, U8_ENTRY_F32);
-    CASE(bias, U8_ENTRY_F32);
-    CASE(dst_last_iteration, U8_ENTRY_F32);
-    CASE(dst_c_last_iteration, U8_ENTRY_F32);
-    CASE(dst_last_layer, U8_ENTRY_U8_EXACT);
+    CASE(INPUT, U8_ENTRY_U8);
+    CASE(STATES, U8_ENTRY_F32);
+    CASE(C_STATES, U8_ENTRY_F32);
+    CASE(WEIGHTS_INPUT, U8_ENTRY_S8);
+    CASE(WEIGHTS_STATES, U8_ENTRY_S8);
+    CASE(WEIGHTS_PEEPHOLE, U8_ENTRY_F32);
+    CASE(BIAS, U8_ENTRY_F32);
+    CASE(DST_LAST_ITERATION, U8_ENTRY_F32);
+    CASE(DST_C_LAST_ITERATION, U8_ENTRY_F32);
+    CASE(DST_LAST_LAYER, U8_ENTRY_U8_EXACT);
     END_LIST;
 }
 
 CFG(f32u8f32f32) {
-    CASE(input, U8_ENTRY_U8);
-    CASE(states, U8_ENTRY_F32);
-    CASE(c_states, U8_ENTRY_F32);
-    CASE(weights_input, U8_ENTRY_S8);
-    CASE(weights_states, U8_ENTRY_S8);
-    CASE(weights_peephole, U8_ENTRY_F32);
-    CASE(bias, U8_ENTRY_F32);
-    CASE(dst_last_iteration, U8_ENTRY_F32);
-    CASE(dst_c_last_iteration, U8_ENTRY_F32);
-    CASE(dst_last_layer, U8_ENTRY_F32);
+    CASE(INPUT, U8_ENTRY_U8);
+    CASE(STATES, U8_ENTRY_F32);
+    CASE(C_STATES, U8_ENTRY_F32);
+    CASE(WEIGHTS_INPUT, U8_ENTRY_S8);
+    CASE(WEIGHTS_STATES, U8_ENTRY_S8);
+    CASE(WEIGHTS_PEEPHOLE, U8_ENTRY_F32);
+    CASE(BIAS, U8_ENTRY_F32);
+    CASE(DST_LAST_ITERATION, U8_ENTRY_F32);
+    CASE(DST_C_LAST_ITERATION, U8_ENTRY_F32);
+    CASE(DST_LAST_LAYER, U8_ENTRY_F32);
     END_LIST;
 }
 

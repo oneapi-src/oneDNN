@@ -49,8 +49,8 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     auto maybe_q_d = [&](float h) {
         if (!p.cfg.is_int8()) return h;
         float fp = p.data_scale * h + p.data_shift;
-        if (fp > p.cfg[input].max) fp = p.cfg[input].max;
-        if (fp < p.cfg[input].min) fp = p.cfg[input].min;
+        if (fp > p.cfg[INPUT].max) fp = p.cfg[INPUT].max;
+        if (fp < p.cfg[INPUT].min) fp = p.cfg[INPUT].min;
         fp = mxcsr_round(fp);
         return fp;
     };
