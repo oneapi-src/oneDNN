@@ -22,9 +22,11 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "primitive_attr.hpp"
+#include "primitive_cache.hpp"
 #include "type_helpers.hpp"
 #include "verbose.hpp"
 
@@ -263,9 +265,8 @@ protected:
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine) const override { \
-        primitive = std::make_shared<impl_type>(this); \
-        auto status = primitive->init(engine); \
-        return status; \
+        return primitive_t::create_primitive_common<impl_type, pd_t>( \
+                primitive, this, engine); \
     } \
     virtual const char *name() const override { return impl_name; } \
     virtual std::type_index impl_id() const override { return typeid(pd_t); }

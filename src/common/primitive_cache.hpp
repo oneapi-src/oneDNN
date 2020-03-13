@@ -68,6 +68,7 @@ struct lru_primitive_cache_t : public primitive_cache_t {
         cache_list_.splice(cache_list_.begin(), cache_list_, it->second);
         return cache_list_.front().second;
     }
+    DNNL_DISALLOW_COPY_AND_ASSIGN(lru_primitive_cache_t);
 
 private:
     size_t capacity_;

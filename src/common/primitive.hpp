@@ -49,7 +49,47 @@ struct primitive_t : public c_compatible {
     }
 
 protected:
+    template <typename impl_type, typename pd_t>
+    static status_t create_primitive_common(
+            std::shared_ptr<primitive_t> &primitive, const pd_t *pd,
+            engine_t *engine) {
+        const auto print_verbose = [&](int level, bool cache_hit,
+                                           const char *pd_info, double time) {
+            if (level >= 2) {
+                const char *str = cache_hit ? "dnnl_verbose,create:cache_hit"
+                                            : "dnnl_verbose,create:cache_miss";
+                printf("%s,%s,%g\n", str, pd_info, time);
+                fflush(0);
+            }
+        };
+        std::lock_guard<std::recursive_mutex> lock(p_cache_mutex_);
+        auto &global_primitive_cache = primitive_cache();
+        double ms = get_msec();
+        int nthreads = dnnl_get_max_threads();
+        primitive_hashing::key_t key_to_lookup(pd, engine, nthreads);
+        auto p = global_primitive_cache.get(key_to_lookup);
+        auto status = status::success;
+        if (p) {
+            primitive = p;
+            ms = get_msec() - ms;
+            print_verbose(get_verbose(), true, p->pd()->info(engine), ms);
+            return status;
+        } else {
+            p = std::make_shared<impl_type>(pd);
+            status = p->init(engine);
+            if (status != status::success) return status;
+            primitive_hashing::key_t key_to_cache(
+                    p->pd().get(), engine, nthreads);
+            global_primitive_cache.add(key_to_cache, p);
+            primitive = p;
+            ms = get_msec() - ms;
+            print_verbose(get_verbose(), false, p->pd()->info(engine), ms);
+        }
+        return status;
+    }
+
     std::shared_ptr<primitive_desc_t> pd_;
+    static std::recursive_mutex p_cache_mutex_;
 
 private:
     primitive_t() = delete;

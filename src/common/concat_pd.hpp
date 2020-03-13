@@ -225,9 +225,8 @@ protected:
     } \
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine) const override { \
-        primitive = std::make_shared<__VA_ARGS__>(this); \
-        auto status = primitive->init(engine); \
-        return status; \
+        return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
+                primitive, this, engine); \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual const char *name() const override { return impl_name; } \
