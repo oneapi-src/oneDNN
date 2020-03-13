@@ -108,27 +108,27 @@ const char *direction2str(dnnl_rnn_direction_t direction) {
 const char *data_kind2str(data_kind_t kind) {
 #define CASE(KIND) \
     if (kind == KIND) return STRINGIFY(KIND)
-    CASE(INPUT);
-    CASE(STATES);
-    CASE(C_STATES);
-    CASE(WEIGHTS_INPUT);
-    CASE(WEIGHTS_STATES);
+    CASE(SRC_LAYER);
+    CASE(SRC_ITER);
+    CASE(SRC_ITER_C);
+    CASE(WEIGHTS_LAYER);
+    CASE(WEIGHTS_ITER);
     CASE(WEIGHTS_PEEPHOLE);
     CASE(BIAS);
-    CASE(DST_LAST_LAYER);
-    CASE(DST_LAST_ITERATION);
-    CASE(DST_C_LAST_ITERATION);
+    CASE(DST_LAYER);
+    CASE(DST_ITER);
+    CASE(DST_ITER_C);
 
-    CASE(DST_DIFF_INPUT);
-    CASE(DST_DIFF_STATES);
-    CASE(DST_DIFF_C_STATES);
-    CASE(DST_DIFF_WEIGHTS_INPUT);
-    CASE(DST_DIFF_WEIGHTS_STATES);
-    CASE(DST_DIFF_WEIGHTS_PEEPHOLE);
-    CASE(DST_DIFF_BIAS);
-    CASE(DIFF_LAST_LAYER);
-    CASE(DIFF_LAST_ITERATION);
-    CASE(DIFF_C_LAST_ITERATION);
+    CASE(DIFF_SRC_LAYER);
+    CASE(DIFF_SRC_ITER);
+    CASE(DIFF_SRC_ITER_C);
+    CASE(DIFF_WEIGHTS_LAYER);
+    CASE(DIFF_WEIGHTS_ITER);
+    CASE(DIFF_WEIGHTS_PEEPHOLE);
+    CASE(DIFF_BIAS);
+    CASE(DIFF_DST_LAYER);
+    CASE(DIFF_DST_ITER);
+    CASE(DIFF_DST_ITER_C);
 #undef CASE
 
     assert(!"incorrect rnn data kind");
@@ -424,11 +424,11 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     /* Note: we do an eltwise comparison only when:
        - we use skip_nonlinear;
        - we do not use skip_nonlinear and we test only one cell execution;
-       - for int8 computations the tensor is not DST_C_LAST_ITERATION;
+       - for int8 computations the tensor is not DST_ITER_C;
        If the above conditions are not met, we check only norm-1,
        norm-2 and inf-norm.
 
-       Rough rationale for the `DST_C_LAST_ITERATION` exception in int8 case:
+       Rough rationale for the `DST_ITER_C` exception in int8 case:
        - The formula for one-step c-state is:
          c_t = f_t * c_{t−1} + i_t * c~_t.
          Here all computations happen in f32 (f_t, i_t, and c~_t are dequantized
@@ -436,15 +436,15 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
        - In int8 case we don't have much control over these components and
          cannot surmount potential cancellations, if any.
          In practice, I observed that the relative element-wise error of values
-         in `DST_C_LAST_ITERATION` was bigger (up-to 8e-5) whenever the values
+         in `DST_ITER_C` was bigger (up-to 8e-5) whenever the values
          themselves were smaller (which indirectly means the problem is exactly
          in the cancellation). Unfortunately, this even happened with only one
          layer and one time stamp.
        - So, for now the solution is to use l1- l2- and l_inf-norms to validate
-         `DST_C_LAST_ITERATION`. When we switch testing on using precise
+         `DST_ITER_C`. When we switch testing on using precise
          integer arithmetic based on modulo operation in rnn_tparams (instead of
          current unreliable re-scaling), this testing weakness should go away.
-       - Just an obvious side note: `DST_LAST_LAYER` and `DST_LAST_ITERATION`
+       - Just an obvious side note: `DST_LAYER` and `DST_ITER`
          are immediate dequantization of the corresponding u8 tensors. Hence,
          as long as we get precise u8 intermediate results (and so far we do),
          the f32 result should be pretty accurate -- the dequantization is just
@@ -452,7 +452,7 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     */
     bool check_norm0
             = (p.skip_nonlinear || ((p.n_layer == 1) && (p.n_iter == 1)));
-    if (p.is_int8() && kind == DST_C_LAST_ITERATION) check_norm0 = false;
+    if (p.is_int8() && kind == DST_ITER_C) check_norm0 = false;
 
     for (int64_t i = 0; i < nelems; ++i) {
         const float dt = mem_dt.get_elem(i);
@@ -491,8 +491,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                     int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
                             oc = 0, b = 0;
                     switch (kind) {
-                        case INPUT:
-                        case DST_DIFF_INPUT:
+                        case SRC_LAYER:
+                        case DIFF_SRC_LAYER:
                             inv_ntc_off_f(p, i, n, t, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -501,8 +501,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, n, t, c, fp, dt, diff, rel_diff);
                             break;
-                        case STATES:
-                        case DST_DIFF_STATES:
+                        case SRC_ITER:
+                        case DIFF_SRC_ITER:
                             inv_ldnc_off_f(p, i, l, d, n, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -512,8 +512,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, n, c, fp, dt, diff, rel_diff);
                             break;
-                        case WEIGHTS_INPUT:
-                        case DST_DIFF_WEIGHTS_INPUT:
+                        case WEIGHTS_LAYER:
+                        case DIFF_WEIGHTS_LAYER:
                             inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -524,8 +524,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     skind, l, d, w, ic, oc, fp, dt, diff,
                                     rel_diff);
                             break;
-                        case WEIGHTS_STATES:
-                        case DST_DIFF_WEIGHTS_STATES:
+                        case WEIGHTS_ITER:
+                        case DIFF_WEIGHTS_ITER:
                             inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -537,7 +537,7 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     rel_diff);
                             break;
                         case WEIGHTS_PEEPHOLE:
-                        case DST_DIFF_WEIGHTS_PEEPHOLE:
+                        case DIFF_WEIGHTS_PEEPHOLE:
                             inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -548,7 +548,7 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     skind, l, d, b, c, fp, dt, diff, rel_diff);
                             break;
                         case BIAS:
-                        case DST_DIFF_BIAS:
+                        case DIFF_BIAS:
                             inv_bias_ldgo_off_f(p, i, l, d, b, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -558,8 +558,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, l, d, b, c, fp, dt, diff, rel_diff);
                             break;
-                        case DST_LAST_LAYER:
-                        case DIFF_LAST_LAYER:
+                        case DST_LAYER:
+                        case DIFF_DST_LAYER:
                             inv_tnc_off_f(p, i, t, n, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -568,12 +568,12 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                                     (long)i, final_compare ? "" : "REORDER ",
                                     skind, t, n, c, fp, dt, diff, rel_diff);
                             break;
-                        case C_STATES:
-                        case DST_LAST_ITERATION:
-                        case DST_C_LAST_ITERATION:
-                        case DST_DIFF_C_STATES:
-                        case DIFF_LAST_ITERATION:
-                        case DIFF_C_LAST_ITERATION:
+                        case SRC_ITER_C:
+                        case DST_ITER:
+                        case DST_ITER_C:
+                        case DIFF_SRC_ITER_C:
+                        case DIFF_DST_ITER:
+                        case DIFF_DST_ITER_C:
                             inv_ldnc_off_f(p, i, l, d, n, c);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
@@ -595,28 +595,28 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                     b = 0;
 
             switch (kind) {
-                case INPUT:
+                case SRC_LAYER:
                     inv_ntc_off_f(p, i, n, t, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
                     break;
-                case STATES:
+                case SRC_ITER:
                     inv_ldnc_off_f(p, i, l, d, n, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, n, c, fp, dt);
                     break;
-                case WEIGHTS_INPUT:
+                case WEIGHTS_LAYER:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
                             "," IFMT "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, w, ic, oc, fp, dt);
                     break;
-                case WEIGHTS_STATES:
+                case WEIGHTS_ITER:
                     inv_ldigo_off_f(p, i, l, d, w, ic, oc);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
@@ -637,16 +637,16 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, l, d, b, c, fp, dt);
                     break;
-                case DST_LAST_LAYER:
+                case DST_LAYER:
                     inv_tnc_off_f(p, i, t, n, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT
                             "] fp:%8g dt:%8g\n",
                             (long)i, skind, n, t, c, fp, dt);
                     break;
-                case C_STATES:
-                case DST_LAST_ITERATION:
-                case DST_C_LAST_ITERATION:
+                case SRC_ITER_C:
+                case DST_ITER:
+                case DST_ITER_C:
                     inv_ldnc_off_f(p, i, l, d, n, c);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
@@ -714,10 +714,10 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     /* Set parameters for quantization of src and weights from fp32 data
      * in [-1, 1] to int8 data in a range specified in cfg */
     float fp_range = fp_max - fp_min;
-    float int8_src_range = cfg[INPUT].f_max - cfg[INPUT].f_min,
-          int8_wei_range = cfg[WEIGHTS_INPUT].f_max - cfg[WEIGHTS_INPUT].f_min;
+    float int8_src_range = cfg[SRC_LAYER].f_max - cfg[SRC_LAYER].f_min,
+          int8_wei_range = cfg[WEIGHTS_LAYER].f_max - cfg[WEIGHTS_LAYER].f_min;
 
-    data_shift = cfg[INPUT].f_mean;
+    data_shift = cfg[SRC_LAYER].f_mean;
     data_scale = int8_src_range / fp_range;
 
     if (scale_policy == policy_t::COMMON) {
@@ -734,17 +734,17 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
 void prb_t::set_tparams(float fp_min, float fp_max) {
     if (skip_nonlinear) {
         assert(linear_scales != nullptr);
-        // Here, we assume that the inputs of the cells are in [fp_min,fp_max]. We
-        // pick the scaling factors to ensure that the output of the
-        // linear pre/post gemm is in [fp_min,fp_max]
+        // Here, we assume that the inputs of the cells are in [fp_min,fp_max].
+        // We pick the scaling factors to ensure that the output of the linear
+        // pre/post gemm is in [fp_min,fp_max]
 
         // Also, we rely on the fact that for forward, the weights
         // matrices are sparse, and contain coefficient equal to
         // 1/n_gates() to compensate for the gemm accumulation. So
-        // here, we account only for the postgemm accumulation, and
-        // the fact that we want to use diferent scales per gate.
+        // here, we account only for the post-gemm accumulation, and
+        // the fact that we want to use different scales per gate.
 
-        // For BWD_W, we cannot assume sparssness though since the
+        // For BWD_W, we cannot assume sparseness though since the
         // gates and diff_dst_* are dense.
         int64_t fwd_acc_dim = n_gates();
         int64_t bwdd_acc_dim = dhc;

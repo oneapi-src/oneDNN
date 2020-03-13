@@ -25,12 +25,12 @@
 namespace rnn {
 template <typename T1, typename T2>
 void lbr_gru_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
-        float *gates_, const float *src_iter_h_, const float *bias_,
-        float *dst_iter_h_, float *ws_local_) {
-    AOC<const float> src_iter_h(src_iter_h_, p.mb, p.wc);
+        float *gates_, const float *src_iter_, const float *bias_,
+        float *dst_iter_, float *ws_local_) {
+    AOC<const float> src_iter(src_iter_, p.mb, p.wc);
     AOC<const float> bias(bias_, p.n_gates() + 1, p.dhc);
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
-    AOC<float> h_dst(dst_iter_h_, p.mb, p.wc);
+    AOC<float> dst_iter(dst_iter_, p.mb, p.wc);
     AOC<float> tmp_ws(ws_local_, p.mb, p.n_gates(), p.dhc);
 
     for (int64_t i = 0; i < p.mb; i++)
@@ -52,43 +52,42 @@ void lbr_gru_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
 
     for (int64_t i = 0; i < p.mb; i++)
         for (int64_t k = 0; k < p.dhc; k++) {
-            h_dst(i, k) = gates(i, GRU_U, k) * src_iter_h(i, k)
+            dst_iter(i, k) = gates(i, GRU_U, k) * src_iter(i, k)
                     + (1 - gates(i, GRU_U, k)) * gates(i, GRU_O, k);
         }
 }
 
-void lbr_gru_fwd_postgemm(const prb_t &p, float *gates_,
-        const float *src_iter_h_, const float *bias_, float *dst_iter_h_,
-        float *ws_local_) {
+void lbr_gru_fwd_postgemm(const prb_t &p, float *gates_, const float *src_iter_,
+        const float *bias_, float *dst_iter_, float *ws_local_) {
     if (p.skip_nonlinear)
         lbr_gru_fwd_postgemm_template(
                 [](float scale, float a) { return scale * a; },
                 [](float scale, float a) { return scale * a; }, p, gates_,
-                src_iter_h_, bias_, dst_iter_h_, ws_local_);
+                src_iter_, bias_, dst_iter_, ws_local_);
     else
         lbr_gru_fwd_postgemm_template(
                 [](float scale, float a) { return logistic(a); },
                 [](float scale, float a) { return tanhf(a); }, p, gates_,
-                src_iter_h_, bias_, dst_iter_h_, ws_local_);
+                src_iter_, bias_, dst_iter_, ws_local_);
 }
 
-void lbr_gru_fwd(const prb_t &p, float *dst_iter_h_, float *gates_,
-        const float *weights_layer_, const float *weights_iter_h_,
-        const float *bias_, const float *src_layer_, const float *src_iter_h_,
+void lbr_gru_fwd(const prb_t &p, float *dst_iter_, float *gates_,
+        const float *weights_layer_, const float *weights_iter_,
+        const float *bias_, const float *src_layer_, const float *src_iter_,
         float *ws_local_) {
     gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.slc, 1.0, src_layer_, p.wc,
             weights_layer_, p.n_gates() * p.dhc, 0.0, gates_,
             p.n_gates() * p.dhc);
 
-    gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.sic, 1.0, src_iter_h_,
-            p.wc, weights_iter_h_, p.n_gates() * p.dhc, 0.0, ws_local_,
+    gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.sic, 1.0, src_iter_, p.wc,
+            weights_iter_, p.n_gates() * p.dhc, 0.0, ws_local_,
             p.n_gates() * p.dhc);
 
-    lbr_gru_fwd_postgemm(p, gates_, src_iter_h_, bias_, dst_iter_h_, ws_local_);
+    lbr_gru_fwd_postgemm(p, gates_, src_iter_, bias_, dst_iter_, ws_local_);
 }
 
 void lbr_gru_bwd_pregemm(const prb_t &p, const float *src_iter_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_h_,
+        const float *diff_dst_layer_, const float *diff_dst_iter_,
         const float *gates_, float *diff_src_iter_, float *b_gates_,
         float *ws_local_) {
     float *Wh_b_ = ws_local_;
@@ -96,7 +95,7 @@ void lbr_gru_bwd_pregemm(const prb_t &p, const float *src_iter_,
 
     AOC<const float> src_iter(src_iter_, p.mb, p.wc);
     AOC<const float> diff_dst_layer(diff_dst_layer_, p.mb, p.wc);
-    AOC<const float> diff_dst_iter_h(diff_dst_iter_h_, p.mb, p.wc);
+    AOC<const float> diff_dst_iter(diff_dst_iter_, p.mb, p.wc);
     AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dhc);
 
     AOC<float> diff_src_iter(diff_src_iter_, p.mb, p.wc);
@@ -110,7 +109,7 @@ void lbr_gru_bwd_pregemm(const prb_t &p, const float *src_iter_,
     for (int64_t ib = 0; ib < p.mb; ib++)
         for (int64_t ih = 0; ih < p.dhc; ih++) {
             float h = src_iter(ib, ih);
-            float dh = diff_dst_layer(ib, ih) + diff_dst_iter_h(ib, ih);
+            float dh = diff_dst_layer(ib, ih) + diff_dst_iter(ib, ih);
             float u = gates(ib, GRU_U, ih);
             float r = gates(ib, GRU_R, ih);
             float o = gates(ib, GRU_O, ih);
@@ -131,14 +130,13 @@ void lbr_gru_bwd_pregemm(const prb_t &p, const float *src_iter_,
 }
 
 void lbr_gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
-        float *diff_weights_layer_, float *diff_weights_iter_h_,
+        float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
         const float *src_iter_, const float *weights_layer_,
-        const float *weights_iter_h_, const float *bias_,
-        const float *dst_iter_h_, const float *gates_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_h_,
-        float *ws_local_) {
-    AOC<const float> weights_iter_h(weights_iter_h_, p.sic, p.n_gates(), p.dhc);
+        const float *weights_iter_, const float *bias_, const float *dst_iter_,
+        const float *gates_, const float *diff_dst_layer_,
+        const float *diff_dst_iter_, float *ws_local_) {
+    AOC<const float> weights_iter(weights_iter_, p.sic, p.n_gates(), p.dhc);
     AOC<const float> bias(bias_, p.n_gates() + 1, p.dhc);
 
     float *Wh_b_ = ws_local_;
@@ -152,14 +150,13 @@ void lbr_gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
             Wh_b(ib, ih) = bias(LBR_GRU_U_PRIME, ih);
 
     gemm("C", "N", "N", p.mb, p.dhc, p.sic, 1.0, src_iter_, p.wc,
-            &weights_iter_h(0, GRU_O, 0), p.n_gates() * p.dhc, 1.0, Wh_b_,
-            p.dhc);
+            &weights_iter(0, GRU_O, 0), p.n_gates() * p.dhc, 1.0, Wh_b_, p.dhc);
 
-    lbr_gru_bwd_pregemm(p, src_iter_, diff_dst_layer_, diff_dst_iter_h_, gates_,
+    lbr_gru_bwd_pregemm(p, src_iter_, diff_dst_layer_, diff_dst_iter_, gates_,
             diff_src_iter_, b_gates_, ws_local_);
 
     gemm("C", "T", "N", p.sic, p.n_gates() * p.dhc, p.mb, 1.0, src_iter_, p.wc,
-            b_gates_r_, p.n_gates() * p.dhc, 1.0, diff_weights_iter_h_,
+            b_gates_r_, p.n_gates() * p.dhc, 1.0, diff_weights_iter_,
             p.n_gates() * p.dhc);
     gemm("C", "T", "N", p.slc, p.n_gates() * p.dhc, p.mb, 1.0, src_layer_, p.wc,
             b_gates_, p.n_gates() * p.dhc, 1.0, diff_weights_layer_,
@@ -169,7 +166,7 @@ void lbr_gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
             p.n_gates() * p.dhc, weights_layer_, p.n_gates() * p.dhc, 0.0,
             diff_src_layer_, p.wc);
     gemm("C", "N", "T", p.mb, p.sic, p.n_gates() * p.dhc, 1.0, b_gates_r_,
-            p.n_gates() * p.dhc, weights_iter_h_, p.n_gates() * p.dhc, 1.0,
+            p.n_gates() * p.dhc, weights_iter_, p.n_gates() * p.dhc, 1.0,
             diff_src_iter_, p.wc);
 
     gates_reduction(p, b_gates_, diff_bias_);
