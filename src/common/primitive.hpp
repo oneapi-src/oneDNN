@@ -26,6 +26,7 @@
 #include "memory_tracking.hpp"
 #include "primitive_desc.hpp"
 #include "primitive_exec_types.hpp"
+#include "rw_mutex.hpp"
 #include "scratchpad.hpp"
 
 #include <type_traits>
@@ -48,11 +49,13 @@ struct primitive_t : public c_compatible {
         return status::success;
     }
 
+    bool use_global_scratchpad() const { return use_global_scratchpad_; }
+
 protected:
     template <typename impl_type, typename pd_t>
     static status_t create_primitive_common(
             std::shared_ptr<primitive_t> &primitive, const pd_t *pd,
-            engine_t *engine) {
+            engine_t *engine, bool is_primitive_nested) {
         const auto print_verbose = [&](int level, bool cache_hit,
                                            const char *pd_info, double time) {
             if (level >= 2) {
@@ -62,34 +65,57 @@ protected:
                 fflush(0);
             }
         };
-        std::lock_guard<std::recursive_mutex> lock(p_cache_mutex_);
         auto &global_primitive_cache = primitive_cache();
         double ms = get_msec();
         int nthreads = dnnl_get_max_threads();
         primitive_hashing::key_t key_to_lookup(pd, engine, nthreads);
+
+        if (!is_primitive_nested) primitive_cache_t::rw_mutex().lock_read();
+
         auto p = global_primitive_cache.get(key_to_lookup);
         auto status = status::success;
+        bool cache_hit = false;
         if (p) {
-            primitive = p;
-            ms = get_msec() - ms;
-            print_verbose(get_verbose(), true, p->pd()->info(engine), ms);
-            return status;
+            if (!is_primitive_nested)
+                primitive_cache_t::rw_mutex().unlock_read();
+            cache_hit = true;
         } else {
-            p = std::make_shared<impl_type>(pd);
-            status = p->init(engine);
-            if (status != status::success) return status;
-            primitive_hashing::key_t key_to_cache(
-                    p->pd().get(), engine, nthreads);
-            global_primitive_cache.add(key_to_cache, p);
-            primitive = p;
-            ms = get_msec() - ms;
-            print_verbose(get_verbose(), false, p->pd()->info(engine), ms);
+            if (!is_primitive_nested) {
+                primitive_cache_t::rw_mutex().unlock_read();
+                primitive_cache_t::rw_mutex().lock_write();
+                // double check to workaround the ABA problem
+                p = global_primitive_cache.get(key_to_lookup);
+            }
+
+            if (!p) {
+                // the requested primitive hasn't been added to the cache yet
+                p = std::make_shared<impl_type>(pd);
+                status = p->init(engine);
+                if (status != status::success) {
+                    if (!is_primitive_nested)
+                        primitive_cache_t::rw_mutex().unlock_write();
+                    return status;
+                }
+                primitive_hashing::key_t key_to_cache(
+                        p->pd().get(), engine, nthreads);
+                global_primitive_cache.add(key_to_cache, p);
+                if (!is_primitive_nested)
+                    primitive_cache_t::rw_mutex().unlock_write();
+                cache_hit = false;
+            } else {
+                // another thread added the requested primitive
+                if (!is_primitive_nested)
+                    primitive_cache_t::rw_mutex().unlock_write();
+                cache_hit = true;
+            }
         }
+        primitive = p;
+        ms = get_msec() - ms;
+        print_verbose(get_verbose(), cache_hit, p->pd()->info(engine), ms);
         return status;
     }
 
     std::shared_ptr<primitive_desc_t> pd_;
-    static std::recursive_mutex p_cache_mutex_;
 
 private:
     primitive_t() = delete;

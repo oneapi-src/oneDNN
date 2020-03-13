@@ -27,8 +27,6 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::primitive_kind;
 
-std::recursive_mutex primitive_t::p_cache_mutex_;
-
 namespace {
 // XXX: this is a huge hammer. This disables all and any msan checks on
 // primitives outputs.

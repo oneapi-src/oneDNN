@@ -24,6 +24,7 @@
 #include "c_types_map.hpp"
 #include "dnnl.h"
 #include "primitive_hashing.hpp"
+#include "rw_mutex.hpp"
 #include "type_helpers.hpp"
 
 namespace dnnl {
@@ -38,6 +39,11 @@ struct primitive_cache_t : public c_compatible {
     virtual value_t get(const key_t &key) = 0;
 
     virtual ~primitive_cache_t() = default;
+
+    static utils::rw_mutex_t &rw_mutex() {
+        static utils::rw_mutex_t mutex;
+        return mutex;
+    }
 };
 
 // The cache uses LRU replacement policy

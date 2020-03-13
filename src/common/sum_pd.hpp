@@ -155,9 +155,9 @@ protected:
         return safe_ptr_assign<sum_pd_t>(*sum_pd, _pd); \
     } \
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
-            engine_t *engine) const override { \
+            engine_t *engine, bool is_primitive_nested) const override { \
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
-                primitive, this, engine); \
+                primitive, this, engine, is_primitive_nested); \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual const char *name() const override { return impl_name; } \
