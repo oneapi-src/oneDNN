@@ -30,6 +30,26 @@
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+
+#ifdef _MSC_VER
+#define PRAGMA_MACRo(x) __pragma(x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
+#else
+#define PRAGMA_MACRo(x) _Pragma(#x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
+#endif
+
+// MSVC doesn't support collapse clause in omp parallel
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+#define collapse(x)
+#endif
+
+#define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n) PRAGMA_MACRO(omp parallel for collapse(n))
+#else // DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+#define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n)
+#endif
+
 // Exception class to indicate that the example uses a feature that is not
 // available on the current systems. It is not treated as an error then, but
 // just notifies a user.
