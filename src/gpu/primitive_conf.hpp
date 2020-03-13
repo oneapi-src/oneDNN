@@ -190,7 +190,6 @@ struct pool_conf_t {
     data_type_t src_dt;
     alg_kind_t alg;
     bool is_training, is_backward;
-    bool use_16mb_unroll, use_16c_unroll;
     compute::dispatch_t dispatch;
     int sub_group_size;
 };
@@ -418,6 +417,46 @@ struct shuffle_conf_t {
     int ndims;
     size_t gws_d[3];
 };
+
+inline void set_default_pool_conf(pool_conf_t &conf, const pooling_desc_t &desc,
+        const memory_desc_t &src_md, const memory_desc_t &dst_md) {
+    const memory_desc_wrapper src_mdw(src_md);
+    const memory_desc_wrapper dst_mdw(dst_md);
+
+    const auto &src_dims = src_mdw.padded_dims();
+    const auto &dst_dims = dst_mdw.padded_dims();
+
+    int ndims = src_mdw.ndims();
+    conf.ndims = ndims;
+
+    conf.mb = src_dims[0];
+
+    conf.c = src_dims[1];
+    conf.id = (ndims == 5) ? src_dims[2] : 1;
+    conf.ih = (ndims == 3) ? 1 : src_dims[ndims - 2];
+    conf.iw = src_dims[ndims - 1];
+    conf.od = (ndims == 5) ? dst_dims[2] : 1;
+    conf.oh = (ndims == 3) ? 1 : dst_dims[ndims - 2];
+    conf.ow = dst_dims[ndims - 1];
+
+    conf.stride_d = (ndims == 5) ? desc.strides[0] : 1;
+    conf.stride_h = (ndims == 3) ? 1 : desc.strides[ndims - 4];
+    conf.stride_w = desc.strides[ndims - 3];
+    conf.kd = (ndims == 5) ? desc.kernel[0] : 1;
+    conf.kh = (ndims == 3) ? 1 : desc.kernel[ndims - 4];
+    conf.kw = desc.kernel[ndims - 3];
+
+    conf.f_pad = (ndims == 5) ? desc.padding[0][0] : 0;
+    conf.t_pad = (ndims == 3) ? 0 : desc.padding[0][ndims - 4];
+    conf.l_pad = desc.padding[0][ndims - 3];
+
+    conf.alg = desc.alg_kind;
+
+    conf.src_dt = src_mdw.data_type();
+
+    conf.is_training = desc.prop_kind == prop_kind::forward_training;
+    conf.is_backward = desc.prop_kind == prop_kind::backward_data;
+}
 
 inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
         const memory_desc_t &src_md, const memory_desc_t &weights_md,

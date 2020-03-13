@@ -17,8 +17,6 @@
 #ifndef GPU_OCL_REF_POOLING_HPP
 #define GPU_OCL_REF_POOLING_HPP
 
-#include <assert.h>
-
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
@@ -44,9 +42,6 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
             using namespace data_type;
             using namespace prop_kind;
             using namespace alg_kind;
-            assert(engine()->kind() == engine_kind::gpu);
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
             auto src_data_t = src_md()->data_type;
             auto dst_data_t = dst_md()->data_type;
             auto acc_data_t = desc()->accum_data_type;
@@ -68,16 +63,7 @@ struct ref_pooling_fwd_t : public primitive_impl_t {
                             desc()->prop_kind == forward_inference)
                     && IMPLICATION(src_data_t == u8 || src_data_t == s8,
                             desc()->accum_data_type == s32)
-                    && attr()->has_default_values()
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups)
-                    && IMPLICATION(src_data_t == f16,
-                            true
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::khr_fp16)
-                                    && compute_engine->mayiuse(
-                                            compute::device_ext_t::
-                                                    intel_subgroups_short));
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == forward_training;
@@ -132,9 +118,6 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
         status_t init() {
             using namespace prop_kind;
             using namespace alg_kind;
-            assert(engine()->kind() == engine_kind::gpu);
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine());
 
             bool ok = set_default_params() == status::success
                     && utils::one_of(desc()->prop_kind, backward_data)
@@ -147,9 +130,7 @@ struct ref_pooling_bwd_t : public primitive_impl_t {
                             || utils::everyone_is(data_type::bf16,
                                     diff_dst_md()->data_type,
                                     diff_src_md()->data_type))
-                    && attr()->has_default_values()
-                    && compute_engine->mayiuse(
-                            compute::device_ext_t::intel_subgroups);
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == pooling_max) {
