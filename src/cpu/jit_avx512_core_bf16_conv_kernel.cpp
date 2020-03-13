@@ -3118,10 +3118,10 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::
 
             // The reg_ker ptr has highest bit set if the output needs to be
             // zeroed. Those who have byte-aligned their data will suffer the
-            // consiquences :(
+            // consequences :(
             // TODO: move the flag to a mask register? (Roma)
-            test(reg_tmp, 1);
-            jnz(skip_ker_zeroing, T_NEAR);
+            test(reg_ker, 1);
+            jz(skip_ker_zeroing, T_NEAR);
 
             Label zeroing_loop;
             vpxord(zmm0, zmm0, zmm0);
