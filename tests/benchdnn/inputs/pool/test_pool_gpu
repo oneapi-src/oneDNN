@@ -48,3 +48,28 @@
 --batch=pool_3d_small
 --batch=pool_ker_in_pad_3d_small
 
+--reset
+
+# f32, nhwc
+--cfg=f32
+--dir=FWD_D,BWD_D
+--alg=MAX,AVG_NP,AVG_P
+--mb=1
+--tag=axb
+--batch=pool_2d_small
+
+--cfg=f32
+--dir=FWD_D,BWD_D
+--alg=MAX
+--mb=1,16
+--batch=pool_1d
+--batch=pool_3d_small
+
+# f16, nhwc
+--cfg=f16
+--dir=FWD_I
+--alg=MAX
+--mb=1,16
+--batch=pool_1d
+--batch=pool_2d_small
+--batch=pool_3d_small
