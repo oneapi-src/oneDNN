@@ -1191,10 +1191,19 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
     jcp.simd_w = full_simd_w;
-    bool ok_to_try_xmm = true && mayiuse(avx512_core)
+    bool ok_to_try_lower_zmm = true && mayiuse(avx512_core)
             && src_d.data_type() == data_type::f32 && !jcp.is_1stconv
-            && !ok_to_pad_channels && (jcp.ic % 8 != 0 || jcp.oc % 8 != 0);
-    if (ok_to_try_xmm) jcp.simd_w = 4;
+            && !ok_to_pad_channels
+            && (jcp.ic % jcp.simd_w != 0 || jcp.oc % jcp.simd_w != 0);
+
+    if (ok_to_try_lower_zmm) {
+        for (auto simd : {8, 4}) {
+            if (jcp.ic % simd == 0 && jcp.oc % simd == 0) {
+                jcp.simd_w = simd;
+                break;
+            }
+        }
+    }
 
     jcp.oc_block = jcp.simd_w;
     jcp.ic_block = jcp.is_1stconv ? jcp.ic : jcp.simd_w;
@@ -1219,19 +1228,24 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
 
-    auto src_tag = jcp.is_1stconv
-            ? pick(ndims - 3, ncw, nchw, ncdhw)
-            : ((jcp.simd_w == 4) ? pick(ndims - 3, nCw4c, nChw4c, nCdhw4c)
-                                 : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c));
-    auto dst_tag = (jcp.simd_w == 4)
-            ? pick(ndims - 3, nCw4c, nChw4c, nCdhw4c)
-            : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    auto wei_tag = with_groups
-            ? ((jcp.simd_w == 4)
-                            ? pick(ndims - 3, gOIw4i4o, gOIhw4i4o, gOIdhw4i4o)
-                            : pick(ndims - 3, gOIw16i16o, gOIhw16i16o,
-                                    gOIdhw16i16o))
-            : pick(ndims - 3, OIw16i16o, OIhw16i16o, OIdhw16i16o);
+    format_tag_t src_tag, dst_tag, wei_tag;
+
+    if (jcp.simd_w == 8) {
+        assert(with_groups);
+        src_tag = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+        dst_tag = src_tag;
+        wei_tag = pick(ndims - 3, gOIw8i8o, gOIhw8i8o, gOIdhw8i8o);
+    } else if (jcp.simd_w == 4) {
+        assert(with_groups);
+        src_tag = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
+        dst_tag = src_tag;
+        wei_tag = pick(ndims - 3, gOIw4i4o, gOIhw4i4o, gOIdhw4i4o);
+    } else {
+        dst_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+        src_tag = jcp.is_1stconv ? pick(ndims - 3, ncw, nchw, ncdhw) : dst_tag;
+        wei_tag = pick(2 * ndims - 6 + with_groups, OIw16i16o, gOIw16i16o,
+                OIhw16i16o, gOIhw16i16o, OIdhw16i16o, gOIdhw16i16o);
+    }
 
     if (init_tag(jcp.src_tag, src_md, src_d, src_tag) != status::success)
         return status::unimplemented;
@@ -2432,10 +2446,18 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
 
     const int full_simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
     jcp.simd_w = full_simd_w;
-    bool ok_to_try_xmm = true && mayiuse(avx512_core)
+    bool ok_to_try_lower_zmm = true && mayiuse(avx512_core)
             && diff_src_d.data_type() == data_type::f32 && !jcp.is_1stconv
-            && !ok_to_pad_channels && (jcp.ic % 8 != 0 || jcp.oc % 8 != 0);
-    if (ok_to_try_xmm) jcp.simd_w = 4;
+            && !ok_to_pad_channels;
+
+    if (ok_to_try_lower_zmm) {
+        for (auto simd : {8, 4}) {
+            if (jcp.ic % simd == 0 && jcp.oc % simd == 0) {
+                jcp.simd_w = simd;
+                break;
+            }
+        }
+    }
 
     jcp.oc_block = jcp.simd_w;
     jcp.ic_block = jcp.is_1stconv ? jcp.ic : jcp.simd_w;
@@ -2445,15 +2467,26 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
         jcp.ic = rnd_up(jcp.ic, jcp.ic_block);
     }
 
-    auto dat_tag = (jcp.simd_w == 4)
-            ? pick(ndims - 3, nCw4c, nChw4c, nCdhw4c)
-            : pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
-    auto wei_tag = with_groups
-            ? ((jcp.simd_w == 4)
-                            ? pick(ndims - 3, gOIw4o4i, gOIhw4o4i, gOIdhw4o4i)
-                            : pick(ndims - 3, gOIw16o16i, gOIhw16o16i,
-                                    gOIdhw16o16i))
-            : pick(ndims - 3, OIw16o16i, OIhw16o16i, OIdhw16o16i);
+    bool args_ok
+            = true && jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
+    if (!args_ok) return status::unimplemented;
+
+    // default. override as needed later.
+    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
+    format_tag_t wei_tag;
+
+    if (jcp.simd_w == 8) {
+        assert(with_groups);
+        dat_tag = pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
+        wei_tag = pick(ndims - 3, gOIw8o8i, gOIhw8o8i, gOIdhw8o8i);
+    } else if (jcp.simd_w == 4) {
+        assert(with_groups);
+        dat_tag = pick(ndims - 3, nCw4c, nChw4c, nCdhw4c);
+        wei_tag = pick(ndims - 3, gOIw4o4i, gOIhw4o4i, gOIdhw4o4i);
+    } else {
+        wei_tag = pick(2 * ndims - 6 + with_groups, OIw16o16i, gOIw16o16i,
+                OIhw16o16i, gOIhw16o16i, OIdhw16o16i, gOIdhw16o16i);
+    }
 
     if (init_tag(jcp.src_tag, diff_src_md, diff_src_d, dat_tag)
             != status::success)
@@ -2465,10 +2498,6 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             != status::success)
         return status::unimplemented;
 
-    bool args_ok
-            = true && jcp.oc % jcp.oc_block == 0 && jcp.ic % jcp.ic_block == 0;
-
-    if (!args_ok) return status::unimplemented;
     jcp.nb_ic = jcp.ic / jcp.ic_block;
     jcp.nb_oc = jcp.oc / jcp.oc_block;
 
@@ -4978,8 +5007,10 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
 }
 
 template struct _jit_avx512_common_conv_fwd_kernel<Zmm>;
+template struct _jit_avx512_common_conv_fwd_kernel<Ymm>;
 template struct _jit_avx512_common_conv_fwd_kernel<Xmm>;
 template struct _jit_avx512_common_conv_bwd_data_kernel_f32<Zmm>;
+template struct _jit_avx512_common_conv_bwd_data_kernel_f32<Ymm>;
 template struct _jit_avx512_common_conv_bwd_data_kernel_f32<Xmm>;
 
 } // namespace cpu
