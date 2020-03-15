@@ -237,6 +237,8 @@ typedef enum {
     dnnl_ABcd4b16a4b,
     dnnl_ABcd4b4a,
     dnnl_ABcd4a4b,
+    dnnl_aBCd2c4b2c,
+    dnnl_aBCd4b8c2b,
     dnnl_aBCd4c16b4c,
     dnnl_aBCd2c8b4c,
     dnnl_aBCd4c4b,
@@ -246,6 +248,7 @@ typedef enum {
     dnnl_ABcd8a8b,
     /// 4D tensor blocked by 2nd dimension with block size 8
     dnnl_aBcd8b,
+    dnnl_aBCd4c8b2c,
     dnnl_ABcd8b16a2b,
     dnnl_aBCd8b16c2b,
     dnnl_BAcd8a16b2a,
@@ -259,6 +262,8 @@ typedef enum {
     dnnl_Abcde16a,
     dnnl_ABcde16a16b,
     dnnl_BAcde8a16b2a,
+    /// 4D tensor blocked by 3rd dimension with block size 4
+    dnnl_aBCd2b4c2b,
     /// 5D tensor blocked by 1st dimension with block size 16
     dnnl_ABcde4b16a4b,
     /// 5D tensor blocked by 1st dimension with block size 8
@@ -275,6 +280,8 @@ typedef enum {
     dnnl_ABcde4b4a,
     dnnl_ABcde4a4b,
     dnnl_aBCde4b4c,
+    dnnl_aBCde2c4b2c,
+    dnnl_aBCde4b8c2b,
     dnnl_aBCde4c16b4c,
     dnnl_aBCde4c4b,
     dnnl_Abcde8a,
@@ -284,6 +291,7 @@ typedef enum {
     dnnl_aBcde8b,
     dnnl_ABcde8b16a2b,
     dnnl_aBCde8b16c2b,
+    dnnl_aBCde4c8b2c,
     dnnl_aCBde8b16c2b,
     dnnl_ABcde8b8a,
     dnnl_aBCde8b8c,
@@ -293,6 +301,8 @@ typedef enum {
     dnnl_aBCde2b8c8b2c,
     dnnl_aBCde8c16b2c,
     dnnl_aBCde8c8b,
+    /// 5D tensor blocked by 3rd dimension with block size 4
+    dnnl_aBCde2b4c2b,
     /// 6D tensor blocked by 2nd dimension with block size 16
     dnnl_aBcdef16b,
     dnnl_aBCdef16b16c,
@@ -300,10 +310,15 @@ typedef enum {
     dnnl_aBCdef4c16b4c,
     /// 6D tensor blocked by 2nd dimension with block size 8
     dnnl_aBCdef2c8b4c,
+    dnnl_aBCdef4c8b2c,
+    /// 6D tensor blocked by 3rd dimension with block size 4
+    dnnl_aBCdef2b4c2b,
     /// 6D tensor blocked by 2nd dimension with block size 4
     dnnl_aBcdef4b,
     dnnl_aBCdef4c4b,
     dnnl_aBCdef4b4c,
+    dnnl_aBCdef2c4b2c,
+    dnnl_aBCdef4b8c2b,
     dnnl_aBCdef8b8c,
     dnnl_aBCdef8c16b2c,
     dnnl_aBCdef8b16c2b,
@@ -576,6 +591,10 @@ typedef enum {
     dnnl_gOwI16o2i = dnnl_aBdC16b2c,
     dnnl_gOwi4o = dnnl_aBdc4b,
     dnnl_gOwi8o = dnnl_aBdc8b,
+    dnnl_gOIw2i4o2i = dnnl_aBCd2c4b2c,
+    dnnl_gOIw2o4i2o = dnnl_aBCd2b4c2b,
+    dnnl_gOIw4i8o2i = dnnl_aBCd4c8b2c,
+    dnnl_gOIw4o8i2o = dnnl_aBCd4b8c2b,
 
     // weights w/ groups, 4D
     dnnl_gIOhw16i16o = dnnl_aCBde16c16b,
@@ -605,6 +624,10 @@ typedef enum {
     dnnl_OIhw2o8i8o2i = dnnl_ABcd2a8b8a2b,
     dnnl_gOIhw4o8i8o4i = dnnl_aBCde4b8c8b4c,
     dnnl_gOIhw2o8i8o2i = dnnl_aBCde2b8c8b2c,
+    dnnl_gOIhw2i4o2i = dnnl_aBCde2c4b2c,
+    dnnl_gOIhw2o4i2o = dnnl_aBCde2b4c2b,
+    dnnl_gOIhw4i8o2i = dnnl_aBCde4c8b2c,
+    dnnl_gOIhw4o8i2o = dnnl_aBCde4b8c2b,
 
     // weights w/ groups, 6D
     dnnl_gIOdhw16i16o = dnnl_aCBdef16c16b,
@@ -627,6 +650,10 @@ typedef enum {
     dnnl_gIOdhw8o16i2o = dnnl_aCBdef8b16c2b,
     dnnl_gOIdhw8o8i = dnnl_aBCdef8b8c,
     dnnl_Goidhw16g = dnnl_Abcdef16a,
+    dnnl_gOIdhw2i4o2i = dnnl_aBCdef2c4b2c,
+    dnnl_gOIdhw4i8o2i = dnnl_aBCdef4c8b2c,
+    dnnl_gOIdhw2o4i2o = dnnl_aBCdef2b4c2b,
+    dnnl_gOIdhw4o8i2o = dnnl_aBCdef4b8c2b,
 } dnnl_format_tag_t;
 
 /// @} dnnl_api_memory

@@ -1482,6 +1482,19 @@ struct memory : public handle<dnnl_memory_t> {
         aBdec32b = dnnl_aBdec32b,
         Abcdef16a = dnnl_Abcdef16a,
         Acdb32a = dnnl_Acdb32a,
+        aBCd2b4c2b = dnnl_aBCd2b4c2b,
+        aBCde2b4c2b = dnnl_aBCde2b4c2b,
+        aBCdef2b4c2b = dnnl_aBCdef2b4c2b,
+        aBCd2c4b2c = dnnl_aBCd2c4b2c,
+        aBCde2c4b2c = dnnl_aBCde2c4b2c,
+        aBCdef2c4b2c = dnnl_aBCdef2c4b2c,
+        aBCd4b8c2b = dnnl_aBCd4b8c2b,
+        aBCde4b8c2b = dnnl_aBCde4b8c2b,
+        aBCdef4b8c2b = dnnl_aBCdef4b8c2b,
+        aBCd4c8b2c = dnnl_aBCd4c8b2c,
+        aBCde4c8b2c = dnnl_aBCde4c8b2c,
+        aBCdef4c8b2c = dnnl_aBCdef4c8b2c,
+
         format_tag_last = dnnl_format_tag_last,
 
         nCdhw16c = dnnl_nCdhw16c,
@@ -1614,6 +1627,18 @@ struct memory : public handle<dnnl_memory_t> {
         gOIdhw2i8o4i = dnnl_gOIdhw2i8o4i,
         gOIdhw8i8o = dnnl_gOIdhw8i8o,
         gOIdhw8o8i = dnnl_gOIdhw8o8i,
+        gOIw2i4o2i = dnnl_gOIw2i4o2i,
+        gOIhw2i4o2i = dnnl_gOIhw2i4o2i,
+        gOIdhw2i4o2i = dnnl_gOIdhw2i4o2i,
+        gOIw2o4i2o = dnnl_gOIw2o4i2o,
+        gOIhw2o4i2o = dnnl_gOIhw2o4i2o,
+        gOIdhw2o4i2o = dnnl_gOIdhw2o4i2o,
+        gOIw4i8o2i = dnnl_gOIw4i8o2i,
+        gOIhw4i8o2i = dnnl_gOIhw4i8o2i,
+        gOIdhw4i8o2i = dnnl_gOIdhw4i8o2i,
+        gOIw4o8i2o = dnnl_gOIw4o8i2o,
+        gOIhw4o8i2o = dnnl_gOIhw4o8i2o,
+        gOIdhw4o8i2o = dnnl_gOIdhw4o8i2o,
     };
 
     /// A memory descriptor.

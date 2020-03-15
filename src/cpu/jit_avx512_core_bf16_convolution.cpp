@@ -65,7 +65,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_1d(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -146,7 +146,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_2d(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -248,7 +248,7 @@ void jit_avx512_core_bf16_convolution_fwd_t::execute_forward_3d(
     const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
     assert(jcp.nb_oc % jcp.nb_oc_blocking == 0);
 
     int oc_chunks = jcp.nb_oc / jcp.nb_oc_blocking;
@@ -360,7 +360,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data_3d(
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
 
     parallel(0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -509,7 +509,7 @@ void jit_avx512_core_bf16_convolution_bwd_data_t ::execute_backward_data(
     const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
     const memory_desc_wrapper weights_d(pd()->weights_md(0));
 
-    const auto &jcp = kernel_->jcp;
+    const auto &jcp = pd()->jcp_;
 
     parallel(0, [&](const int ithr, const int nthr) {
         int start {0}, end {0};

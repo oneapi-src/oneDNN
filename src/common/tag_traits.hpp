@@ -68,6 +68,10 @@ enum class inner_blk_t {
     _8b16c2b,
     _4c16b4c,
     _8c16b2c,
+    _2b4c2b,
+    _2c4b2c,
+    _4b8c2b,
+    _4c8b2c,
 
     _2a8b8a2b,
     _2b8c8b2c,
@@ -86,7 +90,8 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
                     ib::_16a2b, ib::_16b2c, ib::_2c8b4c, ib::_8a16b2a,
                     ib::_4b16a4b, ib::_2b8a4b, ib::_8b16a2b, ib::_8b16c2b,
                     ib::_4c16b4c, ib::_8c16b2c, ib::_2a8b8a2b, ib::_2b8c8b2c,
-                    ib::_4a8b8a4b, ib::_4b8c8b4c),
+                    ib::_4a8b8a4b, ib::_4b8c8b4c, ib::_2b4c2b, ib::_2c4b2c,
+                    ib::_4b8c2b, ib::_4c8b2c),
             "unexpected inner_blk format");
 
     // clang-format off
@@ -103,6 +108,8 @@ constexpr int AB_or_BC_blk_off(int x0, int x1) {
         : (f == ib::_4b16a4b || f == ib::_4c16b4c) ? (x1 / 4) * 64 + x0 * 4 + x1 % 4
         : (f == ib::_2b8a4b || f == ib::_2c8b4c) ? (x1 / 4) * 32 + x0 * 4 + x1 % 4
         : (f == ib::_8b16a2b || f == ib::_8c16b2c) ? (x1 / 2) * 32 + x0 * 2 + x1 % 2
+        : (f == ib::_2b4c2b || f == ib::_2c4b2c) ? (x0 / 2) * 8 + x1 * 2 + x0 % 2
+        : (f == ib::_4b8c2b || f == ib::_4c8b2c) ? (x0 / 2) * 16 + x1 * 2 + x0 % 2
         : (f == ib::_2a8b8a2b || f == ib::_2b8c8b2c) ? (x0 / 8) * 128 + (x1 / 2) * 16 + (x0 % 8) * 2 + x1 % 2
         : (f == ib::_4a8b8a4b || f == ib::_4b8c8b4c) ? (x0 / 8) * 256 + (x1 / 4) * 32 + (x0 % 8) * 4 + x1 % 4
         : INT_MIN;
@@ -281,6 +288,18 @@ DECL_TRAITS(aCBde16c16b, _BC, _16c16b, 4);
 DECL_TRAITS(Acdb32a, _A, _32a, 4);
 DECL_TRAITS(BAcd16b16a, _AB, _16b16a, 4);
 DECL_TRAITS(BAc16b16a, _AB, _16b16a, 3);
+DECL_TRAITS(aBCd2b4c2b, _BC, _2b4c2b, 4);
+DECL_TRAITS(aBCde2b4c2b, _BC, _2b4c2b, 5);
+DECL_TRAITS(aBCdef2b4c2b, _BC, _2b4c2b, 6);
+DECL_TRAITS(aBCd2c4b2c, _BC, _2c4b2c, 4);
+DECL_TRAITS(aBCde2c4b2c, _BC, _2c4b2c, 5);
+DECL_TRAITS(aBCdef2c4b2c, _BC, _2c4b2c, 6);
+DECL_TRAITS(aBCd4b8c2b, _BC, _4b8c2b, 4);
+DECL_TRAITS(aBCde4b8c2b, _BC, _4b8c2b, 5);
+DECL_TRAITS(aBCdef4b8c2b, _BC, _4b8c2b, 6);
+DECL_TRAITS(aBCd4c8b2c, _BC, _4c8b2c, 4);
+DECL_TRAITS(aBCde4c8b2c, _BC, _4c8b2c, 5);
+DECL_TRAITS(aBCdef4c8b2c, _BC, _4c8b2c, 6);
 
 } // namespace impl
 } // namespace dnnl
