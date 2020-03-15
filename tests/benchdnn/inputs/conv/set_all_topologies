@@ -17,5 +17,6 @@
 --batch=shapes_unet
 --batch=shapes_vgg_19
 --batch=shapes_yolov2
+--batch=shapes_3d_resnext101
 --batch=set_maskrcnn
 --batch=set_fastrcnn
