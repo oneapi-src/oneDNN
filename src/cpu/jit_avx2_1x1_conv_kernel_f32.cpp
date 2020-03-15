@@ -212,7 +212,7 @@ void jit_avx2_1x1_conv_kernel_f32::generate_reduce_loop(
         for (int u = 0; u < jcp.reduce_loop_unroll; ++u) {
             for (int j = 0; j < ur; ++j) {
                 for (int i = 0; i < load_loop_blk; ++i) {
-                    if (mayiuse(avx2))
+                    if (jcp.isa == avx2)
                         vfmadd231ps(vreg_accum(i, j), vreg_load(i), vreg_bcast);
                     else { // Intel(R) Advanced Vector Extensions (Intel(R) AVX) support
                         vmulps(vtmp, vreg_bcast, vreg_load(i));
@@ -440,6 +440,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d, const memory_desc_wrapper &dst_d,
         const primitive_attr_t &attr) {
     if (!mayiuse(avx)) return status::unimplemented;
+    jcp.isa = mayiuse(avx2) ? avx2 : avx;
 
     // TODO (Roma): this code is duplicated from the generic kernel; maybe the
     // configuration struct could do some stuff below
@@ -495,7 +496,7 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
-        if (!mayiuse(avx2) && jcp.eltwise.alg != alg_kind::eltwise_relu)
+        if (jcp.isa != avx2 && jcp.eltwise.alg != alg_kind::eltwise_relu)
             return status::unimplemented;
     }
 
@@ -530,12 +531,12 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
 
     // TODO: remove this restriction
     // optimized 1x1 bwd_w does not support Intel AVX
-    if (jcp.prop_kind == backward_weights && !mayiuse(avx2))
+    if (jcp.prop_kind == backward_weights && jcp.isa != avx2)
         return status::unimplemented;
 
     jcp.ic_block = jcp.oc_block = simd_w;
 
-    jcp.ur = mayiuse(avx2) ? 4 : 3; // Intel AVX support
+    jcp.ur = jcp.isa == avx2 ? 4 : 3; // Intel AVX support
     if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
 
     int load_blocking {0};
