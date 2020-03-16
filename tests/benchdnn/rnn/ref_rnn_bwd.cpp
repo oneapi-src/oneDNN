@@ -113,7 +113,7 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
         const float *weights_peephole, const float *bias, const float *dst_iter,
         const float *dst_iter_c, const float *gates,
         const float *diff_dst_layer, const float *diff_dst_iter,
-        const float *diff_dst_iter_c, float *ws_local_) {
+        const float *diff_dst_iter_c, float *cell_scratchpad_) {
 
     switch (p.alg) {
         case VANILLA_LSTM:
@@ -134,13 +134,13 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
             gru_bwd(p, diff_src_layer, diff_src_iter, diff_weights_layer,
                     diff_weights_iter, diff_bias, b_gates, src_layer, src_iter,
                     weights_layer, weights_iter, bias, dst_iter, gates,
-                    diff_dst_layer, diff_dst_iter, ws_local_);
+                    diff_dst_layer, diff_dst_iter, cell_scratchpad_);
             break;
         case LBR_GRU:
             lbr_gru_bwd(p, diff_src_layer, diff_src_iter, diff_weights_layer,
                     diff_weights_iter, diff_bias, b_gates, src_layer, src_iter,
                     weights_layer, weights_iter, bias, dst_iter, gates,
-                    diff_dst_layer, diff_dst_iter, ws_local_);
+                    diff_dst_layer, diff_dst_iter, cell_scratchpad_);
         default: break;
     }
 }
@@ -190,13 +190,15 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
     AOC<float> wsb(wsb_, p.n_layer + 2, p.n_dir(), p.n_iter + 2,
             p.n_states() + 1, p.mb, p.wc);
 
-    int64_t ws_local_size;
+    int64_t cell_scratchpad_size;
     switch (p.alg) {
-        case LBR_GRU: ws_local_size = p.mb * (p.n_gates() + 1) * p.dhc; break;
-        case VANILLA_GRU: ws_local_size = 2 * p.mb * p.dhc; break;
-        default: ws_local_size = 0;
+        case LBR_GRU:
+            cell_scratchpad_size = p.mb * (p.n_gates() + 1) * p.dhc;
+            break;
+        case VANILLA_GRU: cell_scratchpad_size = 2 * p.mb * p.dhc; break;
+        default: cell_scratchpad_size = 0;
     }
-    float *ws_local_ = new float[ws_local_size];
+    float *cell_scratchpad_ = new float[cell_scratchpad_size];
 
     auto process_direction = [&](rnn_iter_direction_t iter_dir,
                                      rnn_layer_direction_t lay_dir,
@@ -238,7 +240,8 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
                         &gates(lay - 1, dir_val, ws_iter - 1, 0, 0, 0),
                         &wsb(prev_lay, dir_val, iter, p.n_states(), 0, 0),
                         &wsb(lay, dir_val, prev_iter, H, 0, 0),
-                        &wsb(lay, dir_val, prev_iter, C, 0, 0), ws_local_);
+                        &wsb(lay, dir_val, prev_iter, C, 0, 0),
+                        cell_scratchpad_);
             }
         }
 
@@ -267,7 +270,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
 
     delete[] wsb_;
     delete[] b_gates;
-    delete[] ws_local_;
+    delete[] cell_scratchpad_;
 }
 
 void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,

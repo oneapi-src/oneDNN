@@ -161,7 +161,7 @@ void rnn_cell_fwd(const prb_t &p, float *dst_iter, float *dst_iter_c,
         float *gates, const float *weights_layer, const float *weights_iter,
         const float *weights_peephole, const float *bias,
         const float *src_layer, const float *src_iter, const float *src_iter_c,
-        float *ws_local_) {
+        float *cell_scratchpad_) {
     switch (p.alg) {
         case VANILLA_GRU:
             gru_fwd(p, dst_iter, gates, weights_layer, weights_iter, bias,
@@ -169,7 +169,7 @@ void rnn_cell_fwd(const prb_t &p, float *dst_iter, float *dst_iter_c,
             break;
         case LBR_GRU:
             lbr_gru_fwd(p, dst_iter, gates, weights_layer, weights_iter, bias,
-                    src_layer, src_iter, ws_local_);
+                    src_layer, src_iter, cell_scratchpad_);
             break;
         case VANILLA_LSTM:
             lstm_fwd(p, dst_iter, dst_iter_c, gates, weights_layer,
@@ -215,8 +215,8 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
     AOC<float> gates(
             gates_, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.n_gates(), p.dhc);
 
-    int64_t ws_local_size = is_lbr * p.mb * p.n_gates() * p.dhc;
-    float *ws_local_ = new float[ws_local_size];
+    int64_t cell_scratchpad_size = is_lbr * p.mb * p.n_gates() * p.dhc;
+    float *cell_scratchpad_ = new float[cell_scratchpad_size];
 
     auto process_direction = [&](rnn_iter_direction_t iter_dir,
                                      rnn_layer_direction_t lay_dir,
@@ -247,7 +247,8 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
                         &bias(lay - 1, dir_val, 0),
                         &ws(lay - 1, dir_val, iter, H, 0, 0),
                         &ws(lay, dir_val, prev_iter, H, 0, 0),
-                        &ws(lay, dir_val, prev_iter, C, 0, 0), ws_local_);
+                        &ws(lay, dir_val, prev_iter, C, 0, 0),
+                        cell_scratchpad_);
             }
         }
 
@@ -274,7 +275,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
         default: assert(!"unknown direction"); break;
     }
 
-    delete[] ws_local_;
+    delete[] cell_scratchpad_;
     if (bias_with_compensation) delete[] bias_with_compensation;
 }
 
