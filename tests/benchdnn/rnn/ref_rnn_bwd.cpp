@@ -193,7 +193,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
     int64_t ws_local_size;
     switch (p.alg) {
         case LBR_GRU: ws_local_size = p.mb * (p.n_gates() + 1) * p.dhc; break;
-        case VANILLA_GRU: ws_local_size = 2 * p.mb * p.wc; break;
+        case VANILLA_GRU: ws_local_size = 2 * p.mb * p.dhc; break;
         default: ws_local_size = 0;
     }
     float *ws_local_ = new float[ws_local_size];

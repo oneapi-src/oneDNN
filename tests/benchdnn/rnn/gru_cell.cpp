@@ -135,17 +135,14 @@ void gru_bwd_pregemm_part1(const prb_t &p, const float *src_iter_,
 }
 
 void gru_bwd_pregemm_part2(const prb_t &p, const float *src_iter_,
-        const float *gates_, float *diff_src_iter_, float *b_gates_,
-        float *ws_local_) {
-    float *dhr_ = ws_local_;
-    float *hr_ = ws_local_ + p.mb * p.wc;
-
+        const float *gates_, const float *dhr_, float *diff_src_iter_,
+        float *b_gates_, float *hr_) {
     AOC<const float> src_iter(src_iter_, p.mb, p.wc);
     AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dhc);
+    AOC<const float> dhr(dhr_, p.mb, p.dhc);
     AOC<float> diff_src_iter(diff_src_iter_, p.mb, p.wc);
     AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
-    AOC<float> dhr(dhr_, p.mb, p.wc);
-    AOC<float> hr(hr_, p.mb, p.wc);
+    AOC<float> hr(hr_, p.mb, p.dhc);
 
     // dhr = Wo do^;
     // dr = h * dhr; dr^ = x_m_square(r) * dr;
@@ -172,25 +169,26 @@ void gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
     AOC<float> diff_weights_iter(diff_weights_iter_, p.sic, p.n_gates(), p.dhc);
     AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
 
+    assert(p.dhc == p.sic);
     float *dhr_ = ws_local_;
-    float *hr_ = ws_local_ + p.mb * p.wc;
+    float *hr_ = ws_local_ + p.mb * p.dhc;
 
     gru_bwd_pregemm_part1(p, src_iter_, diff_dst_layer_, diff_dst_iter_, gates_,
             diff_src_iter_, b_gates_);
 
     gemm("C", "N", "T", p.mb, p.sic, p.dhc, 1.0, &(b_gates(0, GRU_O, 0)),
             p.n_gates() * p.dhc, &(weights_iter(0, GRU_O, 0)),
-            p.n_gates() * p.dhc, 0.0, dhr_, p.wc);
+            p.n_gates() * p.dhc, 0.0, dhr_, p.dhc);
 
     gru_bwd_pregemm_part2(
-            p, src_iter_, gates_, diff_src_iter_, b_gates_, ws_local_);
+            p, src_iter_, gates_, dhr_, diff_src_iter_, b_gates_, hr_);
 
     // dWx += xdu^ | xdr^ | xdo^
     // dWh += hdu^ | ddr^ | (h * r)do^
     gemm("C", "T", "N", p.sic, (p.n_gates() - 1) * p.dhc, p.mb, 1.0, src_iter_,
             p.wc, b_gates_, p.n_gates() * p.dhc, 1.0, diff_weights_iter_,
             p.n_gates() * p.dhc);
-    gemm("C", "T", "N", p.sic, p.dhc, p.mb, 1.0, hr_, p.wc,
+    gemm("C", "T", "N", p.sic, p.dhc, p.mb, 1.0, hr_, p.dhc,
             &(b_gates(0, GRU_O, 0)), p.n_gates() * p.dhc, 1.0,
             &(diff_weights_iter(0, GRU_O, 0)), p.n_gates() * p.dhc);
     gemm("C", "T", "N", p.slc, p.n_gates() * p.dhc, p.mb, 1.0, src_layer_, p.wc,
