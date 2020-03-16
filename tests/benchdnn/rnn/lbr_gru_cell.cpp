@@ -20,7 +20,8 @@
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
-#include "rnn/rnn_cells.hpp"
+
+#include "rnn/cells.hpp"
 
 namespace rnn {
 template <typename T1, typename T2>

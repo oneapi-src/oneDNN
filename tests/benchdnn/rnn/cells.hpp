@@ -16,10 +16,8 @@
 
 #ifndef BENCHDNN_RNN_CELLS_HPP
 #define BENCHDNN_RNN_CELLS_HPP
-#include "src/common/dnnl_thread.hpp"
 
 #include "rnn/rnn.hpp"
-#include "rnn/rnn_aux.hpp"
 
 namespace rnn {
 
@@ -68,6 +66,7 @@ void lbr_gru_fwd(const prb_t &p, float *dst_iter_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *src_layer_, const float *src_iter_,
         float *ws_local_);
+
 void lbr_gru_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
