@@ -4,8 +4,8 @@
 --dt=f32
 --alg=ACROSS,WITHIN
 --dir=FWD_D,FWD_I,BWD_D
---tag=nchw,nhwc,nChw8c,nChw16c     --batch=lrn_2d_all
---tag=nc                           --batch=lrn_0d_all
+--tag=abx              --batch=set_lrn_all
+--tag=axb,aBx8b,aBx16b --batch=lrn_2d_all
 
 # bf16
 --batch=test_lrn_bfloat16

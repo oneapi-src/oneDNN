@@ -9,7 +9,7 @@
 --attr=oscale=common:1.25;post_ops='sum'              m10n20k30
 --attr=oscale=per_oc:1.25;post_ops='relu'             m10n20k30
 --attr=post_ops='sum:2;linear:3:-1'                   m10n1k30
-
+--attr=post_ops='linear:3:-1:2'                       m10n1k30
 
 # test any
 --reset
@@ -22,12 +22,19 @@
 # test x8x8x8
 --reset
 
---cfg=u8s8s32,u8s8f32,s8s8s8,s8s8s32,s8s8u8
---runtime_m=0,1 --runtime_n=0,1 --runtime_k=0,1
+--cfg=u8s8s32,u8s8f32,s8s8s8
+--runtime_m=0,1 --runtime_n=1 --runtime_k=0
 --bia_dt=undef,f32,u8
---stag=ab,ba --wtag=ab,ba --dtag=ab
+--stag=ab,ba --wtag=ab --dtag=ab
 
 --attr=oscale=common:2.25*;zero_points=src:1*_wei:-1*_dst:2*;post_ops='sum;relu'  m100n10k10
+
+--cfg=s8s8s8,s8s8s32,s8s8u8
+--runtime_m=0 --runtime_n=0,1 --runtime_k=1
+--bia_dt=undef,u8
+--stag=ba --wtag=ab,ba --dtag=ab
+
+--attr=oscale=common:1.15;zero_points=src:1_wei:-2_dst:3*;post_ops='sum;relu'     m10n10k100
 
 # 3d
 --reset

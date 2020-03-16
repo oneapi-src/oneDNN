@@ -32,7 +32,7 @@ status_t dnnl_binary_desc_init(binary_desc_t *binary_desc, alg_kind_t alg_kind,
         const memory_desc_t *src0_md, const memory_desc_t *src1_md,
         const memory_desc_t *dst_md) {
     bool args_ok = true && !any_null(binary_desc, src0_md, src1_md, dst_md)
-            && one_of(alg_kind, binary_add, binary_mul);
+            && one_of(alg_kind, binary_add, binary_mul, binary_max, binary_min);
     if (!args_ok) return invalid_arguments;
 
     auto bod = binary_desc_t();

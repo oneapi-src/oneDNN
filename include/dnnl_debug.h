@@ -42,6 +42,7 @@ const char DNNL_API *dnnl_rnn_flags2str(dnnl_rnn_flags_t v);
 const char DNNL_API *dnnl_rnn_direction2str(dnnl_rnn_direction_t v);
 const char DNNL_API *dnnl_engine_kind2str(dnnl_engine_kind_t v);
 const char DNNL_API *dnnl_scratchpad_mode2str(dnnl_scratchpad_mode_t v);
+const char DNNL_API *dnnl_cpu_isa2str(dnnl_cpu_isa_t v);
 
 const char DNNL_API *dnnl_runtime2str(unsigned v);
 

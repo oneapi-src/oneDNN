@@ -107,10 +107,12 @@ const dt_conf_t *str2cfg(const char *str);
 const char *cfg2str(const dt_conf_t *cfg);
 const dt_conf_t *auto_cfg(const alg_t alg, const dt_conf_t *cfg);
 
+float *generate_oscales(const attr_t::scale_t &oscale, int N);
+
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-            dnnl_format_tag_t stag, dnnl_format_tag_t wtag,
-            dnnl_format_tag_t dtag, alg_t alg, const attr_t &attr,
+            const std::string &stag, const std::string &wtag,
+            const std::string &dtag, alg_t alg, const attr_t &attr,
             int64_t mb = 0, bool is_deconv = false)
         : desc_t(desc)
         , dir(dir)
@@ -125,7 +127,7 @@ struct prb_t : public desc_t {
         , is_deconv(is_deconv) {
         if (mb) this->mb = mb;
         count_ops();
-        generate_oscales();
+        scales = generate_oscales(attr.oscale, oc);
     }
     ~prb_t() {
         if (scales) zfree(scales);
@@ -133,7 +135,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    dnnl_format_tag_t stag, wtag, dtag;
+    std::string stag, wtag, dtag;
     alg_t alg;
     attr_t attr;
 
@@ -142,7 +144,6 @@ struct prb_t : public desc_t {
     bool is_deconv;
 
     void count_ops();
-    void generate_oscales();
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
 };

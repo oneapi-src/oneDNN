@@ -18,6 +18,7 @@
 #include "dnnl_thread.hpp"
 #include "dnnl_traits.hpp"
 #include "math_utils.hpp"
+#include "simple_q10n.hpp"
 #include "type_helpers.hpp"
 
 #include "ref_convolution.hpp"
@@ -72,10 +73,30 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
     const int padT = pd()->padT();
     const int padL = pd()->padL();
 
-    const bool with_relu = 0; // TODO: change if support post_ops
-    const float nslope = 0.f;
-
     const int ndims = pd()->desc()->src_desc.ndims;
+
+    using namespace data_type;
+    bool is_int_conv = utils::one_of(src_type, s32, s8, u8);
+
+    auto maybe_oscale = [=](float &d, int g, int oc) {
+        // scale_idx_mult = 1 for per_oc scales and 0, otherwise
+        const int scale_idx_mult
+                = pd()->attr()->output_scales_.mask_ == (1 << 1);
+        const float *scales = pd()->attr()->output_scales_.scales_;
+        d *= scales[(g * OC + oc) * scale_idx_mult];
+    };
+
+    auto maybe_postops = [=](float &d, dst_data_t dst) {
+        // Sum and post ops:
+        const post_ops_t &ops = pd()->attr()->post_ops_;
+        for (int idx = 0; idx < ops.len_; ++idx) {
+            const auto &e = ops.entry_[idx];
+            if (e.kind == dnnl_sum)
+                d += e.sum.scale * dst;
+            else
+                d = eltwises_[idx]->compute_scalar(d);
+        }
+    };
 
     auto ker = [=](int g, int mb, int oc, int od, int oh, int ow) {
         acc_data_t d = 0;
@@ -204,18 +225,23 @@ void ref_convolution_fwd_t<src_type, wei_type, dst_type,
                 else
                     a += ker(g, mb, oc, od, oh, ow);
 
-                if (with_relu && a < 0) a = a * nslope;
+                dim_t dst_off {0};
                 if (ndims == 5)
-                    dst[dst_d.off(mb, g * OC + oc, od, oh, ow)]
-                            = saturate<dst_data_t>(a);
+                    dst_off = dst_d.off(mb, g * OC + oc, od, oh, ow);
                 else if (ndims == 4)
-                    dst[dst_d.off(mb, g * OC + oc, oh, ow)]
-                            = saturate<dst_data_t>(a);
+                    dst_off = dst_d.off(mb, g * OC + oc, oh, ow);
                 else if (ndims == 3)
-                    dst[dst_d.off(mb, g * OC + oc, ow)]
-                            = saturate<dst_data_t>(a);
+                    dst_off = dst_d.off(mb, g * OC + oc, ow);
                 else
                     assert(false);
+
+                maybe_oscale(a, g, oc);
+                maybe_postops(a, dst[dst_off]);
+
+                if (is_int_conv)
+                    dst[dst_off] = qz_a1b0<float, dst_data_t>()(a);
+                else
+                    dst[dst_off] = saturate<dst_data_t>(a);
             });
 }
 
@@ -263,6 +289,17 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
     const int padL = pd()->padL();
 
     const int ndims = pd()->desc()->diff_src_desc.ndims;
+
+    using namespace data_type;
+    bool is_int_conv = utils::one_of(diff_dst_type, s32, s8, u8);
+
+    auto maybe_oscale = [=](float &d, int g, int ic) {
+        /* scale_idx_mult = 1 for per_oc scales and 0, otherwise */
+        const int scale_idx_mult
+                = pd()->attr()->output_scales_.mask_ == (1 << 1);
+        const float *scales = pd()->attr()->output_scales_.scales_;
+        d *= scales[(g * OC + ic) * scale_idx_mult];
+    };
 
     auto ker = [=](int g, int mb, int ic, int id, int ih, int iw) {
         acc_data_t d = 0;
@@ -415,7 +452,11 @@ void ref_convolution_bwd_data_t<diff_src_type, wei_type, diff_dst_type,
                     a += ker_plain(g, mb, ic, id, ih, iw);
                 else
                     a += ker(g, mb, ic, id, ih, iw);
-                diff_src[ds_idx] = saturate<diff_src_data_t>(a);
+                maybe_oscale(a, g, ic);
+                if (is_int_conv)
+                    diff_src[ds_idx] = round_and_saturate<diff_src_data_t>(a);
+                else
+                    diff_src[ds_idx] = saturate<diff_src_data_t>(a);
             });
 }
 
@@ -463,6 +504,9 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
     const int padL = pd()->padL();
 
     const int ndims = pd()->desc()->src_desc.ndims;
+
+    using namespace data_type;
+    bool is_int_conv = utils::one_of(src_type, s32, s8, u8);
 
     auto ker = [=](acc_data_t &d, int g, int oc, int ic, int kd, int kh,
                        int kw) {
@@ -571,8 +615,12 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
             // XXX: loss of precision when bias is a float...
             acc_data_t db = 0;
             ker_bias(db, g, oc);
-            diff_bias[diff_bias_d.off(g * OC + oc)]
-                    = saturate<diff_wei_data_t>(db);
+            if (is_int_conv)
+                diff_bias[diff_bias_d.off(g * OC + oc)]
+                        = round_and_saturate<diff_wei_data_t>(db);
+            else
+                diff_bias[diff_bias_d.off(g * OC + oc)]
+                        = saturate<diff_wei_data_t>(db);
         }
 
         for_(int ic = 0; ic < IC; ++ic)
@@ -585,22 +633,22 @@ void ref_convolution_bwd_weights_t<src_type, diff_wei_type, diff_dst_type,
             else
                 ker(dw, g, oc, ic, kd, kh, kw);
 
-            if (ndims == 5) {
-                auto idx = with_groups
-                        ? diff_weights_d.off(g, oc, ic, kd, kh, kw)
-                        : diff_weights_d.off(oc, ic, kd, kh, kw);
-                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
-            } else if (ndims == 4) {
-                auto idx = with_groups ? diff_weights_d.off(g, oc, ic, kh, kw)
-                                       : diff_weights_d.off(oc, ic, kh, kw);
-                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
-            } else if (ndims == 3) {
-                auto idx = with_groups ? diff_weights_d.off(g, oc, ic, kw)
-                                       : diff_weights_d.off(oc, ic, kw);
-                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
-            } else {
+            dim_t idx {0};
+            if (ndims == 5)
+                idx = with_groups ? diff_weights_d.off(g, oc, ic, kd, kh, kw)
+                                  : diff_weights_d.off(oc, ic, kd, kh, kw);
+            else if (ndims == 4)
+                idx = with_groups ? diff_weights_d.off(g, oc, ic, kh, kw)
+                                  : diff_weights_d.off(oc, ic, kh, kw);
+            else if (ndims == 3)
+                idx = with_groups ? diff_weights_d.off(g, oc, ic, kw)
+                                  : diff_weights_d.off(oc, ic, kw);
+            else
                 assert(false);
-            }
+            if (is_int_conv)
+                diff_weights[idx] = round_and_saturate<diff_wei_data_t>(dw);
+            else
+                diff_weights[idx] = saturate<diff_wei_data_t>(dw);
         }
     });
 }
@@ -613,6 +661,10 @@ template struct ref_convolution_fwd_t<u8, s8, f32, s32>;
 template struct ref_convolution_fwd_t<u8, s8, s32, s32>;
 template struct ref_convolution_fwd_t<u8, s8, s8, s32>;
 template struct ref_convolution_fwd_t<u8, s8, u8, s32>;
+template struct ref_convolution_fwd_t<s8, s8, f32, s32>;
+template struct ref_convolution_fwd_t<s8, s8, s32, s32>;
+template struct ref_convolution_fwd_t<s8, s8, s8, s32>;
+template struct ref_convolution_fwd_t<s8, s8, u8, s32>;
 
 template struct ref_convolution_bwd_data_t<f32, f32, f32, f32>;
 
@@ -620,6 +672,10 @@ template struct ref_convolution_bwd_data_t<f32, s8, u8, s32>;
 template struct ref_convolution_bwd_data_t<s32, s8, u8, s32>;
 template struct ref_convolution_bwd_data_t<s8, s8, u8, s32>;
 template struct ref_convolution_bwd_data_t<u8, s8, u8, s32>;
+template struct ref_convolution_bwd_data_t<f32, s8, s8, s32>;
+template struct ref_convolution_bwd_data_t<s32, s8, s8, s32>;
+template struct ref_convolution_bwd_data_t<s8, s8, s8, s32>;
+template struct ref_convolution_bwd_data_t<u8, s8, s8, s32>;
 
 template struct ref_convolution_bwd_weights_t<f32, f32, f32, f32>;
 

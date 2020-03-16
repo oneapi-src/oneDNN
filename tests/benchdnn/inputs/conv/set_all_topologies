@@ -1,5 +1,6 @@
 --batch=shapes_1d_wavenet
 --batch=shapes_3d_unet
+--batch=shapes_3d_i3d
 --batch=shapes_a3c
 --batch=shapes_alexnet
 --batch=shapes_densnet

@@ -136,7 +136,7 @@ protected:
                     } else {
                         // NOTE: here G is assumed to be xmm0 for sse4.1 blendvps to work
                         uni_vcmpps(G, G, zero, _cmp_nle_us);
-                        uni_vmovss(dG, alpha);
+                        uni_vmovups(dG, alpha);
                         uni_vblendvps(dG, dG, one, G);
                     }
                     break;
@@ -194,7 +194,7 @@ protected:
                     // G > 0 ? alpha : 1
                     // NOTE: here G is assumed to be xmm0 for sse4.1 blendvps to work
                     uni_vcmpps(G, G, zero, _cmp_nle_us);
-                    uni_vmovss(dG, alpha);
+                    uni_vmovups(dG, alpha);
                     uni_vblendvps(dG, dG, one, G);
                     break;
                 case alg_kind::eltwise_tanh:

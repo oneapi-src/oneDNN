@@ -78,7 +78,7 @@ status_t arg_scales_t::get(
 status_t zero_points_t::get(
         int arg, dim_t *count, int *mask, const int **zero_points) const {
     if (count) *count = 1;
-    if (mask) *mask = 0;
+    if (mask) *mask = get_mask(arg);
     if (zero_points) *zero_points = get(arg);
     return status::success;
 }
@@ -89,14 +89,26 @@ status_t zero_points_t::set(
 
     const bool supported_arg
             = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
-    const bool ok = count == 1 && mask == 0
+    const bool ok = count == 1
+            && IMPLICATION(mask != 0,
+                    arg == DNNL_ARG_DST
+                            && zero_points[0] == DNNL_RUNTIME_S32_VAL)
             && IMPLICATION(!supported_arg, *zero_points == 0);
     if (!ok) return status::unimplemented;
 
     switch (arg) {
-        case DNNL_ARG_SRC: zero_point_src = *zero_points; break;
-        case DNNL_ARG_WEIGHTS: zero_point_wei = *zero_points; break;
-        case DNNL_ARG_DST: zero_point_dst = *zero_points; break;
+        case DNNL_ARG_SRC:
+            zero_point_src = *zero_points;
+            mask_src = mask;
+            break;
+        case DNNL_ARG_WEIGHTS:
+            zero_point_wei = *zero_points;
+            mask_wei = mask;
+            break;
+        case DNNL_ARG_DST:
+            zero_point_dst = *zero_points;
+            mask_dst = mask;
+            break;
     }
     return status::success;
 }
@@ -157,17 +169,8 @@ status_t post_ops_t::append_sum(float scale) {
 
 status_t post_ops_t::append_eltwise(
         float scale, alg_kind_t alg, float alpha, float beta) {
-    using namespace dnnl::impl::alg_kind;
-    bool known_alg = one_of(alg, eltwise_relu, eltwise_tanh, eltwise_elu,
-            eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
-            eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-            eltwise_clip);
-    if (!known_alg) return invalid_arguments;
-
-    bool ok = true && IMPLICATION(alg == eltwise_bounded_relu, alpha >= 0)
-            && IMPLICATION(alg == eltwise_clip, beta >= alpha);
-    if (!ok) return invalid_arguments;
+    if (!math::is_eltwise_ok(data_type::undef, alg, alpha, beta))
+        return invalid_arguments;
 
     if (len_ == capacity) return out_of_memory;
 
@@ -182,15 +185,82 @@ status_t post_ops_t::append_eltwise(
     return success;
 }
 
+dnnl::impl::status_t post_ops_t::entry_t::set_depthwise_scales(
+        const float *scales) {
+
+    auto &d = this->depthwise_conv;
+
+    const dim_t scales_buf_size = 16; // derived from scales_t::scales_buf_size
+    const dim_t buf_size = nstl::max(scales_buf_size, d.count);
+
+    d.scales = nullptr;
+
+    if (d.count > 0) {
+        d.scales = (float *)dnnl::impl::malloc(buf_size * sizeof(*scales), 64);
+        if (d.scales == nullptr) return status::out_of_memory;
+    } else
+        return dnnl::impl::status::success;
+
+    if (is_runtime_value(*scales)) {
+        d.scales[0] = *scales;
+    } else if (d.count == 1) {
+        utils::array_set(d.scales, scales[0], buf_size);
+    } else {
+        utils::array_copy(d.scales, scales, d.count);
+    }
+    return dnnl::impl::status::success;
+}
+
+status_t post_ops_t::append_dw_k3s1p1(data_type_t wei_dt, data_type_t bias_dt,
+        data_type_t dst_dt, dim_t count, int mask, const float *scales) {
+    if (len_ == capacity) return out_of_memory;
+    bool ok = true && (wei_dt != data_type::undef)
+            && (dst_dt != data_type::undef) && (IMPLICATION(count > 0, scales))
+            && mask >= 0;
+    if (!ok) return invalid_arguments;
+
+    entry_[len_].kind = primitive_kind::convolution;
+    auto &d = entry_[len_].depthwise_conv;
+    d.stride = 1;
+    d.wei_dt = wei_dt;
+    d.bias_dt = bias_dt;
+    d.dst_dt = dst_dt;
+    d.count = count;
+    d.mask = mask;
+    d.scales = nullptr;
+
+    auto status = entry_[len_].set_depthwise_scales(scales);
+    if (status != status::success) return status;
+
+    len_++;
+
+    return success;
+}
+
+status_t post_ops_t::append_dw_k3s2p1(data_type_t wei_dt, data_type_t bias_dt,
+        data_type_t dst_dt, dim_t count, int mask, const float *scales) {
+
+    auto status
+            = append_dw_k3s1p1(wei_dt, bias_dt, dst_dt, count, mask, scales);
+    if (status != success) return status;
+    entry_[len_ - 1].depthwise_conv.stride = 2;
+
+    return success;
+}
+
 bool post_ops_t::defined() const {
     for (int idx = 0; idx < len_; ++idx) {
-        if (entry_[idx].kind == primitive_kind::sum) {
+        auto kind = entry_[idx].kind;
+        if (kind == primitive_kind::sum) {
             if (is_runtime_value(entry_[idx].sum.scale)) return false;
-        } else if (entry_[idx].kind == primitive_kind::eltwise) {
+        } else if (kind == primitive_kind::eltwise) {
             const auto &e = entry_[idx].eltwise;
             if (is_runtime_value(e.scale) || is_runtime_value(e.alpha)
                     || is_runtime_value(e.beta))
                 return false;
+        } else if (kind == primitive_kind::convolution) {
+            const auto &c = entry_[idx].depthwise_conv;
+            if (c.scales && is_runtime_value(*(c.scales))) return false;
         } else {
             assert(!"unreachable");
         }
@@ -386,6 +456,62 @@ status_t dnnl_post_ops_get_params_eltwise(const post_ops_t *post_ops, int index,
     *alg = e.alg;
     *alpha = e.alpha;
     *beta = e.beta;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_dw_k3s1p1(post_ops_t *post_ops,
+        data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
+        dim_t count, int mask, const float *scales) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_dw_k3s1p1(
+            wei_dt, bias_dt, dst_dt, count, mask, scales);
+}
+
+status_t dnnl_post_ops_get_params_dw_k3s1p1(const post_ops_t *post_ops,
+        int index, data_type_t *wei_dt, data_type_t *bias_dt,
+        data_type_t *dst_dt, dim_t *count, int *mask, const float **scales) {
+
+    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
+        return invalid_arguments;
+
+    const auto &d = post_ops->entry_[index].depthwise_conv;
+    if (d.stride != 1) return invalid_arguments;
+    if (wei_dt) *wei_dt = d.wei_dt;
+    if (bias_dt) *bias_dt = d.bias_dt;
+    if (dst_dt) *dst_dt = d.dst_dt;
+    if (count) *count = d.count;
+    if (mask) *mask = d.mask;
+    if (scales) *scales = d.scales;
+
+    return success;
+}
+
+status_t dnnl_post_ops_append_dw_k3s2p1(post_ops_t *post_ops,
+        data_type_t wei_dt, data_type_t bias_dt, data_type_t dst_dt,
+        dim_t count, int mask, const float *scales) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_dw_k3s2p1(
+            wei_dt, bias_dt, dst_dt, count, mask, scales);
+}
+
+status_t dnnl_post_ops_get_params_dw_k3s2p1(const post_ops_t *post_ops,
+        int index, data_type_t *wei_dt, data_type_t *bias_dt,
+        data_type_t *dst_dt, dim_t *count, int *mask, const float **scales) {
+
+    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
+        return invalid_arguments;
+
+    const auto &d = post_ops->entry_[index].depthwise_conv;
+    if (d.stride != 2) return invalid_arguments;
+    if (wei_dt) *wei_dt = d.wei_dt;
+    if (bias_dt) *bias_dt = d.bias_dt;
+    if (dst_dt) *dst_dt = d.dst_dt;
+    if (count) *count = d.count;
+    if (mask) *mask = d.mask;
+    if (scales) *scales = d.scales;
 
     return success;
 }

@@ -12,12 +12,16 @@
 --attr=post_ops='sum;linear:0.5:1.5' --batch=shapes_tails
 --attr=post_ops='sum;brelu:0.5' --batch=shapes_tails
 --attr=post_ops='sum;logistic:0:0:2.5' --batch=shapes_tails
---cfg=f32_no_limits # square, srelu and exp might overrun int_max_exact
+--cfg=f32_no_limits # kinds that overrun int_max_exact
 --attr=post_ops='sum;square' --batch=shapes_tails
 --attr=post_ops='sum;srelu' --batch=shapes_tails
+--attr=post_ops='sum;pow:0.5:0.33' --batch=shapes_tails
 
 # f32_wino
 --reset --alg=wino --cfg=f32_wino
 --mb=2
 --allow-unimpl=true
 --dir=FWD_B --attr=post_ops='sum;relu' --batch=shapes_resnet_50
+
+# Depthwise fusion
+--batch=harness_conv_fused_depthwise

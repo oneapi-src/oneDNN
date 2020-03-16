@@ -24,6 +24,7 @@
 
 #include "gemm.hpp"
 #include "gemm_driver.hpp"
+#include "gemm_utils.hpp"
 #include "os_blas.hpp"
 
 namespace dnnl {
@@ -67,10 +68,17 @@ static inline bool use_reference_igemm(void) {
             && data_traits<a_dt>::data_type == data_type::s8
             && data_traits<b_dt>::data_type == data_type::u8;
     if (is_s8u8)
-        return !mayiuse(avx2) || mayiuse(avx512_mic);
+        return !mayiuse(sse41) || mayiuse(avx512_mic);
     else
         return !mayiuse(avx512_core);
 }
+
+#else
+template <typename a_dt, typename b_dt>
+static inline bool use_reference_igemm(void) {
+    return true;
+}
+#endif
 
 template <typename T>
 static bool is_good_ld(dim_t ld) {
@@ -79,7 +87,6 @@ static bool is_good_ld(dim_t ld) {
 
     return ((ld % align) == 0) && ((ld % no_align) != 0);
 }
-#endif
 
 static dnnl_status_t check_pack_get_size_input(const char *identifier,
         const char *transa, const char *transb, const int *M, const int *N,
@@ -245,7 +252,13 @@ dnnl_status_t gemm_x8x8s32_pack_get_size(const char *identifier,
     } else {
         auto rows = do_a ? *M : *K;
         auto cols = do_a ? *K : *N;
-        prep_ref_gemm_s8u8s32_pack(do_a, rows, cols, &shell);
+        if (do_a) {
+            gemm_utils::prep_gemm_pack<int8_t, int32_t>(
+                    do_a, no_trans, rows, cols, &shell);
+        } else {
+            gemm_utils::prep_gemm_pack<uint8_t, int32_t>(
+                    do_a, no_trans, rows, cols, &shell);
+        }
     }
 
     *size = shell.size();
@@ -330,11 +343,11 @@ dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier, const char *transa,
 template <typename a_dt, typename b_dt>
 dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
         const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const void *src, void *dst) {
+        const int *lda, const int *ldb, const void *src_void, void *dst) {
 
     float alpha = 1.0f; // Not used with igemm.
-    auto result = check_pack_input(
-            identifier, transa, transb, M, N, K, &alpha, lda, ldb, src, dst);
+    auto result = check_pack_input(identifier, transa, transb, M, N, K, &alpha,
+            lda, ldb, src_void, dst);
     if (result != dnnl_success) return result;
 
 #if USE_MKL_PACKED_GEMM
@@ -347,7 +360,7 @@ dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
         auto ld = (cblas_id == CblasAMatrix) ? *lda : *ldb;
         auto trans = (cblas_id == CblasAMatrix) ? transa : transb;
         cblas_gemm_s8u8s32_pack(CblasColMajor, cblas_id, cblas_transpose(trans),
-                *M, *N, *K, src, ld, dst);
+                *M, *N, *K, src_void, ld, dst);
         return dnnl_success;
     }
 #endif
@@ -355,7 +368,7 @@ dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
 
     if (!use_reference_igemm<a_dt, b_dt>()) {
         return gemm_pack_driver<a_dt, b_dt, int32_t>(identifier, transa, transb,
-                M, N, K, &alpha, lda, ldb, src, &pack_dst, false);
+                M, N, K, &alpha, lda, ldb, src_void, &pack_dst, false);
     } else {
         bool do_a = utils::one_of(*identifier, 'a', 'A');
         bool is_trans = utils::one_of(do_a ? *transa : *transb, 't', 'T');
@@ -363,8 +376,19 @@ dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
         auto rows = do_a ? *M : *K;
         auto cols = do_a ? *K : *N;
 
-        prep_ref_gemm_s8u8s32_pack(do_a, rows, cols, &pack_dst);
-        return ref_gemm_s8u8s32_pack(src, ld, rows, cols, is_trans, &pack_dst);
+        if (do_a) {
+            gemm_utils::prep_gemm_pack<int8_t, int32_t>(
+                    do_a, no_trans, rows, cols, &pack_dst);
+            auto src = reinterpret_cast<const int8_t *>(src_void);
+            return gemm_utils::pack_no_copy(
+                    src, ld, rows, cols, is_trans, alpha, &pack_dst);
+        } else {
+            gemm_utils::prep_gemm_pack<uint8_t, int32_t>(
+                    do_a, no_trans, rows, cols, &pack_dst);
+            auto src = reinterpret_cast<const uint8_t *>(src_void);
+            return gemm_utils::pack_no_copy(
+                    src, ld, rows, cols, is_trans, alpha, &pack_dst);
+        }
     }
 }
 
@@ -455,18 +479,22 @@ dnnl_status_t gemm_x8x8s32_compute(const char *transa, const char *transb,
 
         if (transa_eff == 'p' || transa_eff == 'P') {
             gemm_pack_storage_t a_packed {A};
-            if (!a_packed.get_nocopy(ld, td)) return dnnl_invalid_arguments;
+            int trans;
+            if (!a_packed.get_nocopy(trans, ld, td))
+                return dnnl_invalid_arguments;
             A = a_packed.matrix<a_dt>();
             lda_eff = ld;
-            transa_eff = 'N';
+            transa_eff = trans == no_trans ? 'N' : 'T';
         }
 
         if (transb_eff == 'p' || transb_eff == 'P') {
             gemm_pack_storage_t b_packed {B};
-            if (!b_packed.get_nocopy(ld, td)) return dnnl_invalid_arguments;
+            int trans;
+            if (!b_packed.get_nocopy(trans, ld, td))
+                return dnnl_invalid_arguments;
             B = b_packed.matrix<b_dt>();
             ldb_eff = ld;
-            transb_eff = 'N';
+            transb_eff = trans == no_trans ? 'N' : 'T';
         }
 
         return gemm_s8x8s32(&transa_eff, &transb_eff, offsetc, M, N, K, alpha,

@@ -66,7 +66,7 @@ set(DNNL_INSTALL_MODE "DEFAULT" CACHE STRING
 set(DNNL_CODE_COVERAGE "OFF" CACHE STRING
     "specifies which supported tool for code coverage will be used
     Currently only gcov supported")
-if(NOT ${DNNL_CODE_COVERAGE} MATCHES "^(OFF|GCOV)$")
+if(NOT "${DNNL_CODE_COVERAGE}" MATCHES "^(OFF|GCOV)$")
     message(FATAL_ERROR "Unsupported code coverage tool: ${DNNL_CODE_COVERAGE}")
 endif()
 
@@ -122,7 +122,7 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
 
     Using DPC++ for CPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
-if(NOT ${DNNL_CPU_RUNTIME} MATCHES "^(OMP|TBB|SEQ|DPCPP|SYCL)$")
+if(NOT "${DNNL_CPU_RUNTIME}" MATCHES "^(OMP|TBB|SEQ|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported CPU runtime: ${DNNL_CPU_RUNTIME}")
 endif()
 
@@ -140,7 +140,7 @@ set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
 
     Using DPC++ for GPU requires setting DPCPPROOT if the libraries are
     installed in a non-standard location.")
-if(NOT ${DNNL_GPU_RUNTIME} MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
+if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
     message(FATAL_ERROR "Unsupported GPU runtime: ${DNNL_GPU_RUNTIME}")
 endif()
 

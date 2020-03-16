@@ -1,8 +1,9 @@
 # Small tests
-# f32
+# f32, bf16
 --reset
 
 # RNN
+--cfg=f32,bf16
 --alg=VANILLA_RNN
 --direction=left2right,right2left,concat,sum
 --activation=RELU,TANH,LOGISTIC
@@ -14,8 +15,8 @@
 --prop=FWD_D,BWD_DW
 --alg=VANILLA_LSTM --batch=rnn_small
 
-# f16,bf16
---cfg=f16,bf16
+# f16
+--cfg=f16
 --prop=FWD_D
 --direction=left2right
 
@@ -35,8 +36,8 @@
 # Large tests
 --reset
 
-# f32 tests
---cfg=f32
+# f32, bf16 tests
+--cfg=f32,bf16
 --prop=FWD_D,BWD_DW
 --mb=50
 --batch=test_rnn_large
@@ -47,17 +48,11 @@
 --batch=test_rnn_large
 --batch=test_lstm_large
 
-# bf16 tests
---cfg=bf16
---prop=FWD_D
---mb=50
---batch=test_rnn_large
---batch=test_lstm_large
 
 # f16 tests
 --cfg=f16
 --prop=FWD_D
---skip-nonlinear=false
+--skip-nonlinear=true
 --mb=50
 --alg=VANILLA_RNN
 --activation=RELU

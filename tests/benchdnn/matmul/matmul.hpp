@@ -53,7 +53,7 @@ const int64_t LD_NONE = INT64_MAX - 1;
 // default driver setting
 namespace defaults {
 extern const dt_conf_t *cfg; // = conf_f32;
-const dnnl_format_tag_t tag = dnnl_ab;
+const std::string tag(tag::abx);
 const int64_t ld = LD_NONE;
 const bool runtime_val = false;
 const dnnl_data_type_t bia_dt = dnnl_data_type_undef;
@@ -70,8 +70,8 @@ int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_format_tag_t stag,
-            dnnl_format_tag_t wtag, dnnl_format_tag_t dtag, int64_t ld_src,
+    prb_t(const desc_t &desc, const dt_conf_t *cfg, const std::string &stag,
+            const std::string &wtag, const std::string &dtag, int64_t ld_src,
             int64_t ld_wei, int64_t ld_dst, bool runtime_mb, bool runtime_m,
             bool runtime_n, bool runtime_k, dnnl_data_type_t bia_dt,
             int bia_mask, const attr_t &attr)
@@ -100,7 +100,7 @@ struct prb_t : public desc_t {
 
     const dt_conf_t *cfg;
 
-    dnnl_format_tag_t stag, wtag, dtag;
+    std::string stag, wtag, dtag;
     int64_t ld_src, ld_wei, ld_dst;
     bool runtime_mb, runtime_m, runtime_n, runtime_k;
     dnnl_data_type_t bia_dt;

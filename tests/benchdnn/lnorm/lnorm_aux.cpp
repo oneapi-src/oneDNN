@@ -30,10 +30,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
 
     if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (canonical || p.tag != dnnl_tnc)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
-    if (canonical || p.stat_tag != dnnl_format_tag_any)
-        s << "--stat_tag=" << fmt_tag2str(p.stat_tag) << " ";
+    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
+    if (canonical || p.stat_tag != tag::any)
+        s << "--stat_tag=" << p.stat_tag << " ";
     if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
     if (canonical || p.flags != (flags_t)0)
         s << "--flags=" << flags2str(p.flags) << " ";

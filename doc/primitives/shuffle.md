@@ -8,15 +8,16 @@ Shuffle {#dev_guide_shuffle}
 The shuffle primitive shuffles data along the shuffle axis (here is designated
 as \f$C\f$) with the group parameter \f$G\f$. Namely, the shuffle axis is
 thought to be a 2D tensor of size \f$(\frac{C}{G} \times G)\f$ and it is being
-transposed to \f$(G \times \frac{C}{G})\f$.
+transposed to \f$(G \times \frac{C}{G})\f$. Variable names follow the standard
+@ref dev_guide_conventions.
 
 The formal definition is shown below:
 
 ### Forward
 
 \f[
-    dst(\overline{ou}, c, \overline{in}) =
-    src(\overline{ou}, c', \overline{in})
+    \dst(\overline{ou}, c, \overline{in}) =
+    \src(\overline{ou}, c', \overline{in})
 \f]
 
 where
@@ -44,12 +45,22 @@ and #dnnl_forward_inference propagation kinds.
 ### Backward
 
 The backward propagation computes
-\f$diff\_src(ou, c, in)\f$,
+\f$\diffsrc(ou, c, in)\f$,
 based on
-\f$diff\_dst(ou, c, in)\f$.
+\f$\diffdst(ou, c, in)\f$.
 
 Essentially, backward propagation is the same as forward propagation with
 \f$g\f$ replaced by \f$C / g\f$.
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
 
 ## Implementation Details
 
@@ -108,3 +119,9 @@ The shuffle primitive doesn't support any post-ops or attributes.
 ## Performance Tips
 
 N/A
+
+## Examples
+
+| Engine  | Name                     | Comments
+| :--     | :--                      | :--
+| CPU/GPU | @ref shuffle_example_cpp | @copydetails shuffle_example_cpp_short

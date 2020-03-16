@@ -1,0 +1,6 @@
+# all
+--reset
+
+--batch=harness_binary_f32
+--batch=harness_binary_f32_attr
+

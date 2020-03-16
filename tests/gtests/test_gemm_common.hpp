@@ -619,7 +619,7 @@ inline void get_matrix_size(
 
 template <typename T>
 inline test_memory get_matrix_memory(
-        const test_params &p, memory::dim n, memory::dim off, engine &eng) {
+        memory::dim n, memory::dim off, engine &eng) {
     auto d = create_md(
             {n + off}, data_traits<T>::data_type, memory::format_tag::x);
 #if defined(DNNL_SYCL_DPCPP) && defined(DNNL_USE_DPCPP_USM)
@@ -1376,12 +1376,12 @@ struct run_test_gemm {
         get_matrix_size(p, sizeA, sizeB, sizeC);
 
         engine eng = get_test_engine();
-        test_memory a_mem = get_matrix_memory<a_dt>(p, sizeA, p.off.a, eng);
-        test_memory b_mem = get_matrix_memory<b_dt>(p, sizeB, p.off.b, eng);
-        test_memory c_mem = get_matrix_memory<c_dt>(p, sizeC, p.off.c, eng);
-        test_memory c_ref_mem = get_matrix_memory<c_dt>(p, sizeC, p.off.c, eng);
+        test_memory a_mem = get_matrix_memory<a_dt>(sizeA, p.off.a, eng);
+        test_memory b_mem = get_matrix_memory<b_dt>(sizeB, p.off.b, eng);
+        test_memory c_mem = get_matrix_memory<c_dt>(sizeC, p.off.c, eng);
+        test_memory c_ref_mem = get_matrix_memory<c_dt>(sizeC, p.off.c, eng);
         test_memory oc_mem
-                = get_matrix_memory<c_dt>(p, p.size_oc(), p.off.co, eng);
+                = get_matrix_memory<c_dt>(p.size_oc(), p.off.co, eng);
 
         mapper_t mapper_m(p.M, M_test_max), mapper_n(p.N, N_test_max);
         const int64_t M_test = mapper_m.dim_test();

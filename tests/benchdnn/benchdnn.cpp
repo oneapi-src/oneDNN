@@ -48,6 +48,7 @@
 
 int verbose {0};
 bool canonical {false};
+bool mem_check {true};
 bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
 const char *driver_name = "";
@@ -64,73 +65,50 @@ int main(int argc, char **argv) {
     --argc;
     ++argv;
 
-    prim_t prim = DEF;
-    for (; argc > 0; --argc, ++argv) {
-        if (parse_bench_settings(argv[0]))
-            ;
-        else if (!strcmp("--self", argv[0]))
-            prim = SELF;
-        else if (!strcmp("--conv", argv[0]))
-            prim = CONV;
-        else if (!strcmp("--deconv", argv[0]))
-            prim = DECONV;
-        else if (!strcmp("--ip", argv[0]))
-            prim = IP;
-        else if (!strcmp("--shuffle", argv[0]))
-            prim = SHUFFLE;
-        else if (!strcmp("--reorder", argv[0]))
-            prim = REORDER;
-        else if (!strcmp("--bnorm", argv[0]))
-            prim = BNORM;
-        else if (!strcmp("--lnorm", argv[0]))
-            prim = LNORM;
-        else if (!strcmp("--rnn", argv[0]))
-            prim = RNN;
-        else if (!strcmp("--softmax", argv[0]))
-            prim = SOFTMAX;
-        else if (!strcmp("--pool", argv[0]))
-            prim = POOL;
-        else if (!strcmp("--sum", argv[0]))
-            prim = SUM;
-        else if (!strcmp("--eltwise", argv[0]))
-            prim = ELTWISE;
-        else if (!strcmp("--concat", argv[0]))
-            prim = CONCAT;
-        else if (!strcmp("--lrn", argv[0]))
-            prim = LRN;
-        else if (!strcmp("--binary", argv[0]))
-            prim = BINARY;
-        else if (!strcmp("--matmul", argv[0]))
-            prim = MATMUL;
-        else if (!strcmp("--resampling", argv[0]))
-            prim = RESAMPLING;
-        else
-            break;
-    }
-
     init_fp_mode();
     init();
 
-    switch (prim) {
-        case SELF: self::bench(argc, argv); break;
-        case CONV: conv::bench(argc, argv); break;
-        case DECONV: deconv::bench(argc, argv); break;
-        case IP: ip::bench(argc, argv); break;
-        case SHUFFLE: shuffle::bench(argc, argv); break;
-        case REORDER: reorder::bench(argc, argv); break;
-        case BNORM: bnorm::bench(argc, argv); break;
-        case LNORM: lnorm::bench(argc, argv); break;
-        case RNN: rnn::bench(argc, argv); break;
-        case SOFTMAX: softmax::bench(argc, argv); break;
-        case POOL: pool::bench(argc, argv); break;
-        case SUM: sum::bench(argc, argv); break;
-        case ELTWISE: eltwise::bench(argc, argv); break;
-        case CONCAT: concat::bench(argc, argv); break;
-        case LRN: lrn::bench(argc, argv); break;
-        case BINARY: binary::bench(argc, argv); break;
-        case MATMUL: matmul::bench(argc, argv); break;
-        case RESAMPLING: resampling::bench(argc, argv); break;
-        default: fprintf(stderr, "err: unknown driver\n");
+    for (; argc > 0; --argc, ++argv)
+        if (!parse_bench_settings(argv[0])) break;
+
+    if (!strcmp("--self", argv[0])) {
+        self::bench(--argc, ++argv);
+    } else if (!strcmp("--conv", argv[0])) {
+        conv::bench(--argc, ++argv);
+    } else if (!strcmp("--deconv", argv[0])) {
+        deconv::bench(--argc, ++argv);
+    } else if (!strcmp("--ip", argv[0])) {
+        ip::bench(--argc, ++argv);
+    } else if (!strcmp("--shuffle", argv[0])) {
+        shuffle::bench(--argc, ++argv);
+    } else if (!strcmp("--reorder", argv[0])) {
+        reorder::bench(--argc, ++argv);
+    } else if (!strcmp("--bnorm", argv[0])) {
+        bnorm::bench(--argc, ++argv);
+    } else if (!strcmp("--lnorm", argv[0])) {
+        lnorm::bench(--argc, ++argv);
+    } else if (!strcmp("--rnn", argv[0])) {
+        rnn::bench(--argc, ++argv);
+    } else if (!strcmp("--softmax", argv[0])) {
+        softmax::bench(--argc, ++argv);
+    } else if (!strcmp("--pool", argv[0])) {
+        pool::bench(--argc, ++argv);
+    } else if (!strcmp("--sum", argv[0])) {
+        sum::bench(--argc, ++argv);
+    } else if (!strcmp("--eltwise", argv[0])) {
+        eltwise::bench(--argc, ++argv);
+    } else if (!strcmp("--concat", argv[0])) {
+        concat::bench(--argc, ++argv);
+    } else if (!strcmp("--lrn", argv[0])) {
+        lrn::bench(--argc, ++argv);
+    } else if (!strcmp("--binary", argv[0])) {
+        binary::bench(--argc, ++argv);
+    } else if (!strcmp("--matmul", argv[0])) {
+        matmul::bench(--argc, ++argv);
+    } else if (!strcmp("--resampling", argv[0])) {
+        resampling::bench(--argc, ++argv);
+    } else {
+        fprintf(stderr, "err: unknown driver\n");
     }
 
     finalize();

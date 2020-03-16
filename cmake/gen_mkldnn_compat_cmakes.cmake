@@ -42,5 +42,5 @@ foreach(f ${fs})
     string(REGEX REPLACE "lmkldnn" "ldnnl" contents "${contents}")
 
     # store the result
-    file(WRITE ${dest} "${contents}")
+    file(WRITE ${dest} ${contents})
 endforeach()

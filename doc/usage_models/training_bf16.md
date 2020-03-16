@@ -17,7 +17,7 @@ occupies a spot between `f32` and the IEEE 16-bit half-precision floating point
 data type, `f16`. Compared directly to `f16`, which has a 5-bit exponent and a
 10-bit mantissa, `bf16` trades increased range for reduced precision.
 
-@img{img_bf16_diagram.png,Diagram depicting the bit-wise layout of f32\, bf16\, and f16 floating point data types.,}
+@img{img_bf16_diagram.png,Diagram depicting the bit-wise layout of f32\, bf16\, and f16 floating point data types.,80%,}
 
 More details of the bfloat16 data type can be found at
 [Intel's site](https://software.intel.com/sites/default/files/managed/40/8b/bf16-hardware-numerics-definition-white-paper.pdf)

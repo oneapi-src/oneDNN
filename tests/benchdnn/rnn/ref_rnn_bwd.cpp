@@ -106,20 +106,22 @@ void gates_reduction(const prb_t &p, const float *b_gates_, float *diff_bias_) {
 
 void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter_h,
         float *diff_src_iter_c, float *diff_weights_layer,
-        float *diff_weights_iter, float *diff_bias, float *b_gates,
-        const float *src_layer, const float *src_iter_h,
-        const float *src_iter_c, const float *weights_layer,
-        const float *weights_iter, const float *bias, const float *dst_iter_h,
-        const float *dst_iter_c, const float *gates,
+        float *diff_weights_iter, float *diff_weights_peephole,
+        float *diff_bias, float *b_gates, const float *src_layer,
+        const float *src_iter_h, const float *src_iter_c,
+        const float *weights_layer, const float *weights_iter,
+        const float *weights_peephole, const float *bias,
+        const float *dst_iter_h, const float *dst_iter_c, const float *gates,
         const float *diff_dst_layer, const float *diff_dst_iter_h,
         const float *diff_dst_iter_c, float *ws_local_) {
 
     switch (p.alg) {
         case VANILLA_LSTM:
             lstm_bwd(p, diff_src_layer, diff_src_iter_h, diff_src_iter_c,
-                    diff_weights_layer, diff_weights_iter, diff_bias, b_gates,
-                    src_layer, src_iter_h, src_iter_c, weights_layer,
-                    weights_iter, bias, dst_iter_h, dst_iter_c, gates,
+                    diff_weights_layer, diff_weights_iter,
+                    diff_weights_peephole, diff_bias, b_gates, src_layer,
+                    src_iter_h, src_iter_c, weights_layer, weights_iter,
+                    weights_peephole, bias, dst_iter_h, dst_iter_c, gates,
                     diff_dst_layer, diff_dst_iter_h, diff_dst_iter_c);
             break;
         case VANILLA_RNN:
@@ -146,18 +148,14 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter_h,
 void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
         const float *diff_dst_iter_c_, const float *diff_dst_layer_,
         const float *weights_layer_, const float *weights_iter_h_,
-        const float *bias_, float *diff_src_iter_, float *diff_src_iter_c_,
-        float *diff_src_layer_, float *diff_weights_layer_,
-        float *diff_weights_iter_h_, float *diff_bias_, float *ws_,
+        const float *weights_peephole_, const float *bias_,
+        float *diff_src_iter_, float *diff_src_iter_c_, float *diff_src_layer_,
+        float *diff_weights_layer_, float *diff_weights_iter_h_,
+        float *diff_weights_peephole_, float *diff_bias_, float *ws_,
         const float *gates_) {
 
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dic)));
     bool is_lbr = p.alg == LBR_GRU;
-
-    AOC<const float> bias(
-            bias_, p.n_layer, p.n_dir(), p.n_gates() + is_lbr, p.dic);
-    AOC<float> diff_bias(
-            diff_bias_, p.n_layer, p.n_dir(), p.n_gates() + is_lbr, p.dic);
 
     AOC<const float> weights_layer(
             weights_layer_, p.n_layer, p.n_dir(), p.n_gates() * p.dic, p.slc);
@@ -168,6 +166,16 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
             p.n_gates() * p.dic, p.slc);
     AOC<float> diff_weights_iter(diff_weights_iter_h_, p.n_layer, p.n_dir(),
             p.n_gates() * p.dic, p.sic);
+
+    AOC<const float> weights_peephole(
+            weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dic);
+    AOC<float> diff_weights_peephole(
+            diff_weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dic);
+
+    AOC<const float> bias(
+            bias_, p.n_layer, p.n_dir(), p.n_gates() + is_lbr, p.dic);
+    AOC<float> diff_bias(
+            diff_bias_, p.n_layer, p.n_dir(), p.n_gates() + is_lbr, p.dic);
 
     auto *b_gates = new float[p.mb * p.n_gates() * p.dic];
     AOC<float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.n_states(),
@@ -217,12 +225,14 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
                         &wsb(lay, dir_val, iter, C, 0, 0),
                         &diff_weights_layer(lay - 1, dir_val, 0, 0),
                         &diff_weights_iter(lay - 1, dir_val, 0, 0),
+                        &diff_weights_peephole(lay - 1, dir_val, 0),
                         &diff_bias(lay - 1, dir_val, 0, 0), b_gates,
                         &ws(lay - 1, dir_val, ws_iter, H, 0, 0),
                         &ws(lay, dir_val, ws_prev_iter, H, 0, 0),
                         &ws(lay, dir_val, ws_prev_iter, C, 0, 0),
                         &weights_layer(lay - 1, dir_val, 0, 0),
                         &weights_iter(lay - 1, dir_val, 0, 0),
+                        &weights_peephole(lay - 1, dir_val, 0),
                         &bias(lay - 1, dir_val, 0, 0),
                         &ws(lay, dir_val, ws_iter, H, 0, 0),
                         &ws(lay, dir_val, ws_iter, C, 0, 0),
@@ -265,11 +275,13 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
         dnn_mem_t &c_states_m, dnn_mem_t &diff_last_layer_m,
         dnn_mem_t &diff_last_iteration_m, dnn_mem_t &diff_c_last_iteration_m,
         dnn_mem_t &weights_input_m, dnn_mem_t &weights_states_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_last_layer_m,
-        dnn_mem_t &dst_last_iteration_m, dnn_mem_t &dst_c_last_iteration_m,
-        dnn_mem_t &dst_diff_input_m, dnn_mem_t &dst_diff_states_m,
-        dnn_mem_t &dst_diff_c_states_m, dnn_mem_t &dst_diff_weights_input_m,
-        dnn_mem_t &dst_diff_weights_states_m, dnn_mem_t &dst_diff_bias_m) {
+        dnn_mem_t &weights_peephole_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
+        dnn_mem_t &dst_c_last_iteration_m, dnn_mem_t &dst_diff_input_m,
+        dnn_mem_t &dst_diff_states_m, dnn_mem_t &dst_diff_c_states_m,
+        dnn_mem_t &dst_diff_weights_input_m,
+        dnn_mem_t &dst_diff_weights_states_m,
+        dnn_mem_t &dst_diff_weights_peephole_m, dnn_mem_t &dst_diff_bias_m) {
     // !! TODO: add support of strides
 
     assert(p.direction == dnnl_unidirectional_left2right
@@ -289,17 +301,18 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
 
     rnn_linear_fwd(p, (float *)states_m, (float *)c_states_m, (float *)input_m,
             (float *)weights_input_m, (float *)weights_states_m,
-            (float *)bias_m, (float *)dst_last_iteration_m,
-            (float *)dst_c_last_iteration_m, (float *)dst_last_layer_m, ws,
-            gates);
+            (float *)weights_peephole_m, (float *)bias_m,
+            (float *)dst_last_iteration_m, (float *)dst_c_last_iteration_m,
+            (float *)dst_last_layer_m, ws, gates);
 
     rnn_linear_bwd(p, (float *)diff_last_iteration_m,
             (float *)diff_c_last_iteration_m, (float *)diff_last_layer_m,
             (float *)weights_input_m, (float *)weights_states_m,
-            (float *)bias_m, (float *)dst_diff_states_m,
-            (float *)dst_diff_c_states_m, (float *)dst_diff_input_m,
-            (float *)dst_diff_weights_input_m,
-            (float *)dst_diff_weights_states_m, (float *)dst_diff_bias_m, ws,
+            (float *)weights_peephole_m, (float *)bias_m,
+            (float *)dst_diff_states_m, (float *)dst_diff_c_states_m,
+            (float *)dst_diff_input_m, (float *)dst_diff_weights_input_m,
+            (float *)dst_diff_weights_states_m,
+            (float *)dst_diff_weights_peephole_m, (float *)dst_diff_bias_m, ws,
             gates);
 
     delete[] ws;

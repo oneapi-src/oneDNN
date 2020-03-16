@@ -16,13 +16,10 @@
 
 /// @example cnn_inference_f32.c
 /// @copybrief cnn_inference_f32_c
-/// > Annotated version: @ref cnn_inference_f32_c
 
 /// @page cnn_inference_f32_c CNN f32 inference example
 /// This C API example demonstrates how to build an AlexNet neural
 /// network topology for forward-pass inference.
-///
-/// > Example code: @ref cnn_inference_f32.c
 ///
 /// Some key take-aways include:
 ///
@@ -44,7 +41,9 @@
 // Required for posix_memalign
 #define _POSIX_C_SOURCE 200112L
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dnnl.h"
 
@@ -71,6 +70,23 @@ static size_t product(dnnl_dim_t *arr, size_t size) {
     return prod;
 }
 
+static void init_net_data(float *data, uint32_t dim, const dnnl_dim_t *dims) {
+    if (dim == 1) {
+        for (dnnl_dim_t i = 0; i < dims[0]; ++i) {
+            data[i] = (float)(i % 1637);
+        }
+    } else if (dim == 4) {
+        for (dnnl_dim_t in = 0; in < dims[0]; ++in)
+            for (dnnl_dim_t ic = 0; ic < dims[1]; ++ic)
+                for (dnnl_dim_t ih = 0; ih < dims[2]; ++ih)
+                    for (dnnl_dim_t iw = 0; iw < dims[3]; ++iw) {
+                        dnnl_dim_t indx = in * dims[1] * dims[2] * dims[3]
+                                + ic * dims[2] * dims[3] + ih * dims[3] + iw;
+                        data[indx] = (float)(indx % 1637);
+                    }
+    }
+}
+
 typedef struct {
     int nargs;
     dnnl_exec_arg_t *args;
@@ -90,8 +106,8 @@ static void set_arg(dnnl_exec_arg_t *arg, int arg_idx, dnnl_memory_t memory) {
 }
 
 static void init_data_memory(uint32_t dim, const dnnl_dim_t *dims,
-        dnnl_format_tag_t user_tag, dnnl_data_type_t dnnl_f32,
-        dnnl_engine_t engine, float *data, dnnl_memory_t *memory) {
+        dnnl_format_tag_t user_tag, dnnl_engine_t engine, float *data,
+        dnnl_memory_t *memory) {
     dnnl_memory_desc_t user_md;
     CHECK(dnnl_memory_desc_init_by_tag(
             &user_md, dim, dims, dnnl_f32, user_tag));
@@ -114,9 +130,9 @@ dnnl_status_t prepare_reorder(dnnl_memory_t *user_memory, // in
     dnnl_memory_get_engine(*user_memory, &user_mem_engine);
 
     if (!dnnl_memory_desc_equal(user_memory_md, prim_memory_md)) {
-        // memory_create(&p, m, NULL) means allocate memory
         CHECK(dnnl_memory_create(prim_memory, prim_memory_md, prim_engine,
                 DNNL_MEMORY_ALLOCATE));
+
         dnnl_primitive_desc_t reorder_pd;
         if (dir_is_user_to_prim) {
             CHECK(dnnl_reorder_primitive_desc_create(&reorder_pd,
@@ -154,16 +170,20 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     dnnl_primitive_t net[10];
     args_t net_args[10];
 
-    float *net_src
-            = (float *)malloc(BATCH * IC * CONV_IH * CONV_IW * sizeof(float));
-    float *net_dst
-            = (float *)malloc(BATCH * OC * POOL_OH * POOL_OW * sizeof(float));
+    dnnl_dim_t net_src_sizes[4] = {BATCH, IC, CONV_IH, CONV_IW};
+    dnnl_dim_t net_dst_sizes[4] = {BATCH, OC, POOL_OH, POOL_OW};
+
+    float *net_src = (float *)malloc(product(net_src_sizes, 4) * sizeof(float));
+    float *net_dst = (float *)malloc(product(net_dst_sizes, 4) * sizeof(float));
+
+    init_net_data(net_src, 4, net_src_sizes);
+    memset(net_dst, 0, product(net_dst_sizes, 4) * sizeof(float));
 
     // AlexNet: conv
-    // {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, CONV_KH, CONV_KW} ->
+    // {BATCH, IC, CONV_IH, CONV_IW} (x) {OC, IC, 11, 11} ->
     // {BATCH, OC, CONV_OH, CONV_OW}
     // strides: {CONV_STRIDE, CONV_STRIDE}
-    dnnl_dim_t conv_user_src_sizes[4] = {BATCH, IC, CONV_IH, CONV_IW};
+    dnnl_dim_t *conv_user_src_sizes = net_src_sizes;
     dnnl_dim_t conv_user_weights_sizes[4] = {OC, IC, 11, 11};
     dnnl_dim_t conv_bias_sizes[4] = {OC};
     dnnl_dim_t conv_user_dst_sizes[4] = {BATCH, OC, CONV_OH, CONV_OW};
@@ -176,14 +196,17 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     float *conv_bias
             = (float *)malloc(product(conv_bias_sizes, 1) * sizeof(float));
 
+    init_net_data(conv_weights, 4, conv_user_weights_sizes);
+    init_net_data(conv_bias, 1, conv_bias_sizes);
+
     // create memory for user data
     dnnl_memory_t conv_user_src_memory, conv_user_weights_memory,
             conv_user_bias_memory;
-    init_data_memory(4, conv_user_src_sizes, dnnl_nchw, dnnl_f32, engine,
-            conv_src, &conv_user_src_memory);
-    init_data_memory(4, conv_user_weights_sizes, dnnl_oihw, dnnl_f32, engine,
+    init_data_memory(4, conv_user_src_sizes, dnnl_nchw, engine, conv_src,
+            &conv_user_src_memory);
+    init_data_memory(4, conv_user_weights_sizes, dnnl_oihw, engine,
             conv_weights, &conv_user_weights_memory);
-    init_data_memory(1, conv_bias_sizes, dnnl_x, dnnl_f32, engine, conv_bias,
+    init_data_memory(1, conv_bias_sizes, dnnl_x, engine, conv_bias,
             &conv_user_bias_memory);
 
     // create data descriptors for convolution w/ no specified format
@@ -288,16 +311,17 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // local size: 5
     // alpha: 0.0001
     // beta: 0.75
+    // k: 1.0
     uint32_t local_size = 5;
     float alpha = 0.0001f;
     float beta = 0.75f;
     float k = 1.0f;
 
-    // create lrn memory descriptor on dst memory descriptor
+    // create lrn src memory descriptor using dst memory descriptor
     //  from previous primitive
     const dnnl_memory_desc_t *lrn_src_md = relu_dst_md;
 
-    // create a lrn
+    // create a lrn primitive descriptor
     dnnl_lrn_desc_t lrn_desc;
     CHECK(dnnl_lrn_forward_desc_init(&lrn_desc, dnnl_forward,
             dnnl_lrn_across_channels, lrn_src_md, local_size, alpha, beta, k));
@@ -305,6 +329,7 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     dnnl_primitive_desc_t lrn_pd;
     CHECK(dnnl_primitive_desc_create(&lrn_pd, &lrn_desc, NULL, engine, NULL));
 
+    // create primitives for lrn dst and workspace memory
     dnnl_memory_t lrn_dst_memory;
     const dnnl_memory_desc_t *lrn_dst_md
             = dnnl_primitive_desc_query_md(lrn_pd, dnnl_query_dst_md, 0);
@@ -330,7 +355,7 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
     // {BATCH, OC, CONV_OH, CONV_OW} -> {BATCH, OC, POOL_OH, POOL_OW}
     // kernel: {3, 3}
     // strides: {POOL_STRIDE, POOL_STRIDE}
-    dnnl_dim_t pool_dst_sizes[4] = {BATCH, OC, POOL_OH, POOL_OW};
+    dnnl_dim_t *pool_dst_sizes = net_dst_sizes;
     dnnl_dim_t pool_kernel[2] = {3, 3};
     dnnl_dim_t pool_strides[2] = {POOL_STRIDE, POOL_STRIDE};
     dnnl_dim_t pool_padding[2] = {POOL_PAD, POOL_PAD};
@@ -346,7 +371,7 @@ void simple_net(dnnl_engine_kind_t engine_kind) {
 
     // create memory for user data
     dnnl_memory_t pool_user_dst_memory;
-    init_data_memory(4, pool_dst_sizes, dnnl_nchw, dnnl_f32, engine, net_dst,
+    init_data_memory(4, pool_dst_sizes, dnnl_nchw, engine, net_dst,
             &pool_user_dst_memory);
 
     // create a pooling

@@ -20,6 +20,7 @@
 #include "dnnl_thread.hpp"
 #include "utils.hpp"
 
+#include "../gemm_driver.hpp"
 #include "gemm_utils_f32.hpp"
 #include "jit_avx_gemm_f32.hpp"
 #include "ref_gemm_f32.hpp"
@@ -2444,6 +2445,7 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
             }
         }
     }
+    msan_unpoison_matrix(c, m, n, ldc, sizeof(*c));
 }
 
 } // namespace avx_gemm_f32

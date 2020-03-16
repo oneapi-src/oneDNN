@@ -24,7 +24,7 @@ namespace dnnl {
 
 class pd_test : public ::testing::Test {
 protected:
-    engine e {get_test_engine_kind(), 0};
+    engine e = get_test_engine();
     memory::desc dat_md {
             {16, 16, 16, 16}, memory::data_type::f32, memory::format_tag::nhwc};
     memory::desc wht_md {

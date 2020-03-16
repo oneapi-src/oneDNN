@@ -23,7 +23,8 @@
 #include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
-#include "ocl/jit_gen9_gemm.hpp"
+// FIXME: Use common interface.
+#include "gpu/ocl/gemm/gen9_gemm.hpp"
 #include "sycl/sycl_engine.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream.hpp"
@@ -154,8 +155,7 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     s.reset(s_ptr);
 
     // Create primitive descriptor
-    using pd_type = typename ocl::jit_gen9_gemm_t<a_type, b_type, c_type,
-            acc_type>::pd_t;
+    using pd_type = typename gpu::ocl::gen9_gemm_t::pd_t;
 
     gemm_desc_t op_desc;
     op_desc.primitive_kind = dnnl_gemm;
@@ -163,14 +163,16 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
                                                         : transpose::trans;
     op_desc.transb = (*transb == 'n' || *transb == 'N') ? transpose::notrans
                                                         : transpose::trans;
+    op_desc.batch = 1;
     op_desc.m = m;
     op_desc.n = n;
     op_desc.k = k;
+    op_desc.stride_a = lda;
+    op_desc.stride_b = ldb;
+    op_desc.stride_c = ldc;
     op_desc.lda = lda;
     op_desc.ldb = ldb;
     op_desc.ldc = ldc;
-    op_desc.alpha = alpha;
-    op_desc.beta = beta;
     op_desc.a_type = a_type;
     op_desc.b_type = b_type;
     op_desc.c_type = c_type;
@@ -187,6 +189,9 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
 
     std::unique_ptr<primitive_desc_t> pd;
     primitive_attr_t attr;
+    if (alpha != 1.0f) attr.output_scales_.set(alpha);
+    if (beta != 0.0f) attr.post_ops_.append_sum(beta);
+
     primitive_desc_t *pd_ptr;
     status = primitive_desc_t::create<pd_type>(&pd_ptr,
             reinterpret_cast<const op_desc_t *>(&op_desc), &attr, engine.get(),
@@ -208,8 +213,8 @@ void gemm_generic(cl::sycl::queue &queue, const char *transa,
     error::wrap_c_api(status, "could not create a primitive");
 
     exec_args_t args = {
-            {DNNL_ARG_SRC_0, {a_mem.get(), true}},
-            {DNNL_ARG_SRC_1, {b_mem.get(), true}},
+            {DNNL_ARG_SRC, {a_mem.get(), true}},
+            {DNNL_ARG_WEIGHTS, {b_mem.get(), true}},
             {DNNL_ARG_DST, {c_mem.get(), false}},
     };
 

@@ -23,8 +23,6 @@
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise_injector.hpp"
 
-#define BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -38,7 +36,7 @@ struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
         , eltwise_injector_(nullptr)
         , bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
 
         if (!isa_has_bf16(jcp.isa))
@@ -81,23 +79,27 @@ private:
         ker_code_size = 1024 * 1024,
     };
 
-    reg64_t reg_bcast_data = r8;
+    reg64_t aux_reg_load_data = r15;
+    reg64_t aux_reg_bcast_data = r14;
+    reg64_t reg_output_stride = rsi;
+    reg64_t reg_bias_data = r12;
+    reg64_t reg_reduce_loop_work = r11;
     reg64_t reg_load_data = r10;
     reg64_t reg_output_data = r9;
-    reg64_t aux_reg_bcast_data = r14;
-    reg64_t aux1_reg_bcast_data = rbx;
-    reg64_t aux_reg_load_data = r15;
-    reg64_t imm_addr64 = aux_reg_load_data;
-    reg64_t aux_reg_output_data = abi_not_param1;
-    reg64_t reg_load_loop_work = rsi;
-    reg64_t reg_reduce_loop_work = r11;
-    reg64_t bcast_loop_iter = rdx;
-    reg64_t reduce_loop_iter = abi_param1;
+    reg64_t reg_bcast_data = r8;
     reg64_t reg_reduce_pos_flag = rax;
-    reg64_t reg_output_stride = r13;
-    reg64_t reg_bias_data = r12;
+    reg64_t aux1_reg_bcast_data = rbx;
+    reg64_t aux_reg_output_data = abi_not_param1;
+    reg64_t bcast_loop_iter = rdx;
+    reg64_t reg_load_loop_work = r13;
+    reg64_t reduce_loop_iter = abi_param1;
+
+    reg64_t imm_addr64 = aux_reg_load_data;
     reg64_t reg_bcast_loop_work = aux1_reg_bcast_data;
-    reg64_t reg_trans_tmp = rax;
+    reg64_t reg_trans_tmp = reg_reduce_pos_flag;
+    reg64_t reg_store_buf
+            = reg_output_stride; // reg_output_stride used only in BWD/WU
+    reg64_t aux_reg_store_buf = reg_load_loop_work;
 
     mask_t vmask = k7;
 
@@ -119,14 +121,13 @@ private:
     Xbyak::Opmask half_mask = Xbyak::Opmask(6);
     Xbyak::Label dst_prm_table;
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
 
     int bcast_loop_work_offt = 0;
-#ifdef BF16_CONV_1x1_BWD_W_JIT_KER_USES_PERMW_TRANSPOSITION
-    int perm_reg_offset = 8;
-    int broadcast_space = 24;
-#endif
-    int stack_space_needed = 352;
+    int reg_load_loop_work_off = 8;
+    int perm_reg_offset = 16;
+    int broadcast_space = 32;
+    int stack_space_needed = 360;
 
     void bcast_loop(int load_loop_blk);
     void reduce_loop(int load_loop_blk, int ur, int substep, bool wraparound);

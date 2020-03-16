@@ -31,8 +31,8 @@ namespace concat {
 
 std::vector<dnnl_data_type_t> sdt {dnnl_f32};
 std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<dnnl_format_tag_t>> stag {{dnnl_nchw, dnnl_nchw}};
-std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_undef};
+std::vector<std::vector<std::string>> stag;
+std::vector<std::string> dtag {tag::undef};
 std::vector<int> axis {1};
 
 std::vector<dims_t> sdims;
@@ -46,13 +46,17 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {dnnl_f32};
     ddt = {dnnl_f32};
-    stag = {{dnnl_nchw, dnnl_nchw}};
-    dtag = {dnnl_format_tag_undef};
+    stag.clear();
+    dtag = {tag::undef};
     axis = {1};
     allow_unimpl = false;
 }
 
 void check_correctness() {
+    // sdims fully define a problem. As sdims are parsed every time it's safe
+    // to process default tag for whatever number of inputs before loops.
+    if (stag.empty()) stag = {{sdims.size(), "abx"}};
+
     for_(const auto &i_sdt : sdt)
     for_(const auto &i_ddt : ddt)
     for_(const auto &i_stag : stag)

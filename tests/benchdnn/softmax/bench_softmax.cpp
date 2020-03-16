@@ -31,7 +31,7 @@ namespace softmax {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<alg_t> alg {SOFTMAX};
 std::vector<int> axis {1};
 std::vector<int64_t> mb {0};
@@ -48,7 +48,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {dnnl_nchw};
+    tag = {tag::abx};
     alg = {SOFTMAX};
     axis = {1};
     mb = {0};
@@ -63,7 +63,7 @@ void check_correctness() {
     for_(const auto &i_tag : tag)
     for_(const auto &i_alg : alg)
     for_(const auto &i_axis : axis)
-    for_(const auto &i_inplace : inplace)
+    for_(auto i_inplace : inplace)
     for (const auto &i_mb : mb) {
         const prb_t p(dims, i_dir, i_dt, i_tag, i_alg, i_axis, i_inplace, i_mb);
         std::stringstream ss;

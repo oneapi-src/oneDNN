@@ -22,8 +22,6 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
-#include "ocl/ocl_engine.hpp"
-#include "ocl/ocl_utils.hpp"
 #include "sycl/sycl_engine_base.hpp"
 #include "sycl/sycl_utils.hpp"
 
@@ -55,24 +53,23 @@ public:
     virtual const reorder_primitive_desc_create_f *
     get_reorder_implementation_list(const memory_desc_t *src_md,
             const memory_desc_t *dst_md) const override {
-        return ocl::ocl_gpu_engine_impl_list_t::get_reorder_implementation_list(
+        return gpu::gpu_impl_list_t::get_reorder_implementation_list(
                 src_md, dst_md);
     }
 
     virtual const concat_primitive_desc_create_f *
     get_concat_implementation_list() const override {
-        return ocl::ocl_gpu_engine_impl_list_t::
-                get_concat_implementation_list();
+        return gpu::gpu_impl_list_t::get_concat_implementation_list();
     }
 
     virtual const sum_primitive_desc_create_f *
     get_sum_implementation_list() const override {
-        return ocl::ocl_gpu_engine_impl_list_t::get_sum_implementation_list();
+        return gpu::gpu_impl_list_t::get_sum_implementation_list();
     }
 
     virtual const primitive_desc_create_f *get_implementation_list(
             const op_desc_t *) const override {
-        return ocl::ocl_gpu_engine_impl_list_t::get_implementation_list();
+        return gpu::gpu_impl_list_t::get_implementation_list();
     }
 };
 

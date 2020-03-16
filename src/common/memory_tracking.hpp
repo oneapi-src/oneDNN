@@ -168,6 +168,7 @@ enum {
     key_conv_int_dat_in_acc_dt,
     key_conv_padded_bias,
     key_conv_rtus_space,
+    key_conv_store_wsp,
     key_conv_tails,
     key_conv_tr_diff_dst,
     key_conv_tr_diff_dst_bctx,
@@ -176,6 +177,8 @@ enum {
     key_conv_wei_reduction,
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
+    key_fusion_forward_scratchpad,
+    key_fusion_inout_buffer,
     key_iprod_bias_bf16_convert_wsp,
     key_iprod_dst_bf16_convert_wsp,
     key_iprod_int_dat_in_acc_dt,
@@ -185,9 +188,13 @@ enum {
     key_lnorm_reduction,
     key_matmul_dst_in_acc_dt,
     key_pool_dst_bf16cvt,
+    key_pool_dst_plain2blocked_cvt,
+    key_pool_ind_plain2blocked_cvt,
     key_pool_src_bf16cvt,
+    key_pool_src_plain2blocked_cvt,
     key_reducer_space,
     key_reducer_space_bctx,
+    key_reorder_cross_space,
     key_reorder_space,
     key_reorder_scales,
     key_reorder_wino_plain,
@@ -212,6 +219,7 @@ enum {
 
 enum {
     prefix_none = 0,
+    prefix_fusion,
     prefix_reducer_bia,
     prefix_reducer_wei,
 };
@@ -246,7 +254,7 @@ struct registrar_t;
 struct grantor_t;
 
 struct registry_t {
-    enum { minimal_alignment = 64 };
+    enum { minimal_alignment = 128 };
     struct entry_t {
         size_t offset, size, capacity, alignment;
     };
@@ -281,7 +289,7 @@ protected:
 };
 
 struct registrar_t {
-    enum { default_alignment = 64 };
+    enum { default_alignment = 128 };
 
     registrar_t(registry_t &registry) : registry_(registry), prefix_(0) {}
     registrar_t(registrar_t &parent, const key_t &prefix)
@@ -353,8 +361,11 @@ struct grantor_t {
             return base_mem_storage_->get_sub_storage(aligned_offset, e.size);
         }
 
-        assert(e.offset + e.size <= registry_.size());
-        return base_mem_storage_->get_sub_storage(e.offset, e.size);
+        const size_t aligned_offset
+                = reinterpret_cast<size_t>(utils::align_ptr<char>(
+                        reinterpret_cast<char *>(e.offset), e.alignment));
+        assert(aligned_offset + e.size <= registry_.size());
+        return base_mem_storage_->get_sub_storage(aligned_offset, e.size);
     }
 
 protected:

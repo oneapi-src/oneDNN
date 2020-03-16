@@ -30,8 +30,11 @@ namespace impl {
 struct gemm_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::gemm;
 
+    typedef gemm_pd_t base_class;
+    typedef gemm_pd_t hint_class;
+
     gemm_pd_t(dnnl::impl::engine_t *engine, const gemm_desc_t *adesc,
-            const primitive_attr_t *attr)
+            const primitive_attr_t *attr, const hint_class *hint_fwd_pd)
         : primitive_desc_t(engine, attr, base_pkind)
         , desc_(*adesc)
         , a_md_(create_gemm_mem_desc_helper(adesc, 0))

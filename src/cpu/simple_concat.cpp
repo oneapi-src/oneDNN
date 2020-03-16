@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
+
 #include "dnnl_thread.hpp"
 
 #include "simple_concat.hpp"
@@ -97,27 +99,7 @@ status_t simple_concat_t<data_type>::execute(const exec_ctx_t &ctx) const {
                 const data_t *i = &iptrs[a][in_off];
                 data_t *o = &optrs[a][out_off];
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER)
-                // The code below performs data copying: o[e] = i[e]
-                // and uses a workaround to make GNU compilers optimize it
-                uint8_t *ptro = reinterpret_cast<uint8_t *>(o);
-                const uint8_t *ptri = reinterpret_cast<const uint8_t *>(i);
-                const dim_t main_part = (nelems_to_copy[a] * sizeof(data_t))
-                        / sizeof(uint32_t);
-                const dim_t tail_part = (nelems_to_copy[a] * sizeof(data_t))
-                        % sizeof(uint32_t);
-
-                PRAGMA_OMP_SIMD()
-                for (dim_t e = 0; e < main_part; ++e) {
-                    *(reinterpret_cast<uint32_t *>(ptro))
-                            = *(reinterpret_cast<const uint32_t *>(ptri));
-                    ptro += sizeof(uint32_t);
-                    ptri += sizeof(uint32_t);
-                }
-                for (dim_t e = 0; e < tail_part; ++e) {
-                    *ptro = *ptri;
-                    ++ptro;
-                    ++ptri;
-                }
+                std::memcpy(o, i, nelems_to_copy[a] * sizeof(data_t));
 #else
                 PRAGMA_OMP_SIMD()
                 for (dim_t e = 0; e < nelems_to_copy[a]; ++e) o[e] = i[e];

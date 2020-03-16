@@ -5,32 +5,43 @@ Matrix Multiplication {#dev_guide_matmul}
 > [API Reference](@ref dnnl_api_matmul)
 >
 
-The matrix multiplication (MatMul) primitive computes the product of two
-2D tensors with optional bias addition:
+The matrix multiplication (MatMul) primitive computes the product of two 2D
+tensors with optional bias addition (the variable names follow the standard @ref
+dev_guide_conventions):
 
 \f[
-    dst(m, n) =
+    \dst(m, n) =
         \sum_{k=0}^{K} \left(
-            src(m, k) \cdot weights(k, n)
+            \src(m, k) \cdot \weights(k, n)
         \right) +
-        bias(m, n)
+        \bias(m, n)
 \f]
 
 The MatMul primitive also supports batching multiple independent matrix
 multiplication operations, in which case the tensors must be 3D:
 
 \f[
-    dst(mb, m, n) =
+    \dst(mb, m, n) =
         \sum_{k=0}^{K} \left(
-            src(mb, m, k) \cdot weights(mb, k, n)
+            \src(mb, m, k) \cdot \weights(mb, k, n)
         \right) +
-        bias(mb, m, n)
+        \bias(mb, m, n)
 \f]
 
-The bias tensor is optional and supports implicit broadcast semantics: any of
-its dimensions can be 1 and the same value would be used across the
-corresponding dimension. However, \f$bias\f$ must have the same number of
-dimensions as the \f$dst\f$.
+The bias tensor is optional and supports implicit broadcast semantics:
+any of its dimensions can be 1 and the same value would be used across
+the corresponding dimension. However, \bias must have the same number
+of dimensions as the \dst.
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \weights               | DNNL_ARG_WEIGHTS         |
+| \bias                  | DNNL_ARG_BIAS            |
+| \dst                   | DNNL_ARG_DST             |
 
 ## Implementation Details
 
@@ -95,12 +106,12 @@ always be #dnnl::memory::format_tag::ab for the 2D case and
 Attributes and post-ops enable modifying the behavior of the MatMul primitive.
 The following attributes and post-ops are supported:
 
-| Type      | Operation                                                     | Restrictions           | Description
-| :--       | :--                                                           | :--                    | :--
-| Attribute | [Output scales](@ref dnnl::primitive_attr::set_output_scales) |                        | Scales the result by given scale factor(s)
-| Attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)     | Int8 computations only | Sets zero point(s) for the corresponding tensors
-| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                |                        | Applies an @ref dnnl_api_eltwise operation to the result
-| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        |                        | Adds the operation result to the destination tensor instead of overwriting it
+| Type      | Operation                                                     | Description                                                                   | Restrictions            |
+| :--       | :--                                                           | :--                                                                           | :--                     |
+| Attribute | [Output scales](@ref dnnl::primitive_attr::set_output_scales) | Scales the result by given scale factor(s)                                    |                         |
+| Attribute | [Zero points](@ref dnnl::primitive_attr::set_zero_points)     | Sets zero point(s) for the corresponding tensors                              | Int8 computations only  |
+| Post-op   | [Eltwise](@ref dnnl::post_ops::append_eltwise)                | Applies an @ref dnnl_api_eltwise operation to the result                      |                         |
+| Post-op   | [Sum](@ref dnnl::post_ops::append_sum)                        | Adds the operation result to the destination tensor instead of overwriting it |                         |
 
 To facilitate dynamic quantization, the primitive supports run-time output
 scales. That means a user could configure attributes with output scales set to
@@ -137,10 +148,11 @@ argument with index set to
   reused, it is best to force the primitive to use the same format as that used
   by the tensors.
 
-## Tutorials
+## Examples
 
-| Engine  | Name                               | Comments
-| :--     | :--                                | :--
-| CPU     | @ref cpu_sgemm_and_matmul_cpp      | @copydetails cpu_sgemm_and_matmul_cpp_short
-| CPU/GPU | @ref inference_int8_matmul_cpp     | @copydetails inference_int8_matmul_cpp_short
-| CPU     | @ref cpu_matmul_quantization_cpp   | @copydetails cpu_matmul_quantization_cpp_short
+| Engine  | Name                             | Comments
+| :--     | :--                              | :--
+| CPU/GPU | @ref matmul_example_cpp          | @copydetails matmul_example_cpp_short
+| CPU     | @ref cpu_sgemm_and_matmul_cpp    | @copydetails cpu_sgemm_and_matmul_cpp_short
+| CPU/GPU | @ref inference_int8_matmul_cpp   | @copydetails inference_int8_matmul_cpp_short
+| CPU     | @ref cpu_matmul_quantization_cpp | @copydetails cpu_matmul_quantization_cpp_short

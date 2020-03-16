@@ -41,9 +41,7 @@ const _dt_conf_t conf_f32 = {
                 1e-6},
         {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
                 1e-6},
-        {
-                dnnl_f32,
-        },
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_bf16bf16f32 = {
@@ -54,9 +52,7 @@ const _dt_conf_t conf_bf16bf16f32 = {
         {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64, 0},
         {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
                 1e-6},
-        {
-                dnnl_f32,
-        },
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_bf16bf16bf16 = {
@@ -71,9 +67,7 @@ const _dt_conf_t conf_bf16bf16bf16 = {
                 1e-2},
         {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64,
                 1e-2},
-        {
-                dnnl_f32,
-        },
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_f32bf16bf16 = {
@@ -83,9 +77,7 @@ const _dt_conf_t conf_f32bf16bf16 = {
                 0},
         {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64, 0},
         {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64, 0},
-        {
-                dnnl_f32,
-        },
+        {dnnl_f32},
 };
 
 const _dt_conf_t conf_bf16f32bf16 = {
@@ -96,24 +88,20 @@ const _dt_conf_t conf_bf16f32bf16 = {
         {dnnl_f32, -int_max_exact, int_max_exact, -10, 10, 0, 1.0, 1. / 64,
                 1e-6},
         {dnnl_bf16, -int_max_exact, int_max_exact, -10, 10, 0, .35, 1. / 64, 0},
-        {
-                dnnl_f32,
-        },
+        {dnnl_f32},
 };
 
 const int int_max_exact_half = 1 << 11;
 const _dt_conf_t conf_f16 = {
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -2, 2, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -8, 8, 0, .35, 1,
-                0.},
+                1e-3},
         {dnnl_f16, -int_max_exact_half, int_max_exact_half, -4, 4, 0, .35, 1,
-                0.},
-        {
-                dnnl_f16,
-        },
+                1e-3},
+        {dnnl_f16},
 };
 
 const _dt_conf_t conf_u8s8f32 = {
@@ -121,9 +109,7 @@ const _dt_conf_t conf_u8s8f32 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_u8s8s32 = {
@@ -131,9 +117,7 @@ const _dt_conf_t conf_u8s8s32 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_u8s8s8 = {
@@ -141,9 +125,7 @@ const _dt_conf_t conf_u8s8s8 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_u8s8u8 = {
@@ -151,9 +133,7 @@ const _dt_conf_t conf_u8s8u8 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_s8s8f32 = {
@@ -161,9 +141,7 @@ const _dt_conf_t conf_s8s8f32 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -255, 255, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_s8s8s32 = {
@@ -171,9 +149,7 @@ const _dt_conf_t conf_s8s8s32 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_s32, INT32_MIN, INT32_MAX, -255, 255, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_s8s8s8 = {
@@ -181,9 +157,7 @@ const _dt_conf_t conf_s8s8s8 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_s8, INT8_MIN, INT8_MAX, -127, 127, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const _dt_conf_t conf_s8s8u8 = {
@@ -191,9 +165,7 @@ const _dt_conf_t conf_s8s8u8 = {
         {dnnl_s8, INT8_MIN, INT8_MAX, -5, 5, 0, .35, 1, 0.},
         {dnnl_f32, -int_max_exact, int_max_exact, -8, 32, 0, .35, 1, 0.},
         {dnnl_u8, 0, UINT8_MAX, 0, 255, 0, .35, 1, 0.},
-        {
-                dnnl_s32,
-        },
+        {dnnl_s32},
 };
 
 const dt_conf_t *str2cfg(const char *str) {

@@ -41,11 +41,9 @@ private:
     softmax_test_params<data_t> p;
     std::shared_ptr<memory> dst, workspace;
     std::shared_ptr<softmax_forward::primitive_desc> pd_fwd_hint;
-    std::unique_ptr<engine> eng;
 
 protected:
     virtual void SetUp() {
-        eng.reset(new engine(get_test_engine_kind(), 0));
         p = ::testing::TestWithParam<softmax_test_params<data_t>>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -57,7 +55,8 @@ protected:
         using pd_t = softmax_forward::primitive_desc;
         allows_attr_t aa {0}; // doesn't support anything
 
-        auto strm = stream(*eng);
+        auto eng = get_test_engine();
+        auto strm = stream(eng);
         prop_kind pk = p.aprop_kind == prop_kind::backward_data
                 ? prop_kind::forward_training
                 : p.aprop_kind;
@@ -72,7 +71,7 @@ protected:
         // default pd ctor
         auto pd = pd_t();
         // regular pd ctor
-        ASSERT_NO_THROW(pd = pd_t(op_desc, *eng));
+        ASSERT_NO_THROW(pd = pd_t(op_desc, eng));
         // test all pd ctors
         test_fwd_pd_constructors<op_desc_t, pd_t>(op_desc, pd, aa);
         pd_fwd_hint = std::make_shared<pd_t>(pd);
@@ -100,9 +99,9 @@ protected:
         ASSERT_TRUE(pd.diff_dst_desc().is_zero());
         ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
-        auto src = memory(data_desc, *eng);
-        dst.reset(new memory(data_desc, *eng));
-        workspace.reset(new memory(workspace_desc, *eng));
+        auto src = memory(data_desc, eng);
+        dst.reset(new memory(data_desc, eng));
+        workspace.reset(new memory(workspace_desc, eng));
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             fill_data<data_t>(
@@ -136,7 +135,8 @@ protected:
         using hint_pd_t = softmax_forward::primitive_desc;
         allows_attr_t aa {0}; // doesn't support anything
 
-        auto strm = stream(*eng);
+        auto eng = get_test_engine();
+        auto strm = stream(eng);
         auto prec = data_traits<data_t>::data_type;
         auto mem_desc = memory::desc(p.dims, prec, p.memory_format);
         auto diff_mem_desc = memory::desc(p.dims, prec, p.diff_memory_format);
@@ -149,7 +149,7 @@ protected:
         // default pd ctor
         auto pd = pd_t();
         // regular pd ctor
-        ASSERT_NO_THROW(pd = pd_t(op_desc, *eng, *pd_fwd_hint));
+        ASSERT_NO_THROW(pd = pd_t(op_desc, eng, *pd_fwd_hint));
         // test all pd ctors
         test_bwd_pd_constructors<op_desc_t, pd_t, hint_pd_t>(
                 op_desc, pd, *pd_fwd_hint, aa);
@@ -175,8 +175,8 @@ protected:
         ASSERT_TRUE(pd.weights_desc().is_zero());
         ASSERT_TRUE(pd.diff_weights_desc().is_zero());
 
-        auto diff_src = memory(diff_data_desc, *eng);
-        auto diff_dst = memory(diff_data_desc, *eng);
+        auto diff_src = memory(diff_data_desc, eng);
+        auto diff_dst = memory(diff_data_desc, eng);
 
         auto test_with_given_fill = [&](data_t mean, data_t var) {
             // Fill the softmax backward diffs

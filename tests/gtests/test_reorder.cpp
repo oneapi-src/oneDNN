@@ -106,21 +106,30 @@ CPU_INSTANTIATE_TEST_SUITE_P(PaddedWeights, reorder_simple_test_f32_f32,
                 cfg_f32 {fmt::OIhw16o16i, fmt::oihw, {17, 23, 2, 3}},
                 cfg_f32 {fmt::hwio, fmt::OIhw16i16o, {17, 23, 2, 3}},
                 cfg_f32 {fmt::OIhw16i16o, fmt::hwio, {17, 23, 2, 3}},
-                // OIdhw16o16i
+                // OIhw16o16i
                 cfg_f32 {fmt::oihw, fmt::OIhw16o16i, {17, 23, 2, 3}},
                 cfg_f32 {fmt::OIhw16o16i, fmt::oihw, {17, 23, 2, 3}},
-                // IOdhw16o16i
+                // IOhw16o16i
                 cfg_f32 {fmt::oihw, fmt::IOhw16o16i, {17, 23, 2, 3}},
                 cfg_f32 {fmt::IOhw16o16i, fmt::oihw, {17, 23, 2, 3}},
                 // gOdhwi16o
                 cfg_f32 {fmt::goidhw, fmt::gOdhwi16o, {2, 17, 23, 2, 2, 3}},
                 cfg_f32 {fmt::gOdhwi16o, fmt::goidhw, {2, 17, 23, 3, 2, 3}},
+                // OIdhw16o16i
+                cfg_f32 {fmt::oidhw, fmt::OIdhw16o16i, {17, 23, 2, 3, 3}},
+                cfg_f32 {fmt::OIdhw16o16i, fmt::oidhw, {17, 23, 2, 3, 3}},
+                // IOdhw16o16i
+                cfg_f32 {fmt::oidhw, fmt::IOdhw16o16i, {17, 23, 2, 3, 3}},
+                cfg_f32 {fmt::IOdhw16o16i, fmt::oidhw, {17, 23, 2, 3, 3}},
                 // gOIdhw16i16o
                 cfg_f32 {fmt::goidhw, fmt::gOIdhw16i16o, {2, 17, 23, 2, 2, 3}},
                 cfg_f32 {fmt::gOIdhw16i16o, fmt::goidhw, {2, 17, 23, 3, 2, 3}},
                 // gOIdhw16o16i
                 cfg_f32 {fmt::goidhw, fmt::gOIdhw16o16i, {2, 17, 23, 2, 2, 3}},
                 cfg_f32 {fmt::gOIdhw16o16i, fmt::goidhw, {2, 17, 23, 3, 2, 3}},
+                // gIOdhw16o16i
+                cfg_f32 {fmt::goidhw, fmt::gIOdhw16o16i, {2, 17, 23, 2, 2, 3}},
+                cfg_f32 {fmt::gIOdhw16o16i, fmt::goidhw, {2, 17, 23, 3, 2, 3}},
                 // Oihw16o
                 cfg_f32 {fmt::oihw, fmt::Oihw16o, {17, 23, 2, 3}},
                 cfg_f32 {fmt::Oihw16o, fmt::oihw, {17, 23, 2, 3}},
@@ -147,7 +156,27 @@ CPU_INSTANTIATE_TEST_SUITE_P(Weights_3d, reorder_simple_test_f32_f32,
                 cfg_f32 {fmt::goidhw, fmt::gOIdhw8o8i, {2, 16, 24, 2, 2, 3}},
                 cfg_f32 {fmt::gOIdhw8o8i, fmt::goidhw, {2, 16, 24, 3, 2, 3}},
                 cfg_f32 {fmt::giodhw, fmt::gOIdhw8o8i, {2, 16, 24, 2, 2, 3}},
-                cfg_f32 {fmt::goidhw, fmt::giodhw, {2, 16, 24, 3, 2, 3}}));
+                cfg_f32 {fmt::goidhw, fmt::giodhw, {2, 16, 24, 3, 2, 3}},
+                // OIdhw16i16o and IOdhw16o16i
+                cfg_f32 {fmt::oidhw, fmt::OIdhw16i16o, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::OIdhw16i16o, fmt::oidhw, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::dhwio, fmt::OIdhw16i16o, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::OIdhw16i16o, fmt::dhwio, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::oidhw, fmt::IOdhw16o16i, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::IOdhw16o16i, fmt::oidhw, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::dhwio, fmt::IOdhw16o16i, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::IOdhw16o16i, fmt::dhwio, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::OIdhw16i16o, fmt::IOdhw16o16i, {64, 48, 2, 3, 4}},
+                cfg_f32 {fmt::IOdhw16o16i, fmt::OIdhw16i16o, {64, 48, 2, 3, 4}},
+                // gOIdhw16i16o and gIOdhw16o16i
+                cfg_f32 {fmt::goidhw, fmt::gOIdhw16i16o, {2, 64, 96, 2, 3, 4}},
+                cfg_f32 {fmt::gOIdhw16i16o, fmt::goidhw, {2, 64, 96, 2, 3, 4}},
+                cfg_f32 {fmt::goidhw, fmt::gIOdhw16o16i, {2, 64, 96, 2, 3, 4}},
+                cfg_f32 {fmt::gIOdhw16o16i, fmt::goidhw, {2, 64, 96, 2, 3, 4}},
+                cfg_f32 {fmt::gOIdhw16i16o, fmt::gIOdhw16o16i,
+                        {2, 64, 96, 2, 3, 4}},
+                cfg_f32 {fmt::gIOdhw16o16i, fmt::gOIdhw16i16o,
+                        {2, 64, 96, 2, 3, 4}}));
 
 CPU_INSTANTIATE_TEST_SUITE_P(Data, reorder_simple_test_f32_f32,
         ::testing::Values(cfg_f32 {fmt::nchw, fmt::nchw, {10, 10, 13, 13}},

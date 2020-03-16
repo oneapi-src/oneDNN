@@ -72,6 +72,8 @@ extern "C" {
 #endif
 
 %s
+const char DNNL_API *dnnl_runtime2str(unsigned v);
+
 /// Forms a format string for a given memory descriptor.
 ///
 /// The format is defined as: 'dt:[p|o|0]:fmt_kind:fmt:extra'.
@@ -125,8 +127,11 @@ const char *status2str(dnnl_status_t status);
 /* data type */
 const char *dt2str(dnnl_data_type_t dt);
 
-/* format */
-const char *fmt_tag2str(dnnl_format_tag_t tag);
+/* endinge kind */
+const char *engine_kind2str(dnnl_engine_kind_t kind);
+
+/* scratchpad mode */
+const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode);
 
 #endif
 ''' % body
@@ -152,8 +157,12 @@ const char *dt2str(dnnl_data_type_t dt) {
     return dnnl_dt2str(dt);
 }
 
-const char *fmt_tag2str(dnnl_format_tag_t tag) {
-    return dnnl_fmt_tag2str(tag);
+const char *engine_kind2str(dnnl_engine_kind_t kind) {
+    return dnnl_engine_kind2str(kind);
+}
+
+const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode) {
+    return dnnl_scratchpad_mode2str(mode);
 }
 ''' % body.rstrip()
 
@@ -187,6 +196,7 @@ def sanitize_value(v):
         return 'undef'
     if 'any' in v:
         return 'any'
+    v = v.split('dnnl_scratchpad_mode_')[-1]
     v = v.split('dnnl_format_kind_')[-1]
     v = v.split('dnnl_')[-1]
     return v

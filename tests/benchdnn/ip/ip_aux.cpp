@@ -59,7 +59,6 @@ int str2desc(desc_t *desc, const char *str) {
 
     desc_t d {0};
     d.mb = 2;
-    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -97,26 +96,7 @@ int str2desc(desc_t *desc, const char *str) {
 
     if (d.ic == 0 || d.oc == 0) return FAIL;
 
-    if (d.id == 0) { d.ndims--; }
-    if (d.ih == 0) {
-        if (d.id == 0) {
-            d.ndims--;
-        } else { // square shape
-            d.ih = d.id;
-        }
-    }
-    if (d.iw == 0) {
-        if (d.ih == 0) {
-            d.ndims--;
-        } else { // square shape
-            d.iw = d.ih;
-        }
-    }
-
-    // to keep logic when treating unspecified dimension as it's of length 1.
-    if (d.id == 0) d.id = 1;
-    if (d.ih == 0) d.ih = 1;
-    if (d.iw == 0) d.iw = 1;
+    if (sanitize_desc(d.ndims, {d.id}, {d.ih}, {d.iw}, {1}) != OK) return FAIL;
 
     *desc = d;
 
@@ -124,14 +104,8 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool square_form = (d.ih == d.iw);
-    const bool cubic_form = square_form && (d.id == d.ih);
-
-    const bool print_d = d.ndims == 5;
-    const bool print_h
-            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
-    const bool print_w
-            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+    bool print_d = true, print_h = true, print_w = true;
+    print_dhw(print_d, print_h, print_w, d.ndims, {d.id}, {d.ih}, {d.iw});
 
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
@@ -153,12 +127,9 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
     if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (canonical || p.stag != dnnl_format_tag_any)
-        s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (canonical || p.wtag != dnnl_format_tag_any)
-        s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (canonical || p.dtag != dnnl_format_tag_any)
-        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
+    if (canonical || p.stag != tag::any) s << "--stag=" << p.stag << " ";
+    if (canonical || p.wtag != tag::any) s << "--wtag=" << p.wtag << " ";
+    if (canonical || p.dtag != tag::any) s << "--dtag=" << p.dtag << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);

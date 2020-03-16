@@ -51,8 +51,8 @@ sycl_ocl_gpu_kernel_t::~sycl_ocl_gpu_kernel_t() {
 }
 
 status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
-        const compute::nd_range_t &range,
-        const compute::kernel_arg_list_t &arg_list) const {
+        const gpu::compute::nd_range_t &range,
+        const gpu::compute::kernel_arg_list_t &arg_list) const {
     if (range.is_zero()) return status::success;
 
     auto *sycl_stream = utils::downcast<sycl::sycl_stream_t *>(&stream);

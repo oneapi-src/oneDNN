@@ -31,7 +31,7 @@ namespace eltwise {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<alg_t> alg {attr_t::post_ops_t::RELU};
 std::vector<float> scales {0, 0.25, -0.25};
 std::vector<float> alpha {scales};
@@ -50,7 +50,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {dnnl_nchw};
+    tag = {tag::abx};
     alg = {attr_t::post_ops_t::RELU};
     alpha = scales;
     beta = scales;
@@ -67,34 +67,43 @@ void check_correctness() {
     for_(const auto &i_alg : alg)
     for_(const auto &i_alpha : alpha)
     for_(const auto &i_beta : beta)
-    for_(const auto &i_inplace : inplace)
+    for_(auto i_inplace : inplace)
     for (const auto &i_mb : mb) {
-        using pk = attr_t::post_ops_t::kind_t;
-
         // iterator over alpha and beta (alphabetic order!)
         switch (i_alg) {
-            case pk::ABS:
-            case pk::EXP:
-            case pk::GELU:
-            case pk::LOG:
-            case pk::LOGISTIC:
-            case pk::SQRT:
-            case pk::SQUARE:
-            case pk::SRELU:
-            case pk::TANH:
+            case alg_t::ABS:
+            case alg_t::EXP:
+            case alg_t::EXP_DST:
+            case alg_t::GELU_TANH:
+            case alg_t::LOG:
+            case alg_t::LOGISTIC:
+            case alg_t::LOGISTIC_DST:
+            case alg_t::SQRT:
+            case alg_t::SQRT_DST:
+            case alg_t::SQUARE:
+            case alg_t::SRELU:
+            case alg_t::TANH:
+            case alg_t::TANH_DST:
+            case alg_t::GELU_ERF:
                 // Skip everything but alpha = 0 and beta = 0
                 if (i_alpha != 0 || i_beta != 0) continue;
-            case pk::ELU:
-            case pk::RELU:
-            case pk::SWISH:
+                break;
+            case alg_t::ELU:
+            case alg_t::RELU:
+            case alg_t::SWISH:
                 // Test any alpha value but beta = 0
                 if (i_beta != 0) continue;
-            case pk::BRELU:
+                break;
+            case alg_t::ELU_DST:
+            case alg_t::RELU_DST:
+            case alg_t::BRELU:
                 // Test non-negative alpha value but beta = 0
                 if (i_alpha < 0 || i_beta != 0) continue;
-            case pk::CLIP:
+                break;
+            case alg_t::CLIP:
                 // Test beta >= alpha values
                 if (i_beta < i_alpha) continue;
+                break;
 
             default:; // Test any alpha and beta values
         };

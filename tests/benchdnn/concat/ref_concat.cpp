@@ -25,7 +25,7 @@ void get_sizes(const prb_t *p, int64_t &outer_size, int64_t &inner_size,
     outer_size = inner_size = 1;
     for (int i = 0; i < p->axis; i++)
         outer_size *= p->sdims[0][i];
-    for (int i = p->axis + 1; i < (int)p->sdims[0].size(); i++)
+    for (int i = p->axis + 1; i < p->ndims; i++)
         inner_size *= p->sdims[0][i];
     axis_size = p->axis_size();
 }

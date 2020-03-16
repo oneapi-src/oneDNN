@@ -33,24 +33,28 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &cpd, res_t *r) {
     src_d.resize(p->n_inputs());
 
     dnnl_memory_desc_t dst_d;
-    const int ndims = (int)p->ddims.size();
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
         const dims_t &i_sdims = p->sdims[i_input];
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], ndims,
-                         i_sdims.data(), p->sdt, p->stag[i_input]),
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], p->ndims,
+                         i_sdims.data(), p->sdt,
+                         convert_tag(p->stag[i_input], p->ndims)),
                 WARN);
     }
 
-    if (p->dtag != dnnl_format_tag_undef) {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                         &dst_d, ndims, p->ddims.data(), p->ddt, p->dtag),
+    if (p->dtag != tag::undef) {
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, p->ddims.data(),
+                         p->ddt, convert_tag(p->dtag, p->ndims)),
                 WARN);
     }
+
+    auto dnnl_attr = create_dnnl_attr(attr_t());
 
     dnnl_status_t init_status = dnnl_concat_primitive_desc_create(&cpd,
-            p->dtag != dnnl_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
-            p->axis, src_d.data(), NULL, engine_tgt);
+            p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(), p->axis,
+            src_d.data(), dnnl_attr, engine_tgt);
+
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -127,39 +131,50 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
     dnnl_primitive_desc_t cpd;
-    dnnl_primitive_t c;
-
     SAFE(init_pd(p, cpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
+    dnnl_primitive_t c;
     DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
 
-    const auto q = [=](dnnl_query_t query, int index = 0) {
-        return *dnnl_primitive_desc_query_md(cpd, query, index);
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
+
+    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+        DNN_SAFE_V(dnnl_primitive_destroy(c));
+        return r->state = SKIPPED, OK;
+    }
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
     };
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag((int)p->sdims[0].size());
+    const auto tag = get_abx_tag(p->ndims);
 
-    const auto dst_dt_d = q(dnnl_query_dst_md);
-    const auto dst_data_type = dst_dt_d.data_type; // needed for deduced dst
-    dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_tgt);
-    dnn_mem_t dst_dt(dst_dt_d, engine_tgt);
+    const auto &dst_md = q(DNNL_ARG_DST);
+    const auto dst_data_type = dst_md.data_type; // needed for deduced dst
+    dnn_mem_t dst_fp(dst_md, fp, tag, engine_tgt);
+    dnn_mem_t dst_dt(dst_md, engine_tgt);
+
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     args_t args;
     args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(p->n_inputs());
     src_dt.reserve(p->n_inputs());
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
-        const auto src_dt_d = q(dnnl_query_src_md, i_input);
-        src_fp.emplace_back(src_dt_d, fp, tag, engine_tgt);
-        src_dt.emplace_back(src_dt_d, engine_tgt);
-
+        const auto &src_md = q(DNNL_ARG_MULTIPLE_SRC + i_input);
+        src_fp.emplace_back(src_md, fp, tag, engine_tgt);
+        src_dt.emplace_back(src_md, engine_tgt);
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
-
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
@@ -180,8 +195,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, c, args);
 
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(c));
 
     return OK;
 }

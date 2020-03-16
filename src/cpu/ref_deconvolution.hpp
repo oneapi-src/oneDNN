@@ -32,32 +32,14 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-static status_t compute_blocked_format(
-        bool with_groups, const memory_desc_t *oi_md, memory_desc_t *io_md) {
-    /* Computes blocking for *i*o* format from *o*i* format */
+static status_t weights_axes_permutation(
+        memory_desc_t *o_md, const memory_desc_t *i_md, bool with_groups) {
+    int perm[DNNL_MAX_NDIMS] {}; // deconv to conv weight permutation
+    for (int d = 0; d < DNNL_MAX_NDIMS; ++d)
+        perm[d] = d;
+    nstl::swap(perm[0 + with_groups], perm[1 + with_groups]);
 
-    bool sanity_check_ok = true && oi_md->ndims == io_md->ndims
-            && oi_md->format_kind == format_kind::blocked;
-    if (!sanity_check_ok) return status::invalid_arguments;
-
-    const blocking_desc_t &oi_blk = oi_md->format_desc.blocking;
-    blocking_desc_t io_blk = io_md->format_desc.blocking;
-
-    io_md->format_kind = format_kind::blocked;
-    io_blk = oi_blk;
-
-    const int ID_OC = 0 + with_groups;
-    const int ID_IC = 1 + with_groups;
-
-    nstl::swap(io_blk.strides[ID_OC], io_blk.strides[ID_IC]);
-    for (int i_blk = 0; i_blk < io_blk.inner_nblks; ++i_blk) {
-        if (utils::one_of(io_blk.inner_idxs[i_blk], ID_OC, ID_IC)) {
-            io_blk.inner_idxs[i_blk]
-                    = (io_blk.inner_idxs[i_blk] == ID_OC ? ID_IC : ID_OC);
-        }
-    }
-
-    return memory_desc_init_by_blocking_desc(*io_md, io_blk);
+    return dnnl_memory_desc_permute_axes(o_md, i_md, perm);
 }
 
 static status_t conv_descr_create(
@@ -69,7 +51,6 @@ static status_t conv_descr_create(
 
     const memory_desc_t *src_md, *dst_md, *d_weights_d;
     prop_kind_t prop_kind;
-    memory_desc_t c_weights_d;
     if (utils::one_of(dd->prop_kind, forward_training, forward_inference)) {
         prop_kind = backward_data;
         src_md = &dd->dst_desc;
@@ -87,21 +68,10 @@ static status_t conv_descr_create(
         d_weights_d = &dd->diff_weights_desc;
     }
 
-    const bool with_groups = d_weights_d->ndims == src_md->ndims + 1;
-
     /* create weights desc for convolution */
-    c_weights_d = *d_weights_d;
-
-    const int ID_OC = 0 + with_groups;
-    const int ID_IC = 1 + with_groups;
-
-    nstl::swap(c_weights_d.dims[ID_OC], c_weights_d.dims[ID_IC]);
-    nstl::swap(c_weights_d.padded_dims[ID_OC], c_weights_d.padded_dims[ID_IC]);
-    nstl::swap(c_weights_d.padded_offsets[ID_OC],
-            c_weights_d.padded_offsets[ID_IC]);
-
-    if (c_weights_d.format_kind != format_kind::any)
-        CHECK(compute_blocked_format(with_groups, d_weights_d, &c_weights_d));
+    memory_desc_t c_weights_d;
+    const bool with_groups = d_weights_d->ndims == src_md->ndims + 1;
+    CHECK(weights_axes_permutation(&c_weights_d, d_weights_d, with_groups));
 
     return conv_desc_init(cd, prop_kind, alg_kind, src_md, &c_weights_d,
             prop_kind != backward_weights ? &dd->bias_desc : nullptr, dst_md,
@@ -184,11 +154,9 @@ struct ref_deconvolution_fwd_t : public primitive_impl_t {
 
             if (ok) {
                 CHECK(init_convolution());
-                if (weights_md_.format_kind == format_kind::any) {
-                    CHECK(compute_blocked_format(with_groups(),
-                            conv_pd_->weights_md(), &desc_.weights_desc));
-                    weights_md_ = desc_.weights_desc;
-                }
+                if (weights_md_.format_kind == format_kind::any)
+                    CHECK(weights_axes_permutation(&weights_md_,
+                            conv_pd_->weights_md(), with_groups()));
                 if (src_md_.format_kind == format_kind::any)
                     src_md_ = *conv_pd_->diff_dst_md();
                 if (dst_md_.format_kind == format_kind::any)
@@ -329,11 +297,9 @@ struct ref_deconvolution_bwd_data_t : public primitive_impl_t {
 
             if (ok) {
                 CHECK(init_convolution());
-                if (weights_md_.format_kind == format_kind::any) {
-                    CHECK(compute_blocked_format(with_groups(),
-                            conv_pd_->weights_md(), &desc_.weights_desc));
-                    weights_md_ = desc_.weights_desc;
-                }
+                if (weights_md_.format_kind == format_kind::any)
+                    CHECK(weights_axes_permutation(&weights_md_,
+                            conv_pd_->weights_md(), with_groups()));
                 if (diff_src_md_.format_kind == format_kind::any)
                     diff_src_md_ = *conv_pd_->dst_md();
                 if (diff_dst_md_.format_kind == format_kind::any)
@@ -449,12 +415,9 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
 
             if (ok) {
                 CHECK(init_convolution());
-                if (diff_weights_md_.format_kind == format_kind::any) {
-                    CHECK(compute_blocked_format(with_groups(),
-                            conv_pd_->diff_weights_md(),
-                            &desc_.diff_weights_desc));
-                    diff_weights_md_ = desc_.diff_weights_desc;
-                }
+                if (diff_weights_md_.format_kind == format_kind::any)
+                    CHECK(weights_axes_permutation(&diff_weights_md_,
+                            conv_pd_->diff_weights_md(), with_groups()));
                 if (src_md_.format_kind == format_kind::any)
                     src_md_ = *conv_pd_->diff_dst_md();
                 if (diff_dst_md_.format_kind == format_kind::any)

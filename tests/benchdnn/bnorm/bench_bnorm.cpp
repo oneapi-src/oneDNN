@@ -35,7 +35,7 @@ namespace bnorm {
 
 std::vector<dir_t> dir {FWD_D};
 std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<dnnl_format_tag_t> tag {dnnl_nchw};
+std::vector<std::string> tag {tag::abx};
 std::vector<flags_t> flags {0};
 std::vector<int64_t> mb {0};
 std::vector<bool> inplace {true};
@@ -54,7 +54,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_D};
     dt = {dnnl_f32};
-    tag = {dnnl_nchw};
+    tag = {tag::abx};
     flags = {0};
     mb = {0};
     inplace = {true};
@@ -70,7 +70,7 @@ void check_correctness(const desc_t *c) {
     for_(const auto &i_dt : dt)
     for_(const auto &i_tag : tag)
     for_(const auto &i_flags : flags)
-    for_(const auto &i_inplace : inplace)
+    for_(auto i_inplace : inplace)
     for (const auto &i_mb : mb) {
         const prb_t p(*c, i_mb, i_dir, i_dt, i_tag, i_flags, i_inplace, attr,
                 check_alg);

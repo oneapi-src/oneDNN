@@ -6,21 +6,30 @@ Reorder {#dev_guide_reorder}
 >
 
 The reorder primitive copies data between different memory formats but doesn't
-change the tensor from mathematical perspective:
+change the tensor from mathematical perspective (the variable names follow the
+standard @ref dev_guide_conventions):
 
 \f[
-    dst(\overline{x}) = src(\overline{x})
+    \dst(\overline{x}) = \src(\overline{x})
 \f]
 
 As described in @ref dev_guide_basic_concepts in order to achieve the best
 performance some primitives (such as convolution) require special memory format
-which is typically referred as an *optimized* memory format. The *optimized*
+which is typically referred to as an *optimized* memory format. The *optimized*
 memory format may match or may not match memory format that data is currently
 kept in. In this case a user can use reorder primitive to copy (reorder) the
 data between the memory formats.
 
 Using the attributes and post-ops users can also use reorder primitive to
 quantize the data (and if necessary change the memory format simultaneously).
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_FROM            |
+| \dst                   | DNNL_ARG_TO              |
 
 ## Implementation Details
 
@@ -30,7 +39,7 @@ quantize the data (and if necessary change the memory format simultaneously).
    the same shape. Implicit broadcasting is not supported.
 
 2. While in most of the cases the reorder should be able to handle arbitrary
-   source and destination memory formats and data types it might happen than
+   source and destination memory formats and data types, it might happen than
    some combinations are not implemented. For instance:
 
    - Reorder implementations between weights in non-plain memory formats might
@@ -92,21 +101,25 @@ For instance, the following pseudo-code
 would lead to the following operation:
 
 \f[
-    dst(\overline{x}) =
-            \alpha \cdot src(\overline{x}) +
-            \beta  \cdot dst(\overline{x})
+    \dst(\overline{x}) =
+            \alpha \cdot \src(\overline{x}) +
+            \beta  \cdot \dst(\overline{x})
 \f]
 
 @note The intermediate operations are being done using single precision
 floating point data type.
-
 
 ## Implementation Limitations
 
 1. No primitive specific limitations. Refer to @ref dev_guide_data_types for
    limitations related to data types support.
 
-
 ## Performance Tips
 
 N/A
+
+## Examples
+
+| Engine  | Name                     | Comments
+| :--     | :--                      | :--
+| CPU/GPU | @ref reorder_example_cpp | @copydetails reorder_example_cpp_short

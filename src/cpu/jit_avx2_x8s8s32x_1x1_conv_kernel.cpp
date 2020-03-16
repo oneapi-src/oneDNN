@@ -136,6 +136,14 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::reduce_loop(
                 + jcp.typesize_in * offt];
     };
 
+    auto output_ptr = [=](int i_load, int i_ur) {
+        const size_t ur_stride = jcp.with_dw_conv
+                ? jcp.nb_load_blocking * jcp.oc_block * i_ur
+                : jcp.oc_without_padding * i_ur;
+
+        return jcp.typesize_out * (ur_stride + i_load * jcp.load_block);
+    };
+
     auto init = [&]() {
         for (int i_load = 0; i_load < load_loop_blk; ++i_load)
             for (int i_ur = 0; i_ur < ur; ++i_ur) {
@@ -217,9 +225,7 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::reduce_loop(
 
                     auto r = vreg_accum(i_load, i_ur);
                     cvt2ps(jcp.dst_dt, ymm_prev_dst, aux_reg_output_data,
-                            jcp.typesize_out
-                                    * (jcp.oc_without_padding * i_ur
-                                            + i_load * jcp.load_block),
+                            output_ptr(i_load, i_ur),
                             mask_flag ? get_tail_size() : simd_w);
 
                     if (*p_sum_scale == 1.f)
@@ -249,9 +255,7 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::reduce_loop(
                 if (jcp.dst_dt != data_type::f32) vcvtps2dq(r, r);
 
                 store_data(jcp.dst_dt, r, aux_reg_output_data,
-                        jcp.typesize_out
-                                * (jcp.oc_without_padding * i_ur
-                                        + i_load * jcp.load_block),
+                        output_ptr(i_load, i_ur),
                         mask_flag ? get_tail_size() : simd_w);
             }
         }
@@ -455,13 +459,19 @@ bool jit_avx2_x8s8s32x_1x1_conv_kernel::post_ops_ok(
     const auto &p = attr.post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
+    auto is_convolution
+            = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
-    switch (p.len_) {
+    int dw_idx = p.find(primitive_kind::convolution);
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+
+    switch (len) {
         case 0: return true;
-        case 1: return is_eltwise(0) || p.contain(sum, 0);
+        case 1: return is_eltwise(0) || p.contain(sum, 0) || is_convolution(0);
         case 2:
             return (p.contain(sum, 0) && is_eltwise(1))
-                    || (p.contain(sum, 1) && is_eltwise(0));
+                    || (p.contain(sum, 1) && is_eltwise(0))
+                    || (is_eltwise(0) && is_convolution(1));
         default: return false;
     }
 
@@ -482,40 +492,48 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
                     data_type::s8, data_type::u8))
         return status::unimplemented;
 
-    const bool is_2d = src_d.ndims() == 4;
-    if (!is_2d) return status::unimplemented;
-
+    const int ndims = src_d.ndims();
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
     jcp.mb = src_d.dims()[0];
     jcp.oc = dst_d.dims()[1] / jcp.ngroups;
     jcp.oc_without_padding = jcp.oc;
     jcp.ic = src_d.dims()[1] / jcp.ngroups;
     jcp.ic_without_padding = jcp.ic;
-    jcp.ih = src_d.dims()[2];
-    jcp.iw = src_d.dims()[3];
-    jcp.oh = dst_d.dims()[2];
-    jcp.ow = dst_d.dims()[3];
-    jcp.kh = weights_d.dims()[with_groups + 2];
-    jcp.kw = weights_d.dims()[with_groups + 3];
-    jcp.t_pad = cd.padding[0][0];
-    jcp.l_pad = cd.padding[0][1];
-    jcp.stride_h = cd.strides[0];
-    jcp.stride_w = cd.strides[1];
+    jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
+    jcp.iw = src_d.dims()[ndims - 1];
+    jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
+    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
+    jcp.ow = dst_d.dims()[ndims - 1];
+    jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims - 2];
+    jcp.kw = weights_d.dims()[with_groups + ndims - 1];
+    jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
+    jcp.l_pad = cd.padding[0][ndims - 3];
+    jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
+    jcp.stride_w = cd.strides[ndims - 3];
     jcp.with_bias = cd.bias_desc.format_kind != format_kind::undef;
 
     jcp.signed_input = (src_d.data_type() == data_type::s8);
 
-    jcp.os = jcp.oh * jcp.ow;
-    jcp.is = jcp.ih * jcp.iw;
+    jcp.os = jcp.od * jcp.oh * jcp.ow;
+    jcp.is = jcp.id * jcp.ih * jcp.iw;
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    jcp.with_dw_conv = dw_conv_ind != -1;
+    // Using dw_conv_ind as upper-bound below, as post-ops after it will be
+    // handled in depthwise convolution.
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) jcp.eltwise = p.entry_[eltwise_ind].eltwise;
 
-    format_tag_t dat_tag = format_tag::nhwc;
+    format_tag_t dat_tag = utils::pick(
+            ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
 
@@ -527,10 +545,10 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     jcp.ic = rnd_up(jcp.ic, simd_w);
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
-            && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
-            && jcp.stride_h == 1 && jcp.ow == jcp.iw
-            && jcp.oh == jcp.ih // enforce rpad=0
-            && jcp.kh == 1 && jcp.kw == 1;
+            && jcp.f_pad == 0 && jcp.t_pad == 0 && jcp.l_pad == 0
+            && jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1
+            && jcp.ow == jcp.iw && jcp.oh == jcp.ih && jcp.od == jcp.id
+            && jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1;
     if (!args_ok) return status::unimplemented;
 
     jcp.bia_dt = jcp.with_bias ? cd.bias_desc.data_type : data_type::undef;
@@ -568,7 +586,7 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
             max_regs = min_regs = 3;
         jcp.ur = nstl::min(max_regs, jcp.os);
     } else {
-        const int spatial = jcp.oh;
+        const int spatial = jcp.od * jcp.oh;
         jcp.ur = 1;
         for (int ur_w = max_regs; ur_w >= min_regs; ur_w--) {
             if ((spatial >= size_threshold && spatial % ur_w == 0)
@@ -591,6 +609,7 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         }
     }
 
+    if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
     jcp.reduce_dim = jcp.ic;
     jcp.reduce_block = jcp.ic_block;
 
@@ -682,7 +701,7 @@ status_t jit_avx2_x8s8s32x_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     assert(params_ok && "parameter values are inconsistent");
     if (!params_ok) return status::unimplemented;
 
-    jcp.ur_tail = jcp.bcast_dim % jcp.ur;
+    jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
     jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;

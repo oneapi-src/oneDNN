@@ -99,10 +99,9 @@ public:
         // CPU and GPU devices work through OpenCL, so we can extract their
         // OpenCL device/context and validate them.
         if (dev.is_cpu() || dev.is_gpu()) {
-            auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(dev.get());
-            auto ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(ctx.get());
-            status = ocl::ocl_utils::check_device(
-                    engine_kind_, ocl_dev, ocl_ctx);
+            auto ocl_dev = gpu::ocl::make_ocl_wrapper(dev.get());
+            auto ocl_ctx = gpu::ocl::make_ocl_wrapper(ctx.get());
+            status = gpu::ocl::check_device(engine_kind_, ocl_dev, ocl_ctx);
             if (status != status::success) { return status; }
         }
 

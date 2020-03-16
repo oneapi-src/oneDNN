@@ -1,14 +1,28 @@
 Basic Concepts {#dev_guide_basic_concepts}
 ==========================================
 
+## Introduction
+
+In this page, an outline of the DNNL programming model is presented, and the key
+concepts are discussed, including *Primitives*, *Engines*, *Streams*, and
+*Memory Objects*. In essence, the DNNL programming model consists in executing
+one or several *primitives* to process data in one or several *memory objects*.
+The execution is performed on an *engine* in the context of a *stream*. The
+relationship between these entities is briefly presented in Figure 1, which also
+includes additional concepts relevant to the DNNL programming model, such as
+primitive *attributes* and *descriptors*. These concepts are described below in
+much more details.
+
+@img{img_programming_model.png,Figure 1: Overview of DNNL programming model. Blue rectangles denote DNNL objects\, and red lines denote dependencies between objects.,60%,}
+
 ### Primitives
 
 DNNL is built around the notion of a *primitive* (@ref dnnl::primitive). A
-*primitive* is a functor object that encapsulates a particular computation
-such as forward convolution, backward LSTM computations, or a data
-transformation operation. A single primitive can sometimes represent more
-complex *fused* computations such as a forward convolution followed by a
-ReLU.
+*primitive* is a functor object that encapsulates a particular computation such
+as forward convolution, backward LSTM computations, or a data transformation
+operation. Additionally, using primitive *attributes* (@ref
+dnnl::primitive_attr) certain primitives can represent more complex *fused*
+computations such as a forward convolution followed by a ReLU.
 
 The most important difference between a primitive and a pure function is that
 a primitive can store state.
@@ -112,7 +126,10 @@ The sequence of actions to create a primitive is:
    [format_tag::any](@ref dnnl::memory::format_tag::any)
    memory formats if the primitive supports it.
 
-2. Create a primitive descriptor based on the operation descriptor and an
-   engine handle.
+2. Create a primitive descriptor based on the operation descriptor, engine
+   and attributes.
 
 3. Create a primitive based on the primitive descriptor obtained in step 2.
+
+@note The above sequence does not relate to all primitives in its entirety. For
+instance, the reorder primitive does not have an operation descriptor.

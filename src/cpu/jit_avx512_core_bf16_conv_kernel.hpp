@@ -25,10 +25,6 @@
 #include "jit_primitive_conf.hpp"
 #include "jit_uni_eltwise_injector.hpp"
 
-#if !DNNL_THR_SYNC
-#define BF16_CONV_BWD_W_DOES_NOT_USE_BARRIERS
-#endif
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -43,7 +39,7 @@ struct jit_avx512_core_bf16_fwd_kernel : public jit_generator {
         , eltwise_injector_(nullptr)
         , bf16_emu_(nullptr) {
         if (jcp.with_eltwise)
-            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
+            eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(
                     this, jcp.eltwise);
         if (!isa_has_bf16(jcp.isa))
             bf16_emu_ = new bf16_emulation_t(this, bf16_emu_reserv_1,
@@ -135,7 +131,7 @@ private:
     Xbyak::Opmask odd_load_mask = Xbyak::Opmask(1);
     Xbyak::Opmask even_load_mask = Xbyak::Opmask(2);
 
-    jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
+    jit_uni_eltwise_injector_f32<avx512_core> *eltwise_injector_;
     bf16_emulation_t *bf16_emu_;
 
     inline void prepare_output(int ur_w);
@@ -310,10 +306,9 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
             jit_avx512_core_bf16_conv_bwd_weights_kernel_f32)
 
     static status_t init_conf(jit_conv_conf_t &jcp,
-            const convolution_desc_t &cd, const memory_desc_wrapper &src_md,
-            const memory_desc_wrapper &diff_weights_md,
-            const memory_desc_wrapper &diff_bias_md,
-            const memory_desc_wrapper &diff_dst_md);
+            const convolution_desc_t &cd, memory_desc_t &src_md,
+            memory_desc_t &diff_weights_md, memory_desc_t &diff_bias_md,
+            memory_desc_t &diff_dst_md);
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp);
 
@@ -322,16 +317,25 @@ struct jit_avx512_core_bf16_conv_bwd_weights_kernel_f32 : public jit_generator {
 
 private:
     Xbyak::Label dst_prm_table;
-    Xbyak::Opmask full_mask = Xbyak::Opmask(1);
-    Xbyak::Opmask low_mask = Xbyak::Opmask(2);
-    Xbyak::Opmask high_mask = Xbyak::Opmask(3);
-    Xbyak::Opmask m_ffffffff = Xbyak::Opmask(4);
-    Xbyak::Opmask m_0000ffff = Xbyak::Opmask(5);
-
-    Xbyak::Zmm perm = Xbyak::Zmm(24);
+    // Used by compute_ic_block_step_{vpermw, interleave}
+    Xbyak::Opmask m_ffffffff = Xbyak::Opmask(1);
+    // Used by compute_ic_block_step_vpermw
+    Xbyak::Opmask m_0000ffff = Xbyak::Opmask(2);
+    Xbyak::Opmask m_ffff0000 = Xbyak::Opmask(3);
+    // Used by compute_ic_block_step_extern (1st_conv only)
+    Xbyak::Opmask everyother_mask = Xbyak::Opmask(6);
+    Xbyak::Opmask everyother_shift_mask = Xbyak::Opmask(7);
+    // Used by compute_ic_block_step_interleave (1st_conv only)
+    Xbyak::Opmask underflow_mask = Xbyak::Opmask(4);
+    Xbyak::Opmask overflow_mask = Xbyak::Opmask(5);
+    Xbyak::Opmask underflow_stride_mask = Xbyak::Opmask(6);
+    Xbyak::Opmask overflow_stride_mask = Xbyak::Opmask(7);
 
     using reg64_t = const Xbyak::Reg64;
     enum {
+        sizeof_cacheline = 64,
+        full_spat_opt_working_set_size = 48 * 1024,
+        full_spat_max_working_set_size = 128 * 1024,
         ker_code_size = 1024 * 1024,
     };
     static const int max_ur_w;
@@ -345,11 +349,12 @@ private:
     reg64_t reg_kh = r9;
     reg64_t reg_ur_w_trips = r10;
     reg64_t reg_oj = r15;
-    reg64_t reg_ih_count = rbx;
     reg64_t reg_tmp = r14;
+    reg64_t reg_ih_shift = reg_tmp;
     reg64_t reg_long_offt = r14;
 
     reg64_t ki = r11;
+    reg64_t reg_oj_setup = r11;
     reg64_t reg_kd_count = r12;
     reg64_t reg_oi = r12;
     reg64_t reg_d_index = r13;
@@ -367,6 +372,7 @@ private:
     reg64_t scratch = r11;
 
     inline void maybe_zero_kernel();
+    inline void get_ur_w(int &ur_w, int &ur_w_tail, int &ur_w_trips);
     inline void compute_oh_step_unroll_ow_icblock(int ic_block_step);
     inline void od_step_comeback_pointers();
     inline void oh_step_comeback_pointers();
@@ -377,29 +383,101 @@ private:
     inline void compute_ic_block_step_extern(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool is_tail = false);
+    inline void compute_ic_block_step_interleave(int ur_w, int pad_l, int pad_r,
+            int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset, bool is_tail = false);
     inline void compute_ic_block_step_vpermw(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool is_tail = false);
     inline void compute_oh_step_common(int ic_block_step);
     inline void compute_oh_step_disp();
     inline void compute_loop();
-    inline void compute_oh_loop_common();
-    inline void compute_od_loop_common();
+    inline void compute_oh_loop_common(bool partial = false);
+    inline void compute_od_loop_common(bool partial = false);
+    void compute_full_spat_loop();
+    void convert_src_to_vnni_format(
+            int ur_w, int pad_l, int pad_r, int input_offset);
+    inline void compute_ic_block_step_vpermw_expl(int ur_w, int pad_l,
+            int pad_r, int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset, bool is_tail = false);
 
     void generate();
 
     static void balance(const jit_conv_conf_t &j, int &nthr, int &nthr_mb,
             int &nthr_g, int &nthr_oc_b, int &nthr_ic_b);
 
-    bf16_emulation_t *bf16_emu_;
-    int stack_space_needed = 296;
-    int kd_count_offset = 256;
-    int input_d_offset = 256 + 8;
-    int output_d_offset = 256 + 16;
-    int d_index_offset = 256 + 24;
-    int trans_tmp_offset = 256 + 32;
-};
+    void get_w_positions(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw,
+            int &iw_0, int &iw_1) {
+        auto get_w_position = [=](int idx) {
+            int iw = i_ur + idx;
+            if (iw >= ur_w) return -1;
+            iw += i_kw;
+            if (iw - pad_l < 0 || iw > (ur_w - 1) + (jcp.kw - 1) - pad_r)
+                return -1;
+            return iw - pad_l;
+        };
+        iw_0 = get_w_position(0);
+        iw_1 = get_w_position(1);
+    };
+    bool check_borders(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw) {
+        int iw_1, iw_2;
+        get_w_positions(ur_w, pad_l, pad_r, i_ur, i_kw, iw_1, iw_2);
 
+        return (iw_1 == -1 && iw_2 == -1) ? false : true;
+    };
+    bool get_load_mask(int ur_w, int pad_l, int pad_r, int i_ur, int i_kw,
+            Xbyak::Opmask &load_mask) {
+        int iw_1, iw_2;
+        get_w_positions(ur_w, pad_l, pad_r, i_ur, i_kw, iw_1, iw_2);
+
+        bool rt = true;
+        if (iw_1 != -1 && iw_2 != -1)
+            load_mask = m_ffffffff;
+        else if (iw_1 != -1 && iw_2 == -1)
+            load_mask = m_0000ffff;
+        else if (iw_1 == -1 && iw_2 != -1)
+            load_mask = m_ffff0000;
+        else
+            rt = false;
+
+        return rt;
+    };
+
+    ptrdiff_t get_inp_offset(
+            int pad_l, int i_ur, int i_kw, ptrdiff_t base_offset_bytes) {
+        ptrdiff_t local_offset_bytes
+                = jcp.typesize_in * (i_ur + i_kw - pad_l) * jcp.ic_block;
+        return base_offset_bytes + local_offset_bytes;
+    };
+
+    Xbyak::Zmm get_perm_reg() {
+        int idx = !(jcp.uses_permw_transposition
+                          && jcp.kernel_kind == expl_bcast)
+                ? 24
+                : ((!isa_has_bf16(jcp.isa)) ? 26 : 31);
+        return Xbyak::Zmm(idx);
+    }
+    bf16_emulation_t *bf16_emu_;
+
+    inline int interleave_w_reorder_size(int ur_w);
+    inline int interleave_w_reorder_bytes(int ur_w);
+    inline int interleave_stack_size(int ur_w, int ic_block_step);
+    inline int permw_stack_size(int ur_w) {
+        return (ur_w + jcp.kw - 1) * sizeof_cacheline;
+    }
+
+    inline void setup_stack_space();
+    static const int extern_ic_block_step_stack_size = 0;
+    int ic_block_step_stack_size;
+    int stack_space_needed;
+    int permw_buffer_start;
+    int kd_count_offset;
+    int input_d_offset;
+    int output_d_offset;
+    int d_index_offset;
+    int trans_tmp_offset;
+    int ih_dilate_shift;
+};
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -51,28 +51,28 @@ Refer to the materials in the [Introduction](@ref dgaq_intro).
 
 Let's consider a simple example: a convolution without bias. The tensors
 are represented as:
-- \f$src_{f32}(:) = scale_{src} \cdot src_{int8}(:)\f$
-- \f$weights_{f32}(:) = scale_{weights} \cdot weights_{int8}(:)\f$
-- \f$dst_{f32}(:) = scale_{dst} \cdot dst_{int8}(:)\f$
+- \f$\src_{f32}(:) = scale_{\src} \cdot \src_{int8}(:)\f$
+- \f$\weights_{f32}(:) = scale_{\weights} \cdot \weights_{int8}(:)\f$
+- \f$\dst_{f32}(:) = scale_{\dst} \cdot \dst_{int8}(:)\f$
 
-Here the \f$src_{f32}, weights_{f32}, dst_{f32}\f$ are not
+Here the \f$\src_{f32}, \weights_{f32}, \dst_{f32}\f$ are not
 computed at all, the whole work happens with INT8 tensors.
 As mentioned above, we also somehow know all the scaling factors:
-\f$scale_{src}, scale_{weights}, scale_{dst}\f$.
+\f$scale_{\src}, scale_{\weights}, scale_{\dst}\f$.
 
-So the task is to compute the \f$dst_{int8}\f$ tensor.
+So the task is to compute the \f$\dst_{int8}\f$ tensor.
 
 Mathematically, the computations are pretty straightforward:
 \f[
-    dst_{int8}(:) =
+    \dst_{int8}(:) =
         downconvert\_f32\_to\_int8(
             output\_scale \cdot
-            conv_{s32}(src_{int8}, weights_{int8})
+            conv_{s32}(\src_{int8}, \weights_{int8})
         ),
 \f]
 
 where:
-- \f$output\_scale := \frac{scale_{src} \cdot scale_{weights}}{scale_{dst}}\f$;
+- \f$output\_scale := \frac{scale_{\src} \cdot scale_{\weights}}{scale_{\dst}}\f$;
 - \f$conv_{s32}\f$ is just a regular convolution which takes source and
   weights with INT8 data type and compute the result in INT32 data type (INT32
   is chosen to avoid overflows during the computations);
@@ -99,40 +99,40 @@ input channels, since that would require re-quantization for every input
 data point.
 
 Assume we have (the scales are designated as \f$\alpha\f$ to simplify reading):
-- \f$src_{f32}(n, ic, ih, iw) = \alpha_{src} \cdot src_{int8}(n, ic, ih, iw)\f$
-- \f$weights_{f32}(oc, ic, kh, kw) =
-    \alpha_{weights}(oc) \cdot weights_{int8}(oc, ic, kh, kw)\f$
-- \f$dst_{f32}(n, oc, oh, ow) = scale_{dst} \cdot dst_{int8}(n, oc, oh, ow)\f$
+- \f$\src_{f32}(n, ic, ih, iw) = \alpha_{\src} \cdot \src_{int8}(n, ic, ih, iw)\f$
+- \f$\weights_{f32}(oc, ic, kh, kw) =
+    \alpha_{\weights}(oc) \cdot \weights_{int8}(oc, ic, kh, kw)\f$
+- \f$\dst_{f32}(n, oc, oh, ow) = scale_{\dst} \cdot \dst_{int8}(n, oc, oh, ow)\f$
 
 Note that now the weights' scaling factor depends on the \f$oc\f$.
 
-To compute the \f$dst_{int8}\f$ we need to perform the following:
+To compute the \f$\dst_{int8}\f$ we need to perform the following:
 
 \f[
-    dst_{int8}(n, oc, oh, ow) =
+    \dst_{int8}(n, oc, oh, ow) =
         downconvert\_f32\_to\_int8(
             output\_scale(oc) \cdot
-            conv_{s32}(src_{int8}, weights_{int8})|_{(n, oc, oh, ow)}
+            conv_{s32}(\src_{int8}, \weights_{int8})|_{(n, oc, oh, ow)}
         ),
 \f]
 
 where now
 - \f$output\_scale(oc) :=
-    \frac{\alpha_{src} \cdot \alpha_{weights}(oc)}{\alpha_{dst}}\f$.
+    \frac{\alpha_{\src} \cdot \alpha_{\weights}(oc)}{\alpha_{\dst}}\f$.
 
 It is worth mentioning that a user has to prepare quantized weights accordingly.
 For DNNL provides reorders that can perform per-channel scaling:
 
 \f[
-    weights_{int8}(oc, ic, kh, kw) =
+    \weights_{int8}(oc, ic, kh, kw) =
         downconvert\_f32\_to\_int8(
             output\_scale(oc) \cdot
-            weights_{f32}(oc, ic, kh, kw)
+            \weights_{f32}(oc, ic, kh, kw)
         ),
 \f]
 
 where:
-- \f$output\_scale(oc) := \frac{1}{\alpha_{weights}(oc_{})}\f$.
+- \f$output\_scale(oc) := \frac{1}{\alpha_{\weights}(oc_{})}\f$.
 
 
 ## API
@@ -188,13 +188,13 @@ void dnnl::primitive_attr::set_output_scales(
 In the simplest case, when there is only one common scale the attribute changes
 the op behavior from
 \f[
-    dst(:) = Op(...)
+    \dst(:) = Op(...)
 \f]
 
 to
 
 \f[
-    dst(:) = scale \cdot Op(...).
+    \dst(:) = scale \cdot Op(...).
 \f]
 
 To support scales per one or several dimensions, users must set the appropriate
@@ -338,21 +338,21 @@ That has an implication on the scaling factors passed to the library, however.
 Consider the following example of a convolution with \f$\tanh\f$ as a post-op:
 
 \f[
-    dst_{s8}(:) =
-        \frac{1}{scale_{dst}}
+    \dst_{s8}(:) =
+        \frac{1}{scale_{\dst}}
         \cdot
         \tanh(
-                scale_{src}
+                scale_{\src}
                 \cdot
-                scale_{weights}
+                scale_{\weights}
                 \cdot
-                conv_{s32}(src_{s8}, wei_{s8})
+                conv_{s32}(\src_{s8}, wei_{s8})
         )
 \f]
 
 As you can see:
 - The convolution output scales are now
-  \f$conv\_output\_scale = scale_{src} \cdot scale_{weights}\f$,
-  i.e. no division by \f$scale_{dst}\f$;
+  \f$conv\_output\_scale = scale_{\src} \cdot scale_{\weights}\f$,
+  i.e. no division by \f$scale_{\dst}\f$;
 - And the post-ops scale for \f$\tanh\f$ is set to
-  \f$scale\_tanh\_post\_op = \frac{1}{scale_{dst}}\f$.
+  \f$scale\_tanh\_post\_op = \frac{1}{scale_{\dst}}\f$.

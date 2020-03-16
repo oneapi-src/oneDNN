@@ -100,11 +100,9 @@ struct binary_pd_t : public primitive_desc_t {
     int ndims() const { return memory_desc_wrapper(src_md(0)).ndims(); }
 
     bool is_tensor_op() const {
-        const dims_t &bdims = broadcast_dims();
-        dim_t sum = 0;
-        for (int d = 0; d < ndims(); ++d)
-            sum += bdims[d];
-        return sum == 0;
+        const memory_desc_wrapper src0_d(src_md(0));
+        const memory_desc_wrapper src1_d(src_md(1));
+        return src0_d.consistent_with(src1_d);
     }
 
 protected:
@@ -127,6 +125,17 @@ protected:
         }
 
         return status;
+    }
+
+    bool attr_post_ops_ok() const {
+        using namespace primitive_kind;
+        const auto &p = attr()->post_ops_;
+        switch (p.len_) {
+            case 0: return true;
+            case 1: return p.contain(sum, 0) || p.contain(eltwise, 0);
+            case 2: return p.contain(sum, 0) && p.contain(eltwise, 1);
+            default: return false;
+        }
     }
 
 private:

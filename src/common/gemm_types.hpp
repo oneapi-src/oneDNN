@@ -46,38 +46,39 @@ typedef struct {
     transpose_t transa;
     /** Flag for transposing matrix B. */
     transpose_t transb;
-    /** Flag for offset of matrix C. */
-    offsetc_t offsetc;
+    /** Number of C matrices. */
+    dnnl_dim_t batch = 0;
     /** Number of rows of C. */
-    dnnl_dim_t m;
+    dnnl_dim_t m = 0;
     /** Number of columns of C. */
-    dnnl_dim_t n;
+    dnnl_dim_t n = 0;
     /** Size of inner dimension shared between A and B. */
-    dnnl_dim_t k;
+    dnnl_dim_t k = 0;
+    /** Stride between 2 matrices A in a batch. */
+    dnnl_dim_t stride_a = 0;
+    /** Stride between 2 matrices B in a batch. */
+    dnnl_dim_t stride_b = 0;
+    /** Stride between 2 matrices C in a batch. */
+    dnnl_dim_t stride_c = 0;
     /** Leading dimension of A. */
-    dnnl_dim_t lda;
+    dnnl_dim_t lda = 0;
     /** Leading dimension of B. */
-    dnnl_dim_t ldb;
+    dnnl_dim_t ldb = 0;
     /** Leading dimension of C. */
-    dnnl_dim_t ldc;
+    dnnl_dim_t ldc = 0;
 
-    /** Offset of A. */
-    dnnl_dim_t ao;
-    /** Offset of B. */
-    dnnl_dim_t bo;
-
-    /** Scaling factor for A * B. */
-    float alpha;
-    /** Scaling factor for C. */
-    float beta;
+    /** Describes size of bias matrix. */
+    dnnl_dim_t bias_mask = 0;
     /** Type of matrix A. */
-    dnnl_data_type_t a_type;
+    dnnl_data_type_t a_type = dnnl_data_type_undef;
     /** Type of matrix B. */
-    dnnl_data_type_t b_type;
+    dnnl_data_type_t b_type = dnnl_data_type_undef;
     /** Type of matrix C. */
-    dnnl_data_type_t c_type;
+    dnnl_data_type_t c_type = dnnl_data_type_undef;
     /** Type for accumulating A*B. */
-    dnnl_data_type_t acc_type;
+    dnnl_data_type_t acc_type = dnnl_data_type_undef;
+    /** Type of bias. */
+    dnnl_data_type_t bias_type = dnnl_data_type_undef;
 } dnnl_gemm_desc_t;
 
 } // namespace impl

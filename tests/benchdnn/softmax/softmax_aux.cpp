@@ -43,8 +43,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (canonical || p.tag != dnnl_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
     if (canonical || p.alg != SOFTMAX) s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.axis != 1) s << "--axis=" << p.axis << " ";
     if (canonical || p.inplace != true)

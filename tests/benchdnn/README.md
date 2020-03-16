@@ -7,6 +7,7 @@ The purpose of the benchmark is extended and robust correctness verification of
 the primitives provided by DNNL.
 **benchdnn** itself is a harness for different primitive-specific drivers.
 So far it supports and uses the following drivers:
+* [binary](doc/driver_binary.md)
 * [batch normalization](doc/driver_bnorm.md)
 * [concatenation](doc/driver_concat.md)
 * [convolution](doc/driver_conv.md)
@@ -34,16 +35,16 @@ So far it supports and uses the following drivers:
                [--max-ms-per-prb=INT] [--fix-times-per-prb=INT] \
                [-vINT|--verbose=INT] [--fast-ref-gpu=BOOL] \
                [--skip-impl=SKIP_IMPL] [--allow-unimpl=BOOL] \
-               [--canonical=BOOL] \
+               [--canonical=BOOL] [--mem-check=BOOL] [--scratchpad=SMODE] \
                [--perf-template=PERF_TEMPLATE] [DRIVER-OPTS] \
                PROBLEM-DESCRIPTION [--batch=FILE]
 ```
 
 where:
 
- - `--DRIVER` -- is either `bnorm`, `concat`, `conv` [default], `deconv`,
-            `eltwise`, `ip`, `lrn`, `pool`, `reorder`, `rnn`, `shuffle`,
-            `softmax`, or `sum`.
+ - `--DRIVER` -- is either `binary`, `bnorm`, `concat`, `conv`, `deconv`,
+            `eltwise`, `ip`, `lnorm`, `lrn`, `matmul`, `pool`, `reorder`,
+            `resampling`, `rnn`, `shuffle`, `softmax`, or `sum`.
  - `--engine=ENGINE_KIND` -- specifies the engine kind to use for the benchmark.
             Can be `cpu` [default] or `gpu`.
  - `--mode=MODE` -- string that contains flags for benchmark mode.
@@ -64,6 +65,12 @@ where:
             as an error. Default is `false`.
  - `--canonical=true|false` -- If `true`, print all problem and descriptor
             settings with default values. Default is `false`.
+ - `--mem-check=true|false` -- When `true` (the default) a driver checks if
+            problem memory requirement fits a device RAM capability. When
+            verbose level with value `2` or higher is specified, driver gives a
+            correspondent message if problem was skipped by RAM fit criteria.
+ - `--scratchpad=SMODE` -- specifies the scratchpad mode to use in DNNL.
+            `SMODE` can be `library` [default] or `user`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
             [performance report](doc/knobs_perf_report.md) for details.
@@ -90,6 +97,7 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 | od, oh, ow    | Output depth, height and width
 | kd, kh, kw    | Kernel (filter, weights) depth, height and width
 | sd, sh, sw    | Convolution stride over depth, height and width
+| dd, dh, dw    | Convolution dilation by depth, height and width
 | pd, ph, pw    | Convolution front, top and left padding
 | mb            | Minibatch (amount of images processed at once)
 | g             | Groups (a way to reduce the amount of computations, see Alexnet topology)
@@ -100,9 +108,9 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 | FWD_D         | dnnl_forward_training w/o bias
 | FWD_I         | dnnl_forward_inference
 | BWD_D         | dnnl_backward_data
-| BWD_W         | dnnl_backward_weights
-| BWD_DW        | dnnl_backward_data + dnnl_backward_weights
-| BWD_WB        | dnnl_backward_weights + dnnl_backward_bias
+| BWD_WB        | dnnl_backward_weights w/ bias
+| BWD_W         | dnnl_backward_weights w/o bias
+| BWD_DW        | dnnl_backward_data + dnnl_backward_weights w/o bias
 
 |Data type/cfg  | Description
 |:---           |:---
@@ -113,18 +121,30 @@ Returns `0` on success (all tests passed) or non-zero in case of any error.
 | f16           | 2-byte float (5 bits exp, 10 bits mantissa, 1 bit sign)
 | bf16          | 2-byte float (8 bits exp,  7 bits mantissa, 1 bit sign)
 
-|Format tags    | Description
-|:---           |:---
-| Plain:        |
-|  abcd         | Standard de-facto for training in CNN (aka nchw).
-|  acdb         | Standard de-facto for int8 inference in CNN (aka nhwc).
-| Blocked:      |
-|  aBcd8b       | Internal blocked format for AVX2 systems and below.
-|  aBcd16b      | Internal blocked format for AVX512VL systems and above.
-|  ...          | and some others...
-| Special:      |
-|  any          | dnnl_format_tag_any. Let the library decide, which layout should be used.
-|  undef        | dnnl_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
+## Format tags
+
+Benchdnn supports two kinds of memory format tags: meta-tags (benchdnn
+abstraction) and library tags (memory::format_tag enum). If an unsupported tag
+is specified, an error will be reported. List of library supported tags can be
+found in dnnl.hpp header file. List of supported meta-tags and special tags:
+
+| Plain tags   | Description
+|:---          |:---
+| abx          | Includes `a`, `ab`, `abc`, `abcd`, `abcde`, `abcdef` tags and their former names for activations and weights.
+| axb          | Includes `a`, `ab`, `acb`, `acdb`, `acdeb` tags and their former names for activations.
+| xba          | Includes `a`, `ba`, `cba`, `cdba`, `cdeba` tags and their former names for weights.
+
+| Blocked tags | Description
+|:---          |:---
+| aBx4b        | Includes `aBc4b`, `aBcd4b`, `aBcde4b` tags and their former names for activations.
+| aBx8b        | Includes `aBc8b`, `aBcd8b`, `aBcde8b` tags and their former names for activations.
+| aBx16b       | Includes `aBc16b`, `aBcd16b`, `aBcde16b` tags and their former names for activations.
+| ABx16a16b    | Includes `ABc16a16b`, `ABcd16a16b`, `ABcde16a16b` tags and their former names for activations.
+
+| Special tags | Description
+|:---          |:---
+| any          | dnnl_format_tag_any. Let the library decide, which layout should be used.
+| undef        | dnnl_format_tag_undef. Make a driver omit dst, letting the library to deduce it.
 
 ## Running Testing
 

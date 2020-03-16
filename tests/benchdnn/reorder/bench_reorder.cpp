@@ -28,7 +28,7 @@
 namespace reorder {
 
 std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
-std::vector<dnnl_format_tag_t> stag {dnnl_nchw}, dtag {dnnl_nchw};
+std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
 std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
 std::vector<flag_t> oflag {FLAG_NONE};
 std::vector<unsigned> runtime_dim_mask {0};
@@ -47,8 +47,8 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {dnnl_f32};
     ddt = {dnnl_f32};
-    stag = {dnnl_nchw};
-    dtag = {dnnl_nchw};
+    stag = {tag::abx};
+    dtag = {tag::abx};
     def_scale = {0.125, 0.25, 0.5, 1, 2, 4, 8};
     oflag = {FLAG_NONE};
     runtime_dim_mask = {0};
@@ -63,7 +63,7 @@ void check_correctness() {
     for_(const auto &i_stag : stag)
     for_(const auto &i_dtag : dtag)
     for_(const auto &i_oflag : oflag)
-    for (const auto &i_runtime_dim_mask : runtime_dim_mask) {
+    for (auto i_runtime_dim_mask : runtime_dim_mask) {
         reorder_conf_t reorder_conf {dims, i_stag, i_dtag};
         dt_conf_t iconf = dt2cfg(i_sdt);
         dt_conf_t oconf = dt2cfg(i_ddt);

@@ -140,7 +140,8 @@ static inline void partition_2d(const int ithr, int *nthrs, const int ithr_i,
 }
 
 static inline std::tuple<int, int> partition_2d_minblk_with_primes(int m, int n,
-        int block_m, int block_n, int min_m, int min_n, int nthr) {
+        int block_m, int block_n, int min_m, int min_n, int um, int un,
+        int nthr, bool use_aspect_ratio) {
 
     auto part_m = nstl::max(1, m / block_m);
     auto part_n = nstl::max(1, n / block_n);
@@ -181,8 +182,28 @@ static inline std::tuple<int, int> partition_2d_minblk_with_primes(int m, int n,
                 else if (ratio_m >= 1. && ratio_n < 1.)
                     do_m = true;
                 else if (ratio_m >= 1. && ratio_n >= 1.) {
-                    // Pick either the smaller or larger ratio as appropriate.
-                    (((ratio_m < ratio_n) == pick_small) ? do_m : do_n) = true;
+                    if (use_aspect_ratio) {
+                        float ratio_goal = (float)um / un;
+                        float try_ratio_m = (float)band_m_ite / band_n
+                                * (1. / ratio_goal);
+                        float try_ratio_n = (float)band_m / band_n_ite
+                                * (1. / ratio_goal);
+                        if (pick_small) {
+                            // Pick either the smaller or larger ratio as appropriate.
+                            ((ratio_m < ratio_n) ? do_m : do_n) = true;
+                        } else {
+                            // Pick the dimension that will keep as close as possible
+                            // to best ratio between m and n.
+                            ((nstl::abs(try_ratio_m - 1.)
+                                     < nstl::abs(try_ratio_n - 1))
+                                            ? do_m
+                                            : do_n)
+                                    = true;
+                        }
+                    } else {
+                        (((ratio_m < ratio_n) == pick_small) ? do_m : do_n)
+                                = true;
+                    }
                 }
 
                 if (do_m) {
@@ -219,7 +240,8 @@ static inline std::tuple<int, int> partition_2d_minblk_with_primes(int m, int n,
 }
 
 static inline std::tuple<int, int> partition_2d_minblk(int m, int n,
-        int block_m, int block_n, int min_m, int min_n, int nthr) {
+        int block_m, int block_n, int min_m, int min_n, int um, int un,
+        int nthr, bool use_aspect_ratio) {
 
     int part_m = nstl::max(1, m / min_m);
     int part_n = nstl::max(1, n / min_n);
@@ -240,8 +262,9 @@ static inline std::tuple<int, int> partition_2d_minblk(int m, int n,
 
     for (int nthr_new = nthr; nthr_new > nthr / 2; nthr_new--) {
         if (nthr_m * nthr_n >= nthr_thresh) break;
-        std::tie(nthr_m, nthr_n) = partition_2d_minblk_with_primes(
-                m, n, block_m, block_n, min_m, min_n, nthr_new);
+        std::tie(nthr_m, nthr_n)
+                = partition_2d_minblk_with_primes(m, n, block_m, block_n, min_m,
+                        min_n, um, un, nthr_new, use_aspect_ratio);
     }
 
     return std::make_tuple(nthr_m, nthr_n);

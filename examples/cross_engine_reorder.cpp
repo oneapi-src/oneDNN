@@ -36,7 +36,6 @@
 /// @page cross_engine_reorder_cpp
 
 #include <iostream>
-#include <numeric>
 #include <stdexcept>
 #include <vector>
 
@@ -51,11 +50,6 @@ using namespace dnnl;
 
 using namespace std;
 // [Prologue]
-
-memory::dim product(const memory::dims &dims) {
-    return std::accumulate(dims.begin(), dims.end(), (memory::dim)1,
-            std::multiplies<memory::dim>());
-}
 
 void fill(memory &mem, const memory::dims &adims) {
     std::vector<float> array(product(adims));

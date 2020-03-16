@@ -31,14 +31,15 @@ namespace sum {
 
 struct prb_t {
     prb_t(const dims_t &dims, const std::vector<dnnl_data_type_t> &sdt,
-            dnnl_data_type_t ddt, const std::vector<dnnl_format_tag_t> &stag,
-            dnnl_format_tag_t dtag, const std::vector<float> &scales)
+            dnnl_data_type_t ddt, const std::vector<std::string> &stag,
+            const std::string &dtag, const std::vector<float> &scales)
         : dims(dims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , dtag(dtag)
-        , scales(sdt.size()) {
+        , scales(sdt.size())
+        , ndims((int)dims.size()) {
         // if there is a single scale then broadcast it
         for (int i_input = 0; i_input < n_inputs(); i_input++)
             this->scales[i_input]
@@ -49,9 +50,10 @@ struct prb_t {
     dims_t dims;
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
-    std::vector<dnnl_format_tag_t> stag;
-    dnnl_format_tag_t dtag;
+    std::vector<std::string> stag;
+    std::string dtag;
     std::vector<float> scales;
+    int ndims;
 
     int n_inputs() const { return (int)sdt.size(); }
 };
@@ -75,10 +77,10 @@ struct perf_report_t : public base_perf_report_t {
         return &p_->sdt;
     }
     virtual const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
+    virtual const std::vector<std::string> *stag() const override {
         return &p_->stag;
     }
-    virtual const dnnl_format_tag_t *dtag() const override { return &p_->dtag; }
+    virtual const std::string *dtag() const override { return &p_->dtag; }
 
 private:
     const prb_t *p_ = NULL;

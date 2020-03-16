@@ -118,14 +118,14 @@ struct gemm_pack_storage_t {
         return matrix<data_type>(0);
     }
 
-    bool get_nocopy(int ithr, dim_t &ld, dim_t &td) const {
+    bool get_nocopy(int ithr, int &trans, dim_t &ld, dim_t &td) const {
         auto id = thread_to_slice(ithr);
-        return matrix_header->slice[id].get_nocopy(ld, td);
+        return matrix_header->slice[id].get_nocopy(trans, ld, td);
     }
 
-    bool get_nocopy(dim_t &ld, dim_t &td) const {
+    bool get_nocopy(int &trans, dim_t &ld, dim_t &td) const {
         if (!single_nocopy()) return false;
-        return get_nocopy(0, ld, td);
+        return get_nocopy(0, trans, ld, td);
     }
 
     void get_blocking(int ithr, dim_t &block_r, dim_t &block_c) const {
@@ -148,9 +148,9 @@ struct gemm_pack_storage_t {
             sums_header->slice[id].set_blocking(nblk_r, nblk_c, 1, block_c);
     }
 
-    void set_nocopy(int ithr, dim_t ld, dim_t td) {
+    void set_nocopy(int ithr, int trans, dim_t ld, dim_t td) {
         auto id = thread_to_slice(ithr);
-        matrix_header->slice[id].set_nocopy(ld, td);
+        matrix_header->slice[id].set_nocopy(trans, ld, td);
     }
 
     void setup(int max_nthr, bool has_row_sums = false,
@@ -206,6 +206,7 @@ protected:
 
     struct slice_header_t {
         bool packed;
+        int trans;
         int nblk_r, nblk_c;
         dim_t block_r, block_c;
         size_t off_data;
@@ -242,8 +243,9 @@ protected:
             block_c = block_c_;
         }
 
-        void set_nocopy(dim_t ld, dim_t td) {
+        void set_nocopy(int trans_, dim_t ld, dim_t td) {
             packed = false;
+            trans = trans_;
             block_r = ld;
             block_c = td;
             nblk_r = 1;
@@ -255,8 +257,9 @@ protected:
             block_c_ = block_c;
         }
 
-        bool get_nocopy(dim_t &ld, dim_t &td) const {
+        bool get_nocopy(int &trans_, dim_t &ld, dim_t &td) const {
             if (!packed) {
+                trans_ = trans;
                 ld = block_r;
                 td = block_c;
             }

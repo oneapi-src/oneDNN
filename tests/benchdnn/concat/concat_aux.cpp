@@ -20,18 +20,19 @@
 namespace concat {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
+    using ::operator<<;
+
     dump_global_params(s);
 
-    if (canonical || p.sdt != dnnl_f32) s << "--sdt=" << dt2str(p.sdt) << " ";
-    if (canonical || (p.dtag != dnnl_format_tag_undef && p.ddt != dnnl_f32))
-        s << "--ddt=" << dt2str(p.ddt) << " ";
+    bool has_default_tags = true;
+    for (const auto &i_stag : p.stag)
+        has_default_tags = has_default_tags && i_stag == tag::abx;
 
-    if (canonical
-            || !(p.n_inputs() == 2 && p.stag[0] == dnnl_nchw
-                    && p.stag[1] == dnnl_nchw))
-        s << "--stag=" << p.stag << " ";
-    if (canonical || p.dtag != dnnl_format_tag_undef)
-        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
+    if (canonical || p.sdt != dnnl_f32) s << "--sdt=" << dt2str(p.sdt) << " ";
+    if (canonical || (p.dtag != tag::undef && p.ddt != dnnl_f32))
+        s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (canonical || !has_default_tags) s << "--stag=" << p.stag << " ";
+    if (canonical || p.dtag != tag::undef) s << "--dtag=" << p.dtag << " ";
     if (canonical || p.axis != 1) s << "--axis=" << p.axis << " ";
 
     s << p.sdims;

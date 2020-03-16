@@ -61,7 +61,10 @@ static int check_desc() {
     d.mb = 2;
     d.iw = d.ih;
     d.eps = 1.f / 16;
-    CHECK_PRINT_EQ(d, "ic4ih5iw5ntest");
+    CHECK_PRINT_EQ(d, "ic4ih5ntest");
+
+    canonical = true;
+    CHECK_PRINT_EQ(d, "mb2ic4ih5iw5eps0.0625ntest");
 
 #define CHECK_D(_mb, _ic, _ih, _iw, _eps, _name) \
     CHECK_EQ(d.mb, _mb); \

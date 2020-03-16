@@ -5,14 +5,16 @@
 --cfg=f32,bf16
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
---tag=ncw,nCw16c   --batch=pool_1d
---tag=nchw,nChw16c --batch=pool_2d_small
+--tag=abx,aBx16b
+--batch=pool_1d
+--batch=pool_2d_small
 
 --dir=FWD_D,BWD_D
 --alg=MAX,AVG_P
---tag=nchw,nChw16c --batch=pool_ker_in_pad_2d_small
---tag=nCdhw16c     --batch=pool_3d_small
---tag=nCdhw16c     --batch=pool_ker_in_pad_3d_small
+--tag=abx,aBx16b
+--batch=pool_ker_in_pad_2d_small
+--batch=pool_3d_small
+--batch=pool_ker_in_pad_3d_small
 
 --reset
 --mb=16
@@ -21,33 +23,28 @@
 --cfg=f32
 --dir=FWD_D,FWD_I,BWD_D
 --alg=MAX,AVG_NP,AVG_P
---tag=NChw16n16c   --batch=pool_2d_small
+--tag=ABx16a16b
+--batch=pool_2d_small
 
 --dir=FWD_D,BWD_D
 --alg=MAX,AVG_P
---tag=NChw16n16c   --batch=pool_ker_in_pad_2d_small
---tag=NCdhw16n16c  --batch=pool_3d_small
---tag=NCdhw16n16c  --batch=pool_ker_in_pad_3d_small
+--batch=pool_ker_in_pad_2d_small
+--batch=pool_3d_small
+--batch=pool_ker_in_pad_3d_small
 
 # s8, f16, bf16
---cfg=s8,f16,bf16
+--cfg=u8,s8,f16,bf16
 
 --dir=FWD_I
 --mb=2
 --alg=MAX,AVG_NP,AVG_P
---tag=nchw,nChw16c --batch=pool_2d_small
+--tag=abx,aBx16b --batch=pool_2d_small
 
 --mb=16
---tag=NChw16n16c   --batch=pool_2d_small
+--tag=ABx16a16b
+--batch=pool_2d_small
 --alg=MAX,AVG_P
---tag=NChw16n16c   --batch=pool_ker_in_pad_2d_small
---tag=NCdhw16n16c  --batch=pool_3d_small
---tag=NCdhw16n16c  --batch=pool_ker_in_pad_3d_small
+--batch=pool_ker_in_pad_2d_small
+--batch=pool_3d_small
+--batch=pool_ker_in_pad_3d_small
 
-# u8
---cfg=u8
---alg=MAX,AVG_NP,AVG_P
---mb=2
---tag=nchw,nChw16c --batch=pool_2d_small
---mb=16
---tag=NChw16n16c   --batch=pool_2d_small

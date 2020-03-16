@@ -58,8 +58,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     s << "--sdt=" << dt2str(cfg2dt(p.conf_in)) << " ";
     s << "--ddt=" << dt2str(cfg2dt(p.conf_out)) << " ";
-    s << "--stag=" << fmt_tag2str(p.reorder.tag_in) << " ";
-    s << "--dtag=" << fmt_tag2str(p.reorder.tag_out) << " ";
+    s << "--stag=" << p.reorder.tag_in << " ";
+    s << "--dtag=" << p.reorder.tag_out << " ";
 
     if (canonical || p.alg != ALG_REF) s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || p.oflag != FLAG_NONE)

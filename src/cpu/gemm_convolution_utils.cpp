@@ -127,10 +127,6 @@ template void im2col_3d(
 template void im2col_3d(const jit_gemm_conv_conf_t &jcp, const bfloat16_t *im,
         bfloat16_t *col, int od);
 
-inline int saturate(int low, int upper, int value) {
-    return nstl::max(low, nstl::min(upper, value));
-}
-
 /* imtr[ic][od][oh][ow] <-- im[id][ih][iw][ic]*/
 template <typename T>
 void transpose_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
@@ -769,12 +765,13 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
 
     jcp.outer_threading = false;
 
-    bool is_int8_conv = utils::one_of(src_d.data_type(), s32, s8, u8)
-            && weights_d.data_type() == s8;
-
     const bool is_bwd_d = jcp.prop_kind == backward_data;
     const bool is_bwd_w = jcp.prop_kind == backward_weights;
     const bool is_fwd = !is_bwd_d && !is_bwd_w;
+
+    bool is_int8_conv = (is_fwd ? utils::one_of(src_d.data_type(), s8, u8)
+                                : utils::one_of(dst_d.data_type(), s8, u8))
+            && weights_d.data_type() == s8;
 
     bool is_bf16_conv = false
             || (is_fwd

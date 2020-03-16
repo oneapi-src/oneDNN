@@ -29,7 +29,7 @@
 
 namespace binary {
 
-enum alg_t { ADD, MUL };
+enum alg_t { ADD, MUL, MAX, MIN };
 alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
@@ -37,15 +37,16 @@ dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
-            const std::vector<dnnl_format_tag_t> &stag, alg_t alg, bool inplace,
-            attr_t attr)
+            const std::vector<std::string> &stag, alg_t alg, bool inplace,
+            const attr_t &attr)
         : sdims(sdims)
         , sdt(sdt)
         , ddt(ddt)
         , stag(stag)
         , alg(alg)
         , inplace(inplace)
-        , attr(attr) {
+        , attr(attr)
+        , ndims({(int)sdims[0].size(), (int)sdims[1].size()}) {
         get_broadcast_dims();
     }
     ~prb_t() {}
@@ -53,10 +54,11 @@ struct prb_t {
     std::vector<dims_t> sdims;
     std::vector<dnnl_data_type_t> sdt;
     dnnl_data_type_t ddt;
-    std::vector<dnnl_format_tag_t> stag;
+    std::vector<std::string> stag;
     alg_t alg;
     bool inplace;
     attr_t attr;
+    std::vector<int> ndims;
 
     dims_t broadcast_dims;
 
@@ -65,11 +67,9 @@ struct prb_t {
     void get_broadcast_dims() {
         const dims_t &dims_A = this->sdims[0];
         const dims_t &dims_B = this->sdims[1];
-        const auto ndims_A = dims_A.size();
-        const auto ndims_B = dims_B.size();
 
-        broadcast_dims.resize(ndims_A, 1);
-        for (size_t d = 0; d < ndims_B; ++d)
+        broadcast_dims.resize(ndims[0], 1);
+        for (int d = 0; d < ndims[1]; ++d)
             broadcast_dims[d] = dims_A[d] == dims_B[d] ? 0 : 1;
     }
 };
@@ -97,7 +97,7 @@ struct perf_report_t : public base_perf_report_t {
         return &p_->sdt;
     }
     virtual const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
+    virtual const std::vector<std::string> *stag() const override {
         return &p_->stag;
     }
 
@@ -123,8 +123,8 @@ inline int64_t dims_off(const dims_t &dims, const dims_t &dims_idx) {
     return off;
 }
 
-void compute_ref(
-        const prb_t *p, const std::vector<dnn_mem_t> &src, dnn_mem_t &dst);
+void compute_ref(const prb_t *p, const dnn_mem_t &src0, const dnn_mem_t &src1,
+        dnn_mem_t &dst);
 
 int doit(const prb_t *p, res_t *res);
 int bench(int argc, char **argv);

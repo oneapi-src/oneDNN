@@ -26,7 +26,6 @@
 // Required for posix_memalign
 #define _POSIX_C_SOURCE 200112L
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,7 +34,7 @@
 
 #include "example_utils.h"
 
-#define BATCH 32
+#define BATCH 8
 #define IC 3
 #define OC 96
 #define CONV_IH 227
@@ -92,24 +91,23 @@ static void set_arg(dnnl_exec_arg_t *arg, int arg_idx, dnnl_memory_t memory) {
 }
 
 static void init_data_memory(uint32_t dim, const dnnl_dim_t *dims,
-        dnnl_format_tag_t user_fmt, dnnl_data_type_t data_type,
-        dnnl_engine_t engine, float *data, dnnl_memory_t *memory) {
+        dnnl_format_tag_t user_tag, dnnl_engine_t engine, float *data,
+        dnnl_memory_t *memory) {
     dnnl_memory_desc_t user_md;
     CHECK(dnnl_memory_desc_init_by_tag(
-            &user_md, dim, dims, dnnl_f32, user_fmt));
+            &user_md, dim, dims, dnnl_f32, user_tag));
     CHECK(dnnl_memory_create(memory, &user_md, engine, DNNL_MEMORY_ALLOCATE));
-    // copy data to memory
-    // ...
+    write_to_dnnl_memory(data, *memory);
 }
 
-dnnl_status_t prepare_reorder(dnnl_memory_t *user_memory, /// in
-        const dnnl_memory_desc_t *prim_memory_md, /// in
-        dnnl_engine_t prim_engine, /// in: primitive's engine
-        int dir_is_user_to_prim, /// in: user -> prim or prim -> user
-        dnnl_memory_t *prim_memory, /// out: primitive's memory created
-        dnnl_primitive_t *reorder, /// out: reorder primitive created
-        uint32_t *net_index, /// primitive index in net (inc if reorder created)
-        dnnl_primitive_t *net, args_t *net_args) {
+dnnl_status_t prepare_reorder(dnnl_memory_t *user_memory, // in
+        const dnnl_memory_desc_t *prim_memory_md, // in
+        dnnl_engine_t prim_engine, // in: primitive's engine
+        int dir_is_user_to_prim, // in: user -> prim or prim -> user
+        dnnl_memory_t *prim_memory, // out: primitive's memory created
+        dnnl_primitive_t *reorder, // out: reorder primitive created
+        uint32_t *net_index, // primitive index in net (inc if reorder created)
+        dnnl_primitive_t *net, args_t *net_args) { // net params
     const dnnl_memory_desc_t *user_memory_md;
     dnnl_memory_get_memory_desc(*user_memory, &user_memory_md);
 
@@ -191,11 +189,11 @@ void simple_net() {
     // create memory for user data
     dnnl_memory_t conv_user_src_memory, conv_user_weights_memory,
             conv_user_bias_memory;
-    init_data_memory(4, conv_user_src_sizes, dnnl_nchw, dnnl_f32, engine,
-            conv_src, &conv_user_src_memory);
-    init_data_memory(4, conv_user_weights_sizes, dnnl_oihw, dnnl_f32, engine,
+    init_data_memory(4, conv_user_src_sizes, dnnl_nchw, engine, conv_src,
+            &conv_user_src_memory);
+    init_data_memory(4, conv_user_weights_sizes, dnnl_oihw, engine,
             conv_weights, &conv_user_weights_memory);
-    init_data_memory(1, conv_bias_sizes, dnnl_x, dnnl_f32, engine, conv_bias,
+    init_data_memory(1, conv_bias_sizes, dnnl_x, engine, conv_bias,
             &conv_user_bias_memory);
 
     // create a convolution
@@ -362,7 +360,7 @@ void simple_net() {
 
     // create memory for user dst data
     dnnl_memory_t pool_user_dst_memory;
-    init_data_memory(4, pool_dst_sizes, dnnl_nchw, dnnl_f32, engine, net_dst,
+    init_data_memory(4, pool_dst_sizes, dnnl_nchw, engine, net_dst,
             &pool_user_dst_memory);
 
     // create a pooling primitive descriptor
@@ -435,8 +433,8 @@ void simple_net() {
 
     // create memory for user diff dst data
     dnnl_memory_t pool_user_diff_dst_memory;
-    init_data_memory(4, pool_dst_sizes, dnnl_nchw, dnnl_f32, engine,
-            net_diff_dst, &pool_user_diff_dst_memory);
+    init_data_memory(4, pool_dst_sizes, dnnl_nchw, engine, net_diff_dst,
+            &pool_user_diff_dst_memory);
 
     // Pooling Backward
     // pooling diff src memory descriptor
@@ -557,7 +555,7 @@ void simple_net() {
 
     // initialize memory for diff weights in user format
     dnnl_memory_t conv_user_diff_weights_memory;
-    init_data_memory(4, conv_user_weights_sizes, dnnl_oihw, dnnl_f32, engine,
+    init_data_memory(4, conv_user_weights_sizes, dnnl_oihw, engine,
             conv_user_diff_weights_buffer, &conv_user_diff_weights_memory);
 
     // create backward convolution primitive descriptor

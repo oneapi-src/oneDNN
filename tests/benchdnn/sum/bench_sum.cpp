@@ -31,8 +31,8 @@ namespace sum {
 
 std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
 std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<dnnl_format_tag_t>> stag {{dnnl_nchw, dnnl_nchw}};
-std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_undef};
+std::vector<std::vector<std::string>> stag;
+std::vector<std::string> dtag {tag::undef};
 std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
 
 dims_t dims;
@@ -45,45 +45,56 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {{dnnl_f32, dnnl_f32}};
     ddt = {dnnl_f32};
-    stag = {{dnnl_nchw, dnnl_nchw}};
-    dtag = {dnnl_format_tag_undef};
+    stag.clear();
+    dtag = {tag::undef};
     scales = {{0.25}, {1}, {4}};
     allow_unimpl = false;
 }
 
 void check_correctness() {
-    for_(const auto &i_sdt : sdt)
-    for_(const auto &i_ddt : ddt)
-    for_(const auto &i_stag : stag)
-    for (const auto &i_dtag : dtag) {
-        if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
-            SAFE_V(FAIL);
+    for (const auto &i_sdt : sdt) {
+        // unlike concat, number of inputs is defined by amount of elements in
+        // sdt, not by dims. As we allow to pass multiple values separated by
+        // comma for sdt, setting default tag has to happen when sdt is known,
+        // thus, inside the loop. E.g.: --sdt=f32:f32,f32:f32:f32 3x4x5x6
+        const bool empty_stag = stag.empty();
+        if (empty_stag) stag = {{i_sdt.size(), "abx"}};
 
-        for (const auto &i_scales : scales) {
-            // expect either single scale value, or 1:1 match of dt and scale
-            if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
+        for_(const auto &i_ddt : ddt)
+        for_(const auto &i_stag : stag)
+        for (const auto &i_dtag : dtag) {
+            if (i_sdt.size() != i_stag.size()) // expect 1:1 match of dt and tag
                 SAFE_V(FAIL);
 
-            const prb_t p(dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales);
-            std::stringstream ss;
-            ss << p;
-            const std::string cpp_pstr = ss.str();
-            const char *pstr = cpp_pstr.c_str();
-            BENCHDNN_PRINT(1, "run: %s\n", pstr);
+            for (const auto &i_scales : scales) {
+                // expect either single scale value, or 1:1 match of dt and scale
+                if (i_scales.size() != 1 && i_scales.size() != i_sdt.size())
+                    SAFE_V(FAIL);
 
-            res_t res {};
-            int status = doit(&p, &res);
+                const prb_t p(dims, i_sdt, i_ddt, i_stag, i_dtag, i_scales);
+                std::stringstream ss;
+                ss << p;
+                const std::string cpp_pstr = ss.str();
+                const char *pstr = cpp_pstr.c_str();
+                BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
-            bool want_perf_report = false;
-            parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+                res_t res {};
+                int status = doit(&p, &res);
 
-            if (want_perf_report && bench_mode & PERF) {
-                perf_report_t pr(perf_template);
-                pr.report(&p, &res, pstr);
+                bool want_perf_report = false;
+                parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+
+                if (want_perf_report && bench_mode & PERF) {
+                    perf_report_t pr(perf_template);
+                    pr.report(&p, &res, pstr);
+                }
+
+                benchdnn_stat.tests++;
             }
-
-            benchdnn_stat.tests++;
         }
+
+        // has to be cleared as sdt can bring different number of inputs
+        if (empty_stag) stag.clear();
     }
 }
 

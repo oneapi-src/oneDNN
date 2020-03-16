@@ -1,0 +1,17 @@
+# bf16 attributes
+--reset
+
+--allow-unimpl=true
+--inplace=true,false
+--alg=ADD,MUL,MAX,MIN
+--ddt=bf16 --sdt=bf16:bf16
+
+--attr=post_ops='sum:0.5'
+--batch=shapes_common
+
+--attr=post_ops='linear:2:0.125'
+--batch=shapes_common
+
+--attr=post_ops='sum:0.25;relu'
+--batch=shapes_common
+

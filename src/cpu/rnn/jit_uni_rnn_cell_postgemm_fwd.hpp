@@ -41,8 +41,8 @@ struct jit_uni_rnn_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
     void init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
         // we use rax for constant tables
-        injector_ = new injector_t(
-                this, pd_->activation_kind(), 0.0f, 0.0f, 1.0f, true, rax);
+        injector_ = new injector_t(this, pd_->activation_kind(),
+                pd_->desc()->alpha, pd_->desc()->beta, 1.0f, true, rax);
         generate();
         kernel_ = (kernel_t)this->getCode();
     }

@@ -21,7 +21,7 @@ only for 2D spatial data which are straightforward to generalize to cases of
 higher and lower dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
 
-Let \f$src\f$ and \f$dst\f$ be \f$N \times C \times IH \times IW\f$ and \f$N
+Let \src and \dst be \f$N \times C \times IH \times IW\f$ and \f$N
 \times C \times OH \times OW\f$ tensors respectively. Let
 \f$ F_h = \frac{OH}{IH} \f$ and \f$ F_w = \frac{OW}{IW} \f$ define scaling
 factors in each spatial dimension.
@@ -29,15 +29,15 @@ factors in each spatial dimension.
 The following formulas show how DNNL computes resampling for nearest neighbor
 and bilinear interpolation methods.
 To further simplify the formulas, we assume the following:
-- \f$src(n, ic, ih, iw) = 0\f$ if \f$ih < 0\f$ or \f$iw < 0\f$,
-- \f$src(n, ic, ih, iw) = src(n, ic, IH - 1, iw)\f$ if \f$ih \geq IH\f$,
-- \f$src(n, ic, ih, iw) = src(n, ic, ih, IW - 1)\f$ if \f$iw \geq IW\f$.
+- \f$\src(n, ic, ih, iw) = 0\f$ if \f$ih < 0\f$ or \f$iw < 0\f$,
+- \f$\src(n, ic, ih, iw) = \src(n, ic, IH - 1, iw)\f$ if \f$ih \geq IH\f$,
+- \f$\src(n, ic, ih, iw) = \src(n, ic, ih, IW - 1)\f$ if \f$iw \geq IW\f$.
 
 ### Forward
 
 #### Nearest Neighbor Resampling
 
-\f[dst(n, c, oh, ow) =  src(n, c, ih, iw)\f]
+\f[\dst(n, c, oh, ow) =  \src(n, c, ih, iw)\f]
 
 where
 
@@ -47,11 +47,11 @@ where
 #### Bilinear Resampling
 
 \f[
-    dst(n, c, oh, ow) =
-            src(n, c, ih_0, iw_0) \cdot W_{ih} \cdot W_{iw} + \\
-            src(n, c, ih_1, iw_0) \cdot (1 - W_{ih}) \cdot W_{iw} + \\
-            src(n, c, ih_0, iw_1) \cdot W_{ih} \cdot (1 - W_{iw}) + \\
-            src(n, c, ih_1, iw_1) \cdot (1 - W_{ih}) \cdot (1 - W_{iw}) \\
+    \dst(n, c, oh, ow) =
+            \src(n, c, ih_0, iw_0) \cdot W_{ih} \cdot W_{iw} + \\
+            \src(n, c, ih_1, iw_0) \cdot (1 - W_{ih}) \cdot W_{iw} + \\
+            \src(n, c, ih_0, iw_1) \cdot W_{ih} \cdot (1 - W_{iw}) + \\
+            \src(n, c, ih_1, iw_1) \cdot (1 - W_{ih}) \cdot (1 - W_{iw}) \\
 \f]
 
 where
@@ -70,8 +70,17 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$diff\_src\f$
-based on \f$diff\_dst\f$.
+The backward propagation computes \diffsrc based on \diffdst.
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
 
 ## Implementation Details
 
@@ -121,3 +130,9 @@ The resampling primitive doesn't support any post-ops or attributes.
 ## Performance Tips
 
 N/A
+
+## Examples
+
+| Engine  | Name                        | Comments
+| :--     | :--                         | :--
+| CPU/GPU | @ref resampling_example_cpp | @copydetails resampling_example_cpp_short

@@ -54,7 +54,7 @@ dnnl_data_type_t cfg2dt(dt_conf_t cfg);
 
 struct reorder_conf_t {
     dims_t dims;
-    dnnl_format_tag_t tag_in, tag_out;
+    std::string tag_in, tag_out;
 };
 
 struct q10n_conf_t {
@@ -76,7 +76,8 @@ struct prb_t {
         , alg(alg)
         , oflag(oflag)
         , runtime_dim_mask(runtime_dim_mask)
-        , ops(0) {
+        , ops(0)
+        , ndims((int)reorder.dims.size()) {
         if (scale != 0.f) this->attr.oscale.scale = scale;
         count_ops();
     }
@@ -89,12 +90,13 @@ struct prb_t {
     flag_t oflag;
     unsigned runtime_dim_mask;
     double ops;
+    int ndims;
 
     void count_ops() {
         if (ops > 0) return;
 
         ops = 1;
-        for (size_t d = 0; d < reorder.dims.size(); ++d)
+        for (int d = 0; d < ndims; ++d)
             ops *= reorder.dims[d];
     };
 };
@@ -129,10 +131,10 @@ struct perf_report_t : public base_perf_report_t {
         return &sdt_;
     }
     virtual const dnnl_data_type_t *ddt() const override { return &ddt_; }
-    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
+    virtual const std::vector<std::string> *stag() const override {
         return &stag_;
     }
-    virtual const dnnl_format_tag_t *dtag() const override {
+    virtual const std::string *dtag() const override {
         return &p_->reorder.tag_out;
     }
 
@@ -140,7 +142,7 @@ private:
     const prb_t *p_ = NULL;
     std::vector<dnnl_data_type_t> sdt_;
     dnnl_data_type_t ddt_;
-    std::vector<dnnl_format_tag_t> stag_;
+    std::vector<std::string> stag_;
 };
 
 int doit(const prb_t *p, res_t *res);

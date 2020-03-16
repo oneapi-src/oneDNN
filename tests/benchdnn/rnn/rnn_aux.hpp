@@ -44,20 +44,22 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
         dnnl_prop_kind_t prop_kind, dnnl_memory_desc_t *src_layer_d,
         dnnl_memory_desc_t *src_iter_d, dnnl_memory_desc_t *src_iter_c_d,
         dnnl_memory_desc_t *weights_layer_d, dnnl_memory_desc_t *weights_iter_d,
-        dnnl_memory_desc_t *bias_d, dnnl_memory_desc_t *dst_layer_d,
-        dnnl_memory_desc_t *dst_iter_d, dnnl_memory_desc_t *dst_iter_c_d);
+        dnnl_memory_desc_t *weights_peephole_d, dnnl_memory_desc_t *bias_d,
+        dnnl_memory_desc_t *dst_layer_d, dnnl_memory_desc_t *dst_iter_d,
+        dnnl_memory_desc_t *dst_iter_c_d);
 
 dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
         dnnl_prop_kind_t prop_kind, dnnl_memory_desc_t *src_layer_d,
         dnnl_memory_desc_t *src_iter_d, dnnl_memory_desc_t *src_iter_c_d,
         dnnl_memory_desc_t *weights_layer_d, dnnl_memory_desc_t *weights_iter_d,
-        dnnl_memory_desc_t *bias_d, dnnl_memory_desc_t *dst_layer_d,
-        dnnl_memory_desc_t *dst_iter_d, dnnl_memory_desc_t *dst_iter_c_d,
-        dnnl_memory_desc_t *diff_src_layer_d,
+        dnnl_memory_desc_t *weights_peephole_d, dnnl_memory_desc_t *bias_d,
+        dnnl_memory_desc_t *dst_layer_d, dnnl_memory_desc_t *dst_iter_d,
+        dnnl_memory_desc_t *dst_iter_c_d, dnnl_memory_desc_t *diff_src_layer_d,
         dnnl_memory_desc_t *diff_src_iter_d,
         dnnl_memory_desc_t *diff_src_iter_c_d,
         dnnl_memory_desc_t *diff_weights_layer_d,
         dnnl_memory_desc_t *diff_weights_iter_d,
+        dnnl_memory_desc_t *diff_weights_peephole_d,
         dnnl_memory_desc_t *diff_bias_d, dnnl_memory_desc_t *diff_dst_layer_d,
         dnnl_memory_desc_t *diff_dst_iter_d,
         dnnl_memory_desc_t *diff_dst_iter_c_d);
@@ -66,8 +68,8 @@ void init_buffer(float *buf, int64_t size, float value);
 
 float logistic(float x);
 float dlogistic(float x);
-float relu(float x);
-float drelu(float x);
+float relu(float x, float alpha);
+float drelu(float x, float alpha);
 float dtanhf(float x);
 float one_m_square(float x);
 float x_m_square(float x);

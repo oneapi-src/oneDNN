@@ -64,27 +64,24 @@ template <typename T, typename F>
 static bool parse_vector_option(T &vec, F process_func, const char *str,
         const std::string &option_name) {
     const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol)
-        return parse_vector_str(vec, process_func, str + pattern.size());
-    return false;
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+    return parse_vector_str(vec, process_func, str + pattern.size());
 }
 
 template <typename T, typename F>
 static bool parse_multivector_option(std::vector<T> &vec, F process_func,
         const char *str, const std::string &option_name) {
     const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol)
-        return parse_multivector_str(vec, process_func, str + pattern.size());
-    return false;
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+    return parse_multivector_str(vec, process_func, str + pattern.size());
 }
 
 template <typename T, typename F>
 static bool parse_single_value_option(T &val, F process_func, const char *str,
         const std::string &option_name) {
     const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol)
-        return val = process_func(str + pattern.size()), true;
-    return false;
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+    return val = process_func(str + pattern.size()), true;
 }
 
 template <typename T, typename F>
@@ -103,10 +100,10 @@ bool parse_dt(std::vector<dnnl_data_type_t> &dt, const char *str,
 bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
         const char *str, const std::string &option_name = "sdt");
 
-bool parse_tag(std::vector<dnnl_format_tag_t> &tag, const char *str,
+bool parse_tag(std::vector<std::string> &tag, const char *str,
         const std::string &option_name = "tag");
 
-bool parse_multi_tag(std::vector<std::vector<dnnl_format_tag_t>> &tag,
+bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const char *str, const std::string &option_name = "stag");
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,

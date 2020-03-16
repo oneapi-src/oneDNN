@@ -57,8 +57,8 @@ extern const _dt_conf_t conf_bf16f32bf16;
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
-            dnnl_format_tag_t stag, dnnl_format_tag_t wtag,
-            dnnl_format_tag_t dtag, const attr_t &attr)
+            const std::string &stag, const std::string &wtag,
+            const std::string &dtag, const attr_t &attr)
         : desc_t(desc)
         , dir(dir)
         , cfg(cfg)
@@ -78,7 +78,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    dnnl_format_tag_t stag, wtag, dtag;
+    std::string stag, wtag, dtag;
     attr_t attr;
 
     double ops;

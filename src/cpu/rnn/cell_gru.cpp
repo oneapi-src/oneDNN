@@ -46,7 +46,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
 
     // 1. gemm Wx[0-2],x
-    if (!rnn.merge_gemm_layer) {
+    if (rnn.need_gemm_layer(cell_position)) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
                 src_layer_ld, 0.0f, scratch_gates_, rnn.gates_ws_ld);
@@ -60,8 +60,8 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, nullptr, states_tm1_l_, nullptr, diff_states_t_l_,
-            diff_states_t_lp1_, diff_states_tp1_l_, bias_[0], nullptr, nullptr,
-            states_t_l_copy_);
+            diff_states_t_lp1_, diff_states_tp1_l_, nullptr, bias_[0], nullptr,
+            nullptr, states_t_l_copy_);
 
     // 4. gemm Wh[2],h~t
     (this->*gemm_iter_func)('N', 'N', rnn.dic, rnn.mb, rnn.sic, 1.0, w_iter_[1],
@@ -72,8 +72,8 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     // 5. activation h~t + calculate ht
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
-            diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_, bias_[0],
-            nullptr, nullptr, states_t_l_copy_);
+            diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_, nullptr,
+            bias_[0], nullptr, nullptr, states_t_l_copy_);
 }
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
@@ -122,7 +122,7 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     // 1. calculate dG2, dG1, and part of dht-1
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, nullptr, states_tm1_l_, nullptr, diff_states_t_l_,
-            diff_states_t_lp1_, diff_states_tp1_l_, nullptr, nullptr,
+            diff_states_t_lp1_, diff_states_tp1_l_, nullptr, nullptr, nullptr,
             scratch_cell_, states_t_l_copy_);
 
     // 2. calculate intermediate d(hG1)
@@ -133,7 +133,7 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     // 3. calculate dG1^ and part of dht-1
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, nullptr, states_tm1_l_, nullptr, diff_states_t_l_,
-            diff_states_t_lp1_, diff_states_tp1_l_, nullptr, nullptr,
+            diff_states_t_lp1_, diff_states_tp1_l_, nullptr, nullptr, nullptr,
             scratch_cell_, states_t_l_copy_);
 
     // 4. calculate diff weights

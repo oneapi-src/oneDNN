@@ -26,6 +26,7 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
 
     const float *src_ptr = (const float *)src;
     float *dst_ptr = (float *)dst;
+    const auto alg = p->alg;
 
     dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
@@ -40,26 +41,26 @@ void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst) {
 
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou_in_offset + as * inner_size;
-                    if (p->alg == SOFTMAX) {
+                    if (alg == SOFTMAX) {
                         float D = dst_ptr[idx] = expf(src_ptr[idx] - space_max);
                         space_denom += D;
-                    } else if (p->alg == LOGSOFTMAX) {
+                    } else if (alg == LOGSOFTMAX) {
                         float D = dst_ptr[idx] = src_ptr[idx] - space_max;
                         space_denom += expf(D);
                     }
                 }
 
-                if (p->alg == SOFTMAX) {
+                if (alg == SOFTMAX) {
                     space_denom = space_denom ? (1.f / space_denom) : 1.f;
-                } else if (p->alg == LOGSOFTMAX) {
+                } else if (alg == LOGSOFTMAX) {
                     space_denom = logf(space_denom);
                 }
 
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou_in_offset + as * inner_size;
-                    if (p->alg == SOFTMAX) {
+                    if (alg == SOFTMAX) {
                         dst_ptr[idx] *= space_denom;
-                    } else if (p->alg == LOGSOFTMAX) {
+                    } else if (alg == LOGSOFTMAX) {
                         dst_ptr[idx] -= space_denom;
                     }
                 }
@@ -74,6 +75,7 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
     const float *dst_ptr = (const float *)dst;
     const float *d_dst_ptr = (const float *)diff_dst;
     float *d_src_ptr = (float *)diff_src;
+    const auto alg = p->alg;
 
     dnnl::impl::parallel_nd(
             outer_size, inner_size, [&](int64_t ou, int64_t in) {
@@ -82,19 +84,19 @@ void compute_ref_bwd(const prb_t *p, const dnn_mem_t &dst,
 
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou_in_offset + as * inner_size;
-                    if (p->alg == SOFTMAX) {
+                    if (alg == SOFTMAX) {
                         part_deriv_sum += d_dst_ptr[idx] * dst_ptr[idx];
-                    } else if (p->alg == LOGSOFTMAX) {
+                    } else if (alg == LOGSOFTMAX) {
                         part_deriv_sum += d_dst_ptr[idx];
                     }
                 }
 
                 for (int64_t as = 0; as < axis_size; ++as) {
                     int64_t idx = ou_in_offset + as * inner_size;
-                    if (p->alg == SOFTMAX) {
+                    if (alg == SOFTMAX) {
                         d_src_ptr[idx] = dst_ptr[idx]
                                 * (d_dst_ptr[idx] - part_deriv_sum);
-                    } else if (p->alg == LOGSOFTMAX) {
+                    } else if (alg == LOGSOFTMAX) {
                         d_src_ptr[idx] = d_dst_ptr[idx]
                                 - expf(dst_ptr[idx]) * part_deriv_sum;
                     }

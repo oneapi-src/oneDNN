@@ -27,7 +27,7 @@ include_directories(
     )
 
 # Exclude sources for JIT profiling when JIT profiling is disabled
-if(NOT MKLDNN_ENABLE_JIT_PROFILING)
+if(NOT DNNL_ENABLE_JIT_PROFILING)
     set(sources_all "${SOURCES}")
     set(SOURCES)
     foreach(src ${sources_all})
@@ -36,6 +36,12 @@ if(NOT MKLDNN_ENABLE_JIT_PROFILING)
             list(APPEND SOURCES ${src})
         endif()
     endforeach()
+endif()
+
+# Don't build sources from linux_perf direcotry if JIT Profiling isn't enabled.
+# NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.
+if(NOT DNNL_ENABLE_JIT_PROFILING)
+    list(FILTER SOURCES EXCLUDE REGEX "linux_perf")
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
@@ -68,6 +74,17 @@ if(MSVC)
     set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
         PROPERTIES COMPILE_FLAGS "/bigobj")
 endif()
+# remove optimizations of files that don't need them for faster build times.
+file(GLOB FILES_WITHOUT_OPT
+    ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*/*_kern_autogen.cpp)
+if(WIN32 AND NOT MINGW)
+    set_source_files_properties(${FILES_WITHOUT_OPT}
+        PROPERTIES COMPILE_FLAGS "/Od")
+else()
+    set_source_files_properties(${FILES_WITHOUT_OPT}
+        PROPERTIES COMPILE_FLAGS "-O0 -U_FORTIFY_SOURCE")
+endif()
+
 
 # XXX: Compilation with Intel(R) oneAPI DPC++ Compiler takes too long for JIT kernels
 if(DNNL_SYCL_DPCPP)
@@ -85,5 +102,5 @@ endif()
 
 set(OBJ_LIB ${LIB_NAME}_cpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
-set(${LIB_NAME}_SUB_OBJS ${${LIB_NAME}_SUB_OBJS}
-    $<TARGET_OBJECTS:${OBJ_LIB}> PARENT_SCOPE)
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)

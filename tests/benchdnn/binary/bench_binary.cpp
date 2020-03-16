@@ -31,7 +31,7 @@ namespace binary {
 
 std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
 std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<dnnl_format_tag_t>> stag {{dnnl_nchw, dnnl_nchw}};
+std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
 std::vector<alg_t> alg {ADD};
 std::vector<bool> inplace {true};
 
@@ -48,7 +48,7 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     sdt = {{dnnl_f32, dnnl_f32}};
     ddt = {dnnl_f32};
-    stag = {{dnnl_nchw, dnnl_nchw}};
+    stag = {{tag::abx, tag::abx}};
     alg = {ADD};
     inplace = {true};
     attr = attr_t();
@@ -60,8 +60,8 @@ void check_correctness() {
     for_(const auto &i_ddt : ddt)
     for_(const auto &i_stag : stag)
     for_(const auto &i_alg : alg)
-    for (const auto &i_inplace : inplace) {
-        const bool ok = true && sdims.size() == i_sdt.size()
+    for (auto i_inplace : inplace) {
+        const bool ok = sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
                 && sdims.size() == 2; // expect just two inputs
         if (!ok) SAFE_V(FAIL);

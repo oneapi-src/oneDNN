@@ -31,9 +31,15 @@ namespace concat {
 
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims, dnnl_data_type_t sdt,
-            dnnl_data_type_t ddt, const std::vector<dnnl_format_tag_t> &stag,
-            dnnl_format_tag_t dtag, int axis)
-        : sdims(sdims), sdt(sdt), ddt(ddt), stag(stag), dtag(dtag), axis(axis) {
+            dnnl_data_type_t ddt, const std::vector<std::string> &stag,
+            const std::string &dtag, int axis)
+        : sdims(sdims)
+        , sdt(sdt)
+        , ddt(ddt)
+        , stag(stag)
+        , dtag(dtag)
+        , axis(axis)
+        , ndims((int)sdims[0].size()) {
         generate_ddims();
     }
     ~prb_t() {}
@@ -41,9 +47,10 @@ struct prb_t {
     std::vector<dims_t> sdims;
     dims_t ddims;
     dnnl_data_type_t sdt, ddt;
-    std::vector<dnnl_format_tag_t> stag;
-    dnnl_format_tag_t dtag;
+    std::vector<std::string> stag;
+    std::string dtag;
     int axis;
+    int ndims;
 
     int n_inputs() const { return (int)sdims.size(); }
 
@@ -56,8 +63,6 @@ struct prb_t {
 
     void generate_ddims() {
         const dims_t &sdims0 = sdims[0];
-        const int ndims = (int)sdims0.size();
-
         ddims.resize(ndims);
 
         for (int i = 0; i < ndims; ++i)
@@ -87,10 +92,10 @@ struct perf_report_t : public base_perf_report_t {
         return &sdt_;
     }
     virtual const dnnl_data_type_t *ddt() const override { return &p_->ddt; }
-    virtual const std::vector<dnnl_format_tag_t> *stag() const override {
+    virtual const std::vector<std::string> *stag() const override {
         return &p_->stag;
     }
-    virtual const dnnl_format_tag_t *dtag() const override { return &p_->dtag; }
+    virtual const std::string *dtag() const override { return &p_->dtag; }
 
 private:
     const prb_t *p_ = NULL;

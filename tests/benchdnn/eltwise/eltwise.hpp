@@ -33,7 +33,7 @@ using alg_t = attr_t::post_ops_t::kind_t;
 
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
-            dnnl_format_tag_t tag, alg_t alg, float alpha, float beta,
+            const std::string &tag, alg_t alg, float alpha, float beta,
             bool inplace, int64_t mb = 0)
         : dims(dims)
         , dir(dir)
@@ -42,7 +42,8 @@ struct prb_t {
         , alg(alg)
         , alpha(alpha)
         , beta(beta)
-        , inplace(inplace) {
+        , inplace(inplace)
+        , ndims((int)dims.size()) {
         if (mb) this->dims[0] = mb;
     }
     ~prb_t() {}
@@ -50,10 +51,17 @@ struct prb_t {
     dims_t dims;
     dir_t dir;
     dnnl_data_type_t dt;
-    dnnl_format_tag_t tag;
+    std::string tag;
     alg_t alg;
     float alpha, beta;
     bool inplace;
+    int ndims;
+
+    bool use_dst() const {
+        return alg == alg_t::RELU_DST || alg == alg_t::TANH_DST
+                || alg == alg_t::ELU_DST || alg == alg_t::SQRT_DST
+                || alg == alg_t::LOGISTIC_DST || alg == alg_t::EXP_DST;
+    }
 };
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
@@ -77,7 +85,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual const dir_t *dir() const override { return &p_->dir; }
     virtual const dnnl_data_type_t *dt() const override { return &p_->dt; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;
@@ -85,6 +93,7 @@ private:
 
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
+bool check_extreme_values(const float &a, const float &b, alg_t alg);
 void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &diff_dst, dnn_mem_t &diff_src);

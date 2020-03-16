@@ -29,6 +29,12 @@
 #include "common.hpp"
 #include "dnnl_types.h"
 
+namespace tag {
+extern const char *abx;
+extern const char *any;
+extern const char *undef;
+} // namespace tag
+
 struct dims_t : public std::vector<int64_t> {};
 dims_t off2dims_idx(const dims_t &dims, int64_t off);
 std::ostream &operator<<(std::ostream &s, const dims_t &dims);
@@ -36,7 +42,7 @@ std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims);
 std::ostream &operator<<(
         std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt);
 std::ostream &operator<<(
-        std::ostream &s, const std::vector<dnnl_format_tag_t> &v_tag);
+        std::ostream &s, const std::vector<std::string> &v_tag);
 
 enum dir_t {
     DIR_UNDEF = 0,
@@ -145,6 +151,10 @@ struct attr_t {
     struct post_ops_t {
         enum kind_t {
             SUM,
+
+            DW_K3S1P1,
+            DW_K3S2P1,
+
             RELU,
             TANH,
             ELU,
@@ -156,10 +166,20 @@ struct attr_t {
             SRELU,
             LOGISTIC,
             EXP,
-            GELU,
+            GELU_TANH,
             SWISH,
             LOG,
             CLIP,
+            POW,
+            GELU_ERF,
+
+            RELU_DST,
+            TANH_DST,
+            ELU_DST,
+            SQRT_DST,
+            LOGISTIC_DST,
+            EXP_DST,
+
             KIND_TOTAL
         };
         static kind_t str2kind(const char *str);
@@ -167,6 +187,8 @@ struct attr_t {
         static dnnl_alg_kind_t kind2dnnl_kind(kind_t kind);
 
         struct entry_t {
+            entry_t() {}
+
             kind_t kind;
             union {
                 struct {
@@ -176,7 +198,15 @@ struct attr_t {
                     dnnl_alg_kind_t alg;
                     float scale, alpha, beta;
                 } eltwise;
+                struct {
+                    int stride;
+                    dnnl_data_type_t dst_dt;
+                    scale_t oscale;
+                } convolution;
             };
+
+            bool is_eltwise_kind() const;
+            bool is_convolution_kind() const;
         };
 
         post_ops_t() : len(0) {}
@@ -186,6 +216,8 @@ struct attr_t {
 
         bool is_def() const { return len == 0; }
         int find(kind_t kind, int start = 0, int stop = -1) const;
+        int eltwise_index() const;
+        int convolution_index() const;
 
         enum { capacity = 4 };
         int len;
@@ -244,16 +276,21 @@ private:
 
 std::ostream &dump_global_params(std::ostream &s);
 
-dnnl_format_tag_t get_default_tag(int ndims);
+dnnl_format_tag_t get_abx_tag(int ndims);
+dnnl_format_tag_t convert_tag(const std::string &tag_str, int ndims);
+
 dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         int scale_mask, const float *scales);
 inline dnnl_primitive_attr_t create_dnnl_attr(
         const attr_t &attr, int64_t scale_cnt, const float *scales) {
     return create_dnnl_attr(attr, scale_cnt, -1, scales);
 }
+inline dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr) {
+    return create_dnnl_attr(attr, 1, -1, NULL);
+}
 
 dnnl_engine_kind_t str2engine_kind(const char *str);
-const char *engine_kind2str(dnnl_engine_kind_t engine);
+dnnl_scratchpad_mode_t str2scratchpad_mode(const char *str);
 
 void maybe_scale(float &d, float *scales, int64_t oc, const attr_t &attr);
 float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
@@ -261,4 +298,5 @@ float compute_eltwise_fwd(attr_t::post_ops_t::kind_t kind, float src,
 float compute_eltwise_bwd(attr_t::post_ops_t::kind_t kind, float d_dst,
         float src, float alpha, float beta);
 void maybe_post_ops(float &d, float dst, const attr_t &attr);
+
 #endif

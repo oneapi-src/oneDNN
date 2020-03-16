@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include <fstream>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -156,10 +157,10 @@ benchdnn_timer_t &benchdnn_timer_t::operator=(const benchdnn_timer_t &rhs) {
 /* result structure */
 const char *state2str(res_state_t state, bool allow_unimpl) {
     if (state == UNIMPLEMENTED && !allow_unimpl) return "UNIMPLEMENTED_FAILED";
+    if (state == UNTESTED) return "UNTESTED_FAILED"; // for easier fail search
 
 #define CASE(x) \
     if (state == x) return STRINGIFY(x)
-    CASE(UNTESTED);
     CASE(PASSED);
     CASE(SKIPPED);
     CASE(MISTRUSTED);
@@ -593,4 +594,69 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         dnnl_sgemm(
                 *transb, *transa, n, m, k, alpha, b, ldb, a, lda, beta, c, ldc);
     }
+}
+
+int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
+        std::vector<std::reference_wrapper<int64_t>> h,
+        std::vector<std::reference_wrapper<int64_t>> w,
+        const std::vector<int64_t> &def_values, bool must_have_spatial) {
+    size_t N = d.size();
+    assert(h.size() == N && w.size() == N && def_values.size() == N);
+
+    ndims = 5;
+
+    // check output spatial values
+    const bool no_d = d[0].get() == 0;
+    const bool no_h = h[0].get() == 0;
+    const bool no_w = w[0].get() == 0;
+
+    if (no_d) ndims--;
+    if (no_d && no_h) ndims--;
+    if (no_d && no_h && no_w) ndims--;
+    if (must_have_spatial && ndims <= 2) return FAIL;
+
+    if (ndims == 5) {
+        if (no_h && no_w) {
+            // User specified values for the d dimension but not values for h
+            // and w dimensions. Propagate d values to h and w dimensions.
+            for (size_t n = 0; n < N; ++n)
+                w[n].get() = h[n].get() = d[n].get();
+        } else if (!no_h && !no_w) {
+            // User specified them all, good to go.
+        } else {
+            // Problem is not cubic and one of h or w dimension is missing.
+            return FAIL;
+        }
+    } else if (ndims == 4 && no_w) {
+        // User specified values for the h dimension but not values for the w
+        // dimension. Propagate h values to the w dimension.
+        for (size_t n = 0; n < N; ++n)
+            w[n].get() = h[n].get();
+    }
+
+    for (size_t n = 0; n < N; ++n) {
+        if (ndims < 5) d[n].get() = def_values[n];
+        if (ndims < 4) h[n].get() = def_values[n];
+        if (ndims < 3) w[n].get() = def_values[n];
+    }
+
+    return OK;
+}
+
+void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
+        const std::vector<int64_t> &d, const std::vector<int64_t> &h,
+        const std::vector<int64_t> &w) {
+    size_t N = d.size();
+    assert(h.size() == N && w.size() == N);
+
+    bool square_shape = true, cubic_shape = true;
+    for (size_t n = 0; n < N; ++n) {
+        square_shape = square_shape && h[n] == w[n];
+        cubic_shape = cubic_shape && d[n] == h[n] && h[n] == w[n];
+    }
+
+    print_d = ndims == 5;
+    print_h = ndims == 4 || (ndims == 5 && (!cubic_shape || canonical));
+    print_w = ndims == 3 || (ndims == 5 && (!cubic_shape || canonical))
+            || (ndims == 4 && (!square_shape || canonical));
 }

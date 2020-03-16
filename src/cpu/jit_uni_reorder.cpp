@@ -205,15 +205,80 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
     }
 
     void tr8x8_avx2(int i_off, int o_off) {
+        using namespace data_type;
+
+        auto cvt2ps = [=](const Ymm &dst, const Operand &src, data_type_t idt) {
+            switch (idt) {
+                case f32:
+                    if (src.isMEM() || src.getIdx() != dst.getIdx())
+                        vmovups(dst, src);
+                    break;
+                case bf16:
+                    vpmovzxwd(dst, src);
+                    vpslld(dst, dst, 0x10);
+                    break;
+                case s32: vcvtdq2ps(dst, src); break;
+                default: assert(!"unreachable");
+            }
+        };
+
+        auto cvt2odt = [=](const Ymm &ymm, data_type_t odt, data_type_t idt) {
+            switch (odt) {
+                case bf16:
+                    if (idt == f32) {
+                        if (mayiuse(avx512_core_bf16)) {
+                            vcvtneps2bf16(Xmm(ymm.getIdx()), ymm);
+                        } else {
+                            bf16_emu_->vcvtneps2bf16(
+                                    Ymm(ymm.getIdx()), Zmm(ymm.getIdx()));
+                        }
+                    }
+                    break;
+                case s32:
+                    if (idt == f32)
+                        vcvtps2dq(ymm, ymm);
+                    else if (idt == s8)
+                        vpmovsxbd(ymm, ymm);
+                    else if (idt == u8)
+                        vpmovzxbd(ymm, ymm);
+                    break;
+                default: assert(!"unreachable");
+            }
+        };
+
+        auto load = [=](const Ymm &ymm, const Address &addr, int size) {
+            switch (size) {
+                case 32: vmovups(ymm, addr); break;
+                case 16: movups(Xmm(ymm.getIdx()), addr); break;
+                case 8: movsd(ymm, addr); break;
+                case 4: movss(ymm, addr); break;
+                case 2: pinsrw(ymm, addr, 0x0); break;
+                case 1: pinsrb(ymm, addr, 0x0); break;
+                default: assert(!"unreachable");
+            }
+        };
+
+        auto store = [=](const Address &addr, const Ymm &ymm, int size) {
+            switch (size) {
+                case 32: vmovups(addr, ymm); break;
+                case 16: movups(addr, Xmm(ymm.getIdx())); break;
+                case 8: movsd(addr, ymm); break;
+                case 4: movss(addr, ymm); break;
+                case 2: pextrw(addr, ymm, 0x0); break;
+                case 1: pextrb(addr, ymm, 0x0); break;
+                default: assert(!"unreachable");
+            }
+        };
+
+        const bool interim_f32 = (prb_.itype == bf16)
+                || utils::one_of(f32, prb_.itype, prb_.otype);
+
         for (int i = 0; i < 8; i++) {
             using namespace data_type;
 
-            if (prb_.itype == s32 && prb_.otype == f32)
-                vcvtdq2ps(Ymm(i), i_addr(i_off + i * 8));
-            else if (prb_.itype == f32 && prb_.otype == s32)
-                vcvtps2dq(Ymm(i), i_addr(i_off + i * 8));
-            else
-                vmovups(Ymm(i), i_addr(i_off + i * 8));
+            load(Ymm(i), i_addr(i_off + i * is(0)), 8 * itype_sz);
+
+            if (interim_f32) cvt2ps(Ymm(i), Ymm(i), prb_.itype);
         }
 
         for (int i = 0; i < 8 / 2; i++) {
@@ -237,16 +302,21 @@ struct jit_uni_reorder_kernel_f32 : public kernel_t, public jit_generator {
         for (int i = 8 / 2; i < 8; i++)
             vperm2f128(Ymm(i), Ymm(i), Ymm(8 / 2 + i), uquad);
 
-        for (int i = 0; i < 8; i++)
-            vmovups(o_addr(o_off + i * 8), Ymm(i));
+        for (int i = 0; i < 8; i++) {
+            if (prb_.otype != f32)
+                cvt2odt(Ymm(i), prb_.otype, interim_f32 ? f32 : prb_.itype);
+            store(o_addr(o_off + i * os(1)), Ymm(i), 8 * otype_sz);
+        }
     }
 
     bool process_unroll_tr8x8(int len) {
+        using namespace data_type;
         bool can_do = true && mayiuse(avx2) && prb_.ndims >= 2
-                && utils::everyone_is(4, itype_sz, otype_sz)
+                && ((utils::one_of(prb_.itype, f32, bf16)
+                            && utils::one_of(prb_.otype, f32, bf16))
+                        || utils::everyone_is(4, itype_sz, otype_sz))
                 && utils::everyone_is(8, n(0), n(1))
                 && utils::everyone_is(1, os(0), is(1))
-                && utils::everyone_is(8, os(1), is(0))
                 && prb_.scale_type == scale_type_t::NONE && prb_.beta == 0.f;
         if (!can_do) return false;
 

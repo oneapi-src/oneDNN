@@ -188,8 +188,9 @@ void jit_avx512_common_1x1_conv_kernel::reduce_loop(
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                     backward_data))
             return EVEX_compress_addr(aux_reg_output_data,
-                    (i_load * jcp.bcast_dim + i_ur) * jcp.load_block
-                            * jcp.typesize_out);
+                    (i_load * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                            + i_ur)
+                            * jcp.load_block * jcp.typesize_out);
         else
             return ptr[aux_reg_output_data
                     + (i_load ? reg_output_stride * i_load
@@ -479,8 +480,9 @@ void jit_avx512_common_1x1_conv_kernel::generate() {
                 add(reg_bias_data,
                         load_loop_blk * jcp.load_block * jcp.typesize_out);
                 add(reg_output_data,
-                        load_loop_blk * jcp.bcast_dim * jcp.load_block
-                                * jcp.typesize_out);
+                        load_loop_blk
+                                * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                                * jcp.load_block * jcp.typesize_out);
                 break;
             case backward_data:
                 add(reg_output_data,
@@ -567,11 +569,19 @@ bool jit_avx512_common_1x1_conv_kernel::post_ops_ok(
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
+    auto is_convolution
+            = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
-    switch (p.len_) {
+    int dw_idx = p.find(primitive_kind::convolution);
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+
+    switch (len) {
         case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+        case 1: // eltwise OR sum OR Convolution
+            return is_eltwise(0) || is_sum(0) || is_convolution(0);
+        case 2: // sum -> eltwise OR eltwise -> convolution
+            return (is_sum(0) && is_eltwise(1))
+                    || (is_eltwise(0) && is_convolution(1));
         default: return false;
     }
 
@@ -604,40 +614,49 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         jcp.ic = rnd_up(jcp.ic, simd_w);
     }
 
-    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[2];
+    jcp.id = (ndims == 5) ? src_d.dims()[2] : 1;
+    jcp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jcp.iw = src_d.dims()[ndims - 1];
-    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[2];
+    jcp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
+    jcp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jcp.ow = dst_d.dims()[ndims - 1];
 
-    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + 2];
+    jcp.kd = (ndims == 5) ? weights_d.dims()[with_groups + 2] : 1;
+    jcp.kh = (ndims == 3) ? 1 : weights_d.dims()[with_groups + ndims - 2];
     jcp.kw = weights_d.dims()[with_groups + ndims - 1];
 
-    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][0];
+    jcp.f_pad = (ndims == 5) ? cd.padding[0][0] : 0;
+    jcp.t_pad = (ndims == 3) ? 0 : cd.padding[0][ndims - 4];
     jcp.l_pad = cd.padding[0][ndims - 3];
 
-    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[0];
+    jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
+    jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
 
     jcp.with_bias = pick_by_prop_kind(jcp.prop_kind, cd.bias_desc.format_kind,
                             format_kind::undef, cd.diff_bias_desc.format_kind)
             != format_kind::undef;
 
-    jcp.os = jcp.oh * jcp.ow;
-    jcp.is = jcp.ih * jcp.iw;
+    jcp.os = jcp.od * jcp.oh * jcp.ow;
+    jcp.is = jcp.id * jcp.ih * jcp.iw;
     jcp.tr_is = rnd_up(jcp.is, 4);
 
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    jcp.with_dw_conv = dw_conv_ind != -1;
+    // Using dw_conv_ind as upper-bound below, as post-ops after it will be
+    // handled in depthwise convolution.
+    jcp.with_sum = p.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
         if (dst_d.data_type() == data_type::s32) return status::unimplemented;
     }
 
-    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c);
+    auto dat_tag = pick(ndims - 3, nCw16c, nChw16c, nCdhw16c);
     jcp.src_tag = src_d.matches_one_of_tag(dat_tag);
     jcp.dst_tag = dst_d.matches_one_of_tag(dat_tag);
 
@@ -646,10 +665,10 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     if (!args_ok) return status::unimplemented;
 
     args_ok = true && jcp.oc % simd_w == 0 && jcp.ic % simd_w == 0
-            && jcp.t_pad == 0 && jcp.l_pad == 0 && jcp.stride_w == 1
-            && jcp.stride_h == 1 // TODO: support some strides
-            && jcp.ow == jcp.iw && jcp.oh == jcp.ih // enforce rpad=0
-            && jcp.kh == 1 && jcp.kw == 1;
+            && jcp.f_pad == 0 && jcp.t_pad == 0 && jcp.l_pad == 0
+            && jcp.stride_w == 1 && jcp.stride_h == 1 && jcp.stride_d == 1
+            && jcp.kd == 1 && jcp.kh == 1 && jcp.kw == 1 && jcp.ow == jcp.iw
+            && jcp.oh == jcp.ih && jcp.od == jcp.id; // enforce rpad=0
     if (!args_ok) return status::unimplemented;
 
     jcp.ic_block = jcp.oc_block = simd_w;
@@ -661,9 +680,9 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         const int is_bwd_d = jcp.prop_kind == backward_data;
         format_tag_t wei_tag = with_groups
                 ? pick(2 * ndims - 6 + is_bwd_d, gOIw16i16o, gIOw16o16i,
-                        gOIhw16i16o, gIOhw16o16i)
+                        gOIhw16i16o, gIOhw16o16i, gOIdhw16i16o, gIOdhw16o16i)
                 : pick(2 * ndims - 6 + is_bwd_d, OIw16i16o, IOw16o16i,
-                        OIhw16i16o, IOhw16o16i);
+                        OIhw16i16o, IOhw16o16i, OIdhw16i16o, IOdhw16o16i);
 
         jcp.wei_tag = weights_d.matches_one_of_tag(wei_tag);
         if (jcp.wei_tag != wei_tag) return status::unimplemented;
@@ -723,6 +742,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
         if (one_of(jcp.prop_kind, forward_training, forward_inference)) {
+            if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
             jcp.reduce_dim = jcp.ic;
             jcp.reduce_block = jcp.ic_block;
 
@@ -752,8 +772,8 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         int max_regs, min_regs, size_treshold, ur_step;
         const int spatial
                 = (one_of(jcp.prop_kind, forward_training, forward_inference))
-                ? jcp.oh
-                : jcp.ih;
+                ? jcp.od * jcp.oh
+                : jcp.id * jcp.ih;
         if (jcp.ver == ver_avx512_core && (8 * jcp.mb) / nthreads >= 1) {
             max_regs = 9;
             min_regs = 6;
@@ -927,7 +947,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
         }
 
         if (jcp.ver == ver_4fma && jcp.bcast_dim * jcp.mb < jcp.load_dim
-                && jcp.oh * jcp.ow > 64
+                && jcp.os > 64
                 && IMPLICATION(reduce_src, jcp.load_dim < 1024)) {
             /* Looking for best loading dimension blocking
             * to get the best thread and data read/write efficiency
@@ -1110,7 +1130,7 @@ status_t jit_avx512_common_1x1_conv_kernel::init_conf(jit_1x1_conv_conf_t &jcp,
     assert(jcp.bcast_block % jcp.ur == 0);
     assert(jcp.reduce_dim % jcp.reduce_block == 0);
 
-    jcp.ur_tail = jcp.bcast_dim % jcp.ur;
+    jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
     jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;

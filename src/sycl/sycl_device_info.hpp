@@ -20,23 +20,24 @@
 #include <vector>
 #include <CL/sycl.hpp>
 
-#include "compute/device_info.hpp"
-#include "ocl/ocl_utils.hpp"
+#include "gpu/compute/device_info.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-class sycl_device_info_t : public compute::device_info_t {
+class sycl_device_info_t : public gpu::compute::device_info_t {
 public:
     sycl_device_info_t(const cl::sycl::device &device)
         : device_(device), ext_(0), eu_count_(0), hw_threads_(0) {}
 
     virtual status_t init() override {
         // Extensions
-        for (uint64_t i_ext = 1; i_ext < (uint64_t)compute::device_ext_t::last;
+        for (uint64_t i_ext = 1;
+                i_ext < (uint64_t)gpu::compute::device_ext_t::last;
                 i_ext <<= 1) {
-            const char *s_ext = ext2cl_str((compute::device_ext_t)i_ext);
+            const char *s_ext = ext2cl_str((gpu::compute::device_ext_t)i_ext);
             if (s_ext != nullptr && device_.has_extension(s_ext)) {
                 ext_ |= i_ext;
             }
@@ -54,10 +55,14 @@ public:
         int threads_per_eu = (device_.is_gpu() ? 7 : 1);
         hw_threads_ = eu_count_ * threads_per_eu;
 
+        // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
+        size_t cache_size = cpu::get_cache_size(3, false);
+        llc_cache_size_ = (size_t)cache_size;
+
         // Runtime version
         auto driver_version
                 = device_.get_info<cl::sycl::info::device::driver_version>();
-        compute::runtime_version_t runtime_version;
+        gpu::compute::runtime_version_t runtime_version;
         if (runtime_version.set_from_string(driver_version.c_str())
                 != status::success) {
             runtime_version.major = 0;
@@ -69,17 +74,19 @@ public:
         return status::success;
     }
 
-    virtual bool has(compute::device_ext_t ext) const override {
+    virtual bool has(gpu::compute::device_ext_t ext) const override {
         return ext_ & (uint64_t)ext;
     }
 
     virtual int eu_count() const override { return eu_count_; }
     virtual int hw_threads() const override { return hw_threads_; }
+    virtual size_t llc_cache_size() const override { return llc_cache_size_; }
 
 private:
     cl::sycl::device device_;
     uint64_t ext_;
     int32_t eu_count_, hw_threads_;
+    size_t llc_cache_size_ = 0;
 };
 
 } // namespace sycl

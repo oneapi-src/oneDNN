@@ -61,10 +61,10 @@ string (REGEX REPLACE "\\\\;" ";" cl_lines "${cl_lines}")
 # Escape quatation marks
 string(REGEX REPLACE "\"" "\\\\\"" cl_lines "${cl_lines}")
 # Add EOLs
-string(REGEX REPLACE " ?\n" "\\\\n\"\n\"" cl_lines "${cl_lines}")
+string(REGEX REPLACE " ?\n" "\\\\n\",\n\"" cl_lines "${cl_lines}")
 # Replace square brackets back
 string(REGEX REPLACE "__BRACKET0__" "[" cl_lines "${cl_lines}")
 string(REGEX REPLACE "__BRACKET1__" "]" cl_lines "${cl_lines}")
 
 get_filename_component(kernel_name ${CL_FILE} NAME_WE)
-file(WRITE ${CPP_FILE} "const char *${kernel_name}_kernel =\"${cl_lines}\";")
+file(WRITE ${CPP_FILE} "const char *${kernel_name}_kernel[] ={ \"${cl_lines}\", \"END_OF_KERNEL\" };")

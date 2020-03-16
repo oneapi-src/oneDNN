@@ -73,8 +73,8 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     const int eltwise_ind = post_ops.find(primitive_kind::eltwise);
     do_eltwise_ = eltwise_ind != -1;
     if (do_eltwise_)
-        eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_common>(
-                this, post_ops.entry_[eltwise_ind].eltwise, true,
+        eltwise_injector_ = new jit_uni_eltwise_injector_f32<avx512_core>(this,
+                post_ops.entry_[eltwise_ind].eltwise, true,
                 reserved_eltwise_gpr, reserved_eltwise_maskr);
 
     do_sum_ = dst_data_type != data_type::f32
@@ -87,7 +87,7 @@ gemm_bf16_convolution_fwd_t<dst_data_type>::pp_ker_t::pp_ker_t(const pd_t *pd)
     do_bias_ = pd->with_bias();
     if (do_bias_) vreg_bias = Zmm(data_reg_base_idx_++);
 
-    vlen_ = cpu_isa_traits<avx512_common>::vlen / sizeof(float);
+    vlen_ = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
     isa_ = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                      : bf16_emulation_t::get_isa();

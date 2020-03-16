@@ -1,7 +1,8 @@
 --reset
 
 --inplace=true,false
---dir=FWD_D
+
+--dir=FWD_D,FWD_I
 --flags=,S,G,GS  --batch=lnorm_all
 
 --dir=BWD_D

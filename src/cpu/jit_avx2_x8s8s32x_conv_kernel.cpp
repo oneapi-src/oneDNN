@@ -209,7 +209,11 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Ymm>::compute_ker_dw(int ur_w, int pad_l,
     };
 
     auto input_offset2 = [=](int ii, int ci) {
-        return jcp.typesize_in * (ii * jcp.ngroups + ci * jcp.ch_block);
+        if (jcp.is_fused_conv)
+            return jcp.typesize_in
+                    * (ii * jcp.dw_conv_buffer_oc + ci * jcp.ch_block);
+        else
+            return jcp.typesize_in * (ii * jcp.ngroups + ci * jcp.ch_block);
     };
 
     auto input_offset3 = [=](int oi, int ci, int ki) {
@@ -449,7 +453,11 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
         mov(aux_reg_inp, aux_reg_inp_d);
         mov(aux_reg_ker, aux_reg_ker_d);
     } else {
-        mov(aux_reg_inp, reg_inp);
+        if (jcp.is_fused_conv) {
+            mov(aux_reg_inp_buffer_ptr, reg_inp_buffer_ptr);
+        } else {
+            mov(aux_reg_inp, reg_inp);
+        }
         mov(aux_reg_ker, reg_ker);
     }
 
@@ -478,10 +486,18 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::kh_loop(
     }
     L(kh_label);
     {
+        if (jcp.is_fused_conv) {
+            mov(aux_reg_inp, ptr[aux_reg_inp_buffer_ptr]);
+            add(aux_reg_inp, reg_inp);
+        }
         compute_ker(ur_w, pad_l, pad_r, last_ic_block_flag, false);
 
         add(aux_reg_ker, shift_kernel_ptr);
-        add(aux_reg_inp, shift_input_ptr * (jcp.dilate_h + 1));
+        if (jcp.is_fused_conv) {
+            add(aux_reg_inp_buffer_ptr, sizeof(void *));
+        } else {
+            add(aux_reg_inp, shift_input_ptr * (jcp.dilate_h + 1));
+        }
         dec(reg_kj);
         cmp(reg_kj, 0);
         jg(kh_label, T_NEAR);
@@ -600,12 +616,13 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::icb_loop(
 template <typename Vmm>
 void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::generate() {
     Label permute_index_table;
+    int in_ic_shift = jcp.is_fused_conv ? jcp.dw_conv_buffer_oc
+                                        : jcp.ic_without_padding * jcp.ngroups;
     int inp_shift_pad = jcp.typesize_in * (jcp.ur_w * jcp.stride_w - jcp.l_pad)
-            * jcp.ic_without_padding * jcp.ngroups;
-    int inp_shift_pad_second_block = -1 * jcp.typesize_in * jcp.l_pad
-            * jcp.ic_without_padding * jcp.ngroups;
-    int inp_shift = jcp.typesize_in
-            * (jcp.ur_w * jcp.stride_w * jcp.ic_without_padding * jcp.ngroups);
+            * in_ic_shift;
+    int inp_shift_pad_second_block
+            = -1 * jcp.typesize_in * jcp.l_pad * in_ic_shift;
+    int inp_shift = jcp.typesize_in * (jcp.ur_w * jcp.stride_w * in_ic_shift);
     int out_shift = jcp.typesize_out
             * (jcp.ur_w * jcp.oc_without_padding * jcp.ngroups);
     preamble();
@@ -628,7 +645,26 @@ void _jit_avx2_x8s8s32x_fwd_kernel<Vmm>::generate() {
         vpbroadcastw(vmm_one, vmm_one_128);
     }
 
-    mov(reg_inp, ptr[param1 + GET_OFF(src)]);
+    if (jcp.is_fused_conv) {
+        mov(reg_inp_buffer_ptr, ptr[param1 + GET_OFF(src)]);
+        /* In case of fused depthwise convolution, `param.src` is not a pointer
+        to input, instead it points to a buffer containing pointers to
+        consecutive rows of input in format wc with c=jcp.dw_conv_buffer_oc.
+        Example: [ptr_to_inp_row0, ptr_to_inp_row1, ptr_to_inp_row2].
+        Traverse the data as
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row0 ...
+            add(reg_input_buffer_ptr, sizeof(void*))
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row1 ...
+            add(reg_input_buffer_ptr, sizeof(void*))
+            mov(reg_data, ptr[reg_input_buffer_ptr])
+            ... process row2 ...
+        */
+        xor_(reg_inp, reg_inp);
+    } else {
+        mov(reg_inp, ptr[param1 + GET_OFF(src)]);
+    }
     mov(reg_out, ptr[param1 + GET_OFF(dst)]);
     mov(reg_ker, ptr[param1 + GET_OFF(filt)]);
 

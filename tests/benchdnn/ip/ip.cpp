@@ -33,8 +33,8 @@ namespace ip {
 /* extra control parameter which shouldn't be placed in prb_t */
 extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
-inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
-        dnnl_primitive_desc_t &ippd, res_t *r) {
+inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &ippd, res_t *r) {
+    dnnl_inner_product_desc_t ipd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
     dnnl_dims_t src_dims_0d = {p->mb, p->ic};
@@ -58,17 +58,17 @@ inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
             : p->ndims == 4 ? wei_dims_2d
                             : p->ndims == 3 ? wei_dims_1d : wei_dims_0d;
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &src_d, p->ndims, src_dims, p->cfg[SRC].dt, p->stag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, src_dims,
+                     p->cfg[SRC].dt, convert_tag(p->stag, p->ndims)),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &wei_d, p->ndims, wei_dims, p->cfg[WEI].dt, p->wtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&wei_d, p->ndims, wei_dims,
+                     p->cfg[WEI].dt, convert_tag(p->wtag, p->ndims)),
             WARN);
     DNN_SAFE(dnnl_memory_desc_init_by_tag(
                      &bia_d, 1, bia_dims, p->cfg[BIA].dt, dnnl_format_tag_any),
             WARN);
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &dst_d, 2, dst_dims, p->cfg[DST].dt, p->dtag),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, 2, dst_dims, p->cfg[DST].dt,
+                     convert_tag(p->dtag, 2)),
             WARN);
 
     switch (p->dir) {
@@ -121,32 +121,6 @@ inline int init_pd(const prb_t *p, dnnl_inner_product_desc_t &ipd,
     } else {
         BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
     }
-
-    auto q = [=](dnnl_query_t query, int index = 0) {
-        return *dnnl_primitive_desc_query_md(ippd, query, index);
-    };
-
-    if (p->dir == BWD_D)
-        ipd.diff_src_desc = q(dnnl_query_diff_src_md);
-    else
-        ipd.src_desc = q(dnnl_query_src_md);
-
-    if (p->dir & FLAG_WEI)
-        ipd.diff_weights_desc = q(dnnl_query_diff_weights_md);
-    else
-        ipd.weights_desc = q(dnnl_query_weights_md);
-
-    if (p->dir & FLAG_BIA) {
-        if (p->dir & FLAG_BWD)
-            ipd.diff_bias_desc = q(dnnl_query_diff_weights_md, 1);
-        else
-            ipd.bias_desc = q(dnnl_query_weights_md, 1);
-    }
-
-    if (p->dir & FLAG_BWD)
-        ipd.diff_dst_desc = q(dnnl_query_diff_dst_md);
-    else
-        ipd.dst_desc = q(dnnl_query_dst_md);
 
     return OK;
 }
@@ -202,11 +176,13 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
 int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r) {
-    dnn_mem_t mem_00(mem_dt.md_, dnnl_f32, get_default_tag(mem_dt.md_.ndims),
-            engine_tgt);
-
     const auto nelems = mem_dt.nelems();
+    if (nelems == 0) return OK;
+
     assert(mem_dt.nelems() == mem_fp.nelems());
+
+    dnn_mem_t mem_00(
+            mem_dt.md_, dnnl_f32, get_abx_tag(mem_dt.md_.ndims), engine_tgt);
 
     const auto &c = p->cfg[kind];
 
@@ -231,55 +207,68 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
-    dnnl_inner_product_desc_t ipd;
     dnnl_primitive_desc_t ippd;
-    dnnl_primitive_t ip;
-
-    SAFE(init_pd(p, ipd, ippd, r), WARN);
+    SAFE(init_pd(p, ippd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
+    dnnl_primitive_t ip;
     DNN_SAFE(dnnl_primitive_create(&ip, ippd), WARN);
     DNN_SAFE(dnnl_primitive_desc_destroy(ippd), CRIT);
 
-    auto &src_dt_d = p->dir == BWD_D ? ipd.diff_src_desc : ipd.src_desc;
-    auto &wei_dt_d
-            = p->dir & FLAG_WEI ? ipd.diff_weights_desc : ipd.weights_desc;
-    auto &bia_dt_d = p->dir & FLAG_BWD ? ipd.diff_bias_desc : ipd.bias_desc;
-    auto &dst_dt_d = p->dir & FLAG_BWD ? ipd.diff_dst_desc : ipd.dst_desc;
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(ip, &const_pd), CRIT);
+
+    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+        DNN_SAFE_V(dnnl_primitive_destroy(ip));
+        return r->state = SKIPPED, OK;
+    }
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
+    };
+
+    const auto &src_md
+            = p->dir == BWD_D ? q(DNNL_ARG_DIFF_SRC) : q(DNNL_ARG_SRC);
+    const auto &wei_md = p->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_WEIGHTS)
+                                           : q(DNNL_ARG_WEIGHTS);
+    const auto &bia_md
+            = p->dir & FLAG_WEI ? q(DNNL_ARG_DIFF_BIAS) : q(DNNL_ARG_BIAS);
+    const auto &dst_md
+            = p->dir & FLAG_BWD ? q(DNNL_ARG_DIFF_DST) : q(DNNL_ARG_DST);
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t src_dt(
-            src_dt_d, p->cfg[SRC].dt, dnnl_format_tag_undef, engine_tgt);
-    dnn_mem_t wei_dt(
-            wei_dt_d, p->cfg[WEI].dt, dnnl_format_tag_undef, engine_tgt);
-    dnn_mem_t dst_dt(
-            dst_dt_d, p->cfg[DST].dt, dnnl_format_tag_undef, engine_tgt);
-    dnn_mem_t bia_dt = p->dir & FLAG_BIA
-            ? dnn_mem_t(bia_dt_d, p->cfg[BIA].dt, engine_tgt)
-            : dnn_mem_t();
+    const auto src_tag = get_abx_tag(p->ndims);
+    const auto wei_tag = get_abx_tag(p->ndims);
 
-    const auto src_tag = get_default_tag(src_dt.md_.ndims);
-    const auto wei_tag = get_default_tag(wei_dt.md_.ndims);
-    dnn_mem_t src_fp(src_dt_d, fp, src_tag, engine_tgt);
-    dnn_mem_t wei_fp(wei_dt_d, fp, wei_tag, engine_tgt);
-    dnn_mem_t dst_fp(dst_dt_d, fp, dnnl_nc, engine_tgt);
-    dnn_mem_t bia_fp = p->dir & FLAG_BIA
-            ? dnn_mem_t(bia_dt_d, fp, dnnl_x, engine_tgt)
-            : dnn_mem_t();
+    dnn_mem_t src_dt(src_md, engine_tgt);
+    dnn_mem_t wei_dt(wei_md, engine_tgt);
+    dnn_mem_t bia_dt(bia_md, engine_tgt);
+    dnn_mem_t dst_dt(dst_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+
+    dnn_mem_t src_fp(src_md, fp, src_tag, engine_tgt);
+    dnn_mem_t wei_fp(wei_md, fp, wei_tag, engine_tgt);
+    dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
+    dnn_mem_t dst_fp(dst_md, fp, dnnl_nc, engine_tgt);
 
     SAFE(fill_data(SRC, p, src_dt, src_fp, r), WARN);
     SAFE(fill_data(WEI, p, wei_dt, wei_fp, r), WARN);
+    SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
     SAFE(fill_data(DST, p, dst_dt, dst_fp, r), WARN);
-    if (p->dir & FLAG_BIA) SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
 
     args_t args;
 
     if (p->dir & FLAG_FWD) {
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
-        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_BIAS, bia_dt);
+        args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
+
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, dnnl_nc, engine_tgt);
@@ -289,6 +278,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
 
@@ -301,7 +291,8 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_DIFF_DST, dst_dt);
         args.set(DNNL_ARG_DIFF_WEIGHTS, wei_dt);
-        if (p->dir & FLAG_BIA) args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
+        args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
+        args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
 
@@ -318,7 +309,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, ip, args);
 
-    DNN_SAFE(dnnl_primitive_destroy(ip), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(ip));
 
     return OK;
 }

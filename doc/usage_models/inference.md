@@ -10,7 +10,7 @@ classifier is the sole classifier included, but the application of other
 classifier types will require user's own implementations. The scope of the
 library is depicted in the following image:
 
-@img{img_inference_scope.jpg,,}
+@img{img_inference_scope.jpg,,80%,}
 
 ## Best Practices for Inference in DNNL
 

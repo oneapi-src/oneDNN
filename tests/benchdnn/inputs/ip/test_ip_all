@@ -1,19 +1,26 @@
 # f32
 --reset
---dir=FWD_B,BWD_D,BWD_WB --batch=ip_all
---mb=2
+--dir=FWD_B,BWD_D,BWD_WB   --batch=ip_all
+                           --batch=shapes_non-spatial
+
 --dir=FWD_B
---attr=post_ops='sum:0.5;relu:0.5' --batch=ip_all
 
---batch=harness_tag
+--attr=post_ops='sum:0.5;relu:0.5'
+--mb=2                     --batch=ip_all
+--mb=0                     --batch=shapes_non-spatial
 
+                           --batch=harness_tag
 # int8
 --reset
---mb=2
 --dir=FWD_B
 --cfg=s8s8s32,s8s8s8,s8s8u8,u8s8s32,u8s8s8,u8s8u8
---attr=oscale=per_oc:2.25;post_ops='sum:0.5;relu:0.5' --batch=ip_all
---attr=oscale=common:0.025;post_ops='sum:0.5;tanh:0:0:10' --batch=ip_all
 
+--attr=oscale=per_oc:2.25;post_ops='sum:0.5;relu:0.5'
+--mb=2                    --batch=ip_all
+--mb=0                    --batch=shapes_non-spatial
+
+--attr=oscale=common:0.025;post_ops='sum:0.5;tanh:0:0:10'
+--mb=2                    --batch=ip_all
+--mb=0                    --batch=shapes_non-spatial
 # bf16
---batch=test_ip_bfloat16
+                          --batch=test_ip_bfloat16

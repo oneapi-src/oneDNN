@@ -55,17 +55,17 @@ struct simple_concat_t : public primitive_impl_t {
                 const memory_desc_wrapper i_d(&src_mds_[i]);
                 const memory_desc_wrapper o_d(&src_image_mds_[i]);
 
-                const int ignore_strides = 0;
+                const bool ignore_strides = true;
 
                 ok = ok
                         && utils::everyone_is(
                                 data_type, i_d.data_type(), o_d.data_type())
                         && utils::everyone_is(format_kind::blocked,
                                 i_d.format_kind(), o_d.format_kind())
-                        && types::blocking_desc_is_equal(i_d.blocking_desc(),
-                                o_d.blocking_desc(), ignore_strides)
-                        && types::blocking_desc_is_equal(i_d.blocking_desc(),
-                                dst_d.blocking_desc(), ignore_strides)
+                        && types::blocking_desc_is_equal(
+                                *i_d.md_, *o_d.md_, ignore_strides)
+                        && types::blocking_desc_is_equal(
+                                *i_d.md_, *dst_d.md_, ignore_strides)
                         && !i_d.is_additional_buffer();
                 if (!ok) return status::unimplemented;
             }

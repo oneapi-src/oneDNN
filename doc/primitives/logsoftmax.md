@@ -9,25 +9,26 @@ The logsoftmax primitive performs softmax along a particular axis on data with
 arbitrary dimensions followed by the logarithm function. All other axes are
 treated as independent (batch).
 
-In general form, the operation is defined by the following formulas. Second
-form is used as more numerically stable:
+In general form, the operation is defined by the following formulas (the
+variable names follow the standard @ref dev_guide_conventions). Second form is
+used as more numerically stable:
 
 ### Forward
 
 \f[
-    dst(\overline{ou}, c, \overline{in}) =
+    \dst(\overline{ou}, c, \overline{in}) =
         \ln\left({\frac
         {
-            e^{src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+            e^{\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})}
         }
         {
             \sum\limits_{ic}
-                e^{src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+                e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
         }}\right) =
-        \left(src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})\right)
+        \left(\src(\overline{ou}, c, \overline{in}) - \nu(\overline{ou}, \overline{in})\right)
             - \ln\left(
                     \sum\limits_{ic}
-                    e^{src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
+                    e^{\src(\overline{ou}, ic, \overline{in}) - \nu(\overline{ou}, \overline{in})}
                  \right),
 \f]
 
@@ -41,7 +42,7 @@ where
 \f[
     \nu(\overline{ou}, \overline{in}) =
         \max\limits_{ic}
-        src(\overline{ou}, ic, \overline{in})
+        \src(\overline{ou}, ic, \overline{in})
 \f]
 
 #### Difference Between Forward Training and Forward Inference
@@ -51,10 +52,18 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes
-\f$diff\_src(ou, c, in)\f$,
-based on
-\f$diff\_dst(ou, c, in)\f$ and \f$dst(ou, c, in)\f$.
+The backward propagation computes \f$\diffsrc(ou, c, in)\f$, based on
+\f$\diffdst(ou, c, in)\f$ and \f$\dst(ou, c, in)\f$.
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
 
 ## Implementation Details
 
@@ -119,3 +128,9 @@ typically referred to as channels (hence in formulas we use \f$c\f$).
    - Non-optimized: 4D case, tensor \f$A \times B \times C \times D\f$,
                     softmax axis 2 (C), format tag #dnnl_acdb, and
                     and \f$D \cdot B \ne 1\f$
+
+## Examples
+
+| Engine  | Name                        | Comments
+| :--     | :--                         | :--
+| CPU/GPU | @ref logsoftmax_example_cpp | @copydetails logsoftmax_example_cpp_short

@@ -16,7 +16,7 @@
 
 #include "sycl/sycl_stream.hpp"
 
-#include "ocl/ocl_utils.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_engine.hpp"
 
 #include <map>
@@ -32,8 +32,7 @@ public:
     fixed_device_selector_t(const cl::sycl::device &device)
         : fixed_device_(device) {
         if (fixed_device_.is_cpu() || fixed_device_.is_gpu())
-            ocl_fixed_device_
-                    = ocl::ocl_utils::make_ocl_wrapper(fixed_device_.get());
+            ocl_fixed_device_ = gpu::ocl::make_ocl_wrapper(fixed_device_.get());
     }
 
     virtual int operator()(const cl::sycl::device &device) const override {
@@ -44,7 +43,7 @@ public:
         if (ocl_fixed_device_) {
             if (!device.is_cpu() && !device.is_gpu()) return -1;
 
-            auto ocl_dev = ocl::ocl_utils::make_ocl_wrapper(device.get());
+            auto ocl_dev = gpu::ocl::make_ocl_wrapper(device.get());
             return (ocl_dev == ocl_fixed_device_ ? 1 : -1);
         }
         assert(fixed_device_.is_host());
@@ -99,25 +98,25 @@ status_t sycl_stream_t::init() {
         if (!args_ok) return status::invalid_arguments;
 
         if (sycl_dev.is_cpu() || sycl_dev.is_gpu()) {
-            auto ocl_queue = ocl::ocl_utils::make_ocl_wrapper(queue_->get());
+            auto ocl_queue = gpu::ocl::make_ocl_wrapper(queue_->get());
             cl_context ocl_ctx;
             err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_CONTEXT,
                     sizeof(cl_context), &ocl_ctx, nullptr);
-            status = ocl::ocl_utils::convert_to_dnnl(err);
+            status = gpu::ocl::convert_to_dnnl(err);
             if (status != status::success) return status;
 
             cl_device_id ocl_dev;
             err = clGetCommandQueueInfo(ocl_queue, CL_QUEUE_DEVICE,
                     sizeof(cl_device_id), &ocl_dev, nullptr);
-            status = ocl::ocl_utils::convert_to_dnnl(err);
+            status = gpu::ocl::convert_to_dnnl(err);
             if (status != status::success) return status;
 
             auto *sycl_engine = utils::downcast<sycl_engine_base_t *>(engine());
 
-            auto sycl_ocl_dev = ocl::ocl_utils::make_ocl_wrapper(
-                    sycl_engine->device().get());
-            auto sycl_ocl_ctx = ocl::ocl_utils::make_ocl_wrapper(
-                    sycl_engine->context().get());
+            auto sycl_ocl_dev
+                    = gpu::ocl::make_ocl_wrapper(sycl_engine->device().get());
+            auto sycl_ocl_ctx
+                    = gpu::ocl::make_ocl_wrapper(sycl_engine->context().get());
             if (sycl_ocl_dev != ocl_dev || sycl_ocl_ctx != ocl_ctx)
                 return status::invalid_arguments;
         }

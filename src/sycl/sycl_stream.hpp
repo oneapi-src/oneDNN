@@ -22,8 +22,8 @@
 #include "common/primitive_exec_types.hpp"
 #include "common/stream.hpp"
 #include "common/utils.hpp"
-#include "compute/compute_stream.hpp"
-#include "ocl/ocl_utils.hpp"
+#include "gpu/compute/compute_stream.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
 #include "sycl/sycl_memory_storage.hpp"
 #include "sycl/sycl_stream_cpu_thunk.hpp"
@@ -43,7 +43,7 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-struct sycl_stream_t : public compute::compute_stream_t {
+struct sycl_stream_t : public gpu::compute::compute_stream_t {
     ~sycl_stream_t() override { wait(); }
 
     static status_t create_stream(
@@ -137,14 +137,29 @@ struct sycl_stream_t : public compute::compute_stream_t {
         return status::success;
     }
 
+    virtual status_t fill(const memory_storage_t &dst, const void *pattern,
+            size_t pattern_size, size_t size) override {
+        void *mapped_ptr;
+        CHECK(dst.map_data(&mapped_ptr));
+
+        assert(size % pattern_size == 0);
+        for (size_t i = 0; i < size / pattern_size; ++i) {
+            memcpy(static_cast<uint8_t *>(mapped_ptr) + i * pattern_size,
+                    pattern, pattern_size);
+        }
+
+        CHECK(dst.unmap_data(mapped_ptr));
+        return status::success;
+    }
+
     std::vector<cl::sycl::event> &get_deps() { return deps_; }
     void set_deps(const std::vector<cl::sycl::event> &deps) { deps_ = deps; }
 
 private:
     sycl_stream_t(engine_t *engine, unsigned flags)
-        : compute::compute_stream_t(engine, flags) {}
+        : gpu::compute::compute_stream_t(engine, flags) {}
     sycl_stream_t(engine_t *engine, unsigned flags, cl::sycl::queue &queue)
-        : compute::compute_stream_t(engine, flags)
+        : gpu::compute::compute_stream_t(engine, flags)
         , queue_(new cl::sycl::queue(queue)) {}
 
     status_t init();

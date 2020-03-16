@@ -19,9 +19,11 @@ where *reorder-knobs* are:
             Refer to knobs_attr.md for details.
  - `--def-scales={N1[,N2][,N3]...}` -- input scales, separated by ','.
             Example: 0.125, 0.25, 0.5, 1, 2, 4, 8
- - `--alg={reference [default], bootstrap}` -- reorder algorithm. TBA.
- - `--oflag={none [default], conv_s8s8, gconv_s8s8}` -- reorder output flag.
-            Works only in combination with `--alg=bootstrap`. TBA.
+ - `--alg={reference [default], bootstrap}` -- reorder testing mode. `bootstrap`
+            tests memory with weights compensation.
+ - `--oflag={none [default], conv_s8s8, gconv_s8s8}` -- memory descriptor extra
+            field specifier. Also sets compensation mask based on the flag
+            value. Only applicable when `--alg=bootstrap`.
 
 and *reorder-desc* is a problem descriptor. The canonical form is:
 ```

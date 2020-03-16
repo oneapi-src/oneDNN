@@ -51,7 +51,8 @@ struct jit_uni_pool_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_pool_kernel)
 
     void operator()(jit_pool_call_s *arg) { jit_ker(arg); }
-    static status_t init_conf(jit_pool_conf_t &jbp, const pooling_pd_t *ppd);
+    static status_t init_conf(jit_pool_conf_t &jbp,
+            memory_tracking::registrar_t &scratchpad, const pooling_pd_t *ppd);
 
 private:
     using Xmm = Xbyak::Xmm;

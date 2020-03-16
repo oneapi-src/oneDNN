@@ -24,6 +24,7 @@
 #include "c_types_map.hpp"
 #include "engine.hpp"
 #include "memory.hpp"
+#include "memory_desc_wrapper.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -76,7 +77,7 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     memory_storage_t *memory_storage_ptr;
     status_t status = engine->create_memory_storage(
             &memory_storage_ptr, flags, size, handle);
-    if (status != status::success) return;
+    if (status != success) return;
 
     memory_storage_.reset(memory_storage_ptr);
     if (!(flags & omit_zero_pad)) zero_pad();
@@ -180,7 +181,7 @@ status_t dnnl_memory_desc_init_by_strides(memory_desc_t *memory_desc, int ndims,
 
     *memory_desc = md;
 
-    return status::success;
+    return success;
 }
 
 status_t dnnl_memory_desc_init_submemory(memory_desc_t *md,
@@ -241,49 +242,235 @@ int dnnl_memory_desc_equal(const memory_desc_t *lhs, const memory_desc_t *rhs) {
 
 status_t dnnl_memory_desc_reshape(memory_desc_t *out_md,
         const memory_desc_t *in_md, int ndims, const dims_t dims) {
+    auto volume = [](const dim_t *dims, int ndims) -> dim_t {
+        dim_t prod = 1;
+        for (int i = 0; i < ndims; ++i) {
+            if (dims[i] == DNNL_RUNTIME_DIM_VAL) return DNNL_RUNTIME_DIM_VAL;
+            prod *= dims[i] > 0 ? dims[i] : 1;
+        }
+        return prod;
+    };
+
     if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
             || !memory_desc_sanity_check(
                     ndims, dims, in_md->data_type, in_md->format_kind)
-            || !(in_md->format_kind == format_kind::blocked)
-            || types::is_zero_md(in_md))
+            || !one_of(
+                    in_md->format_kind, format_kind::any, format_kind::blocked)
+            || types::is_zero_md(in_md)
+            || volume(in_md->dims, in_md->ndims) != volume(dims, ndims)
+            || memory_desc_wrapper(in_md).has_runtime_dims_or_strides()
+            || in_md->extra.flags != 0)
         return invalid_arguments;
 
-    // TODO: right now only appending is supported.
-    if (ndims < in_md->ndims) return invalid_arguments;
+    if (in_md->format_kind == format_kind::any)
+        return dnnl_memory_desc_init_by_tag(
+                out_md, ndims, dims, in_md->data_type, format_tag::any);
 
-    // TODO: right now the functionality is limited to append ones to the end.
-    for (int d = 0; d < in_md->ndims; ++d)
-        if (dims[d] != in_md->dims[d]) return invalid_arguments;
-    for (int d = in_md->ndims; d < ndims; ++d)
-        if (dims[d] != 1) return invalid_arguments;
+    assert(in_md->format_kind == format_kind::blocked);
+    assert(in_md->extra.flags == 0);
 
-    auto md = memory_desc_t();
+    // temporary output
+    auto md = *in_md;
 
-    // copy values from in_md to md
     md.ndims = ndims;
-    array_copy(md.dims, in_md->dims, ndims);
-    md.data_type = in_md->data_type;
-    array_copy(md.padded_dims, in_md->padded_dims, ndims);
-    md.format_kind = in_md->format_kind;
-    array_copy(md.padded_offsets, in_md->padded_offsets, ndims);
-    md.offset0 = in_md->offset0;
+    array_copy(md.dims, dims, md.ndims);
 
-    // copy blocking_desc values from in_md to md
-    const auto &bds = in_md->format_desc.blocking;
-    auto &bd = md.format_desc.blocking;
-    array_copy(bd.strides, bds.strides, ndims);
-    bd.inner_nblks = bds.inner_nblks;
-    array_copy(bd.inner_blks, bds.inner_blks, ndims);
-    array_copy(bd.inner_idxs, bds.inner_idxs, ndims);
+    const int i_ndims = in_md->ndims;
+    const int o_ndims = md.ndims;
 
-    // assign new values
-    for (int d = in_md->ndims; d < ndims; ++d) {
-        md.dims[d] = 1;
-        md.padded_dims[d] = 1;
-        bd.strides[d] = bd.strides[d - 1];
+    const auto &i_dims = in_md->dims, &i_pdims = in_md->padded_dims;
+    const auto &o_dims = md.dims;
+
+    const auto &i_bd = in_md->format_desc.blocking;
+    auto &o_bd = md.format_desc.blocking;
+
+    dims_t blocks = {0};
+    memory_desc_wrapper(in_md).compute_blocks(blocks);
+
+    enum class action_t { REMOVE_1, ADD_1, KEEP_DIM, REARRANGE_DIMS, FAIL };
+
+    // Determine groups in input and output dims starting with the given
+    // positions (going backwards) that satisfy one of the conditions:
+    // - REMOVE_1
+    //      input_group = {1}, output_group = empty
+    // - ADD_1
+    //      input_group = empty, output_group = {1}
+    // - KEEP_DIM
+    //      input_group = {x}, output_group = {x}
+    // - REARRANGE_DIMS
+    //      input_group = {x1, x2, .., xk}, output_group = {y1, y2, ..., ym}
+    //      and product(x_i) = product(y_j), and the groups are minimal
+    // - FAIL
+    //      invalid configuration (return false)
+    auto find_groups
+            = [&](int &i_group_begin, int i_group_end, int &o_group_begin,
+                      int o_group_end) -> action_t {
+        // 1st step: check for `1` in the input dims
+        if (i_group_end > 0 && i_dims[i_group_end - 1] == 1) {
+            i_group_begin = i_group_end - 1;
+            if (i_pdims[i_group_end - 1] == 1) {
+                o_group_begin = o_group_end;
+                return action_t::REMOVE_1;
+            } else if (o_group_end > 0 && o_dims[o_group_end - 1] == 1) {
+                o_group_begin = o_group_end - 1;
+                return action_t::KEEP_DIM;
+            } else {
+                return action_t::FAIL;
+            }
+        }
+
+        // 2nd step: check for `1` in the output dims
+        if (o_group_end > 0 && o_dims[o_group_end - 1] == 1) {
+            i_group_begin = i_group_end;
+            o_group_begin = o_group_end - 1;
+            return action_t::ADD_1;
+        }
+
+        // at this moment both groups cannot be empty
+        if (i_group_end == 0 || o_group_end == 0) return action_t::FAIL;
+
+        // 3rd step: find the non-trivial groups of the same volume
+        i_group_begin = i_group_end - 1;
+        o_group_begin = o_group_end - 1;
+
+        dim_t i_volume = i_dims[i_group_begin];
+        dim_t o_volume = o_dims[o_group_begin];
+
+        while (i_volume != o_volume) {
+            if (i_volume < o_volume) {
+                if (i_group_begin == 0) return action_t::FAIL;
+                i_volume *= i_dims[--i_group_begin];
+
+                // do not allow `0` axis in the middle
+                if (i_volume == 0) return action_t::FAIL;
+            } else {
+                if (o_group_begin == 0) return action_t::FAIL;
+                o_volume *= o_dims[--o_group_begin];
+
+                // do not allow `0` axis in the middle
+                if (o_volume == 0) return action_t::FAIL;
+            }
+        }
+
+        assert(i_volume == o_volume);
+        assert(i_group_begin >= 0);
+        assert(o_group_begin >= 0);
+
+        return (i_group_begin + 1 == i_group_end
+                       && o_group_begin + 1 == o_group_end)
+                ? action_t::KEEP_DIM
+                : action_t::REARRANGE_DIMS;
+    };
+
+    int i_group_begin = i_ndims, i_group_end = i_ndims;
+    int o_group_begin = o_ndims, o_group_end = o_ndims;
+
+    while (i_group_end != 0 || o_group_end != 0) {
+        action_t action = find_groups(
+                i_group_begin, i_group_end, o_group_begin, o_group_end);
+
+        if (action == action_t::REMOVE_1) {
+            // nop, padding is already taken into account by `find_groups()`
+        } else if (action == action_t::ADD_1) {
+            // get the stride from the right
+            dim_t current_stride = 1;
+            if (i_group_begin == i_ndims) {
+                for (int d = 0; d < i_bd.inner_nblks; ++d)
+                    current_stride *= i_bd.inner_blks[d];
+            } else {
+                // Add `1` to the left from axes with index `i_group_begin`
+                current_stride
+                        = i_bd.strides[i_group_begin] * i_dims[i_group_begin];
+                for (int d = 0; d < i_bd.inner_nblks; ++d)
+                    if (i_bd.inner_idxs[d] == i_group_begin)
+                        current_stride /= i_bd.inner_blks[d];
+            }
+            md.padded_dims[o_group_begin] = 1;
+            md.padded_offsets[o_group_begin] = 0;
+            o_bd.strides[o_group_begin] = current_stride;
+        } else if (action == action_t::KEEP_DIM) {
+            // change the axis index from `i_group_begin` to `o_group_begin`
+            assert(i_group_begin + 1 == i_group_end);
+            assert(o_group_begin + 1 == o_group_end);
+
+            md.padded_dims[o_group_begin] = in_md->padded_dims[i_group_begin];
+            md.padded_offsets[o_group_begin]
+                    = in_md->padded_offsets[i_group_begin];
+            o_bd.strides[o_group_begin] = i_bd.strides[i_group_begin];
+            for (int d = 0; d < i_bd.inner_nblks; ++d)
+                if (i_bd.inner_idxs[d] == i_group_begin)
+                    o_bd.inner_idxs[d] = o_group_begin;
+        } else if (action == action_t::REARRANGE_DIMS) {
+            // check that input group is dense, sequential, and is not blocked
+            for (int d = i_group_end - 1; d > i_group_begin; --d)
+                if (i_dims[d] * i_bd.strides[d] != i_bd.strides[d - 1])
+                    return invalid_arguments;
+
+            // checked (i_group_begin, i_group_end), `i_group_begin` remains
+            for (int d = 0; d < i_bd.inner_nblks; ++d)
+                if (i_bd.inner_idxs[d] == i_group_begin)
+                    return invalid_arguments;
+            if (in_md->padded_dims[i_group_begin] != i_dims[i_group_begin])
+                return invalid_arguments;
+            if (in_md->padded_offsets[i_group_begin] != 0)
+                return invalid_arguments;
+
+            // oK, fill output md according to
+            // o_dims[o_group_begin .. o_group_end]
+
+            dim_t current_stride = i_bd.strides[i_group_end - 1];
+            for (int d = o_group_end - 1; d >= o_group_begin; --d) {
+                md.padded_dims[d] = o_dims[d];
+                md.padded_offsets[d] = 0;
+                o_bd.strides[d] = current_stride;
+                current_stride *= md.padded_dims[d];
+            }
+        } else {
+            assert(action == action_t::FAIL);
+            return invalid_arguments;
+        }
+
+        i_group_end = i_group_begin;
+        o_group_end = o_group_begin;
     }
 
     *out_md = md;
+    return success;
+}
+
+status_t dnnl_memory_desc_permute_axes(
+        memory_desc_t *out_md, const memory_desc_t *in_md, const int *perm) {
+    if (any_null(out_md, in_md) || !memory_desc_sanity_check(in_md)
+            || !one_of(
+                    in_md->format_kind, format_kind::any, format_kind::blocked)
+            || types::is_zero_md(in_md)
+            || memory_desc_wrapper(in_md).has_runtime_dims_or_strides()
+            || in_md->extra.flags != 0)
+        return invalid_arguments;
+
+    // verify that perm is indeed a permutation of [0 .. ndims)
+    unsigned occurrence_mask = 0;
+    for (int d = 0; d < in_md->ndims; ++d)
+        if (0 <= perm[d] && perm[d] < in_md->ndims)
+            occurrence_mask |= (1u << perm[d]);
+    if (occurrence_mask + 1 != (1u << in_md->ndims)) return invalid_arguments;
+
+    *out_md = *in_md;
+    for (int d = 0; d < in_md->ndims; ++d) {
+        if (perm[d] == d) continue;
+        out_md->dims[perm[d]] = in_md->dims[d];
+        out_md->padded_dims[perm[d]] = in_md->padded_dims[d];
+        out_md->padded_offsets[perm[d]] = in_md->padded_offsets[d];
+        if (in_md->format_kind == format_kind::blocked) {
+            const auto &i_bd = in_md->format_desc.blocking;
+            auto &o_bd = out_md->format_desc.blocking;
+
+            o_bd.strides[perm[d]] = i_bd.strides[d];
+            for (int blk = 0; blk < i_bd.inner_nblks; ++blk)
+                if (i_bd.inner_idxs[blk] == d) o_bd.inner_idxs[blk] = perm[d];
+        }
+    }
+
     return success;
 }
 

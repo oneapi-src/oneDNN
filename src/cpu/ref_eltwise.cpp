@@ -45,10 +45,20 @@ static float compute_eltwise_scalar_fwd(
         case eltwise_soft_relu: d = soft_relu_fwd(s); break;
         case eltwise_logistic: d = logistic_fwd(s); break;
         case eltwise_exp: d = exp_fwd(s); break;
-        case eltwise_gelu: d = gelu_fwd(s); break;
+        case eltwise_gelu_tanh: d = gelu_tanh_fwd(s); break;
         case eltwise_swish: d = swish_fwd(s, alpha); break;
         case eltwise_log: d = log_fwd(s); break;
         case eltwise_clip: d = clip_fwd(s, alpha, beta); break;
+        case eltwise_pow: d = pow_fwd(s, alpha, beta); break;
+        case eltwise_gelu_erf: d = gelu_erf_fwd(s); break;
+
+        case eltwise_relu_use_dst_for_bwd: d = relu_fwd(s, alpha); break;
+        case eltwise_tanh_use_dst_for_bwd: d = tanh_fwd(s); break;
+        case eltwise_elu_use_dst_for_bwd: d = elu_fwd(s, alpha); break;
+        case eltwise_sqrt_use_dst_for_bwd: d = sqrt_fwd(s); break;
+        case eltwise_logistic_use_dst_for_bwd: d = logistic_fwd(s); break;
+        case eltwise_exp_use_dst_for_bwd: d = exp_fwd(s); break;
+
         default: assert(!"unknown eltwise alg_kind");
     }
     return d;
@@ -69,10 +79,26 @@ static float compute_eltwise_scalar_bwd(
         case eltwise_soft_relu: ds = soft_relu_bwd(dd, s); break;
         case eltwise_logistic: ds = logistic_bwd(dd, s); break;
         case eltwise_exp: ds = exp_bwd(dd, s); break;
-        case eltwise_gelu: ds = gelu_bwd(dd, s); break;
+        case eltwise_gelu_tanh: ds = gelu_tanh_bwd(dd, s); break;
         case eltwise_swish: ds = swish_bwd(dd, s, alpha); break;
         case eltwise_log: ds = log_bwd(dd, s); break;
         case eltwise_clip: ds = clip_bwd(dd, s, alpha, beta); break;
+        case eltwise_pow: ds = pow_bwd(dd, s, alpha, beta); break;
+        case eltwise_gelu_erf: ds = gelu_erf_bwd(dd, s); break;
+
+        case eltwise_relu_use_dst_for_bwd:
+            ds = relu_bwd_use_dst(dd, s, alpha);
+            break;
+        case eltwise_tanh_use_dst_for_bwd: ds = tanh_bwd_use_dst(dd, s); break;
+        case eltwise_elu_use_dst_for_bwd:
+            ds = elu_bwd_use_dst(dd, s, alpha);
+            break;
+        case eltwise_sqrt_use_dst_for_bwd: ds = sqrt_bwd_use_dst(dd, s); break;
+        case eltwise_logistic_use_dst_for_bwd:
+            ds = logistic_bwd_use_dst(dd, s);
+            break;
+        case eltwise_exp_use_dst_for_bwd: ds = exp_bwd_use_dst(dd, s); break;
+
         default: assert(!"unknown eltwise alg_kind");
     }
     return ds;
@@ -84,8 +110,11 @@ ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
     assert(utils::one_of(alg_, eltwise_relu, eltwise_tanh, eltwise_elu,
             eltwise_square, eltwise_abs, eltwise_sqrt, eltwise_linear,
             eltwise_bounded_relu, eltwise_soft_relu, eltwise_logistic,
-            eltwise_exp, eltwise_gelu, eltwise_swish, eltwise_log,
-            eltwise_clip));
+            eltwise_exp, eltwise_gelu_tanh, eltwise_swish, eltwise_log,
+            eltwise_clip, eltwise_pow, eltwise_gelu_erf,
+            eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
+            eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
+            eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd));
 }
 
 ref_eltwise_scalar_fwd_t::ref_eltwise_scalar_fwd_t(
@@ -199,7 +228,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     /* fast return */
     if (pd()->has_zero_dim_memory()) return;
 
-    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
+                               : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
@@ -232,7 +262,8 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
 template <impl::data_type_t data_type>
 void ref_eltwise_bwd_t<data_type>::execute_backward_dense(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
+    auto src = pd()->use_dst() ? CTX_IN_MEM(const data_t *, DNNL_ARG_DST)
+                               : CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 

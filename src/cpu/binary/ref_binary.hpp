@@ -26,6 +26,8 @@
 
 #include "cpu_binary_pd.hpp"
 
+#include "ref_eltwise.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -40,6 +42,8 @@ struct ref_binary_t : public primitive_impl_t {
 
         status_t init() {
             using namespace data_type;
+            using sm = primitive_attr_t::skip_mask_t;
+
             bool ok = src0_type == src_md(0)->data_type
                     && src1_type == src_md(1)->data_type
                     && dst_type == dst_md()->data_type
@@ -48,12 +52,13 @@ struct ref_binary_t : public primitive_impl_t {
                             mayiuse(avx512_core))
                     && set_default_params() == status::success
                     && IMPLICATION(utils::one_of(src0_type, f32, bf16),
-                            attr()->has_default_values())
+                            attr()->has_default_values(sm::post_ops))
                     && IMPLICATION(utils::one_of(src0_type, s8, u8),
                             attr()->has_default_values(
-                                    primitive_attr_t::skip_mask_t::scales))
+                                    sm::post_ops | sm::scales))
                     && IMPLICATION(!attr()->scales_.has_default_values(),
-                            check_scales_mask());
+                            check_scales_mask())
+                    && attr_post_ops_ok();
             if (!ok) return status::unimplemented;
 
             return status::success;
@@ -68,7 +73,12 @@ struct ref_binary_t : public primitive_impl_t {
         }
     };
 
-    ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {}
+    ref_binary_t(const pd_t *apd) : primitive_impl_t(apd) {
+        int e_idx = pd()->attr()->post_ops_.find(primitive_kind::eltwise);
+        if (e_idx != -1)
+            eltwise_ker_.reset(new ref_eltwise_scalar_fwd_t(
+                    pd()->attr()->post_ops_.entry_[e_idx].eltwise));
+    }
 
     ~ref_binary_t() {}
 
@@ -84,6 +94,8 @@ struct ref_binary_t : public primitive_impl_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     void execute_ref(const exec_ctx_t &ctx) const;
+
+    std::unique_ptr<ref_eltwise_scalar_fwd_t> eltwise_ker_;
 };
 
 } // namespace cpu

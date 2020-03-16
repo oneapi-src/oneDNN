@@ -27,7 +27,7 @@ using tag = memory::format_tag;
 
 class runtime_attr_test : public ::testing::Test {
 protected:
-    engine eng {get_test_engine_kind(), 0};
+    engine eng = get_test_engine();
     virtual void SetUp() {}
 
     static primitive_attr gen_attr(bool is_runtime) {

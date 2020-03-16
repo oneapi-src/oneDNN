@@ -45,7 +45,7 @@ status_t gemm_f32_matmul_t::pd_t::init() {
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && batch() == 1 && check_bias()
+            && dst_md()->data_type == dst_type && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);
@@ -138,45 +138,68 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const dim_t N = dst_d.dims()[batched + 1];
     const dim_t K = src_d.dims()[batched + 1];
 
-    // gemm section
-    {
-        const auto &src_strides = &src_d.blocking_desc().strides[batched];
-        const auto &weights_strides
-                = &weights_d.blocking_desc().strides[batched];
+    const auto &src_strides = &src_d.blocking_desc().strides[batched];
+    const auto &weights_strides = &weights_d.blocking_desc().strides[batched];
 
-        const char *transA
-                = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N"
-                                                                       : "T";
-        const char *transB
-                = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
-                ? "N"
-                : "T";
+    const char *transA
+            = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N" : "T";
+    const char *transB
+            = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
+            ? "N"
+            : "T";
 
-        const int M_s32 = (int)M;
-        const int N_s32 = (int)N;
-        const int K_s32 = (int)K;
+    const int M_s32 = (int)M;
+    const int N_s32 = (int)N;
+    const int K_s32 = (int)K;
 
-        const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-        const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-        const int ldc = (int)dst_bd.strides[batched + 0];
+    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
+    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
+    const int ldc = (int)dst_bd.strides[batched + 0];
 
-        const float alpha = params.get_gemm_alpha(scales);
-        const float beta = params.gemm_beta_;
+    const float alpha = params.get_gemm_alpha(scales);
+    const float beta = params.gemm_beta_;
 
-        status_t status = extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32,
-                &alpha, weights, &ldb, src, &lda, &beta, dst, &ldc, nullptr,
-                false);
-        if (status != status::success) return status;
-    }
+    const dim_t batch = batched ? src_d.dims()[0] : 1;
+    const auto src_batch_stride = src_d.blocking_desc().strides[0];
+    const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
+    const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
 
-    if (params.has_pp_kernel_) {
-        const bool force_sequential = pp_kernel_->sequential_kernel();
-        const float *pp_scales = params.get_post_processing_scales(scales);
-        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-            size_t start {}, end {};
-            balance211((size_t)(M * N), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, dst, bias, pp_scales, start, end, (size_t)N);
+    const bool parallel_over_batch = batch > 1;
+    if (parallel_over_batch) {
+        parallel(0, [&](int ithr, int nthr) {
+            size_t batch_start {}, batch_end {};
+            balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
+            for (size_t b = batch_start; b < batch_end; ++b) {
+                const src_data_t *curr_src = src + b * src_batch_stride;
+                const weights_data_t *curr_weights
+                        = weights + b * weights_batch_stride;
+                dst_data_t *curr_dst = dst + b * dst_batch_stride;
+
+                extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
+                        curr_weights, &ldb, curr_src, &lda, &beta, curr_dst,
+                        &ldc, nullptr, false);
+
+                if (params.has_pp_kernel_) {
+                    const float *pp_scales
+                            = params.get_post_processing_scales(scales);
+                    (*pp_kernel_)(curr_dst, curr_dst, bias, pp_scales, 0, M * N,
+                            (size_t)N);
+                }
+            }
         });
+    } else {
+        extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32, &alpha, weights,
+                &ldb, src, &lda, &beta, dst, &ldc, nullptr, false);
+
+        if (params.has_pp_kernel_) {
+            const bool force_sequential = pp_kernel_->sequential_kernel();
+            const float *pp_scales = params.get_post_processing_scales(scales);
+            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+                size_t start {}, end {};
+                balance211((size_t)(M * N), nthr, ithr, start, end);
+                (*pp_kernel_)(dst, dst, bias, pp_scales, start, end, (size_t)N);
+            });
+        }
     }
 
     return status::success;

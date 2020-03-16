@@ -42,6 +42,7 @@ struct rnn_pd_t : public primitive_desc_t {
         , src_iter_c_md_(desc_.src_iter_c_desc)
         , weights_layer_md_(desc_.weights_layer_desc)
         , weights_iter_md_(desc_.weights_iter_desc)
+        , weights_peephole_md_(desc_.weights_peephole_desc)
         , bias_md_(desc_.bias_desc)
         , dst_layer_md_(desc_.dst_layer_desc)
         , dst_iter_md_(desc_.dst_iter_desc)
@@ -73,7 +74,12 @@ struct rnn_pd_t : public primitive_desc_t {
     virtual const memory_desc_t *weights_md(int index = 0) const override {
         if (index == 0) return &weights_layer_md_;
         if (index == 1) return &weights_iter_md_;
-        if (index == 2 && with_bias()) return &bias_md_;
+        if (is_lstm_peephole()) {
+            if (index == 2) return &weights_peephole_md_;
+            if (index == 3 && with_bias()) return &bias_md_;
+        } else {
+            if (index == 2 && with_bias()) return &bias_md_;
+        }
         return &glob_zero_md;
     }
     virtual const memory_desc_t *dst_md(int index = 0) const override {
@@ -142,6 +148,10 @@ struct rnn_pd_t : public primitive_desc_t {
 
     bool is_lstm() const { return cell_kind() == dnnl_vanilla_lstm; }
 
+    bool is_lstm_peephole() const {
+        return !memory_desc_wrapper(weights_peephole_md_).is_zero();
+    }
+
     dnnl_rnn_direction_t direction() const { return desc_.direction; }
 
 protected:
@@ -153,6 +163,7 @@ protected:
     memory_desc_t src_iter_c_md_;
     memory_desc_t weights_layer_md_;
     memory_desc_t weights_iter_md_;
+    memory_desc_t weights_peephole_md_;
     memory_desc_t bias_md_;
     memory_desc_t dst_layer_md_;
     memory_desc_t dst_iter_md_;
@@ -181,6 +192,9 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
         if (utils::one_of(arg, DNNL_ARG_WEIGHTS_LAYER, DNNL_ARG_WEIGHTS_ITER))
             return arg_usage_t::input;
 
+        if (arg == DNNL_ARG_WEIGHTS_PEEPHOLE && is_lstm_peephole())
+            return arg_usage_t::input;
+
         if (arg == DNNL_ARG_BIAS && with_bias()) return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST_LAYER) return arg_usage_t::output;
@@ -204,7 +218,9 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
             case DNNL_ARG_SRC_ITER_C: return src_md(2);
             case DNNL_ARG_WEIGHTS_LAYER: return weights_md(0);
             case DNNL_ARG_WEIGHTS_ITER: return weights_md(1);
-            case DNNL_ARG_BIAS: return weights_md(2);
+            case DNNL_ARG_WEIGHTS_PEEPHOLE:
+                return is_lstm_peephole() ? weights_md(2) : &glob_zero_md;
+            case DNNL_ARG_BIAS: return weights_md(2 + is_lstm_peephole());
             case DNNL_ARG_DST_LAYER: return dst_md(0);
             case DNNL_ARG_DST_ITER: return dst_md(1);
             case DNNL_ARG_DST_ITER_C: return dst_md(2);
@@ -213,7 +229,8 @@ struct rnn_fwd_pd_t : public rnn_pd_t {
     }
 
     virtual int n_inputs() const override {
-        return 3 + with_bias() + with_src_iter() + with_src_iter_c();
+        return 3 + is_lstm_peephole() + with_bias() + with_src_iter()
+                + with_src_iter_c();
     }
     virtual int n_outputs() const override {
         return 1 + with_dst_iter() + with_dst_iter_c() + is_training();
@@ -232,6 +249,7 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         , diff_src_iter_c_md_(desc_.diff_src_iter_c_desc)
         , diff_weights_layer_md_(desc_.diff_weights_layer_desc)
         , diff_weights_iter_md_(desc_.diff_weights_iter_desc)
+        , diff_weights_peephole_md_(desc_.diff_weights_peephole_desc)
         , diff_bias_md_(desc_.diff_bias_desc)
         , diff_dst_layer_md_(desc_.diff_dst_layer_desc)
         , diff_dst_iter_md_(desc_.diff_dst_iter_desc)
@@ -246,6 +264,13 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
         if (utils::one_of(arg, DNNL_ARG_DIFF_SRC_LAYER,
                     DNNL_ARG_DIFF_WEIGHTS_LAYER, DNNL_ARG_DIFF_WEIGHTS_ITER))
             return arg_usage_t::output;
+
+        if (is_lstm_peephole()) {
+            if (arg == DNNL_ARG_WEIGHTS_PEEPHOLE) return arg_usage_t::input;
+
+            if (arg == DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE)
+                return arg_usage_t::output;
+        }
 
         if (with_bias()) {
             if (arg == DNNL_ARG_BIAS) return arg_usage_t::input;
@@ -290,10 +315,15 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
             case DNNL_ARG_DIFF_SRC_ITER_C: return diff_src_md(2);
             case DNNL_ARG_WEIGHTS_LAYER: return weights_md(0);
             case DNNL_ARG_WEIGHTS_ITER: return weights_md(1);
-            case DNNL_ARG_BIAS: return weights_md(2);
+            case DNNL_ARG_WEIGHTS_PEEPHOLE:
+                return is_lstm_peephole() ? weights_md(2) : &glob_zero_md;
+            case DNNL_ARG_BIAS: return weights_md(2 + is_lstm_peephole());
             case DNNL_ARG_DIFF_WEIGHTS_LAYER: return diff_weights_md(0);
             case DNNL_ARG_DIFF_WEIGHTS_ITER: return diff_weights_md(1);
-            case DNNL_ARG_DIFF_BIAS: return diff_weights_md(2);
+            case DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE:
+                return is_lstm_peephole() ? diff_weights_md(2) : &glob_zero_md;
+            case DNNL_ARG_DIFF_BIAS:
+                return diff_weights_md(2 + is_lstm_peephole());
             case DNNL_ARG_DST_LAYER: return dst_md(0);
             case DNNL_ARG_DST_ITER: return dst_md(1);
             case DNNL_ARG_DST_ITER_C: return dst_md(2);
@@ -313,7 +343,12 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
     virtual const memory_desc_t *diff_weights_md(int index = 0) const override {
         if (index == 0) return &diff_weights_layer_md_;
         if (index == 1) return &diff_weights_iter_md_;
-        if (index == 2 && with_bias()) return &diff_bias_md_;
+        if (is_lstm_peephole()) {
+            if (index == 2) return &diff_weights_peephole_md_;
+            if (index == 3 && with_bias()) return &diff_bias_md_;
+        } else {
+            if (index == 2 && with_bias()) return &diff_bias_md_;
+        }
         return &glob_zero_md;
     }
     virtual const memory_desc_t *diff_dst_md(int index = 0) const override {
@@ -325,10 +360,12 @@ struct rnn_bwd_pd_t : public rnn_pd_t {
 
     virtual int n_inputs() const override {
         return 6 + with_src_iter() + with_src_iter_c()
-                + 2 * (with_dst_iter() + with_dst_iter_c()) + with_bias();
+                + 2 * (with_dst_iter() + with_dst_iter_c()) + is_lstm_peephole()
+                + with_bias();
     }
     virtual int n_outputs() const override {
-        return 3 + with_src_iter() + with_src_iter_c() + with_bias();
+        return 3 + with_src_iter() + with_src_iter_c() + is_lstm_peephole()
+                + with_bias();
     }
 
 protected:
@@ -337,6 +374,7 @@ protected:
     memory_desc_t diff_src_iter_c_md_;
     memory_desc_t diff_weights_layer_md_;
     memory_desc_t diff_weights_iter_md_;
+    memory_desc_t diff_weights_peephole_md_;
     memory_desc_t diff_bias_md_;
     memory_desc_t diff_dst_layer_md_;
     memory_desc_t diff_dst_iter_md_;

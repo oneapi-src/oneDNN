@@ -74,6 +74,12 @@ private:
 
 protected:
     virtual void SetUp() {
+        data_type = data_traits<data_t>::data_type;
+
+        SKIP_IF(data_type == memory::data_type::s8
+                        && get_test_engine_kind() == engine::kind::gpu,
+                "GPU does not support int8 data type.");
+
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
@@ -86,7 +92,6 @@ protected:
         eng = get_test_engine();
         strm = stream(eng);
 
-        memory::data_type data_type = data_traits<data_t>::data_type;
         ASSERT_TRUE(isF32(data_type) || isS8(data_type));
 
         test_bnorm_sizes_t bs = p.sizes;

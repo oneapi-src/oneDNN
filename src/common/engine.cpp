@@ -29,7 +29,7 @@
 #include "cpu/cpu_engine.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-#include "ocl/ocl_engine.hpp"
+#include "gpu/ocl/ocl_engine.hpp"
 #endif
 
 #if DNNL_WITH_SYCL
@@ -48,7 +48,7 @@ static inline std::unique_ptr<engine_factory_t> get_engine_factory(
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     if (kind == engine_kind::gpu && runtime_kind == runtime_kind::ocl) {
         return std::unique_ptr<engine_factory_t>(
-                new ocl::ocl_engine_factory_t(kind));
+                new gpu::ocl::ocl_engine_factory_t(kind));
     }
 #endif
 #if DNNL_WITH_SYCL

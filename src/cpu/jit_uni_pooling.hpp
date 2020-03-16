@@ -25,6 +25,7 @@
 
 #include "cpu_pooling_pd.hpp"
 #include "jit_uni_pool_kernel.hpp"
+#include "jit_uni_reorder.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -54,7 +55,8 @@ struct jit_uni_pooling_fwd_t : public primitive_impl_t {
             if (desc()->alg_kind == alg_kind::pooling_max && is_training)
                 init_default_ws();
 
-            return jit_uni_pool_kernel<isa>::init_conf(jpp_, this);
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this);
         }
 
         format_tag_t desired_fmt_tag() {
@@ -96,6 +98,10 @@ private:
     jit_uni_pool_kernel<isa> *kernel_;
 };
 
+namespace jit_uni_pooling_utils {
+struct trans_wrapper_t;
+}
+
 template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_pooling_bwd_t : public primitive_impl_t {
     struct pd_t : public cpu_pooling_bwd_pd_t {
@@ -111,36 +117,23 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
                     && !is_fwd() && !has_zero_dim_memory()
                     && everyone_is(d_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
-                    && attr()->has_default_values()
-                    && memory_desc_matches_tag(
-                            *diff_dst_md(), desired_fmt_tag())
-                    && memory_desc_matches_tag(
-                            *diff_src_md(), desired_fmt_tag());
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             if (desc()->alg_kind == alg_kind::pooling_max) {
                 init_default_ws();
                 if (!compare_ws(hint_fwd_pd_)) return status::unimplemented;
             }
-
-            return jit_uni_pool_kernel<isa>::init_conf(jpp_, this);
-        }
-
-        format_tag_t desired_fmt_tag() {
-            using namespace format_tag;
-            return utils::one_of(isa, avx512_common, avx512_core)
-                    ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
-                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
+            auto scratchpad = scratchpad_registry().registrar();
+            return jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this);
         }
 
         jit_pool_conf_t jpp_;
     };
 
-    jit_uni_pooling_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {
-        kernel_ = new jit_uni_pool_kernel<isa>(pd()->jpp_);
-    }
+    jit_uni_pooling_bwd_t(const pd_t *apd);
 
-    ~jit_uni_pooling_bwd_t() { delete kernel_; }
+    ~jit_uni_pooling_bwd_t();
 
     typedef typename prec_traits<d_type>::type data_t;
 
@@ -152,18 +145,26 @@ struct jit_uni_pooling_bwd_t : public primitive_impl_t {
         if (pd()->ndims() == 5)
             execute_backward_3d(diff_dst, ws, diff_src);
         else
-            execute_backward(diff_dst, ws, diff_src);
+            execute_backward(diff_dst, ws, diff_src, ctx);
 
         return status::success;
     }
 
 private:
     void execute_backward(const data_t *diff_dst, const char *indices,
-            data_t *diff_src) const;
+            data_t *diff_src, const exec_ctx_t &ctx) const;
     void execute_backward_3d(const data_t *diff_dst, const char *indices,
             data_t *diff_src) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
     jit_uni_pool_kernel<isa> *kernel_;
+
+    jit_uni_pooling_utils::trans_wrapper_t *diff_dst_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_dst_tail_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *ind_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *ind_tail_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_src_trans_;
+    jit_uni_pooling_utils::trans_wrapper_t *diff_src_tail_trans_;
+    static constexpr data_type_t wsp_dt_ = data_type::f32;
 };
 
 } // namespace cpu

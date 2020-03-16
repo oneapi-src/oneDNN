@@ -13,9 +13,9 @@ only for 2D spatial data which are straightforward to generalize to cases of
 higher and lower dimensions. Variable names follow the standard
 @ref dev_guide_conventions.
 
-Let \f$src\f$, \f$weights\f$ and \f$dst\f$ be \f$N \times IC \times IH \times
+Let \src, \weights and \dst be \f$N \times IC \times IH \times
 IW\f$, \f$OC \times IC \times KH \times KW\f$, and \f$N \times OC \times OH
-\times OW\f$ tensors respectively. Let \f$bias\f$ be a 1D tensor with \f$OC\f$
+\times OW\f$ tensors respectively. Let \bias be a 1D tensor with \f$OC\f$
 elements.
 
 Furthermore, let the remaining convolution parameters be:
@@ -31,41 +31,39 @@ The following formulas show how DNNL computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
 convolution types can be combined.
 
-To further simplify the formulas, we assume that \f$src(n, ic, ih, iw) = 0\f$
+To further simplify the formulas, we assume that \f$\src(n, ic, ih, iw) = 0\f$
 if \f$ih < 0\f$, or \f$ih \geq IH\f$, or \f$iw < 0\f$, or \f$iw \geq IW\f$.
 
 ### Forward
 
 #### Regular Convolution
 
-\f[dst(n, oc, oh, ow) =  bias(oc) + \\
+\f[\dst(n, oc, oh, ow) =  \bias(oc) + \\
     + \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-        src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
+        \src(n, ic, oh \cdot SH + kh - PH_L, ow \cdot SW + kw - PW_L)
         \cdot
-        weights(oc, ic, kh, kw).\f]
+        \weights(oc, ic, kh, kw).\f]
 
 Here:
 
-- \f$OH = \left\lfloor{\frac{IH \cdot SH - KH + PH_L + PH_R}{SH}}
-        \right\rfloor + 1,\f$
+- \f$OH = \left\lfloor{\frac{IH - KH + PH_L + PH_R}{SH}} \right\rfloor + 1,\f$
 
-- \f$OW = \left\lfloor{\frac{IW \cdot SW - KW + PW_L + PW_R}{SW}}
-        \right\rfloor + 1.\f$
+- \f$OW = \left\lfloor{\frac{IW - KW + PW_L + PW_R}{SW}} \right\rfloor + 1.\f$
 
 #### Convolution with Groups
 
 In the API, DNNL adds a separate groups dimension to memory objects
-representing weights tensors and represents weights as \f$G \times OC_G \times
+representing \weights tensors and represents weights as \f$G \times OC_G \times
 IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
 
 \f[
-    dst(n, g \cdot OC_G + oc_g, oh, ow) =
-        bias(g \cdot OC_G + oc_g) + \\
+    \dst(n, g \cdot OC_G + oc_g, oh, ow) =
+        \bias(g \cdot OC_G + oc_g) + \\
         +
         \sum_{ic_g=0}^{IC_G-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
+            \src(n, g \cdot IC_G + ic_g, oh + kh - PH_L, ow + kw - PW_L)
         \cdot
-        weights(g, oc_g, ic_g, kh, kw),
+        \weights(g, oc_g, ic_g, kh, kw),
 \f]
 
 where
@@ -78,14 +76,14 @@ The case when \f$OC_G = IC_G = 1\f$ is also known as *a depthwise convolution*.
 #### Convolution with Dilation
 
 \f[
-    dst(n, oc, oh, ow) =
-        bias(oc) + \\
+    \dst(n, oc, oh, ow) =
+        \bias(oc) + \\
         +
         \sum_{ic=0}^{IC-1}\sum_{kh=0}^{KH-1}\sum_{kw=0}^{KW-1}
-            src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
+            \src(n, ic, oh + kh \cdot (DH + 1) - PH_L,
                     ow + kw \cdot (DW + 1) - PW_L)
             \cdot
-            weights(oc, ic, kh, kw).
+            \weights(oc, ic, kh, kw).
 \f]
 
 Here:
@@ -97,9 +95,9 @@ Here:
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
 
 @note
-    In DNNL dilation parameter equals 0 means no-dilation, i.e. regular
-    convolution. Other libraries might use another convention, where
-    dilation parameter equals 1 indicates no-dilation case.
+    In DNNL dilation parameter equals 0 corresponds to non-dilated, i.e.
+    regular, convolution. Other libraries might use another convention, where
+    dilation parameter equals 1 corresponds to regular convolution.
 
 #### Deconvolution (Transposed Convolution)
 
@@ -116,14 +114,30 @@ and #dnnl_forward_inference propagation kinds.
 
 ### Backward
 
-The backward propagation computes \f$diff\_src\f$
-based on \f$diff\_dst\f$ and \f$weights\f$.
+The backward propagation computes \diffsrc based on \diffdst and
+\weights.
 
-The weights update computes \f$diff\_weights\f$ and \f$diff\_bias\f$
-based on \f$diff\_dst\f$ and \f$src\f$.
+The weights update computes \diffweights and \diffbias based on
+\diffdst and \src.
 
-@note The *optimized* memory formats \f$src\f$ and \f$weights\f$ might be
-different on forward propagation, backward propagation, and weights update.
+@note The *optimized* memory formats \src and \weights might be
+different on forward propagation, backward propagation, and weights
+update.
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \weights               | DNNL_ARG_WEIGHTS         |
+| \bias                  | DNNL_ARG_BIAS            |
+| \dst                   | DNNL_ARG_DST             |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffweights           | DNNL_ARG_DIFF_WEIGHTS    |
+| \diffbias              | DNNL_ARG_DIFF_BIAS       |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
+| \f$depthwise\f$        | DNNL_ARG_ATTR_POST_OP_DW |
 
 ## Implementation Details
 
@@ -192,11 +206,11 @@ primitive by applying the output scale to the result of the primitive and by
 chaining certain operations after the primitive. The following attributes and
 post-ops are supported:
 
-| Propagation | Type      | Operation                                                    | Restrictions           | Description
-| :--         | :--       | :--                                                          | :--                    | :--
-| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | int8 convolutions only | Scales the result of convolution by given scale factor(s)
-| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               |                        | Applies an @ref dnnl_api_eltwise operation to the result
-| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       |                        | Adds the operation result to the destination tensor instead of overwriting it
+| Propagation | Type      | Operation                                                    | Description                                                                   | Restrictions           |
+| :--         | :--       | :--                                                          | :--                                                                           | :--                    |
+| forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only |
+| forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                        |
+| forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                        |
 
 @note The library doesn't prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
@@ -238,10 +252,10 @@ Consider the following pseudo code:
 The would lead to the following:
 
 \f[
-    dst(\overline{x}) =
+    \dst(\overline{x}) =
         \gamma \cdot \tanh \left(
-            \alpha \cdot conv(src, weights) +
-            \beta  \cdot dst(\overline{x})
+            \alpha \cdot conv(\src, \weights) +
+            \beta  \cdot \dst(\overline{x})
         \right)
 \f]
 
@@ -263,10 +277,10 @@ The following pseudo code:
 That would lead to the following:
 
 \f[
-    dst(\overline{x}) =
-        \beta \cdot dst(\overline{x}) +
+    \dst(\overline{x}) =
+        \beta \cdot \dst(\overline{x}) +
         \gamma \cdot ReLU \left(
-            \alpha \cdot conv(src, weights),
+            \alpha \cdot conv(\src, \weights),
             \eta
         \right)
 \f]
@@ -375,7 +389,6 @@ processors available.  (For automatic selection to work as intended, use the
 same thread affinity settings when creating the convolution as when executing
 the convolution.)
 
-
 @anchor dg_conv_impl_limits
 ## Implementation Limitations
 
@@ -389,9 +402,14 @@ the convolution.)
 3. **GPU**
     - No support for Winograd algorithm
 
-
 ## Performance Tips
 
 - Use #dnnl::memory::format_tag::any for source, weights, and destinations
   memory format tags when create a convolution primitive to allow the library
   to choose the most appropriate memory format.
+
+## Examples
+
+| Engine  | Name                         | Comments
+| :--     | :--                          | :--
+| CPU/GPU | @ref convolution_example_cpp | @copydetails convolution_example_cpp_short

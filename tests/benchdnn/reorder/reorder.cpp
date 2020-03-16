@@ -27,27 +27,6 @@
 
 namespace reorder {
 
-dnnl_status_t maybe_runtime_md(const prb_t *p, data_kind_t kind,
-        const dnnl_memory_desc_t &ref_md, dnnl_memory_desc_t &runtime_md) {
-    const reorder_conf_t &rc = p->reorder;
-
-    dims_t dims = rc.dims;
-    const int ndims = (int)dims.size();
-    for (int d = 0; d < ndims; ++d)
-        if (p->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
-
-    dnnl_data_type_t dt = kind == SRC ? p->conf_in->dt : p->conf_out->dt;
-    dnnl_format_tag_t tag = kind == SRC ? rc.tag_in : rc.tag_out;
-
-    dnnl_status_t status = dnnl_memory_desc_init_by_tag(
-            &runtime_md, ndims, dims.data(), dt, tag);
-    if (status != dnnl_success) return status;
-
-    runtime_md.extra = ref_md.extra;
-
-    return dnnl_success;
-}
-
 // prepare the output scales and mask
 int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
     auto get_scale_mask = [](const attr_t &attr) {
@@ -65,7 +44,7 @@ int prepare_attr_bundle(const prb_t *p, attr_bundle_t &attr_bundle) {
     const int mask = get_scale_mask(p->attr);
 
     int64_t uniq_scales = 1;
-    for (size_t d = 0; d < p->reorder.dims.size(); ++d)
+    for (int d = 0; d < p->ndims; ++d)
         if (mask & (1 << d)) uniq_scales *= p->reorder.dims[d];
 
     attr_bundle.oscale.resize(uniq_scales, p->attr.oscale.scale);
@@ -252,6 +231,37 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_ref,
     return r->state == FAILED ? FAIL : OK;
 }
 
+static int init_pd(const prb_t *p, dnnl_primitive_desc_t &rpd,
+        const attr_bundle_t &attr_bundle, res_t *r) {
+    const auto &rc = p->reorder;
+    auto dims = rc.dims;
+    for (int d = 0; d < p->ndims; ++d)
+        if (p->runtime_dim_mask & (1 << d)) dims[d] = DNNL_RUNTIME_DIM_VAL;
+
+    dnnl_memory_desc_t src_d, dst_d;
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d, p->ndims, dims.data(),
+                     p->conf_in->dt, convert_tag(rc.tag_in, p->ndims)),
+            WARN);
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, dims.data(),
+                     p->conf_out->dt, convert_tag(rc.tag_out, p->ndims)),
+            WARN);
+
+    // assign extra for dst_md
+    dnnl_memory_extra_desc_t dst_md_extra {};
+    fill_memory_extra(p, dst_md_extra);
+    dst_d.extra = dst_md_extra;
+
+    dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(&rpd, &src_d,
+            engine_tgt, &dst_d, engine_tgt, attr_bundle.dnnl_attr());
+    if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
+    SAFE(init_status, WARN);
+
+    const char *impl_str = query_impl_info(rpd);
+    BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
+
+    return OK;
+}
+
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     //                                       ___________________
@@ -271,57 +281,67 @@ int doit(const prb_t *p, res_t *r) {
     //  |________________|                                 |________________|
     //
     // Steps:
-    // 1. create memory
-    // 2. fill scales
-    // 3. create target reorder primitive
+    // 1. fill scales
+    // 2. create target reorder primitive
+    // 3. create memories
     // 4. fill input memory
     // 5. execute DNNL and benchdnn reorders / q10n
     // 6. compare results
     // 7. performance measurement
 
-    const reorder_conf_t &rc = p->reorder;
-    const int ndims = (int)rc.dims.size();
-    const int64_t *dims = &rc.dims[0];
-
-    /* Step 1: create memory */
-
-    /* check for extra flags on output format, and create extra information
-     * descriptor for output memory. */
-    dnnl_memory_extra_desc_t dst_md_extra = {};
-    fill_memory_extra(p, dst_md_extra);
-
-    dnn_mem_t src_dt_in_fmt_ref(
-            ndims, dims, p->conf_in->dt, nullptr, engine_tgt);
-    dnn_mem_t src_dt_in_fmt_in(
-            ndims, dims, p->conf_in->dt, rc.tag_in, engine_tgt);
-    dnn_mem_t dst_dt_out_fmt_out(
-            ndims, dims, p->conf_out->dt, rc.tag_out, dst_md_extra, engine_tgt);
-    dnn_mem_t dst_dt_out_fmt_ref(
-            ndims, dims, p->conf_out->dt, nullptr, engine_tgt);
-
-    /* Step 2: fill scales */
+    /* Step 1: fill scales */
     attr_bundle_t attr_bundle(p->attr);
     SAFE(prepare_attr_bundle(p, attr_bundle), WARN);
 
-    /* Step 3: create target reorder primitive */
-    dnnl_primitive_desc_t rpd = NULL;
-    dnnl_memory_desc_t src_md, dst_md;
-    DNN_SAFE(maybe_runtime_md(p, SRC, src_dt_in_fmt_in.md_, src_md), WARN);
-    DNN_SAFE(maybe_runtime_md(p, DST, dst_dt_out_fmt_out.md_, dst_md), WARN);
-    dnnl_status_t init_status = dnnl_reorder_primitive_desc_create(&rpd,
-            &src_md, engine_tgt, &dst_md, engine_tgt, attr_bundle.dnnl_attr());
-    if (init_status == dnnl_unimplemented) {
-        r->state = UNIMPLEMENTED;
-    } else {
-        const char *impl_str = query_impl_info(rpd);
-        BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
+    /* Step 2: create target reorder primitive */
+    dnnl_primitive_desc_t rpd;
+    SAFE(init_pd(p, rpd, attr_bundle, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+
+    dnnl_primitive_t rp;
+    DNN_SAFE(dnnl_primitive_create(&rp, rpd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
+
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);
+
+    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+        DNN_SAFE_V(dnnl_primitive_destroy(rp));
+        return r->state = SKIPPED, OK;
     }
 
-    SAFE(init_status, WARN);
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
+    };
 
-    dnnl_primitive_t rp = NULL;
-    DNN_SAFE(dnnl_primitive_create(&rp, rpd), WARN);
-    dnnl_primitive_desc_destroy(rpd);
+    /* Step 3: create memories */
+    dnnl_memory_desc_t src_md, dst_md;
+    if (p->runtime_dim_mask != 0) {
+        // re-create memory descriptors with defined dims
+        const auto &rc = p->reorder;
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_md, p->ndims, rc.dims.data(),
+                         p->conf_in->dt, convert_tag(rc.tag_in, p->ndims)),
+                WARN);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_md, p->ndims, rc.dims.data(),
+                         p->conf_out->dt, convert_tag(rc.tag_out, p->ndims)),
+                WARN);
+    } else {
+        src_md = q(DNNL_ARG_SRC);
+        dst_md = q(DNNL_ARG_DST);
+    }
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+
+    const auto tag = get_abx_tag(p->ndims);
+    const auto src_dt = src_md.data_type;
+    const auto dst_dt = dst_md.data_type;
+
+    dnn_mem_t src_dt_in_fmt_ref(src_md, src_dt, tag, engine_tgt);
+    dnn_mem_t src_dt_in_fmt_in(src_md, engine_tgt);
+
+    dnn_mem_t dst_dt_out_fmt_ref(dst_md, dst_dt, tag, engine_tgt);
+    dnn_mem_t dst_dt_out_fmt_out(dst_md, engine_tgt);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     /* Step 4: fill input memory */
     SAFE(fill_memory(p, SRC, src_dt_in_fmt_ref, attr_bundle), WARN);
@@ -344,6 +364,7 @@ int doit(const prb_t *p, res_t *r) {
     args_t args;
     args.set(DNNL_ARG_FROM, src_dt_in_fmt_in);
     args.set(DNNL_ARG_TO, dst_dt_out_fmt_out);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
@@ -358,10 +379,11 @@ int doit(const prb_t *p, res_t *r) {
              * layout, as is the case for compensated weights formats. */
 
             /* Step 5a: dnnl reorder from ref format to output format */
-            dnnl_memory_extra_desc_t dst_extra = {};
+            dnnl_memory_extra_desc_t dst_extra {};
             fill_memory_extra(p, dst_extra);
-            dnn_mem_t ref_dst_dt_out_fmt_out(ndims, dims, p->conf_out->dt,
-                    rc.tag_out, dst_extra, engine_tgt);
+            dnn_mem_t ref_dst_dt_out_fmt_out(dst_md, engine_tgt);
+            ref_dst_dt_out_fmt_out.md_.extra = dst_extra;
+
             SAFE(ref_dst_dt_out_fmt_out.reorder(src_dt_in_fmt_ref, attr_bundle),
                     WARN);
 
@@ -378,8 +400,7 @@ int doit(const prb_t *p, res_t *r) {
                     WARN);
 
             /* Step 5c: compare benchdnn and dnnl output */
-            dnn_mem_t dst_dt_out(
-                    ndims, dims, p->conf_out->dt, nullptr, engine_tgt);
+            dnn_mem_t dst_dt_out(dst_md, dst_dt, tag, engine_tgt);
             SAFE(dst_dt_out.reorder(dst_dt_out_fmt_out), WARN);
             SAFE(compare(p, dst_dt_out_fmt_ref, dst_dt_out, attr_bundle, r),
                     WARN);

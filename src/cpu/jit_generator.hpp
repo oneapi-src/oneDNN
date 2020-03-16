@@ -19,6 +19,7 @@
 
 #include <limits.h>
 
+#include "bit_cast.hpp"
 #include "utils.hpp"
 
 #include "cpu_isa_traits.hpp"
@@ -57,12 +58,7 @@ typedef enum {
 // TODO: move this somewhere else? Although this is only used by jit kernels
 // (Roma)
 static inline int float2int(float x) {
-    union {
-        float vfloat;
-        int vint;
-    } cvt;
-    cvt.vfloat = x;
-    return cvt.vint;
+    return utils::bit_cast<int>(x);
 }
 
 // TODO: A GPR class that hides ABI details from the JIT kernels and allows
@@ -825,6 +821,19 @@ public:
     }
     void uni_vmovmskps(const Xbyak::Reg &x1, const Xbyak::Ymm &x2) {
         vmovmskps(x1, x2);
+    }
+
+    void uni_vmovq(const Xbyak::Xmm &x, const Xbyak::Reg64 &r) {
+        if (mayiuse(avx))
+            vmovq(x, r);
+        else
+            movq(x, r);
+    }
+    void uni_vmovq(const Xbyak::Address &addr, const Xbyak::Xmm &x) {
+        if (mayiuse(avx))
+            vmovq(addr, x);
+        else
+            movq(addr, x);
     }
 
     void uni_vpackssdw(const Xbyak::Xmm &x1, const Xbyak::Xmm &x2,

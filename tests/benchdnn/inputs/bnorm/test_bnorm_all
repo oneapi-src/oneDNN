@@ -5,13 +5,13 @@
 --skip-impl=ref
 
 --inplace=false
---tag=nChw8c,nChw16c
+--tag=abx,aBx16b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_topo
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo
---dir=BWD_D        --flags=        --attr=                --batch=bnorm_topo
+--dir=FWD_I,BWD_D  --flags=        --attr=                --batch=bnorm_topo
 
 --inplace=true
---tag=nCdhw16c
+--tag=axb,aBx8b
 --dir=FWD_D,BWD_DW --flags=SR,GS,S --attr=                --batch=bnorm_3d
 --dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_3d
 --dir=BWD_D        --flags=        --attr=                --batch=bnorm_3d
@@ -20,9 +20,10 @@
 --dt=s8
 --dir=FWD_I
 
+--tag=axb
 --flags=G,GSR
---inplace=true  --tag=nhwc  --batch=bnorm_topo
---inplace=false --tag=ndhwc --batch=bnorm_3d
+--batch=bnorm_topo
+--batch=bnorm_3d
 
 # bfloat16
 --batch=test_bnorm_bfloat16

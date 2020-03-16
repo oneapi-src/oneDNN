@@ -97,7 +97,8 @@ static const impl_list_map_t regular_impl_list_map {
 
         jit_uni_reorder_create,
 
-        REG_SR(f32, nchw, bf16, nChw16c, fmt_order::keep),
+        REG_SR_BIDIR(f32, any, bf16, nChw16c),
+        REG_SR_BIDIR(f32, any, bf16, nCdhw16c),
 
         REG_SR(f32, oihw, bf16, OIhw8i16o2i, fmt_order::keep),
         REG_SR(f32, goihw, bf16, gOIhw8i16o2i, fmt_order::keep),
@@ -239,6 +240,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(f32, any, f32, Odhwi16o),
         REG_SR_BIDIR(f32, any, f32, OIdhw16o16i),
         REG_SR_BIDIR(f32, any, f32, OIdhw16i16o),
+        REG_SR_BIDIR(f32, any, f32, IOdhw16o16i),
 
         REG_SR_BIDIR(f32, any, f32, gOIhw4i16o4i),
 
@@ -262,6 +264,7 @@ static const impl_list_map_t regular_impl_list_map {
         REG_SR_BIDIR(f32, any, f32, gOdhwi16o),
         REG_SR_BIDIR(f32, any, f32, gOIdhw16o16i),
         REG_SR_BIDIR(f32, any, f32, gOIdhw16i16o),
+        REG_SR_BIDIR(f32, any, f32, gIOdhw16o16i),
 
         REG_SR(f32, any, f32, any, fmt_order::any, spec::reference),
 
@@ -320,6 +323,15 @@ static const impl_list_map_t regular_impl_list_map {
 
         jit_uni_reorder_create,
 
+        REG_SR_BIDIR(bf16, any, f32, nChw16c),
+        REG_SR_BIDIR(bf16, any, f32, nCdhw16c),
+
+        REG_SR_BIDIR(bf16, any, bf16, nChw16c),
+        REG_SR_BIDIR(bf16, any, bf16, nCdhw16c),
+
+        REG_SR_BIDIR(bf16, any, f32, OIdhw16o16i),
+        REG_SR_BIDIR(bf16, any, f32, OIdhw16i16o),
+
         REG_SR(bf16, any, bf16, any, fmt_order::any, spec::reference),
         REG_SR(bf16, any, f32, any, fmt_order::any, spec::reference),
 
@@ -358,6 +370,8 @@ static const impl_list_map_t regular_impl_list_map {
 
     // s8 ->
     {{s8, data_type::undef, 0}, {
+       rnn_weights_reorder_s8_t<s8>::pd_t::create,
+
        REG_FAST_DIRECT_COPY_COMMA(s8, f32)
        REG_FAST_DIRECT_COPY_COMMA(s8, s32)
        REG_FAST_DIRECT_COPY_COMMA(s8, s8)

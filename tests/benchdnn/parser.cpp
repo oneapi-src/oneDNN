@@ -43,14 +43,16 @@ bool parse_multi_dt(std::vector<std::vector<dnnl_data_type_t>> &dt,
     return parse_multivector_option(dt, str2dt, str, option_name);
 }
 
-bool parse_tag(std::vector<dnnl_format_tag_t> &tag, const char *str,
+bool parse_tag(std::vector<std::string> &tag, const char *str,
         const std::string &option_name /* = "tag"*/) {
-    return parse_vector_option(tag, str2fmt_tag, str, option_name);
+    auto ret_string = [](const char *str) { return std::string(str); };
+    return parse_vector_option(tag, ret_string, str, option_name);
 }
 
-bool parse_multi_tag(std::vector<std::vector<dnnl_format_tag_t>> &tag,
+bool parse_multi_tag(std::vector<std::vector<std::string>> &tag,
         const char *str, const std::string &option_name /* = "stag"*/) {
-    return parse_multivector_option(tag, str2fmt_tag, str, option_name);
+    auto ret_string = [](const char *str) { return std::string(str); };
+    return parse_multivector_option(tag, ret_string, str, option_name);
 }
 
 bool parse_mb(std::vector<int64_t> &mb, const char *str,
@@ -237,7 +239,7 @@ static bool parse_fix_times_per_prb(
 
 static bool parse_verbose(
         const char *str, const std::string &option_name = "verbose") {
-    const std::string pattern = "-v"; // check short option first
+    const std::string pattern("-v"); // check short option first
     if (pattern.find(str, 0, pattern.size()) != eol) {
         verbose = atoi(str + pattern.size());
         return true;
@@ -267,26 +269,25 @@ static bool parse_canonical(
     return parse_single_value_option(canonical, str2bool, str, option_name);
 }
 
+static bool parse_mem_check(
+        const char *str, const std::string &option_name = "mem-check") {
+    return parse_single_value_option(mem_check, str2bool, str, option_name);
+}
+
+static bool parse_scratchpad_mode(
+        const char *str, const std::string &option_name = "scratchpad") {
+    return parse_single_value_option(
+            scratchpad_mode, str2scratchpad_mode, str, option_name);
+}
+
 bool parse_bench_settings(const char *str) {
     last_parsed_is_problem = false; // if start parsing, expect an option
 
-    if (parse_bench_mode(str))
-        ;
-    else if (parse_max_ms_per_prb(str))
-        ;
-    else if (parse_fix_times_per_prb(str))
-        ;
-    else if (parse_verbose(str))
-        ;
-    else if (parse_engine_kind(str))
-        ;
-    else if (parse_fast_ref_gpu(str))
-        ;
-    else if (parse_canonical(str))
-        ;
-    else
-        return false;
-    return true;
+    return parse_bench_mode(str) || parse_max_ms_per_prb(str)
+            || parse_fix_times_per_prb(str) || parse_verbose(str)
+            || parse_engine_kind(str) || parse_fast_ref_gpu(str)
+            || parse_canonical(str) || parse_mem_check(str)
+            || parse_scratchpad_mode(str);
 }
 
 void catch_unknown_options(const char *str) {

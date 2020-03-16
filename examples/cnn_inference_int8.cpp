@@ -24,7 +24,6 @@
 ///
 /// > Example code: @ref cnn_inference_int8.cpp
 
-#include <numeric>
 #include <stdexcept>
 
 #include "dnnl.hpp"
@@ -32,11 +31,6 @@
 #include "example_utils.hpp"
 
 using namespace dnnl;
-
-memory::dim product(const memory::dims &dims) {
-    return std::accumulate(dims.begin(), dims.end(), (memory::dim)1,
-            std::multiplies<memory::dim>());
-}
 
 void simple_net_int8(engine::kind engine_kind) {
     using tag = memory::format_tag;

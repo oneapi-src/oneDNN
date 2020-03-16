@@ -20,21 +20,20 @@
 
 #include <sstream>
 
-#include "dnnl.h"
-
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
 
 #include "conv/conv.hpp"
+#include "conv/conv_dw_fusion.hpp"
 
 namespace conv {
 
 std::vector<dir_t> dir {FWD_B};
 std::vector<const dt_conf_t *> cfg {conf_f32};
-std::vector<dnnl_format_tag_t> stag {dnnl_format_tag_any};
-std::vector<dnnl_format_tag_t> wtag {dnnl_format_tag_any};
-std::vector<dnnl_format_tag_t> dtag {dnnl_format_tag_any};
+std::vector<std::string> stag {tag::any};
+std::vector<std::string> wtag {tag::any};
+std::vector<std::string> dtag {tag::any};
 std::vector<int64_t> mb {0};
 
 alg_t alg = DIRECT;
@@ -53,9 +52,9 @@ const char *perf_template = perf_template_def;
 void reset_parameters() {
     dir = {FWD_B};
     cfg = {conf_f32};
-    stag = {dnnl_format_tag_any};
-    wtag = {dnnl_format_tag_any};
-    dtag = {dnnl_format_tag_any};
+    stag = {tag::any};
+    wtag = {tag::any};
+    dtag = {tag::any};
     mb = {0};
     alg = DIRECT;
     attr = attr_t();
@@ -82,7 +81,11 @@ void check_correctness(const desc_t *c) {
         BENCHDNN_PRINT(1, "run: %s\n", pstr);
 
         res_t res {};
-        const int status = doit(&p, &res);
+        int status = OK;
+        if (attr.post_ops.convolution_index() != -1)
+            status = conv_dw_fusion::doit(&p, &res);
+        else
+            status = conv::doit(&p, &res);
 
         bool want_perf_report = false;
         parse_result(res, want_perf_report, allow_unimpl, status, pstr);

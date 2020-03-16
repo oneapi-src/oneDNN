@@ -24,6 +24,18 @@ cmake_minimum_required(VERSION 2.8.11)
 
 set(PROJECT_NAME "Project")
 
+# force CPU runtime
+set(DNNL_CPU_RUNTIME "SEQ" CACHE STRING "" FORCE)
+
+# force GPU runtime
+set(DNNL_GPU_RUNTIME "NONE" CACHE STRING "" FORCE)
+
+if(POLICY CMP0054)
+    # Try to catch cases of double-expansion if CMake version is recent enough
+    # to support a policy that controls it.
+    set(NONE "some-value")
+endif()
+
 # include DNNL
 set(DNNL_DIR "../../..")
 add_subdirectory(${DNNL_DIR} DNNL)

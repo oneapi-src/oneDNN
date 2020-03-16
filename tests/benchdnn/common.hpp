@@ -26,6 +26,8 @@
 #include <string.h>
 
 #include <cinttypes>
+#include <functional>
+#include <vector>
 
 #include "src/common/z_magic.hpp"
 
@@ -96,6 +98,7 @@ enum { CRIT = 1, WARN = 2 };
 
 extern int verbose;
 extern bool canonical;
+extern bool mem_check;
 
 #define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
@@ -109,28 +112,6 @@ extern bool canonical;
 #define BENCHDNN_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
-
-enum prim_t {
-    SELF,
-    CONV,
-    DECONV,
-    IP,
-    SHUFFLE,
-    REORDER,
-    LNORM,
-    BNORM,
-    RNN,
-    SOFTMAX,
-    POOL,
-    SUM,
-    ELTWISE,
-    CONCAT,
-    LRN,
-    BINARY,
-    MATMUL,
-    RESAMPLING,
-    DEF = CONV,
-};
 
 enum bench_mode_t {
     MODE_UNDEF = 0x0,
@@ -252,4 +233,14 @@ void gemm(const char *layout, const char *transa, const char *transb, int64_t m,
         int64_t n, int64_t k, const float alpha, const float *a,
         const int64_t lda, const float *b, const int64_t ldb, const float beta,
         float *c, const int64_t ldc);
+
+int sanitize_desc(int &ndims, std::vector<std::reference_wrapper<int64_t>> d,
+        std::vector<std::reference_wrapper<int64_t>> h,
+        std::vector<std::reference_wrapper<int64_t>> w,
+        const std::vector<int64_t> &def_values, bool must_have_spatial = false);
+
+void print_dhw(bool &print_d, bool &print_h, bool &print_w, int ndims,
+        const std::vector<int64_t> &d, const std::vector<int64_t> &h,
+        const std::vector<int64_t> &w);
+
 #endif

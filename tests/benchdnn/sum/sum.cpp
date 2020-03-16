@@ -36,21 +36,25 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
 
     dnnl_memory_desc_t dst_d;
 
-    const int ndims = (int)p->dims.size();
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input)
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], ndims,
-                         p->dims.data(), p->sdt[i_input], p->stag[i_input]),
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_d[i_input], p->ndims,
+                         p->dims.data(), p->sdt[i_input],
+                         convert_tag(p->stag[i_input], p->ndims)),
                 WARN);
 
-    if (p->dtag != dnnl_format_tag_undef) {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                         &dst_d, ndims, p->dims.data(), p->ddt, p->dtag),
+    if (p->dtag != tag::undef) {
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_d, p->ndims, p->dims.data(),
+                         p->ddt, convert_tag(p->dtag, p->ndims)),
                 WARN);
     }
 
+    auto dnnl_attr = create_dnnl_attr(attr_t());
+
     dnnl_status_t init_status = dnnl_sum_primitive_desc_create(&spd,
-            p->dtag != dnnl_format_tag_undef ? &dst_d : NULL, p->n_inputs(),
-            p->scales.data(), src_d.data(), NULL, engine_tgt);
+            p->dtag != tag::undef ? &dst_d : NULL, p->n_inputs(),
+            p->scales.data(), src_d.data(), dnnl_attr, engine_tgt);
+
+    dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented)
         return r->state = UNIMPLEMENTED, OK;
@@ -69,9 +73,7 @@ static int compare(const prb_t *p, const dnnl_data_type_t dst_data_type,
     r->errors = 0;
     r->total = nelems;
 
-    float trh = 1e-7 * p->n_inputs(); // relative error for fp32
-    if (dst_data_type == dnnl_f16) trh = 1e-3 * p->n_inputs();
-    if (dst_data_type == dnnl_bf16) trh = 8e-3 * p->n_inputs();
+    float trh = epsilon_dt(dst_data_type) * p->n_inputs();
 
     for (int64_t i = 0; i < nelems; i++) {
         const float dt = dt_mem.get_elem(i);
@@ -130,39 +132,50 @@ int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
 
     dnnl_primitive_desc_t spd;
-    dnnl_primitive_t s;
-
     SAFE(init_pd(p, spd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
+    dnnl_primitive_t s;
     DNN_SAFE(dnnl_primitive_create(&s, spd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(spd), CRIT);
 
-    auto q = [=](dnnl_query_t query, int index = 0) {
-        return *dnnl_primitive_desc_query_md(spd, query, index);
+    const_dnnl_primitive_desc_t const_pd;
+    DNN_SAFE(dnnl_primitive_get_primitive_desc(s, &const_pd), CRIT);
+
+    if (dnn_mem_t::check_mem_size(const_pd) != OK) {
+        DNN_SAFE_V(dnnl_primitive_destroy(s));
+        return r->state = SKIPPED, OK;
+    }
+
+    const auto q = [&](int index = 0) -> const dnnl_memory_desc_t & {
+        return *dnnl_primitive_desc_query_md(
+                const_pd, dnnl_query_exec_arg_md, index);
     };
 
     const auto fp = dnnl_f32;
-    const auto tag = get_default_tag((int)p->dims.size());
+    const auto tag = get_abx_tag(p->ndims);
 
-    auto dst_dt_d = q(dnnl_query_dst_md);
-    auto dst_data_type = dst_dt_d.data_type; // needed for deduced dst
-    dnn_mem_t dst_fp(dst_dt_d, fp, tag, engine_tgt),
-            dst_dt(dst_dt_d, engine_tgt);
+    const auto &dst_md = q(DNNL_ARG_DST);
+    const auto dst_data_type = dst_md.data_type; // needed for deduced dst
+    dnn_mem_t dst_fp(dst_md, fp, tag, engine_tgt);
+    dnn_mem_t dst_dt(dst_md, engine_tgt);
+
+    const auto &scratchpad_md = q(DNNL_ARG_SCRATCHPAD);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     args_t args;
     args.set(DNNL_ARG_DST, dst_dt);
+    args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     std::vector<dnn_mem_t> src_fp, src_dt;
     src_fp.reserve(p->n_inputs());
     src_dt.reserve(p->n_inputs());
 
     for (int i_input = 0; i_input < p->n_inputs(); ++i_input) {
-        auto src_dt_d = q(dnnl_query_src_md, i_input);
-        src_fp.emplace_back(src_dt_d, fp, tag, engine_tgt);
-        src_dt.emplace_back(src_dt_d, engine_tgt);
-
+        const auto &src_md = q(DNNL_ARG_MULTIPLE_SRC + i_input);
+        src_fp.emplace_back(src_md, fp, tag, engine_tgt);
+        src_dt.emplace_back(src_md, engine_tgt);
         SAFE(fill_src(p, i_input, src_dt[i_input], src_fp[i_input]), WARN);
-
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
@@ -176,8 +189,7 @@ int doit(const prb_t *p, res_t *r) {
 
     measure_perf(r->timer, s, args);
 
-    DNN_SAFE(dnnl_primitive_desc_destroy(spd), CRIT);
-    DNN_SAFE(dnnl_primitive_destroy(s), CRIT);
+    DNN_SAFE_V(dnnl_primitive_destroy(s));
 
     return OK;
 }

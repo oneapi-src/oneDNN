@@ -85,6 +85,9 @@ private:
     const Xbyak::Reg64 reg_kj = reg_ptr_scales;
     const Xbyak::Reg64 reg_overflow = reg_ptr_scales;
     const Xbyak::Reg64 reg_icb = reg_bias;
+    // Using 3d regs as depthwise3d is not yet supported
+    const Xbyak::Reg64 reg_inp_buffer_ptr = aux_reg_inp_d;
+    const Xbyak::Reg64 aux_reg_inp_buffer_ptr = aux_reg_ker_d;
 
     const Vmm vmm_wei = Vmm(15);
     /* used during bias section of store_output */

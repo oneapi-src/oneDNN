@@ -18,7 +18,7 @@
 #define SYCL_UTILS_HPP
 
 #include "common/c_types_map.hpp"
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 
 #include <vector>
 #include <CL/sycl.hpp>
@@ -45,7 +45,7 @@ namespace sycl {
 
 using buffer_u8_t = cl::sycl::buffer<uint8_t, 1>;
 
-inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
+inline cl::sycl::range<3> to_sycl_range(const gpu::compute::nd_range_t &range) {
     auto *global_range = range.global_range();
 #if DNNL_SYCL_REVERSE_RANGE
     auto sycl_global_range = cl::sycl::range<3>(
@@ -58,7 +58,7 @@ inline cl::sycl::range<3> to_sycl_range(const compute::nd_range_t &range) {
 }
 
 inline cl::sycl::nd_range<3> to_sycl_nd_range(
-        const compute::nd_range_t &range) {
+        const gpu::compute::nd_range_t &range) {
     auto *global_range = range.global_range();
     auto *local_range = range.local_range();
 

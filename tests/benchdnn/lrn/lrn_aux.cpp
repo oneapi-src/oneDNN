@@ -60,7 +60,6 @@ int str2desc(desc_t *desc, const char *str) {
     d.alpha = 1.f / 8192; // = 0.000122 ~~ 0.0001, but has exact representation
     d.beta = 0.75f;
     d.k = 1;
-    d.ndims = 5;
 
     const char *s = str;
     assert(s);
@@ -105,26 +104,7 @@ int str2desc(desc_t *desc, const char *str) {
 
     if (d.ic == 0) return FAIL;
 
-    if (d.id == 0) { d.ndims--; }
-    if (d.ih == 0) {
-        if (d.id == 0) {
-            d.ndims--;
-        } else { // square shape
-            d.ih = d.id;
-        }
-    }
-    if (d.iw == 0) {
-        if (d.ih == 0) {
-            d.ndims--;
-        } else { // square shape
-            d.iw = d.ih;
-        }
-    }
-
-    // to keep logic when treating unspecified dimension as it's of length 1.
-    if (d.id == 0) d.id = 1;
-    if (d.ih == 0) d.ih = 1;
-    if (d.iw == 0) d.iw = 1;
+    if (sanitize_desc(d.ndims, {d.id}, {d.ih}, {d.iw}, {1}) != OK) return FAIL;
 
     *desc = d;
 
@@ -132,14 +112,8 @@ int str2desc(desc_t *desc, const char *str) {
 }
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
-    const bool square_form = (d.ih == d.iw);
-    const bool cubic_form = square_form && (d.id == d.ih);
-
-    const bool print_d = d.ndims == 5;
-    const bool print_h
-            = d.ndims == 4 || (d.ndims > 4 && (!cubic_form || canonical));
-    const bool print_w
-            = d.ndims == 3 || (d.ndims > 3 && (!square_form || canonical));
+    bool print_d = true, print_h = true, print_w = true;
+    print_dhw(print_d, print_h, print_w, d.ndims, {d.id}, {d.ih}, {d.iw});
 
     if (canonical || d.mb != 2) s << "mb" << d.mb;
 
@@ -164,8 +138,7 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
     if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (canonical || p.tag != dnnl_nchw)
-        s << "--tag=" << fmt_tag2str(p.tag) << " ";
+    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
     if (canonical || p.alg != ACROSS) s << "--alg=" << alg2str(p.alg) << " ";
 
     s << static_cast<const desc_t &>(p);

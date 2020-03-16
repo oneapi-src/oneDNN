@@ -21,6 +21,7 @@
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "math_utils.hpp"
+#include "nstl.hpp"
 #include "simple_q10n.hpp"
 #include "type_helpers.hpp"
 
@@ -30,44 +31,60 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <typename src0_data_t, typename src1_data_t>
-typename utils::enable_if<nstl::is_integral<src0_data_t>::value,
-        src0_data_t>::type
-perform_op(src0_data_t x, src1_data_t y, alg_kind_t alg, const scales_t *scales,
-        bool do_scale_src0, bool do_scale_src1) {
-    float x_f = (float)x;
-    float y_f = (float)y;
-    float d_f = 0.f;
+typedef struct {
+    alg_kind_t alg;
+    bool do_sum;
+    float sum_scale;
+    const std::unique_ptr<ref_eltwise_scalar_fwd_t> &eltwise_ker;
+    const scales_t *scales;
+    bool do_scale_src0;
+    bool do_scale_src1;
+} params_t;
 
-    if (do_scale_src0) x_f *= scales[0].scales_[0];
-
-    if (do_scale_src1) y_f *= scales[1].scales_[0];
-
-    if (alg == alg_kind::binary_add) {
-        d_f = x_f + y_f;
-    } else if (alg == alg_kind::binary_mul) {
-        d_f = x_f * y_f;
-    } else {
-        assert(!"not supported operation!");
-    }
-
-    return qz_a1b0<float, src0_data_t>()(d_f);
-}
-
-template <typename src0_data_t, typename src1_data_t>
-typename utils::enable_if<!nstl::is_integral<src0_data_t>::value,
-        src0_data_t>::type
-perform_op(src0_data_t x, src1_data_t y, alg_kind_t alg, const scales_t *scales,
-        bool do_scale_src0, bool do_scale_src1) {
-    src0_data_t d = 0;
+template <typename data_t>
+data_t compute_alg(data_t x, data_t y, alg_kind_t alg) {
+    data_t d = 0;
     if (alg == alg_kind::binary_add) {
         d = x + y;
     } else if (alg == alg_kind::binary_mul) {
         d = x * y;
+    } else if (alg == alg_kind::binary_max) {
+        d = nstl::max(x, y);
+    } else if (alg == alg_kind::binary_min) {
+        d = nstl::min(x, y);
     } else {
         assert(!"not supported operation!");
     }
     return d;
+}
+
+template <typename src0_data_t, typename src1_data_t, typename dst_data_t>
+typename utils::enable_if<nstl::is_integral<src0_data_t>::value>::type
+perform_op(
+        dst_data_t *dst, src0_data_t x, src1_data_t y, const params_t &params) {
+    float x_f = (float)x;
+    float y_f = (float)y;
+    float dst_f = (float)dst[0];
+
+    if (params.do_scale_src0) x_f *= params.scales[0].scales_[0];
+    if (params.do_scale_src1) y_f *= params.scales[1].scales_[0];
+
+    float acc = compute_alg<float>(x_f, y_f, params.alg);
+    float scaled_dst = params.do_sum ? params.sum_scale * dst_f : 0.f;
+    acc += scaled_dst;
+    if (params.eltwise_ker) acc = params.eltwise_ker->compute_scalar(acc);
+    dst[0] = qz_a1b0<float, dst_data_t>()(acc);
+}
+
+template <typename src0_data_t, typename src1_data_t, typename dst_data_t>
+typename utils::enable_if<!nstl::is_integral<src0_data_t>::value>::type
+perform_op(
+        dst_data_t *dst, src0_data_t x, src1_data_t y, const params_t &params) {
+    float acc = compute_alg<float>(x, y, params.alg);
+    float scaled_dst = params.do_sum ? params.sum_scale * dst[0] : 0.f;
+    acc += scaled_dst;
+    if (params.eltwise_ker) acc = params.eltwise_ker->compute_scalar(acc);
+    dst[0] = (dst_data_t)acc;
 }
 
 template <data_type_t src0_type, data_type_t src1_type, data_type_t dst_type>
@@ -82,13 +99,10 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
 
     const auto alg = pd()->desc()->alg_kind;
 
-    constexpr int nargs = 2;
     // 0:src0 1:src1
+    constexpr int nargs = 2;
     scales_t scales[nargs];
     int args[nargs] = {DNNL_ARG_SRC_0, DNNL_ARG_SRC_1};
-
-    bool do_scale_src0 = false;
-    bool do_scale_src1 = false;
 
     if (nstl::is_integral<src0_data_t>::value)
         scales[0] = pd()->attr()->scales_.get(args[0]);
@@ -96,13 +110,22 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
     if (nstl::is_integral<src0_data_t>::value)
         scales[1] = pd()->attr()->scales_.get(args[1]);
 
-    do_scale_src0 = !scales[0].has_default_values();
-    do_scale_src1 = !scales[1].has_default_values();
+    bool do_scale_src0 = !scales[0].has_default_values();
+    bool do_scale_src1 = !scales[1].has_default_values();
 
     const dims_t &dims_bcast = pd()->broadcast_dims();
     const dims_t &dims_A = src0_d.dims();
     const int ndims = pd()->ndims();
     const auto nelems_A = src0_d.nelems();
+    const bool is_tensor_op = pd()->is_tensor_op();
+
+    const auto &po = pd()->attr()->post_ops_;
+    const bool do_sum = po.contain(primitive_kind::sum, 0)
+            && po.entry_[0].sum.scale != 0.f;
+    const float sum_scale = do_sum ? po.entry_[0].sum.scale : 0.f;
+
+    params_t params {alg, do_sum, sum_scale, eltwise_ker_, scales,
+            do_scale_src0, do_scale_src1};
 
     auto map_idx_B = [&](dim_t off) {
         dims_t dims;
@@ -121,9 +144,8 @@ void ref_binary_t<src0_type, src1_type, dst_type>::execute_ref(
 
     parallel_nd(nelems_A, [&](dim_t i) {
         auto off_A = src0_d.off_l(i);
-        auto off_B = pd()->is_tensor_op() ? src1_d.off_l(i) : map_idx_B(i);
-        dst[off_A] = perform_op(src0[off_A], src1[off_B], alg, scales,
-                do_scale_src0, do_scale_src1);
+        auto off_B = is_tensor_op ? src1_d.off_l(i) : map_idx_B(i);
+        perform_op(&dst[off_A], src0[off_A], src1[off_B], params);
     });
 }
 

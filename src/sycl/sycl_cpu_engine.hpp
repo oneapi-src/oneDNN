@@ -18,7 +18,7 @@
 #define SYCL_CPU_ENGINE_HPP
 
 #include "cpu/cpu_engine.hpp"
-#include "ocl/ocl_utils.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_engine_base.hpp"
 #include "sycl/sycl_utils.hpp"
 

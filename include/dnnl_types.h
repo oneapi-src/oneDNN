@@ -345,6 +345,8 @@ typedef enum {
     dnnl_BAc16b16a,
     dnnl_BAcd16a16b,
     dnnl_BAcd16b16a,
+    dnnl_BAcde16a16b,
+    dnnl_aCBdef16b16c,
 
     /// Just a sentinel, not real memory format tag. Must be changed after new
     /// format tag is added.
@@ -550,6 +552,7 @@ typedef enum {
     dnnl_OIdhw2i8o4i = dnnl_ABcde2b8a4b,
     dnnl_OIdhw8o8i = dnnl_ABcde8a8b,
     dnnl_IOdhw16i16o = dnnl_BAcde16b16a,
+    dnnl_IOdhw16o16i = dnnl_BAcde16a16b,
 
     // weights w/ groups, 3D
     dnnl_Goiw16g = dnnl_Abcd16a,
@@ -605,6 +608,7 @@ typedef enum {
 
     // weights w/ groups, 6D
     dnnl_gIOdhw16i16o = dnnl_aCBdef16c16b,
+    dnnl_gIOdhw16o16i = dnnl_aCBdef16b16c,
     dnnl_gOdhwi16o = dnnl_aBdefc16b,
     dnnl_gOdhwI16o2i = dnnl_aBdefC16b2c,
     dnnl_gOdhwi4o = dnnl_aBdefc4b,
@@ -720,7 +724,7 @@ typedef enum {
     dnnl_eltwise_relu = 0x1f,
     /// Eltwise: hyperbolic tangent non-linearity (tanh)
     dnnl_eltwise_tanh = 0x2f,
-    /// Eltwise: parametric exponential linear unit (elu)
+    /// Eltwise: exponential linear unit (elu)
     dnnl_eltwise_elu = 0x3f,
     /// Eltwise: square
     dnnl_eltwise_square = 0x4f,
@@ -741,14 +745,32 @@ typedef enum {
     /// Eltwise: gelu
     ///
     /// @note Tanh approximation formula is used to approximate
-    /// cumulative distribution function of a Gaussian
-    dnnl_eltwise_gelu = 0xcf,
+    /// the cumulative distribution function of a Gaussian here
+    dnnl_eltwise_gelu_tanh = 0xcf,
+    /// Eltwise: tanh-based gelu (alias for dnnl_eltwise_gelu_tanh)
+    dnnl_eltwise_gelu = dnnl_eltwise_gelu_tanh,
     /// Eltwise: swish
     dnnl_eltwise_swish = 0xdf,
     /// Eltwise: natural logarithm
     dnnl_eltwise_log = 0xef,
     /// Eltwise: clip
     dnnl_eltwise_clip = 0xff,
+    /// Eltwise: pow
+    dnnl_eltwise_pow = 0x20,
+    /// Eltwise: erf-based gelu
+    dnnl_eltwise_gelu_erf = 0x30,
+    /// Eltwise: ReLU (dst for backward)
+    dnnl_eltwise_relu_use_dst_for_bwd = 0x100,
+    /// Eltwise: hyperbolic tangent non-linearity (tanh) (dst for backward)
+    dnnl_eltwise_tanh_use_dst_for_bwd = 0x101,
+    /// Eltwise: exponential linear unit (elu) (dst for backward)
+    dnnl_eltwise_elu_use_dst_for_bwd = 0x102,
+    /// Eltwise: square root (dst for backward)
+    dnnl_eltwise_sqrt_use_dst_for_bwd = 0x103,
+    /// Eltwise: logistic (dst for backward)
+    dnnl_eltwise_logistic_use_dst_for_bwd = 0x104,
+    /// Eltwise: exp (dst for backward)
+    dnnl_eltwise_exp_use_dst_for_bwd = 0x105,
     /// Max pooling
     dnnl_pooling_max = 0x1ff,
     /// Average pooling include padding
@@ -779,6 +801,10 @@ typedef enum {
     dnnl_binary_add = 0x1fff0,
     /// Binary mul
     dnnl_binary_mul = 0x1fff1,
+    /// Binary max
+    dnnl_binary_max = 0x1fff2,
+    /// Binary min
+    dnnl_binary_min = 0x1fff3,
     /// Nearest Neighbor Resampling Method
     dnnl_resampling_nearest = 0x2fff0,
     /// Linear Resampling Method
@@ -1144,8 +1170,14 @@ typedef struct {
     /// #dnnl_eltwise_tanh, #dnnl_eltwise_elu, #dnnl_eltwise_square,
     /// #dnnl_eltwise_abs, #dnnl_eltwise_sqrt, #dnnl_eltwise_linear,
     /// #dnnl_eltwise_bounded_relu, #dnnl_eltwise_soft_relu,
-    /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu,
-    /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip.
+    /// #dnnl_eltwise_logistic, #dnnl_eltwise_exp, #dnnl_eltwise_gelu_tanh,
+    /// #dnnl_eltwise_swish, #dnnl_eltwise_log, #dnnl_eltwise_clip,
+    /// #dnnl_eltwise_pow, #dnnl_eltwise_gelu_erf.
+    /// Possible values for passing destination memory on backward:
+    /// #dnnl_eltwise_relu_use_dst_for_bwd, #dnnl_eltwise_tanh_use_dst_for_bwd,
+    /// #dnnl_eltwise_elu_use_dst_for_bwd, #dnnl_eltwise_sqrt_use_dst_for_bwd,
+    /// #dnnl_eltwise_logistic_use_dst_for_bwd,
+    /// #dnnl_eltwise_exp_use_dst_for_bwd.
     dnnl_alg_kind_t alg_kind;
     /// Source and destination memory descriptor.
     dnnl_memory_desc_t data_desc;
@@ -1164,10 +1196,12 @@ typedef struct {
     ///  - #dnnl_eltwise_soft_relu: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_logistic: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_exp: @p alpha and @p beta ignored
-    ///  - #dnnl_eltwise_gelu: @p alpha and @p beta ignored
+    ///  - #dnnl_eltwise_gelu_tanh: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_swish: @p alpha -- sigmoid arg scaling, @p beta ignored
     ///  - #dnnl_eltwise_log: @p alpha and @p beta ignored
     ///  - #dnnl_eltwise_clip: @p alpha -- lower bound, @p beta -- upper bound
+    ///  - #dnnl_eltwise_pow: @p alpha -- scale, @p beta -- exponent
+    ///  - #dnnl_eltwise_gelu_erf: @p alpha and @p beta ignored
     float alpha, beta;
 } dnnl_eltwise_desc_t;
 
@@ -1432,9 +1466,12 @@ typedef struct {
     dnnl_memory_desc_t dst_iter_desc;
     /// Destination iter memory descriptor for cell state.
     dnnl_memory_desc_t dst_iter_c_desc;
+    /// Weights peephole memory descriptor
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-peephole LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t weights_peephole_desc;
     /// Placeholders
     dnnl_memory_desc_t placeholder_desc;
-    dnnl_memory_desc_t placeholder2_desc;
 
     /// Source gradient layer memory descriptor.
     dnnl_memory_desc_t diff_src_layer_desc;
@@ -1454,9 +1491,12 @@ typedef struct {
     dnnl_memory_desc_t diff_dst_iter_desc;
     /// Destination gradient iteration memory descriptor for cell state.
     dnnl_memory_desc_t diff_dst_iter_c_desc;
+    /// Weights gradient peephole memory descriptor
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-peephole LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t diff_weights_peephole_desc;
     /// Placeholders
     dnnl_memory_desc_t diff_placeholder_desc;
-    dnnl_memory_desc_t diff_placeholder2_desc;
 
     /// RNN cell flags
     unsigned int flags;
@@ -1479,7 +1519,8 @@ typedef struct {
     /// descriptor. Must be #dnnl_binary.
     dnnl_primitive_kind_t primitive_kind;
     /// The kind of the binary algorithm. Possible values:
-    /// #dnnl_binary_add and #dnnl_binary_mul.
+    /// #dnnl_binary_add, #dnnl_binary_mul, #dnnl_binary_max and
+    /// #dnnl_binary_min.
     dnnl_alg_kind_t alg_kind;
     /// Source memory descriptors.
     dnnl_memory_desc_t src_desc[2];
@@ -1606,27 +1647,27 @@ typedef const struct dnnl_primitive_desc *const_dnnl_primitive_desc_t;
 
 /// Scratchpad mode
 typedef enum {
-    /// The library manages scratchpad (default)
-    /// The allocation policy is controlled by the DNNL_ENABLE_CONCURRENT_EXEC
-    /// build option (@ref dev_guide_build_options).
+    /// The library manages the scratchpad allocation according to the policy
+    /// specified by the `DNNL_ENABLE_CONCURRENT_EXEC`
+    /// [build option](@ref dev_guide_build_options) (default).
     ///
-    /// When DNNL_ENABLE_CONCURRENT_EXEC=OFF (default), the library
-    /// scratchpad is common to all primitives to reduce the memory
-    /// footprint.  This configuration comes with limited
-    /// thread-safety properties, namely different primitives can be
-    /// created and executed in parallel but cannot migrate between
-    /// threads (in other words, each primitive should be executed in
+    /// When `DNNL_ENABLE_CONCURRENT_EXEC=OFF` (default), the library
+    /// scratchpad is common to all primitives to reduce the memory footprint.
+    /// This configuration comes with limited thread-safety properties, namely
+    /// primitives can be created and executed in parallel but cannot migrate
+    /// between threads (in other words, each primitive should be executed in
     /// the same thread it was created in).
     ///
-    /// When DNNL_ENABLE_CONCURRENT_EXEC=ON, the library scratchpad is private
-    /// to each primitive. The memory footprint is larger than when using
-    /// DNNL_ENABLE_CONCURRENT_EXEC=OFF but different primitives can be created
-    /// and run concurrently (the same primitive cannot be run concurrently from
-    /// two different threads though).
+    /// When `DNNL_ENABLE_CONCURRENT_EXEC=ON`, the library scratchpad is
+    /// private to each primitive. The memory footprint is larger than when
+    /// using `DNNL_ENABLE_CONCURRENT_EXEC=OFF` but different primitives can be
+    /// created and run concurrently (the same primitive cannot be run
+    /// concurrently from two different threads though).
     dnnl_scratchpad_mode_library,
-    /// A user shall query and provide the scratchpad memory to primitives
-    /// This mode is thread-safe as long as the scratchpad buffers
-    /// are not used concurrently by two primitive executions.
+    /// The user manages the scratchpad allocation by querying and providing
+    /// the scratchpad memory to primitives. This mode is thread-safe as long
+    /// as the scratchpad buffers are not used concurrently by two primitive
+    /// executions.
     dnnl_scratchpad_mode_user,
 } dnnl_scratchpad_mode_t;
 
@@ -1748,6 +1789,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// An alias for #DNNL_ARG_WEIGHTS_1.
 #define DNNL_ARG_WEIGHTS_ITER DNNL_ARG_WEIGHTS_1
 
+/// Weights argument #2.
+#define DNNL_ARG_WEIGHTS_2 35
+/// A special mnemonic for RNN weights applied to the peephole weights.
+/// An alias for #DNNL_ARG_WEIGHTS_2.
+#define DNNL_ARG_WEIGHTS_PEEPHOLE DNNL_ARG_WEIGHTS_2
+
 /// Bias tensor argument.
 #define DNNL_ARG_BIAS 41
 
@@ -1822,6 +1869,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// An alias for #DNNL_ARG_DIFF_WEIGHTS_1.
 #define DNNL_ARG_DIFF_WEIGHTS_ITER DNNL_ARG_DIFF_WEIGHTS_1
 
+/// Gradient (diff) of the weights argument #2.
+#define DNNL_ARG_DIFF_WEIGHTS_2 163
+/// A special mnemonic for diff of RNN weights applied to the peephole weights.
+/// An alias for #DNNL_ARG_DIFF_WEIGHTS_2.
+#define DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE DNNL_ARG_DIFF_WEIGHTS_2
+
 /// Gradient (diff) of the bias tensor argument.
 #define DNNL_ARG_DIFF_BIAS 169
 
@@ -1837,6 +1890,10 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 
 /// Zero points provided at execution time.
 #define DNNL_ARG_ATTR_ZERO_POINTS 4096
+
+/// Arguments for fused depthwise convolution.
+/// See @ref dev_guide_attributes_post_ops_depthwise_fusion
+#define DNNL_ARG_ATTR_POST_OP_DW 8192
 
 /// A structure that contains an index and a memory object, and is used to pass
 /// arguments to dnnl_primitive_execute().

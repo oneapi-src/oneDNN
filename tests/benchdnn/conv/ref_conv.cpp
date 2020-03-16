@@ -128,46 +128,45 @@ void compute_ref_bwd_w(const prb_t *p, dnnl_primitive_t c_ref, dnn_mem_t &src_m,
 
 void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
         dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
+    /* help compiler optimize the code */
+    const int64_t MB = p->mb, G = p->g, OC = p->oc, IC = p->ic;
+    const int64_t OCG = OC / G, ICG = IC / G;
+    const int64_t OD = p->od, OH = p->oh, OW = p->ow;
+    const int64_t ID = p->id, IH = p->ih, IW = p->iw;
+    const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
+    const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
+    const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
+    const int64_t DD = p->dd + 1;
+    const int64_t DH = p->dh + 1;
+    const int64_t DW = p->dw + 1;
+
     auto ker = [&](float &d, int64_t g, int64_t mb, int64_t oc, int64_t od,
                        int64_t oh, int64_t ow) {
-        /* help compiler optimize the code */
-        const int64_t G = p->g, OC = p->oc, IC = p->ic;
-        const int64_t OCG = OC / G, ICG = IC / G;
-        const int64_t ID = p->id, IH = p->ih, IW = p->iw;
-        const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
+        const float *__restrict src_loc
+                = (const float *)src_m + (mb * IC + g * ICG) * ID * IH * IW;
+        const float *__restrict wei_loc
+                = (const float *)wei_m + (g * OCG + oc) * ICG * KD * KH * KW;
 
-        for (int64_t ic = 0; ic < ICG; ++ic) {
-            for (int64_t kd = 0; kd < KD; ++kd) {
-                const int64_t id = od * p->sd - p->pd + kd * (p->dd + 1);
-                if (id < 0 || id >= ID) continue;
-                for (int64_t kh = 0; kh < KH; ++kh) {
-                    const int64_t ih = oh * p->sh - p->ph + kh * (p->dh + 1);
-                    if (ih < 0 || ih >= IH) continue;
-
-                    for (int64_t kw = 0; kw < KW; ++kw) {
-                        const int64_t iw
-                                = ow * p->sw - p->pw + kw * (p->dw + 1);
-                        if (iw < 0 || iw >= IW) continue;
-
-                        int64_t src_off
-                                = (((mb * IC + g * ICG + ic) * ID + id) * IH
-                                          + ih)
-                                        * IW
-                                + iw;
-                        int64_t wei_off
-                                = ((((g * OCG + oc) * ICG + ic) * KD + kd) * KH
-                                          + kh)
-                                        * KW
-                                + kw;
-                        d += ((float *)src_m)[src_off]
-                                * ((float *)wei_m)[wei_off];
+        for (int64_t kd = 0; kd < KD; ++kd) {
+            const int64_t id = od * SD - PD + kd * DD;
+            if (id < 0 || id >= ID) continue;
+            for (int64_t kh = 0; kh < KH; ++kh) {
+                const int64_t ih = oh * SH - PH + kh * DH;
+                if (ih < 0 || ih >= IH) continue;
+                for (int64_t kw = 0; kw < KW; ++kw) {
+                    const int64_t iw = ow * SW - PW + kw * DW;
+                    if (iw < 0 || iw >= IW) continue;
+                    for (int64_t ic = 0; ic < ICG; ++ic) {
+                        int64_t src_off = ((ic * ID + id) * IH + ih) * IW + iw;
+                        int64_t wei_off = ((ic * KD + kd) * KH + kh) * KW + kw;
+                        d += src_loc[src_off] * wei_loc[wei_off];
                     }
                 }
             }
         }
     };
 
-    dnnl::impl::parallel_nd(p->g, p->mb, p->oc / p->g, p->od, p->oh, p->ow,
+    dnnl::impl::parallel_nd(G, MB, OCG, OD, OH, OW,
             [&](int64_t g, int64_t mb, int64_t oc, int64_t od, int64_t oh,
                     int64_t ow) {
                 const size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
@@ -181,8 +180,7 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
                     conv_res += ((float *)bia_m)[bia_off];
                 }
 
-                maybe_scale(
-                        conv_res, p->scales, g * p->oc / p->g + oc, p->attr);
+                maybe_scale(conv_res, p->scales, g * OCG + oc, p->attr);
                 maybe_post_ops(conv_res, dst, p->attr);
 
                 dst = conv_res;
@@ -191,8 +189,21 @@ void compute_ref_direct_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
 
 void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         dnn_mem_t &wei_m, dnn_mem_t &bia_m, dnn_mem_t &diff_dst_m) {
+
+    /* help compiler optimize the code */
+    const int64_t MB = p->mb, G = p->g, OC = p->oc, IC = p->ic;
+    const int64_t OCG = OC / G, ICG = IC / G;
+    const int64_t OD = p->od, OH = p->oh, OW = p->ow;
+    const int64_t ID = p->id, IH = p->ih, IW = p->iw;
+    const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
+    const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
+    const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
+    const int64_t DD = p->dd + 1;
+    const int64_t DH = p->dh + 1;
+    const int64_t DW = p->dw + 1;
+
     enum { precompute_size = 16 };
-    const bool fast = MAX3(p->kd, p->kh, p->kw) <= precompute_size;
+    const bool fast = MAX3(KD, KH, KW) <= precompute_size;
 
     /* pre-computes arrays of oh(ow) and kh(kw) for traversing in kernel */
     auto precompute_ok
@@ -201,7 +212,7 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                   assert(K <= precompute_size);
                   num = 0;
                   for (int64_t k = 0; k < K; ++k) {
-                      int64_t o = i - k * (D + 1) + P;
+                      int64_t o = i - k * D + P;
                       if (o < 0 || o % S) continue;
                       o /= S;
                       if (o >= O) continue;
@@ -216,66 +227,60 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
         int64_t kd[precompute_size], od[precompute_size], num_d;
         int64_t kh[precompute_size], oh[precompute_size], num_h;
         int64_t kw[precompute_size], ow[precompute_size], num_w;
-        precompute_ok(id, p->od, p->kd, p->sd, p->pd, p->dd, num_d, od, kd);
-        precompute_ok(ih, p->oh, p->kh, p->sh, p->ph, p->dh, num_h, oh, kh);
-        precompute_ok(iw, p->ow, p->kw, p->sw, p->pw, p->dw, num_w, ow, kw);
+        precompute_ok(id, OD, KD, SD, PD, DD, num_d, od, kd);
+        precompute_ok(ih, OH, KH, SH, PH, DH, num_h, oh, kh);
+        precompute_ok(iw, OW, KW, SW, PW, DW, num_w, ow, kw);
 
-        /* help compiler optimize the code */
-        const int64_t G = p->g, OC = p->oc, IC = p->ic;
-        const int64_t OCG = OC / G, ICG = IC / G;
-        const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
-        const int64_t OD = p->od, OH = p->oh, OW = p->ow;
+        const float *__restrict diff_dst_loc = (const float *)diff_dst_m
+                + (mb * OC + g * OCG) * OD * OH * OW;
+        const float *__restrict wei_loc
+                = (const float *)wei_m + ((g * OCG) * ICG + ic) * KD * KH * KW;
 
-        for (int64_t oc = 0; oc < OCG; ++oc) {
-            for_(int64_t d = 0; d < num_d; ++d)
-            for_(int64_t h = 0; h < num_h; ++h)
-            for (int64_t w = 0; w < num_w; ++w) {
-                int64_t dst_off
-                        = (((mb * OC + g * OCG + oc) * OD + od[d]) * OH + oh[h])
-                                * OW
-                        + ow[w];
-                int64_t wei_off
-                        = ((((g * OCG + oc) * ICG + ic) * KD + kd[d]) * KH
-                                  + kh[h])
-                                * KW
-                        + kw[w];
-                ds += ((float *)diff_dst_m)[dst_off]
-                        * ((float *)wei_m)[wei_off];
+        for_(int64_t d = 0; d < num_d; ++d)
+        for_(int64_t h = 0; h < num_h; ++h)
+        for (int64_t w = 0; w < num_w; ++w) {
+            for (int64_t oc = 0; oc < OCG; ++oc) {
+                const int64_t diff_dst_off
+                        = ((oc * OD + od[d]) * OH + oh[h]) * OW + ow[w];
+                const int64_t wei_off
+                        = ((oc * ICG * KD + kd[d]) * KH + kh[h]) * KW + kw[w];
+                ds += diff_dst_loc[diff_dst_off] * wei_loc[wei_off];
             }
         }
     };
 
     auto ker = [&](float &ds, int64_t g, int64_t mb, int64_t ic, int64_t id,
                        int64_t ih, int64_t iw) {
-        for (int64_t oc = 0; oc < p->oc / p->g; ++oc) {
-            for (int64_t kd = 0; kd < p->kd; ++kd) {
-                int64_t od = id - kd * (p->dd + 1) + p->pd;
-                if (od < 0 || od % p->sd) continue;
-                od /= p->sd;
-                if (od >= p->od) continue;
-                for (int64_t kh = 0; kh < p->kh; ++kh) {
-                    int64_t oh = ih - kh * (p->dh + 1) + p->ph;
-                    if (oh < 0 || oh % p->sh) continue;
-                    oh /= p->sh;
-                    if (oh >= p->oh) continue;
+        const float *__restrict diff_dst_loc = (const float *)diff_dst_m
+                + (mb * OC + g * OCG) * OD * OH * OW;
+        const float *__restrict wei_loc
+                = (const float *)wei_m + ((g * OCG) * ICG + ic) * KD * KH * KW;
 
-                    for (int64_t kw = 0; kw < p->kw; ++kw) {
-                        int64_t ow = iw - kw * (p->dw + 1) + p->pw;
-                        if (ow < 0 || ow % p->sw) continue;
-                        ow /= p->sw;
-                        if (ow >= p->ow) continue;
-
-                        size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
-                        size_t wei_off = wei_off_f(p, g, oc, ic, kd, kh, kw);
-                        ds += ((float *)diff_dst_m)[dst_off]
-                                * ((float *)wei_m)[wei_off];
+        for (int64_t kd = 0; kd < KD; ++kd) {
+            int64_t od = id - kd * DD + PD;
+            if (od < 0 || od % SD || od >= OD * SD) continue;
+            od /= SD;
+            for (int64_t kh = 0; kh < KH; ++kh) {
+                int64_t oh = ih - kh * DH + PH;
+                if (oh < 0 || oh % SH || oh >= OH * SH) continue;
+                oh /= SH;
+                for (int64_t kw = 0; kw < KW; ++kw) {
+                    int64_t ow = iw - kw * DW + PW;
+                    if (ow < 0 || ow % SW || ow >= OW * SW) continue;
+                    ow /= SW;
+                    for (int64_t oc = 0; oc < OCG; ++oc) {
+                        const int64_t diff_dst_off
+                                = ((oc * OD + od) * OH + oh) * OW + ow;
+                        const int64_t wei_off
+                                = ((oc * ICG * KD + kd) * KH + kh) * KW + kw;
+                        ds += diff_dst_loc[diff_dst_off] * wei_loc[wei_off];
                     }
                 }
             }
         }
     };
 
-    dnnl::impl::parallel_nd(p->g, p->mb, p->ic / p->g, p->id, p->ih, p->iw,
+    dnnl::impl::parallel_nd(G, MB, ICG, ID, IH, IW,
             [&](int64_t g, int64_t mb, int64_t ic, int64_t id, int64_t ih,
                     int64_t iw) {
                 size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
@@ -287,11 +292,10 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
                     ker(conv_res, g, mb, ic, id, ih, iw);
 
                 if (p->dir & FLAG_BIA) {
-                    const size_t bia_off = (size_t)g * p->ic / p->g + ic;
+                    const size_t bia_off = (size_t)g * ICG + ic;
                     conv_res += ((float *)bia_m)[bia_off];
                 }
-                maybe_scale(
-                        conv_res, p->scales, g * p->ic / p->g + ic, p->attr);
+                maybe_scale(conv_res, p->scales, g * ICG + ic, p->attr);
                 maybe_post_ops(conv_res, ds, p->attr);
 
                 ds = conv_res;
@@ -300,10 +304,22 @@ void compute_ref_direct_bwd_d(const prb_t *p, dnn_mem_t &diff_src_m,
 
 void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
         dnn_mem_t &diff_wei_m, dnn_mem_t &diff_dst_m) {
+    /* help compiler optimize the code */
+    const int64_t MB = p->mb, G = p->g, OC = p->oc, IC = p->ic;
+    const int64_t OCG = OC / G, ICG = IC / G;
+    const int64_t OD = p->od, OH = p->oh, OW = p->ow;
+    const int64_t ID = p->id, IH = p->ih, IW = p->iw;
+    const int64_t SD = p->sd, SH = p->sh, SW = p->sw;
+    const int64_t PD = p->pd, PH = p->ph, PW = p->pw;
+    const int64_t KD = p->kd, KH = p->kh, KW = p->kw;
+    const int64_t DD = p->dd + 1;
+    const int64_t DH = p->dh + 1;
+    const int64_t DW = p->dw + 1;
+
     auto compute_bounds
             = [](int64_t I, int64_t O, int64_t k, int64_t S, int64_t P,
                       int64_t D, int64_t &o_s, int64_t &o_e) {
-                  const float tmp = P - k * (D + 1);
+                  const float tmp = P - k * D;
                   o_s = MAX2(0, ceilf(tmp / S));
                   o_e = MIN2(O, ceilf((I + tmp) / S));
               };
@@ -311,28 +327,34 @@ void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
     auto ker = [&](float &dw, int64_t g, int64_t oc, int64_t ic, int64_t kd,
                        int64_t kh, int64_t kw) {
         int64_t od_s, od_e, oh_s, oh_e, ow_s, ow_e;
-        compute_bounds(p->id, p->od, kd, p->sd, p->pd, p->dd, od_s, od_e);
-        compute_bounds(p->ih, p->oh, kh, p->sh, p->ph, p->dh, oh_s, oh_e);
-        compute_bounds(p->iw, p->ow, kw, p->sw, p->pw, p->dw, ow_s, ow_e);
+        compute_bounds(ID, OD, kd, SD, PD, DD, od_s, od_e);
+        compute_bounds(IH, OH, kh, SH, PH, DH, oh_s, oh_e);
+        compute_bounds(IW, OW, kw, SW, PW, DW, ow_s, ow_e);
+        const int64_t id_s = kd * DD - PD;
+        const int64_t ih_s = kh * DH - PH;
+        const int64_t iw_s = kw * DW - PW;
 
-        for (int64_t mb = 0; mb < p->mb; ++mb) {
+        for (int64_t mb = 0; mb < MB; ++mb) {
+            const float *__restrict diff_dst_loc = (const float *)diff_dst_m
+                    + (mb * OC + g * OCG + oc) * OD * OH * OW;
+            const float *__restrict src_loc = (const float *)src_m
+                    + (mb * IC + g * ICG + ic) * ID * IH * IW;
+
             for_(int64_t od = od_s; od < od_e; ++od)
             for_(int64_t oh = oh_s; oh < oh_e; ++oh)
             for (int64_t ow = ow_s; ow < ow_e; ++ow) {
-                const int64_t id = od * p->sd - p->pd + kd * (p->dd + 1);
-                const int64_t ih = oh * p->sh - p->ph + kh * (p->dh + 1);
-                const int64_t iw = ow * p->sw - p->pw + kw * (p->dw + 1);
+                const int64_t id = od * SD + id_s;
+                const int64_t ih = oh * SH + ih_s;
+                const int64_t iw = ow * SW + iw_s;
 
-                size_t src_off = src_off_f(p, mb, g, ic, id, ih, iw);
-                size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
-                dw += ((float *)diff_dst_m)[dst_off]
-                        * ((float *)src_m)[src_off];
+                size_t diff_dst_off = (od * OH + oh) * OW + ow;
+                size_t src_off = (id * IH + ih) * IW + iw;
+                dw += diff_dst_loc[diff_dst_off] * src_loc[src_off];
             }
         }
     };
 
-    dnnl::impl::parallel_nd(p->g, p->oc / p->g, p->ic / p->g, p->kd, p->kh,
-            p->kw,
+    dnnl::impl::parallel_nd(G, OCG, ICG, KD, KH, KW,
             [&](int64_t g, int64_t oc, int64_t ic, int64_t kd, int64_t kh,
                     int64_t kw) {
                 size_t wei_off = wei_off_f(p, g, oc, ic, kd, kh, kw);
@@ -344,14 +366,19 @@ void compute_ref_bwd_weights(const prb_t *p, dnn_mem_t &src_m,
 
 void compute_ref_bwd_bias(
         const prb_t *p, dnn_mem_t &diff_bia_m, dnn_mem_t &diff_dst_m) {
-    dnnl::impl::parallel_nd(p->g, p->oc / p->g, [&](int64_t g, int64_t oc) {
+    /* help compiler optimize the code */
+    const int64_t MB = p->mb, G = p->g, OC = p->oc;
+    const int64_t OCG = OC / G;
+    const int64_t OD = p->od, OH = p->oh, OW = p->ow;
+
+    dnnl::impl::parallel_nd(G, OCG, [&](int64_t g, int64_t oc) {
         size_t bia_off = bia_off_f(p, g, oc);
         double sum = 0;
 
-        for_(int64_t mb = 0; mb < p->mb; ++mb)
-        for_(int64_t od = 0; od < p->od; ++od)
-        for_(int64_t oh = 0; oh < p->oh; ++oh)
-        for (int64_t ow = 0; ow < p->ow; ++ow) {
+        for_(int64_t mb = 0; mb < MB; ++mb)
+        for_(int64_t od = 0; od < OD; ++od)
+        for_(int64_t oh = 0; oh < OH; ++oh)
+        for (int64_t ow = 0; ow < OW; ++ow) {
             size_t dst_off = dst_off_f(p, mb, g, oc, od, oh, ow);
             sum += ((float *)diff_dst_m)[dst_off];
         }

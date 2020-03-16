@@ -3,26 +3,16 @@
 
 # f32
 --dir=FWD_D,FWD_I,BWD_D
---alg=MAX,AVG_NP,AVG_P
---tag=ncw,nwc,nCw8c,nCw16c         --batch=pool_1d_all
---tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_2d_all
---tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=pool_3d_all
---alg=MAX,AVG_P
---tag=ncw,nwc,nCw8c,nCw16c         --batch=pool_ker_in_pad_1d
---tag=nchw,nhwc,nChw8c,nChw16c     --batch=pool_ker_in_pad_2d
---tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c --batch=pool_ker_in_pad_3d
+--tag=abx,axb,aBx8b,aBx16b
+--alg=MAX,AVG_NP,AVG_P --batch=set_pool_all
+--alg=MAX,AVG_P        --batch=set_pool_ker_in_pad_all
 
 # int8
 --cfg=s32,s8,u8
 --dir=FWD_I
---alg=MAX,AVG_NP,AVG_P
---tag=nwc   --batch=pool_1d_all
---tag=nhwc  --batch=pool_2d_all
---tag=ndhwc --batch=pool_3d_all
---alg=MAX,AVG_P
---tag=nwc   --batch=pool_ker_in_pad_1d
---tag=nhwc  --batch=pool_ker_in_pad_2d
---tag=ndhwc --batch=pool_ker_in_pad_3d
+--tag=axb
+--alg=MAX,AVG_NP,AVG_P --batch=set_pool_all
+--alg=MAX,AVG_P        --batch=set_pool_ker_in_pad_all
 
 # bf16
 --batch=test_pool_bfloat16

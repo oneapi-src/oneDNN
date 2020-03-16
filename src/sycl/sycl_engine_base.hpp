@@ -23,10 +23,10 @@
 #include "common/engine.hpp"
 #include "common/memory_storage.hpp"
 #include "common/stream.hpp"
-#include "compute/compute.hpp"
-#include "ocl/ocl_engine.hpp"
-#include "ocl/ocl_gpu_engine.hpp"
-#include "ocl/ocl_utils.hpp"
+#include "gpu/compute/compute.hpp"
+#include "gpu/ocl/ocl_engine.hpp"
+#include "gpu/ocl/ocl_gpu_engine.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_ocl_gpu_kernel.hpp"
 
@@ -36,17 +36,17 @@ namespace dnnl {
 namespace impl {
 namespace sycl {
 
-class sycl_engine_base_t : public compute::compute_engine_t {
+class sycl_engine_base_t : public gpu::compute::compute_engine_t {
 public:
     sycl_engine_base_t(engine_kind_t kind, const cl::sycl::device &dev,
             const cl::sycl::context &ctx)
-        : compute::compute_engine_t(
+        : gpu::compute::compute_engine_t(
                 kind, runtime_kind::sycl, new sycl_device_info_t(dev))
         , device_(dev)
         , context_(ctx) {}
 
     status_t init() {
-        CHECK(compute::compute_engine_t::init());
+        CHECK(gpu::compute::compute_engine_t::init());
         stream_t *service_stream_ptr;
         status_t status = create_stream(
                 &service_stream_ptr, stream_flags::default_flags);
@@ -61,32 +61,33 @@ public:
     virtual status_t create_stream(stream_t **stream, unsigned flags) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
-    virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
+    virtual status_t create_kernels(
+            std::vector<gpu::compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
-            const compute::kernel_ctx_t &kernel_ctx) const override {
+            const gpu::compute::kernel_ctx_t &kernel_ctx) const override {
         if (kind() != engine_kind::gpu) {
             assert("not expected");
             return status::invalid_arguments;
         }
-        ocl::ocl_engine_factory_t f(engine_kind::gpu);
+        gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
         engine_t *ocl_engine_ptr;
         CHECK(f.engine_create(&ocl_engine_ptr, ocl_device(), ocl_context()));
-        auto ocl_engine = std::unique_ptr<ocl::ocl_gpu_engine_t>(
-                utils::downcast<ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
+        auto ocl_engine = std::unique_ptr<gpu::ocl::ocl_gpu_engine_t>(
+                utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
 
-        std::vector<compute::kernel_t> ocl_kernels;
+        std::vector<gpu::compute::kernel_t> ocl_kernels;
         CHECK(ocl_engine->create_kernels(
                 &ocl_kernels, kernel_names, kernel_ctx));
-        *kernels = std::vector<compute::kernel_t>(kernel_names.size());
+        *kernels = std::vector<gpu::compute::kernel_t>(kernel_names.size());
         for (size_t i = 0; i < ocl_kernels.size(); ++i) {
             if (!ocl_kernels[i]) continue;
 
-            auto *k = utils::downcast<ocl::ocl_gpu_kernel_t *>(
+            auto *k = utils::downcast<gpu::ocl::ocl_gpu_kernel_t *>(
                     ocl_kernels[i].impl());
             auto ocl_kernel = k->ocl_kernel();
             OCL_CHECK(clRetainKernel(ocl_kernel));
-            (*kernels)[i]
-                    = compute::kernel_t(new sycl_ocl_gpu_kernel_t(ocl_kernel));
+            (*kernels)[i] = gpu::compute::kernel_t(
+                    new sycl_ocl_gpu_kernel_t(ocl_kernel));
         }
         return status::success;
     }
@@ -98,11 +99,11 @@ public:
 
     cl_device_id ocl_device() const {
         assert(device_.is_cpu() || device_.is_gpu());
-        return ocl::ocl_utils::make_ocl_wrapper(device().get());
+        return gpu::ocl::make_ocl_wrapper(device().get());
     }
     cl_context ocl_context() const {
         assert(device_.is_cpu() || device_.is_gpu());
-        return ocl::ocl_utils::make_ocl_wrapper(context().get());
+        return gpu::ocl::make_ocl_wrapper(context().get());
     }
 
 private:

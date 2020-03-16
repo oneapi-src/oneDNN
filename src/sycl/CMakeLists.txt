@@ -23,7 +23,8 @@ file(GLOB_RECURSE SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
     )
 
-add_library(${TARGET_NAME} OBJECT ${SOURCES})
+set(OBJ_LIB ${LIB_NAME}_sycl)
+add_library(${OBJ_LIB} OBJECT ${SOURCES})
 
 if(DNNL_SYCL_COMPUTECPP)
     add_sycl_to_target(
@@ -32,5 +33,5 @@ if(DNNL_SYCL_COMPUTECPP)
     )
 endif()
 
-set(${LIB_NAME}_SUB_OBJS ${${LIB_NAME}_SUB_OBJS}
-    $<TARGET_OBJECTS:${TARGET_NAME}> PARENT_SCOPE)
+set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
+    $<TARGET_OBJECTS:${OBJ_LIB}>)

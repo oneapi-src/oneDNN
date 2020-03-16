@@ -79,7 +79,7 @@ const char *cfg2str(const dt_conf_t *cfg);
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, dir_t dir, const dt_conf_t *cfg,
-            dnnl_format_tag_t tag, alg_t alg, int64_t mb = 0)
+            const std::string &tag, alg_t alg, int64_t mb = 0)
         : desc_t(desc), dir(dir), cfg(cfg), tag(tag), alg(alg) {
         if (mb) this->mb = mb;
     }
@@ -87,7 +87,7 @@ struct prb_t : public desc_t {
 
     dir_t dir;
     const dt_conf_t *cfg;
-    dnnl_format_tag_t tag;
+    std::string tag;
     alg_t alg;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(prb_t);
@@ -130,7 +130,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual const char *name() const override { return p_->name; }
     virtual const dir_t *dir() const override { return &p_->dir; }
-    virtual const dnnl_format_tag_t *tag() const override { return &p_->tag; }
+    virtual const std::string *tag() const override { return &p_->tag; }
 
 private:
     const prb_t *p_ = NULL;

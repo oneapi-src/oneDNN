@@ -21,6 +21,7 @@
 #include <cassert>
 #include <functional>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 #include <stdlib.h>
 #include <string>
@@ -130,6 +131,11 @@ inline const char *engine_kind2str_upper(dnnl::engine::kind kind) {
     if (kind == dnnl::engine::kind::gpu) return "GPU";
     assert(!"not expected");
     return "<Unknown engine>";
+}
+
+inline dnnl::memory::dim product(const dnnl::memory::dims &dims) {
+    return std::accumulate(dims.begin(), dims.end(), (dnnl::memory::dim)1,
+            std::multiplies<dnnl::memory::dim>());
 }
 
 // Read from memory, write to handle

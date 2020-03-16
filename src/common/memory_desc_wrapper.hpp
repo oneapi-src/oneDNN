@@ -35,7 +35,8 @@ struct memory_desc_wrapper : public c_compatible {
 
     /** constructor which takes a reference to a constant underlying C memory
      * descriptor \param md */
-    memory_desc_wrapper(const memory_desc_t *md) : md_(md) {}
+    memory_desc_wrapper(const memory_desc_t *md)
+        : md_(md ? md : &glob_zero_md) {}
     memory_desc_wrapper(const memory_desc_t &md) : memory_desc_wrapper(&md) {}
 
     /* implementing attributes */

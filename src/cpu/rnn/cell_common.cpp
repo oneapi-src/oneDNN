@@ -31,16 +31,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
     auto src_layer_ld = rnn.src_layer_ld(cell_position);
     auto src_iter_ld = rnn.src_iter_ld(cell_position);
 
-    // In case of merge_gemm_layer we might still need a layer gemm if we store
-    // the states of the last iteration in the destination memory. The
-    // exception of this rule is the first layer though, in which case all
-    // states are kept in user's src_layer, hence making full merged gemm
-    // possible.
-    const bool need_layer_gemm = !rnn.merge_gemm_layer
-            || (rnn.merge_gemm_layer && rnn.skip_dst_iter_copy()
-                    && (cell_position & last_iter)
-                    && !(cell_position & first_layer));
-    if (need_layer_gemm) {
+    if (rnn.need_gemm_layer(cell_position)) {
         (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
                 src_layer_ld, 0.0, scratch_gates_, rnn.gates_ws_ld);
@@ -51,12 +42,63 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
-            diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_, bias_[0],
-            ws_grid_, scratch_cell_, states_t_l_copy_);
+            diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+            weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
+            states_t_l_copy_);
 }
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution);
 template rnn_cell_execution_sig(ref_rnn_fwd_bf16_t::cell_execution);
 template rnn_cell_execution_sig(ref_rnn_fwd_u8s8_t::cell_execution);
+
+template <typename scratch_data_t, typename acc_data_t>
+void lstm_bwd_weights_peephole_and_bias(const rnn_utils::rnn_conf_t &rnn,
+        cell_position_t cell_position, const float *c_states_tm1_l_,
+        const float *c_states_t_l_, const scratch_data_t *scratch_gates_,
+        float *diff_weights_peephole_, acc_data_t *diff_bias_) {
+    auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
+    auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
+
+    ws_states_aoc<const float> c_states_t_l(rnn, c_states_t_l_, dst_iter_c_ld);
+    ws_states_aoc<const float> c_states_tm1_l(
+            rnn, c_states_tm1_l_, src_iter_c_ld);
+    ws_gates_aoc<const scratch_data_t> scratch_gates(rnn, scratch_gates_);
+    weights_peephole_aoc_t<float> diff_weights_peephole(
+            rnn, diff_weights_peephole_);
+
+    parallel(0, [&](int ithr, int nthr) {
+        int g_dic_start {}, g_dic_stop {};
+        const int gates_to_process = 5; // 3 -- weights peephole +
+                // 2 -- bias (process a pair at once)
+        balance211(gates_to_process * rnn.dic, nthr, ithr, g_dic_start,
+                g_dic_stop);
+        int g = g_dic_start / rnn.dic;
+        int dic = g_dic_start % rnn.dic;
+        while (g_dic_start++ < g_dic_stop) {
+            if (g < 3) {
+                // weights peephole
+                auto &c_states = g < 2 ? c_states_tm1_l : c_states_t_l;
+                const int scratch_g = g < 2 ? g : 3;
+                for (int mb = 0; mb < rnn.mb; ++mb) {
+                    diff_weights_peephole(g, dic) += c_states(mb, dic)
+                            * scratch_gates(mb, scratch_g, dic);
+                }
+            } else {
+                // bias
+                const int bias_g_start = 2 * (g - 3);
+                const int bias_g_end = bias_g_start + 2;
+                for (int bias_g = bias_g_start; bias_g < bias_g_end; ++bias_g) {
+                    for (int mb = 0; mb < rnn.mb; ++mb)
+                        diff_bias_[bias_g * rnn.dic + dic]
+                                += scratch_gates(mb, bias_g, dic);
+                }
+            }
+            if (++dic == rnn.dic) {
+                dic = 0;
+                g++;
+            }
+        }
+    });
+}
 
 template <typename T1, typename T2, typename T3, typename T4, typename T5,
         typename weights_data_t, typename src_data_t, typename acc_data_t,
@@ -66,18 +108,20 @@ void common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
         const rnn_utils::rnn_conf_t &rnn, const cell_position_t cell_position,
         src_data_t *states_t_l_, float *c_states_t_l_,
         acc_data_t *diff_states_t_l_, weights_data_t **w_layer_,
-        weights_data_t **w_iter_, float **bias_,
+        weights_data_t **w_iter_, const float *weights_peephole_, float **bias_,
         const src_data_t *states_t_lm1_, const src_data_t *states_tm1_l_,
         const float *c_states_tm1_l_, acc_data_t *diff_states_t_lp1_,
         acc_data_t *diff_states_tp1_l_, acc_data_t *diff_w_layer_,
-        acc_data_t *diff_w_iter_, acc_data_t *diff_bias_, src_data_t *ws_gates_,
+        acc_data_t *diff_w_iter_, float *diff_weights_peephole_,
+        acc_data_t *diff_bias_, src_data_t *ws_gates_,
         scratch_data_t *scratch_gates_, src_data_t *ws_grid_,
         scratch_data_t *scratch_cell_, src_data_t *states_t_l_copy_) {
     ws_diff_states_aoc<float> diff_states_t_l(rnn, diff_states_t_l_);
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             states_t_l_, c_states_t_l_, states_tm1_l_, c_states_tm1_l_,
-            diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_, bias_[0],
-            ws_grid_, scratch_cell_, states_t_l_copy_);
+            diff_states_t_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+            weights_peephole_, bias_[0], ws_grid_, scratch_cell_,
+            states_t_l_copy_);
 
     /// bwd by data on the cell
     gemm_iter_f(w_iter_[0], scratch_gates_, diff_states_t_l_);
@@ -93,8 +137,15 @@ void common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     if (!rnn.merge_gemm_iter)
         gemm_weights_iter_f(scratch_gates_, states_tm1_l_, diff_w_iter_);
 
-    /// bwd by bias we just accumulate diffs from the gates
-    gates_reduction(rnn, scratch_gates_, diff_bias_);
+    if (rnn.is_lstm_peephole) {
+        /// bwd by weights peephole and bias
+        lstm_bwd_weights_peephole_and_bias(rnn, cell_position, c_states_tm1_l_,
+                c_states_t_l_, scratch_gates_, diff_weights_peephole_,
+                diff_bias_);
+    } else {
+        /// bwd by bias we just accumulate diffs from the gates
+        gates_reduction(rnn, scratch_gates_, diff_bias_);
+    }
 }
 
 template <>
@@ -123,9 +174,10 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution) {
     };
     common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
             gemm_weights_iter, rnn_postgemm_, rnn, cell_position, states_t_l_,
-            c_states_t_l_, diff_states_t_l_, w_layer_, w_iter_, bias_,
-            states_t_lm1_, states_tm1_l_, c_states_tm1_l_, diff_states_t_lp1_,
-            diff_states_tp1_l_, diff_w_layer_, diff_w_iter_, diff_bias_,
+            c_states_t_l_, diff_states_t_l_, w_layer_, w_iter_,
+            weights_peephole_, bias_, states_t_lm1_, states_tm1_l_,
+            c_states_tm1_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+            diff_w_layer_, diff_w_iter_, diff_weights_peephole_, diff_bias_,
             ws_gates_, scratch_gates_, ws_grid_, scratch_cell_,
             states_t_l_copy_);
 }
@@ -158,9 +210,10 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution) {
               };
     common_bwd_cell_exec_template(gemm_layer, gemm_iter, gemm_weights_layer,
             gemm_weights_iter, rnn_postgemm_, rnn, cell_position, states_t_l_,
-            c_states_t_l_, diff_states_t_l_, w_layer_, w_iter_, bias_,
-            states_t_lm1_, states_tm1_l_, c_states_tm1_l_, diff_states_t_lp1_,
-            diff_states_tp1_l_, diff_w_layer_, diff_w_iter_, diff_bias_,
+            c_states_t_l_, diff_states_t_l_, w_layer_, w_iter_,
+            weights_peephole_, bias_, states_t_lm1_, states_tm1_l_,
+            c_states_tm1_l_, diff_states_t_lp1_, diff_states_tp1_l_,
+            diff_w_layer_, diff_w_iter_, diff_weights_peephole_, diff_bias_,
             ws_gates_, scratch_gates_, ws_grid_, scratch_cell_,
             states_t_l_copy_);
 }

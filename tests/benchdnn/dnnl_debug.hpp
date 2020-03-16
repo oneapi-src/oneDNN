@@ -32,7 +32,10 @@ const char *status2str(dnnl_status_t status);
 /* data type */
 const char *dt2str(dnnl_data_type_t dt);
 
-/* format */
-const char *fmt_tag2str(dnnl_format_tag_t tag);
+/* endinge kind */
+const char *engine_kind2str(dnnl_engine_kind_t kind);
+
+/* scratchpad mode */
+const char *scratchpad_mode2str(dnnl_scratchpad_mode_t mode);
 
 #endif

@@ -49,8 +49,7 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init() {
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && can_use_gemm() && batch() == 1
-            && check_bias()
+            && dst_md()->data_type == dst_type && can_use_gemm() && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);
@@ -161,51 +160,84 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
     // case: dynamic sizes
     bool need_free_acc = false;
     if (acc == nullptr) {
-        acc = (acc_data_t *)malloc(sizeof(acc_data_t) * batch * M * N, 64);
+        acc = (acc_data_t *)malloc(sizeof(acc_data_t)
+                        * nstl::min(batch, (dim_t)dnnl_get_max_threads()) * M
+                        * N,
+                64);
         need_free_acc = true;
     }
 
-    // gemm section
-    {
-        const auto &src_strides = &src_d.blocking_desc().strides[batched];
-        const auto &weights_strides
-                = &weights_d.blocking_desc().strides[batched];
+    const auto &src_strides = &src_d.blocking_desc().strides[batched];
+    const auto &weights_strides = &weights_d.blocking_desc().strides[batched];
 
-        const char *transA
-                = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N"
-                                                                       : "T";
-        const char *transB
-                = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
-                ? "N"
-                : "T";
+    const char *transA
+            = src_strides[1] == 1 && src_d.dims()[batched + 0] > 1 ? "N" : "T";
+    const char *transB
+            = weights_strides[1] == 1 && weights_d.dims()[batched + 0] > 1
+            ? "N"
+            : "T";
 
-        const int M_s32 = (int)M;
-        const int N_s32 = (int)N;
-        const int K_s32 = (int)K;
+    const int M_s32 = (int)M;
+    const int N_s32 = (int)N;
+    const int K_s32 = (int)K;
 
-        const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-        const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-        const int ldc = (int)dst_bd.strides[batched + 0];
+    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
+    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
+    const int ldc = (int)dst_bd.strides[batched + 0];
 
-        const float alpha = params.get_gemm_alpha(scales);
-        const float beta = params.gemm_beta_;
+    const float alpha = params.get_gemm_alpha(scales);
+    const float beta = params.gemm_beta_;
 
-        status_t status = gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32,
-                &K_s32, &alpha, weights, &ldb, src, &lda, &beta, acc, &ldc);
-        if (status != status::success) {
-            if (need_free_acc) free(acc);
-            return status;
-        }
-    }
+    const auto src_batch_stride = src_d.blocking_desc().strides[0];
+    const auto weights_batch_stride = weights_d.blocking_desc().strides[0];
+    const auto dst_batch_stride = dst_d.blocking_desc().strides[0];
+    const auto acc_batch_stride = M * N;
 
-    if (params.has_pp_kernel_) {
-        const bool force_sequential = pp_kernel_->sequential_kernel();
-        const float *pp_scales = params.get_post_processing_scales(scales);
-        parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
-            size_t start {}, end {};
-            balance211((size_t)(M * N), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N);
+    const bool parallel_over_batch = batch > 1;
+    if (parallel_over_batch) {
+        // XXX: pass by copying to avoid gcc bug with c++14 standard
+        parallel(0, [=](int ithr, int nthr) {
+            size_t batch_start {}, batch_end {};
+            balance211((size_t)(batch), nthr, ithr, batch_start, batch_end);
+
+            const bool reuse_acc = acc != (acc_data_t *)dst;
+            acc_data_t *curr_acc
+                    = reuse_acc ? acc + ithr * acc_batch_stride : nullptr;
+
+            for (size_t b = batch_start; b < batch_end; ++b) {
+                const src_data_t *curr_src = src + b * src_batch_stride;
+                const weights_data_t *curr_weights
+                        = weights + b * weights_batch_stride;
+                dst_data_t *curr_dst = dst + b * dst_batch_stride;
+                if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
+
+                gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
+                        curr_weights, &ldb, curr_src, &lda, &beta, curr_acc,
+                        &ldc);
+
+                if (params.has_pp_kernel_) {
+                    const float *pp_scales
+                            = params.get_post_processing_scales(scales);
+
+                    (*pp_kernel_)(curr_dst, curr_acc, bias, pp_scales, 0, M * N,
+                            (size_t)N);
+                }
+            }
         });
+    } else {
+        gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
+                weights, &ldb, src, &lda, &beta, acc, &ldc);
+
+        if (params.has_pp_kernel_) {
+            const bool force_sequential = pp_kernel_->sequential_kernel();
+            const float *pp_scales = params.get_post_processing_scales(scales);
+
+            parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
+                size_t start {}, end {};
+                balance211((size_t)(M * N), nthr, ithr, start, end);
+                (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N);
+            });
+        }
     }
 
     if (need_free_acc) free(acc);

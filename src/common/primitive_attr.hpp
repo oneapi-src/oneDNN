@@ -233,7 +233,9 @@ struct zero_points_t : public c_compatible {
     // arg-specific checks
     bool common(int arg) const { return true; }
     bool defined(int arg) const { return !is_runtime_value(*get(arg)); }
-    bool has_default_values(int arg) const { return *get(arg) == 0; }
+    bool has_default_values(int arg) const {
+        return *get(arg) == 0 && get_mask(arg) == 0;
+    }
 
     // same checks but for all supported arguments at once
     bool common() const { return check_all(&zero_points_t::common); }
@@ -264,6 +266,18 @@ struct zero_points_t : public c_compatible {
 private:
     // TODO: support count and mask
     int zero_point_src = 0, zero_point_wei = 0, zero_point_dst = 0;
+    int mask_src = 0, mask_wei = 0, mask_dst = 0;
+
+    int get_mask(int arg) const {
+        int mask = 0;
+        switch (arg) {
+            case DNNL_ARG_SRC: mask = mask_src; break;
+            case DNNL_ARG_WEIGHTS: mask = mask_wei; break;
+            case DNNL_ARG_DST: mask = mask_dst; break;
+            default: mask = 0;
+        }
+        return mask;
+    }
 
     bool check_all(bool (zero_points_t::*f)(int) const) const {
         for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST})
@@ -277,9 +291,29 @@ private:
 
 struct dnnl_post_ops : public dnnl::impl::c_compatible {
     struct entry_t {
+        entry_t() : kind(dnnl::impl::primitive_kind::undefined) {}
+        entry_t(const entry_t &other) { copy_from(other); }
+
+        entry_t &operator=(const entry_t &other) {
+            DNNL_SHORT_CIRCUIT_SELF_ASSIGN(other);
+            clear();
+            copy_from(other);
+            return *this;
+        }
+
         struct eltwise_t {
             dnnl::impl::alg_kind_t alg;
             float scale, alpha, beta;
+        };
+
+        struct depthwise_conv_t {
+            int stride;
+            dnnl::impl::data_type_t wei_dt;
+            dnnl::impl::data_type_t bias_dt;
+            dnnl::impl::data_type_t dst_dt;
+            dnnl::impl::dim_t count;
+            int mask;
+            float *scales;
         };
 
         dnnl::impl::primitive_kind_t kind;
@@ -288,6 +322,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                 float scale;
             } sum;
             eltwise_t eltwise;
+            depthwise_conv_t depthwise_conv;
         };
 
         bool is_eltwise(bool require_scale_one = false) const {
@@ -310,6 +345,13 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                     && IMPLICATION(require_scale_one, sum.scale == 1.f);
         }
 
+        bool is_convolution() const {
+            using namespace dnnl::impl;
+            return kind == primitive_kind::convolution;
+        }
+
+        dnnl::impl::status_t set_depthwise_scales(const float *scales);
+
         bool operator==(const entry_t &rhs) const {
             using namespace dnnl::impl;
             if (kind != rhs.kind) { return false; }
@@ -324,6 +366,25 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                 case primitive_kind::sum:
                     ret = sum.scale == rhs.sum.scale;
                     break;
+                case primitive_kind::convolution:
+                    // Depthwise Only
+                    ret = depthwise_conv.stride == rhs.depthwise_conv.stride
+                            && depthwise_conv.wei_dt
+                                    == rhs.depthwise_conv.wei_dt
+                            && depthwise_conv.bias_dt
+                                    == rhs.depthwise_conv.bias_dt
+                            && depthwise_conv.dst_dt
+                                    == rhs.depthwise_conv.dst_dt
+                            && depthwise_conv.count == rhs.depthwise_conv.count
+                            && depthwise_conv.mask == rhs.depthwise_conv.mask;
+                    if (!ret) break;
+                    for (int i = 0; i < depthwise_conv.count; ++i) {
+                        ret = ret
+                                && depthwise_conv.scales[i]
+                                        == rhs.depthwise_conv.scales[i];
+                        if (!ret) break;
+                    }
+                    break;
                 default: assert(!"unsupported post_op");
             }
             return ret;
@@ -332,6 +393,27 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         bool operator!=(const entry_t &rhs) const {
             return !this->operator==(rhs);
         }
+
+        ~entry_t() { clear(); }
+
+    private:
+        void clear() {
+            if (is_convolution() && depthwise_conv.scales)
+                dnnl::impl::free(depthwise_conv.scales);
+            return;
+        }
+
+        void copy_from(const entry_t &other) {
+
+            // Copying by if (is_convolution()) {} else if(is_sum()) {}
+            // else if(is_relu()) {} seems to be unreliable. memcpying for now.
+            dnnl::impl::utils::array_copy(
+                    (char *)this, (char *)&other, sizeof(*this));
+            if (other.is_convolution()) {
+                set_depthwise_scales(other.depthwise_conv.scales);
+            }
+            return;
+        }
     };
 
     dnnl_post_ops() : len_(0) {}
@@ -339,6 +421,12 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
     dnnl::impl::status_t append_sum(float scale);
     dnnl::impl::status_t append_eltwise(
             float scale, dnnl::impl::alg_kind_t alg, float alpha, float beta);
+    dnnl::impl::status_t append_dw_k3s1p1(dnnl::impl::data_type_t wei_dt,
+            dnnl::impl::data_type_t bias_dt, dnnl::impl::data_type_t dst_dt,
+            dnnl::impl::dim_t count, int mask, const float *scales);
+    dnnl::impl::status_t append_dw_k3s2p1(dnnl::impl::data_type_t wei_dt,
+            dnnl::impl::data_type_t bias_dt, dnnl::impl::data_type_t dst_dt,
+            dnnl::impl::dim_t count, int mask, const float *scales);
 
     int find(dnnl::impl::primitive_kind_t kind, int start = 0,
             int stop = -1) const {

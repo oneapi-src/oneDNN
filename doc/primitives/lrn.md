@@ -6,33 +6,34 @@ Local Response Normalization (LRN) {#dev_guide_lrn}
 >
 
 The LRN primitive performs a forward or backward local response normalization
-operation defined by the following formulas:
+operation defined by the following formulas (the variable names follow the
+standard @ref dev_guide_conventions):
 
 ### Forward
 
 LRN [across channels](#dnnl_lrn_across_channels):
 
 \f[
-    dst(n, c, h, w) =
+    \dst(n, c, h, w) =
         \left\{k + \frac{\alpha}{n_{l}}
             \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2-1}
-                (src(n, c+i, h, w))^2
+                (\src(n, c+i, h, w))^2
         \right\}^{-\beta}
         \cdot
-        src(n, c, h, w),
+        \src(n, c, h, w),
 \f]
 
 LRN [within channel](#dnnl_lrn_within_channel):
 
 \f[
-    dst(n, c, h, w) =
+    \dst(n, c, h, w) =
         \left\{k + \frac{\alpha}{n_{l}}
             \sum\limits_{i=-(n_{l}-1)/2}^{(n_{l}+1)/2-1}
             \sum\limits_{j=-(n_{l}-1)/2}^{(n_{l}+1)/2-1}
-                (src(n, c, h+i, w+j))^2
+                (\src(n, c, h+i, w+j))^2
         \right\}^{-\beta}
         \cdot
-        src(n, c, h, w),
+        \src(n, c, h, w),
 \f]
 
 where \f$n_{l}\f$ is the @p local_size. Formulas are provided for 2D spatial
@@ -40,10 +41,20 @@ data case.
 
 ### Backward
 
-The backward propagation computes
-\f$diff\_src(n, c, h, w)\f$,
-based on
-\f$diff\_dst(n, c, h, w)\f$ and \f$src(n, c, h, w)\f$.
+The backward propagation computes \f$\diffsrc(n, c, h, w)\f$, based on
+\f$\diffdst(n, c, h, w)\f$ and \f$\src(n, c, h, w)\f$.
+
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| Primitive input/output | Execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_SRC             |
+| \dst                   | DNNL_ARG_DST             |
+| workspace              | DNNL_ARG_WORKSPACE       |
+| \diffsrc               | DNNL_ARG_DIFF_SRC        |
+| \diffdst               | DNNL_ARG_DIFF_DST        |
+
 
 ## Implementation Details
 
@@ -121,3 +132,9 @@ The LRN primitive doesn't support any post-ops or attributes.
    and `diff_src` (the format of the `diff_dst` and `diff_src` are always the
    same because of the API). Different formats are functionally supported but
    lead to highly suboptimal performance.
+
+## Examples
+
+| Engine  | Name                 | Comments
+| :--     | :--                  | :--
+| CPU/GPU | @ref lrn_example_cpp | @copydetails lrn_example_cpp_short

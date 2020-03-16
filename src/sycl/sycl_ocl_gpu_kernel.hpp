@@ -19,19 +19,20 @@
 
 #include <CL/cl.h>
 
-#include "compute/compute.hpp"
+#include "gpu/compute/compute.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace sycl {
 
-class sycl_ocl_gpu_kernel_t : public compute::kernel_impl_t {
+class sycl_ocl_gpu_kernel_t : public gpu::compute::kernel_impl_t {
 public:
     sycl_ocl_gpu_kernel_t(cl_kernel ocl_kernel) : ocl_kernel_(ocl_kernel) {}
     virtual ~sycl_ocl_gpu_kernel_t() override;
 
-    status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
-            const compute::kernel_arg_list_t &arg_list) const override;
+    status_t parallel_for(stream_t &stream,
+            const gpu::compute::nd_range_t &range,
+            const gpu::compute::kernel_arg_list_t &arg_list) const override;
 
 private:
     cl_kernel ocl_kernel_;

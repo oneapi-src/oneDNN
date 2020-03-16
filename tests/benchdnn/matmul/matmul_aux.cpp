@@ -79,7 +79,6 @@ int str2desc(desc_t *desc, const char *str) {
      */
 
     d.mb = 0;
-    d.name = "\"wip\"";
 
     const char *s = str;
     assert(s);
@@ -129,7 +128,7 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     if (d.ndims == 3) s << "mb" << d.mb;
     s << "m" << d.m << "n" << d.n << "k" << d.k;
 
-    if (*d.name != '\0') s << "_n" << d.name;
+    if (d.name) s << "_n" << d.name;
 
     return s;
 }
@@ -139,19 +138,17 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 
     if (canonical || p.cfg != defaults::cfg)
         s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (canonical || p.stag != defaults::tag)
-        s << "--stag=" << fmt_tag2str(p.stag) << " ";
-    if (canonical || p.wtag != defaults::tag)
-        s << "--wtag=" << fmt_tag2str(p.wtag) << " ";
-    if (canonical || p.dtag != defaults::tag)
-        s << "--dtag=" << fmt_tag2str(p.dtag) << " ";
+    if (canonical || p.stag != defaults::tag) s << "--stag=" << p.stag << " ";
+    if (canonical || p.wtag != defaults::tag) s << "--wtag=" << p.wtag << " ";
+    if (canonical || p.dtag != defaults::tag) s << "--dtag=" << p.dtag << " ";
 
-    if (canonical || p.ld_src != defaults::ld)
-        s << "--ld_src=" << p.ld_src << " ";
-    if (canonical || p.ld_wei != defaults::ld)
-        s << "--ld_wei=" << p.ld_wei << " ";
-    if (canonical || p.ld_dst != defaults::ld)
-        s << "--ld_dst=" << p.ld_dst << " ";
+    // TODO: switch me on when run-time leading dimensions will be supported
+    // if (canonical || p.ld_src != defaults::ld)
+    //     s << "--ld_src=" << p.ld_src << " ";
+    // if (canonical || p.ld_wei != defaults::ld)
+    //     s << "--ld_wei=" << p.ld_wei << " ";
+    // if (canonical || p.ld_dst != defaults::ld)
+    //     s << "--ld_dst=" << p.ld_dst << " ";
 
     if (canonical || p.runtime_mb != defaults::runtime_val)
         s << "--runtime_mb=" << p.runtime_mb << " ";

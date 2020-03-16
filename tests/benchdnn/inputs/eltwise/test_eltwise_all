@@ -1,3 +1,4 @@
+# f32
 --reset
 
 --inplace=true,false
@@ -5,27 +6,24 @@
 
 --dir=FWD_D,BWD_D
 --dt=f32
---tag=nchw,nhwc,nChw8c,nChw16c
---alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,gelu,swish,log,clip
-4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
+--tag=abx,axb,aBx8b,aBx16b
+--alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,gelu_tanh,swish,log,clip,gelu_erf
+        4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2 2x16x6x2x8 3x15x5x2x3
+--alg=relu_dst,tanh_dst,elu_dst,sqrt_dst,logistic_dst,exp_dst
+        4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2 2x16x6x2x8 3x15x5x2x3
+--alg=pow --beta=-1,0,0.5,1,1.5,2   # various beta for all injector branches
+        4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2 2x16x6x2x8 3x15x5x2x3
+
+# s32, s8
+--reset
+--inplace=true,false
+--skip-impl="ref:any"
 
 --dir=FWD_I
 --dt=s32,s8
---tag=nhwc
+--tag=axb
 --alg=relu --alpha=0
-4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2
-
---dir=FWD_D,BWD_D
---dt=f32
---tag=ncdhw,ndhwc,nCdhw8c,nCdhw16c
---alg=relu,tanh,elu,square,abs,sqrt,linear,brelu,srelu,logistic,exp,gelu,swish,log,clip
-2x16x6x2x8 3x15x5x2x3
-
---dir=FWD_I
---dt=s32,s8
---tag=ndhwc
---alg=relu --alpha=0
-2x16x6x2x8 3x15x5x2x3
+        4x8x3x3 3x7x4x5 2x16x6x2 3x19x1x2 2x16x6x2x8 3x15x5x2x3
 
 # bf16
 --batch=test_eltwise_bfloat16

@@ -1,0 +1,12 @@
+# i8
+--reset
+
+--inplace=true,false
+--alg=ADD,MUL,MAX,MIN
+
+--ddt=s8 --sdt=s8:u8,s8:s8
+--batch=shapes_common
+
+--ddt=u8 --sdt=u8:s8,u8:u8
+--batch=shapes_common
+

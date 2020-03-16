@@ -5,23 +5,32 @@ Sum {#dev_guide_sum}
 > [API Reference](@ref dnnl_api_sum)
 >
 
-The sum primitive sums \f$N\f$ tensors:
+The sum primitive sums \f$N\f$ tensors (the variable names follow the standard
+@ref dev_guide_conventions):
 
 \f[
-    dst(\overline{x}) =
+    \dst(\overline{x}) =
         \sum\limits_{i = 1}^{N}
         scales(i) \cdot
-        src_i(\overline{x})
+        \src_i(\overline{x})
 \f]
 
 The sum primitive doesn't have a notion of forward or backward propagations.
 The backward propagation for the sum operation is simply an identity operation.
 
+## Execution Arguments
+When executed, the inputs and outputs should be mapped to an execution
+argument index as specified by the following table.
+| primitive input/output | execution argument index |
+| ---                    | ---                      |
+| \src                   | DNNL_ARG_MULTIPLE_SRC    |
+| \dst                   | DNNL_ARG_DST             |
+
 ## Implementation Details
 
 ### General Notes
 
- * The \f$dst\f$ memory format can be either specified by a user or derived
+ * The \dst memory format can be either specified by a user or derived
    the most appropriate one by the primitive. The recommended way is to allow
    the primitive to choose the appropriate format.
 
@@ -61,3 +70,9 @@ meaning associated with any logical dimensions.
    have same memory format and data type matches the destination tensor data
    type. For other cases more general but slower code is working. Consider
    reordering sources to the same data format before the sum primitive.
+
+## Examples
+
+| Engine  | Name                 | Comments
+| :--     | :--                  | :--
+| CPU/GPU | @ref sum_example_cpp | @copydetails sum_example_cpp_short
