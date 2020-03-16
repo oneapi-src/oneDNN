@@ -703,41 +703,6 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     return errors != 0 ? FAIL : OK;
 }
 
-int compare_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *r, bool final_compare = false) {
-    return compare_dat(p, INPUT, mem_dt, mem_fp, r, final_compare);
-}
-int compare_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *r, bool final_compare = false) {
-    return compare_dat(p, STATES, mem_dt, mem_fp, r, final_compare);
-}
-int compare_weights_input(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *r, bool final_compare = false) {
-    return compare_dat(p, WEIGHTS_INPUT, mem_dt, mem_fp, r, final_compare);
-}
-int compare_weights_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *r, bool final_compare = false) {
-    return compare_dat(p, WEIGHTS_STATES, mem_dt, mem_fp, r, final_compare);
-}
-int compare_bias(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r,
-        bool final_compare = false) {
-    return compare_dat(p, BIAS, mem_dt, mem_fp, r, final_compare);
-}
-int compare_dst_last_layer(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
-        res_t *r, bool final_compare = false) {
-    return compare_dat(p, DST_LAST_LAYER, mem_dt, mem_fp, r, final_compare);
-}
-int compare_dst_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
-    return compare_dat(p, DST_LAST_ITERATION, mem_dt, mem_fp, r, final_compare);
-}
-
-int compare_dst_c_last_iteration(const prb_t &p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
-    return compare_dat(
-            p, DST_C_LAST_ITERATION, mem_dt, mem_fp, r, final_compare);
-}
-
 void prb_t::set_qparams(float fp_min, float fp_max) {
     if (!cfg.is_int8()) {
         data_shift = 0.;
