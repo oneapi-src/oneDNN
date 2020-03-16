@@ -143,7 +143,6 @@ struct desc_t {
     int64_t sic;
     int64_t slc;
     int64_t dhc;
-    int64_t dlc;
     int64_t wc;
     int64_t mb;
     int64_t n_layer;
@@ -293,6 +292,10 @@ struct prb_t : public desc_t {
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
+    int64_t dlc() const {
+        return (direction == dnnl_bidirectional_concat ? 2 : 1) * dhc;
+    }
+
     bool is_int8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
     bool is_lstm_peephole() const { return with_peephole; }
 
@@ -349,7 +352,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->n_layer << "," << p_->n_iter << "," << p_->mb << "," << p_->sic
-          << "," << p_->slc << "," << p_->dhc << "," << p_->dlc;
+          << "," << p_->slc << "," << p_->dhc;
     }
 
     virtual void dump_rnn_activation(std::ostream &s) const override {

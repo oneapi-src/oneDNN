@@ -162,7 +162,7 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
 
     /* canonical form:
-     * lXtXmbXsicXslcXdhcXdlcX
+     * lXtXmbXsicXslcXdhcX
      *
      * where: X is number, S - string
      * note: symbol `_` is ignored
@@ -170,7 +170,7 @@ int str2desc(desc_t *desc, const char *str) {
      * implicit rules:
      *  - default values:
      *      l = 1, t = 1, mb = 2
-     *  - if slc/dlc/dhc is undefined => slc/dlc/dhc = sic
+     *  - if slc/dhc is undefined => slc/dhc = sic
      */
 
     d.n_layer = 1;
@@ -200,7 +200,6 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(sic);
         CASE_N(slc);
         CASE_N(dhc);
-        CASE_N(dlc);
         if (*s == 'n') {
             d.name = s + 1;
             break;
@@ -213,7 +212,6 @@ int str2desc(desc_t *desc, const char *str) {
 
     if (d.sic == 0) return FAIL;
     if (d.slc == 0) d.slc = d.sic;
-    if (d.dlc == 0) d.dlc = d.sic;
     if (d.dhc == 0) d.dhc = d.sic;
 
     *desc = d;
@@ -223,7 +221,7 @@ int str2desc(desc_t *desc, const char *str) {
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     s << "l" << d.n_layer << "t" << d.n_iter << "mb" << d.mb << "sic" << d.sic
-      << "slc" << d.slc << "dhc" << d.dhc << "dlc" << d.dlc;
+      << "slc" << d.slc << "dhc" << d.dhc;
 
     if (d.name) s << "n" << d.name;
 

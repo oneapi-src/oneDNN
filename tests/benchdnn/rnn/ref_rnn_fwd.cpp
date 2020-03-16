@@ -100,12 +100,10 @@ void copy_init_fwd(const prb_t &p, float *ws_, const float *src_layer_,
 
 void copy_res_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
         float *dst_iter_c_, const float *ws_, rnn_iter_direction_t iter_dir,
-        rnn_layer_direction_t lay_dir, int64_t dir_val, rnn_action_t action,
-        bool is_concat = false) {
-    const int64_t dlc = is_concat ? 2 * p.dlc : p.dlc;
+        rnn_layer_direction_t lay_dir, int64_t dir_val, rnn_action_t action) {
     AOC<float> dst_iter(dst_iter_, p.n_layer, p.n_dir(), p.mb, p.dhc);
     AOC<float> dst_iter_c(dst_iter_c_, p.n_layer, p.n_dir(), p.mb, p.dhc);
-    AOC<float> dst_layer(dst_layer_, p.n_iter, p.mb, dlc);
+    AOC<float> dst_layer(dst_layer_, p.n_iter, p.mb, p.dlc());
     AOC<const float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2,
             p.n_states(), p.mb, p.wc);
 
@@ -113,8 +111,8 @@ void copy_res_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
     for (int64_t it = 0; it < p.n_iter; it++) {
         for (int64_t nb = 0; nb < p.mb; nb++) {
             auto from = &ws(p.n_layer, dir_val, it + 1, H, nb, 0);
-            auto to = &dst_layer(it, nb, action == action_concat ? p.dlc : 0);
-            copy(1, p.dlc, p.wc, dlc, from, to, action, p.is_int8());
+            auto to = &dst_layer(it, nb, action == action_concat ? p.dhc : 0);
+            copy(1, p.dhc, p.wc, p.dlc(), from, to, action, p.is_int8());
 
             if (p.is_int8() && p.cfg[DST_LAYER].dt != dnnl_u8) {
                 float data_shift = p.data_shift;
@@ -129,7 +127,8 @@ void copy_res_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
                 }
 
                 if (do_deq10n)
-                    data_deq10n(1, p.dlc, dlc, to, p.data_scale, data_shift);
+                    data_deq10n(
+                            1, p.dhc, p.dlc(), to, p.data_scale, data_shift);
             }
         }
     }
@@ -192,7 +191,6 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
 
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
     bool is_lbr = p.alg == LBR_GRU;
-    bool is_concat = p.direction == dnnl_bidirectional_concat;
 
     float *bias_with_compensation = nullptr;
     if (p.is_int8()) {
@@ -254,7 +252,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
 
         // Finally we copy the results to the result buffers
         copy_res_fwd(p, dst_layer_, dst_iter_, dst_iter_c_, ws_, iter_dir,
-                lay_dir, dir_val, action, is_concat);
+                lay_dir, dir_val, action);
     };
 
     switch (p.direction) {

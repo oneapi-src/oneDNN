@@ -3,5 +3,5 @@ l2t101mb128sic128n"paddlepaddle_testcase-training"
 l1t179mb128sic128n"paddlepaddle_testcase-training"
 
 # SLC != DHC cases
-l1t10mb32sic128slc512dhc128dlc128n"nu-slc-0"
-l1t31mb32sic128slc512dhc128dlc128n"nu-slc-1a"
+l1t10mb32sic128slc512dhc128n"nu-slc-0"
+l1t31mb32sic128slc512dhc128n"nu-slc-1a"

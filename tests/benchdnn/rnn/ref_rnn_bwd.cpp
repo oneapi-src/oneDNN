@@ -31,22 +31,22 @@ namespace rnn {
 void copy_init_bwd(const prb_t &p, float *ws_, const float *diff_dst_layer_,
         const float *diff_dst_iter_, const float *diff_dst_iter_c_,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
-        int64_t dir_val, bool is_concat = false) {
+        int64_t dir_val) {
     AOC<float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.n_states() + 1,
             p.mb * p.wc);
-    auto c_stride = is_concat ? 2 * p.dlc : p.dlc;
-    AOC<const float> diff_dst_layer(diff_dst_layer_, p.n_iter, p.mb * c_stride);
+    AOC<const float> diff_dst_layer(diff_dst_layer_, p.n_iter, p.mb * p.dlc());
     AOC<const float> diff_dst_iter(
             diff_dst_iter_, p.n_layer, p.n_dir(), p.mb * p.dhc);
     AOC<const float> diff_dst_iter_c(
             diff_dst_iter_c_, p.n_layer, p.n_dir(), p.mb * p.dhc);
 
+    const bool is_concat = p.direction == dnnl_bidirectional_concat;
     int64_t lay_dest = (lay_dir == bottom2top) ? 0 : p.n_layer + 1;
     int64_t it_dest = (iter_dir == left2right) ? 0 : p.n_iter + 1;
 
     for (int64_t it = 0; it < p.n_iter; it++)
-        copy(p.mb, p.dhc, c_stride, p.wc,
-                &diff_dst_layer(it, dir_val * is_concat * p.dlc),
+        copy(p.mb, p.dhc, p.dlc(), p.wc,
+                &diff_dst_layer(it, dir_val * is_concat * p.dhc),
                 &ws(lay_dest, dir_val, it + 1, p.n_states(), 0));
 
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
@@ -203,8 +203,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
         // we first need to copy the initial diff_dst_layer and
         // diff_dst_iter{,_c} into ws to simplify the logic of the code
         copy_init_bwd(p, wsb_, diff_dst_layer_, diff_dst_iter_,
-                diff_dst_iter_c_, iter_dir, lay_dir, dir_val,
-                p.direction == dnnl_bidirectional_concat);
+                diff_dst_iter_c_, iter_dir, lay_dir, dir_val);
 
         // We run the grid of computation
         for (int64_t j = p.n_layer - 1; j >= 0; j--) {
@@ -287,7 +286,6 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
             || p.direction == dnnl_bidirectional_sum
             || p.direction == dnnl_bidirectional_concat);
 
-    assert(p.dlc == p.dhc);
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
     int64_t ws_size = (p.n_layer + 2) * p.n_dir() * (p.n_iter + 2)
             * p.n_states() * p.mb * p.wc;
