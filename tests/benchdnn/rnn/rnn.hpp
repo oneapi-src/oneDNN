@@ -287,7 +287,6 @@ struct prb_t : public desc_t {
                 ? 2
                 : 1;
     }
-    int64_t n_weights() const { return 1; }
     int64_t n_states() const { return alg == VANILLA_LSTM ? 2 : 1; }
     int64_t n_gates() const {
         return alg == VANILLA_LSTM
@@ -405,10 +404,6 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &diff_weights_peephole_m, dnn_mem_t &diff_bias_m);
 
 // dnnl_ntc
-inline size_t ntc_off_f(const prb_t &p, int64_t n, int64_t t, int64_t c) {
-    return (n * p.n_iter + t) * p.slc + c;
-}
-
 inline void inv_ntc_off_f(
         const prb_t &p, size_t off, int64_t &n, int64_t &t, int64_t &c) {
     c = off % p.slc;
@@ -421,11 +416,6 @@ inline void inv_ntc_off_f(
 }
 
 // dnnl_ldnc
-inline size_t ldnc_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t n, int64_t c) {
-    return ((l * p.n_dir() + d) * p.mb + n) * p.sic + c;
-}
-
 inline void inv_ldnc_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
         int64_t &n, int64_t &c) {
     c = off % p.sic;
@@ -440,54 +430,17 @@ inline void inv_ldnc_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
 }
 
 // dnnl_ldigo
-inline size_t ldigo_off_f(const prb_t &p, int64_t l, int64_t d, int64_t w,
-        int64_t ic, int64_t oc) {
-    return (((l * p.n_dir() + d) * p.n_weights() + w) * (4 * p.slc) + ic)
-            * p.sic
-            + oc;
-}
-
 inline void inv_ldigo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
-        int64_t &w, int64_t &ic, int64_t &oc) {
+        int64_t &ic, int64_t &oc) {
     oc = off % p.sic;
     off /= p.sic;
     ic = off % (4 * p.slc);
     off /= (4 * p.slc);
-    w = off % p.n_weights();
-    off /= p.n_weights();
     d = off % p.n_dir();
     off /= p.n_dir();
     l = off % p.n_layer;
     off /= p.n_layer;
     assert(off == 0);
-}
-
-// dnnl_ldwOcIc
-inline size_t ldwOcIc_off_f(const prb_t &p, int64_t l, int64_t d, int64_t w,
-        int64_t oc, int64_t ic) {
-    return (((l * p.n_dir() + d) * p.n_weights() + w) * (4 * p.sic) + oc)
-            * p.slc
-            + ic;
-}
-
-inline void inv_ldwOcIc_off_f(const prb_t &p, size_t off, int64_t &l,
-        int64_t &d, int64_t &w, int64_t &oc, int64_t &ic) {
-    ic = off % p.slc;
-    off /= p.slc;
-    oc = off % (4 * p.sic);
-    off /= (4 * p.sic);
-    w = off % p.n_weights();
-    off /= p.n_weights();
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-inline size_t ldgo_off_with_G_f(
-        const prb_t &p, int64_t G, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ((l * p.n_dir() + d) * G + b) * p.sic + c;
 }
 
 inline void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off,
@@ -504,32 +457,18 @@ inline void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off,
 }
 
 // weights peephole: dnnl_ldgo, g = 3
-inline size_t weights_peephole_ldgo_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ldgo_off_with_G_f(p, 3, l, d, b, c);
-}
-
 inline void inv_weights_peephole_ldgo_off_f(const prb_t &p, size_t off,
         int64_t &l, int64_t &d, int64_t &b, int64_t &c) {
     return inv_ldgo_off_with_G_f(p, 3, off, l, d, b, c);
 }
 
 // bias: dnnl_ldgo
-inline size_t bias_ldgo_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ldgo_off_with_G_f(p, p.n_bias(), l, d, b, c);
-}
-
 inline void inv_bias_ldgo_off_f(const prb_t &p, size_t off, int64_t &l,
         int64_t &d, int64_t &b, int64_t &c) {
     return inv_ldgo_off_with_G_f(p, p.n_bias(), off, l, d, b, c);
 }
 
 // dst_layer: "abx"
-inline size_t tnc_off_f(const prb_t &p, int64_t t, int64_t n, int64_t c) {
-    return (t * p.mb + n) * p.sic + c;
-}
-
 inline void inv_tnc_off_f(
         const prb_t &p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
     auto cout = p.sic * (1 + (p.direction == dnnl_bidirectional_concat));

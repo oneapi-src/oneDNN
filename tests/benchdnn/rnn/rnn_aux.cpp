@@ -486,8 +486,8 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
             if (!ok) {
                 errors++;
                 if (errors < 10 || verbose >= 10) {
-                    int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0,
-                            oc = 0, b = 0;
+                    int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0,
+                            b = 0;
                     switch (kind) {
                         case SRC_LAYER:
                         case DIFF_SRC_LAYER:
@@ -512,26 +512,26 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                             break;
                         case WEIGHTS_LAYER:
                         case DIFF_WEIGHTS_LAYER:
-                            inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                            inv_ldigo_off_f(p, i, l, d, ic, oc);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT "," IFMT
+                                    "," IFMT
                                     "] "
                                     "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                                     (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, w, ic, oc, fp, dt, diff,
+                                    skind, l, d, ic, oc, fp, dt, diff,
                                     rel_diff);
                             break;
                         case WEIGHTS_ITER:
                         case DIFF_WEIGHTS_ITER:
-                            inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                            inv_ldigo_off_f(p, i, l, d, ic, oc);
                             BENCHDNN_PRINT(0,
                                     "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT "," IFMT
+                                    "," IFMT
                                     "] "
                                     "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
                                     (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, w, ic, oc, fp, dt, diff,
+                                    skind, l, d, ic, oc, fp, dt, diff,
                                     rel_diff);
                             break;
                         case WEIGHTS_PEEPHOLE:
@@ -589,8 +589,7 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
 #if 1
         /* for debug purposes only: dump the output */
         if (final_compare && verbose >= 50) {
-            int64_t n = 0, t = 0, c = 0, l = 0, d = 0, w = 0, ic = 0, oc = 0,
-                    b = 0;
+            int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0, b = 0;
 
             switch (kind) {
                 case SRC_LAYER:
@@ -608,18 +607,18 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
                             (long)i, skind, l, d, n, c, fp, dt);
                     break;
                 case WEIGHTS_LAYER:
-                    inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                    inv_ldigo_off_f(p, i, l, d, ic, oc);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "," IFMT "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, w, ic, oc, fp, dt);
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, ic, oc, fp, dt);
                     break;
                 case WEIGHTS_ITER:
-                    inv_ldigo_off_f(p, i, l, d, w, ic, oc);
+                    inv_ldigo_off_f(p, i, l, d, ic, oc);
                     BENCHDNN_PRINT(0,
                             "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "," IFMT "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, w, ic, oc, fp, dt);
+                            "] fp:%8g dt:%8g\n",
+                            (long)i, skind, l, d, ic, oc, fp, dt);
                     break;
                 case WEIGHTS_PEEPHOLE:
                     inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
