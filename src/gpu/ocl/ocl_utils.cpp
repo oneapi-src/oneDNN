@@ -66,6 +66,32 @@ status_t get_ocl_devices(
     return status::success;
 }
 
+status_t get_ocl_kernel_arg_type(
+        compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx) {
+    char s_type[16];
+    OCL_CHECK(clGetKernelArgInfo(ocl_kernel, idx, CL_KERNEL_ARG_TYPE_NAME,
+            sizeof(type), s_type, nullptr));
+#define CASE(x) \
+    if (!strcmp(STRINGIFY(x), s_type)) { \
+        *type = compute::scalar_type_t::_##x; \
+        return status::success; \
+    }
+    CASE(char)
+    CASE(float)
+    CASE(half)
+    CASE(int)
+    CASE(long)
+    CASE(short)
+    CASE(uchar)
+    CASE(uint)
+    CASE(ulong)
+    CASE(ushort)
+#undef CASE
+
+    assert(!"Not expected");
+    return status::runtime_error;
+}
+
 } // namespace ocl
 } // namespace gpu
 } // namespace impl
