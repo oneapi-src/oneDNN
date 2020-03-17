@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2019 Intel Corporation
+* Copyright 2016-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,10 +136,24 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
             if (use_generic && !one_of(diff_dst_d.ndims(), 4, 5))
                 return status::unimplemented;
 
+            if (data_type == data_type::bf16) init_scratchpad();
+
             return status::success;
         }
 
         bool use_dense_;
+
+    private:
+        void init_scratchpad() {
+            const memory_desc_wrapper data_d(src_md());
+            const memory_desc_wrapper diff_data_d(diff_dst_md());
+            using namespace memory_tracking::names;
+            auto scratchpad = scratchpad_registry().registrar();
+            const auto diff_dst_size = diff_data_d.nelems(true) * sizeof(float);
+            scratchpad.book(
+                    key_eltwise_src, data_d.nelems(true) * sizeof(float));
+            scratchpad.book(key_eltwise_diff_dst, diff_dst_size);
+        }
     };
 
     ref_eltwise_bwd_t(const pd_t *apd) : primitive_impl_t(apd) {}
