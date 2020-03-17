@@ -151,20 +151,20 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
         case VANILLA_RNN:
             rnn_bwd(p, diff_src_layer, diff_src_iter, diff_weights_layer,
                     diff_weights_iter, diff_bias, b_gates, src_layer, src_iter,
-                    weights_layer, weights_iter, bias, dst_iter, gates,
-                    diff_dst_layer, diff_dst_iter);
+                    weights_layer, weights_iter, bias, gates, diff_dst_layer,
+                    diff_dst_iter);
             break;
         case VANILLA_GRU:
             gru_bwd(p, diff_src_layer, diff_src_iter, diff_weights_layer,
                     diff_weights_iter, diff_bias, b_gates, src_layer, src_iter,
-                    weights_layer, weights_iter, bias, dst_iter, gates,
-                    diff_dst_layer, diff_dst_iter, cell_scratchpad_);
+                    weights_layer, weights_iter, bias, gates, diff_dst_layer,
+                    diff_dst_iter, cell_scratchpad_);
             break;
         case LBR_GRU:
             lbr_gru_bwd(p, diff_src_layer, diff_src_iter, diff_weights_layer,
                     diff_weights_iter, diff_bias, b_gates, src_layer, src_iter,
-                    weights_layer, weights_iter, bias, dst_iter, gates,
-                    diff_dst_layer, diff_dst_iter, cell_scratchpad_);
+                    weights_layer, weights_iter, bias, gates, diff_dst_layer,
+                    diff_dst_iter, cell_scratchpad_);
         default: break;
     }
 }

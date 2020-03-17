@@ -87,9 +87,8 @@ void rnn_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
         const float *src_iter_, const float *weights_layer_,
-        const float *weights_iter_, const float *bias_, const float *dst_iter_,
-        const float *gates_, const float *diff_dst_layer_,
-        const float *diff_dst_iter_) {
+        const float *weights_iter_, const float *bias_, const float *gates_,
+        const float *diff_dst_layer_, const float *diff_dst_iter_) {
     AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
 
     rnn_bwd_pregemm(p, diff_dst_layer_, diff_dst_iter_, gates_, b_gates_);
