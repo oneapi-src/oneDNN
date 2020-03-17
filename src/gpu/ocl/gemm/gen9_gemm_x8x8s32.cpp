@@ -69,15 +69,15 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(
     arg_list.set(9, m);
     arg_list.set(10, n);
     arg_list.set(11, k);
-    arg_list.set(12, beta);
+    arg_list.set(12, (int)beta);
     arg_list.set(13, ao);
     arg_list.set(14, bo);
     arg_list.set(15, co);
     arg_list.set(16, offset_co);
-    arg_list.set(17, apply_co);
+    arg_list.set(17, (int)apply_co);
     arg_list.set(18, sizea, nullptr);
     arg_list.set(19, sizeb, nullptr);
-    arg_list.set(20, apply_eltwise);
+    arg_list.set(20, (int)apply_eltwise);
     arg_list.set(21, eltwise_alpha);
     arg_list.set(22, eltwise_beta);
     arg_list.set(23, eltwise_scale);
@@ -117,7 +117,7 @@ status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, c_temp);
     arg_list.set(1, c);
-    arg_list.set(2, offsetc);
+    arg_list.set(2, (int8_t)offsetc);
     arg_list.set(3, offset_c);
     arg_list.set(4, m);
     arg_list.set(5, n);
@@ -126,8 +126,8 @@ status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(
     arg_list.set(8, beta);
     arg_list.set(9, co);
     arg_list.set(10, offset_co);
-    arg_list.set(11, alpha_is_zero);
-    arg_list.set(12, apply_eltwise);
+    arg_list.set(11, (int)alpha_is_zero);
+    arg_list.set(12, (int)apply_eltwise);
     arg_list.set(13, eltwise_alpha);
     arg_list.set(14, eltwise_beta);
     arg_list.set(15, eltwise_scale);
