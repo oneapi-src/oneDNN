@@ -38,11 +38,12 @@ if(NOT DNNL_ENABLE_JIT_PROFILING)
     endforeach()
 endif()
 
+# FIXME: list(FILTER ...) is not supported by CMake 2.8.
 # Don't build sources from linux_perf direcotry if JIT Profiling isn't enabled.
 # NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.
-if(NOT DNNL_ENABLE_JIT_PROFILING)
-    list(FILTER SOURCES EXCLUDE REGEX "linux_perf")
-endif()
+# if(NOT DNNL_ENABLE_JIT_PROFILING)
+#     list(FILTER SOURCES EXCLUDE REGEX "linux_perf")
+# endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
