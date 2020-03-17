@@ -105,7 +105,12 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
                         cl::sycl::range<1>(arg.size()), cgh);
                 cgh.set_arg((int)i, acc);
             } else {
-                set_scalar_arg(cgh, (int)i, arg.size(), arg.value());
+                gpu::compute::scalar_type_t real_arg_type;
+                gpu::ocl::get_ocl_kernel_arg_type(
+                        &real_arg_type, ocl_kernel_, i);
+                auto cvt_arg
+                        = gpu::compute::kernel_arg_t::cast(real_arg_type, arg);
+                set_scalar_arg(cgh, (int)i, cvt_arg.size(), cvt_arg.value());
             }
         }
         if (range.local_range()) {
