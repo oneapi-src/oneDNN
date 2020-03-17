@@ -32,6 +32,7 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 #include "common/utils.hpp"
+#include "gpu/compute/kernel_arg_list.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -245,6 +246,9 @@ template <typename T>
 ocl_wrapper_t<T> make_ocl_wrapper(T t) {
     return ocl_wrapper_t<T>(t);
 }
+
+status_t get_ocl_kernel_arg_type(
+        compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx);
 
 } // namespace ocl
 } // namespace gpu
