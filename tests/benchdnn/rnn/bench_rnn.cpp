@@ -35,6 +35,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_cfg : s.cfg)
     for_(const auto &i_alg : s.alg)
     for_(auto i_with_peephole : s.with_peephole)
+    for_(auto i_with_projection : s.with_projection)
     for_(const auto &i_scale_policy : s.scale_policy)
     for_(const auto &i_direction : s.direction)
     for_(const auto &i_activation : s.activation)
@@ -45,9 +46,9 @@ void check_correctness(const settings_t &s) {
         const dt_conf_t &cfg = dt_conf_t::create(i_cfg);
         check_case_validity(cfg, i_scale_policy);
 
-        const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole, i_direction,
-                s.attr, i_scale_policy, s.flags, i_activation, s.alpha, s.beta,
-                i_skip_nonlinear, i_mb);
+        const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole,
+                i_with_projection, i_direction, s.attr, i_scale_policy, s.flags,
+                i_activation, s.alpha, s.beta, i_skip_nonlinear, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -89,6 +90,8 @@ int bench(int argc, char **argv) {
                 || parse_skip_nonlinear(s.skip_nonlinear, argv[0])
                 || parse_vector_option(
                         s.with_peephole, str2bool, argv[0], "with-peephole")
+                || parse_vector_option(
+                        s.with_projection, str2bool, argv[0], "with-projection")
                 || parse_attr(s.attr, argv[0])
                 || parse_allow_unimpl(s.allow_unimpl, argv[0])
                 || parse_perf_template(s.perf_template, s.perf_template_def,

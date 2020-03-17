@@ -78,6 +78,8 @@ enum data_kind_t {
     // We need a more robust way of testing RNN.
     WEIGHTS_PEEPHOLE,
     DIFF_WEIGHTS_PEEPHOLE,
+    WEIGHTS_PROJECTION,
+    DIFF_WEIGHTS_PROJECTION,
 };
 const char *data_kind2str(data_kind_t kind);
 
@@ -148,6 +150,7 @@ struct desc_t {
     int64_t sic;
     int64_t slc;
     int64_t dhc;
+    int64_t dic;
     int64_t wc;
     int64_t mb;
     int64_t n_layer;
@@ -207,7 +210,9 @@ struct settings_t {
     std::vector<dnnl_rnn_direction_t> direction {
             dnnl_unidirectional_left2right};
     std::vector<activation_t> activation {UNDEF};
-    std::vector<bool> skip_nonlinear {false}, with_peephole {false};
+    std::vector<bool> skip_nonlinear {false};
+    std::vector<bool> with_peephole {false};
+    std::vector<bool> with_projection {false};
     std::vector<int64_t> mb {0};
     std::vector<policy_t> scale_policy {policy_t::NONE};
     attr_t attr = {};
@@ -229,15 +234,16 @@ struct settings_t {
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
-            bool with_peephole, dnnl_rnn_direction_t direction,
-            const attr_t &attr, policy_t scale_policy, unsigned int flags,
-            activation_t activation, float alpha, float beta,
-            bool skip_nonlinear, int mb = 0)
+            bool with_peephole, bool with_projection,
+            dnnl_rnn_direction_t direction, const attr_t &attr,
+            policy_t scale_policy, unsigned int flags, activation_t activation,
+            float alpha, float beta, bool skip_nonlinear, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop2prop_kind(prop))
         , alg(alg)
         , with_peephole(with_peephole)
+        , with_projection(with_projection)
         , direction(direction)
         , flags(flags)
         , activation(activation)
@@ -251,7 +257,7 @@ struct prb_t : public desc_t {
 
         if (mb) this->mb = mb;
         count_ops();
-        wc = MAX2(sic, MAX2(slc, dhc));
+        wc = MAX2(MAX2(sic, slc), MAX2(dic, dhc));
 
         wei_oc_scales = nullptr;
         linear_scales = nullptr;
@@ -277,6 +283,7 @@ struct prb_t : public desc_t {
         // theoretical number of ops for the post-gemm operations
         int64_t num_cells = (int64_t)n_dir() * n_layer * n_iter;
         int64_t cell_ops = (int64_t)2 * (n_gates() * dhc) * mb * (sic + slc);
+        if (with_projection) cell_ops += (int64_t)2 * dhc * mb * dic;
         int64_t prop_multiplier = prop == dnnl_backward ? 2 : 1;
         ops = prop_multiplier * num_cells * cell_ops;
     }
@@ -302,11 +309,12 @@ struct prb_t : public desc_t {
 
     bool is_int8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
     bool is_lstm_peephole() const { return with_peephole; }
+    bool is_lstm_projection() const { return with_projection; }
 
     const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
     alg_t alg;
-    bool with_peephole;
+    bool with_peephole, with_projection;
     dnnl_rnn_direction_t direction;
     unsigned int flags;
     activation_t activation;
@@ -356,7 +364,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->n_layer << "," << p_->n_iter << "," << p_->mb << "," << p_->sic
-          << "," << p_->slc << "," << p_->dhc;
+          << "," << p_->slc << "," << p_->dhc << "," << p_->dic;
     }
 
     virtual void dump_rnn_activation(std::ostream &s) const override {
@@ -376,32 +384,36 @@ private:
 };
 
 void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
-        AOC<float> &ws_src_layer, AOC<float> &ws_src_iter_c,
-        AOC<float> &ws_gates);
+        AOC<float> &ws_src_layer, AOC<float> &ws_src_iter,
+        AOC<float> &ws_src_iter_c, AOC<float> &ws_gates);
 
 void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
         const float *src_iter_, const float *src_iter_c_,
         const float *weights_layer_, const float *weights_iter_,
-        const float *weights_peephole_, const float *bias_, float *dst_layer_,
-        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
-        const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates);
+        const float *weights_peephole_, const float *weights_projection_,
+        const float *bias_, float *dst_layer_, float *dst_iter_,
+        float *dst_iter_c_, const AOC<float> &ws_src_layer,
+        const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
+        const AOC<float> &ws_gates);
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
         dnn_mem_t &weights_layer_m, dnn_mem_t &weights_iter_m,
-        dnn_mem_t &weights_peephole_m, dnn_mem_t &bias_m,
-        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m);
+        dnn_mem_t &weights_peephole_m, dnn_mem_t &weights_projection_m,
+        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
+        dnn_mem_t &dst_iter_c_m);
 
 void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
         dnn_mem_t &diff_dst_layer_m, dnn_mem_t &diff_dst_iter_m,
         dnn_mem_t &diff_dst_iter_c_m, dnn_mem_t &weights_layer_m,
         dnn_mem_t &weights_iter_m, dnn_mem_t &weights_peephole_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
-        dnn_mem_t &dst_iter_c_m, dnn_mem_t &diff_src_layer_m,
-        dnn_mem_t &diff_src_iter_m, dnn_mem_t &diff_src_iter_c_m,
-        dnn_mem_t &diff_weights_layer_m, dnn_mem_t &diff_weights_iter_m,
-        dnn_mem_t &diff_weights_peephole_m, dnn_mem_t &diff_bias_m);
+        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m,
+        dnn_mem_t &diff_src_layer_m, dnn_mem_t &diff_src_iter_m,
+        dnn_mem_t &diff_src_iter_c_m, dnn_mem_t &diff_weights_layer_m,
+        dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
+        dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m);
 
 void check_case_validity(const dt_conf_t &cfg, policy_t policy);
 

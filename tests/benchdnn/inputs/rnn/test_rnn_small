@@ -29,3 +29,5 @@
 --cfg=u8u8u8f32,u8u8u8u8     --scaling=common --batch=rnn_small
 --cfg=f32u8f32f32,f32u8f32u8 --scaling=per_oc --batch=rnn_small
 
+# LSTM w/ projection
+--batch=test_lstmp_all
