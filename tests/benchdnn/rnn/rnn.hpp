@@ -22,6 +22,7 @@
 #include <stdint.h>
 
 #include <string>
+#include <vector>
 
 #include "common.hpp"
 #include "dnn_types.hpp"
@@ -97,46 +98,53 @@ enum {
 
 template <typename Telem>
 struct array_offset_calculator {
-    template <typename... Targs>
-    array_offset_calculator(Telem *base, Targs... Fargs)
-        : _size(sizeof...(Fargs)) {
-        const int64_t init_list[] = {Fargs...};
-        _dims = new int64_t[_size];
-        for (int64_t i = 0; i < _size; ++i)
-            _dims[i] = init_list[i];
+    array_offset_calculator() = default;
 
-        _base_ptr = base;
-    }
-    ~array_offset_calculator() { delete[] _dims; }
     template <typename... Targs>
-    inline Telem &operator()(Targs... Fargs) {
-        return *(_base_ptr + _offset(1, Fargs...));
+    array_offset_calculator(Telem *base_ptr, Targs... dims)
+        : base_ptr_(base_ptr), dims_({dims...}) {}
+
+    // ctor for AOC<const T> based on const AOC<T> &
+    template <typename Uelem>
+    array_offset_calculator(const array_offset_calculator<Uelem> &rhs)
+        : base_ptr_(rhs.base_ptr_), dims_(rhs.dims_) {}
+
+    // to make the above ctor work AOC<const T> should be able to access
+    // private fields of AOC<T>, hence let's friend them
+    friend struct array_offset_calculator<const Telem>;
+
+    template <typename... Targs>
+    Telem &operator()(Targs... Fargs) const {
+        return *(base_ptr_ + offset(1, Fargs...));
     }
+
+    int64_t nelems() const {
+        int64_t res = 1;
+        for (auto dim : dims_)
+            res *= dim;
+        return res;
+    }
+
+    void set_base_ptr(Telem *base_ptr) { base_ptr_ = base_ptr; }
 
 private:
     template <typename... Targs>
-    inline int64_t _offset(int64_t const dimension, int64_t element) {
-        return element;
+    int64_t offset(int64_t d, int64_t pos) const {
+        return pos;
     }
 
     template <typename... Targs>
-    inline int64_t _offset(
-            int64_t const dimension, int64_t theta, int64_t element) {
-        return element + (_dims[dimension] * theta);
+    int64_t offset(int64_t d, int64_t off, int64_t pos) const {
+        return off * dims_[d] + pos;
     }
 
     template <typename... Targs>
-    inline int64_t _offset(int64_t const dimension, int64_t theta,
-            int64_t element, Targs... Fargs) {
-        int64_t t_prime = element + (_dims[dimension] * theta);
-        return _offset(dimension + 1, t_prime, Fargs...);
+    int64_t offset(int64_t d, int64_t off, int64_t pos, Targs... rem) const {
+        return offset(d + 1, off * dims_[d] + pos, rem...);
     }
 
-    Telem *_base_ptr;
-    int64_t _size;
-    int64_t *_dims;
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(array_offset_calculator);
+    Telem *base_ptr_;
+    std::vector<int64_t> dims_;
 };
 
 struct desc_t {
