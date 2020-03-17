@@ -169,11 +169,11 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
     }
 }
 
-void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
-        const float *diff_dst_iter_c_, const float *diff_dst_layer_,
+void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
+        const float *diff_dst_iter_, const float *diff_dst_iter_c_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *bias_,
-        float *diff_src_iter_, float *diff_src_iter_c_, float *diff_src_layer_,
+        float *diff_src_layer_, float *diff_src_iter_, float *diff_src_iter_c_,
         float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_weights_peephole_, float *diff_bias_,
         const AOC<const float> &ws_src_layer,
@@ -309,17 +309,17 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
     AOC<float> ws_src_layer, ws_src_iter_c, ws_gates;
     prepare_ws_fwd(p, ws_fwd_buffer, ws_src_layer, ws_src_iter_c, ws_gates);
 
-    rnn_linear_fwd(p, (float *)src_iter_m, (float *)src_iter_c_m,
-            (float *)src_layer_m, (float *)weights_layer_m,
+    rnn_linear_fwd(p, (float *)src_layer_m, (float *)src_iter_m,
+            (float *)src_iter_c_m, (float *)weights_layer_m,
             (float *)weights_iter_m, (float *)weights_peephole_m,
-            (float *)bias_m, (float *)dst_iter_m, (float *)dst_iter_c_m,
-            (float *)dst_layer_m, ws_src_layer, ws_src_iter_c, ws_gates);
+            (float *)bias_m, (float *)dst_layer_m, (float *)dst_iter_m,
+            (float *)dst_iter_c_m, ws_src_layer, ws_src_iter_c, ws_gates);
 
-    rnn_linear_bwd(p, (float *)diff_dst_iter_m, (float *)diff_dst_iter_c_m,
-            (float *)diff_dst_layer_m, (float *)weights_layer_m,
+    rnn_linear_bwd(p, (float *)diff_dst_layer_m, (float *)diff_dst_iter_m,
+            (float *)diff_dst_iter_c_m, (float *)weights_layer_m,
             (float *)weights_iter_m, (float *)weights_peephole_m,
-            (float *)bias_m, (float *)diff_src_iter_m,
-            (float *)diff_src_iter_c_m, (float *)diff_src_layer_m,
+            (float *)bias_m, (float *)diff_src_layer_m,
+            (float *)diff_src_iter_m, (float *)diff_src_iter_c_m,
             (float *)diff_weights_layer_m, (float *)diff_weights_iter_m,
             (float *)diff_weights_peephole_m, (float *)diff_bias_m,
             ws_src_layer, ws_src_iter_c, ws_gates);

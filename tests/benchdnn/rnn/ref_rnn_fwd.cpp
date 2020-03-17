@@ -206,11 +206,11 @@ void rnn_cell_fwd(const prb_t &p, float *dst_iter, float *dst_iter_c,
     }
 }
 
-void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
-        const float *src_iter_c_, const float *src_layer_,
+void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
+        const float *src_iter_, const float *src_iter_c_,
         const float *weights_layer_, const float *weights_iter_,
-        const float *weights_peephole_, const float *bias_, float *dst_iter_,
-        float *dst_iter_c_, float *dst_layer_, const AOC<float> &ws_src_layer,
+        const float *weights_peephole_, const float *bias_, float *dst_layer_,
+        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
         const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates) {
 
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
@@ -310,11 +310,11 @@ void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
     AOC<float> ws_src_layer, ws_src_iter_c, ws_gates;
     prepare_ws_fwd(p, ws_fwd_buffer, ws_src_layer, ws_src_iter_c, ws_gates);
 
-    rnn_linear_fwd(p, (float *)src_iter_m, (float *)src_iter_c_m,
-            (float *)src_layer_m, (float *)weights_src_layer_m,
+    rnn_linear_fwd(p, (float *)src_layer_m, (float *)src_iter_m,
+            (float *)src_iter_c_m, (float *)weights_src_layer_m,
             (float *)weights_src_iter_m, (float *)weights_peephole_m,
-            (float *)bias_m, (float *)dst_iter_m, (float *)dst_iter_c_m,
-            (float *)dst_layer_m, ws_src_layer, ws_src_iter_c, ws_gates);
+            (float *)bias_m, (float *)dst_layer_m, (float *)dst_iter_m,
+            (float *)dst_iter_c_m, ws_src_layer, ws_src_iter_c, ws_gates);
 }
 
 } // namespace rnn
