@@ -60,7 +60,7 @@ void copy_init_bwd(const prb_t &p, const AOC<float> &ws_diff_src_layer,
         int64_t dir_val) {
     AOC<const float> diff_dst_layer(diff_dst_layer_, p.n_iter, p.mb * p.dlc());
     AOC<const float> diff_dst_iter(
-            diff_dst_iter_, p.n_layer, p.n_dir(), p.mb * p.dhc);
+            diff_dst_iter_, p.n_layer, p.n_dir(), p.mb * p.dic);
     AOC<const float> diff_dst_iter_c(
             diff_dst_iter_c_, p.n_layer, p.n_dir(), p.mb * p.dhc);
 
@@ -74,7 +74,7 @@ void copy_init_bwd(const prb_t &p, const AOC<float> &ws_diff_src_layer,
                 &ws_diff_src_layer(lay_dest, dir_val, it + 1, 0, 0));
 
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
-        copy(p.mb, p.dhc, p.dhc, p.wc, &diff_dst_iter(lay, dir_val, 0),
+        copy(p.mb, p.dic, p.dic, p.wc, &diff_dst_iter(lay, dir_val, 0),
                 &ws_diff_src_iter(lay + 1, dir_val, it_dest, 0, 0));
         if (p.alg == VANILLA_LSTM) {
             copy(p.mb, p.dhc, p.dhc, p.wc, &diff_dst_iter_c(lay, dir_val, 0),
@@ -131,22 +131,24 @@ void gates_reduction(const prb_t &p, const float *b_gates_, float *diff_bias_) {
 void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
         float *diff_src_iter_c, float *diff_weights_layer,
         float *diff_weights_iter, float *diff_weights_peephole,
-        float *diff_bias, float *b_gates, const float *src_layer,
-        const float *src_iter, const float *src_iter_c,
+        float *diff_weights_projection, float *diff_bias, float *b_gates,
+        const float *src_layer, const float *src_iter, const float *src_iter_c,
         const float *weights_layer, const float *weights_iter,
-        const float *weights_peephole, const float *bias,
-        const float *dst_layer, const float *dst_iter_c, const float *gates,
-        const float *diff_dst_layer, const float *diff_dst_iter,
-        const float *diff_dst_iter_c, float *cell_scratchpad_) {
+        const float *weights_peephole, const float *weights_projection,
+        const float *bias, const float *dst_layer, const float *dst_iter_c,
+        const float *gates, const float *diff_dst_layer,
+        const float *diff_dst_iter, const float *diff_dst_iter_c,
+        float *cell_scratchpad_) {
 
     switch (p.alg) {
         case VANILLA_LSTM:
             lstm_bwd(p, diff_src_layer, diff_src_iter, diff_src_iter_c,
                     diff_weights_layer, diff_weights_iter,
-                    diff_weights_peephole, diff_bias, b_gates, src_layer,
-                    src_iter, src_iter_c, weights_layer, weights_iter,
-                    weights_peephole, bias, dst_layer, dst_iter_c, gates,
-                    diff_dst_layer, diff_dst_iter, diff_dst_iter_c);
+                    diff_weights_peephole, diff_weights_projection, diff_bias,
+                    b_gates, src_layer, src_iter, src_iter_c, weights_layer,
+                    weights_iter, weights_peephole, weights_projection, bias,
+                    dst_layer, dst_iter_c, gates, diff_dst_layer, diff_dst_iter,
+                    diff_dst_iter_c, cell_scratchpad_);
             break;
         case VANILLA_RNN:
             rnn_bwd(p, diff_src_layer, diff_src_iter, diff_weights_layer,
@@ -172,14 +174,15 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
 void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
         const float *diff_dst_iter_, const float *diff_dst_iter_c_,
         const float *weights_layer_, const float *weights_iter_,
-        const float *weights_peephole_, const float *bias_,
-        float *diff_src_layer_, float *diff_src_iter_, float *diff_src_iter_c_,
-        float *diff_weights_layer_, float *diff_weights_iter_,
-        float *diff_weights_peephole_, float *diff_bias_,
+        const float *weights_peephole_, const float *weights_projection_,
+        const float *bias_, float *diff_src_layer_, float *diff_src_iter_,
+        float *diff_src_iter_c_, float *diff_weights_layer_,
+        float *diff_weights_iter_, float *diff_weights_peephole_,
+        float *diff_weights_projection_, float *diff_bias_,
         const AOC<const float> &ws_src_layer,
+        const AOC<const float> &ws_src_iter,
         const AOC<const float> &ws_src_iter_c,
         const AOC<const float> &ws_gates) {
-    assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
     bool is_lbr = p.alg == LBR_GRU;
 
     AOC<const float> weights_layer(
@@ -197,6 +200,11 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
     AOC<float> diff_weights_peephole(
             diff_weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dhc);
 
+    AOC<const float> weights_projection(
+            weights_projection_, p.n_layer, p.n_dir(), p.dhc * p.dic);
+    AOC<float> diff_weights_projection(
+            diff_weights_projection_, p.n_layer, p.n_dir(), p.dhc * p.dic);
+
     AOC<const float> bias(
             bias_, p.n_layer, p.n_dir(), p.n_gates() + is_lbr, p.dhc);
     AOC<float> diff_bias(
@@ -211,6 +219,7 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
 
     int64_t cell_scratchpad_size;
     switch (p.alg) {
+        case VANILLA_LSTM: cell_scratchpad_size = p.mb * p.dhc; break;
         case LBR_GRU:
             cell_scratchpad_size = p.mb * (p.n_gates() + 1) * p.dhc;
             break;
@@ -247,13 +256,15 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_layer_,
                         &diff_weights_layer(lay - 1, dir_val, 0, 0),
                         &diff_weights_iter(lay - 1, dir_val, 0, 0),
                         &diff_weights_peephole(lay - 1, dir_val, 0),
+                        &diff_weights_projection(lay - 1, dir_val, 0),
                         &diff_bias(lay - 1, dir_val, 0, 0), b_gates,
                         &ws_src_layer(lay - 1, dir_val, ws_iter, 0, 0),
-                        &ws_src_layer(lay, dir_val, ws_prev_iter, 0, 0),
+                        &ws_src_iter(lay, dir_val, ws_prev_iter, 0, 0),
                         &ws_src_iter_c(lay, dir_val, ws_prev_iter, 0, 0),
                         &weights_layer(lay - 1, dir_val, 0, 0),
                         &weights_iter(lay - 1, dir_val, 0, 0),
                         &weights_peephole(lay - 1, dir_val, 0),
+                        &weights_projection(lay - 1, dir_val, 0),
                         &bias(lay - 1, dir_val, 0, 0),
                         &ws_src_layer(lay, dir_val, ws_iter, 0, 0),
                         &ws_src_iter_c(lay, dir_val, ws_iter, 0, 0),
@@ -298,31 +309,33 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &diff_dst_layer_m, dnn_mem_t &diff_dst_iter_m,
         dnn_mem_t &diff_dst_iter_c_m, dnn_mem_t &weights_layer_m,
         dnn_mem_t &weights_iter_m, dnn_mem_t &weights_peephole_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
-        dnn_mem_t &dst_iter_c_m, dnn_mem_t &diff_src_layer_m,
-        dnn_mem_t &diff_src_iter_m, dnn_mem_t &diff_src_iter_c_m,
-        dnn_mem_t &diff_weights_layer_m, dnn_mem_t &diff_weights_iter_m,
-        dnn_mem_t &diff_weights_peephole_m, dnn_mem_t &diff_bias_m) {
-    assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
-
+        dnn_mem_t &weights_projection_m, dnn_mem_t &bias_m,
+        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m,
+        dnn_mem_t &diff_src_layer_m, dnn_mem_t &diff_src_iter_m,
+        dnn_mem_t &diff_src_iter_c_m, dnn_mem_t &diff_weights_layer_m,
+        dnn_mem_t &diff_weights_iter_m, dnn_mem_t &diff_weights_peephole_m,
+        dnn_mem_t &diff_weights_projection_m, dnn_mem_t &diff_bias_m) {
     std::vector<float> ws_fwd_buffer;
-    AOC<float> ws_src_layer, ws_src_iter_c, ws_gates;
-    prepare_ws_fwd(p, ws_fwd_buffer, ws_src_layer, ws_src_iter_c, ws_gates);
+    AOC<float> ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates;
+    prepare_ws_fwd(p, ws_fwd_buffer, ws_src_layer, ws_src_iter, ws_src_iter_c,
+            ws_gates);
 
     rnn_linear_fwd(p, (float *)src_layer_m, (float *)src_iter_m,
             (float *)src_iter_c_m, (float *)weights_layer_m,
             (float *)weights_iter_m, (float *)weights_peephole_m,
-            (float *)bias_m, (float *)dst_layer_m, (float *)dst_iter_m,
-            (float *)dst_iter_c_m, ws_src_layer, ws_src_iter_c, ws_gates);
+            (float *)weights_projection_m, (float *)bias_m,
+            (float *)dst_layer_m, (float *)dst_iter_m, (float *)dst_iter_c_m,
+            ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates);
 
     rnn_linear_bwd(p, (float *)diff_dst_layer_m, (float *)diff_dst_iter_m,
             (float *)diff_dst_iter_c_m, (float *)weights_layer_m,
             (float *)weights_iter_m, (float *)weights_peephole_m,
-            (float *)bias_m, (float *)diff_src_layer_m,
-            (float *)diff_src_iter_m, (float *)diff_src_iter_c_m,
-            (float *)diff_weights_layer_m, (float *)diff_weights_iter_m,
-            (float *)diff_weights_peephole_m, (float *)diff_bias_m,
-            ws_src_layer, ws_src_iter_c, ws_gates);
+            (float *)weights_projection_m, (float *)bias_m,
+            (float *)diff_src_layer_m, (float *)diff_src_iter_m,
+            (float *)diff_src_iter_c_m, (float *)diff_weights_layer_m,
+            (float *)diff_weights_iter_m, (float *)diff_weights_peephole_m,
+            (float *)diff_weights_projection_m, (float *)diff_bias_m,
+            ws_src_layer, ws_src_iter, ws_src_iter_c, ws_gates);
 }
 
 } // namespace rnn

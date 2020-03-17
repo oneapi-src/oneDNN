@@ -1,0 +1,29 @@
+--reset
+--allow-unimpl=true
+
+--alg=VANILLA_LSTM
+--with-projection=true
+--mb=50
+
+--cfg=f32 # ,bf16
+--prop=FWD_D,BWD_DW
+
+
+# small tests
+--direction=left2right,right2left,sum,concat
+--batch=rnn_small
+
+# small tests w/ DIC != DHC
+--batch=lstmp_dic_ne_dhc
+
+# big tests
+--skip-nonlinear=true
+
+## topology tests
+--batch=rnn_gnmt_encoder
+--batch=rnn_gnmt_decoder
+
+# Other large tests
+--direction=left2right,right2left,concat,sum
+--batch=rnn_large
+--batch=rnn_large_nonuniform

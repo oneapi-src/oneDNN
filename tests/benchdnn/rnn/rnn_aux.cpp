@@ -114,6 +114,7 @@ const char *data_kind2str(data_kind_t kind) {
     CASE(WEIGHTS_LAYER);
     CASE(WEIGHTS_ITER);
     CASE(WEIGHTS_PEEPHOLE);
+    CASE(WEIGHTS_PROJECTION);
     CASE(BIAS);
     CASE(DST_LAYER);
     CASE(DST_ITER);
@@ -125,6 +126,7 @@ const char *data_kind2str(data_kind_t kind) {
     CASE(DIFF_WEIGHTS_LAYER);
     CASE(DIFF_WEIGHTS_ITER);
     CASE(DIFF_WEIGHTS_PEEPHOLE);
+    CASE(DIFF_WEIGHTS_PROJECTION);
     CASE(DIFF_BIAS);
     CASE(DIFF_DST_LAYER);
     CASE(DIFF_DST_ITER);
@@ -162,7 +164,7 @@ int str2desc(desc_t *desc, const char *str) {
     desc_t d {0};
 
     /* canonical form:
-     * lXtXmbXsicXslcXdhcX
+     * lXtXmbXsicXslcXdhcXdicX
      *
      * where: X is number, S - string
      * note: symbol `_` is ignored
@@ -171,6 +173,7 @@ int str2desc(desc_t *desc, const char *str) {
      *  - default values:
      *      l = 1, t = 1, mb = 2
      *  - if slc/dhc is undefined => slc/dhc = sic
+     *  - if dic is undefined => dic = dhc
      */
 
     d.n_layer = 1;
@@ -200,6 +203,7 @@ int str2desc(desc_t *desc, const char *str) {
         CASE_N(sic);
         CASE_N(slc);
         CASE_N(dhc);
+        CASE_N(dic);
         if (*s == 'n') {
             d.name = s + 1;
             break;
@@ -213,6 +217,7 @@ int str2desc(desc_t *desc, const char *str) {
     if (d.sic == 0) return FAIL;
     if (d.slc == 0) d.slc = d.sic;
     if (d.dhc == 0) d.dhc = d.sic;
+    if (d.dic == 0) d.dic = d.dhc;
 
     *desc = d;
 
@@ -221,7 +226,7 @@ int str2desc(desc_t *desc, const char *str) {
 
 std::ostream &operator<<(std::ostream &s, const desc_t &d) {
     s << "l" << d.n_layer << "t" << d.n_iter << "mb" << d.mb << "sic" << d.sic
-      << "slc" << d.slc << "dhc" << d.dhc;
+      << "slc" << d.slc << "dhc" << d.dhc << "dic" << d.dic;
 
     if (d.name) s << "n" << d.name;
 
@@ -246,6 +251,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--skip-nonlinear=" << bool2str(p.skip_nonlinear) << " ";
     if (canonical || p.with_peephole != def.with_peephole[0])
         s << "--with-peephole=" << bool2str(p.with_peephole) << " ";
+    if (canonical || p.with_projection != def.with_projection[0])
+        s << "--with-projection=" << bool2str(p.with_projection) << " ";
     if (canonical || p.scale_policy != def.scale_policy[0])
         s << "--scaling=" << p.scale_policy << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
@@ -256,12 +263,16 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
 }
 
 dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
-        dnnl_prop_kind_t prop_kind, dnnl_memory_desc_t *src_layer_d,
-        dnnl_memory_desc_t *src_iter_d, dnnl_memory_desc_t *src_iter_c_d,
-        dnnl_memory_desc_t *weights_layer_d, dnnl_memory_desc_t *weights_iter_d,
-        dnnl_memory_desc_t *weights_peephole_d, dnnl_memory_desc_t *bias_d,
-        dnnl_memory_desc_t *dst_layer_d, dnnl_memory_desc_t *dst_iter_d,
-        dnnl_memory_desc_t *dst_iter_c_d) {
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
+        const dnnl_memory_desc_t *src_iter_d,
+        const dnnl_memory_desc_t *src_iter_c_d,
+        const dnnl_memory_desc_t *weights_layer_d,
+        const dnnl_memory_desc_t *weights_iter_d,
+        const dnnl_memory_desc_t *weights_peephole_d,
+        const dnnl_memory_desc_t *weights_projection_d,
+        const dnnl_memory_desc_t *bias_d, const dnnl_memory_desc_t *dst_layer_d,
+        const dnnl_memory_desc_t *dst_iter_d,
+        const dnnl_memory_desc_t *dst_iter_c_d) {
     dnnl_alg_kind_t kind = alg2kind(p.alg);
     dnnl_alg_kind_t f = activation2kind(p.activation);
 
@@ -274,10 +285,11 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
                     p.alpha, p.beta);
             break;
         case dnnl_vanilla_lstm:
-            init_status = dnnl_lstm_forward_desc_init_v2(rd, prop_kind,
+            init_status = dnnl_lstm_forward_desc_init_v3(rd, prop_kind,
                     p.direction, src_layer_d, src_iter_d, src_iter_c_d,
-                    weights_layer_d, weights_iter_d, weights_peephole_d, bias_d,
-                    dst_layer_d, dst_iter_d, dst_iter_c_d, p.flags);
+                    weights_layer_d, weights_iter_d, weights_peephole_d,
+                    weights_projection_d, bias_d, dst_layer_d, dst_iter_d,
+                    dst_iter_c_d, p.flags);
             break;
         case dnnl_vanilla_gru:
             init_status = dnnl_gru_forward_desc_init(rd, prop_kind, p.direction,
@@ -295,20 +307,27 @@ dnnl_status_t init_rnn_fwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
 }
 
 dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
-        dnnl_prop_kind_t prop_kind, dnnl_memory_desc_t *src_layer_d,
-        dnnl_memory_desc_t *src_iter_d, dnnl_memory_desc_t *src_iter_c_d,
-        dnnl_memory_desc_t *weights_layer_d, dnnl_memory_desc_t *weights_iter_d,
-        dnnl_memory_desc_t *weights_peephole_d, dnnl_memory_desc_t *bias_d,
-        dnnl_memory_desc_t *dst_layer_d, dnnl_memory_desc_t *dst_iter_d,
-        dnnl_memory_desc_t *dst_iter_c_d, dnnl_memory_desc_t *diff_src_layer_d,
-        dnnl_memory_desc_t *diff_src_iter_d,
-        dnnl_memory_desc_t *diff_src_iter_c_d,
-        dnnl_memory_desc_t *diff_weights_layer_d,
-        dnnl_memory_desc_t *diff_weights_iter_d,
-        dnnl_memory_desc_t *diff_weights_peephole_d,
-        dnnl_memory_desc_t *diff_bias_d, dnnl_memory_desc_t *diff_dst_layer_d,
-        dnnl_memory_desc_t *diff_dst_iter_d,
-        dnnl_memory_desc_t *diff_dst_iter_c_d) {
+        dnnl_prop_kind_t prop_kind, const dnnl_memory_desc_t *src_layer_d,
+        const dnnl_memory_desc_t *src_iter_d,
+        const dnnl_memory_desc_t *src_iter_c_d,
+        const dnnl_memory_desc_t *weights_layer_d,
+        const dnnl_memory_desc_t *weights_iter_d,
+        const dnnl_memory_desc_t *weights_peephole_d,
+        const dnnl_memory_desc_t *weights_projection_d,
+        const dnnl_memory_desc_t *bias_d, const dnnl_memory_desc_t *dst_layer_d,
+        const dnnl_memory_desc_t *dst_iter_d,
+        const dnnl_memory_desc_t *dst_iter_c_d,
+        const dnnl_memory_desc_t *diff_src_layer_d,
+        const dnnl_memory_desc_t *diff_src_iter_d,
+        const dnnl_memory_desc_t *diff_src_iter_c_d,
+        const dnnl_memory_desc_t *diff_weights_layer_d,
+        const dnnl_memory_desc_t *diff_weights_iter_d,
+        const dnnl_memory_desc_t *diff_weights_peephole_d,
+        const dnnl_memory_desc_t *diff_weights_projection_d,
+        const dnnl_memory_desc_t *diff_bias_d,
+        const dnnl_memory_desc_t *diff_dst_layer_d,
+        const dnnl_memory_desc_t *diff_dst_iter_d,
+        const dnnl_memory_desc_t *diff_dst_iter_c_d) {
     dnnl_alg_kind_t kind = alg2kind(p.alg);
     dnnl_alg_kind_t f = activation2kind(p.activation);
 
@@ -323,14 +342,15 @@ dnnl_status_t init_rnn_bwd_desc(dnnl_rnn_desc_t *rd, const prb_t &p,
                     diff_dst_iter_d, p.flags, p.alpha, p.beta);
             break;
         case dnnl_vanilla_lstm:
-            init_status = dnnl_lstm_backward_desc_init_v2(rd, prop_kind,
+            init_status = dnnl_lstm_backward_desc_init_v3(rd, prop_kind,
                     p.direction, src_layer_d, src_iter_d, src_iter_c_d,
-                    weights_layer_d, weights_iter_d, weights_peephole_d, bias_d,
-                    dst_layer_d, dst_iter_d, dst_iter_c_d, diff_src_layer_d,
-                    diff_src_iter_d, diff_src_iter_c_d, diff_weights_layer_d,
-                    diff_weights_iter_d, diff_weights_peephole_d, diff_bias_d,
-                    diff_dst_layer_d, diff_dst_iter_d, diff_dst_iter_c_d,
-                    p.flags);
+                    weights_layer_d, weights_iter_d, weights_peephole_d,
+                    weights_projection_d, bias_d, dst_layer_d, dst_iter_d,
+                    dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
+                    diff_src_iter_c_d, diff_weights_layer_d,
+                    diff_weights_iter_d, diff_weights_peephole_d,
+                    diff_weights_projection_d, diff_bias_d, diff_dst_layer_d,
+                    diff_dst_iter_d, diff_dst_iter_c_d, p.flags);
             break;
         case dnnl_vanilla_gru:
             init_status = dnnl_gru_backward_desc_init(rd, prop_kind,
@@ -431,9 +451,14 @@ void inv_ldigo_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
 
 void inv_ldio_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
         int64_t &d, int64_t &ic, int64_t &oc) {
-    auto IC = (kind == BIAS || kind == DIFF_BIAS) ? p.n_gates() : 3;
-    oc = off % p.dhc;
-    off /= p.dhc;
+    auto OC = (kind == WEIGHTS_PROJECTION || kind == DIFF_WEIGHTS_PROJECTION)
+            ? p.dic
+            : p.dhc;
+    auto IC = p.dhc; // assume weights_projection
+    if (kind == WEIGHTS_PEEPHOLE || kind == DIFF_WEIGHTS_PEEPHOLE) IC = 3;
+    if (kind == BIAS || kind == DIFF_BIAS) IC = p.n_gates();
+    oc = off % OC;
+    off /= OC;
     ic = off % IC;
     off /= IC;
     d = off % p.n_dir();
@@ -491,8 +516,10 @@ void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
             break;
 
         case WEIGHTS_PEEPHOLE:
+        case WEIGHTS_PROJECTION:
         case BIAS:
         case DIFF_WEIGHTS_PEEPHOLE:
+        case DIFF_WEIGHTS_PROJECTION:
         case DIFF_BIAS:
             inv_ldio_off_f(p, kind, i, l, d, ic, oc);
             BENCHDNN_PRINT(0,
