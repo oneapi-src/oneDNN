@@ -25,16 +25,39 @@
 
 namespace rnn {
 
+void prepare_ws_bwd(const prb_t &p, std::vector<float> &ws_bwd_buffer,
+        AOC<float> &ws_diff_src_layer, AOC<float> &ws_diff_src_iter,
+        AOC<float> &ws_diff_src_iter_c) {
+    bool is_lstm = p.alg == VANILLA_LSTM;
+
+    ws_diff_src_layer = AOC<float>(
+            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+    ws_diff_src_iter = AOC<float>(
+            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+    ws_diff_src_iter_c = AOC<float>(
+            NULL, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.mb, p.wc);
+
+    int64_t size = ws_diff_src_layer.nelems() + ws_diff_src_iter.nelems()
+            + is_lstm * ws_diff_src_iter_c.nelems();
+    ws_bwd_buffer.resize(size, 0);
+
+    ws_diff_src_layer.set_base_ptr(ws_bwd_buffer.data());
+    ws_diff_src_iter.set_base_ptr(
+            ws_bwd_buffer.data() + ws_diff_src_layer.nelems());
+    ws_diff_src_iter_c.set_base_ptr(ws_bwd_buffer.data()
+            + ws_diff_src_layer.nelems() + ws_diff_src_iter.nelems());
+}
+
 /******************************************************************************/
 /******************************* Copy Routines ********************************/
 /******************************************************************************/
 
-void copy_init_bwd(const prb_t &p, float *ws_, const float *diff_dst_layer_,
+void copy_init_bwd(const prb_t &p, const AOC<float> &ws_diff_src_layer,
+        const AOC<float> &ws_diff_src_iter,
+        const AOC<float> &ws_diff_src_iter_c, const float *diff_dst_layer_,
         const float *diff_dst_iter_, const float *diff_dst_iter_c_,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
         int64_t dir_val) {
-    AOC<float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.n_states() + 1,
-            p.mb * p.wc);
     AOC<const float> diff_dst_layer(diff_dst_layer_, p.n_iter, p.mb * p.dlc());
     AOC<const float> diff_dst_iter(
             diff_dst_iter_, p.n_layer, p.n_dir(), p.mb * p.dhc);
@@ -48,31 +71,32 @@ void copy_init_bwd(const prb_t &p, float *ws_, const float *diff_dst_layer_,
     for (int64_t it = 0; it < p.n_iter; it++)
         copy(p.mb, p.dhc, p.dlc(), p.wc,
                 &diff_dst_layer(it, dir_val * is_concat * p.dhc),
-                &ws(lay_dest, dir_val, it + 1, p.n_states(), 0));
+                &ws_diff_src_layer(lay_dest, dir_val, it + 1, 0, 0));
 
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
         copy(p.mb, p.dhc, p.dhc, p.wc, &diff_dst_iter(lay, dir_val, 0),
-                &ws(lay + 1, dir_val, it_dest, H, 0));
+                &ws_diff_src_iter(lay + 1, dir_val, it_dest, 0, 0));
         if (p.alg == VANILLA_LSTM) {
             copy(p.mb, p.dhc, p.dhc, p.wc, &diff_dst_iter_c(lay, dir_val, 0),
-                    &ws(lay + 1, dir_val, it_dest, C, 0));
+                    &ws_diff_src_iter_c(lay + 1, dir_val, it_dest, 0, 0));
         }
     }
 }
 
 void copy_res_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
-        float *diff_src_iter_c_, const float *ws_,
+        float *diff_src_iter_c_, const AOC<const float> &ws_diff_src_layer,
+        const AOC<const float> &ws_diff_src_iter,
+        const AOC<const float> &ws_diff_src_iter_c,
         rnn_iter_direction_t iter_dir, rnn_layer_direction_t lay_dir,
         int64_t dir_val, rnn_action_t action) {
     AOC<float> diff_src_iter(diff_src_iter_, p.n_layer, p.n_dir(), p.mb, p.sic);
     AOC<float> diff_src_iter_c(
             diff_src_iter_c_, p.n_layer, p.n_dir(), p.mb, p.dhc);
     AOC<float> diff_src_layer(diff_src_layer_, p.n_iter, p.mb, p.slc);
-    AOC<const float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2,
-            p.n_states() + 1, p.mb, p.wc);
+
     for (int64_t it = 0; it < p.n_iter; it++) {
         for (int64_t nb = 0; nb < p.mb; nb++) {
-            auto from = &ws(1, dir_val, it + 1, p.n_states(), nb, 0);
+            auto from = &ws_diff_src_layer(1, dir_val, it + 1, nb, 0);
             auto to = &diff_src_layer(it, nb, 0);
 
             copy(1, p.slc, p.wc, p.slc, from, to, action);
@@ -84,11 +108,11 @@ void copy_res_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
     for (int64_t lay = 0; lay < p.n_layer; lay++) {
         if (p.alg == VANILLA_LSTM) {
             copy(p.mb, p.dhc, p.wc, p.dhc,
-                    &ws(lay + 1, dir_val, it_source, C, 0, 0),
+                    &ws_diff_src_iter_c(lay + 1, dir_val, it_source, 0, 0),
                     &diff_src_iter_c(lay, dir_val, 0, 0));
         }
         copy(p.mb, p.sic, p.wc, p.sic,
-                &ws(lay + 1, dir_val, it_source, H, 0, 0),
+                &ws_diff_src_iter(lay + 1, dir_val, it_source, 0, 0),
                 &diff_src_iter(lay, dir_val, 0, 0));
     }
 }
@@ -151,9 +175,10 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
         const float *weights_peephole_, const float *bias_,
         float *diff_src_iter_, float *diff_src_iter_c_, float *diff_src_layer_,
         float *diff_weights_layer_, float *diff_weights_iter_,
-        float *diff_weights_peephole_, float *diff_bias_, float *ws_,
-        const float *gates_) {
-
+        float *diff_weights_peephole_, float *diff_bias_,
+        const AOC<const float> &ws_src_layer,
+        const AOC<const float> &ws_src_iter_c,
+        const AOC<const float> &ws_gates) {
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
     bool is_lbr = p.alg == LBR_GRU;
 
@@ -177,18 +202,12 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
     AOC<float> diff_bias(
             diff_bias_, p.n_layer, p.n_dir(), p.n_gates() + is_lbr, p.dhc);
 
-    auto *b_gates = new float[p.mb * p.n_gates() * p.dhc];
-    AOC<float> ws(ws_, p.n_layer + 2, p.n_dir(), p.n_iter + 2, p.n_states(),
-            p.mb, p.wc);
-    AOC<const float> gates(
-            gates_, p.n_layer, p.n_dir(), p.n_iter, p.mb, p.n_gates(), p.dhc);
+    std::vector<float> ws_bwd_buffer;
+    AOC<float> ws_diff_src_layer, ws_diff_src_iter, ws_diff_src_iter_c;
+    prepare_ws_bwd(p, ws_bwd_buffer, ws_diff_src_layer, ws_diff_src_iter,
+            ws_diff_src_iter_c);
 
-    int64_t wsb_size = (p.n_layer + 2) * p.n_dir() * (p.n_iter + 2)
-            * (p.n_states() + 1) * p.mb * p.wc;
-    auto *wsb_ = new float[wsb_size];
-    init_buffer(wsb_, wsb_size, 0.); // ??!! Temporary. For debug.
-    AOC<float> wsb(wsb_, p.n_layer + 2, p.n_dir(), p.n_iter + 2,
-            p.n_states() + 1, p.mb, p.wc);
+    auto *b_gates = new float[p.mb * p.n_gates() * p.dhc];
 
     int64_t cell_scratchpad_size;
     switch (p.alg) {
@@ -205,7 +224,8 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
                                      int64_t dir_val, rnn_action_t action) {
         // we first need to copy the initial diff_dst_layer and
         // diff_dst_iter{,_c} into ws to simplify the logic of the code
-        copy_init_bwd(p, wsb_, diff_dst_layer_, diff_dst_iter_,
+        copy_init_bwd(p, ws_diff_src_layer, ws_diff_src_iter,
+                ws_diff_src_iter_c, diff_dst_layer_, diff_dst_iter_,
                 diff_dst_iter_c_, iter_dir, lay_dir, dir_val);
 
         // We run the grid of computation
@@ -221,32 +241,33 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
                 int64_t ws_prev_iter
                         = (iter_dir == left2right) ? iter + 1 : iter - 1;
 
-                rnn_cell_bwd(p, &wsb(lay, dir_val, iter, p.n_states(), 0, 0),
-                        &wsb(lay, dir_val, iter, H, 0, 0),
-                        &wsb(lay, dir_val, iter, C, 0, 0),
+                rnn_cell_bwd(p, &ws_diff_src_layer(lay, dir_val, iter, 0, 0),
+                        &ws_diff_src_iter(lay, dir_val, iter, 0, 0),
+                        &ws_diff_src_iter_c(lay, dir_val, iter, 0, 0),
                         &diff_weights_layer(lay - 1, dir_val, 0, 0),
                         &diff_weights_iter(lay - 1, dir_val, 0, 0),
                         &diff_weights_peephole(lay - 1, dir_val, 0),
                         &diff_bias(lay - 1, dir_val, 0, 0), b_gates,
-                        &ws(lay - 1, dir_val, ws_iter, H, 0, 0),
-                        &ws(lay, dir_val, ws_prev_iter, H, 0, 0),
-                        &ws(lay, dir_val, ws_prev_iter, C, 0, 0),
+                        &ws_src_layer(lay - 1, dir_val, ws_iter, 0, 0),
+                        &ws_src_layer(lay, dir_val, ws_prev_iter, 0, 0),
+                        &ws_src_iter_c(lay, dir_val, ws_prev_iter, 0, 0),
                         &weights_layer(lay - 1, dir_val, 0, 0),
                         &weights_iter(lay - 1, dir_val, 0, 0),
                         &weights_peephole(lay - 1, dir_val, 0),
                         &bias(lay - 1, dir_val, 0, 0),
-                        &ws(lay, dir_val, ws_iter, H, 0, 0),
-                        &ws(lay, dir_val, ws_iter, C, 0, 0),
-                        &gates(lay - 1, dir_val, ws_iter - 1, 0, 0, 0),
-                        &wsb(prev_lay, dir_val, iter, p.n_states(), 0, 0),
-                        &wsb(lay, dir_val, prev_iter, H, 0, 0),
-                        &wsb(lay, dir_val, prev_iter, C, 0, 0),
+                        &ws_src_layer(lay, dir_val, ws_iter, 0, 0),
+                        &ws_src_iter_c(lay, dir_val, ws_iter, 0, 0),
+                        &ws_gates(lay - 1, dir_val, ws_iter - 1, 0, 0, 0),
+                        &ws_diff_src_layer(prev_lay, dir_val, iter, 0, 0),
+                        &ws_diff_src_iter(lay, dir_val, prev_iter, 0, 0),
+                        &ws_diff_src_iter_c(lay, dir_val, prev_iter, 0, 0),
                         cell_scratchpad_);
             }
         }
 
         // Finally we copy the results to the result buffers
-        copy_res_bwd(p, diff_src_layer_, diff_src_iter_, diff_src_iter_c_, wsb_,
+        copy_res_bwd(p, diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
+                ws_diff_src_layer, ws_diff_src_iter, ws_diff_src_iter_c,
                 iter_dir, lay_dir, dir_val, action);
     };
 
@@ -268,7 +289,6 @@ void rnn_linear_bwd(const prb_t &p, const float *diff_dst_iter_,
         default: assert(!"unknown direction"); break;
     }
 
-    delete[] wsb_;
     delete[] b_gates;
     delete[] cell_scratchpad_;
 }
@@ -283,27 +303,17 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &diff_src_iter_m, dnn_mem_t &diff_src_iter_c_m,
         dnn_mem_t &diff_weights_layer_m, dnn_mem_t &diff_weights_iter_m,
         dnn_mem_t &diff_weights_peephole_m, dnn_mem_t &diff_bias_m) {
-    // !! TODO: add support of strides
-
-    assert(p.direction == dnnl_unidirectional_left2right
-            || p.direction == dnnl_unidirectional_right2left
-            || p.direction == dnnl_bidirectional_sum
-            || p.direction == dnnl_bidirectional_concat);
-
     assert(p.wc == MAX2(p.sic, MAX2(p.slc, p.dhc)));
-    int64_t ws_size = (p.n_layer + 2) * p.n_dir() * (p.n_iter + 2)
-            * p.n_states() * p.mb * p.wc;
-    auto *ws = new float[ws_size];
-    init_buffer(ws, ws_size, -55.); // ??!! Temporary. For debug.
-    int64_t gates_size
-            = p.n_layer * p.n_dir() * p.n_iter * p.mb * p.n_gates() * p.dhc;
-    auto *gates = new float[gates_size];
+
+    std::vector<float> ws_fwd_buffer;
+    AOC<float> ws_src_layer, ws_src_iter_c, ws_gates;
+    prepare_ws_fwd(p, ws_fwd_buffer, ws_src_layer, ws_src_iter_c, ws_gates);
 
     rnn_linear_fwd(p, (float *)src_iter_m, (float *)src_iter_c_m,
             (float *)src_layer_m, (float *)weights_layer_m,
             (float *)weights_iter_m, (float *)weights_peephole_m,
             (float *)bias_m, (float *)dst_iter_m, (float *)dst_iter_c_m,
-            (float *)dst_layer_m, ws, gates);
+            (float *)dst_layer_m, ws_src_layer, ws_src_iter_c, ws_gates);
 
     rnn_linear_bwd(p, (float *)diff_dst_iter_m, (float *)diff_dst_iter_c_m,
             (float *)diff_dst_layer_m, (float *)weights_layer_m,
@@ -311,10 +321,8 @@ void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
             (float *)bias_m, (float *)diff_src_iter_m,
             (float *)diff_src_iter_c_m, (float *)diff_src_layer_m,
             (float *)diff_weights_layer_m, (float *)diff_weights_iter_m,
-            (float *)diff_weights_peephole_m, (float *)diff_bias_m, ws, gates);
-
-    delete[] ws;
-    delete[] gates;
+            (float *)diff_weights_peephole_m, (float *)diff_bias_m,
+            ws_src_layer, ws_src_iter_c, ws_gates);
 }
 
 } // namespace rnn

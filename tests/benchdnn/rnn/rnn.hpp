@@ -81,9 +81,6 @@ enum data_kind_t {
 };
 const char *data_kind2str(data_kind_t kind);
 
-const int H = 0;
-const int C = 1;
-
 // Gates indices
 enum {
     LSTM_I = 0,
@@ -379,11 +376,16 @@ private:
     const prb_t *p_ = nullptr;
 };
 
+void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
+        AOC<float> &ws_src_layer, AOC<float> &ws_src_iter_c,
+        AOC<float> &ws_gates);
+
 void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
         const float *src_iter_c_, const float *src_layer_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *bias_, float *dst_iter_,
-        float *dst_iter_c_, float *dst_layer_, float *ws_, float *gates_);
+        float *dst_iter_c_, float *dst_layer_, const AOC<float> &ws_src_layer,
+        const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates);
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
