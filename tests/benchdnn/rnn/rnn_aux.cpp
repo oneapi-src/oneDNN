@@ -385,90 +385,132 @@ float one_m_square(float x) {
 }
 
 namespace {
-// dnnl_ntc
-void inv_ntc_off_f(
-        const prb_t &p, size_t off, int64_t &n, int64_t &t, int64_t &c) {
-    c = off % p.slc;
-    off /= p.slc;
-    t = off % p.n_iter;
-    off /= p.n_iter;
-    n = off % p.mb;
-    off /= p.mb;
-    assert(off == 0);
-}
-
-// dnnl_ldnc
-void inv_ldnc_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
+void inv_tnc_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &t,
         int64_t &n, int64_t &c) {
-    c = off % p.sic;
-    off /= p.sic;
-    n = off % p.mb;
-    off /= p.mb;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-// dnnl_ldigo
-void inv_ldigo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
-        int64_t &ic, int64_t &oc) {
-    oc = off % p.sic;
-    off /= p.sic;
-    ic = off % (4 * p.slc);
-    off /= (4 * p.slc);
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off, int64_t &l,
-        int64_t &d, int64_t &b, int64_t &c) {
-    c = off % p.dhc;
-    off /= p.dhc;
-    b = off % G;
-    off /= G;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-// weights peephole: dnnl_ldgo, g = 3
-void inv_weights_peephole_ldgo_off_f(const prb_t &p, size_t off, int64_t &l,
-        int64_t &d, int64_t &b, int64_t &c) {
-    return inv_ldgo_off_with_G_f(p, 3, off, l, d, b, c);
-}
-
-// bias: dnnl_ldgo
-void inv_bias_ldgo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
-        int64_t &b, int64_t &c) {
-    return inv_ldgo_off_with_G_f(p, p.n_bias(), off, l, d, b, c);
-}
-
-// dst_layer: "abx"
-void inv_tnc_off_f(
-        const prb_t &p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
-    auto cout = p.sic * (1 + (p.direction == dnnl_bidirectional_concat));
-    c = off % cout;
-    off /= cout;
+    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? p.slc : p.dlc();
+    c = off % C;
+    off /= C;
     n = off % p.mb;
     off /= p.mb;
     t = off % p.n_iter;
     off /= p.n_iter;
     assert(off == 0);
 }
+
+void inv_ldnc_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
+        int64_t &d, int64_t &n, int64_t &c) {
+    auto C = p.dhc;
+    if (kind == SRC_ITER || kind == DIFF_SRC_ITER) C = p.sic;
+    c = off % C;
+    off /= C;
+    n = off % p.mb;
+    off /= p.mb;
+    d = off % p.n_dir();
+    off /= p.n_dir();
+    l = off % p.n_layer;
+    off /= p.n_layer;
+    assert(off == 0);
+}
+
+void inv_ldigo_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
+        int64_t &d, int64_t &ic, int64_t &g, int64_t &oc) {
+    auto IC = (kind == WEIGHTS_LAYER || kind == DIFF_WEIGHTS_LAYER) ? p.slc
+                                                                    : p.sic;
+    oc = off % p.dhc;
+    off /= p.dhc;
+    g = off % p.n_gates();
+    off /= p.n_gates();
+    ic = off % IC;
+    off /= IC;
+    d = off % p.n_dir();
+    off /= p.n_dir();
+    l = off % p.n_layer;
+    off /= p.n_layer;
+    assert(off == 0);
+}
+
+void inv_ldio_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &l,
+        int64_t &d, int64_t &ic, int64_t &oc) {
+    auto IC = (kind == BIAS || kind == DIFF_BIAS) ? p.n_gates() : 3;
+    oc = off % p.dhc;
+    off /= p.dhc;
+    ic = off % IC;
+    off /= IC;
+    d = off % p.n_dir();
+    off /= p.n_dir();
+    l = off % p.n_layer;
+    off /= p.n_layer;
+    assert(off == 0);
+}
+
+void print_value(const prb_t &p, data_kind_t kind, int64_t i, float fp,
+        float dt, float diff = 0, float rel_diff = 0,
+        bool final_compare = true) {
+    const char *skind = data_kind2str(kind);
+
+    int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0, g = 0;
+    switch (kind) {
+        case SRC_LAYER:
+        case DST_LAYER:
+        case DIFF_SRC_LAYER:
+        case DIFF_DST_LAYER:
+            inv_tnc_off_f(p, kind, i, t, n, c);
+            BENCHDNN_PRINT(0,
+                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
+                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, final_compare ? "" : "REORDER ", skind, t, n, c,
+                    fp, dt, diff, rel_diff);
+            break;
+
+        case SRC_ITER:
+        case DST_ITER:
+        case SRC_ITER_C:
+        case DST_ITER_C:
+        case DIFF_SRC_ITER:
+        case DIFF_DST_ITER:
+        case DIFF_SRC_ITER_C:
+        case DIFF_DST_ITER_C:
+            inv_ldnc_off_f(p, kind, i, l, d, n, c);
+            BENCHDNN_PRINT(0,
+                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT
+                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, final_compare ? "" : "REORDER ", skind, l, d, n, c,
+                    fp, dt, diff, rel_diff);
+            break;
+
+        case WEIGHTS_LAYER:
+        case WEIGHTS_ITER:
+        case DIFF_WEIGHTS_LAYER:
+        case DIFF_WEIGHTS_ITER:
+            inv_ldigo_off_f(p, kind, i, l, d, ic, g, oc);
+            BENCHDNN_PRINT(0,
+                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT "," IFMT
+                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, final_compare ? "" : "REORDER ", skind, l, d, ic,
+                    g, oc, fp, dt, diff, rel_diff);
+            break;
+
+        case WEIGHTS_PEEPHOLE:
+        case BIAS:
+        case DIFF_WEIGHTS_PEEPHOLE:
+        case DIFF_BIAS:
+            inv_ldio_off_f(p, kind, i, l, d, ic, oc);
+            BENCHDNN_PRINT(0,
+                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT "," IFMT
+                    "] fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
+                    (long)i, final_compare ? "" : "REORDER ", skind, l, d, ic,
+                    oc, fp, dt, diff, rel_diff);
+            break;
+
+        default: assert(!"unknown data kind");
+    }
+}
+
 } // namespace
 
 int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
-
-    const char *skind = data_kind2str(kind);
 
     diff_norm_t diff_norm;
     size_t errors = 0;
@@ -565,178 +607,14 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
 
             if (!ok) {
                 errors++;
-                if (errors < 10 || verbose >= 10) {
-                    int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0,
-                            b = 0;
-                    switch (kind) {
-                        case SRC_LAYER:
-                        case DIFF_SRC_LAYER:
-                            inv_ntc_off_f(p, i, n, t, c);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, n, t, c, fp, dt, diff, rel_diff);
-                            break;
-                        case SRC_ITER:
-                        case DIFF_SRC_ITER:
-                            inv_ldnc_off_f(p, i, l, d, n, c);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, n, c, fp, dt, diff, rel_diff);
-                            break;
-                        case WEIGHTS_LAYER:
-                        case DIFF_WEIGHTS_LAYER:
-                            inv_ldigo_off_f(p, i, l, d, ic, oc);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, ic, oc, fp, dt, diff,
-                                    rel_diff);
-                            break;
-                        case WEIGHTS_ITER:
-                        case DIFF_WEIGHTS_ITER:
-                            inv_ldigo_off_f(p, i, l, d, ic, oc);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, ic, oc, fp, dt, diff,
-                                    rel_diff);
-                            break;
-                        case WEIGHTS_PEEPHOLE:
-                        case DIFF_WEIGHTS_PEEPHOLE:
-                            inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, b, c, fp, dt, diff, rel_diff);
-                            break;
-                        case BIAS:
-                        case DIFF_BIAS:
-                            inv_bias_ldgo_off_f(p, i, l, d, b, c);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, b, c, fp, dt, diff, rel_diff);
-                            break;
-                        case DST_LAYER:
-                        case DIFF_DST_LAYER:
-                            inv_tnc_off_f(p, i, t, n, c);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, t, n, c, fp, dt, diff, rel_diff);
-                            break;
-                        case SRC_ITER_C:
-                        case DST_ITER:
-                        case DST_ITER_C:
-                        case DIFF_SRC_ITER_C:
-                        case DIFF_DST_ITER:
-                        case DIFF_DST_ITER_C:
-                            inv_ldnc_off_f(p, i, l, d, n, c);
-                            BENCHDNN_PRINT(0,
-                                    "%4ld, %s, [%s][" IFMT "," IFMT "," IFMT
-                                    "," IFMT
-                                    "] "
-                                    "fp:%8g dt:%8g diff:%8g rdiff:%8g\n",
-                                    (long)i, final_compare ? "" : "REORDER ",
-                                    skind, l, d, n, c, fp, dt, diff, rel_diff);
-                            break;
-                        default: assert(!"unknown data kind"); return FAIL;
-                    }
-                }
+                if (errors < 10 || verbose >= 10)
+                    print_value(
+                            p, kind, i, fp, dt, diff, rel_diff, final_compare);
             }
         }
-#if 1
-        /* for debug purposes only: dump the output */
-        if (final_compare && verbose >= 50) {
-            int64_t n = 0, t = 0, c = 0, l = 0, d = 0, ic = 0, oc = 0, b = 0;
 
-            switch (kind) {
-                case SRC_LAYER:
-                    inv_ntc_off_f(p, i, n, t, c);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, n, t, c, fp, dt);
-                    break;
-                case SRC_ITER:
-                    inv_ldnc_off_f(p, i, l, d, n, c);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, n, c, fp, dt);
-                    break;
-                case WEIGHTS_LAYER:
-                    inv_ldigo_off_f(p, i, l, d, ic, oc);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, ic, oc, fp, dt);
-                    break;
-                case WEIGHTS_ITER:
-                    inv_ldigo_off_f(p, i, l, d, ic, oc);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, ic, oc, fp, dt);
-                    break;
-                case WEIGHTS_PEEPHOLE:
-                    inv_weights_peephole_ldgo_off_f(p, i, l, d, b, c);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, b, c, fp, dt);
-                    break;
-                case BIAS:
-                    inv_bias_ldgo_off_f(p, i, l, d, b, c);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, b, c, fp, dt);
-                    break;
-                case DST_LAYER:
-                    inv_tnc_off_f(p, i, t, n, c);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, n, t, c, fp, dt);
-                    break;
-                case SRC_ITER_C:
-                case DST_ITER:
-                case DST_ITER_C:
-                    inv_ldnc_off_f(p, i, l, d, n, c);
-                    BENCHDNN_PRINT(0,
-                            "[%4ld][%s][" IFMT "," IFMT "," IFMT "," IFMT
-                            "] fp:%8g dt:%8g\n",
-                            (long)i, skind, l, d, n, c, fp, dt);
-                    break;
-                default:
-                    BENCHDNN_PRINT(0, "[%4ld][unknown] fp:%8g dt:%8g\n",
-                            (long)i, fp, dt);
-                    break;
-            }
-        }
-#endif
+        /* for debug purposes only: dump the output */
+        if (final_compare && verbose >= 50) print_value(p, kind, i, fp, dt);
     }
 
     diff_norm.done();
@@ -749,6 +627,7 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     }
 
     if (final_compare || errors) {
+        const char *skind = data_kind2str(kind);
         const int vl = errors ? 0 : 2;
         BENCHDNN_PRINT(vl,
                 "@@@ [%s] %sdiff: l0(``%g``) "
