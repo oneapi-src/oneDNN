@@ -341,15 +341,15 @@ struct ref_fused_convolution_fwd_t : public primitive_impl_t {
         const bool is_user_scratchpad_mode
                 = pd()->attr()->scratchpad_mode_ == scratchpad_mode::user;
 
-        memory_t user_scratchpad_mem(engine(), &user_scratchpad_md_,
-                memory_flags_t::use_runtime_ptr, NULL);
+        std::unique_ptr<memory_t> user_scratchpad_mem;
         if (is_user_scratchpad_mode) {
-            const auto buffer = scratchpad.get<void>(
+            auto buffer = scratchpad.get_memory_storage(
                     memory_tracking::names::key_fusion_forward_scratchpad);
-            user_scratchpad_mem.set_data_handle(buffer);
+            user_scratchpad_mem.reset(new memory_t(
+                    engine(), &user_scratchpad_md_, std::move(buffer), false));
         }
 
-        const auto inout_buffer = scratchpad.get<char>(
+        const auto inout_buffer = scratchpad.get_memory_storage(
                 memory_tracking::names::key_fusion_inout_buffer);
 
         const auto &ctx_args = ctx.args();
@@ -367,16 +367,19 @@ struct ref_fused_convolution_fwd_t : public primitive_impl_t {
                     exec_args[arg_info.op_arg] = ctx_args.at(arg_info.ctx_arg);
                 } else {
                     inout_memory.emplace_back(new memory_t(engine(),
-                            &arg_info.md, memory_flags_t::use_runtime_ptr,
-                            inout_buffer + arg_info.offset));
+                            &arg_info.md,
+                            inout_buffer->get_sub_storage(arg_info.offset,
+                                    memory_desc_wrapper(arg_info.md).size()),
+                            false));
                     exec_args[arg_info.op_arg].mem = inout_memory.back().get();
                     exec_args[arg_info.op_arg].is_const = arg_info.is_const;
                 }
             }
             if (is_user_scratchpad_mode)
-                exec_args[DNNL_ARG_SCRATCHPAD] = {&user_scratchpad_mem, false};
+                exec_args[DNNL_ARG_SCRATCHPAD]
+                        = {user_scratchpad_mem.get(), false};
 
-            exec_ctx_t op_ctx(ctx.stream(), std::move(exec_args));
+            exec_ctx_t op_ctx(ctx, std::move(exec_args));
             CHECK(op->execute(op_ctx));
         }
 
