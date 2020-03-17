@@ -384,6 +384,86 @@ float one_m_square(float x) {
     return 1 - x * x;
 }
 
+namespace {
+// dnnl_ntc
+void inv_ntc_off_f(
+        const prb_t &p, size_t off, int64_t &n, int64_t &t, int64_t &c) {
+    c = off % p.slc;
+    off /= p.slc;
+    t = off % p.n_iter;
+    off /= p.n_iter;
+    n = off % p.mb;
+    off /= p.mb;
+    assert(off == 0);
+}
+
+// dnnl_ldnc
+void inv_ldnc_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
+        int64_t &n, int64_t &c) {
+    c = off % p.sic;
+    off /= p.sic;
+    n = off % p.mb;
+    off /= p.mb;
+    d = off % p.n_dir();
+    off /= p.n_dir();
+    l = off % p.n_layer;
+    off /= p.n_layer;
+    assert(off == 0);
+}
+
+// dnnl_ldigo
+void inv_ldigo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
+        int64_t &ic, int64_t &oc) {
+    oc = off % p.sic;
+    off /= p.sic;
+    ic = off % (4 * p.slc);
+    off /= (4 * p.slc);
+    d = off % p.n_dir();
+    off /= p.n_dir();
+    l = off % p.n_layer;
+    off /= p.n_layer;
+    assert(off == 0);
+}
+
+void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off, int64_t &l,
+        int64_t &d, int64_t &b, int64_t &c) {
+    c = off % p.dhc;
+    off /= p.dhc;
+    b = off % G;
+    off /= G;
+    d = off % p.n_dir();
+    off /= p.n_dir();
+    l = off % p.n_layer;
+    off /= p.n_layer;
+    assert(off == 0);
+}
+
+// weights peephole: dnnl_ldgo, g = 3
+void inv_weights_peephole_ldgo_off_f(const prb_t &p, size_t off, int64_t &l,
+        int64_t &d, int64_t &b, int64_t &c) {
+    return inv_ldgo_off_with_G_f(p, 3, off, l, d, b, c);
+}
+
+// bias: dnnl_ldgo
+void inv_bias_ldgo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
+        int64_t &b, int64_t &c) {
+    return inv_ldgo_off_with_G_f(p, p.n_bias(), off, l, d, b, c);
+}
+
+// dst_layer: "abx"
+void inv_tnc_off_f(
+        const prb_t &p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
+    auto cout = p.sic * (1 + (p.direction == dnnl_bidirectional_concat));
+    c = off % cout;
+    off /= cout;
+    n = off % p.mb;
+    off /= p.mb;
+    t = off % p.n_iter;
+    off /= p.n_iter;
+    assert(off == 0);
+}
+} // namespace
+
 int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, res_t *r, bool final_compare = false) {
     const auto nelems = mem_dt.nelems();
