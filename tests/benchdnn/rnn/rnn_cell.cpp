@@ -42,8 +42,8 @@ float activation(const prb_t &p, float x, bool is_fwd = true) {
 }
 
 void rnn_fwd_postgemm(
-        const prb_t &p, const float *bias_, float *gates_, float *dst_iter_) {
-    AOC<float> dst_iter(dst_iter_, p.mb, p.n_gates(), p.wc);
+        const prb_t &p, const float *bias_, float *gates_, float *dst_layer_) {
+    AOC<float> dst_layer(dst_layer_, p.mb, p.n_gates(), p.wc);
     AOC<const float> bias(bias_, p.n_gates(), p.dhc);
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
 
@@ -52,11 +52,11 @@ void rnn_fwd_postgemm(
             for (int64_t k = 0; k < p.dhc; k++) {
                 const auto tmp = activation(p, gates(i, j, k) + bias(j, k));
                 gates(i, j, k) = tmp;
-                dst_iter(i, j, k) = tmp;
+                dst_layer(i, j, k) = tmp;
             }
 }
 
-void rnn_fwd(const prb_t &p, float *dst_iter_, float *gates_,
+void rnn_fwd(const prb_t &p, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *src_layer_, const float *src_iter_) {
     gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.slc, 1.0, src_layer_, p.wc,
@@ -65,7 +65,7 @@ void rnn_fwd(const prb_t &p, float *dst_iter_, float *gates_,
     gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.sic, 1.0, src_iter_, p.wc,
             weights_iter_, p.n_gates() * p.dhc, 1.0, gates_,
             p.n_gates() * p.dhc);
-    rnn_fwd_postgemm(p, bias_, gates_, dst_iter_);
+    rnn_fwd_postgemm(p, bias_, gates_, dst_layer_);
 }
 
 void rnn_bwd_pregemm(const prb_t &p, const float *diff_dst_layer_,

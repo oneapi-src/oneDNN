@@ -134,8 +134,8 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
         float *diff_bias, float *b_gates, const float *src_layer,
         const float *src_iter, const float *src_iter_c,
         const float *weights_layer, const float *weights_iter,
-        const float *weights_peephole, const float *bias, const float *dst_iter,
-        const float *dst_iter_c, const float *gates,
+        const float *weights_peephole, const float *bias,
+        const float *dst_layer, const float *dst_iter_c, const float *gates,
         const float *diff_dst_layer, const float *diff_dst_iter,
         const float *diff_dst_iter_c, float *cell_scratchpad_) {
 
@@ -145,7 +145,7 @@ void rnn_cell_bwd(const prb_t &p, float *diff_src_layer, float *diff_src_iter,
                     diff_weights_layer, diff_weights_iter,
                     diff_weights_peephole, diff_bias, b_gates, src_layer,
                     src_iter, src_iter_c, weights_layer, weights_iter,
-                    weights_peephole, bias, dst_iter, dst_iter_c, gates,
+                    weights_peephole, bias, dst_layer, dst_iter_c, gates,
                     diff_dst_layer, diff_dst_iter, diff_dst_iter_c);
             break;
         case VANILLA_RNN:

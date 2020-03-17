@@ -28,12 +28,12 @@ namespace rnn {
 template <typename T1, typename T2>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
         float *gates_, const float *weights_peephole_, const float *bias_,
-        const float *src_iter_c_, float *dst_iter_, float *dst_iter_c_) {
+        const float *src_iter_c_, float *dst_layer_, float *dst_iter_c_) {
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
     AOC<const float> weights_peephole(weights_peephole_, 3, p.dhc);
     AOC<const float> bias(bias_, p.n_gates(), p.dhc);
     AOC<const float> src_iter_c(src_iter_c_, p.mb, p.wc);
-    AOC<float> dst_iter(dst_iter_, p.mb, p.wc);
+    AOC<float> dst_layer(dst_layer_, p.mb, p.wc);
     AOC<float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
 
     auto maybe_deq_w = [&](float g, int64_t oc) {
@@ -89,7 +89,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
                     maybe_deq_w(gates(ib, LSTM_O, ih), LSTM_O * p.dhc + ih)
                             + peephole_extra_o + bias(LSTM_O, ih));
 
-            dst_iter(ib, ih) = maybe_q_d(
+            dst_layer(ib, ih) = maybe_q_d(
                     gates(ib, LSTM_O, ih) * func2(p.linear_cscale, tmp));
 
             for (int64_t ig = 0; ig < 4; ig++) {
@@ -98,27 +98,27 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
                         ib, ig, ih, gates(ib, ig, ih));
             }
             BENCHDNN_PRINT(80, "recomp tmp(%a) cin(%a) ht(%a)\n", tmp,
-                    src_iter_c(ib, ih), dst_iter(ib, ih));
+                    src_iter_c(ib, ih), dst_layer(ib, ih));
         }
     });
 }
 
 void lstm_fwd_postgemm(const prb_t &p, float *gates_,
         const float *weights_peephole_, const float *bias_,
-        const float *src_iter_c_, float *dst_iter_, float *dst_iter_c_) {
+        const float *src_iter_c_, float *dst_layer_, float *dst_iter_c_) {
     if (p.skip_nonlinear)
         lstm_fwd_postgemm_template(
                 [](float scale, float val) { return scale * val; },
                 [](float scale, float val) { return scale * val; }, p, gates_,
-                weights_peephole_, bias_, src_iter_c_, dst_iter_, dst_iter_c_);
+                weights_peephole_, bias_, src_iter_c_, dst_layer_, dst_iter_c_);
     else
         lstm_fwd_postgemm_template(
                 [](float scale, float val) { return logistic(val); },
                 [](float scale, float val) { return tanhf(val); }, p, gates_,
-                weights_peephole_, bias_, src_iter_c_, dst_iter_, dst_iter_c_);
+                weights_peephole_, bias_, src_iter_c_, dst_layer_, dst_iter_c_);
 }
 
-void lstm_fwd(const prb_t &p, float *dst_iter_, float *dst_iter_c_,
+void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_c_,
         float *gates_, const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *bias_,
         const float *src_layer_, const float *src_iter_,
@@ -132,7 +132,7 @@ void lstm_fwd(const prb_t &p, float *dst_iter_, float *dst_iter_c_,
             p.n_gates() * p.dhc);
 
     lstm_fwd_postgemm(p, gates_, weights_peephole_, bias_, src_iter_c_,
-            dst_iter_, dst_iter_c_);
+            dst_layer_, dst_iter_c_);
 }
 
 template <typename T1>
@@ -239,7 +239,7 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         const float *src_iter_, const float *src_iter_c_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *bias_,
-        const float *dst_iter_, const float *dst_iter_c_, const float *gates_,
+        const float *dst_layer_, const float *dst_iter_c_, const float *gates_,
         const float *diff_dst_layer_, const float *diff_dst_iter_,
         const float *diff_dst_iter_c_) {
     lstm_bwd_pregemm(p, src_iter_c_, dst_iter_c_, weights_peephole_,

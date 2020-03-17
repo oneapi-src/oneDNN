@@ -27,10 +27,10 @@ namespace rnn {
 
 template <typename T>
 void gru_fwd_postgemm_part1_template(T func1, const prb_t &p, float *gates_,
-        const float *src_iter_, const float *bias_, float *dst_iter_) {
+        const float *src_iter_, const float *bias_, float *dst_layer_) {
     AOC<const float> bias(bias_, p.n_gates(), p.dhc);
     AOC<const float> src_iter(src_iter_, p.mb, p.wc);
-    AOC<float> dst_iter(dst_iter_, p.mb, p.wc);
+    AOC<float> dst_layer(dst_layer_, p.mb, p.wc);
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
 
     for (int64_t i = 0; i < p.mb; i++)
@@ -39,53 +39,53 @@ void gru_fwd_postgemm_part1_template(T func1, const prb_t &p, float *gates_,
                     gates(i, GRU_U, k) + bias(GRU_U, k));
             gates(i, GRU_R, k) = func1(p.linear_scales[GRU_R],
                     gates(i, GRU_R, k) + bias(GRU_R, k));
-            dst_iter(i, k) = src_iter(i, k) * gates(i, GRU_R, k);
+            dst_layer(i, k) = src_iter(i, k) * gates(i, GRU_R, k);
         }
 }
 
 void gru_fwd_postgemm_part1(const prb_t &p, float *gates_,
-        const float *src_iter_, const float *bias_, float *dst_iter_) {
+        const float *src_iter_, const float *bias_, float *dst_layer_) {
     if (p.skip_nonlinear)
         gru_fwd_postgemm_part1_template(
                 [](float scale, float a) { return scale * a; }, p, gates_,
-                src_iter_, bias_, dst_iter_);
+                src_iter_, bias_, dst_layer_);
     else
         gru_fwd_postgemm_part1_template(
                 [](float scale, float a) { return logistic(a); }, p, gates_,
-                src_iter_, bias_, dst_iter_);
+                src_iter_, bias_, dst_layer_);
 }
 
 template <typename T>
 void gru_fwd_postgemm_part2_template(T func1, const prb_t &p, float *gates_,
-        const float *src_iter_, const float *bias_, float *dst_iter_) {
+        const float *src_iter_, const float *bias_, float *dst_layer_) {
     AOC<const float> bias(bias_, p.n_gates(), p.dhc);
     AOC<const float> src_iter(src_iter_, p.mb, p.wc);
-    AOC<float> dst_iter(dst_iter_, p.mb, p.wc);
+    AOC<float> dst_layer(dst_layer_, p.mb, p.wc);
     AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
     for (int64_t i = 0; i < p.mb; i++)
         for (int64_t k = 0; k < p.dhc; k++) {
             double U = gates(i, GRU_U, k);
             double O = func1(p.linear_scales[GRU_O],
                     gates(i, GRU_O, k) + bias(GRU_O, k));
-            dst_iter(i, k) = (float)(U * src_iter(i, k) + (1.0 - U) * O);
+            dst_layer(i, k) = (float)(U * src_iter(i, k) + (1.0 - U) * O);
 
             gates(i, GRU_O, k) = O;
         }
 }
 
 void gru_fwd_postgemm_part2(const prb_t &p, float *gates_,
-        const float *src_iter_, const float *bias_, float *dst_iter_) {
+        const float *src_iter_, const float *bias_, float *dst_layer_) {
     if (p.skip_nonlinear)
         gru_fwd_postgemm_part2_template(
                 [](float scale, float a) { return scale * a; }, p, gates_,
-                src_iter_, bias_, dst_iter_);
+                src_iter_, bias_, dst_layer_);
     else
         gru_fwd_postgemm_part2_template(
                 [](float scale, float a) { return tanhf(a); }, p, gates_,
-                src_iter_, bias_, dst_iter_);
+                src_iter_, bias_, dst_layer_);
 }
 
-void gru_fwd(const prb_t &p, float *dst_iter_, float *gates_,
+void gru_fwd(const prb_t &p, float *dst_layer_, float *gates_,
         const float *weights_layer_, const float *weights_iter_,
         const float *bias_, const float *src_layer_, const float *src_iter_) {
     AOC<const float> weights_iter(weights_iter_, p.sic, p.n_gates(), p.dhc);
@@ -98,13 +98,13 @@ void gru_fwd(const prb_t &p, float *dst_iter_, float *gates_,
             p.wc, weights_iter_, p.n_gates() * p.dhc, 1.0, gates_,
             p.n_gates() * p.dhc);
 
-    gru_fwd_postgemm_part1(p, gates_, src_iter_, bias_, dst_iter_);
+    gru_fwd_postgemm_part1(p, gates_, src_iter_, bias_, dst_layer_);
 
-    gemm("C", "N", "N", p.mb, p.dhc, p.sic, 1.0, dst_iter_, p.wc,
+    gemm("C", "N", "N", p.mb, p.dhc, p.sic, 1.0, dst_layer_, p.wc,
             &(weights_iter(0, GRU_O, 0)), p.n_gates() * p.dhc, 1.0,
             &(gates(0, GRU_O, 0)), p.n_gates() * p.dhc);
 
-    gru_fwd_postgemm_part2(p, gates_, src_iter_, bias_, dst_iter_);
+    gru_fwd_postgemm_part2(p, gates_, src_iter_, bias_, dst_layer_);
 }
 
 void gru_bwd_pregemm_part1(const prb_t &p, const float *src_iter_,

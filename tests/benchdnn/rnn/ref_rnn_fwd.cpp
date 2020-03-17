@@ -179,27 +179,27 @@ void copy_res_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
 /*************************** Computation Routines *****************************/
 /******************************************************************************/
 
-void rnn_cell_fwd(const prb_t &p, float *dst_iter, float *dst_iter_c,
+void rnn_cell_fwd(const prb_t &p, float *dst_layer, float *dst_iter_c,
         float *gates, const float *weights_layer, const float *weights_iter,
         const float *weights_peephole, const float *bias,
         const float *src_layer, const float *src_iter, const float *src_iter_c,
         float *cell_scratchpad_) {
     switch (p.alg) {
         case VANILLA_GRU:
-            gru_fwd(p, dst_iter, gates, weights_layer, weights_iter, bias,
+            gru_fwd(p, dst_layer, gates, weights_layer, weights_iter, bias,
                     src_layer, src_iter);
             break;
         case LBR_GRU:
-            lbr_gru_fwd(p, dst_iter, gates, weights_layer, weights_iter, bias,
+            lbr_gru_fwd(p, dst_layer, gates, weights_layer, weights_iter, bias,
                     src_layer, src_iter, cell_scratchpad_);
             break;
         case VANILLA_LSTM:
-            lstm_fwd(p, dst_iter, dst_iter_c, gates, weights_layer,
+            lstm_fwd(p, dst_layer, dst_iter_c, gates, weights_layer,
                     weights_iter, weights_peephole, bias, src_layer, src_iter,
                     src_iter_c);
             break;
         case VANILLA_RNN:
-            rnn_fwd(p, dst_iter, gates, weights_layer, weights_iter, bias,
+            rnn_fwd(p, dst_layer, gates, weights_layer, weights_iter, bias,
                     src_layer, src_iter);
             break;
         default: break;
