@@ -174,6 +174,8 @@ enum {
     key_conv_wei_reduction,
     key_conv_wei_bia_reduction,
     key_conv_wei_bia_reduction_bctx,
+    key_eltwise_diff_dst,
+    key_eltwise_src,
     key_fusion_forward_scratchpad,
     key_fusion_inout_buffer,
     key_iprod_bias_bf16_convert_wsp,
