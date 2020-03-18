@@ -309,8 +309,10 @@ struct bnorm_conf_t {
 
     int ndims;
     int mb, ic, mb_block, ic_block;
-    int reduce_stat_nblocks;
     int id, ih, iw;
+    int nn, sp, sp_tail, vect_size;
+    int stat_sp_nblocks, stat_sp_tail, stat_sp_block;
+    int reduce_stat_nblocks;
     bool with_relu, use_16mb_unroll, use_nhwc;
     bool is_forward, is_backward;
     bool use_scaleshift, save_stats, is_training;

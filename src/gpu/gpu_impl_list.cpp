@@ -22,6 +22,7 @@
 #include "gpu/ocl/gemm_inner_product.hpp"
 #include "gpu/ocl/gemm_matmul.hpp"
 #include "gpu/ocl/gemm_x8s8s32x_inner_product.hpp"
+#include "gpu/ocl/gen9_batch_normalization.hpp"
 #include "gpu/ocl/gen9_convolution.hpp"
 #include "gpu/ocl/ref_batch_normalization.hpp"
 #include "gpu/ocl/ref_binary.hpp"
@@ -66,6 +67,7 @@ static const pd_create_f gpu_impl_list[] = {
         INSTANCE(ocl::ref_convolution_bwd_weights_t),
 
         // Batch Normalization
+        INSTANCE(ocl::gen9_batch_normalization_fwd_t),
         INSTANCE(ocl::ref_batch_normalization_fwd_t),
         INSTANCE(ocl::ref_batch_normalization_bwd_t),
 
