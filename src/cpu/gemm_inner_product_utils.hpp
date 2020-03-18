@@ -20,10 +20,10 @@
 #include "c_types_map.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_inner_product_pd.hpp"
+#include "eltwise/jit_uni_eltwise_injector.hpp"
+#include "eltwise/ref_eltwise.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
-#include "jit_uni_eltwise_injector.hpp"
-#include "ref_eltwise.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 

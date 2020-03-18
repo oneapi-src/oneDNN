@@ -20,9 +20,9 @@
 #include "utils.hpp"
 
 #include "bfloat16.hpp"
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_uni_eltwise.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 
 #define GET_OFF(field) offsetof(jit_args, field)
 

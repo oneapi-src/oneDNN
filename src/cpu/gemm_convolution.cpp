@@ -18,8 +18,8 @@
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
+#include "eltwise/ref_eltwise.hpp"
 #include "gemm_convolution.hpp"
-#include "ref_eltwise.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 

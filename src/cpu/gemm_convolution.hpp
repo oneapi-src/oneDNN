@@ -20,9 +20,9 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
+#include "eltwise/ref_eltwise.hpp"
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
-#include "ref_eltwise.hpp"
 
 #include "cpu_convolution_pd.hpp"
 

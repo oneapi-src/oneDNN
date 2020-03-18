@@ -27,7 +27,7 @@
 #include "cpu_matmul_pd.hpp"
 
 #include "cpu_isa_traits.hpp"
-#include "ref_eltwise.hpp"
+#include "eltwise/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {

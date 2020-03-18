@@ -23,8 +23,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 
 #include "jit_uni_i8i8_binary.hpp"
 

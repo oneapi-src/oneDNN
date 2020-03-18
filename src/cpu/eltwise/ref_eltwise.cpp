@@ -21,7 +21,7 @@
 #include "math_utils.hpp"
 #include "type_helpers.hpp"
 
-#include "ref_eltwise.hpp"
+#include "eltwise/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {

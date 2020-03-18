@@ -23,9 +23,9 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 
 #include "jit_uni_binary.hpp"
 
