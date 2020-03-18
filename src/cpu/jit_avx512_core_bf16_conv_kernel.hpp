@@ -20,10 +20,10 @@
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {

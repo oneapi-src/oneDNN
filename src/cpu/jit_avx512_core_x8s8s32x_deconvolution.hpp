@@ -25,9 +25,9 @@
 #include "utils.hpp"
 
 #include "cpu_deconvolution_pd.hpp"
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {

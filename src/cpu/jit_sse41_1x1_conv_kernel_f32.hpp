@@ -18,9 +18,9 @@
 #define JIT_SSE41_1X1_CONV_KERNEL_F32_HPP
 
 #include "c_types_map.hpp"
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 #include "memory.hpp"
 
 namespace dnnl {

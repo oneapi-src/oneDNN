@@ -23,10 +23,10 @@
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_reducer.hpp"
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {

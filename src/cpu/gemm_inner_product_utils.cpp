@@ -16,7 +16,7 @@
 
 #include "gemm_inner_product_utils.hpp"
 #include "dnnl_thread.hpp"
-#include "jit_uni_eltwise_injector.hpp"
+#include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "math_utils.hpp"
 #include "simple_q10n.hpp"
 
