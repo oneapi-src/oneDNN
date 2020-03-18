@@ -17,6 +17,7 @@
 #include "cpu_engine.hpp"
 
 #include "cpu/eltwise/jit_uni_eltwise.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_int.hpp"
 #include "cpu/eltwise/ref_eltwise.hpp"
 
 namespace dnnl {
@@ -31,19 +32,19 @@ using namespace dnnl::impl::data_type;
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f impl_list[] = {
         INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, f32>),
-        INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, s32>),
-        INSTANCE(jit_uni_eltwise_fwd_t<avx512_common, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx512_common, f32>),
         INSTANCE(jit_uni_eltwise_fwd_t<avx512_core, bf16>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx512_core, bf16>),
         INSTANCE(jit_uni_eltwise_fwd_t<avx2, f32>),
-        INSTANCE(jit_uni_eltwise_fwd_t<avx2, s32>),
-        INSTANCE(jit_uni_eltwise_fwd_t<avx2, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<avx2, f32>),
         INSTANCE(jit_uni_eltwise_fwd_t<sse41, f32>),
-        INSTANCE(jit_uni_eltwise_fwd_t<sse41, s32>),
-        INSTANCE(jit_uni_eltwise_fwd_t<sse41, s8>),
         INSTANCE(jit_uni_eltwise_bwd_t<sse41, f32>),
+        INSTANCE(jit_uni_eltwise_int_fwd_t<avx512_common, s32>),
+        INSTANCE(jit_uni_eltwise_int_fwd_t<avx512_common, s8>),
+        INSTANCE(jit_uni_eltwise_int_fwd_t<avx2, s32>),
+        INSTANCE(jit_uni_eltwise_int_fwd_t<avx2, s8>),
+        INSTANCE(jit_uni_eltwise_int_fwd_t<sse41, s32>),
+        INSTANCE(jit_uni_eltwise_int_fwd_t<sse41, s8>),
         INSTANCE(ref_eltwise_fwd_t<f32>),
         INSTANCE(ref_eltwise_bwd_t<f32>),
         INSTANCE(ref_eltwise_fwd_t<bf16>),
