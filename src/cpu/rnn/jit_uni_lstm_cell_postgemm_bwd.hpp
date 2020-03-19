@@ -154,10 +154,12 @@ protected:
             tanh_injector_->compute_vector(tanhCt.getIdx());
 
             // compute dHt
-            uni_vmovups(dHt, ptr[addr_diff_states_tp1_l_reg]);
             // assumption: the diff_states_t_lp1 address is already offset by rnn.n_states
-            uni_vmovups(tmp1, ptr[addr_diff_states_t_lp1_reg]);
-            uni_vaddps(dHt, dHt, tmp1);
+            uni_vmovups(dHt, ptr[addr_diff_states_t_lp1_reg]);
+            if (!rnn_.is_lstm_projection) {
+                uni_vmovups(tmp1, ptr[addr_diff_states_tp1_l_reg]);
+                uni_vaddps(dHt, dHt, tmp1);
+            }
 
             // compute dCt
             uni_vmovups(tmp1, one_vmm);
@@ -257,10 +259,12 @@ protected:
             tanh_injector_->compute_vector(tanhCt.getIdx());
 
             // compute dHt
-            uni_vmovss(dHt, ptr[addr_diff_states_tp1_l_reg]);
             // assumption: the diff_states_t_lp1 address is already offset by rnn.n_states
-            uni_vmovss(tmp1, ptr[addr_diff_states_t_lp1_reg]);
-            uni_vaddss(dHt, dHt, tmp1);
+            uni_vmovss(dHt, ptr[addr_diff_states_t_lp1_reg]);
+            if (!rnn_.is_lstm_projection) {
+                uni_vmovss(tmp1, ptr[addr_diff_states_tp1_l_reg]);
+                uni_vaddss(dHt, dHt, tmp1);
+            }
 
             // compute dCt
             uni_vmovss(tmp1, one_xmm);

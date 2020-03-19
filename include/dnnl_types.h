@@ -1500,12 +1500,14 @@ typedef struct {
     dnnl_memory_desc_t dst_iter_desc;
     /// Destination iter memory descriptor for cell state.
     dnnl_memory_desc_t dst_iter_c_desc;
-    /// Weights peephole memory descriptor
+    /// Weights peephole memory descriptor.
     /// This memory descriptor is equal to zero memory descriptor in case of
     /// non-peephole LSTMs and other non-LSTM RNNs.
     dnnl_memory_desc_t weights_peephole_desc;
-    /// Placeholders
-    dnnl_memory_desc_t placeholder_desc;
+    /// Weights projection memory descriptor.
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-projection LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t weights_projection_desc;
 
     /// Source gradient layer memory descriptor.
     dnnl_memory_desc_t diff_src_layer_desc;
@@ -1525,12 +1527,14 @@ typedef struct {
     dnnl_memory_desc_t diff_dst_iter_desc;
     /// Destination gradient iteration memory descriptor for cell state.
     dnnl_memory_desc_t diff_dst_iter_c_desc;
-    /// Weights gradient peephole memory descriptor
+    /// Weights gradient peephole memory descriptor.
     /// This memory descriptor is equal to zero memory descriptor in case of
     /// non-peephole LSTMs and other non-LSTM RNNs.
     dnnl_memory_desc_t diff_weights_peephole_desc;
-    /// Placeholders
-    dnnl_memory_desc_t diff_placeholder_desc;
+    /// Weights gradient projection memory descriptor.
+    /// This memory descriptor is equal to zero memory descriptor in case of
+    /// non-projection LSTMs and other non-LSTM RNNs.
+    dnnl_memory_desc_t diff_weights_projection_desc;
 
     /// RNN cell flags
     unsigned int flags;
@@ -1829,6 +1833,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// An alias for #DNNL_ARG_WEIGHTS_2.
 #define DNNL_ARG_WEIGHTS_PEEPHOLE DNNL_ARG_WEIGHTS_2
 
+/// Weights argument #3.
+#define DNNL_ARG_WEIGHTS_3 36
+/// A special mnemonic for RNN weights applied to the projection weights.
+/// An alias for #DNNL_ARG_WEIGHTS_3.
+#define DNNL_ARG_WEIGHTS_PROJECTION DNNL_ARG_WEIGHTS_3
+
 /// Bias tensor argument.
 #define DNNL_ARG_BIAS 41
 
@@ -1908,6 +1918,12 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 /// A special mnemonic for diff of RNN weights applied to the peephole weights.
 /// An alias for #DNNL_ARG_DIFF_WEIGHTS_2.
 #define DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE DNNL_ARG_DIFF_WEIGHTS_2
+
+/// Gradient (diff) of the weights argument #3.
+#define DNNL_ARG_DIFF_WEIGHTS_3 164
+/// A special mnemonic for diff of RNN weights applied to the projection
+/// weights. An alias for #DNNL_ARG_DIFF_WEIGHTS_3.
+#define DNNL_ARG_DIFF_WEIGHTS_PROJECTION DNNL_ARG_DIFF_WEIGHTS_3
 
 /// Gradient (diff) of the bias tensor argument.
 #define DNNL_ARG_DIFF_BIAS 169

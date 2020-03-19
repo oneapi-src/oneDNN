@@ -2561,6 +2561,8 @@ dnnl_status_t DNNL_API dnnl_vanilla_rnn_backward_desc_init(
 ///
 /// @sa dnnl_lstm_forward_desc_init_v2 to initialize forward LSTM with and
 ///     without peephole
+/// @sa dnnl_lstm_forward_desc_init_v3 to initialize forward LSTM with and
+///     without peephole / recurrent projection layer
 ///
 /// Inputs:
 ///  - `src_layer` (#dnnl_query_src_md, `0`)
@@ -2627,6 +2629,9 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///     All memory descriptors can be initialized with #dnnl_format_tag_any or
 ///     with format_kind set to #dnnl_format_kind_any.
 ///
+/// @sa dnnl_lstm_forward_desc_init_v3 to initialize forward LSTM with and
+///     without peephole / recurrent projection layer
+///
 /// Inputs:
 ///  - `src_layer` (#dnnl_query_src_md, `0`)
 ///  - `src_iter` (#dnnl_query_src_md, `1`), if used
@@ -2684,6 +2689,89 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
         const dnnl_memory_desc_t *dst_iter_desc,
         const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
 
+/// Initializes a descriptor for an LSTM (with or without peephole and with
+/// or without recurrent projection layer) forward propagation primitive.
+///
+/// The @p src_iter_desc, @p src_iter_c_desc, @p weights_peephole_desc, @p
+/// bias_desc, @p dst_iter_desc, and @p dst_iter_c_desc may either be @c NULL
+/// or point to a zero memory descriptor. This would then indicate that the
+/// LSTM forward propagation primitive should not use them and should default
+/// to zero values instead.
+///
+/// The @p weights_projection_desc could either be @c NULL or point to a zero
+/// memory descriptor. This would then indicate that the LSTM doesn't have
+/// recurrent projection layer.
+///
+/// @note
+///     All memory descriptors can be initialized with #dnnl_format_tag_any or
+///     with format_kind set to #dnnl_format_kind_any.
+///
+/// Inputs:
+///  - src_layer (#dnnl_query_src_md, 0)
+///  - src_iter (#dnnl_query_src_md, 1), if used
+///  - src_iter_c (#dnnl_query_src_md, 2), if used
+///  - weights_layer (#dnnl_query_weights_md, 0)
+///  - weights_iter (#dnnl_query_weights_md, 1)
+///  - weights_peephole (#dnnl_query_weights_md, 2), if used
+///  - weights_projection (#dnnl_query_weights_md, index), if used and index is:
+///    - 2, if there is no weights_peephole
+///    - 3, otherwise
+///  - bias (#dnnl_query_weights_md, index), if used and index is:
+///    - 2, if neither weights_peephole nor weights_projection is used
+///    - 3, if one of weights_peephole or weights_projection is used
+///    - 4, if both weights_peephole and weights_projection are used
+///
+/// Outputs:
+///  - dst_layer (#dnnl_query_dst_md, 0)
+///  - dst_iter (#dnnl_query_dst_md, 1), if used
+///  - dst_iter_c (#dnnl_query_dst_md, 2), if used
+///  - workspace (#dnnl_query_workspace_md, 0),
+///     if @p prop_kind equals #dnnl_forward_training; must be queried for
+///     using @ref dnnl_primitive_desc_query_md() after a corresponding
+///     primitive descriptor is created
+///
+/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param prop_kind Propagation kind. Possible values are
+///     #dnnl_forward_training and #dnnl_forward_inference.
+/// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
+///     info.
+/// @param src_layer_desc Memory descriptor for the input vector.
+/// @param src_iter_desc Memory descriptor for the input recurrent hidden
+///     state vector.
+/// @param src_iter_c_desc Memory descriptor for the input recurrent cell
+///     state vector.
+/// @param weights_layer_desc Memory descriptor for the weights applied to the
+///     layer input.
+/// @param weights_iter_desc Memory descriptor for the weights applied to the
+///     recurrent input.
+/// @param weights_peephole_desc Memory descriptor for the weights applied to
+///     the cell states (according to the Peephole LSTM formula).
+/// @param weights_projection_desc Memory descriptor for the weights applied to
+///     the hidden states to get the recurrent projection (according to the
+///     Projection LSTM formula).
+/// @param bias_desc Bias memory descriptor.
+/// @param dst_layer_desc Memory descriptor for the output vector.
+/// @param dst_iter_desc Memory descriptor for the output recurrent hidden
+///     state vector.
+/// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
+///     state vector.
+/// @param flags Unused.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v3(dnnl_rnn_desc_t *rnn_desc,
+        dnnl_prop_kind_t prop_kind, dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *weights_peephole_desc,
+        const dnnl_memory_desc_t *weights_projection_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc, unsigned flags);
+
 /// Initializes a descriptor for an LSTM backward propagation primitive.
 ///
 /// The @p src_iter_desc together with @p diff_iter_desc, @p src_iter_c_desc
@@ -2700,6 +2788,8 @@ dnnl_status_t DNNL_API dnnl_lstm_forward_desc_init_v2(dnnl_rnn_desc_t *rnn_desc,
 ///
 /// @sa dnnl_lstm_backward_desc_init_v2 to initialize backward LSTM with and
 ///     without peephole
+/// @sa dnnl_lstm_backward_desc_init_v3 to initialize backward LSTM with and
+///     without peephole / recurrent projection layer
 ///
 /// Inputs:
 ///  - `src_layer` (#dnnl_query_src_md, `0`)
@@ -2799,6 +2889,9 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init(dnnl_rnn_desc_t *rnn_desc,
 ///     All memory descriptors can be initialized with #dnnl_format_tag_any or
 ///     with format_kind set to #dnnl_format_kind_any.
 ///
+/// @sa dnnl_lstm_backward_desc_init_v3 to initialize backward LSTM with and
+///     without peephole / recurrent projection layer
+///
 /// Inputs:
 ///  - `src_layer` (#dnnl_query_src_md, `0`)
 ///  - `src_iter` (#dnnl_query_src_md, `1`), if used
@@ -2889,6 +2982,139 @@ dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v2(
         const dnnl_memory_desc_t *diff_weights_layer_desc,
         const dnnl_memory_desc_t *diff_weights_iter_desc,
         const dnnl_memory_desc_t *diff_weights_peephole_desc,
+        const dnnl_memory_desc_t *diff_bias_desc,
+        const dnnl_memory_desc_t *diff_dst_layer_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_desc,
+        const dnnl_memory_desc_t *diff_dst_iter_c_desc, unsigned flags);
+
+/// Initializes a descriptor for an LSTM (with or without peephole and with or
+/// with out recurrent projection layer) backward propagation primitive.
+///
+/// The @p src_iter_desc together with @p diff_iter_desc, @p src_iter_c_desc
+/// together with @p diff_src_iter_c_desc, @p weights_peephole_desc together
+/// with @p diff_weights_peephole_desc, @p bias_desc together with @p
+/// diff_bias_desc, @p dst_iter_desc together with @p diff_dst_iter_desc, and
+/// @p dst_iter_c_desc together with @p diff_dst_iter_c_desc, may either be @c
+/// NULL or point to a zero memory descriptor. This would then indicate that
+/// the LSTM backward propagation primitive should not use them and should
+/// default to zero values instead.
+///
+/// The @p weights_projection_desc together with @p
+/// diff_weights_projection_desc could either be @c NULL or point to a zero
+/// memory descriptor. This would then indicate that the LSTM doesn't have
+/// recurrent projection layer.
+///
+/// @note
+///     All memory descriptors can be initialized with #dnnl_format_tag_any or
+///     with format_kind set to #dnnl_format_kind_any.
+///
+/// Inputs:
+///  - src_layer (#dnnl_query_src_md, 0)
+///  - src_iter (#dnnl_query_src_md, 1), if used
+///  - src_iter_c (#dnnl_query_src_md, 2), if used
+///  - weights_layer (#dnnl_query_weights_md, 0)
+///  - weights_iter (#dnnl_query_weights_md, 1)
+///  - weights_peephole (#dnnl_query_weights_md, 2), if used
+///  - weights_projection (#dnnl_query_weights_md, index), if used and index is:
+///    - 2, if there is no weights_peephole
+///    - 3, otherwise
+///  - bias (#dnnl_query_weights_md, index), if used and index is:
+///    - 2, if neither weights_peephole nor weights_projection is used
+///    - 3, if one of weights_peephole or weights_projection is used
+///    - 4, if both weights_peephole and weights_projection are used
+///  - dst_layer (#dnnl_query_dst_md, 0)
+///  - dst_iter (#dnnl_query_dst_md, 1), if used
+///  - dst_iter_c (#dnnl_query_dst_md, 2), if used
+///  - diff_dst_layer (#dnnl_query_diff_dst_md, 0)
+///  - diff_dst_iter (#dnnl_query_diff_dst_md, 1), if used
+///  - diff_dst_iter_c (#dnnl_query_diff_dst_md, 2), if used
+///  - workspace (#dnnl_query_workspace_md, 0)
+///
+/// Outputs:
+///  - diff_src_layer (#dnnl_query_diff_src_md, 0)
+///  - diff_src_iter (#dnnl_query_diff_src_md, 1), if used
+///  - diff_src_iter_c (#dnnl_query_diff_src_md, 2), if used
+///  - diff_weights_layer (#dnnl_query_diff_weights_md, 0)
+///  - diff_weights_iter (#dnnl_query_diff_weights_md, 1)
+///  - diff_weights_peephole (#dnnl_query_weights_md, 2), if used
+///  - diff_weights_projection (#dnnl_query_weights_md, index), if used and
+///    index is:
+///    - 2, if there is no diff_weights_peephole
+///    - 3, otherwise
+///  - diff_bias (#dnnl_query_diff_weights_md, index), if used and index is:
+///    - 2, if neither diff_weights_peephole nor diff_weights_projection is used
+///    - 3, if one of diff_weights_peephole or diff_weights_projection is used
+///    - 4, if both diff_weights_peephole and diff_weights_projection are used
+///
+/// @param rnn_desc Output descriptor for LSTM primitive.
+/// @param prop_kind Propagation kind. Must be #dnnl_backward.
+/// @param direction RNN direction. See @ref dnnl_rnn_direction_t for more
+///     info.
+/// @param src_layer_desc Memory descriptor for the input vector.
+/// @param src_iter_desc Memory descriptor for the input recurrent hidden
+///     state vector.
+/// @param src_iter_c_desc Memory descriptor for the input recurrent cell
+///     state vector.
+/// @param weights_layer_desc Memory descriptor for the weights applied to the
+///     layer input.
+/// @param weights_iter_desc Memory descriptor for the weights applied to the
+///     recurrent input.
+/// @param weights_peephole_desc Memory descriptor for the weights applied to
+///     the cell states (according to the Peephole LSTM formula).
+/// @param weights_projection_desc Memory descriptor for the weights applied to
+///     the hidden states to get the recurrent projection (according to the
+///     Projection LSTM formula).
+/// @param bias_desc Bias memory descriptor.
+/// @param dst_layer_desc Memory descriptor for the output vector.
+/// @param dst_iter_desc Memory descriptor for the output recurrent hidden
+///     state vector.
+/// @param dst_iter_c_desc Memory descriptor for the output recurrent cell
+///     state vector.
+/// @param diff_src_layer_desc Memory descriptor for the diff of input vector.
+/// @param diff_src_iter_desc Memory descriptor for the diff of input recurrent
+///     hidden state vector.
+/// @param diff_src_iter_c_desc Memory descriptor for the diff of input
+/// recurrent cell state vector.
+/// @param diff_weights_layer_desc Memory descriptor for the diff of weights
+///     applied to the layer input.
+/// @param diff_weights_iter_desc Memory descriptor for the diff of weights
+///     applied to the recurrent input.
+/// @param diff_weights_peephole_desc Memory descriptor for the diff of weights
+///     applied to the cell states (according to the Peephole LSTM formula).
+/// @param diff_weights_projection_desc Memory descriptor for the diff of
+///     weights applied to the hidden states to get the recurrent projection
+///     (according to the Projection LSTM formula).
+/// @param diff_bias_desc Diff bias memory descriptor.
+/// @param diff_dst_layer_desc Memory descriptor for the diff of output
+///     vector.
+/// @param diff_dst_iter_desc Memory descriptor for the diff of output
+///     recurrent hidden state vector.
+/// @param diff_dst_iter_c_desc Memory descriptor for the diff of output
+///     recurrent cell state vector.
+/// @param flags Unused.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_lstm_backward_desc_init_v3(
+        dnnl_rnn_desc_t *rnn_desc, dnnl_prop_kind_t prop_kind,
+        dnnl_rnn_direction_t direction,
+        const dnnl_memory_desc_t *src_layer_desc,
+        const dnnl_memory_desc_t *src_iter_desc,
+        const dnnl_memory_desc_t *src_iter_c_desc,
+        const dnnl_memory_desc_t *weights_layer_desc,
+        const dnnl_memory_desc_t *weights_iter_desc,
+        const dnnl_memory_desc_t *weights_peephole_desc,
+        const dnnl_memory_desc_t *weights_projection_desc,
+        const dnnl_memory_desc_t *bias_desc,
+        const dnnl_memory_desc_t *dst_layer_desc,
+        const dnnl_memory_desc_t *dst_iter_desc,
+        const dnnl_memory_desc_t *dst_iter_c_desc,
+        const dnnl_memory_desc_t *diff_src_layer_desc,
+        const dnnl_memory_desc_t *diff_src_iter_desc,
+        const dnnl_memory_desc_t *diff_src_iter_c_desc,
+        const dnnl_memory_desc_t *diff_weights_layer_desc,
+        const dnnl_memory_desc_t *diff_weights_iter_desc,
+        const dnnl_memory_desc_t *diff_weights_peephole_desc,
+        const dnnl_memory_desc_t *diff_weights_projection_desc,
         const dnnl_memory_desc_t *diff_bias_desc,
         const dnnl_memory_desc_t *diff_dst_layer_desc,
         const dnnl_memory_desc_t *diff_dst_iter_desc,
