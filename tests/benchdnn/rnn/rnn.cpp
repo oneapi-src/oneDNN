@@ -336,7 +336,7 @@ int fill_weights(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     for (int64_t o = 0; o < O; o++) {
         const float val
                 = round_to_nearest_representable(c.dt, 1.f / p.n_gates());
-        auto i_off = ((o + g * 7 + d * 11 + l * 13) % I);
+        auto i_off = ((19 * o + g * 7 + d * 11 + l * 13) % I);
         mem_fp.set_elem(
                 l * D * I * G * O + d * I * G * O + i_off * G * O + g * O + o,
                 val);
