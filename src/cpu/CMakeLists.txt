@@ -41,6 +41,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     file(GLOB FILES_REQUIRED_PREC_DIV
         ${CMAKE_CURRENT_SOURCE_DIR}/*resampling*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ref_eltwise.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ref_rnn.cpp)
     if(WIN32)
         set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
@@ -72,7 +73,6 @@ else()
     set_source_files_properties(${FILES_WITHOUT_OPT}
         PROPERTIES COMPILE_FLAGS "-O0 -U_FORTIFY_SOURCE")
 endif()
-
 
 set(OBJ_LIB ${LIB_NAME}_cpu)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
