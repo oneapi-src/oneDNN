@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019 Intel Corporation
+# Copyright 2019-2020 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +55,19 @@ if(MSVC)
         ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp)
     set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
         PROPERTIES COMPILE_FLAGS "/bigobj")
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel" AND
+    CMAKE_CXX_COMPILER_VERSION VERSION_LESS "18.0")
+    file(GLOB FILES_REQUIRED_PREC_DIV
+        ${CMAKE_CURRENT_SOURCE_DIR}/ref_eltwise.cpp)
+    if(WIN32)
+        set(PREC_DIV_FLAGS "-Qprec-div -Qprec-sqrt")
+    else()
+        set(PREC_DIV_FLAGS "-prec-div -prec-sqrt -fp-model precise")
+    endif()
+    set_source_files_properties(${FILES_REQUIRED_PREC_DIV}
+        PROPERTIES COMPILE_FLAGS ${PREC_DIV_FLAGS})
 endif()
 
 set(OBJ_LIB ${LIB_NAME}_cpu)
