@@ -135,9 +135,9 @@ A four-gate long short-term memory recurrent cell with peephole initialized with
         bias_desc, dst_layer_desc, dst_iter_h_desc, dst_iter_c_desc);
 ~~~
 
-Similarly to vanilla LSTM tensors with a dimension depending on the gates
-number, we implicitly require the order of these gates to be `i`, `f`,
-\f$\tilde c\f$, and `o`. For peephole weights, the gates order is `i`, `f`,
+Similarly to vanilla LSTM, we implicitly require the order of the gates to be
+`i`, `f`, \f$\tilde c\f$, and `o` for all tensors with a dimension depending
+on the gates. For peephole weights, the gates order is `i`, `f`,
 `o`. The following equation gives the mathematical description of these gates
 and output for the forward pass:
 
@@ -160,7 +160,49 @@ the same as in vanilla LSTM.
 @note
 If the `weights_peephole_desc` passed to the operation descriptor constructor
 is a zero memory desciptor, the primitive will behave the same as in LSTM
-without peephole.
+primitive without peephole.
+
+### LSTM with Projection
+
+A four-gate long short-term memory recurrent cell with projection initialized
+with `lstm_forward::desc` or `lstm_backward::desc` as in the following example.
+
+~~~cpp
+    auto lstm_desc = lstm_forward::desc(
+        aprop, direction, src_layer_desc, src_iter_h_desc, src_iter_c_desc,
+        weights_layer_desc, weights_iter_desc, weights_peephole_desc,
+        weights_projection_desc, bias_desc, dst_layer_desc, dst_iter_h_desc,
+        dst_iter_c_desc);
+~~~
+
+Similarly to vanilla LSTM, we implicitly require the order of the gates to be
+`i`, `f`, \f$\tilde c\f$, and `o` for all tensors with a dimension depending
+on the gates. The following equation gives the mathematical
+description of these gates and output for the forward pass (for simplicity,
+LSTM without peephole is shown):
+
+\f[
+\begin{align}
+    i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot r_{t-1,l} + B_i) \\
+    f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot r_{t-1,l} + B_f) \\
+    & \\
+    \tilde{c}_t &= \tanh(W_{\tilde{c}} \cdot h_{t,l-1} + U_{\tilde{c}} \cdot r_{t-1,l} + B_{\tilde{c}}) \\
+    c_t &= f_t * c_{t-1} + i_t * \tilde{c}_t \\
+    & \\
+    o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot r_{t-1,l} + B_o) \\
+    h_t &= \tanh(c_t) * o_t \\
+    & \\
+    r_t &= R \cdot h_t
+\end{align}
+\f]
+
+where \f$R\f$ is stored in `weights_projection`, and the other parameters are
+the same as in vanilla LSTM.
+
+@note
+If the `weights_projection_desc` passed to the operation descriptor constructor
+is a zero memory desciptor, the primitive will behave the same as in LSTM
+primitive without projection.
 
 ## GRU
 
@@ -244,27 +286,31 @@ once again by another forward pass.
 # Execution Arguments
 When executed, the inputs and outputs should be mapped to an execution
 argument index as specified by the following table.
-| Primitive input/output | Execution argument index    |
-| ---                    | ---                         |
-| \srclayer              | DNNL_ARG_SRC_LAYER          |
-| \srciter               | DNNL_ARG_SRC_ITER           |
-| \srciterc              | DNNL_ARG_SRC_ITER_C         |
-| \weightslayer          | DNNL_ARG_WEIGHTS_LAYER      |
-| \weightsiter           | DNNL_ARG_WEIGHTS_ITER       |
-| \bias                  | DNNL_ARG_BIAS               |
-| \dstlayer              | DNNL_ARG_DST_LAYER          |
-| \dstiter               | DNNL_ARG_DST_ITER           |
-| \dstiterc              | DNNL_ARG_DST_ITER_C         |
-| workspace              | DNNL_WORKSPACE              |
-| \diffsrclayer          | DNNL_ARG_DIFF_SRC_LAYER     |
-| \diffsrciter           | DNNL_ARG_DIFF_SRC_ITER      |
-| \diffsrciterc          | DNNL_ARG_DIFF_SRC_ITER_C    |
-| \diffweightslayer      | DNNL_ARG_DIFF_WEIGHTS_LAYER |
-| \diffweightsiter       | DNNL_ARG_DIFF_WEIGHTS_ITER  |
-| \diffbias              | DNNL_ARG_DIFF_BIAS          |
-| \diffdstlayer          | DNNL_ARG_DIFF_DST_LAYER     |
-| \diffdstiter           | DNNL_ARG_DIFF_DST_ITER      |
-| \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C    |
+| Primitive input/output | Execution argument index         |
+| ---                    | ---                              |
+| \srclayer              | DNNL_ARG_SRC_LAYER               |
+| \srciter               | DNNL_ARG_SRC_ITER                |
+| \srciterc              | DNNL_ARG_SRC_ITER_C              |
+| \weightslayer          | DNNL_ARG_WEIGHTS_LAYER           |
+| \weightsiter           | DNNL_ARG_WEIGHTS_ITER            |
+| \weightspeephole       | DNNL_ARG_WEIGHTS_PEEPHOLE        |
+| \weightsprojection     | DNNL_ARG_WEIGHTS_PROJECTION      |
+| \bias                  | DNNL_ARG_BIAS                    |
+| \dstlayer              | DNNL_ARG_DST_LAYER               |
+| \dstiter               | DNNL_ARG_DST_ITER                |
+| \dstiterc              | DNNL_ARG_DST_ITER_C              |
+| workspace              | DNNL_WORKSPACE                   |
+| \diffsrclayer          | DNNL_ARG_DIFF_SRC_LAYER          |
+| \diffsrciter           | DNNL_ARG_DIFF_SRC_ITER           |
+| \diffsrciterc          | DNNL_ARG_DIFF_SRC_ITER_C         |
+| \diffweightslayer      | DNNL_ARG_DIFF_WEIGHTS_LAYER      |
+| \diffweightsiter       | DNNL_ARG_DIFF_WEIGHTS_ITER       |
+| \diffweightspeephole   | DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE   |
+| \diffweightsprojection | DNNL_ARG_DIFF_WEIGHTS_PROJECTION |
+| \diffbias              | DNNL_ARG_DIFF_BIAS               |
+| \diffdstlayer          | DNNL_ARG_DIFF_DST_LAYER          |
+| \diffdstiter           | DNNL_ARG_DIFF_DST_ITER           |
+| \diffdstiterc          | DNNL_ARG_DIFF_DST_ITER_C         |
 
 # Implementation details
 
@@ -276,13 +322,15 @@ primitive for each input and output memory object.
  Propagation                | Cell Function | Input data | Recurrent data (1) | Weights | Bias | Output Data
 --------------------------- | ------------- | ---------- | ------------------ | ------- | ---- | ------------
  Forward / Backward         |  All          | f32        | f32                | f32     | f32  | f32
- Forward / Backward (2)     |  All          | bf16       | bf16               | bf16    | f32  | bf16
- Forward                    |  All          | f16        | f16                | f16     | f16  | f16
+ Forward / Backward (2)     |  All (3)      | bf16       | bf16               | bf16    | f32  | bf16
+ Forward                    |  All (3)      | f16        | f16                | f16     | f16  | f16
  Forward inference          |  Vanilla LSTM | u8         | u8                 | s8      | f32  | u8, f32
 
 (1) With LSTM and Peephole LSTM cells, the cell state datatype is always f32.
 
 (2) In backward propagation, all `diff_*` tensors are in f32.
+
+(3) Projection LSTM is not supported.
 
 @warning
     There might be hardware and/or implementation specific restrictions.
@@ -298,10 +346,10 @@ primitive parameters.
 The following table summarizes the data layouts supported by the RNN
 primitive.
 
- Input/Output Data | Recurrent Data | Layer and Iteration Weights | Peephole Weights and Bias
------------------- | -------------- | --------------------------- | ------------------------
- any               | any            | any                         | ldgo
- ntc, tnc          | ldnc           | ldigo, ldgoi                | ldgo
+ Input/Output Data | Recurrent Data | Layer and Iteration Weights | Peephole Weights and Bias | Projection LSTM Weights
+------------------ | -------------- | --------------------------- | ------------------------- | -------------------------------
+ any               | any            | any                         | ldgo                      | any, ldio (Forward propagation)
+ ntc, tnc          | ldnc           | ldigo, ldgoi                | ldgo                      | any, ldio (Forward propagation)
 
 While an RNN primitive can be created with memory formats specified
 explicitly, the performance is likely to be sub-optimal.  When using `any` it
@@ -326,7 +374,7 @@ details on how to use and set these quantization parameters.
 
 2. **GPU**
     - No support for GRU
-    - No support for Peephole LSTM
+    - No support for Peephole LSTM and Projection LSTM
 
 ## Examples
 

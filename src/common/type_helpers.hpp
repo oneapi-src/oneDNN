@@ -415,7 +415,7 @@ inline bool operator==(const rnn_desc_t &lhs, const rnn_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(dst_iter_desc)
             && COMPARE_DESC_MEMBERS(dst_iter_c_desc)
             && COMPARE_DESC_MEMBERS(weights_peephole_desc)
-            && COMPARE_DESC_MEMBERS(placeholder_desc)
+            && COMPARE_DESC_MEMBERS(weights_projection_desc)
             && COMPARE_DESC_MEMBERS(diff_src_layer_desc)
             && COMPARE_DESC_MEMBERS(diff_src_iter_desc)
             && COMPARE_DESC_MEMBERS(diff_src_iter_c_desc)
@@ -426,7 +426,7 @@ inline bool operator==(const rnn_desc_t &lhs, const rnn_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(diff_dst_iter_desc)
             && COMPARE_DESC_MEMBERS(diff_dst_iter_c_desc)
             && COMPARE_DESC_MEMBERS(diff_weights_peephole_desc)
-            && COMPARE_DESC_MEMBERS(diff_placeholder_desc)
+            && COMPARE_DESC_MEMBERS(diff_weights_projection_desc)
             && COMPARE_DESC_MEMBERS(flags)
             && COMPARE_DESC_MEMBERS(activation_kind)
             && COMPARE_DESC_MEMBERS(alpha) && COMPARE_DESC_MEMBERS(beta);
