@@ -185,71 +185,7 @@ float round_to_nearest_representable(dnnl_data_type_t dt, float value);
 
 /* simplification */
 extern dnnl_engine_kind_t engine_tgt_kind;
-
-extern dnnl_engine_t engine_tgt;
-extern dnnl_stream_t stream_tgt;
 extern dnnl_scratchpad_mode_t scratchpad_mode;
-
-/* for fast-ref-gpu support */
-extern dnnl_engine_t engine_cpu;
-extern dnnl_stream_t stream_cpu;
-
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
-// XXX: cannot include dnnl_thread.hpp because of conflicting macro
-// definitions
-namespace dnnl {
-namespace impl {
-namespace threadpool_utils {
-threadpool_iface *get_active_threadpool();
-}
-} // namespace impl
-} // namespace dnnl
-#endif
-
-inline int create_dnnl_stream(
-        dnnl_stream_t *stream, dnnl_engine_t engine, unsigned flags) {
-    dnnl_engine_kind_t engine_kind;
-    DNN_SAFE(dnnl_engine_get_kind(engine, &engine_kind), CRIT);
-
-    dnnl_stream_attr_t stream_attr;
-    DNN_SAFE(dnnl_stream_attr_create(&stream_attr, engine_kind), CRIT);
-#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    if (engine_kind == dnnl_cpu) {
-        SAFE_V(dnnl_stream_attr_set_threadpool(stream_attr,
-                dnnl::impl::threadpool_utils::get_active_threadpool()));
-    }
-#endif
-
-    DNN_SAFE(dnnl_stream_create_v2(stream, engine, flags, stream_attr), CRIT);
-    dnnl_stream_attr_destroy(stream_attr);
-    return OK;
-}
-
-inline int init() {
-    if (!engine_tgt) {
-        DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
-        SAFE(create_dnnl_stream(
-                     &stream_tgt, engine_tgt, dnnl_stream_default_flags),
-                CRIT);
-    }
-    if (!engine_cpu) {
-        DNN_SAFE(dnnl_engine_create(&engine_cpu, dnnl_cpu, 0), CRIT);
-        SAFE(create_dnnl_stream(
-                     &stream_cpu, engine_cpu, dnnl_stream_default_flags),
-                CRIT);
-    }
-
-    return OK;
-}
-
-inline int finalize() {
-    DNN_SAFE(dnnl_stream_destroy(stream_tgt), CRIT);
-    DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
-    DNN_SAFE(dnnl_engine_destroy(engine_cpu), CRIT);
-    DNN_SAFE(dnnl_stream_destroy(stream_cpu), CRIT);
-    return OK;
-}
 
 inline const char *query_impl_info(const_dnnl_primitive_desc_t pd) {
     const char *str;
@@ -274,17 +210,18 @@ private:
 };
 
 dnnl_status_t execute_and_wait(
-        dnnl_primitive_t prim, dnnl_stream_t stream, const args_t &args);
+        dnnl_primitive_t prim, dnnl_engine_t engine, const args_t &args);
 
-int measure_perf(benchdnn_timer_t &t, dnnl_primitive_t prim, args_t &args);
+int measure_perf(benchdnn_timer_t &t, dnnl_engine_t engine,
+        dnnl_primitive_t prim, args_t &args);
 
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m, const attr_t &attr,
-        int64_t scale_cnt, const float *scales, dnnl_engine_t engine);
+        int64_t scale_cnt, const float *scales, dnnl_engine_t engine_tgt);
 void maybe_prepare_runtime_scales(dnn_mem_t &scales_m,
-        const attr_bundle_t &attr_bundle, dnnl_engine_t engine);
+        const attr_bundle_t &attr_bundle, dnnl_engine_t engine_tgt);
 
 void maybe_prepare_runtime_zero_points(dnn_mem_t &zero_points_m,
-        const attr_t &attr, int arg, dnnl_engine_t engine);
+        const attr_t &attr, int arg, dnnl_engine_t engine_tgt);
 
 bool check_md_consistency_with_tag(
         const dnnl_memory_desc_t &md, const std::string &tag);

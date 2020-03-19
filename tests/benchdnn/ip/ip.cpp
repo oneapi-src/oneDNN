@@ -32,7 +32,8 @@
 namespace ip {
 /* extra control parameter which shouldn't be placed in prb_t */
 
-inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &ippd, res_t *r) {
+inline int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &ippd, res_t *r) {
     dnnl_inner_product_desc_t ipd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
@@ -173,8 +174,8 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
     return r->state == FAILED ? FAIL : OK;
 }
 
-int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
-        dnn_mem_t &mem_fp, res_t *r) {
+int fill_data(const engine_t &engine_tgt, data_kind_t kind, const prb_t *p,
+        dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     const auto nelems = mem_dt.nelems();
     if (nelems == 0) return OK;
 
@@ -205,9 +206,10 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t ippd;
-    SAFE(init_pd(p, ippd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, ippd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t ip;
@@ -252,10 +254,10 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
     dnn_mem_t dst_fp(dst_md, fp, dnnl_nc, engine_tgt);
 
-    SAFE(fill_data(SRC, p, src_dt, src_fp, r), WARN);
-    SAFE(fill_data(WEI, p, wei_dt, wei_fp, r), WARN);
-    SAFE(fill_data(BIA, p, bia_dt, bia_fp, r), WARN);
-    SAFE(fill_data(DST, p, dst_dt, dst_fp, r), WARN);
+    SAFE(fill_data(engine_tgt, SRC, p, src_dt, src_fp, r), WARN);
+    SAFE(fill_data(engine_tgt, WEI, p, wei_dt, wei_fp, r), WARN);
+    SAFE(fill_data(engine_tgt, BIA, p, bia_dt, bia_fp, r), WARN);
+    SAFE(fill_data(engine_tgt, DST, p, dst_dt, dst_fp, r), WARN);
 
     args_t args;
 
@@ -266,10 +268,10 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(ip, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
-            compute_ref_fwd(p, src_fp, wei_fp, bia_fp, dst_fp);
+            compute_ref_fwd(engine_tgt, p, src_fp, wei_fp, bia_fp, dst_fp);
             dnn_mem_t dst(dst_dt, fp, dnnl_nc, engine_tgt);
             SAFE(compare_dat(p, DST, dst, dst_fp, r), WARN);
         }
@@ -279,7 +281,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(ip, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(p, src_fp, wei_fp, dst_fp);
@@ -293,7 +295,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(ip, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(ip, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_w(p, src_fp, wei_fp, bia_fp, dst_fp);
@@ -306,7 +308,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    measure_perf(r->timer, ip, args);
+    measure_perf(r->timer, engine_tgt, ip, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(ip));
 

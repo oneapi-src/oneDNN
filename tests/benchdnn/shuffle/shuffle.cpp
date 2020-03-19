@@ -92,7 +92,8 @@ static int compare(const prb_t *p, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &spd, res_t *r) {
     dnnl_memory_desc_t data_d;
     dnnl_shuffle_desc_t sd;
 
@@ -142,9 +143,10 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t spd;
-    SAFE(init_pd(p, spd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, spd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t s;
@@ -185,11 +187,12 @@ int doit(const prb_t *p, res_t *r) {
     const int o_arg = p->dir == FWD_D ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
 
     args_t args;
+
     args.set(i_arg, src_dt);
     args.set(o_arg, dst_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_shuffle(p, src_fp, dst_fp);
@@ -197,7 +200,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(compare(p, dst_fp, data, r), WARN);
     }
 
-    measure_perf(r->timer, s, args);
+    measure_perf(r->timer, engine_tgt, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

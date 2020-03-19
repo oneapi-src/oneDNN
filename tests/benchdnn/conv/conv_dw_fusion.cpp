@@ -324,6 +324,7 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     // Original problem with fusion attributes
     dnnl_primitive_desc_t cpd;
@@ -456,10 +457,10 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_fp0(bia_md0, fp, dnnl_x, engine_tgt);
     dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, engine_tgt);
 
-    SAFE(conv::fill_src(p0.get(), src_dt0, src_fp0, r), WARN);
-    SAFE(conv::fill_wei(p0.get(), wei_dt0, wei_fp0, r), WARN);
-    SAFE(conv::fill_bia(p0.get(), bia_dt0, bia_fp0, r), WARN);
-    SAFE(conv::fill_dst(p0.get(), dst_dt0, dst_fp0, r), WARN);
+    SAFE(conv::fill_src(engine_tgt, p0.get(), src_dt0, src_fp0, r), WARN);
+    SAFE(conv::fill_wei(engine_tgt, p0.get(), wei_dt0, wei_fp0, r), WARN);
+    SAFE(conv::fill_bia(engine_tgt, p0.get(), bia_dt0, bia_fp0, r), WARN);
+    SAFE(conv::fill_dst(engine_tgt, p0.get(), dst_dt0, dst_fp0, r), WARN);
 
     // Fill next convolution
     std::unique_ptr<prb_t> p1 = get_fused_conv_prb(p);
@@ -509,9 +510,9 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_fp1(bia_md1, fp, dnnl_x, engine_tgt);
     dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, engine_tgt);
 
-    SAFE(conv::fill_wei(p1.get(), wei_dt1, wei_fp1, r), WARN);
-    SAFE(conv::fill_bia(p1.get(), bia_dt1, bia_fp1, r), WARN);
-    SAFE(conv::fill_dst(p1.get(), dst_dt1, dst_fp1, r), WARN);
+    SAFE(conv::fill_wei(engine_tgt, p1.get(), wei_dt1, wei_fp1, r), WARN);
+    SAFE(conv::fill_bia(engine_tgt, p1.get(), bia_dt1, bia_fp1, r), WARN);
+    SAFE(conv::fill_dst(engine_tgt, p1.get(), dst_dt1, dst_fp1, r), WARN);
 
     // TODO: fix this if irritates.
     // SAFE(conv::fill_src(p, src_dt, src_fp, r), WARN);
@@ -539,7 +540,7 @@ int doit(const prb_t *p, res_t *r) {
         args0.set(DNNL_ARG_DST, dst_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
 
-        DNN_SAFE(execute_and_wait(c0, stream_tgt, args0), WARN);
+        DNN_SAFE(execute_and_wait(c0, engine_tgt, args0), WARN);
         SAFE(src_dt1.reorder(dst_dt0), WARN);
 
         args1.set(DNNL_ARG_SRC, src_dt1);
@@ -548,7 +549,7 @@ int doit(const prb_t *p, res_t *r) {
         args1.set(DNNL_ARG_DST, dst_dt1);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
 
-        DNN_SAFE(execute_and_wait(c1, stream_tgt, args1), WARN);
+        DNN_SAFE(execute_and_wait(c1, engine_tgt, args1), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -560,7 +561,7 @@ int doit(const prb_t *p, res_t *r) {
             args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(c, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t dst_fused(dst_dt, fp, src_tag, engine_tgt);
@@ -575,7 +576,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(r->timer, c, args);
+    measure_perf(r->timer, engine_tgt, c, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(c));
     DNN_SAFE_V(dnnl_primitive_destroy(c0));

@@ -135,8 +135,9 @@ int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &ppd,
-        const_dnnl_primitive_desc_t hint, res_t *r) {
+int init_pd(const engine_t &engine_tgt, const prb_t *p, dir_t dir,
+        dnnl_primitive_desc_t &ppd, const_dnnl_primitive_desc_t hint,
+        res_t *r) {
     dnnl_memory_desc_t src_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
@@ -223,20 +224,24 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &ppd,
     return OK;
 }
 
-int init_pd_fwd(const prb_t *p, dnnl_primitive_desc_t &ppd, res_t *r) {
-    return init_pd(p, FLAG_FWD, ppd, nullptr, r);
+int init_pd_fwd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &ppd, res_t *r) {
+    return init_pd(engine_tgt, p, FLAG_FWD, ppd, nullptr, r);
 }
 
-int init_pd_bwd(const prb_t *p, dnnl_primitive_desc_t &ppd,
-        const_dnnl_primitive_desc_t hint, res_t *r) {
-    return init_pd(p, FLAG_BWD, ppd, hint, r);
+int init_pd_bwd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &ppd, const_dnnl_primitive_desc_t hint,
+        res_t *r) {
+    return init_pd(engine_tgt, p, FLAG_BWD, ppd, hint, r);
 }
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt_fwd(engine_tgt_kind);
+    engine_t engine_tgt_bwd(engine_tgt_kind);
 
     dnnl_primitive_desc_t ppd;
-    SAFE(init_pd_fwd(p, ppd, r), WARN);
+    SAFE(init_pd_fwd(engine_tgt_fwd, p, ppd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t pp;
@@ -266,16 +271,16 @@ int doit(const prb_t *p, res_t *r) {
     const auto fp = dnnl_f32;
     const auto tag = get_abx_tag(p->ndims);
 
-    dnn_mem_t src_fp(src_md, fp, tag, engine_tgt);
-    dnn_mem_t src_dt(src_md, engine_tgt);
+    dnn_mem_t src_fp(src_md, fp, tag, engine_tgt_fwd);
+    dnn_mem_t src_dt(src_md, engine_tgt_fwd);
 
-    dnn_mem_t dst_fp(dst_md, fp, tag, engine_tgt);
-    dnn_mem_t dst_dt(dst_md, engine_tgt);
+    dnn_mem_t dst_fp(dst_md, fp, tag, engine_tgt_fwd);
+    dnn_mem_t dst_dt(dst_md, engine_tgt_fwd);
 
     if (p->dir & FLAG_INF) SAFE(ws_md.ndims == 0 ? OK : FAIL, WARN);
-    dnn_mem_t ws_fp(ws_md, engine_tgt);
-    dnn_mem_t ws_dt(ws_md, engine_tgt);
-    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+    dnn_mem_t ws_fp(ws_md, engine_tgt_fwd);
+    dnn_mem_t ws_dt(ws_md, engine_tgt_fwd);
+    dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt_fwd);
 
     dnn_mem_t d_src_dt, d_dst_dt;
 
@@ -288,19 +293,19 @@ int doit(const prb_t *p, res_t *r) {
     args_fwd.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
     args_t &args = args_fwd;
 
-    DNN_SAFE(execute_and_wait(pp, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(pp, engine_tgt_fwd, args), WARN);
 
     // want this pass on backward to get ws_fp filled properly
     if (bench_mode & CORR) {
         compute_ref_fwd(p, src_fp, dst_fp, ws_fp);
         if (p->dir & FLAG_FWD) {
-            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt);
+            dnn_mem_t dst(dst_dt, fp, tag, engine_tgt_fwd);
             SAFE(compare_dst(p, dst, dst_fp, r), WARN);
         }
     }
 
     if (p->dir & FLAG_BWD) {
-        SAFE(init_pd_bwd(p, ppd, const_fpd, r), WARN);
+        SAFE(init_pd_bwd(engine_tgt_bwd, p, ppd, const_fpd, r), WARN);
         DNN_SAFE(dnnl_primitive_destroy(pp), CRIT);
         if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
@@ -319,13 +324,13 @@ int doit(const prb_t *p, res_t *r) {
         const auto &d_src_md = q(const_bpd, DNNL_ARG_DIFF_SRC);
         const auto &d_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
-        dnn_mem_t d_dst_fp = dnn_mem_t(d_dst_md, fp, tag, engine_tgt);
-        d_dst_dt = dnn_mem_t(d_dst_md, p->cfg[DST].dt, engine_tgt);
+        dnn_mem_t d_dst_fp = dnn_mem_t(d_dst_md, fp, tag, engine_tgt_bwd);
+        d_dst_dt = dnn_mem_t(d_dst_md, p->cfg[DST].dt, engine_tgt_bwd);
 
-        dnn_mem_t d_src_fp = dnn_mem_t(d_src_md, fp, tag, engine_tgt);
-        d_src_dt = dnn_mem_t(d_src_md, p->cfg[SRC].dt, engine_tgt);
+        dnn_mem_t d_src_fp = dnn_mem_t(d_src_md, fp, tag, engine_tgt_bwd);
+        d_src_dt = dnn_mem_t(d_src_md, p->cfg[SRC].dt, engine_tgt_bwd);
 
-        scratchpad_dt = dnn_mem_t(d_scratchpad_md, engine_tgt);
+        scratchpad_dt = dnn_mem_t(d_scratchpad_md, engine_tgt_bwd);
 
         SAFE(fill_dst(p, d_dst_dt, d_dst_fp, r), WARN);
 
@@ -335,16 +340,18 @@ int doit(const prb_t *p, res_t *r) {
         args_bwd.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
         args = args_bwd;
 
-        DNN_SAFE(execute_and_wait(pp, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(pp, engine_tgt_bwd, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, d_src_fp, d_dst_fp, ws_fp);
-            dnn_mem_t diff_src(d_src_dt, fp, tag, engine_tgt);
+            dnn_mem_t diff_src(d_src_dt, fp, tag, engine_tgt_bwd);
             SAFE(compare_src(p, diff_src, d_src_fp, r), WARN);
         }
     }
 
-    measure_perf(r->timer, pp, args);
+    const auto &engine_tgt
+            = p->dir & FLAG_BWD ? engine_tgt_bwd : engine_tgt_fwd;
+    measure_perf(r->timer, engine_tgt, pp, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(pp));
 

@@ -58,7 +58,8 @@ inline int transpose_data_wei(
     return OK;
 }
 
-inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &dpd, res_t *r) {
+inline int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &dpd, res_t *r) {
     dnnl_deconvolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
@@ -174,6 +175,7 @@ inline int init_pd(const prb_t *p, dnnl_primitive_desc_t &dpd, res_t *r) {
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->stag, p->wtag, p->dtag, p->alg,
             p->attr, p->mb, true);
@@ -183,7 +185,7 @@ int doit(const prb_t *p, res_t *r) {
     swap(p_tr.iw, p_tr.ow);
 
     dnnl_primitive_desc_t dpd;
-    SAFE(init_pd(p, dpd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, dpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t d;
@@ -234,11 +236,11 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t bia_fp(bia_md, fp, dnnl_x, engine_tgt);
 
     /* fill memory + reorders <-> */
-    SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
-    SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
-    SAFE(fill_src(p, src_dt, src_fp, r), WARN);
+    SAFE(fill_dst(engine_tgt, p, dst_dt, dst_fp, r), WARN);
+    SAFE(fill_wei(engine_tgt, p, wei_dt, wei_fp, r), WARN);
+    SAFE(fill_src(engine_tgt, p, src_dt, src_fp, r), WARN);
     SAFE(transpose_data_wei(p, wei_fp, wei_tr_fp), WARN);
-    SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
+    SAFE(fill_bia(engine_tgt, p, bia_dt, bia_fp, r), WARN);
 
     args_t args;
 
@@ -249,7 +251,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(d, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(d, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_d(
@@ -263,7 +265,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SRC, src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(d, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(d, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t zero_fp;
@@ -278,7 +280,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_BIAS, bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(d, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(d, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd_weights(&p_tr, dst_fp, wei_tr_fp, src_fp);
@@ -295,7 +297,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(FAIL, CRIT);
     }
 
-    measure_perf(r->timer, d, args);
+    measure_perf(r->timer, engine_tgt, d, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(d));
 

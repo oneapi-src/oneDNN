@@ -20,8 +20,9 @@
 
 namespace ip {
 
-void compute_ref_fwd(const prb_t *p, dnn_mem_t &src_m, dnn_mem_t &wei_m,
-        dnn_mem_t &bia_m, dnn_mem_t &dst_m) {
+void compute_ref_fwd(const engine_t &engine_tgt, const prb_t *p,
+        dnn_mem_t &src_m, dnn_mem_t &wei_m, dnn_mem_t &bia_m,
+        dnn_mem_t &dst_m) {
 
     int64_t M = p->mb;
     int64_t N = p->oc;

@@ -30,7 +30,8 @@
 
 namespace sum {
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &spd, res_t *r) {
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
 
@@ -130,9 +131,10 @@ int fill_src(
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t spd;
-    SAFE(init_pd(p, spd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, spd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t s;
@@ -179,7 +181,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_MULTIPLE_SRC + i_input, src_dt[i_input]);
     }
 
-    DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
     if (bench_mode & CORR) {
         compute_ref(p, src_fp, dst_fp);
@@ -187,7 +189,7 @@ int doit(const prb_t *p, res_t *r) {
         SAFE(compare(p, dst_data_type, dst_fp, dst, r), WARN);
     }
 
-    measure_perf(r->timer, s, args);
+    measure_perf(r->timer, engine_tgt, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

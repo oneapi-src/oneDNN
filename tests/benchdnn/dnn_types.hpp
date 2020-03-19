@@ -283,6 +283,55 @@ private:
     void init_zero_points();
 };
 
+struct engine_t {
+    engine_t() = default;
+    engine_t(dnnl_engine_kind_t engine_kind) { create_engine(engine_kind); }
+
+    ~engine_t() {
+        if (engine_) destroy_engine();
+    }
+
+    void reset(dnnl_engine_kind_t engine_kind) {
+        if (engine_) destroy_engine();
+        create_engine(engine_kind);
+    }
+
+    operator dnnl_engine_t() const {
+        assert(engine_);
+        return engine_;
+    }
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(engine_t);
+
+private:
+    void create_engine(dnnl_engine_kind_t engine_kind);
+    void destroy_engine();
+
+    dnnl_engine_t engine_ = nullptr;
+};
+
+struct stream_t {
+    stream_t(dnnl_engine_t engine) : engine_(engine) { create_stream(); }
+    ~stream_t() { destroy_stream(); }
+
+    void reset(dnnl_engine_t engine) {
+        engine_ = engine;
+        destroy_stream();
+        create_stream();
+    }
+
+    dnnl_engine_t engine() const { return engine_; }
+
+    operator dnnl_stream_t() const { return stream_; }
+    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
+
+private:
+    void create_stream();
+    void destroy_stream();
+
+    dnnl_engine_t engine_;
+    dnnl_stream_t stream_;
+};
+
 std::ostream &dump_global_params(std::ostream &s);
 
 dnnl_format_tag_t get_abx_tag(int ndims);

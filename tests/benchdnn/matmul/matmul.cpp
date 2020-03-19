@@ -37,7 +37,8 @@ void prep_bia_dims(
         bia_dims[d] = (p->bia_mask & (1 << d)) ? dst_dims[d] : 1;
 }
 
-int init_pd(const prb_t *p, dnnl_primitive_desc_t &mpd, res_t *r) {
+int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &mpd, res_t *r) {
     const int64_t MB = p->runtime_mb ? DNNL_RUNTIME_DIM_VAL : p->mb;
     const int64_t M = p->runtime_m ? DNNL_RUNTIME_DIM_VAL : p->m;
     const int64_t N = p->runtime_n ? DNNL_RUNTIME_DIM_VAL : p->n;
@@ -192,9 +193,10 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t mpd;
-    SAFE(init_pd(p, mpd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, mpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t m;
@@ -295,15 +297,15 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS, wei_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
-    DNN_SAFE(execute_and_wait(m, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(m, engine_tgt, args), WARN);
 
     if (bench_mode & CORR) {
-        compute_ref(p, src_fp, wei_fp, bia_fp, dst_fp);
+        compute_ref(engine_tgt, p, src_fp, wei_fp, bia_fp, dst_fp);
         dnn_mem_t c(dst_dt, fp, get_abx_tag(p->ndims), engine_tgt);
         SAFE(compare_dat(p, DST, c, dst_fp, r), WARN);
     }
 
-    measure_perf(r->timer, m, args);
+    measure_perf(r->timer, engine_tgt, m, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(m));
 

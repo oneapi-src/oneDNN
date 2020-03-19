@@ -30,7 +30,8 @@
 
 namespace softmax {
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &spd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &spd, res_t *r) {
     dnnl_softmax_desc_t sd;
     dnnl_memory_desc_t data_d;
 
@@ -202,9 +203,10 @@ int fill_data_bwd(
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t spd;
-    SAFE(init_pd(p, spd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, spd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t s;
@@ -251,7 +253,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
@@ -279,7 +281,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(s, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(s, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);
@@ -288,7 +290,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    measure_perf(r->timer, s, args);
+    measure_perf(r->timer, engine_tgt, s, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(s));
 

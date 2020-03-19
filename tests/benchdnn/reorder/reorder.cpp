@@ -231,8 +231,9 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_ref,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &rpd,
-        const attr_bundle_t &attr_bundle, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &rpd, const attr_bundle_t &attr_bundle,
+        res_t *r) {
     const auto &rc = p->reorder;
     auto dims = rc.dims;
     for (int d = 0; d < p->ndims; ++d)
@@ -264,6 +265,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &rpd,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
+
     //                                       ___________________
     //                                      |                   |
     //                                      | performance timer |
@@ -295,7 +298,7 @@ int doit(const prb_t *p, res_t *r) {
 
     /* Step 2: create target reorder primitive */
     dnnl_primitive_desc_t rpd;
-    SAFE(init_pd(p, rpd, attr_bundle, r), WARN);
+    SAFE(init_pd(engine_tgt, p, rpd, attr_bundle, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t rp;
@@ -369,7 +372,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
-    DNN_SAFE(execute_and_wait(rp, stream_tgt, args), WARN);
+    DNN_SAFE(execute_and_wait(rp, engine_tgt, args), WARN);
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
@@ -408,7 +411,7 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     /* Step 7: performance measurement */
-    measure_perf(r->timer, rp, args);
+    measure_perf(r->timer, engine_tgt, rp, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(rp));
 

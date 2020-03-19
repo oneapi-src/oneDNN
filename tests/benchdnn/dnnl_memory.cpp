@@ -60,6 +60,7 @@ static size_t get_gpu_ram_size() {
     cl_int status = CL_SUCCESS;
     cl_device_id ocl_device = 0;
     // Get single device attached to the engine.
+    engine_t engine_tgt(engine_tgt_kind);
     dnnl_engine_get_ocl_device(engine_tgt, &ocl_device);
 
     cl_ulong ram_size = 0;

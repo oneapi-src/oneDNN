@@ -375,7 +375,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const prb_t *p, dnnl_primitive_desc_t &lpd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &lpd, res_t *r) {
     dnnl_layer_normalization_desc_t ld;
     dnnl_memory_desc_t data_d, stat_d;
 
@@ -462,9 +463,10 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &lpd, res_t *r) {
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+    engine_t engine_tgt(engine_tgt_kind);
 
     dnnl_primitive_desc_t lpd;
-    SAFE(init_pd(p, lpd, r), WARN);
+    SAFE(init_pd(engine_tgt, p, lpd, r), WARN);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     dnnl_primitive_t l;
@@ -543,7 +545,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_SCALE_SHIFT, ss_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(l, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, mean_fp, var_fp, ss_fp, dst_fp);
@@ -588,7 +590,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SCALE_SHIFT, d_ss_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(l, stream_tgt, args), WARN);
+        DNN_SAFE(execute_and_wait(l, engine_tgt, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, mean_fp, var_fp, d_dst_fp, ss_fp,
@@ -601,7 +603,7 @@ int doit(const prb_t *p, res_t *r) {
         }
     }
 
-    measure_perf(r->timer, l, args);
+    measure_perf(r->timer, engine_tgt, l, args);
 
     DNN_SAFE_V(dnnl_primitive_destroy(l));
 

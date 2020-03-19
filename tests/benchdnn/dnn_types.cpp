@@ -925,3 +925,46 @@ void maybe_post_ops(float &d, float dst, const attr_t &attr) {
             d = compute_eltwise_fwd(e.kind, d, s, a, b);
     }
 }
+
+void engine_t::create_engine(dnnl_engine_kind_t engine_kind) {
+    DNN_SAFE_V(dnnl_engine_create(&engine_, engine_kind, 0));
+}
+
+void engine_t::destroy_engine() {
+    DNN_SAFE_V(dnnl_engine_destroy(engine_));
+}
+
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "dnnl_threadpool_iface.hpp"
+// XXX: cannot include dnnl_thread.hpp because of conflicting macro
+// definitions
+namespace dnnl {
+namespace impl {
+namespace threadpool_utils {
+threadpool_iface *get_active_threadpool();
+}
+} // namespace impl
+} // namespace dnnl
+#endif
+
+void stream_t::create_stream() {
+    dnnl_engine_kind_t engine_kind;
+    DNN_SAFE_V(dnnl_engine_get_kind(engine_, &engine_kind));
+
+    dnnl_stream_attr_t stream_attr;
+    DNN_SAFE_V(dnnl_stream_attr_create(&stream_attr, engine_kind));
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    if (engine_kind == dnnl_cpu) {
+        SAFE_V(dnnl_stream_attr_set_threadpool(stream_attr,
+                dnnl::impl::threadpool_utils::get_active_threadpool()));
+    }
+#endif
+
+    DNN_SAFE_V(dnnl_stream_create_v2(
+            &stream_, engine_, dnnl_stream_default_flags, stream_attr));
+    dnnl_stream_attr_destroy(stream_attr);
+}
+
+void stream_t::destroy_stream() {
+    DNN_SAFE_V(dnnl_stream_destroy(stream_));
+}
