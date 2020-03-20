@@ -627,6 +627,7 @@ int doit(const prb_t *p, res_t *r) {
     dnn_mem_t dst_dt(dst_md, engine_tgt);
     dnn_mem_t bia_dt(bia_md, engine_tgt);
     dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
+    dnn_mem_t scales;
 
     dnn_mem_t src_fp(src_md, fp, src_tag, engine_tgt);
     dnn_mem_t wei_fp(wei_md, fp, wei_tag, engine_tgt);
@@ -637,6 +638,7 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(fill_wei(p, wei_dt, wei_fp, r), WARN);
     SAFE(fill_dst(p, dst_dt, dst_fp, r), WARN);
     SAFE(fill_bia(p, bia_dt, bia_fp, r), WARN);
+    maybe_prepare_runtime_scales(scales, p->attr, p->oc, p->scales, engine_tgt);
 
     args_t args;
 
@@ -646,6 +648,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_BIAS, bia_dt);
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
+        args.set(DNNL_ARG_ATTR_OUTPUT_SCALES, scales);
 
         DNN_SAFE(execute_and_wait(c, stream_tgt, args), WARN);
 

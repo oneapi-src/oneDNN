@@ -93,8 +93,13 @@ TEST_F(runtime_attr_test, TestConv) {
             {1, 1}, {1, 1});
     CHECK_OK(convolution_forward::primitive_desc(op_d, eng));
     CHECK_OK(convolution_forward::primitive_desc(op_d, gen_attr(false), eng));
-    CHECK_UNIMPL(
-            convolution_forward::primitive_desc(op_d, gen_attr(true), eng));
+    if (get_test_engine_kind() == engine::kind::gpu) {
+        CHECK_OK(
+                convolution_forward::primitive_desc(op_d, gen_attr(true), eng));
+    } else {
+        CHECK_UNIMPL(
+                convolution_forward::primitive_desc(op_d, gen_attr(true), eng));
+    }
 }
 
 TEST_F(runtime_attr_test, TestDeconv) {
