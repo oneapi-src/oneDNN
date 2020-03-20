@@ -47,13 +47,13 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // 1. gemm Wx[0-2],x
     if (rnn.need_gemm_layer(cell_position)) {
-        (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dic, rnn.mb,
+        (this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
                 rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld, states_t_lm1_,
                 src_layer_ld, 0.0f, scratch_gates_, rnn.gates_ws_ld);
     }
 
     // 2. gemm Wh[0-1],h
-    (this->*gemm_iter_func)('N', 'N', (rnn.n_gates - 1) * rnn.dic, rnn.mb,
+    (this->*gemm_iter_func)('N', 'N', (rnn.n_gates - 1) * rnn.dhc, rnn.mb,
             rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, states_tm1_l_,
             src_iter_ld, 1.0f, scratch_gates_, rnn.gates_ws_ld);
 
@@ -64,7 +64,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             nullptr, states_t_l_copy_);
 
     // 4. gemm Wh[2],h~t
-    (this->*gemm_iter_func)('N', 'N', rnn.dic, rnn.mb, rnn.sic, 1.0, w_iter_[1],
+    (this->*gemm_iter_func)('N', 'N', rnn.dhc, rnn.mb, rnn.sic, 1.0, w_iter_[1],
             rnn.weights_iter_ld, states_t_l_,
             (cell_position & last_layer) ? dst_layer_ld : dst_iter_ld, 1.0,
             &(scratch_gates(0, 2, 0)), rnn.gates_ws_ld);
@@ -127,7 +127,7 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // 2. calculate intermediate d(hG1)
     // d(hG1) = dG2 * W2h^t
-    gemm_iter_f(rnn.sic, rnn.mb, rnn.dic, w_iter_[1], &(scratch_gates(0, 2, 0)),
+    gemm_iter_f(rnn.sic, rnn.mb, rnn.dhc, w_iter_[1], &(scratch_gates(0, 2, 0)),
             0.0f, dhG1_);
 
     // 3. calculate dG1^ and part of dht-1
@@ -138,14 +138,14 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // 4. calculate diff weights
     // dWh1 += dG1 * h, dWh2 += dG2 * h, dWh3 += dG3 * (G1(*)h)
-    gemm_weights_iter_f((rnn.n_gates - 1) * rnn.dic, rnn.sic, rnn.mb,
+    gemm_weights_iter_f((rnn.n_gates - 1) * rnn.dhc, rnn.sic, rnn.mb,
             scratch_gates_, states_tm1_l_, src_iter_ld, 1.0f, diff_w_iter_);
-    gemm_weights_iter_f(rnn.dic, rnn.sic, rnn.mb, &(scratch_gates(0, 2, 0)),
+    gemm_weights_iter_f(rnn.dhc, rnn.sic, rnn.mb, &(scratch_gates(0, 2, 0)),
             scratch_cell_, rnn.states_ws_ld, 1.0f, &(diff_w_iter(0, 2, 0)));
 
     // 5. calculate diff states
     // dht-1 += dG1 * W1h + dG0 * W0h
-    gemm_iter_f(rnn.sic, rnn.mb, (rnn.n_gates - 1) * rnn.dic, w_iter_[0],
+    gemm_iter_f(rnn.sic, rnn.mb, (rnn.n_gates - 1) * rnn.dhc, w_iter_[0],
             scratch_gates_, 1.0f, diff_states_t_l_);
 
     if (!rnn.merge_gemm_layer) {
@@ -171,13 +171,13 @@ rnn_cell_execution_sig(ref_rnn_bwd_f32_t::cell_execution_gru) {
     auto gemm_layer_f
             = [&](const weights_data_t *A, const src_data_t *B, acc_data_t *C) {
                   (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                          rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_layer_ld,
+                          rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld,
                           B, rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
               };
     auto gemm_weights_layer_f = [&](const src_data_t *A,
                                         const weights_data_t *B, int ldb,
                                         acc_data_t *C) {
-        gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, A,
+        gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
                 rnn.gates_ws_ld, B, ldb, 1.0, C, rnn.diff_weights_layer_ld);
     };
     auto gemm_weights_iter_f
@@ -205,13 +205,13 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution_gru) {
     auto gemm_layer_f
             = [&](const weights_data_t *A, const src_data_t *B, acc_data_t *C) {
                   (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb,
-                          rnn.n_gates * rnn.dic, 1.0, A, rnn.weights_layer_ld,
+                          rnn.n_gates * rnn.dhc, 1.0, A, rnn.weights_layer_ld,
                           B, rnn.gates_ws_ld, 0.0, C, rnn.states_ws_ld);
               };
     auto gemm_weights_layer_f = [&](const src_data_t *A,
                                         const weights_data_t *B, int ldb,
                                         acc_data_t *C) {
-        gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb, 1.0, A,
+        gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb, 1.0, A,
                 rnn.gates_ws_ld, B, ldb, 1.0, C, rnn.diff_weights_layer_ld);
     };
     auto gemm_weights_iter_f

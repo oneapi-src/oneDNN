@@ -19,8 +19,6 @@
 
 #include <sstream>
 
-#include "dnnl.h"
-
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
@@ -29,44 +27,18 @@
 
 namespace binary {
 
-std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
-std::vector<dnnl_data_type_t> ddt {dnnl_f32};
-std::vector<std::vector<std::string>> stag {{tag::abx, tag::abx}};
-std::vector<alg_t> alg {ADD};
-std::vector<bool> inplace {true};
-
-std::vector<dims_t> sdims;
-attr_t attr;
-bool allow_unimpl = false;
-
-const char *perf_template_csv
-        = "perf,%engine%,%sdt%,%ddt%,%stag%,%alg%,%attr%,%DESC%,%-time%,%"
-          "0time%";
-const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
-const char *perf_template = perf_template_def;
-
-void reset_parameters() {
-    sdt = {{dnnl_f32, dnnl_f32}};
-    ddt = {dnnl_f32};
-    stag = {{tag::abx, tag::abx}};
-    alg = {ADD};
-    inplace = {true};
-    attr = attr_t();
-    allow_unimpl = false;
-}
-
-void check_correctness() {
-    for_(const auto &i_sdt : sdt)
-    for_(const auto &i_ddt : ddt)
-    for_(const auto &i_stag : stag)
-    for_(const auto &i_alg : alg)
-    for (auto i_inplace : inplace) {
-        const bool ok = sdims.size() == i_sdt.size()
+void check_correctness(const settings_t &s) {
+    for_(const auto &i_sdt : s.sdt)
+    for_(const auto &i_ddt : s.ddt)
+    for_(const auto &i_stag : s.stag)
+    for_(const auto &i_alg : s.alg)
+    for (auto i_inplace : s.inplace) {
+        const bool ok = s.sdims.size() == i_sdt.size()
                 && i_sdt.size() == i_stag.size()
-                && sdims.size() == 2; // expect just two inputs
+                && s.sdims.size() == 2; // expect just two inputs
         if (!ok) SAFE_V(FAIL);
 
-        const prb_t p(sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, attr);
+        const prb_t p(s.sdims, i_sdt, i_ddt, i_stag, i_alg, i_inplace, s.attr);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -77,10 +49,10 @@ void check_correctness() {
         int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
-            perf_report_t pr(perf_template);
+            perf_report_t pr(s.perf_template);
             pr.report(&p, &res, pstr);
         }
 
@@ -91,22 +63,24 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     driver_name = "binary";
     using namespace parser;
+    static settings_t s;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false || parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_multi_dt(sdt, argv[0])
-                || parse_dt(ddt, argv[0], "ddt")
-                || parse_multi_tag(stag, argv[0])
-                || parse_vector_option(alg, str2alg, argv[0], "alg")
-                || parse_inplace(inplace, argv[0]) || parse_attr(attr, argv[0])
-                || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_perf_template(perf_template, perf_template_def,
-                        perf_template_csv, argv[0])
-                || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_multi_dt(s.sdt, argv[0])
+                || parse_dt(s.ddt, argv[0], "ddt")
+                || parse_multi_tag(s.stag, argv[0])
+                || parse_vector_option(s.alg, str2alg, argv[0], "alg")
+                || parse_inplace(s.inplace, argv[0])
+                || parse_attr(s.attr, argv[0])
+                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_perf_template(s.perf_template, s.perf_template_def,
+                        s.perf_template_csv, argv[0])
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_multi_dims(sdims, argv[0]);
-            check_correctness();
+            parse_multi_dims(s.sdims, argv[0]);
+            check_correctness(s);
         }
     }
 

@@ -80,13 +80,13 @@ struct base_perf_report_t {
 
         HANDLE("attr", if (attr() && !attr()->is_def()) s << *attr());
         HANDLE("axis", if (axis()) s << *axis());
-        HANDLE("dir", if (dir()) s << dir2str(*dir()));
-        HANDLE("dt", if (dt()) s << dt2str(*dt()));
+        HANDLE("dir", if (dir()) s << *dir());
+        HANDLE("dt", if (dt()) s << *dt());
         HANDLE("group", if (group()) s << *group());
         HANDLE("sdt", if (sdt()) s << *sdt());
         HANDLE("stag", if (stag()) s << *stag());
         HANDLE("name", if (name()) s << name());
-        HANDLE("ddt", if (ddt()) s << dt2str(*ddt()));
+        HANDLE("ddt", if (ddt()) s << *ddt());
         HANDLE("dtag", if (dtag()) s << *dtag());
         HANDLE("prop", if (prop()) s << prop2str(*prop()));
         HANDLE("tag", if (tag()) s << *tag());

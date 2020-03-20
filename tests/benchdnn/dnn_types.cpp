@@ -56,26 +56,23 @@ std::ostream &operator<<(std::ostream &s, const dims_t &dims) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const std::vector<dims_t> &sdims) {
-    s << sdims[0];
-    for (size_t d = 1; d < sdims.size(); ++d)
-        s << ":" << sdims[d];
+std::ostream &operator<<(std::ostream &s, dir_t dir) {
+#define CASE(x) \
+    if (dir == x) return s << STRINGIFY(x)
+    CASE(FWD_B);
+    CASE(FWD_D);
+    CASE(FWD_I);
+    CASE(BWD_D);
+    CASE(BWD_DW);
+    CASE(BWD_W);
+    CASE(BWD_WB);
+#undef CASE
+    SAFE_V(FAIL);
     return s;
 }
 
-std::ostream &operator<<(
-        std::ostream &s, const std::vector<dnnl_data_type_t> &v_dt) {
-    s << dt2str(v_dt[0]);
-    for (size_t d = 1; d < v_dt.size(); ++d)
-        s << ":" << dt2str(v_dt[d]);
-    return s;
-}
-
-std::ostream &operator<<(
-        std::ostream &s, const std::vector<std::string> &v_tag) {
-    s << v_tag[0];
-    for (size_t d = 1; d < v_tag.size(); ++d)
-        s << ":" << v_tag[d];
+std::ostream &operator<<(std::ostream &s, dnnl_data_type_t dt) {
+    s << dt2str(dt);
     return s;
 }
 
@@ -92,21 +89,6 @@ dir_t str2dir(const char *str) {
 #undef CASE
     assert(!"unknown dir");
     return DIR_UNDEF;
-}
-
-const char *dir2str(dir_t dir) {
-#define CASE(x) \
-    if (dir == x) return STRINGIFY(x)
-    CASE(FWD_D);
-    CASE(FWD_I);
-    CASE(FWD_B);
-    CASE(BWD_D);
-    CASE(BWD_DW);
-    CASE(BWD_W);
-    CASE(BWD_WB);
-#undef CASE
-    assert(!"unknown dir");
-    return "DIR_UNDEF";
 }
 
 dnnl_prop_kind_t prop2prop_kind(const dir_t dir) {
@@ -529,8 +511,13 @@ int str2attr(attr_t *attr, const char *str) {
     return OK;
 }
 
+std::ostream &operator<<(std::ostream &s, const policy_t &policy) {
+    s << attr_t::scale_t::policy2str(policy);
+    return s;
+}
+
 std::ostream &operator<<(std::ostream &s, const attr_t::scale_t &scale) {
-    s << attr_t::scale_t::policy2str(scale.policy) << ":" << scale.scale;
+    s << scale.policy << ":" << scale.scale;
     if (scale.runtime) s << '*';
     return s;
 }
@@ -554,8 +541,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
     s << "'";
     for (const auto &v : scales.scales) {
         if (!v.second.is_def()) {
-            s << delim << arg2str.at(v.first)
-              << attr_t::scale_t::policy2str(v.second.policy) << ":"
+            s << delim << arg2str.at(v.first) << v.second.policy << ":"
               << v.second.scale;
             delim = "_";
         }
@@ -564,26 +550,28 @@ std::ostream &operator<<(std::ostream &s, const attr_t::arg_scales_t &scales) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
-    auto kind2str = &attr_t::post_ops_t::kind2str;
+std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k) {
+    s << attr_t::post_ops_t::kind2str(k);
+    return s;
+}
 
+std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
     s << "'";
 
     for (int idx = 0; idx < post_ops.len; ++idx) {
         if (idx > 0) s << ";";
 
         const auto &e = post_ops.entry[idx];
-        s << kind2str(e.kind);
+        s << e.kind;
 
         if (e.kind == pk_t::SUM) {
             if (e.sum.scale != 1.0f) s << ":" << e.sum.scale;
         } else if (e.is_convolution_kind()) {
             if (e.convolution.dst_dt != dnnl_f32)
-                s << ":" << dt2str(e.convolution.dst_dt);
+                s << ":" << e.convolution.dst_dt;
             const auto &co = e.convolution.oscale;
             if (co.policy != policy_t::NONE)
-                s << ":" << attr_t::scale_t::policy2str(co.policy) << ":"
-                  << co.scale;
+                s << ":" << co.policy << ":" << co.scale;
         } else if (e.is_eltwise_kind()) {
             if (e.eltwise.scale != 1.f)
                 s << ":" << e.eltwise.alpha << ":" << e.eltwise.beta << ":"

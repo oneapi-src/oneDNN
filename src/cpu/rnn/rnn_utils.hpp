@@ -74,11 +74,9 @@
             const float *w_iter_comp, const float *w_layer_comp) const
 
 #define rnn_weights_assign_sig(f) \
-    void f(const rnn_utils::rnn_conf_t &rnn, const memory_desc_t *md, int nld, \
-            int ld, int OC_size, int IC_size, const int n_parts, \
-            const int *gates_per_part, const size_t *part_weights_pack_size, \
-            weights_data_t **weights_, const weights_data_t *w_, \
-            float **bias_, const float *b_, float *scratch_bias_) const
+    void f(const rnn_utils::rnn_conf_t &rnn, const memory_desc_t *md, \
+            int n_parts, const int *gates_per_part, weights_data_t **weights_, \
+            const weights_data_t *w_) const
 
 namespace dnnl {
 namespace impl {
@@ -128,7 +126,7 @@ struct rnn_conf_t {
     data_type_conf_t dt_conf;
     int n_layer, n_iter, n_dir, n_gates, n_states;
     int mb;
-    int slc, sic, dic, dlc;
+    int slc, sic, dhc, dlc;
     int gates_ld, gates_nld, gates_ws_ld;
     int n_parts_weights_layer, parts_weights_layer[DNNL_RNN_MAX_N_PARTS];
     int n_parts_weights_iter, parts_weights_iter[DNNL_RNN_MAX_N_PARTS];
@@ -285,14 +283,14 @@ status_t set_good_strides(memory_desc_t &weights_md, format_tag_t tag);
 template <typename T>
 struct ws_gates_aoc {
     ws_gates_aoc(const rnn_conf_t &rnn, T *data)
-        : gates_(data, rnn.gates_nld, rnn.gates_ws_ld), DIC_(rnn.dic) {}
-    T &operator()(int batch, int gate, int dic) {
-        return gates_(batch, gate * DIC_ + dic);
+        : gates_(data, rnn.gates_nld, rnn.gates_ws_ld), DHC_(rnn.dhc) {}
+    T &operator()(int batch, int gate, int dhc) {
+        return gates_(batch, gate * DHC_ + dhc);
     }
 
 private:
     dnnl::impl::utils::array_offset_calculator<T, 2> gates_;
-    int DIC_;
+    int DHC_;
 };
 using ws_gates_aoc_t = ws_gates_aoc<float>;
 using ws_gates_aoc_s32_t = ws_gates_aoc<int32_t>;
@@ -300,8 +298,8 @@ using ws_gates_aoc_s32_t = ws_gates_aoc<int32_t>;
 template <typename T>
 struct weights_peephole_aoc_t {
     weights_peephole_aoc_t(const rnn_conf_t &rnn, T *data)
-        : weights_peephole_(data, 3, rnn.dic) {}
-    T &operator()(int g, int dic) { return weights_peephole_(g, dic); }
+        : weights_peephole_(data, 3, rnn.dhc) {}
+    T &operator()(int g, int dhc) { return weights_peephole_(g, dhc); }
 
 private:
     utils::array_offset_calculator<T, 2> weights_peephole_;
@@ -309,8 +307,8 @@ private:
 
 struct bias_aoc_t {
     bias_aoc_t(const rnn_conf_t &rnn, const float *data)
-        : bias_(data, rnn.n_bias, rnn.dic) {}
-    const float &operator()(int bias_n, int dic) { return bias_(bias_n, dic); }
+        : bias_(data, rnn.n_bias, rnn.dhc) {}
+    const float &operator()(int bias_n, int dhc) { return bias_(bias_n, dhc); }
 
 private:
     dnnl::impl::utils::array_offset_calculator<const float, 2> bias_;
@@ -322,7 +320,7 @@ struct ws_states_aoc {
         : state_(data, rnn.states_nld, leading_dim) {}
     ws_states_aoc(const rnn_conf_t &rnn, T *data)
         : state_(data, rnn.states_nld, rnn.states_ws_ld) {}
-    T &operator()(int batch, int dic) { return state_(batch, dic); }
+    T &operator()(int batch, int dhc) { return state_(batch, dhc); }
 
 private:
     dnnl::impl::utils::array_offset_calculator<T, 2> state_;
@@ -333,8 +331,8 @@ struct ws_diff_states_aoc {
     ws_diff_states_aoc(const rnn_conf_t &rnn, T *data)
         : diff_states_(data, rnn.n_states + 1, rnn.n_iter + 1, rnn.states_nld,
                 rnn.states_ws_ld) {}
-    T &operator()(int state_n, int batch, int dic) {
-        return diff_states_(state_n, 0, batch, dic);
+    T &operator()(int state_n, int batch, int dhc) {
+        return diff_states_(state_n, 0, batch, dhc);
     }
 
 private:
@@ -345,14 +343,14 @@ struct ws_diff_w_iter_aoc_t {
     ws_diff_w_iter_aoc_t(const rnn_conf_t &rnn, float *data)
         : diff_weights_iter_(
                 data, rnn.diff_weights_iter_nld, rnn.diff_weights_iter_ld)
-        , DIC_(rnn.dic) {}
-    float &operator()(int sic, int gate, int dic) {
-        return diff_weights_iter_(sic, gate * DIC_ + dic);
+        , DHC_(rnn.dhc) {}
+    float &operator()(int sic, int gate, int dhc) {
+        return diff_weights_iter_(sic, gate * DHC_ + dhc);
     }
 
 private:
     dnnl::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
-    int DIC_;
+    int DHC_;
 };
 } // namespace rnn_utils
 } // namespace cpu

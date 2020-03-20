@@ -65,20 +65,20 @@
 // cannot be presented by OFF6 due to leading dimension across two dims
 #define OFF_WS_GATES(i0, i1, i2, i3, i4, i5) \
     (i0) * N_DIR *N_ITER *BATCH *GATES_WS_LD + (i1)*N_ITER *BATCH *GATES_WS_LD \
-            + (i2)*BATCH *GATES_WS_LD + (i3)*GATES_WS_LD + (i4)*DIC + (i5)
+            + (i2)*BATCH *GATES_WS_LD + (i3)*GATES_WS_LD + (i4)*DHC + (i5)
 
 #if N_ITER_SCRATCH_GATES == 1
 // if no merge gemm, scratch_gates contain data for single cell,
 // so we ignore iter dim
 #define OFF_SCRATCH_GATES(i0, i1, i2, i3) \
-    (i1) * SCRATCH_GATES_LD + (i2)*DIC + (i3)
+    (i1) * SCRATCH_GATES_LD + (i2)*DHC + (i3)
 #else
 #define OFF_SCRATCH_GATES(i0, i1, i2, i3) \
-    (i0) * BATCH *SCRATCH_GATES_LD + (i1)*SCRATCH_GATES_LD + (i2)*DIC + (i3)
+    (i0) * BATCH *SCRATCH_GATES_LD + (i1)*SCRATCH_GATES_LD + (i2)*DHC + (i3)
 #endif
 
 #define OFF_WS_BIAS(i0, i1, i2, i3) \
-    OFF4((i0), N_LAYER, (i1), N_DIR, (i2), N_BIAS, (i3), DIC)
+    OFF4((i0), N_LAYER, (i1), N_DIR, (i2), N_BIAS, (i3), DHC)
 
 // for cell - shorter forms
 
@@ -87,7 +87,7 @@
 #define CELL_WS_STATE(i4, i5) OFF_WS_STATE(0, 0, 0, i4, i5)
 #define CELL_WS_DIFF_STATES(i2, i4, i5) OFF_WS_DIFF_STATES(0, 0, i2, 0, i4, i5)
 
-#define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DIC)
+#define OFF_KER_BIAS(i0, i1) OFF2((i0), N_GATES, (i1), DHC)
 
 #define SRC_L_OFF(x0, x1, x2) \
     (((x0) % SRC_L_B0) * SRC_L_SB0 + ((x0) / SRC_L_B0) * SRC_L_S0 \

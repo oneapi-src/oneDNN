@@ -29,6 +29,31 @@
 
 namespace sum {
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    dims_t dims;
+
+    std::vector<std::vector<dnnl_data_type_t>> sdt {{dnnl_f32, dnnl_f32}};
+    std::vector<dnnl_data_type_t> ddt {dnnl_f32};
+    std::vector<std::vector<std::string>> stag;
+    std::vector<std::string> dtag {tag::undef};
+    std::vector<std::vector<float>> scales {{0.25}, {1}, {4}};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%DESC%,%-time%,%0time%";
+    const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t {
     prb_t(const dims_t &dims, const std::vector<dnnl_data_type_t> &sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,

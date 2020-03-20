@@ -49,6 +49,7 @@
 int verbose {0};
 bool canonical {false};
 bool mem_check {true};
+const char *skip_impl = "";
 bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
 const char *driver_name = "";
@@ -61,6 +62,11 @@ bool fast_ref_gpu {true};
 
 int main(int argc, char **argv) {
     using namespace parser;
+
+    if (argc < 2) {
+        fprintf(stderr, "err: no arguments passed\n");
+        return 1;
+    }
 
     --argc;
     ++argv;

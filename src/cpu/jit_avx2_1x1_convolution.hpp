@@ -70,7 +70,7 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_impl_t {
             if (dw_conv_pd_) delete dw_conv_pd_;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", avx2, ""),
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_1x1:", jcp_.isa, ""),
                 jit_avx2_1x1_convolution_fwd_t);
 
         status_t init() {

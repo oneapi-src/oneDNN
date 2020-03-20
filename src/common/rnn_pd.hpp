@@ -114,7 +114,7 @@ struct rnn_pd_t : public primitive_desc_t {
 
     dim_t SLC() const { return desc_.weights_layer_desc.dims[2]; }
     dim_t G() const { return desc_.weights_layer_desc.dims[3]; }
-    dim_t DIC() const { return desc_.weights_layer_desc.dims[4]; }
+    dim_t DHC() const { return desc_.weights_layer_desc.dims[4]; }
 
     dim_t DLC() const { return desc_.dst_layer_desc.dims[2]; }
 

@@ -29,6 +29,31 @@
 
 namespace concat {
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    std::vector<dims_t> sdims;
+
+    std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
+    std::vector<std::vector<std::string>> stag;
+    std::vector<std::string> dtag {tag::undef};
+    std::vector<int> axis {1};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%axis%,%DESC%,%-time%,%"
+              "0time%";
+    const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t {
     prb_t(const std::vector<dims_t> &sdims, dnnl_data_type_t sdt,
             dnnl_data_type_t ddt, const std::vector<std::string> &stag,

@@ -105,7 +105,7 @@ private:
         for (int i = 0; i < ndims_; ++i) {
             if (dims_[i].vector_size != 1) {
                 assert(vec_dim_idx == -1);
-                assert(dims_[i].block == 1);
+                assert(dims_[i].block > 0);
                 vec_dim_idx = i;
             }
         }

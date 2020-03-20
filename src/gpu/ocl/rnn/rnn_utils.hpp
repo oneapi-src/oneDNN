@@ -34,14 +34,14 @@
 #define OFF2(i0, d0, i1, d1) ((i0) * (d1) + (i1))
 
 #define elemwise_sig(f) \
-    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
+    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int wic, int batch, const memory_storage_t &workspace, \
             const memory_storage_t &scratch_gates, \
             const memory_storage_t *scales, const memory_storage_t &bias, \
             const memory_storage_t *tm_scales) const
 
 #define cell_execution_sig(f) \
-    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dic, \
+    void f(const exec_ctx_t &ctx, int dir, int lay, int iter, int dhc, \
             int slc, int sic, int wic, int batch, int n_layer, int n_dir, \
             int n_iter, int n_gates, int n_states, int n_bias, \
             size_t *weights_input, int n_parts_weights_layer, \
@@ -55,7 +55,7 @@
             const memory_storage_t *tm_scales) const
 
 #define grid_execution_sig(f) \
-    void f(const exec_ctx_t &ctx, int dic, int slc, int sic, int wic, \
+    void f(const exec_ctx_t &ctx, int dhc, int slc, int sic, int wic, \
             int batch, int n_layer, int n_dir, int n_iter, int n_gates, \
             int n_states, int n_bias, size_t *weights_input, \
             int n_parts_weights_layer, size_t *weights_states, \
@@ -113,7 +113,7 @@ struct conf_t {
     data_type_conf_t dt_conf;
     int n_layer, n_iter, n_dir, n_gates, n_states;
     int mb;
-    int slc, sic, dic, dlc;
+    int slc, sic, dhc, dlc;
 
     int gates_ld, gates_nld, gates_ws_ld;
 

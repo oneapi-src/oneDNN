@@ -282,13 +282,14 @@ float *generate_oscales(const attr_t::scale_t &oscale, int N) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || p.dir != FWD_B) s << "--dir=" << dir2str(p.dir) << " ";
-    if (canonical || p.cfg != conf_f32) s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (canonical || p.stag != tag::any) s << "--stag=" << p.stag << " ";
-    if (canonical || p.wtag != tag::any) s << "--wtag=" << p.wtag << " ";
-    if (canonical || p.dtag != tag::any) s << "--dtag=" << p.dtag << " ";
-    if (canonical || p.alg != DIRECT) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
+    if (canonical || p.cfg != def.cfg[0]) s << "--cfg=" << p.cfg << " ";
+    if (canonical || p.stag != def.stag[0]) s << "--stag=" << p.stag << " ";
+    if (canonical || p.wtag != def.wtag[0]) s << "--wtag=" << p.wtag << " ";
+    if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
+    if (canonical || p.alg != def.alg) s << "--alg=" << alg2str(p.alg) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);

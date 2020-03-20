@@ -132,29 +132,16 @@ struct jit_avx512_core_bf16_convolution_bwd_data_t : public primitive_impl_t {
                             || expect_data_types(data_type::bf16,
                                     data_type::bf16, data_type::undef,
                                     data_type::bf16, data_type::undef))
-                    && attr()->has_default_values() && !has_zero_dim_memory()
-                    && set_default_formats();
+                    && attr()->has_default_values() && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
             status_t status = jit_avx512_core_bf16_bwd_data_kernel::init_conf(
-                    jcp_, *desc(), *diff_src_md(), *weights_md(),
-                    *diff_dst_md(), dnnl_get_max_threads());
+                    jcp_, *desc(), diff_src_md_, weights_md_, diff_dst_md_,
+                    dnnl_get_max_threads());
             return status;
         }
 
         jit_conv_conf_t jcp_;
-
-    protected:
-        bool set_default_formats() {
-            using namespace format_tag;
-
-            auto dat_tag = utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c);
-            auto wei_tag = utils::pick(2 * ndims() - 6 + with_groups(),
-                    OIw8o16i2o, gOIw8o16i2o, OIhw8o16i2o, gOIhw8o16i2o,
-                    OIdhw8o16i2o, gOIdhw8o16i2o);
-
-            return set_default_formats_common(dat_tag, wei_tag, dat_tag);
-        }
     };
 
     jit_avx512_core_bf16_convolution_bwd_data_t(const pd_t *apd)

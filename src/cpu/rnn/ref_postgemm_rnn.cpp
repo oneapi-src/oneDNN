@@ -92,7 +92,7 @@ void rnn_fwd_postgemm_template(T func1, const float *scales, float alpha,
     if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](int i) {
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             const float h
                     = func1(scratch_gates(i, 0, j) + bias(0, j), alpha, 0);
             states_t_l(i, j) = h;
@@ -160,7 +160,7 @@ void rnn_bwd_postgemm_template(T1 func1, T2 to_src, const float *scales,
     if (scales != nullptr) alpha = scales[0];
 
     parallel_nd(rnn.mb, [&](int i) {
-        for (int j = 0; j < rnn.dic; ++j) {
+        for (int j = 0; j < rnn.dhc; ++j) {
             const float dH = diff_states_t_lp1(rnn.n_states, i, j)
                     + diff_states_tp1_l(0, i, j);
             auto g = (float)ws_gates(i, 0, j);

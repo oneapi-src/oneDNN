@@ -28,12 +28,12 @@ namespace dnnl {
 struct test_rnn_sizes_t {
     test_rnn_sizes_t(memory::dim l, memory::dim d, memory::dim t,
             memory::dim mb, memory::dim slc, memory::dim sic, memory::dim dlc,
-            memory::dim dic)
-        : l(l), d(d), t(t), mb(mb), slc(slc), sic(sic), dlc(dlc), dic(dic) {}
+            memory::dim dhc)
+        : l(l), d(d), t(t), mb(mb), slc(slc), sic(sic), dlc(dlc), dhc(dhc) {}
     memory::dim l, d;
     memory::dim t;
     memory::dim mb;
-    memory::dim slc, sic, dlc, dic;
+    memory::dim slc, sic, dlc, dhc;
 };
 
 struct test_rnn_formats_t {
@@ -149,21 +149,21 @@ protected:
         memory::data_type prec = data_traits<data_t>::data_type;
         auto dims = p.sizes;
         auto t = dims.t, mb = dims.mb, l = dims.l, d = dims.d;
-        auto slc = dims.slc, sic = dims.sic, dlc = dims.dlc, dic = dims.dic;
+        auto slc = dims.slc, sic = dims.sic, dlc = dims.dlc, dhc = dims.dhc;
         memory::dim g = getNGates();
         memory::dim bias_extra_gate
                 = std::is_same<T, lbr_gru_forward>::value ? 1 : 0;
 
-        auto weights_layer_dims = {l, d, slc, g, dic};
-        auto weights_iter_dims = {l, d, sic, g, dic};
-        auto weights_peephole_dims = {l, d, (memory::dim)3, dic};
-        auto bias_dims = {l, d, g + bias_extra_gate, dic};
+        auto weights_layer_dims = {l, d, slc, g, dhc};
+        auto weights_iter_dims = {l, d, sic, g, dhc};
+        auto weights_peephole_dims = {l, d, (memory::dim)3, dhc};
+        auto bias_dims = {l, d, g + bias_extra_gate, dhc};
         auto src_layer_dims = {t, mb, slc};
         auto src_iter_dims = {l, d, mb, sic};
-        auto src_iter_c_dims = {l, d, mb, dic};
+        auto src_iter_c_dims = {l, d, mb, dhc};
         auto dst_layer_dims = {t, mb, dlc};
-        auto dst_iter_dims = {l, d, mb, dic};
-        auto dst_iter_c_dims = {l, d, mb, dic};
+        auto dst_iter_dims = {l, d, mb, dhc};
+        auto dst_iter_c_dims = {l, d, mb, dhc};
 
         auto weights_layer_md_any = memory::desc(
                 {weights_layer_dims}, prec, memory::format_tag::any);

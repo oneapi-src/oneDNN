@@ -43,12 +43,6 @@ struct dt_conf_s {
     int range;
 };
 typedef const dt_conf_s *dt_conf_t;
-
-extern const dt_conf_t conf_f32;
-extern const dt_conf_t conf_s8;
-extern const dt_conf_t conf_u8;
-extern const dt_conf_t conf_s32;
-
 dt_conf_t dt2cfg(dnnl_data_type_t dt);
 dnnl_data_type_t cfg2dt(dt_conf_t cfg);
 
@@ -63,6 +57,35 @@ struct q10n_conf_t {
     /* TODO: add attrs */
     attr_t::scale_t::policy_t policy;
     float scale;
+};
+
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    dims_t dims;
+
+    std::vector<dnnl_data_type_t> sdt {dnnl_f32}, ddt {dnnl_f32};
+    std::vector<std::string> stag {tag::abx}, dtag {tag::abx};
+    std::vector<float> def_scale {0.125, 0.25, 0.5, 1, 2, 4, 8};
+    std::vector<flag_t> oflag {FLAG_NONE};
+    std::vector<unsigned> runtime_dim_mask {0};
+    alg_t alg = ALG_REF;
+    attr_t attr = {};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%sdt%,%ddt%,%stag%,%dtag%,%flags%,%attr%,%DESC%,"
+              "%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+    const char *perf_template_def
+            = "perf,%engine%,%prb%,%Gops%,%-time%,%-Gbw%,%0time%,%0Gbw%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
 };
 
 struct prb_t {

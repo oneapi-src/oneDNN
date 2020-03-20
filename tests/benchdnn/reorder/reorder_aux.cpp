@@ -55,16 +55,17 @@ const char *flag2str(flag_t flag) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    s << "--sdt=" << dt2str(cfg2dt(p.conf_in)) << " ";
-    s << "--ddt=" << dt2str(cfg2dt(p.conf_out)) << " ";
+    s << "--sdt=" << cfg2dt(p.conf_in) << " ";
+    s << "--ddt=" << cfg2dt(p.conf_out) << " ";
     s << "--stag=" << p.reorder.tag_in << " ";
     s << "--dtag=" << p.reorder.tag_out << " ";
 
-    if (canonical || p.alg != ALG_REF) s << "--alg=" << alg2str(p.alg) << " ";
-    if (canonical || p.oflag != FLAG_NONE)
+    if (canonical || p.alg != def.alg) s << "--alg=" << alg2str(p.alg) << " ";
+    if (canonical || p.oflag != def.oflag[0])
         s << "--oflag=" << flag2str(p.oflag) << " ";
-    if (canonical || p.runtime_dim_mask != 0)
+    if (canonical || p.runtime_dim_mask != def.runtime_dim_mask[0])
         s << "--runtime-dim-mask=" << p.runtime_dim_mask << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 

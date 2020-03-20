@@ -47,6 +47,6 @@
 --mb=2
 --dt=f32,f16,bf16
 --tag=axb
---dir=FWD_I
---dir=FWD_I        --flags=GR,GS   --attr=                --batch=bnorm_topo_small
---dir=FWD_I        --flags=G,GS    --attr=post_ops='relu' --batch=bnorm_topo_small
+--dir=FWD_I        --flags=        --attr=                --batch=bnorm_topo_small
+--dir=FWD_D        --flags=SR,GS,S --attr=                --batch=bnorm_topo_small
+--dir=FWD_D        --flags=GS,S    --attr=post_ops='relu' --batch=bnorm_topo_small

@@ -36,20 +36,16 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     using sum::operator<<;
 
     dump_global_params(s);
-
-    bool has_default_dts = true;
-    for (const auto &i_dt : p.sdt)
-        has_default_dts = has_default_dts && i_dt == dnnl_f32;
+    settings_t def;
 
     bool has_default_tags = true;
     for (const auto &i_stag : p.stag)
         has_default_tags = has_default_tags && i_stag == tag::abx;
 
-    if (canonical || !has_default_dts || p.n_inputs() != 2)
-        s << "--sdt=" << p.sdt << " ";
-    if (canonical || p.ddt != dnnl_f32) s << "--ddt=" << dt2str(p.ddt) << " ";
+    if (canonical || p.sdt != def.sdt[0]) s << "--sdt=" << p.sdt << " ";
+    if (canonical || p.ddt != def.ddt[0]) s << "--ddt=" << p.ddt << " ";
     if (canonical || !has_default_tags) s << "--stag=" << p.stag << " ";
-    if (canonical || p.dtag != tag::undef) s << "--dtag=" << p.dtag << " ";
+    if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
     s << "--scales=" << p.scales << " ";
 
     s << p.dims;

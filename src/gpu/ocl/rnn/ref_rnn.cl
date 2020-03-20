@@ -155,15 +155,15 @@ __kernel void ref_rnn_copy_init_layer(
 #if DIRECTION_KIND == CONCAT
     __global DIFF_DATA_T *src
             = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
-    for (int s = 0; s < DIC; s++) {
+    for (int s = 0; s < DHC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
         dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_STATES, N_ITER - it - 1, b, s)]
-                = src[DIC + s];
+                = src[DHC + s];
     }
 #elif DIRECTION_KIND == SUM
     __global DIFF_DATA_T *src
             = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
-    for (int s = 0; s < DIC; s++) {
+    for (int s = 0; s < DHC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
         dst[OFF_WS_DIFF_STATES(N_LAYER, 1, N_STATES, N_ITER - it - 1, b, s)]
                 = src[s];
@@ -171,13 +171,13 @@ __kernel void ref_rnn_copy_init_layer(
 #elif DIRECTION_KIND == L2R
     __global DIFF_DATA_T *src
             = (__global DIFF_DATA_T *)src_base + DIFF_DST_L_OFF(it, b, 0);
-    for (int s = 0; s < DIC; s++) {
+    for (int s = 0; s < DHC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
     }
 #elif DIRECTION_KIND == R2L
     __global DIFF_DATA_T *src = (__global DIFF_DATA_T *)src_base
             + DIFF_DST_L_OFF(N_ITER - it - 1, b, 0);
-    for (int s = 0; s < DIC; s++) {
+    for (int s = 0; s < DHC; s++) {
         dst[OFF_WS_DIFF_STATES(N_LAYER, 0, N_STATES, it, b, s)] = src[s];
     }
 #else
@@ -214,7 +214,7 @@ __kernel void ref_rnn_copy_init_iter(
     __global AUX_DATA_T *src_c = (__global AUX_DATA_T *)(src_c_base);
     __global AUX_DATA_T *dst_c
             = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
-    if (s < DIC)
+    if (s < DHC)
         dst_c[OFF_WS_STATE(lay + 1, dir, 0, b, s)] = src_c_base
                 ? src_c[SRC_I_C_OFF(lay, dir, b, s)]
                 : TO_WS_STATE(0.0f);
@@ -226,12 +226,12 @@ __kernel void ref_rnn_copy_init_iter(
     __global DIFF_DATA_T *dst
             = (__global DIFF_DATA_T *)(ws + WS_DIFF_STATES_OFFSET);
 
-    if (s < DIC)
+    if (s < DHC)
         dst[OFF_WS_DIFF_STATES(lay, dir, 0, N_ITER, b, s)]
                 = src_base ? src[DIFF_DST_I_OFF(lay, dir, b, s)] : 0.0f;
 #if WITH_DST_ITER_C
     __global DIFF_DATA_T *src_c = (__global DIFF_DATA_T *)(src_c_base);
-    if (s < DIC)
+    if (s < DHC)
         dst[OFF_WS_DIFF_STATES(lay, dir, 1, N_ITER, b, s)]
                 = src_c_base ? src_c[DIFF_DST_I_C_OFF(lay, dir, b, s)] : 0.0f;
 #endif
@@ -256,7 +256,7 @@ __kernel void ref_rnn_copy_res_layer(
     __global DST_DATA_T *dst = (__global DST_DATA_T *)(dst_base);
     int dir = 0;
     if (lr) {
-        dst[DST_L_OFF(it, b, dir * DIC + s)] = dequantize
+        dst[DST_L_OFF(it, b, dir * DHC + s)] = dequantize
                 ? TO_DST(((float)src[OFF_WS_STATE(N_LAYER, dir, it + 1, b, s)]
                                  - shift)
                         / scale)
@@ -285,7 +285,7 @@ __kernel void ref_rnn_copy_res_layer(
 #endif
         }
 #else
-        dst[DST_L_OFF(it, b, dir * DIC + s)] = dequantize
+        dst[DST_L_OFF(it, b, dir * DHC + s)] = dequantize
                 ? TO_DST(((float)src[OFF_WS_STATE(
                                   N_LAYER, dir, N_ITER - it, b, s)]
                                  - shift)
@@ -331,7 +331,7 @@ __kernel void ref_rnn_copy_res_iter(
             = (__global WS_STATE_DATA_T *)(ws + WS_STATES_OFFSET);
     __global OUTPUT_DATA_T *dst = (__global OUTPUT_DATA_T *)(dst_base);
 
-    if (dst_base && s < DIC) {
+    if (dst_base && s < DHC) {
         dst[DST_I_OFF(lay, dir, b, s)] = dequantize
                 ? TO_OUTPUT(
                         ((float)src[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)]
@@ -343,7 +343,7 @@ __kernel void ref_rnn_copy_res_iter(
     __global AUX_DATA_T *src_c
             = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET);
     __global AUX_DATA_T *dst_c = (__global AUX_DATA_T *)(dst_c_base);
-    if (dst_c_base && s < DIC) {
+    if (dst_c_base && s < DHC) {
         dst_c[DST_I_C_OFF(lay, dir, b, s)]
                 = src_c[OFF_WS_STATE(lay + 1, dir, N_ITER, b, s)];
     }
@@ -360,7 +360,7 @@ __kernel void ref_rnn_copy_res_iter(
                 = src[OFF_WS_DIFF_STATES(lay, dir, 0, 0, b, s)];
     }
 #if WITH_SRC_ITER_C
-    if (dst_base && s < DIC) {
+    if (dst_base && s < DHC) {
         dst_c[DIFF_SRC_I_C_OFF(lay, dir, b, s)]
                 = src[OFF_WS_DIFF_STATES(lay, dir, 1, 0, b, s)];
     }
@@ -398,7 +398,7 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
         for (int b = 0; b < BATCH; b++) {
             printf("[%d,%d,%d,%d]: ", j, dir, i, b);
             for_(int g = 0; g < N_GATES; g++)
-            for (int s = 0; s < DIC; s++) {
+            for (int s = 0; s < DHC; s++) {
                 printf(" %f",
                         SRC_TO_REF(*(wt + OFF_WS_GATES(j, dir, i, b, g, s))));
             }
@@ -469,8 +469,8 @@ __kernel void ref_rnn_ws_print(const __global char *ws) {
         {
             printf("[%d,%d] : ", j, dir);
             for_(int nb = 0; nb < N_BIAS; nb++)
-            for (int dic = 0; dic < DIC; dic++) {
-                printf(" %f", *(wt + OFF_WS_BIAS(j, dir, nb, dic)));
+            for (int dhc = 0; dhc < DHC; dhc++) {
+                printf(" %f", *(wt + OFF_WS_BIAS(j, dir, nb, dhc)));
             }
             printf("\n");
         }
@@ -484,7 +484,7 @@ __kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
         float data_shift, float data_scale) {
 #if COPY_BIAS
 
-    const int dic = get_global_id(0);
+    const int dhc = get_global_id(0);
     const int nbias = get_global_id(1);
     const int layer = get_global_id(2) / N_DIR;
     const int dir = get_global_id(2) % N_DIR;
@@ -493,13 +493,13 @@ __kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
 
     const float wei_scale
 #if WEI_QPARAM_MASK
-            = scales[nbias * DIC + dic];
+            = scales[nbias * DHC + dhc];
 #else
             = scales[0];
 #endif
 
 #define COMP_OFF(i0, i1, i2, i3) \
-    ((((i0) * (N_DIR) + (i1)) * (N_BIAS) + (i2)) * (DIC) + (i3))
+    ((((i0) * (N_DIR) + (i1)) * (N_BIAS) + (i2)) * (DHC) + (i3))
 #define COMP_WEI_LAYER_OFF (WEI_L_D0 * WEI_L_S0)
 #define COMP_WEI_ITER_OFF (WEI_I_D0 * WEI_I_S0)
 
@@ -512,10 +512,10 @@ __kernel void ref_rnn_bias_prepare(__global char *ws, __global float *scales,
             = (__global float *)(((unsigned long)temp + (sizeof(float) - 1))
                     & -sizeof(float));
 
-    const int off = COMP_OFF(layer, dir, nbias, dic);
+    const int off = COMP_OFF(layer, dir, nbias, dhc);
     const float comp = wei_layer_comp[off] + wei_iter_comp[off];
-    ws_bias[OFF_WS_BIAS(layer, dir, nbias, dic)]
-            = bias[BIAS_OFF(layer, dir, nbias, dic)]
+    ws_bias[OFF_WS_BIAS(layer, dir, nbias, dhc)]
+            = bias[BIAS_OFF(layer, dir, nbias, dhc)]
             - comp * data_shift / (wei_scale * data_scale);
 
 #endif
@@ -531,7 +531,7 @@ WS_STATE_DATA_T q_d(float f, float data_scale, float data_shift) {
 float deq_w(ACC_DATA_T s, int gate, int j, __global float *scales,
         float data_scale) {
 #if WEI_QPARAM_MASK
-    float wei_scale = scales[gate * DIC + j];
+    float wei_scale = scales[gate * DHC + j];
 #else
     float wei_scale = scales[0];
 #endif
@@ -545,7 +545,7 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
         float data_scale, __global float *tm_scales, float tm_cscale) {
 
     const int i = get_global_id(1); // batch
-    const int j = get_global_id(0); // dic
+    const int j = get_global_id(0); // dhc
 
     const __global float *c_states_tm1_l
             = (__global float *)(ws + WS_C_STATE_OFFSET)
@@ -596,7 +596,7 @@ __kernel void ref_rnn_elemwise_fwd(int dir, int lay, int iter,
         float tm_cscale) {
 
     const int i = get_global_id(1); // batch
-    const int j = get_global_id(0); // dic
+    const int j = get_global_id(0); // dhc
 
     const __global AUX_DATA_T *c_states_tm1_l
             = (__global AUX_DATA_T *)(ws + WS_C_STATE_OFFSET)
@@ -673,7 +673,7 @@ __kernel void ref_rnn_elemwise_bwd(int dir, int lay, int iter,
         float tm_cscale) {
 
     const int i = get_global_id(1); // batch
-    const int j = get_global_id(0); // dic
+    const int j = get_global_id(0); // dhc
 
 #if CELL_KIND == VANILLA_LSTM
 
@@ -758,7 +758,7 @@ __kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
         __global DIFF_DATA_T *diff_bias_base, __global char *scratch_gates) {
 #if !IS_FWD
     const int i = get_global_id(0); // n_gates
-    const int k = get_global_id(1); // dic
+    const int k = get_global_id(1); // dhc
 
     __global DIFF_DATA_T *diff_bias
             = diff_bias_base + DIFF_BIAS_OFF(lay, dir, 0, 0);
@@ -766,8 +766,8 @@ __kernel void ref_rnn_gates_reduction(int dir, int lay, int iter,
             + OFF_SCRATCH_GATES(iter, 0, 0, 0);
 
     for (int j = 0; j < BATCH; j++) {
-        diff_bias[i * DIC + k]
-                += SRC_TO_REF(gates[j * SCRATCH_GATES_LD + i * DIC + k]);
+        diff_bias[i * DHC + k]
+                += SRC_TO_REF(gates[j * SCRATCH_GATES_LD + i * DHC + k]);
     }
 #endif
 }

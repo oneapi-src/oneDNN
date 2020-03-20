@@ -31,11 +31,11 @@
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
 
-#define COMPARE_DAT(rc, a, lay) \
+#define COMPARE_DAT(rc, kind, a, lay) \
     do { \
         dnn_mem_t CONCAT2(a, _dt_plain)(CONCAT2(a, _dt), fp, lay, engine_tgt); \
         rc |= compare_dat( \
-                p, a, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), r, true); \
+                p, kind, CONCAT2(a, _dt_plain), CONCAT2(a, _fp), r, true); \
     } while (0)
 
 // Using hidden attr API for testing RNN
@@ -53,7 +53,7 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
 
     if (p.scale_policy == policy_t::PER_OC) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
-                *dnnl_attr, p.dic * p.n_gates(), 0x18, p.wei_oc_scales));
+                *dnnl_attr, p.dhc * p.n_gates(), 0x18, p.wei_oc_scales));
     } else if (p.scale_policy == policy_t::COMMON && p.wei_scale != 1.) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
                 *dnnl_attr, 1, 0, &p.wei_scale));
@@ -102,7 +102,7 @@ int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
         int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
         for (int64_t idx = idx_start; idx < idx_end; ++idx) {
             const float current_scale = p.scale_policy == policy_t::PER_OC
-                    ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                    ? p.wei_oc_scales[idx % (p.dhc * p.n_gates())]
                     : p.wei_scale;
             float val_f32 = mem_fp.get_elem(idx);
             //int8_t val_s8 = saturate<dnnl_s8>(val_f32);
@@ -131,7 +131,7 @@ int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
     return OK;
 }
 
-int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_memory(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, dnnl_data_type_t dt, float mean, float stddev,
         float min, float max, const_dnnl_primitive_attr_t attr = nullptr,
         bool flip_sign = false) {
@@ -155,10 +155,10 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     const_dnnl_primitive_attr_t reorder_attr = nullptr;
 
     if (p.is_int8()) {
-        if (kind == weights_input || kind == weights_states) {
+        if (kind == WEIGHTS_LAYER || kind == WEIGHTS_ITER) {
             need_recompute_scale = p.scale_policy == policy_t::PER_OC;
             if (!need_recompute_scale) scale = p.wei_scale;
-        } else if (dt == dnnl_u8 && (kind == input || kind == states)) {
+        } else if (dt == dnnl_u8 && (kind == SRC_LAYER || kind == SRC_ITER)) {
             scale = p.data_scale;
             shift = p.data_shift;
         }
@@ -180,15 +180,15 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
             val = MAX2(MIN2(val, max), min);
 
             const float current_scale = need_recompute_scale
-                    ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                    ? p.wei_oc_scales[idx % (p.dhc * p.n_gates())]
                     : scale;
             val = (val - shift) / current_scale; // change only int8-case
 
             // Vanilla RNN with RELU testing related only: flip the sign of
             // inputs for `mb` == 0 to test RELU part
             if (flip_sign) {
-                assert(kind == input || kind == states);
-                auto ld = kind == input ? p.slc : p.sic;
+                assert(kind == SRC_LAYER || kind == SRC_ITER);
+                auto ld = kind == SRC_LAYER ? p.slc : p.sic;
                 if (idx % (p.mb * ld) < ld) val *= -1;
             }
             mem_fp.set_elem(idx, val);
@@ -200,13 +200,13 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
         if (check_s8s8_reorder(p, mem_dt, mem_fp) != OK) return FAIL;
 
     // Bullet 4.a holds: quantize weights for int8 benchdnn reference RNN
-    if (p.is_int8() && (kind == weights_input || kind == weights_states)) {
+    if (p.is_int8() && (kind == WEIGHTS_LAYER || kind == WEIGHTS_ITER)) {
         dnnl::impl::parallel_nd(n_chunks, [&](int idx_chunk) {
             int64_t idx_start = idx_chunk * chunk_size;
             int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
             for (int64_t idx = idx_start; idx < idx_end; ++idx) {
                 const float current_scale = need_recompute_scale
-                        ? p.wei_oc_scales[idx % (p.dic * p.n_gates())]
+                        ? p.wei_oc_scales[idx % (p.dhc * p.n_gates())]
                         : scale;
 
                 float val = ((float *)mem_fp)[idx];
@@ -220,15 +220,15 @@ int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_memory(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_memory(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr,
         bool flip_sign = false) {
-    dt_conf_t c = p.cfg[kind];
+    const dt_conf_t::entry_t &c = p.cfg[kind];
     return fill_memory(p, kind, mem_dt, mem_fp, c.dt, c.f_mean, c.f_stddev,
             c.f_min, c.f_max, attr, flip_sign);
 }
 
-int fill_activation(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_activation(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
     // In general, we mostly want to use positive values to avoid
     // cancellation from happening during computation.  The only case
@@ -239,27 +239,27 @@ int fill_activation(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     // alpha, and not the linear function that would replace it under
     // skip_nonlinear=true.
     bool flip_sign = p.skip_nonlinear == false && p.alg == VANILLA_RNN
-            && p.activation == RELU && (kind == input || kind == states);
+            && p.activation == RELU && (kind == SRC_LAYER || kind == SRC_ITER);
     return fill_memory(p, kind, mem_dt, mem_fp, attr, flip_sign);
 }
 
-int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
+int fill_src_iter_c(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         const_dnnl_primitive_attr_t attr = nullptr) {
     const bool special_case = p.prop == dnnl_backward && p.skip_nonlinear;
-    if (!special_case) return fill_memory(p, c_states, mem_dt, mem_fp, attr);
+    if (!special_case) return fill_memory(p, SRC_ITER_C, mem_dt, mem_fp, attr);
 
     // The scaling factors in tparams when testing backward are common for
     // for forward and backward passes, and computed as 1 over maximum of
     // the accumulation chain:
     // - ~n_gates on FWD
-    // - ~dic * n_gates on BWD_D
+    // - ~dhc * n_gates on BWD_D
     // - ~mb * n_gates on BWD_W
     //
     // This makes tparam relatively small for the forward pass (compare to
     // the forward pass when we test forward only). This in turn, makes
-    // c_states converge relatively fast to the value ~ i_gate * c_gate,
+    // src_iter_c converge relatively fast to the value ~ i_gate * c_gate,
     // which is (typically) way smaller than the original distribution for
-    // c_states.
+    // src_iter_c.
     //
     // TODO: use different tparams for forward and
     //       backward passes when testing BWD_DW.
@@ -267,11 +267,11 @@ int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     // The problem appears on backward pass. Consider diff_f_gate that
     // contributes to backward weights when batch or number of iterations
     // is big:
-    //   diff_f_gate[iter] = src_c_state[iter] * diff_dst[iter].
+    //   diff_f_gate[iter] = src_iter_c[iter] * diff_dst[iter].
     //   diff_weights += ~diff_f_gate[iter].
     //
     // Assume, that diff_dst[iter] is always about the same for every iter.
-    // Since src_c_state[0] >> src_c_state[iter] for iter > 0, this makes the
+    // Since src_iter_c[0] >> src_iter_c[iter] for iter > 0, this makes the
     // diff_weight be highly dependent on the order of accumulating the
     // diff_f_gate[iter].
     //
@@ -280,13 +280,13 @@ int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     // Depending on the order of summation the difference might exceed the
     // typical bound approximation: coefficient * log(number_of_summands).
     //
-    // Anyways, the algorithm below tries to put the first src_c_state[iter = 0]
-    // in the same ballpark as all the subsequent src_c_state[iter > 0].
+    // Anyways, the algorithm below tries to put the first src_iter_c[iter = 0]
+    // in the same ballpark as all the subsequent src_iter_c[iter > 0].
     //
     // The estimation is based on the following rough assumptions:
-    //   c_state[iter+1] = f_gate * c_state[iter] + i_gate * c_gate
-    //                  ~= f_gate * small_value   + i_gate * c_gate
-    //                  ~=                          i_gate * c_gate.
+    //   src_iter_c[iter+1] = f_gate * src_iter_c[iter] + i_gate * c_gate
+    //                     ~= f_gate * small_value      + i_gate * c_gate
+    //                     ~=                             i_gate * c_gate.
     //   i_gate ~= tparams[i_gate] * (
     //              1 / ngates * mean_src_layer +
     //              1 / ngates * mean_src_iter  +
@@ -295,29 +295,29 @@ int fill_c_states(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
     // Same for c_gate.
     // The (1 / ngates) factor is taken from fill_weights().
 
-    float expect_gemm_output = (1.f / p.n_gates()) * p.cfg[input].f_mean
-            + (1.f / p.n_gates()) * p.cfg[states].f_mean + p.cfg[bias].f_mean;
+    float expect_gemm_output = (1.f / p.n_gates()) * p.cfg[SRC_LAYER].f_mean
+            + (1.f / p.n_gates()) * p.cfg[SRC_ITER].f_mean + p.cfg[BIAS].f_mean;
     float expect_i_gate = (float)p.linear_scales[LSTM_I] * expect_gemm_output;
     float expect_c_gate = (float)p.linear_scales[LSTM_C] * expect_gemm_output;
-    float expect_c_state_mean = expect_i_gate * expect_c_gate;
+    float expect_src_iter_c_mean = expect_i_gate * expect_c_gate;
 
     float adjust_factor = 1;
 
-    const bool need_adjust = expect_c_state_mean < p.cfg[c_states].f_mean
-            && p.cfg[c_states].f_mean != 0;
+    const bool need_adjust = expect_src_iter_c_mean < p.cfg[SRC_ITER_C].f_mean
+            && p.cfg[SRC_ITER_C].f_mean != 0;
     if (need_adjust)
-        adjust_factor = expect_c_state_mean / p.cfg[c_states].f_mean;
+        adjust_factor = expect_src_iter_c_mean / p.cfg[SRC_ITER_C].f_mean;
 
-    dt_conf_t c = p.cfg[c_states];
-    return fill_memory(p, c_states, mem_dt, mem_fp, c.dt,
+    const dt_conf_t::entry_t &c = p.cfg[SRC_ITER_C];
+    return fill_memory(p, SRC_ITER_C, mem_dt, mem_fp, c.dt,
             c.f_mean * adjust_factor, c.f_stddev * adjust_factor,
             c.f_min * adjust_factor, c.f_max * adjust_factor, attr);
 }
 
-int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_weights(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp, const_dnnl_primitive_attr_t attr = nullptr) {
 
-    dt_conf_t c = p.cfg[kind];
+    const dt_conf_t::entry_t &c = p.cfg[kind];
     if (c.dt == dnnl_s8) return fill_memory(p, kind, mem_dt, mem_fp, attr);
 
     auto dims = mem_fp.md_.dims;
@@ -346,7 +346,7 @@ int fill_weights(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-int fill_bias(const prb_t &p, rnn_data_kind_t kind, dnn_mem_t &mem_dt,
+int fill_bias(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         dnn_mem_t &mem_fp) {
     // To reduce likelihood of cancellation happening in bwd by bias,
     // (especially for GRU), we want diff_bias to be sparse
@@ -393,160 +393,157 @@ inline int init_pd(
     // TODO:  testing with non-trivial stride should be a testing option!
     int the_stride = (bench_mode == CORR && !p.is_int8()) ? 1 : 0;
     /// @todo we need to add stride support for diff_* tensors too
-    dnnl_memory_desc_t input_d, states_d, c_states_d, weights_input_d,
-            weights_states_d, weights_peephole_d {}, bias_d, dst_last_layer_d,
-            dst_last_iteration_d, dst_c_last_iteration_d, diff_input_d,
-            diff_states_d, diff_c_states_d, diff_weights_input_d,
-            diff_weights_states_d, diff_weights_peephole_d {}, diff_bias_d,
-            diff_last_layer_d, diff_last_iteration_d, diff_c_last_iteration_d;
+    dnnl_memory_desc_t src_layer_d, src_iter_d, src_iter_c_d, weights_layer_d,
+            weights_iter_d, weights_peephole_d {}, bias_d, dst_layer_d,
+            dst_iter_d, dst_iter_c_d, diff_src_layer_d, diff_src_iter_d,
+            diff_src_iter_c_d, diff_weights_layer_d, diff_weights_iter_d,
+            diff_weights_peephole_d {}, diff_bias_d, diff_dst_layer_d,
+            diff_dst_iter_d, diff_dst_iter_c_d;
 
     // dimensions with ref
-    dnnl_dims_t input_dims = {p.n_iter, p.mb, p.slc};
+    dnnl_dims_t src_layer_dims = {p.n_iter, p.mb, p.slc};
     // bidirectional = 2, s for lstm = 2, for all other = 1
-    dnnl_dims_t weights_input_dims
-            = {p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dic};
-    dnnl_dims_t weights_states_dims
-            = {p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dic};
-    dnnl_dims_t weights_peephole_dims = {p.n_layer, p.n_dir(), 3, p.dic};
+    dnnl_dims_t weights_layer_dims
+            = {p.n_layer, p.n_dir(), p.slc, p.n_gates(), p.dhc};
+    dnnl_dims_t weights_iter_dims
+            = {p.n_layer, p.n_dir(), p.sic, p.n_gates(), p.dhc};
+    dnnl_dims_t weights_peephole_dims = {p.n_layer, p.n_dir(), 3, p.dhc};
     dnnl_dims_t bias_dims
-            = {p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dic};
+            = {p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dhc};
     // dnnl_tnc
-    int64_t lastlay_dlc
-            = (p.direction == dnnl_bidirectional_concat) ? 2 * p.dlc : p.dlc;
-    dnnl_dims_t dst_last_layer_dims = {p.n_iter, p.mb, lastlay_dlc};
+    dnnl_dims_t dst_layer_dims = {p.n_iter, p.mb, p.dlc()};
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &input_d, 3, input_dims, p.cfg[input].dt, dnnl_tnc),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_layer_d, 3, src_layer_dims,
+                     p.cfg[SRC_LAYER].dt, dnnl_tnc),
             WARN);
-    input_d.format_desc.blocking.strides[0] += the_stride;
+    src_layer_d.format_desc.blocking.strides[0] += the_stride;
 
-    dnnl_dims_t states_dims = {p.n_layer, p.n_dir(), p.mb, p.sic};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(
-                     &states_d, 4, states_dims, p.cfg[states].dt, dnnl_ldnc),
+    dnnl_dims_t src_iter_dims = {p.n_layer, p.n_dir(), p.mb, p.sic};
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_iter_d, 4, src_iter_dims,
+                     p.cfg[SRC_ITER].dt, dnnl_ldnc),
             WARN);
-    states_d.format_desc.blocking.strides[2] = p.sic + the_stride;
+    src_iter_d.format_desc.blocking.strides[2] = p.sic + the_stride;
     for (int d = 1; d >= 0; --d)
-        states_d.format_desc.blocking.strides[d]
-                = states_d.format_desc.blocking.strides[d + 1]
-                * states_d.dims[d + 1];
+        src_iter_d.format_desc.blocking.strides[d]
+                = src_iter_d.format_desc.blocking.strides[d + 1]
+                * src_iter_d.dims[d + 1];
 
-    dnnl_dims_t c_states_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&c_states_d, 4, c_states_dims,
-                     p.cfg[c_states].dt, dnnl_ldnc),
+    dnnl_dims_t src_iter_c_dims = {p.n_layer, p.n_dir(), p.mb, p.dhc};
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_iter_c_d, 4, src_iter_c_dims,
+                     p.cfg[SRC_ITER_C].dt, dnnl_ldnc),
             WARN);
-    c_states_d.format_desc.blocking.strides[2] = p.dic + the_stride;
+    src_iter_c_d.format_desc.blocking.strides[2] = p.dhc + the_stride;
     for (int d = 1; d >= 0; --d)
-        c_states_d.format_desc.blocking.strides[d]
-                = c_states_d.format_desc.blocking.strides[d + 1]
-                * c_states_d.dims[d + 1];
+        src_iter_c_d.format_desc.blocking.strides[d]
+                = src_iter_c_d.format_desc.blocking.strides[d + 1]
+                * src_iter_c_d.dims[d + 1];
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&weights_input_d, 5,
-                     weights_input_dims, p.cfg[weights_input].dt,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&weights_layer_d, 5,
+                     weights_layer_dims, p.cfg[WEIGHTS_LAYER].dt,
                      dnnl_format_tag_any),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&weights_states_d, 5,
-                     weights_states_dims, p.cfg[weights_states].dt,
-                     dnnl_format_tag_any),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&weights_iter_d, 5, weights_iter_dims,
+                     p.cfg[WEIGHTS_ITER].dt, dnnl_format_tag_any),
             WARN);
 
     if (p.is_lstm_peephole()) {
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&weights_peephole_d, 4,
-                         weights_peephole_dims, p.cfg[weights_peephole].dt,
+                         weights_peephole_dims, p.cfg[WEIGHTS_PEEPHOLE].dt,
                          dnnl_ldgo),
                 WARN);
     }
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bias_d, 4, bias_dims, p.cfg[bias].dt,
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&bias_d, 4, bias_dims, p.cfg[BIAS].dt,
                      dnnl_format_tag_any),
             WARN);
 
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_last_layer_d, 3,
-                     dst_last_layer_dims, p.cfg[dst_last_layer].dt, dnnl_tnc),
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_layer_d, 3, dst_layer_dims,
+                     p.cfg[DST_LAYER].dt, dnnl_tnc),
             WARN);
-    dst_last_layer_d.format_desc.blocking.strides[0] += the_stride;
+    dst_layer_d.format_desc.blocking.strides[0] += the_stride;
 
-    dnnl_dims_t dst_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_last_iteration_d, 4,
-                     dst_last_iteration_dims, p.cfg[dst_last_iteration].dt,
-                     dnnl_ldnc),
+    dnnl_dims_t dst_iter_dims = {p.n_layer, p.n_dir(), p.mb, p.dhc};
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_iter_d, 4, dst_iter_dims,
+                     p.cfg[DST_ITER].dt, dnnl_ldnc),
             WARN);
-    dst_last_iteration_d.format_desc.blocking.strides[2] = p.dic + the_stride;
+    dst_iter_d.format_desc.blocking.strides[2] = p.dhc + the_stride;
     for (int d = 1; d >= 0; --d)
-        dst_last_iteration_d.format_desc.blocking.strides[d]
-                = dst_last_iteration_d.format_desc.blocking.strides[d + 1]
-                * dst_last_iteration_d.dims[d + 1];
+        dst_iter_d.format_desc.blocking.strides[d]
+                = dst_iter_d.format_desc.blocking.strides[d + 1]
+                * dst_iter_d.dims[d + 1];
 
-    dnnl_dims_t dst_c_last_iteration_dims = {p.n_layer, p.n_dir(), p.mb, p.dic};
-    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_c_last_iteration_d, 4,
-                     dst_c_last_iteration_dims, p.cfg[dst_c_last_iteration].dt,
-                     dnnl_ldnc),
+    dnnl_dims_t dst_iter_c_dims = {p.n_layer, p.n_dir(), p.mb, p.dhc};
+    DNN_SAFE(dnnl_memory_desc_init_by_tag(&dst_iter_c_d, 4, dst_iter_c_dims,
+                     p.cfg[DST_ITER_C].dt, dnnl_ldnc),
             WARN);
 
-    dst_c_last_iteration_d.format_desc.blocking.strides[2] = p.dic + the_stride;
+    dst_iter_c_d.format_desc.blocking.strides[2] = p.dhc + the_stride;
     for (int d = 1; d >= 0; --d)
-        dst_c_last_iteration_d.format_desc.blocking.strides[d]
-                = dst_c_last_iteration_d.format_desc.blocking.strides[d + 1]
-                * dst_c_last_iteration_d.dims[d + 1];
+        dst_iter_c_d.format_desc.blocking.strides[d]
+                = dst_iter_c_d.format_desc.blocking.strides[d + 1]
+                * dst_iter_c_d.dims[d + 1];
 
     // Initializing the forward pass
     // When inference, we use forward_inference
     // When training, we use forward_training
     if (is_fwd) {
-        DNN_SAFE(init_rnn_fwd_desc(&rd, p, fwd_prop, &input_d, &states_d,
-                         &c_states_d, &weights_input_d, &weights_states_d,
-                         &weights_peephole_d, &bias_d, &dst_last_layer_d,
-                         &dst_last_iteration_d, &dst_c_last_iteration_d),
+        DNN_SAFE(init_rnn_fwd_desc(&rd, p, fwd_prop, &src_layer_d, &src_iter_d,
+                         &src_iter_c_d, &weights_layer_d, &weights_iter_d,
+                         &weights_peephole_d, &bias_d, &dst_layer_d,
+                         &dst_iter_d, &dst_iter_c_d),
                 WARN);
     } else {
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_input_d, 3, input_dims,
-                         p.cfg[dst_diff_input].dt, dnnl_format_tag_any),
-                WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_states_d, 4, states_dims,
-                         p.cfg[dst_diff_states].dt, dnnl_format_tag_any),
-                WARN);
-        DNN_SAFE(
-                dnnl_memory_desc_init_by_tag(&diff_c_states_d, 4, c_states_dims,
-                        p.cfg[dst_diff_c_states].dt, dnnl_format_tag_any),
-                WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_weights_input_d, 5,
-                         weights_input_dims, p.cfg[dst_diff_weights_input].dt,
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_src_layer_d, 3,
+                         src_layer_dims, p.cfg[DIFF_SRC_LAYER].dt,
                          dnnl_format_tag_any),
                 WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_weights_states_d, 5,
-                         weights_states_dims, p.cfg[dst_diff_weights_states].dt,
+        DNN_SAFE(
+                dnnl_memory_desc_init_by_tag(&diff_src_iter_d, 4, src_iter_dims,
+                        p.cfg[DIFF_SRC_ITER].dt, dnnl_format_tag_any),
+                WARN);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_src_iter_c_d, 4,
+                         src_iter_c_dims, p.cfg[DIFF_SRC_ITER_C].dt,
+                         dnnl_format_tag_any),
+                WARN);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_weights_layer_d, 5,
+                         weights_layer_dims, p.cfg[DIFF_WEIGHTS_LAYER].dt,
+                         dnnl_format_tag_any),
+                WARN);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_weights_iter_d, 5,
+                         weights_iter_dims, p.cfg[DIFF_WEIGHTS_ITER].dt,
                          dnnl_format_tag_any),
                 WARN);
         if (p.is_lstm_peephole()) {
             DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_weights_peephole_d, 4,
                              weights_peephole_dims,
-                             p.cfg[dst_diff_weights_peephole].dt, dnnl_ldgo),
+                             p.cfg[DIFF_WEIGHTS_PEEPHOLE].dt, dnnl_ldgo),
                     WARN);
         }
         DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_bias_d, 4, bias_dims,
-                         p.cfg[dst_diff_bias].dt, dnnl_format_tag_any),
+                         p.cfg[DIFF_BIAS].dt, dnnl_format_tag_any),
                 WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_last_layer_d, 3,
-                         dst_last_layer_dims, p.cfg[diff_last_layer].dt,
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_dst_layer_d, 3,
+                         dst_layer_dims, p.cfg[DIFF_DST_LAYER].dt,
                          dnnl_format_tag_any),
                 WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_last_iteration_d, 4,
-                         dst_last_iteration_dims, p.cfg[diff_last_iteration].dt,
+        DNN_SAFE(
+                dnnl_memory_desc_init_by_tag(&diff_dst_iter_d, 4, dst_iter_dims,
+                        p.cfg[DIFF_DST_ITER].dt, dnnl_format_tag_any),
+                WARN);
+        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_dst_iter_c_d, 4,
+                         dst_iter_c_dims, p.cfg[DIFF_DST_ITER_C].dt,
                          dnnl_format_tag_any),
                 WARN);
-        DNN_SAFE(dnnl_memory_desc_init_by_tag(&diff_c_last_iteration_d, 4,
-                         dst_c_last_iteration_dims,
-                         p.cfg[diff_c_last_iteration].dt, dnnl_format_tag_any),
-                WARN);
-        DNN_SAFE(init_rnn_bwd_desc(&rd, p, p.prop, &input_d, &states_d,
-                         &c_states_d, &weights_input_d, &weights_states_d,
-                         &weights_peephole_d, &bias_d, &dst_last_layer_d,
-                         &dst_last_iteration_d, &dst_c_last_iteration_d,
-                         &diff_input_d, &diff_states_d, &diff_c_states_d,
-                         &diff_weights_input_d, &diff_weights_states_d,
-                         &diff_weights_peephole_d, &diff_bias_d,
-                         &diff_last_layer_d, &diff_last_iteration_d,
-                         &diff_c_last_iteration_d),
+        DNN_SAFE(
+                init_rnn_bwd_desc(&rd, p, p.prop, &src_layer_d, &src_iter_d,
+                        &src_iter_c_d, &weights_layer_d, &weights_iter_d,
+                        &weights_peephole_d, &bias_d, &dst_layer_d, &dst_iter_d,
+                        &dst_iter_c_d, &diff_src_layer_d, &diff_src_iter_d,
+                        &diff_src_iter_c_d, &diff_weights_layer_d,
+                        &diff_weights_iter_d, &diff_weights_peephole_d,
+                        &diff_bias_d, &diff_dst_layer_d, &diff_dst_iter_d,
+                        &diff_dst_iter_c_d),
                 WARN);
     }
 
@@ -593,118 +590,111 @@ int doit(const prb_t &p, res_t *r) {
         return *dnnl_primitive_desc_query_md(pd, dnnl_query_exec_arg_md, index);
     };
 
-    const auto &input_md = q(const_fpd, DNNL_ARG_SRC_LAYER);
-    const auto &states_md = q(const_fpd, DNNL_ARG_SRC_ITER);
-    const auto &c_states_md = q(const_fpd, DNNL_ARG_SRC_ITER_C);
-    const auto &weights_input_md = q(const_fpd, DNNL_ARG_WEIGHTS_LAYER);
-    const auto &weights_states_md = q(const_fpd, DNNL_ARG_WEIGHTS_ITER);
+    const auto &src_layer_md = q(const_fpd, DNNL_ARG_SRC_LAYER);
+    const auto &src_iter_md = q(const_fpd, DNNL_ARG_SRC_ITER);
+    const auto &src_iter_c_md = q(const_fpd, DNNL_ARG_SRC_ITER_C);
+    const auto &weights_layer_md = q(const_fpd, DNNL_ARG_WEIGHTS_LAYER);
+    const auto &weights_iter_md = q(const_fpd, DNNL_ARG_WEIGHTS_ITER);
     const auto &weights_peephole_md = q(const_fpd, DNNL_ARG_WEIGHTS_PEEPHOLE);
     const auto &bias_md = q(const_fpd, DNNL_ARG_BIAS);
-    const auto &dst_last_layer_md = q(const_fpd, DNNL_ARG_DST_LAYER);
-    const auto &dst_last_iteration_md = q(const_fpd, DNNL_ARG_DST_ITER);
-    const auto &dst_c_last_iteration_md = q(const_fpd, DNNL_ARG_DST_ITER_C);
+    const auto &dst_layer_md = q(const_fpd, DNNL_ARG_DST_LAYER);
+    const auto &dst_iter_md = q(const_fpd, DNNL_ARG_DST_ITER);
+    const auto &dst_iter_c_md = q(const_fpd, DNNL_ARG_DST_ITER_C);
     const auto &workspace_md = q(const_fpd, DNNL_ARG_WORKSPACE);
     const auto &scratchpad_md = q(const_fpd, DNNL_ARG_SCRATCHPAD);
 
-    dnn_mem_t input_dt(input_md, engine_tgt);
-    dnn_mem_t states_dt(states_md, engine_tgt);
-    dnn_mem_t c_states_dt(c_states_md, engine_tgt);
-    dnn_mem_t weights_input_dt(weights_input_md, engine_tgt);
-    dnn_mem_t weights_states_dt(weights_states_md, engine_tgt);
+    dnn_mem_t src_layer_dt(src_layer_md, engine_tgt);
+    dnn_mem_t src_iter_dt(src_iter_md, engine_tgt);
+    dnn_mem_t src_iter_c_dt(src_iter_c_md, engine_tgt);
+    dnn_mem_t weights_layer_dt(weights_layer_md, engine_tgt);
+    dnn_mem_t weights_iter_dt(weights_iter_md, engine_tgt);
     dnn_mem_t weights_peephole_dt(weights_peephole_md, engine_tgt);
     dnn_mem_t bias_dt(bias_md, engine_tgt);
-    dnn_mem_t dst_last_layer_dt(dst_last_layer_md, engine_tgt);
-    dnn_mem_t dst_last_iteration_dt(dst_last_iteration_md, engine_tgt);
-    dnn_mem_t dst_c_last_iteration_dt(dst_c_last_iteration_md, engine_tgt);
+    dnn_mem_t dst_layer_dt(dst_layer_md, engine_tgt);
+    dnn_mem_t dst_iter_dt(dst_iter_md, engine_tgt);
+    dnn_mem_t dst_iter_c_dt(dst_iter_c_md, engine_tgt);
     dnn_mem_t workspace_dt(workspace_md, engine_tgt);
     dnn_mem_t scratchpad_dt(scratchpad_md, engine_tgt);
 
     const auto fp = dnnl_f32;
-    dnn_mem_t input_fp(input_md, fp, dnnl_tnc, engine_tgt);
-    dnn_mem_t states_fp(states_md, fp, dnnl_ldnc, engine_tgt);
-    dnn_mem_t c_states_fp(c_states_md, fp, dnnl_ldnc, engine_tgt);
-    dnn_mem_t weights_input_fp(weights_input_md, fp, dnnl_ldigo, engine_tgt);
-    dnn_mem_t weights_states_fp(weights_states_md, fp, dnnl_ldigo, engine_tgt);
+    dnn_mem_t src_layer_fp(src_layer_md, fp, dnnl_tnc, engine_tgt);
+    dnn_mem_t src_iter_fp(src_iter_md, fp, dnnl_ldnc, engine_tgt);
+    dnn_mem_t src_iter_c_fp(src_iter_c_md, fp, dnnl_ldnc, engine_tgt);
+    dnn_mem_t weights_layer_fp(weights_layer_md, fp, dnnl_ldigo, engine_tgt);
+    dnn_mem_t weights_iter_fp(weights_iter_md, fp, dnnl_ldigo, engine_tgt);
     dnn_mem_t weights_peephole_fp(
             weights_peephole_md, fp, dnnl_ldgo, engine_tgt);
     dnn_mem_t bias_fp(bias_md, fp, dnnl_ldgo, engine_tgt);
-    dnn_mem_t dst_last_layer_fp(dst_last_layer_md, fp, dnnl_tnc, engine_tgt);
-    dnn_mem_t dst_last_iteration_fp(
-            dst_last_iteration_md, fp, dnnl_ldnc, engine_tgt);
-    dnn_mem_t dst_c_last_iteration_fp(
-            dst_c_last_iteration_md, fp, dnnl_ldnc, engine_tgt);
+    dnn_mem_t dst_layer_fp(dst_layer_md, fp, dnnl_tnc, engine_tgt);
+    dnn_mem_t dst_iter_fp(dst_iter_md, fp, dnnl_ldnc, engine_tgt);
+    dnn_mem_t dst_iter_c_fp(dst_iter_c_md, fp, dnnl_ldnc, engine_tgt);
 
-    dnn_mem_t bwd_weights_input_dt;
-    dnn_mem_t bwd_weights_states_dt;
-    dnn_mem_t dst_diff_input_dt;
-    dnn_mem_t dst_diff_states_dt;
-    dnn_mem_t dst_diff_c_states_dt;
-    dnn_mem_t dst_diff_weights_input_dt;
-    dnn_mem_t dst_diff_weights_states_dt;
-    dnn_mem_t dst_diff_weights_peephole_dt;
-    dnn_mem_t dst_diff_bias_dt;
-    dnn_mem_t diff_last_layer_dt;
-    dnn_mem_t diff_last_iteration_dt;
-    dnn_mem_t diff_c_last_iteration_dt;
+    dnn_mem_t bwd_weights_layer_dt;
+    dnn_mem_t bwd_weights_iter_dt;
+    dnn_mem_t diff_src_layer_dt;
+    dnn_mem_t diff_src_iter_dt;
+    dnn_mem_t diff_src_iter_c_dt;
+    dnn_mem_t diff_weights_layer_dt;
+    dnn_mem_t diff_weights_iter_dt;
+    dnn_mem_t diff_weights_peephole_dt;
+    dnn_mem_t diff_bias_dt;
+    dnn_mem_t diff_dst_layer_dt;
+    dnn_mem_t diff_dst_iter_dt;
+    dnn_mem_t diff_dst_iter_c_dt;
 
     // for int8 RNN we need pass attributes for data q10n
     const_dnnl_primitive_attr_t rnn_attr;
     DNN_SAFE(dnnl_primitive_desc_get_attr(const_fpd, &rnn_attr), WARN);
 
-    SAFE(fill_activation(p, input, input_dt, input_fp, rnn_attr), WARN);
-    SAFE(fill_activation(p, states, states_dt, states_fp, rnn_attr), WARN);
+    SAFE(fill_activation(p, SRC_LAYER, src_layer_dt, src_layer_fp, rnn_attr),
+            WARN);
+    SAFE(fill_activation(p, SRC_ITER, src_iter_dt, src_iter_fp, rnn_attr),
+            WARN);
     if (p.alg == VANILLA_LSTM)
-        SAFE(fill_c_states(p, c_states_dt, c_states_fp, rnn_attr), WARN);
-    SAFE(fill_weights(p, weights_input, weights_input_dt, weights_input_fp,
+        SAFE(fill_src_iter_c(p, src_iter_c_dt, src_iter_c_fp, rnn_attr), WARN);
+    SAFE(fill_weights(p, WEIGHTS_LAYER, weights_layer_dt, weights_layer_fp,
                  rnn_attr),
             WARN);
-    SAFE(fill_weights(p, weights_states, weights_states_dt, weights_states_fp,
-                 rnn_attr),
+    SAFE(fill_weights(
+                 p, WEIGHTS_ITER, weights_iter_dt, weights_iter_fp, rnn_attr),
             WARN);
     SAFE(fill_memory(
-                 p, weights_peephole, weights_peephole_dt, weights_peephole_fp),
+                 p, WEIGHTS_PEEPHOLE, weights_peephole_dt, weights_peephole_fp),
             WARN);
-    SAFE(fill_memory(p, bias, bias_dt, bias_fp), WARN);
-    SAFE(fill_activation(
-                 p, dst_last_layer, dst_last_layer_dt, dst_last_layer_fp),
-            WARN);
-    SAFE(fill_activation(p, dst_last_iteration, dst_last_iteration_dt,
-                 dst_last_iteration_fp),
-            WARN);
+    SAFE(fill_memory(p, BIAS, bias_dt, bias_fp), WARN);
+    SAFE(fill_activation(p, DST_LAYER, dst_layer_dt, dst_layer_fp), WARN);
+    SAFE(fill_activation(p, DST_ITER, dst_iter_dt, dst_iter_fp), WARN);
     if (p.alg == VANILLA_LSTM)
-        SAFE(fill_memory(p, dst_c_last_iteration, dst_c_last_iteration_dt,
-                     dst_c_last_iteration_fp),
-                WARN);
+        SAFE(fill_memory(p, DST_ITER_C, dst_iter_c_dt, dst_iter_c_fp), WARN);
 
     args_t args;
 
     // Running the forward pass
-    args.set(DNNL_ARG_SRC_LAYER, input_dt);
-    args.set(DNNL_ARG_SRC_ITER, states_dt);
-    args.set(DNNL_ARG_SRC_ITER_C, c_states_dt);
-    args.set(DNNL_ARG_WEIGHTS_LAYER, weights_input_dt);
-    args.set(DNNL_ARG_WEIGHTS_ITER, weights_states_dt);
+    args.set(DNNL_ARG_SRC_LAYER, src_layer_dt);
+    args.set(DNNL_ARG_SRC_ITER, src_iter_dt);
+    args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_dt);
+    args.set(DNNL_ARG_WEIGHTS_LAYER, weights_layer_dt);
+    args.set(DNNL_ARG_WEIGHTS_ITER, weights_iter_dt);
     args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_dt);
     args.set(DNNL_ARG_BIAS, bias_dt);
-    args.set(DNNL_ARG_DST_LAYER, dst_last_layer_dt);
-    args.set(DNNL_ARG_DST_ITER, dst_last_iteration_dt);
-    args.set(DNNL_ARG_DST_ITER_C, dst_c_last_iteration_dt);
+    args.set(DNNL_ARG_DST_LAYER, dst_layer_dt);
+    args.set(DNNL_ARG_DST_ITER, dst_iter_dt);
+    args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_dt);
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
     DNN_SAFE_CLEAN(execute_and_wait(c, stream_tgt, args), WARN, cleanup);
 
     if ((p.prop == dnnl_forward) && (bench_mode & CORR)) {
-        compute_ref_fwd(p, input_fp, states_fp, c_states_fp, weights_input_fp,
-                weights_states_fp, weights_peephole_fp, bias_fp,
-                dst_last_layer_fp, dst_last_iteration_fp,
-                dst_c_last_iteration_fp);
+        compute_ref_fwd(p, src_layer_fp, src_iter_fp, src_iter_c_fp,
+                weights_layer_fp, weights_iter_fp, weights_peephole_fp, bias_fp,
+                dst_layer_fp, dst_iter_fp, dst_iter_c_fp);
 
         int compare_status = OK;
-        COMPARE_DAT(compare_status, dst_last_layer, dnnl_tnc);
-        COMPARE_DAT(compare_status, dst_last_iteration, dnnl_ldnc);
+        COMPARE_DAT(compare_status, DST_LAYER, dst_layer, dnnl_tnc);
+        COMPARE_DAT(compare_status, DST_ITER, dst_iter, dnnl_ldnc);
         if (p.alg == VANILLA_LSTM)
-            COMPARE_DAT(compare_status, dst_c_last_iteration, dnnl_ldnc);
+            COMPARE_DAT(compare_status, DST_ITER_C, dst_iter_c, dnnl_ldnc);
         SAFE_CLEAN(compare_status, WARN, cleanup);
     }
 
@@ -724,8 +714,8 @@ int doit(const prb_t &p, res_t *r) {
             return r->state = SKIPPED, OK;
         }
 
-        const auto &bwd_weights_input_md = q(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
-        const auto &bwd_weights_states_md = q(const_bpd, DNNL_ARG_WEIGHTS_ITER);
+        const auto &bwd_weights_layer_md = q(const_bpd, DNNL_ARG_WEIGHTS_LAYER);
+        const auto &bwd_weights_iter_md = q(const_bpd, DNNL_ARG_WEIGHTS_ITER);
         const auto &diff_src_layer_md = q(const_bpd, DNNL_ARG_DIFF_SRC_LAYER);
         const auto &diff_src_iter_md = q(const_bpd, DNNL_ARG_DIFF_SRC_ITER);
         const auto &diff_src_iter_c_md = q(const_bpd, DNNL_ARG_DIFF_SRC_ITER_C);
@@ -741,140 +731,135 @@ int doit(const prb_t &p, res_t *r) {
         const auto &diff_dst_iter_c_md = q(const_bpd, DNNL_ARG_DIFF_DST_ITER_C);
         const auto &bwd_scratchpad_md = q(const_bpd, DNNL_ARG_SCRATCHPAD);
 
-        bwd_weights_input_dt = dnn_mem_t(bwd_weights_input_md, engine_tgt);
-        bwd_weights_states_dt = dnn_mem_t(bwd_weights_states_md, engine_tgt);
-        dst_diff_input_dt = dnn_mem_t(diff_src_layer_md, engine_tgt);
-        dst_diff_states_dt = dnn_mem_t(diff_src_iter_md, engine_tgt);
-        dst_diff_c_states_dt = dnn_mem_t(diff_src_iter_c_md, engine_tgt);
-        dst_diff_weights_input_dt
-                = dnn_mem_t(diff_weights_layer_md, engine_tgt);
-        dst_diff_weights_states_dt
-                = dnn_mem_t(diff_weights_iter_md, engine_tgt);
-        dst_diff_weights_peephole_dt
+        bwd_weights_layer_dt = dnn_mem_t(bwd_weights_layer_md, engine_tgt);
+        bwd_weights_iter_dt = dnn_mem_t(bwd_weights_iter_md, engine_tgt);
+        diff_src_layer_dt = dnn_mem_t(diff_src_layer_md, engine_tgt);
+        diff_src_iter_dt = dnn_mem_t(diff_src_iter_md, engine_tgt);
+        diff_src_iter_c_dt = dnn_mem_t(diff_src_iter_c_md, engine_tgt);
+        diff_weights_layer_dt = dnn_mem_t(diff_weights_layer_md, engine_tgt);
+        diff_weights_iter_dt = dnn_mem_t(diff_weights_iter_md, engine_tgt);
+        diff_weights_peephole_dt
                 = dnn_mem_t(diff_weights_peephole_md, engine_tgt);
-        dst_diff_bias_dt = dnn_mem_t(diff_bias_md, engine_tgt);
-        diff_last_layer_dt = dnn_mem_t(diff_dst_layer_md, engine_tgt);
-        diff_last_iteration_dt = dnn_mem_t(diff_dst_iter_md, engine_tgt);
-        diff_c_last_iteration_dt = dnn_mem_t(diff_dst_iter_c_md, engine_tgt);
+        diff_bias_dt = dnn_mem_t(diff_bias_md, engine_tgt);
+        diff_dst_layer_dt = dnn_mem_t(diff_dst_layer_md, engine_tgt);
+        diff_dst_iter_dt = dnn_mem_t(diff_dst_iter_md, engine_tgt);
+        diff_dst_iter_c_dt = dnn_mem_t(diff_dst_iter_c_md, engine_tgt);
         scratchpad_dt = dnn_mem_t(bwd_scratchpad_md, engine_tgt);
 
-        dnn_mem_t dst_diff_input_fp(
+        dnn_mem_t diff_src_layer_fp(
                 diff_src_layer_md, fp, dnnl_tnc, engine_tgt);
-        dnn_mem_t dst_diff_states_fp(
-                diff_src_iter_md, fp, dnnl_ldnc, engine_tgt);
-        dnn_mem_t dst_diff_c_states_fp(
+        dnn_mem_t diff_src_iter_fp(diff_src_iter_md, fp, dnnl_ldnc, engine_tgt);
+        dnn_mem_t diff_src_iter_c_fp(
                 diff_src_iter_c_md, fp, dnnl_ldnc, engine_tgt);
-        dnn_mem_t dst_diff_weights_input_fp(
+        dnn_mem_t diff_weights_layer_fp(
                 diff_weights_layer_md, fp, dnnl_ldigo, engine_tgt);
-        dnn_mem_t dst_diff_weights_states_fp(
+        dnn_mem_t diff_weights_iter_fp(
                 diff_weights_iter_md, fp, dnnl_ldigo, engine_tgt);
-        dnn_mem_t dst_diff_weights_peephole_fp(
+        dnn_mem_t diff_weights_peephole_fp(
                 diff_weights_peephole_md, fp, dnnl_ldgo, engine_tgt);
-        dnn_mem_t dst_diff_bias_fp(diff_bias_md, fp, dnnl_ldgo, engine_tgt);
-        dnn_mem_t diff_last_layer_fp(
+        dnn_mem_t diff_bias_fp(diff_bias_md, fp, dnnl_ldgo, engine_tgt);
+        dnn_mem_t diff_dst_layer_fp(
                 diff_dst_layer_md, fp, dnnl_tnc, engine_tgt);
-        dnn_mem_t diff_last_iteration_fp(
-                diff_dst_iter_md, fp, dnnl_ldnc, engine_tgt);
-        dnn_mem_t diff_c_last_iteration_fp(
+        dnn_mem_t diff_dst_iter_fp(diff_dst_iter_md, fp, dnnl_ldnc, engine_tgt);
+        dnn_mem_t diff_dst_iter_c_fp(
                 diff_dst_iter_c_md, fp, dnnl_ldnc, engine_tgt);
 
-        SAFE(bwd_weights_states_dt.reorder(weights_states_dt), WARN);
-        SAFE(bwd_weights_input_dt.reorder(weights_input_dt), WARN);
+        SAFE(bwd_weights_iter_dt.reorder(weights_iter_dt), WARN);
+        SAFE(bwd_weights_layer_dt.reorder(weights_layer_dt), WARN);
         SAFE(fill_activation(
-                     p, dst_diff_input, dst_diff_input_dt, dst_diff_input_fp),
+                     p, DIFF_SRC_LAYER, diff_src_layer_dt, diff_src_layer_fp),
                 WARN);
-        SAFE(fill_activation(p, dst_diff_states, dst_diff_states_dt,
-                     dst_diff_states_fp),
+        SAFE(fill_activation(
+                     p, DIFF_SRC_ITER, diff_src_iter_dt, diff_src_iter_fp),
                 WARN);
         if (p.alg == VANILLA_LSTM)
-            SAFE(fill_memory(p, dst_diff_c_states, dst_diff_c_states_dt,
-                         dst_diff_c_states_fp),
+            SAFE(fill_memory(p, DIFF_SRC_ITER_C, diff_src_iter_c_dt,
+                         diff_src_iter_c_fp),
                     WARN);
-        SAFE(fill_weights(p, dst_diff_weights_input, dst_diff_weights_input_dt,
-                     dst_diff_weights_input_fp),
+        SAFE(fill_weights(p, DIFF_WEIGHTS_LAYER, diff_weights_layer_dt,
+                     diff_weights_layer_fp),
                 WARN);
-        SAFE(fill_weights(p, dst_diff_weights_states,
-                     dst_diff_weights_states_dt, dst_diff_weights_states_fp),
+        SAFE(fill_weights(p, DIFF_WEIGHTS_ITER, diff_weights_iter_dt,
+                     diff_weights_iter_fp),
                 WARN);
-        SAFE(fill_memory(p, dst_diff_weights_peephole,
-                     dst_diff_weights_peephole_dt,
-                     dst_diff_weights_peephole_fp),
+        SAFE(fill_memory(p, DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole_dt,
+                     diff_weights_peephole_fp),
                 WARN);
-        SAFE(fill_bias(p, dst_diff_bias, dst_diff_bias_dt, dst_diff_bias_fp),
+        SAFE(fill_bias(p, DIFF_BIAS, diff_bias_dt, diff_bias_fp), WARN);
+        SAFE(fill_activation(
+                     p, DIFF_DST_LAYER, diff_dst_layer_dt, diff_dst_layer_fp),
                 WARN);
-        SAFE(fill_activation(p, diff_last_layer, diff_last_layer_dt,
-                     diff_last_layer_fp),
-                WARN);
-        SAFE(fill_activation(p, diff_last_iteration, diff_last_iteration_dt,
-                     diff_last_iteration_fp),
+        SAFE(fill_activation(
+                     p, DIFF_DST_ITER, diff_dst_iter_dt, diff_dst_iter_fp),
                 WARN);
         if (p.alg == VANILLA_LSTM)
-            SAFE(fill_memory(p, diff_c_last_iteration, diff_c_last_iteration_dt,
-                         diff_c_last_iteration_fp),
+            SAFE(fill_memory(p, DIFF_DST_ITER_C, diff_dst_iter_c_dt,
+                         diff_dst_iter_c_fp),
                     WARN);
 
         args.clear();
-        args.set(DNNL_ARG_SRC_LAYER, input_dt);
-        args.set(DNNL_ARG_SRC_ITER, states_dt);
-        args.set(DNNL_ARG_SRC_ITER_C, c_states_dt);
-        args.set(DNNL_ARG_WEIGHTS_LAYER, bwd_weights_input_dt);
-        args.set(DNNL_ARG_WEIGHTS_ITER, bwd_weights_states_dt);
+        args.set(DNNL_ARG_SRC_LAYER, src_layer_dt);
+        args.set(DNNL_ARG_SRC_ITER, src_iter_dt);
+        args.set(DNNL_ARG_SRC_ITER_C, src_iter_c_dt);
+        args.set(DNNL_ARG_WEIGHTS_LAYER, bwd_weights_layer_dt);
+        args.set(DNNL_ARG_WEIGHTS_ITER, bwd_weights_iter_dt);
         args.set(DNNL_ARG_WEIGHTS_PEEPHOLE, weights_peephole_dt);
         args.set(DNNL_ARG_BIAS, bias_dt);
-        args.set(DNNL_ARG_DST_LAYER, dst_last_layer_dt);
-        args.set(DNNL_ARG_DST_ITER, dst_last_iteration_dt);
-        args.set(DNNL_ARG_DST_ITER_C, dst_c_last_iteration_dt);
-        args.set(DNNL_ARG_DIFF_DST_LAYER, diff_last_layer_dt);
-        args.set(DNNL_ARG_DIFF_DST_ITER, diff_last_iteration_dt);
-        args.set(DNNL_ARG_DIFF_DST_ITER_C, diff_c_last_iteration_dt);
+        args.set(DNNL_ARG_DST_LAYER, dst_layer_dt);
+        args.set(DNNL_ARG_DST_ITER, dst_iter_dt);
+        args.set(DNNL_ARG_DST_ITER_C, dst_iter_c_dt);
+        args.set(DNNL_ARG_DIFF_DST_LAYER, diff_dst_layer_dt);
+        args.set(DNNL_ARG_DIFF_DST_ITER, diff_dst_iter_dt);
+        args.set(DNNL_ARG_DIFF_DST_ITER_C, diff_dst_iter_c_dt);
         args.set(DNNL_ARG_WORKSPACE, workspace_dt);
-        args.set(DNNL_ARG_DIFF_SRC_LAYER, dst_diff_input_dt);
-        args.set(DNNL_ARG_DIFF_SRC_ITER, dst_diff_states_dt);
-        args.set(DNNL_ARG_DIFF_SRC_ITER_C, dst_diff_c_states_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_LAYER, dst_diff_weights_input_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_ITER, dst_diff_weights_states_dt);
-        args.set(DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE, dst_diff_weights_peephole_dt);
-        args.set(DNNL_ARG_DIFF_BIAS, dst_diff_bias_dt);
+        args.set(DNNL_ARG_DIFF_SRC_LAYER, diff_src_layer_dt);
+        args.set(DNNL_ARG_DIFF_SRC_ITER, diff_src_iter_dt);
+        args.set(DNNL_ARG_DIFF_SRC_ITER_C, diff_src_iter_c_dt);
+        args.set(DNNL_ARG_DIFF_WEIGHTS_LAYER, diff_weights_layer_dt);
+        args.set(DNNL_ARG_DIFF_WEIGHTS_ITER, diff_weights_iter_dt);
+        args.set(DNNL_ARG_DIFF_WEIGHTS_PEEPHOLE, diff_weights_peephole_dt);
+        args.set(DNNL_ARG_DIFF_BIAS, diff_bias_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
         DNN_SAFE_CLEAN(execute_and_wait(c, stream_tgt, args), WARN, cleanup);
 
         if (bench_mode & CORR) {
-            compute_ref_bwd(p, input_fp, states_fp, c_states_fp,
-                    diff_last_layer_fp, diff_last_iteration_fp,
-                    diff_c_last_iteration_fp, weights_input_fp,
-                    weights_states_fp, weights_peephole_fp, bias_fp,
-                    dst_last_layer_fp, dst_last_iteration_fp,
-                    dst_c_last_iteration_fp, dst_diff_input_fp,
-                    dst_diff_states_fp, dst_diff_c_states_fp,
-                    dst_diff_weights_input_fp, dst_diff_weights_states_fp,
-                    dst_diff_weights_peephole_fp, dst_diff_bias_fp);
+            compute_ref_bwd(p, src_layer_fp, src_iter_fp, src_iter_c_fp,
+                    diff_dst_layer_fp, diff_dst_iter_fp, diff_dst_iter_c_fp,
+                    weights_layer_fp, weights_iter_fp, weights_peephole_fp,
+                    bias_fp, dst_layer_fp, dst_iter_fp, dst_iter_c_fp,
+                    diff_src_layer_fp, diff_src_iter_fp, diff_src_iter_c_fp,
+                    diff_weights_layer_fp, diff_weights_iter_fp,
+                    diff_weights_peephole_fp, diff_bias_fp);
 
             int compare_fwd_status = OK;
-            COMPARE_DAT(compare_fwd_status, dst_last_layer, dnnl_tnc);
-            COMPARE_DAT(compare_fwd_status, dst_last_iteration, dnnl_ldnc);
+            COMPARE_DAT(compare_fwd_status, DST_LAYER, dst_layer, dnnl_tnc);
+            COMPARE_DAT(compare_fwd_status, DST_ITER, dst_iter, dnnl_ldnc);
             if (p.alg == VANILLA_LSTM)
                 COMPARE_DAT(
-                        compare_fwd_status, dst_c_last_iteration, dnnl_ldnc);
+                        compare_fwd_status, DST_ITER_C, dst_iter_c, dnnl_ldnc);
             SAFE_CLEAN(compare_fwd_status, WARN, cleanup);
 
             int compare_bwd_data_status = OK;
-            COMPARE_DAT(compare_bwd_data_status, dst_diff_input, dnnl_tnc);
-            COMPARE_DAT(compare_bwd_data_status, dst_diff_states, dnnl_ldnc);
+            COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_LAYER, diff_src_layer,
+                    dnnl_tnc);
+            COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_ITER, diff_src_iter,
+                    dnnl_ldnc);
             if (p.alg == VANILLA_LSTM)
-                COMPARE_DAT(
-                        compare_bwd_data_status, dst_diff_c_states, dnnl_ldnc);
+                COMPARE_DAT(compare_bwd_data_status, DIFF_SRC_ITER_C,
+                        diff_src_iter_c, dnnl_ldnc);
             SAFE_CLEAN(compare_bwd_data_status, WARN, cleanup);
 
             int compare_bwd_weights_status = OK;
-            COMPARE_DAT(compare_bwd_weights_status, dst_diff_weights_input,
-                    dnnl_ldigo);
-            COMPARE_DAT(compare_bwd_weights_status, dst_diff_weights_states,
-                    dnnl_ldigo);
+            COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_LAYER,
+                    diff_weights_layer, dnnl_ldigo);
+            COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_ITER,
+                    diff_weights_iter, dnnl_ldigo);
             if (p.is_lstm_peephole())
-                COMPARE_DAT(compare_bwd_weights_status,
-                        dst_diff_weights_peephole, dnnl_ldgo);
-            COMPARE_DAT(compare_bwd_weights_status, dst_diff_bias, dnnl_ldgo);
+                COMPARE_DAT(compare_bwd_weights_status, DIFF_WEIGHTS_PEEPHOLE,
+                        diff_weights_peephole, dnnl_ldgo);
+            COMPARE_DAT(compare_bwd_weights_status, DIFF_BIAS, diff_bias,
+                    dnnl_ldgo);
             SAFE_CLEAN(compare_bwd_weights_status, WARN, cleanup);
         }
     }

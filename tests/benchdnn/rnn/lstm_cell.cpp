@@ -20,23 +20,24 @@
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
-#include "rnn/rnn_cells.hpp"
+
+#include "rnn/cells.hpp"
 
 namespace rnn {
 
 template <typename T1, typename T2>
 void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
         float *gates_, const float *weights_peephole_, const float *bias_,
-        const float *src_iter_c_, float *dst_iter_h_, float *dst_iter_c_) {
-    AOC<float> gates(gates_, p.mb, p.n_gates(), p.dic);
-    AOC<const float> weights_peephole(weights_peephole_, 3, p.dic);
-    AOC<const float> bias(bias_, p.n_gates(), p.dic);
+        const float *src_iter_c_, float *dst_layer_, float *dst_iter_c_) {
+    AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
+    AOC<const float> weights_peephole(weights_peephole_, 3, p.dhc);
+    AOC<const float> bias(bias_, p.n_gates(), p.dhc);
     AOC<const float> src_iter_c(src_iter_c_, p.mb, p.wc);
-    AOC<float> h_dst(dst_iter_h_, p.mb, p.wc);
+    AOC<float> dst_layer(dst_layer_, p.mb, p.wc);
     AOC<float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
 
     auto maybe_deq_w = [&](float g, int64_t oc) {
-        if (!is_cfg_u8(p.cfg)) return g;
+        if (!p.cfg.is_int8()) return g;
         float scale = 1.;
         if (p.scale_policy == policy_t::PER_OC)
             scale = p.wei_oc_scales[oc];
@@ -47,17 +48,17 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
     };
 
     auto maybe_q_d = [&](float h) {
-        if (!is_cfg_u8(p.cfg)) return h;
+        if (!p.cfg.is_int8()) return h;
         float fp = p.data_scale * h + p.data_shift;
-        if (fp > p.cfg[input].max) fp = p.cfg[input].max;
-        if (fp < p.cfg[input].min) fp = p.cfg[input].min;
+        if (fp > p.cfg[SRC_LAYER].max) fp = p.cfg[SRC_LAYER].max;
+        if (fp < p.cfg[SRC_LAYER].min) fp = p.cfg[SRC_LAYER].min;
         fp = mxcsr_round(fp);
         return fp;
     };
 
     // run the eltwise
     dnnl::impl::parallel_nd(p.mb, [&](int64_t ib) {
-        for (int64_t ih = 0; ih < p.dic; ih++) {
+        for (int64_t ih = 0; ih < p.dhc; ih++) {
             float peephole_extra_i = 0, peephole_extra_f = 0;
             if (p.is_lstm_peephole()) {
                 peephole_extra_i = weights_peephole(0, ih) * src_iter_c(ib, ih);
@@ -65,14 +66,14 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
             }
 
             gates(ib, LSTM_I, ih) = func1(p.linear_scales[LSTM_I],
-                    maybe_deq_w(gates(ib, LSTM_I, ih), LSTM_I * p.dic + ih)
+                    maybe_deq_w(gates(ib, LSTM_I, ih), LSTM_I * p.dhc + ih)
                             + peephole_extra_i + bias(LSTM_I, ih));
             gates(ib, LSTM_F, ih) = func1(p.linear_scales[LSTM_F],
-                    maybe_deq_w(gates(ib, LSTM_F, ih), LSTM_F * p.dic + ih)
+                    maybe_deq_w(gates(ib, LSTM_F, ih), LSTM_F * p.dhc + ih)
                             + peephole_extra_f + bias(LSTM_F, ih));
 
             gates(ib, LSTM_C, ih) = func2(p.linear_scales[LSTM_C],
-                    maybe_deq_w(gates(ib, LSTM_C, ih), LSTM_C * p.dic + ih)
+                    maybe_deq_w(gates(ib, LSTM_C, ih), LSTM_C * p.dhc + ih)
                             + bias(LSTM_C, ih));
 
             // compute C_t_l and H_t_l
@@ -85,10 +86,10 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
                 peephole_extra_o = weights_peephole(2, ih) * tmp;
 
             gates(ib, LSTM_O, ih) = func1(p.linear_scales[LSTM_O],
-                    maybe_deq_w(gates(ib, LSTM_O, ih), LSTM_O * p.dic + ih)
+                    maybe_deq_w(gates(ib, LSTM_O, ih), LSTM_O * p.dhc + ih)
                             + peephole_extra_o + bias(LSTM_O, ih));
 
-            h_dst(ib, ih) = maybe_q_d(
+            dst_layer(ib, ih) = maybe_q_d(
                     gates(ib, LSTM_O, ih) * func2(p.linear_cscale, tmp));
 
             for (int64_t ig = 0; ig < 4; ig++) {
@@ -97,63 +98,61 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, const prb_t &p,
                         ib, ig, ih, gates(ib, ig, ih));
             }
             BENCHDNN_PRINT(80, "recomp tmp(%a) cin(%a) ht(%a)\n", tmp,
-                    src_iter_c(ib, ih), h_dst(ib, ih));
+                    src_iter_c(ib, ih), dst_layer(ib, ih));
         }
     });
 }
 
 void lstm_fwd_postgemm(const prb_t &p, float *gates_,
         const float *weights_peephole_, const float *bias_,
-        const float *src_iter_c_, float *dst_iter_h_, float *dst_iter_c_) {
+        const float *src_iter_c_, float *dst_layer_, float *dst_iter_c_) {
     if (p.skip_nonlinear)
         lstm_fwd_postgemm_template(
                 [](float scale, float val) { return scale * val; },
                 [](float scale, float val) { return scale * val; }, p, gates_,
-                weights_peephole_, bias_, src_iter_c_, dst_iter_h_,
-                dst_iter_c_);
+                weights_peephole_, bias_, src_iter_c_, dst_layer_, dst_iter_c_);
     else
         lstm_fwd_postgemm_template(
                 [](float scale, float val) { return logistic(val); },
                 [](float scale, float val) { return tanhf(val); }, p, gates_,
-                weights_peephole_, bias_, src_iter_c_, dst_iter_h_,
-                dst_iter_c_);
+                weights_peephole_, bias_, src_iter_c_, dst_layer_, dst_iter_c_);
 }
 
-void lstm_fwd(const prb_t &p, float *dst_iter_h_, float *dst_iter_c_,
-        float *gates_, const float *weights_layer_,
-        const float *weights_iter_h_, const float *weights_peephole_,
-        const float *bias_, const float *src_layer_, const float *src_iter_h_,
+void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_c_,
+        float *gates_, const float *weights_layer_, const float *weights_iter_,
+        const float *weights_peephole_, const float *bias_,
+        const float *src_layer_, const float *src_iter_,
         const float *src_iter_c_) {
 
-    gemm("C", "N", "N", p.mb, p.n_gates() * p.dic, p.slc, 1.0, src_layer_, p.wc,
-            weights_layer_, p.n_gates() * p.dic, 0.0, gates_,
-            p.n_gates() * p.dic);
-    gemm("C", "N", "N", p.mb, p.n_gates() * p.dic, p.sic, 1.0, src_iter_h_,
-            p.wc, weights_iter_h_, p.n_gates() * p.dic, 1.0, gates_,
-            p.n_gates() * p.dic);
+    gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.slc, 1.0, src_layer_, p.wc,
+            weights_layer_, p.n_gates() * p.dhc, 0.0, gates_,
+            p.n_gates() * p.dhc);
+    gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.sic, 1.0, src_iter_, p.wc,
+            weights_iter_, p.n_gates() * p.dhc, 1.0, gates_,
+            p.n_gates() * p.dhc);
 
     lstm_fwd_postgemm(p, gates_, weights_peephole_, bias_, src_iter_c_,
-            dst_iter_h_, dst_iter_c_);
+            dst_layer_, dst_iter_c_);
 }
 
 template <typename T1>
 void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
         const float *src_iter_c_, const float *dst_iter_c_,
         const float *weights_peephole_, const float *diff_dst_layer_,
-        const float *diff_dst_iter_h_, const float *diff_dst_iter_c_,
+        const float *diff_dst_iter_, const float *diff_dst_iter_c_,
         const float *gates_, float *diff_src_iter_c_, float *b_gates_) {
     AOC<const float> src_iter_c(src_iter_c_, p.mb, p.wc);
     AOC<const float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
-    AOC<const float> weights_peephole(weights_peephole_, 3, p.dic);
+    AOC<const float> weights_peephole(weights_peephole_, 3, p.dhc);
     AOC<const float> diff_dst_layer(diff_dst_layer_, p.mb, p.wc);
-    AOC<const float> diff_dst_iter_h(diff_dst_iter_h_, p.mb, p.wc);
+    AOC<const float> diff_dst_iter(diff_dst_iter_, p.mb, p.wc);
     AOC<const float> diff_dst_iter_c(diff_dst_iter_c_, p.mb, p.wc);
-    AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dic);
+    AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dhc);
     AOC<float> diff_src_iter_c(diff_src_iter_c_, p.mb, p.wc);
-    AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dic);
+    AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
 
     for (int64_t ib = 0; ib < p.mb; ib++)
-        for (int64_t ih = 0; ih < p.dic; ih++) {
+        for (int64_t ih = 0; ih < p.dhc; ih++) {
             BENCHDNN_PRINT(80, "rnn_single_bwd: ib = " IFMT " ih = " IFMT "\n",
                     ib, ih);
             float hi = gates(ib, LSTM_I, ih);
@@ -161,7 +160,7 @@ void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
             float hc = gates(ib, LSTM_C, ih);
             float ho = gates(ib, LSTM_O, ih);
 
-            float dh = diff_dst_layer(ib, ih) + diff_dst_iter_h(ib, ih);
+            float dh = diff_dst_layer(ib, ih) + diff_dst_iter(ib, ih);
 
             float tanhC = func1(p.linear_cscale, dst_iter_c(ib, ih));
             float dho = tanhC * dh;
@@ -196,21 +195,21 @@ void lstm_bwd_pregemm_template(T1 func1, const prb_t &p,
 
 void lstm_bwd_pregemm(const prb_t &p, const float *src_iter_c_,
         const float *dst_iter_c_, const float *weights_peephole_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_h_,
+        const float *diff_dst_layer_, const float *diff_dst_iter_,
         const float *diff_dst_iter_c_, const float *gates_,
         float *diff_src_iter_c_, float *b_gates_) {
     if (p.skip_nonlinear)
         lstm_bwd_pregemm_template(
                 [](float scale, float val) { return scale * val; }, p,
                 src_iter_c_, dst_iter_c_, weights_peephole_, diff_dst_layer_,
-                diff_dst_iter_h_, diff_dst_iter_c_, gates_, diff_src_iter_c_,
+                diff_dst_iter_, diff_dst_iter_c_, gates_, diff_src_iter_c_,
                 b_gates_);
 
     else
         lstm_bwd_pregemm_template(
                 [](float scale, float val) { return tanhf(val); }, p,
                 src_iter_c_, dst_iter_c_, weights_peephole_, diff_dst_layer_,
-                diff_dst_iter_h_, diff_dst_iter_c_, gates_, diff_src_iter_c_,
+                diff_dst_iter_, diff_dst_iter_c_, gates_, diff_src_iter_c_,
                 b_gates_);
 }
 
@@ -219,46 +218,46 @@ void lstm_bwd_weights_peephole(const prb_t &p, const float *src_iter_c_,
         float *diff_weights_peephole_) {
     AOC<const float> src_iter_c(src_iter_c_, p.mb, p.wc);
     AOC<const float> dst_iter_c(dst_iter_c_, p.mb, p.wc);
-    AOC<const float> b_gates(b_gates_, p.mb, p.n_gates(), p.dic);
-    AOC<float> diff_weights_peephole(diff_weights_peephole_, 3, p.dic);
+    AOC<const float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
+    AOC<float> diff_weights_peephole(diff_weights_peephole_, 3, p.dhc);
 
     for_(int64_t ib = 0; ib < p.mb; ++ib)
-    for (int64_t ih = 0; ih < p.dic; ++ih)
+    for (int64_t ih = 0; ih < p.dhc; ++ih)
         diff_weights_peephole(2, ih)
                 += b_gates(ib, LSTM_O, ih) * dst_iter_c(ib, ih);
 
     for_(int64_t ib = 0; ib < p.mb; ++ib)
     for_(int64_t j = 0; j < 2; ++j)
-    for (int64_t ih = 0; ih < p.dic; ++ih)
+    for (int64_t ih = 0; ih < p.dhc; ++ih)
         diff_weights_peephole(j, ih) += b_gates(ib, j, ih) * src_iter_c(ib, ih);
 }
 
-void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_h_,
+void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         float *diff_src_iter_c_, float *diff_weights_layer_,
-        float *diff_weights_iter_h_, float *diff_weights_peephole_,
+        float *diff_weights_iter_, float *diff_weights_peephole_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
-        const float *src_iter_h_, const float *src_iter_c_,
-        const float *weights_layer_, const float *weights_iter_h_,
+        const float *src_iter_, const float *src_iter_c_,
+        const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *bias_,
-        const float *dst_iter_h_, const float *dst_iter_c_, const float *gates_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_h_,
+        const float *dst_layer_, const float *dst_iter_c_, const float *gates_,
+        const float *diff_dst_layer_, const float *diff_dst_iter_,
         const float *diff_dst_iter_c_) {
     lstm_bwd_pregemm(p, src_iter_c_, dst_iter_c_, weights_peephole_,
-            diff_dst_layer_, diff_dst_iter_h_, diff_dst_iter_c_, gates_,
+            diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_, gates_,
             diff_src_iter_c_, b_gates_);
 
-    gemm("C", "T", "N", p.sic, p.n_gates() * p.dic, p.mb, 1.0, src_iter_h_,
-            p.wc, b_gates_, p.n_gates() * p.dic, 1.0, diff_weights_iter_h_,
-            p.n_gates() * p.dic);
-    gemm("C", "T", "N", p.slc, p.n_gates() * p.dic, p.mb, 1.0, src_layer_, p.wc,
-            b_gates_, p.n_gates() * p.dic, 1.0, diff_weights_layer_,
-            p.n_gates() * p.dic);
+    gemm("C", "T", "N", p.sic, p.n_gates() * p.dhc, p.mb, 1.0, src_iter_, p.wc,
+            b_gates_, p.n_gates() * p.dhc, 1.0, diff_weights_iter_,
+            p.n_gates() * p.dhc);
+    gemm("C", "T", "N", p.slc, p.n_gates() * p.dhc, p.mb, 1.0, src_layer_, p.wc,
+            b_gates_, p.n_gates() * p.dhc, 1.0, diff_weights_layer_,
+            p.n_gates() * p.dhc);
 
-    gemm("C", "N", "T", p.mb, p.sic, p.n_gates() * p.dic, 1.0, b_gates_,
-            p.n_gates() * p.dic, weights_iter_h_, p.n_gates() * p.dic, 0.0,
-            diff_src_iter_h_, p.wc);
-    gemm("C", "N", "T", p.mb, p.slc, p.n_gates() * p.dic, 1.0, b_gates_,
-            p.n_gates() * p.dic, weights_layer_, p.n_gates() * p.dic, 0.0,
+    gemm("C", "N", "T", p.mb, p.sic, p.n_gates() * p.dhc, 1.0, b_gates_,
+            p.n_gates() * p.dhc, weights_iter_, p.n_gates() * p.dhc, 0.0,
+            diff_src_iter_, p.wc);
+    gemm("C", "N", "T", p.mb, p.slc, p.n_gates() * p.dhc, 1.0, b_gates_,
+            p.n_gates() * p.dhc, weights_layer_, p.n_gates() * p.dhc, 0.0,
             diff_src_layer_, p.wc);
 
     if (p.is_lstm_peephole())

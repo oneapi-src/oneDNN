@@ -30,62 +30,23 @@
 
 namespace rnn {
 
-std::vector<dir_t> prop {FWD_D};
-std::vector<const dt_conf_t *> cfg {conf_f32};
-std::vector<alg_t> alg {VANILLA_RNN};
-std::vector<dnnl_rnn_direction_t> direction {dnnl_unidirectional_left2right};
-std::vector<activation_t> activation {UNDEF};
-std::vector<bool> skip_nonlinear {false};
-std::vector<bool> with_peephole {false};
-std::vector<int64_t> mb {0};
-std::vector<policy_t> scale_policy {policy_t::NONE};
-
-attr_t attr;
-bool allow_unimpl = false;
-unsigned int flags = 0x0;
-float alpha = .9f;
-float beta = 0.0f;
-const char *perf_template_csv
-        = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%,"
-          "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
-const char *perf_template_def
-        = "perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
-          "%0time%,%0Gflops%";
-const char *perf_template = perf_template_def;
-
-void reset_parameters() {
-    prop = {FWD_D};
-    cfg = {conf_f32};
-    alg = {VANILLA_RNN};
-    direction = {dnnl_unidirectional_left2right};
-    activation = {UNDEF};
-    skip_nonlinear = {false};
-    with_peephole = {false};
-    mb = {0};
-    attr = attr_t();
-    scale_policy = {policy_t::NONE};
-    allow_unimpl = false;
-    alpha = .9f;
-    beta = 0.0f;
-}
-
-void check_correctness(const desc_t *c) {
-    for_(const auto &i_prop : prop)
-    for_(const auto &i_cfg : cfg)
-    for_(const auto &i_alg : alg)
-    for_(auto i_with_peephole : with_peephole)
-    for_(const auto &i_scale_policy : scale_policy)
-    for_(const auto &i_direction : direction)
-    for_(const auto &i_activation : activation)
-    for_(auto i_skip_nonlinear : skip_nonlinear)
-    for (const auto &i_mb : mb) {
+void check_correctness(const settings_t &s) {
+    for_(const auto &i_prop : s.prop)
+    for_(const auto &i_cfg : s.cfg)
+    for_(const auto &i_alg : s.alg)
+    for_(auto i_with_peephole : s.with_peephole)
+    for_(const auto &i_scale_policy : s.scale_policy)
+    for_(const auto &i_direction : s.direction)
+    for_(const auto &i_activation : s.activation)
+    for_(auto i_skip_nonlinear : s.skip_nonlinear)
+    for (const auto &i_mb : s.mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
-        check_case_validity(i_cfg, i_scale_policy);
-        dnnl_prop_kind_t prop_kind = prop2prop_kind(i_prop);
+        const dt_conf_t &cfg = dt_conf_t::create(i_cfg);
+        check_case_validity(cfg, i_scale_policy);
 
-        const prb_t p(*c, i_cfg, prop_kind, i_alg, i_with_peephole, i_direction,
-                attr, i_scale_policy, flags, i_activation, alpha, beta,
+        const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole, i_direction,
+                s.attr, i_scale_policy, s.flags, i_activation, s.alpha, s.beta,
                 i_skip_nonlinear, i_mb);
         std::stringstream ss;
         ss << p;
@@ -97,10 +58,10 @@ void check_correctness(const desc_t *c) {
         const int status = doit(p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
-            perf_report_t pr(perf_template);
+            perf_report_t pr(s.perf_template);
             pr.report(&p, &res, pstr);
         }
 
@@ -111,32 +72,33 @@ void check_correctness(const desc_t *c) {
 int bench(int argc, char **argv) {
     driver_name = "rnn";
     using namespace parser;
+    static settings_t s;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false || parse_bench_settings(argv[0])
+        auto cstr2str = [](const char *str) { return std::string(str); };
+        const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
-                || parse_dir(prop, argv[0], "prop")
-                || parse_cfg(cfg, str2cfg, argv[0])
-                || parse_vector_option(alg, str2alg, argv[0], "alg")
+                || parse_dir(s.prop, argv[0], "prop")
+                || parse_cfg(s.cfg, cstr2str, argv[0])
+                || parse_vector_option(s.alg, str2alg, argv[0], "alg")
                 || parse_vector_option(
-                        direction, str2direction, argv[0], "direction")
+                        s.direction, str2direction, argv[0], "direction")
                 || parse_vector_option(
-                        activation, str2activation, argv[0], "activation")
-                || parse_scale_policy(scale_policy, argv[0])
-                || parse_mb(mb, argv[0])
-                || parse_skip_nonlinear(skip_nonlinear, argv[0])
+                        s.activation, str2activation, argv[0], "activation")
+                || parse_scale_policy(s.scale_policy, argv[0])
+                || parse_mb(s.mb, argv[0])
+                || parse_skip_nonlinear(s.skip_nonlinear, argv[0])
                 || parse_vector_option(
-                        with_peephole, str2bool, argv[0], "with-peephole")
-                || parse_attr(attr, argv[0])
-                || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_perf_template(perf_template, perf_template_def,
-                        perf_template_csv, argv[0])
-                || parse_reset(reset_parameters, argv[0]);
+                        s.with_peephole, str2bool, argv[0], "with-peephole")
+                || parse_attr(s.attr, argv[0])
+                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_perf_template(s.perf_template, s.perf_template_def,
+                        s.perf_template_csv, argv[0])
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            desc_t c;
-            SAFE_V(str2desc(&c, argv[0]));
-            check_correctness(&c);
+            SAFE_V(str2desc(&s.desc, argv[0]));
+            check_correctness(s);
         }
     }
 

@@ -54,11 +54,11 @@ void gru_lbr_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src,
     ws_gates_aoc<scratch_data_t> scratch_gates(rnn, scratch_gates_);
     bias_aoc_t bias(rnn, bias_);
     ws_gates_aoc<scratch_data_t> scratch_cell(rnn, scratch_cell_);
-    AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dic);
+    AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dhc);
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             float Wh_b = scratch_cell(i, 2, j) + bias(3, j);
             auto G0 = func1(scales, // default func1 is sigmoid
                     scratch_gates(i, 0, j) + scratch_cell(i, 0, j)
@@ -151,7 +151,7 @@ void gru_lbr_bwd_postgemm_template(T1 to_src, const rnn_utils::rnn_conf_t &rnn,
     ws_diff_states_aoc<acc_data_t> diff_states_tp1_l(rnn, diff_states_tp1_l_);
     ws_diff_states_aoc<acc_data_t> diff_states_t_lp1(rnn, diff_states_t_lp1_);
     ws_gates_aoc<scratch_data_t> scratch_gates_r(rnn, scratch_cell_);
-    AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dic);
+    AOC<src_data_t, 2> ws_Wh_b(ws_grid_, rnn.mb, rnn.dhc);
 
     // 1. calculate dG1 dG2 dG3
     // dG0 = (dht - G2) * dht * (1 - G0) * G0
@@ -159,7 +159,7 @@ void gru_lbr_bwd_postgemm_template(T1 to_src, const rnn_utils::rnn_conf_t &rnn,
     // dG2 = (1 - G0) * dht * (1 - G2*G2)
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             float h = states_tm1_l(i, j);
             float dHt = diff_states_tp1_l(0, i, j)
                     + diff_states_t_lp1(rnn.n_states, i, j);

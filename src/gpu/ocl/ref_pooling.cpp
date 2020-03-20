@@ -14,18 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <assert.h>
-#include <math.h>
-
 #include "gpu/ocl/ref_pooling.hpp"
-
-#include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
-#include "common/math_utils.hpp"
-#include "common/nstl.hpp"
-#include "common/type_helpers.hpp"
-#include "gpu/compute/compute.hpp"
-#include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,108 +25,33 @@ static status_t init_conf_common(
         pool_conf_t &conf, offsets_t &off, const pooling_pd_t *pd) {
     using namespace dnnl::impl::format_tag;
 
-    const memory_desc_wrapper src_d(
-            pd->is_fwd() ? pd->src_md() : pd->diff_src_md());
-    const memory_desc_wrapper dst_d(
-            pd->is_fwd() ? pd->dst_md() : pd->diff_dst_md());
+    const memory_desc_wrapper src_mdw(pd->invariant_src_md());
+    const memory_desc_wrapper dst_mdw(pd->invariant_dst_md());
 
-    const pooling_desc_t &desc = *pd->desc();
-    const int ndims = src_d.ndims();
-    const auto &src_dims = src_d.padded_dims();
-    const auto &dst_dims = dst_d.padded_dims();
+    set_default_pool_conf(conf, *pd->desc(), *pd->invariant_src_md(),
+            *pd->invariant_dst_md());
 
-    conf.ndims = ndims;
-    conf.mb = src_dims[0];
-
-    conf.c = src_dims[1];
-    conf.id = (ndims == 5) ? src_dims[2] : 1;
-    conf.ih = (ndims == 3) ? 1 : src_dims[ndims - 2];
-    conf.iw = src_dims[ndims - 1];
-    conf.od = (ndims == 5) ? dst_dims[2] : 1;
-    conf.oh = (ndims == 3) ? 1 : dst_dims[ndims - 2];
-    conf.ow = dst_dims[ndims - 1];
-
-    conf.stride_d = (ndims == 5) ? desc.strides[0] : 1;
-    conf.stride_h = (ndims == 3) ? 1 : desc.strides[ndims - 4];
-    conf.stride_w = desc.strides[ndims - 3];
-    conf.kd = (ndims == 5) ? desc.kernel[0] : 1;
-    conf.kh = (ndims == 3) ? 1 : desc.kernel[ndims - 4];
-    conf.kw = desc.kernel[ndims - 3];
-
-    conf.f_pad = (ndims == 5) ? desc.padding[0][0] : 0;
-    conf.t_pad = (ndims == 3) ? 0 : desc.padding[0][ndims - 4];
-    conf.l_pad = desc.padding[0][ndims - 3];
-
-    conf.alg = desc.alg_kind;
-
-    conf.src_dt = src_d.data_type();
-
-    conf.is_training = desc.prop_kind == prop_kind::forward_training;
-    conf.is_backward = desc.prop_kind == prop_kind::backward_data;
-
-    set_offsets(src_d, off.src_off);
-    set_offsets(dst_d, off.dst_off);
+    set_offsets(src_mdw, off.src_off);
+    set_offsets(dst_mdw, off.dst_off);
 
     auto *compute_engine
             = utils::downcast<compute::compute_engine_t *>(pd->engine());
     conf.dispatch = compute_engine->create_dispatch(
-            conf.is_backward ? src_d.md_ : dst_d.md_);
-
-    conf.sub_group_size = 1;
-    conf.use_16mb_unroll = 0;
-    conf.use_16c_unroll = 0;
-    // disable subgroup optimization for s8
-    if (utils::one_of(src_d.data_type(), data_type::f32, data_type::f16)
-            && ((src_d.matches_tag(nCw16c) && dst_d.matches_tag(nCw16c))
-                    || (src_d.matches_tag(nChw16c)
-                            && dst_d.matches_tag(nChw16c))
-                    || (src_d.matches_tag(nCdhw16c)
-                            && dst_d.matches_tag(nCdhw16c))
-                    || (src_d.matches_tag(NCw16n16c)
-                            && dst_d.matches_tag(NCw16n16c))
-                    || (src_d.matches_tag(NChw16n16c)
-                            && dst_d.matches_tag(NChw16n16c))
-                    || (src_d.matches_tag(NCdhw16n16c)
-                            && dst_d.matches_tag(NCdhw16n16c)))) {
-        conf.use_16mb_unroll
-                = src_d.matches_one_of_tag(NCw16n16c, NChw16n16c, NCdhw16n16c);
-        conf.use_16c_unroll = 1;
-        conf.sub_group_size = 16;
-
-        conf.dispatch.define_dim(
-                "MB", 0, conf.mb, conf.use_16mb_unroll ? 16 : 1);
-        conf.dispatch.define_dim("OC", 1, conf.c);
-
-        if (!conf.is_backward) {
-            conf.dispatch.define_dim("OD", nstl::max(2, ndims - 3), conf.od);
-            conf.dispatch.define_dim("OH", nstl::max(2, ndims - 2), conf.oh);
-        } else {
-            conf.dispatch.define_dim("ID", nstl::max(2, ndims - 3), conf.id);
-            conf.dispatch.define_dim("IH", nstl::max(2, ndims - 2), conf.ih);
-            conf.dispatch.define_dim("IW", nstl::max(2, ndims - 1), conf.iw);
-        }
-
-        conf.dispatch.vectorize_dim("OC", 16);
-    } else {
-        conf.dispatch.define_dim("MB", 0, conf.mb);
-        conf.dispatch.define_dim("OC", 1, conf.c);
-    }
-
+            conf.is_backward ? src_mdw.md_ : dst_mdw.md_);
+    conf.dispatch.define_dim("MB", 0, conf.mb);
+    conf.dispatch.define_dim("OC", 1, conf.c);
     conf.dispatch.generate();
-
     return status::success;
 };
 
 static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const pool_conf_t &conf, const offsets_t &off) {
     using namespace dnnl::impl::alg_kind;
-    status_t status = status::success;
-
     kernel_ctx.set_data_type(conf.src_dt);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);
-    kernel_ctx.define_int("C", conf.c);
+    kernel_ctx.define_int("OC_WO_PADDING", conf.c);
     kernel_ctx.define_int("ID", conf.id);
     kernel_ctx.define_int("IH", conf.ih);
     kernel_ctx.define_int("IW", conf.iw);
@@ -153,25 +67,15 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int("PD", conf.f_pad);
     kernel_ctx.define_int("PH", conf.t_pad);
     kernel_ctx.define_int("PW", conf.l_pad);
-    kernel_ctx.define_int("SUB_GROUP_SIZE", conf.sub_group_size);
-    kernel_ctx.define_int("USE_16MB_UNROLL", conf.use_16mb_unroll);
-    kernel_ctx.define_int("USE_16C_UNROLL", conf.use_16c_unroll);
     kernel_ctx.define_int("IS_TRAINING", conf.is_training);
-    if (conf.is_backward)
-        kernel_ctx.define_int("IS_BWD", 1);
-    else
-        kernel_ctx.define_int("IS_FWD", 1);
-    switch (conf.alg) {
-        case pooling_max: kernel_ctx.define_int("POOLING_MAX", 1); break;
-        case pooling_avg_exclude_padding:
-            kernel_ctx.define_int("POOLING_AVG_EXCLUDE_PADDING", 1);
-            break;
-        case pooling_avg_include_padding:
-            kernel_ctx.define_int("POOLING_AVG_INCLUDE_PADDING", 1);
-            break;
-        default: status = status::unimplemented;
-    }
-    if (status != status::success) return status;
+    kernel_ctx.define_int("IS_BWD", conf.is_backward);
+    kernel_ctx.define_int("IS_FWD", !conf.is_backward);
+
+    kernel_ctx.define_int("ALG_MAX", (conf.alg == pooling_max));
+    kernel_ctx.define_int(
+            "ALG_AVG_NP", (conf.alg == pooling_avg_exclude_padding));
+    kernel_ctx.define_int(
+            "ALG_AVG_P", (conf.alg == pooling_avg_include_padding));
 
     def_offsets(off.src_off, kernel_ctx, "SRC", conf.ndims);
     def_offsets(off.dst_off, kernel_ctx, "DST", conf.ndims);

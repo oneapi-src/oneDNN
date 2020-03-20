@@ -2,6 +2,6 @@ l3t50mb64sic500n"pytorch_testcase-training"
 l2t101mb128sic128n"paddlepaddle_testcase-training"
 l1t179mb128sic128n"paddlepaddle_testcase-training"
 
-# SLC != DIC cases
-l1t10mb32sic128slc512dic128dlc128n"nu-slc-0"
-l1t31mb32sic128slc512dic128dlc128n"nu-slc-1a"
+# SLC != DHC cases
+l1t10mb32sic128slc512dhc128n"nu-slc-0"
+l1t31mb32sic128slc512dhc128n"nu-slc-1a"

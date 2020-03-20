@@ -21,6 +21,9 @@
 #include <limits.h>
 #include <stdint.h>
 
+#include <string>
+#include <vector>
+
 #include "common.hpp"
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
@@ -45,8 +48,38 @@ dnnl_alg_kind_t activation2kind(activation_t alg);
 dnnl_rnn_direction_t str2direction(const char *str);
 const char *direction2str(dnnl_rnn_direction_t direction);
 
-const int H = 0;
-const int C = 1;
+enum data_kind_t {
+    SRC_LAYER,
+    SRC_ITER,
+    SRC_ITER_C,
+    WEIGHTS_LAYER,
+    WEIGHTS_ITER,
+    BIAS,
+    DST_ITER,
+    DST_ITER_C,
+    DST_LAYER,
+
+    DIFF_SRC_LAYER,
+    DIFF_SRC_ITER,
+    DIFF_SRC_ITER_C,
+    DIFF_WEIGHTS_LAYER,
+    DIFF_WEIGHTS_ITER,
+    DIFF_BIAS,
+    DIFF_DST_ITER,
+    DIFF_DST_ITER_C,
+    DIFF_DST_LAYER,
+
+    // FIXME: adding peephole related weights to the appropriate places will
+    // cause false-positive accuracy check failures in unrelated test cases
+    // (e.g.  backward vanilla RNN for bf16) due to the data fill seed being
+    // dependent on the position of the tensor kind in the enum: adding
+    // `WEIGHTS_PEEPHOLE` before `dst_*` and `*diff_*` results in initializing
+    // the corresponding tensors differently.
+    // We need a more robust way of testing RNN.
+    WEIGHTS_PEEPHOLE,
+    DIFF_WEIGHTS_PEEPHOLE,
+};
+const char *data_kind2str(data_kind_t kind);
 
 // Gates indices
 enum {
@@ -62,53 +95,59 @@ enum {
 
 template <typename Telem>
 struct array_offset_calculator {
-    template <typename... Targs>
-    array_offset_calculator(Telem *base, Targs... Fargs)
-        : _size(sizeof...(Fargs)) {
-        const int64_t init_list[] = {Fargs...};
-        _dims = new int64_t[_size];
-        for (int64_t i = 0; i < _size; ++i)
-            _dims[i] = init_list[i];
+    array_offset_calculator() = default;
 
-        _base_ptr = base;
-    }
-    ~array_offset_calculator() { delete[] _dims; }
     template <typename... Targs>
-    inline Telem &operator()(Targs... Fargs) {
-        return *(_base_ptr + _offset(1, Fargs...));
+    array_offset_calculator(Telem *base_ptr, Targs... dims)
+        : base_ptr_(base_ptr), dims_({dims...}) {}
+
+    // ctor for AOC<const T> based on const AOC<T> &
+    template <typename Uelem>
+    array_offset_calculator(const array_offset_calculator<Uelem> &rhs)
+        : base_ptr_(rhs.base_ptr_), dims_(rhs.dims_) {}
+
+    // to make the above ctor work AOC<const T> should be able to access
+    // private fields of AOC<T>, hence let's friend them
+    friend struct array_offset_calculator<const Telem>;
+
+    template <typename... Targs>
+    Telem &operator()(Targs... Fargs) const {
+        return *(base_ptr_ + offset(1, Fargs...));
     }
+
+    int64_t nelems() const {
+        int64_t res = 1;
+        for (auto dim : dims_)
+            res *= dim;
+        return res;
+    }
+
+    void set_base_ptr(Telem *base_ptr) { base_ptr_ = base_ptr; }
 
 private:
     template <typename... Targs>
-    inline int64_t _offset(int64_t const dimension, int64_t element) {
-        return element;
+    int64_t offset(int64_t d, int64_t pos) const {
+        return pos;
     }
 
     template <typename... Targs>
-    inline int64_t _offset(
-            int64_t const dimension, int64_t theta, int64_t element) {
-        return element + (_dims[dimension] * theta);
+    int64_t offset(int64_t d, int64_t off, int64_t pos) const {
+        return off * dims_[d] + pos;
     }
 
     template <typename... Targs>
-    inline int64_t _offset(int64_t const dimension, int64_t theta,
-            int64_t element, Targs... Fargs) {
-        int64_t t_prime = element + (_dims[dimension] * theta);
-        return _offset(dimension + 1, t_prime, Fargs...);
+    int64_t offset(int64_t d, int64_t off, int64_t pos, Targs... rem) const {
+        return offset(d + 1, off * dims_[d] + pos, rem...);
     }
 
-    Telem *_base_ptr;
-    int64_t _size;
-    int64_t *_dims;
-
-    BENCHDNN_DISALLOW_COPY_AND_ASSIGN(array_offset_calculator);
+    Telem *base_ptr_;
+    std::vector<int64_t> dims_;
 };
 
 struct desc_t {
     int64_t sic;
     int64_t slc;
-    int64_t dic;
-    int64_t dlc;
+    int64_t dhc;
     int64_t wc;
     int64_t mb;
     int64_t n_layer;
@@ -117,69 +156,6 @@ struct desc_t {
 };
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
-
-enum rnn_data_kind_t {
-    input,
-    states,
-    c_states,
-    weights_input,
-    weights_states,
-    bias,
-    dst_last_iteration,
-    dst_c_last_iteration,
-    dst_last_layer,
-
-    dst_diff_input,
-    dst_diff_states,
-    dst_diff_c_states,
-    dst_diff_weights_input,
-    dst_diff_weights_states,
-    dst_diff_bias,
-    diff_last_iteration,
-    diff_c_last_iteration,
-    diff_last_layer,
-
-    // FIXME: adding peephole related weights to the appropriate places will
-    // cause false-positive accuracy check failures in unrelated test cases
-    // (e.g.  backward vanilla RNN for bf16) due to the data fill seed being
-    // dependent on the position of the tensor kind in the enum: adding
-    // `weights_peephole` before `dst_*` and `*diff_*` results in initializing
-    // the corresponding tensors differently.
-    // We need a more robust way of testing RNN.
-    weights_peephole,
-    dst_diff_weights_peephole,
-
-    data_kind_total // should be last to provide the total number of data kinds
-};
-
-inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
-    switch (kind) {
-        case input: return "INPUT";
-        case states: return "STATES";
-        case c_states: return "STATES";
-        case weights_input: return "WEIGHTS_INPUT";
-        case weights_states: return "WEIGHTS_STATES";
-        case weights_peephole: return "WEIGHTS_PEEPHOLE";
-        case bias: return "BIAS";
-        case dst_last_layer: return "DST_LAST_LAYER";
-        case dst_last_iteration: return "DST_LAST_ITERATION";
-        case dst_c_last_iteration: return "DST_C_LAST_ITERATION";
-
-        case dst_diff_input: return "DST_DIFF_INPUT";
-        case dst_diff_states: return "DST_DIFF_STATES";
-        case dst_diff_c_states: return "DST_DIFF_C_STATES";
-        case dst_diff_weights_input: return "DST_DIFF_WEIGHTS_INPUT";
-        case dst_diff_weights_states: return "DST_DIFF_WEIGHTS_STATES";
-        case dst_diff_weights_peephole: return "DST_DIFF_WEIGHTS_PEEPHOLE";
-        case dst_diff_bias: return "DST_DIFF_BIAS";
-        case diff_last_layer: return "DIFF_LAST_LAYER";
-        case diff_last_iteration: return "DIFF_LAST_ITERATION";
-        case diff_c_last_iteration: return "DIFF_C_LAST_ITERATION";
-        default:
-            assert(!"incorrect rnn data kind");
-            return "incorrect rnn data kind";
-    }
-}
 
 /** configuration structure, that controls initial data filling + error check
 *
@@ -194,41 +170,72 @@ inline const char *rnn_data_kind2str(rnn_data_kind_t kind) {
 * on final check the resulting values should be in [min .. max] range, the
 * relative difference should not exceed eps
 */
+struct dt_conf_t {
+    struct entry_t {
+        dnnl_data_type_t dt;
+        int min, max; // representative
+        float f_min, f_max; // fill range
+        float f_mean, f_stddev; // parameters of normal distribution
+        double eps; // acceptable error
+    };
 
-typedef struct dt_conf_t {
-    dnnl_data_type_t dt;
-    int min, max; /* representative */
-    float f_min, f_max; /* fill range */
-    float f_mean,
-            f_stddev; /* mean and std deviation of normally distributed data */
-    double eps; /* acceptable error */
-} _dt_conf_t[data_kind_total];
+    dt_conf_t(const std::string &str) : str_(str) {}
 
-extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_bf16;
-extern const _dt_conf_t conf_f16;
-extern const _dt_conf_t conf_u8u8u8u8;
-extern const _dt_conf_t conf_u8u8u8f32;
-extern const _dt_conf_t conf_f32u8f32f32;
-extern const _dt_conf_t conf_f32u8f32u8;
+    virtual const entry_t &operator[](data_kind_t kind) const = 0;
 
-const dt_conf_t *str2cfg(const char *str);
-const char *cfg2str(const dt_conf_t *cfg);
+    const std::string &str() const { return str_; }
+    bool is_int8() const { return operator[](SRC_LAYER).dt == dnnl_u8; }
 
-inline bool is_cfg_u8(const dt_conf_t *cfg) {
-    return cfg == conf_u8u8u8u8 || cfg == conf_u8u8u8f32
-            || cfg == conf_f32u8f32f32 || cfg == conf_f32u8f32u8;
-}
+    static const dt_conf_t &create(const std::string &str);
+
+    std::string str_;
+};
+
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    desc_t desc;
+
+    std::vector<dir_t> prop {FWD_D};
+    std::vector<std::string> cfg {"f32"};
+    std::vector<alg_t> alg {VANILLA_RNN};
+    std::vector<dnnl_rnn_direction_t> direction {
+            dnnl_unidirectional_left2right};
+    std::vector<activation_t> activation {UNDEF};
+    std::vector<bool> skip_nonlinear {false}, with_peephole {false};
+    std::vector<int64_t> mb {0};
+    std::vector<policy_t> scale_policy {policy_t::NONE};
+    attr_t attr = {};
+    bool allow_unimpl = false;
+    unsigned int flags = 0x0;
+    float alpha = 0.9f, beta = 0.0f;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%name%,%prop%,%cfg%,%alg%,%activation%,%direction%"
+              ","
+              "%DESC%,%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template_def
+            = "perf,%engine%,%name%,%prb%,%Gops%,%Gfreq%,%-time%,%-Gflops%,"
+              "%0time%,%0Gflops%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
 
 struct prb_t : public desc_t {
-    prb_t(const desc_t &desc, const dt_conf_t *cfg, dnnl_prop_kind_t prop,
-            alg_t alg, bool with_peephole, dnnl_rnn_direction_t direction,
+    prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
+            bool with_peephole, dnnl_rnn_direction_t direction,
             const attr_t &attr, policy_t scale_policy, unsigned int flags,
             activation_t activation, float alpha, float beta,
             bool skip_nonlinear, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
-        , prop(prop)
+        , prop(prop2prop_kind(prop))
         , alg(alg)
         , with_peephole(with_peephole)
         , direction(direction)
@@ -244,7 +251,7 @@ struct prb_t : public desc_t {
 
         if (mb) this->mb = mb;
         count_ops();
-        wc = MAX2(sic, MAX2(slc, dic));
+        wc = MAX2(sic, MAX2(slc, dhc));
 
         wei_oc_scales = nullptr;
         linear_scales = nullptr;
@@ -252,12 +259,12 @@ struct prb_t : public desc_t {
         // We always allocate linear scales. Even if they are not
         // used, they get dereferenced when built in debug mode.
         linear_scales = (float *)zmalloc(sizeof(float) * n_gates(), 64);
-        // Here we use the range of INPUT to set the scales
-        set_tparams(cfg[input].f_min, cfg[input].f_max);
+        // Here we use the range of SRC_LAYER to set the scales
+        set_tparams(cfg[SRC_LAYER].f_min, cfg[SRC_LAYER].f_max);
 
         if (scale_policy == policy_t::PER_OC)
             wei_oc_scales
-                    = (float *)zmalloc(sizeof(float) * dic * n_gates(), 64);
+                    = (float *)zmalloc(sizeof(float) * dhc * n_gates(), 64);
         set_qparams(-1., 1.);
     }
     ~prb_t() {
@@ -269,7 +276,7 @@ struct prb_t : public desc_t {
         // Here, we count only the ops in GEMM portion as there is no
         // theoretical number of ops for the post-gemm operations
         int64_t num_cells = (int64_t)n_dir() * n_layer * n_iter;
-        int64_t cell_ops = (int64_t)2 * (n_gates() * dic) * mb * (sic + slc);
+        int64_t cell_ops = (int64_t)2 * (n_gates() * dhc) * mb * (sic + slc);
         int64_t prop_multiplier = prop == dnnl_backward ? 2 : 1;
         ops = prop_multiplier * num_cells * cell_ops;
     }
@@ -280,7 +287,6 @@ struct prb_t : public desc_t {
                 ? 2
                 : 1;
     }
-    int64_t n_weights() const { return 1; }
     int64_t n_states() const { return alg == VANILLA_LSTM ? 2 : 1; }
     int64_t n_gates() const {
         return alg == VANILLA_LSTM
@@ -290,10 +296,14 @@ struct prb_t : public desc_t {
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
-    bool is_int8() const { return cfg[input].dt == dnnl_u8; }
+    int64_t dlc() const {
+        return (direction == dnnl_bidirectional_concat ? 2 : 1) * dhc;
+    }
+
+    bool is_int8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
     bool is_lstm_peephole() const { return with_peephole; }
 
-    const dt_conf_t *cfg;
+    const dt_conf_t &cfg;
     dnnl_prop_kind_t prop;
     alg_t alg;
     bool with_peephole;
@@ -337,7 +347,7 @@ struct perf_report_t : public base_perf_report_t {
     }
 
     virtual void dump_cfg(std::ostream &s) const override {
-        s << cfg2str(p_->cfg);
+        s << p_->cfg.str();
     }
 
     virtual void dump_desc(std::ostream &s) const override {
@@ -346,7 +356,7 @@ struct perf_report_t : public base_perf_report_t {
 
     virtual void dump_desc_csv(std::ostream &s) const override {
         s << p_->n_layer << "," << p_->n_iter << "," << p_->mb << "," << p_->sic
-          << "," << p_->slc << "," << p_->dic << "," << p_->dlc;
+          << "," << p_->slc << "," << p_->dhc;
     }
 
     virtual void dump_rnn_activation(std::ostream &s) const override {
@@ -365,169 +375,35 @@ private:
     const prb_t *p_ = nullptr;
 };
 
-void rnn_linear_fwd(const prb_t &p, const float *src_iter_,
-        const float *src_iter_c_, const float *src_layer_,
-        const float *weights_layer_, const float *weights_iter_h_,
-        const float *weights_peephole_, const float *bias_, float *dst_iter_,
-        float *dst_iter_c_, float *dst_layer_, float *ws_, float *gates_);
+void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
+        AOC<float> &ws_src_layer, AOC<float> &ws_src_iter_c,
+        AOC<float> &ws_gates);
 
-void compute_ref_fwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
-        dnn_mem_t &c_states_m, dnn_mem_t &weights_input_m,
-        dnn_mem_t &weights_states_m, dnn_mem_t &weights_peephole_m,
-        dnn_mem_t &bias_m, dnn_mem_t &dst_last_layer_m,
-        dnn_mem_t &dst_last_iteration_m, dnn_mem_t &dst_c_last_iteration_m);
+void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
+        const float *src_iter_, const float *src_iter_c_,
+        const float *weights_layer_, const float *weights_iter_,
+        const float *weights_peephole_, const float *bias_, float *dst_layer_,
+        float *dst_iter_, float *dst_iter_c_, const AOC<float> &ws_src_layer,
+        const AOC<float> &ws_src_iter_c, const AOC<float> &ws_gates);
 
-void compute_ref_bwd(const prb_t &p, dnn_mem_t &input_m, dnn_mem_t &states_m,
-        dnn_mem_t &c_states_m, dnn_mem_t &diff_last_layer_m,
-        dnn_mem_t &diff_last_iteration_m, dnn_mem_t &diff_c_last_iteration_m,
-        dnn_mem_t &weights_input_m, dnn_mem_t &weights_states_m,
+void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
+        dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
+        dnn_mem_t &weights_layer_m, dnn_mem_t &weights_iter_m,
         dnn_mem_t &weights_peephole_m, dnn_mem_t &bias_m,
-        dnn_mem_t &dst_last_layer_m, dnn_mem_t &dst_last_iteration_m,
-        dnn_mem_t &dst_c_last_iteration_m, dnn_mem_t &dst_diff_input_m,
-        dnn_mem_t &dst_diff_states_m, dnn_mem_t &dst_diff_c_states_m,
-        dnn_mem_t &dst_diff_weights_input_m,
-        dnn_mem_t &dst_diff_weights_states_m,
-        dnn_mem_t &dst_diff_weights_peephole_m, dnn_mem_t &dst_diff_bias_m);
+        dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m, dnn_mem_t &dst_iter_c_m);
 
-// dnnl_ntc
-inline size_t ntc_off_f(const prb_t &p, int64_t n, int64_t t, int64_t c) {
-    return (n * p.n_iter + t) * p.slc + c;
-}
+void compute_ref_bwd(const prb_t &p, dnn_mem_t &src_layer_m,
+        dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,
+        dnn_mem_t &diff_dst_layer_m, dnn_mem_t &diff_dst_iter_m,
+        dnn_mem_t &diff_dst_iter_c_m, dnn_mem_t &weights_layer_m,
+        dnn_mem_t &weights_iter_m, dnn_mem_t &weights_peephole_m,
+        dnn_mem_t &bias_m, dnn_mem_t &dst_layer_m, dnn_mem_t &dst_iter_m,
+        dnn_mem_t &dst_iter_c_m, dnn_mem_t &diff_src_layer_m,
+        dnn_mem_t &diff_src_iter_m, dnn_mem_t &diff_src_iter_c_m,
+        dnn_mem_t &diff_weights_layer_m, dnn_mem_t &diff_weights_iter_m,
+        dnn_mem_t &diff_weights_peephole_m, dnn_mem_t &diff_bias_m);
 
-inline void inv_ntc_off_f(
-        const prb_t &p, size_t off, int64_t &n, int64_t &t, int64_t &c) {
-    c = off % p.slc;
-    off /= p.slc;
-    t = off % p.n_iter;
-    off /= p.n_iter;
-    n = off % p.mb;
-    off /= p.mb;
-    assert(off == 0);
-}
-
-// dnnl_ldnc
-inline size_t ldnc_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t n, int64_t c) {
-    return ((l * p.n_dir() + d) * p.mb + n) * p.sic + c;
-}
-
-inline void inv_ldnc_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
-        int64_t &n, int64_t &c) {
-    c = off % p.sic;
-    off /= p.sic;
-    n = off % p.mb;
-    off /= p.mb;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-// dnnl_ldigo
-inline size_t ldigo_off_f(const prb_t &p, int64_t l, int64_t d, int64_t w,
-        int64_t ic, int64_t oc) {
-    return (((l * p.n_dir() + d) * p.n_weights() + w) * (4 * p.slc) + ic)
-            * p.sic
-            + oc;
-}
-
-inline void inv_ldigo_off_f(const prb_t &p, size_t off, int64_t &l, int64_t &d,
-        int64_t &w, int64_t &ic, int64_t &oc) {
-    oc = off % p.sic;
-    off /= p.sic;
-    ic = off % (4 * p.slc);
-    off /= (4 * p.slc);
-    w = off % p.n_weights();
-    off /= p.n_weights();
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-// dnnl_ldwOcIc
-inline size_t ldwOcIc_off_f(const prb_t &p, int64_t l, int64_t d, int64_t w,
-        int64_t oc, int64_t ic) {
-    return (((l * p.n_dir() + d) * p.n_weights() + w) * (4 * p.sic) + oc)
-            * p.slc
-            + ic;
-}
-
-inline void inv_ldwOcIc_off_f(const prb_t &p, size_t off, int64_t &l,
-        int64_t &d, int64_t &w, int64_t &oc, int64_t &ic) {
-    ic = off % p.slc;
-    off /= p.slc;
-    oc = off % (4 * p.sic);
-    off /= (4 * p.sic);
-    w = off % p.n_weights();
-    off /= p.n_weights();
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-inline size_t ldgo_off_with_G_f(
-        const prb_t &p, int64_t G, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ((l * p.n_dir() + d) * G + b) * p.sic + c;
-}
-
-inline void inv_ldgo_off_with_G_f(const prb_t &p, int64_t G, size_t off,
-        int64_t &l, int64_t &d, int64_t &b, int64_t &c) {
-    c = off % p.dic;
-    off /= p.dic;
-    b = off % G;
-    off /= G;
-    d = off % p.n_dir();
-    off /= p.n_dir();
-    l = off % p.n_layer;
-    off /= p.n_layer;
-    assert(off == 0);
-}
-
-// weights peephole: dnnl_ldgo, g = 3
-inline size_t weights_peephole_ldgo_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ldgo_off_with_G_f(p, 3, l, d, b, c);
-}
-
-inline void inv_weights_peephole_ldgo_off_f(const prb_t &p, size_t off,
-        int64_t &l, int64_t &d, int64_t &b, int64_t &c) {
-    return inv_ldgo_off_with_G_f(p, 3, off, l, d, b, c);
-}
-
-// bias: dnnl_ldgo
-inline size_t bias_ldgo_off_f(
-        const prb_t &p, int64_t l, int64_t d, int64_t b, int64_t c) {
-    return ldgo_off_with_G_f(p, p.n_bias(), l, d, b, c);
-}
-
-inline void inv_bias_ldgo_off_f(const prb_t &p, size_t off, int64_t &l,
-        int64_t &d, int64_t &b, int64_t &c) {
-    return inv_ldgo_off_with_G_f(p, p.n_bias(), off, l, d, b, c);
-}
-
-// dst_last_layer: "abx"
-inline size_t tnc_off_f(const prb_t &p, int64_t t, int64_t n, int64_t c) {
-    return (t * p.mb + n) * p.sic + c;
-}
-
-inline void inv_tnc_off_f(
-        const prb_t &p, size_t off, int64_t &t, int64_t &n, int64_t &c) {
-    auto cout = p.sic * (1 + (p.direction == dnnl_bidirectional_concat));
-    c = off % cout;
-    off /= cout;
-    n = off % p.mb;
-    off /= p.mb;
-    t = off % p.n_iter;
-    off /= p.n_iter;
-    assert(off == 0);
-}
-
-void check_case_validity(const dt_conf_t *cfg, policy_t policy);
+void check_case_validity(const dt_conf_t &cfg, policy_t policy);
 
 int doit(const prb_t &p, res_t *res);
 int bench(int argc, char **argv);

@@ -99,6 +99,7 @@ enum { CRIT = 1, WARN = 2 };
 extern int verbose;
 extern bool canonical;
 extern bool mem_check;
+extern const char *skip_impl; /* NULL or "" means skip nothing */
 
 #define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
@@ -211,7 +212,7 @@ const char *bool2str(bool value);
 
 /* TODO: why two functions??? */
 bool match_regex(const char *str, const char *pattern);
-bool maybe_skip(const char *skip_impl, const char *impl_str);
+bool maybe_skip(const char *impl_str);
 
 typedef int (*bench_f)(int argc, char **argv);
 int batch(const char *fname, bench_f bench);

@@ -135,12 +135,12 @@ std::ostream &operator<<(std::ostream &s, const desc_t &d) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || p.cfg != defaults::cfg)
-        s << "--cfg=" << cfg2str(p.cfg) << " ";
-    if (canonical || p.stag != defaults::tag) s << "--stag=" << p.stag << " ";
-    if (canonical || p.wtag != defaults::tag) s << "--wtag=" << p.wtag << " ";
-    if (canonical || p.dtag != defaults::tag) s << "--dtag=" << p.dtag << " ";
+    if (canonical || p.cfg != def.cfg[0]) s << "--cfg=" << p.cfg << " ";
+    if (canonical || p.stag != def.stag[0]) s << "--stag=" << p.stag << " ";
+    if (canonical || p.wtag != def.wtag[0]) s << "--wtag=" << p.wtag << " ";
+    if (canonical || p.dtag != def.dtag[0]) s << "--dtag=" << p.dtag << " ";
 
     // TODO: switch me on when run-time leading dimensions will be supported
     // if (canonical || p.ld_src != defaults::ld)
@@ -150,19 +150,19 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     // if (canonical || p.ld_dst != defaults::ld)
     //     s << "--ld_dst=" << p.ld_dst << " ";
 
-    if (canonical || p.runtime_mb != defaults::runtime_val)
+    if (canonical || p.runtime_mb != def.runtime_mb[0])
         s << "--runtime_mb=" << p.runtime_mb << " ";
-    if (canonical || p.runtime_m != defaults::runtime_val)
+    if (canonical || p.runtime_m != def.runtime_m[0])
         s << "--runtime_m=" << p.runtime_m << " ";
-    if (canonical || p.runtime_n != defaults::runtime_val)
+    if (canonical || p.runtime_n != def.runtime_n[0])
         s << "--runtime_n=" << p.runtime_n << " ";
-    if (canonical || p.runtime_k != defaults::runtime_val)
+    if (canonical || p.runtime_k != def.runtime_k[0])
         s << "--runtime_k=" << p.runtime_k << " ";
 
-    if (canonical || p.bia_dt != defaults::bia_dt) {
-        s << "--bia_dt=" << dt2str(p.bia_dt) << " ";
+    if (canonical || p.bia_dt != def.bia_dt[0]) {
+        s << "--bia_dt=" << p.bia_dt << " ";
 
-        if (canonical || p.bia_mask != defaults::bia_mask)
+        if (canonical || p.bia_mask != def.bia_mask[0])
             s << "--bia_mask=" << p.bia_mask << " ";
     }
 

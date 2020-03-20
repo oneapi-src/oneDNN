@@ -193,9 +193,9 @@ const dt_conf_t *str2cfg(const char *str) {
     return (const dt_conf_t *)1;
 }
 
-const char *cfg2str(const dt_conf_t *cfg) {
+std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg) {
 #define CASE(_cfg) \
-    if (cfg == CONCAT2(conf_, _cfg)) return STRINGIFY(_cfg)
+    if (cfg == CONCAT2(conf_, _cfg)) return s << STRINGIFY(_cfg)
     CASE(f32);
     CASE(f16);
     CASE(u8s8f32);
@@ -211,11 +211,8 @@ const char *cfg2str(const dt_conf_t *cfg) {
     CASE(f32bf16bf16);
     CASE(bf16f32bf16);
 #undef CASE
-    []() {
-        SAFE(FAIL, CRIT);
-        return 0;
-    }();
-    return NULL;
+    SAFE_V(FAIL);
+    return s;
 }
 
 } // namespace ip

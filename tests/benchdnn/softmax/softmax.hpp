@@ -34,6 +34,34 @@ alg_t str2alg(const char *str);
 const char *alg2str(alg_t alg);
 dnnl_alg_kind_t alg2alg_kind(alg_t alg);
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    dims_t dims;
+
+    std::vector<dir_t> dir {FWD_D};
+    std::vector<dnnl_data_type_t> dt {dnnl_f32};
+    std::vector<std::string> tag {tag::abx};
+    std::vector<alg_t> alg {SOFTMAX};
+    std::vector<int> axis {1};
+    std::vector<int64_t> mb {0};
+    std::vector<bool> inplace {true};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%dir%,%dt%,%tag%,%alg%,%axis%,%DESC%,%-time%,%"
+              "0time%";
+    const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, alg_t alg, int axis, bool inplace,
@@ -87,8 +115,6 @@ struct perf_report_t : public base_perf_report_t {
 private:
     const prb_t *p_ = NULL;
 };
-
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 inline void map_off_to_mb_ic(
         const prb_t *p, int64_t off, int64_t &mb, int64_t &ic) {

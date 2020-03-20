@@ -20,7 +20,8 @@
 
 #include "rnn/rnn.hpp"
 #include "rnn/rnn_aux.hpp"
-#include "rnn/rnn_cells.hpp"
+
+#include "rnn/cells.hpp"
 
 namespace rnn {
 
@@ -41,73 +42,72 @@ float activation(const prb_t &p, float x, bool is_fwd = true) {
 }
 
 void rnn_fwd_postgemm(
-        const prb_t &p, const float *bias_, float *gates_, float *dst_iter_h_) {
-    AOC<float> dst_iter_h(dst_iter_h_, p.mb, p.n_gates(), p.wc);
-    AOC<const float> bias(bias_, p.n_gates(), p.dic);
-    AOC<float> gates(gates_, p.mb, p.n_gates(), p.dic);
+        const prb_t &p, const float *bias_, float *gates_, float *dst_layer_) {
+    AOC<float> dst_layer(dst_layer_, p.mb, p.n_gates(), p.wc);
+    AOC<const float> bias(bias_, p.n_gates(), p.dhc);
+    AOC<float> gates(gates_, p.mb, p.n_gates(), p.dhc);
 
     for (int64_t i = 0; i < p.mb; i++)
         for (int64_t j = 0; j < p.n_gates(); j++)
-            for (int64_t k = 0; k < p.dic; k++) {
+            for (int64_t k = 0; k < p.dhc; k++) {
                 const auto tmp = activation(p, gates(i, j, k) + bias(j, k));
                 gates(i, j, k) = tmp;
-                dst_iter_h(i, j, k) = tmp;
+                dst_layer(i, j, k) = tmp;
             }
 }
 
-void rnn_fwd(const prb_t &p, float *dst_iter_h_, float *gates_,
-        const float *weights_layer_, const float *weights_iter_h_,
-        const float *bias_, const float *src_layer_, const float *src_iter_h_) {
-    gemm("C", "N", "N", p.mb, p.n_gates() * p.dic, p.slc, 1.0, src_layer_, p.wc,
-            weights_layer_, p.n_gates() * p.dic, 0.0, gates_,
-            p.n_gates() * p.dic);
-    gemm("C", "N", "N", p.mb, p.n_gates() * p.dic, p.sic, 1.0, src_iter_h_,
-            p.wc, weights_iter_h_, p.n_gates() * p.dic, 1.0, gates_,
-            p.n_gates() * p.dic);
-    rnn_fwd_postgemm(p, bias_, gates_, dst_iter_h_);
+void rnn_fwd(const prb_t &p, float *dst_layer_, float *gates_,
+        const float *weights_layer_, const float *weights_iter_,
+        const float *bias_, const float *src_layer_, const float *src_iter_) {
+    gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.slc, 1.0, src_layer_, p.wc,
+            weights_layer_, p.n_gates() * p.dhc, 0.0, gates_,
+            p.n_gates() * p.dhc);
+    gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.sic, 1.0, src_iter_, p.wc,
+            weights_iter_, p.n_gates() * p.dhc, 1.0, gates_,
+            p.n_gates() * p.dhc);
+    rnn_fwd_postgemm(p, bias_, gates_, dst_layer_);
 }
 
 void rnn_bwd_pregemm(const prb_t &p, const float *diff_dst_layer_,
-        const float *diff_dst_iter_h_, const float *gates_, float *b_gates_) {
+        const float *diff_dst_iter_, const float *gates_, float *b_gates_) {
     AOC<const float> diff_dst_layer(diff_dst_layer_, p.mb, p.wc);
-    AOC<const float> diff_dst_iter_h(diff_dst_iter_h_, p.mb, p.wc);
-    AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dic);
-    AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dic);
+    AOC<const float> diff_dst_iter(diff_dst_iter_, p.mb, p.wc);
+    AOC<const float> gates(gates_, p.mb, p.n_gates(), p.dhc);
+    AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
 
     for (int64_t b = 0; b < p.mb; ++b)
-        for (int64_t h = 0; h < p.dic; ++h) {
+        for (int64_t h = 0; h < p.dhc; ++h) {
             const float g = gates(b, 0, h);
-            const float dd = diff_dst_layer(b, h) + diff_dst_iter_h(b, h);
+            const float dd = diff_dst_layer(b, h) + diff_dst_iter(b, h);
             b_gates(b, 0, h) = activation(p, g, false) * dd;
         }
 }
 
 void rnn_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
-        float *diff_weights_layer_, float *diff_weights_iter_h_,
+        float *diff_weights_layer_, float *diff_weights_iter_,
         float *diff_bias_, float *b_gates_, const float *src_layer_,
         const float *src_iter_, const float *weights_layer_,
-        const float *weights_iter_h_, const float *bias_,
-        const float *dst_iter_h_, const float *gates_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_h_) {
-    AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dic);
+        const float *weights_iter_, const float *bias_, const float *gates_,
+        const float *diff_dst_layer_, const float *diff_dst_iter_) {
+    AOC<float> b_gates(b_gates_, p.mb, p.n_gates(), p.dhc);
 
-    rnn_bwd_pregemm(p, diff_dst_layer_, diff_dst_iter_h_, gates_, b_gates_);
+    rnn_bwd_pregemm(p, diff_dst_layer_, diff_dst_iter_, gates_, b_gates_);
 
-    gemm("C", "T", "N", p.sic, p.n_gates() * p.dic, p.mb, 1.0, src_iter_, p.wc,
-            b_gates_, p.n_gates() * p.dic, 1.0, diff_weights_iter_h_,
-            p.n_gates() * p.dic);
-    gemm("C", "T", "N", p.slc, p.n_gates() * p.dic, p.mb, 1.0, src_layer_, p.wc,
-            b_gates_, p.n_gates() * p.dic, 1.0, diff_weights_layer_,
-            p.n_gates() * p.dic);
+    gemm("C", "T", "N", p.sic, p.n_gates() * p.dhc, p.mb, 1.0, src_iter_, p.wc,
+            b_gates_, p.n_gates() * p.dhc, 1.0, diff_weights_iter_,
+            p.n_gates() * p.dhc);
+    gemm("C", "T", "N", p.slc, p.n_gates() * p.dhc, p.mb, 1.0, src_layer_, p.wc,
+            b_gates_, p.n_gates() * p.dhc, 1.0, diff_weights_layer_,
+            p.n_gates() * p.dhc);
     for (int64_t b = 0; b < p.mb; ++b)
-        copy(p.n_gates(), p.dic, p.dic, p.dic, &b_gates(b, 0, 0), diff_bias_,
+        copy(p.n_gates(), p.dhc, p.dhc, p.dhc, &b_gates(b, 0, 0), diff_bias_,
                 action_sum);
 
-    gemm("C", "N", "T", p.mb, p.slc, p.n_gates() * p.dic, 1.0, b_gates_,
-            p.n_gates() * p.dic, weights_layer_, p.n_gates() * p.dic, 0.0,
+    gemm("C", "N", "T", p.mb, p.slc, p.n_gates() * p.dhc, 1.0, b_gates_,
+            p.n_gates() * p.dhc, weights_layer_, p.n_gates() * p.dhc, 0.0,
             diff_src_layer_, p.wc);
-    gemm("C", "N", "T", p.mb, p.sic, p.n_gates() * p.dic, 1.0, b_gates_,
-            p.n_gates() * p.dic, weights_iter_h_, p.n_gates() * p.dic, 0.0,
+    gemm("C", "N", "T", p.mb, p.sic, p.n_gates() * p.dhc, 1.0, b_gates_,
+            p.n_gates() * p.dhc, weights_iter_, p.n_gates() * p.dhc, 0.0,
             diff_src_iter_, p.wc);
 }
 

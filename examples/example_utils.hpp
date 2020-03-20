@@ -30,6 +30,26 @@
 #include "dnnl.hpp"
 #include "dnnl_debug.h"
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+
+#ifdef _MSC_VER
+#define PRAGMA_MACRo(x) __pragma(x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
+#else
+#define PRAGMA_MACRo(x) _Pragma(#x)
+#define PRAGMA_MACRO(x) PRAGMA_MACRo(x)
+#endif
+
+// MSVC doesn't support collapse clause in omp parallel
+#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+#define collapse(x)
+#endif
+
+#define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n) PRAGMA_MACRO(omp parallel for collapse(n))
+#else // DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
+#define PRAGMA_OMP_PARALLEL_FOR_COLLAPSE(n)
+#endif
+
 dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
     // Checking if a GPU exists on the machine
     if (akind == dnnl::engine::kind::gpu) {

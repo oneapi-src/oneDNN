@@ -22,7 +22,7 @@ where *rnn-knobs* are:
 
 and *rnn-desc* is a problem descriptor. The canonical form is:
 ```
- lXtXmbX_sicX_slcX_dicX_dlcX_nS
+ lXtXmbX_sicX_slcX_dhcX_nS
 ```
 Here X is an integer number and S is a string (n stands for name).
 The special symbol `_` is ignored, so it may be used as a delimiter.
@@ -33,7 +33,7 @@ There are default values for some entities in case they were not specified:
  - l = 1;
  - t = 1;
  - mb = 2;
- - slc = dlc = dic = sic;
+ - slc = dhc = sic;
 
 
 ## Precision Configurations

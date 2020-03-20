@@ -54,7 +54,7 @@ void gru_fwd_part1_postgemm_template(T1 func1, T2 to_src, const float *scales,
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             auto G0 // default func1 is sigmoid
                     = func1(scales, scratch_gates(i, 0, j) + bias(0, j));
             auto G1 // default func1 is sigmoid
@@ -96,7 +96,7 @@ void gru_fwd_part2_postgemm_template(T1 func1, T2 to_src, const float *scales,
 
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             auto G0 = scratch_gates(i, 0, j);
             auto G2 // default func1 is tanh
                     = func1(scales + 2, scratch_gates(i, 2, j) + bias(2, j));
@@ -216,7 +216,7 @@ void gru_bwd_part1_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
     // dht-1 (part) = dh * G0
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             float h = states_tm1_l(i, j);
             float dHt = diff_states_tp1_l(0, i, j)
                     + diff_states_t_lp1(rnn.n_states, i, j);
@@ -260,7 +260,7 @@ void gru_bwd_part2_postgemm_template(T to_src, const rnn_utils::rnn_conf_t &rnn,
     // h * G1 (required for dWh)
     parallel_nd(rnn.mb, [&](int i) {
         PRAGMA_OMP_SIMD()
-        for (int j = 0; j < rnn.dic; j++) {
+        for (int j = 0; j < rnn.dhc; j++) {
             float h = states_tm1_l(i, j);
             float G1 = ws_gates(i, 1, j);
             diff_states_t_l(0, i, j) += dhG1(i, j) * G1;

@@ -101,15 +101,15 @@ protected:
 #endif
 
         auto sg_addr
-                = ptr[addr_scratch_gates_reg + 0 * rnn_.dic * scratch_dt_size];
-        auto wg_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dic * gate_dt_size];
-        auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dic * bias_dt_size];
+                = ptr[addr_scratch_gates_reg + 0 * rnn_.dhc * scratch_dt_size];
+        auto wg_addr = ptr[addr_ws_gates_reg + 0 * rnn_.dhc * gate_dt_size];
+        auto B_addr = ptr[addr_bias_reg + 0 * rnn_.dhc * bias_dt_size];
 
         // initialize registers with addresses and constants
         init_regs(vlen);
         injector_->load_table_addr();
 
-        mov(loop_cnt, rnn_.dic * scratch_dt_size);
+        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 
@@ -135,7 +135,7 @@ protected:
 
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G, vlen);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(vector_loop_inc_regs);
             to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G, vlen, true);
 
@@ -185,7 +185,7 @@ protected:
 
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G, scratch_dt_size);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(rem_loop_inc_regs);
             to_src<src_data_t>(
                     ptr[addr_states_t_l_copy_reg], G, scratch_dt_size, true);

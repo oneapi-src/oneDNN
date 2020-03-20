@@ -47,13 +47,34 @@ typedef struct dt_conf_t {
 } _dt_conf_t[DAT_TOTAL];
 
 extern const _dt_conf_t conf_f32;
-extern const _dt_conf_t conf_u8s8s32;
-extern const _dt_conf_t conf_u8s8s8;
-extern const _dt_conf_t conf_u8s8u8;
-extern const _dt_conf_t conf_bf16bf16f32;
-extern const _dt_conf_t conf_bf16bf16bf16;
-extern const _dt_conf_t conf_f32bf16bf16;
-extern const _dt_conf_t conf_bf16f32bf16;
+
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    desc_t desc;
+
+    std::vector<dir_t> dir {FWD_B};
+    std::vector<const dt_conf_t *> cfg {conf_f32};
+    std::vector<std::string> stag {tag::any}, wtag {tag::any}, dtag {tag::any};
+    std::vector<int64_t> mb {0};
+    attr_t attr = {};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%name%,%dir%,%cfg%,%attr%,%DESC%,"
+              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template_def
+            = "perf,%engine%,%name%,%prb%,"
+              "%Gops%,%Gfreq%,%-time%,%-Gflops%,%0time%,%0Gflops%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
 
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, const dt_conf_t *cfg,
@@ -96,7 +117,7 @@ struct prb_t : public desc_t {
 std::ostream &operator<<(std::ostream &s, const prb_t &p);
 
 const dt_conf_t *str2cfg(const char *str);
-const char *cfg2str(const dt_conf_t *cfg);
+std::ostream &operator<<(std::ostream &s, const dt_conf_t *cfg);
 
 struct perf_report_t : public base_perf_report_t {
     using base_perf_report_t::base_perf_report_t;
@@ -106,9 +127,7 @@ struct perf_report_t : public base_perf_report_t {
         base_report(r, prb_str);
     }
 
-    virtual void dump_cfg(std::ostream &s) const override {
-        s << cfg2str(p_->cfg);
-    }
+    virtual void dump_cfg(std::ostream &s) const override { s << p_->cfg; }
 
     virtual void dump_desc(std::ostream &s) const override {
         s << static_cast<const desc_t &>(*p_);

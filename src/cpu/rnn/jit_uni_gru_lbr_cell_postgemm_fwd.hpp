@@ -122,16 +122,16 @@ protected:
 
         // helper lambda to address the gates and biases
         auto sg_addr = [&](int i) {
-            return ptr[addr_scratch_gates_reg + i * rnn_.dic * scratch_dt_size];
+            return ptr[addr_scratch_gates_reg + i * rnn_.dhc * scratch_dt_size];
         };
         auto wg_addr = [&](int i) {
-            return ptr[addr_ws_gates_reg + i * rnn_.dic * gate_dt_size];
+            return ptr[addr_ws_gates_reg + i * rnn_.dhc * gate_dt_size];
         };
         auto B_addr = [&](int i) {
-            return ptr[addr_bias_reg + i * rnn_.dic * bias_dt_size];
+            return ptr[addr_bias_reg + i * rnn_.dhc * bias_dt_size];
         };
         auto sc_addr = [&](int i) {
-            return ptr[addr_scratch_cell_reg + i * rnn_.dic * scratch_dt_size];
+            return ptr[addr_scratch_cell_reg + i * rnn_.dhc * scratch_dt_size];
         };
 
         // initialize registers with addresses and constants
@@ -141,7 +141,7 @@ protected:
         // both sigmoid and tanh use the same table so load address just once in rax
         sigmoid_injector_->load_table_addr();
 
-        mov(loop_cnt, rnn_.dic * scratch_dt_size);
+        mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
 
@@ -192,7 +192,7 @@ protected:
             // write back the result
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, vlen);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(vector_loop_inc_regs);
             to_src<src_data_t>(ptr[addr_states_t_l_copy_reg], G0, vlen, true);
 
@@ -268,7 +268,7 @@ protected:
             // write back the result
             to_src<src_data_t>(ptr[addr_states_t_l_reg], G0, scratch_dt_size);
             // if states_t_l_copy is a non null ptr, we write the output to it too
-            cmp(addr_states_t_l_copy_reg, rnn_.dic * hstate_dt_size);
+            cmp(addr_states_t_l_copy_reg, rnn_.dhc * hstate_dt_size);
             jle(rem_loop_inc_regs);
             to_src<src_data_t>(
                     ptr[addr_states_t_l_copy_reg], G0, scratch_dt_size, true);

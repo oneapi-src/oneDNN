@@ -20,8 +20,6 @@
 
 #include <sstream>
 
-#include "dnnl.h"
-
 #include "dnnl_common.hpp"
 #include "dnnl_memory.hpp"
 #include "parser.hpp"
@@ -30,36 +28,13 @@
 
 namespace shuffle {
 
-std::vector<dir_t> dir {FWD_D};
-std::vector<dnnl_data_type_t> dt {dnnl_f32};
-std::vector<std::string> tag {tag::abx};
-std::vector<int64_t> group {1};
-std::vector<int> axis {1};
-
-dims_t dims;
-bool allow_unimpl = false;
-const char *perf_template_csv
-        = "perf,%engine%,%dir%,%dt%,%tag%,%group%,%axis%,%DESC%,%-time%,%"
-          "0time%";
-const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
-const char *perf_template = perf_template_def;
-
-void reset_parameters() {
-    dir = {FWD_D};
-    dt = {dnnl_f32};
-    tag = {tag::abx};
-    group = {1};
-    axis = {1};
-    allow_unimpl = false;
-}
-
-void check_correctness() {
-    for_(const auto &i_dir : dir)
-    for_(const auto &i_dt : dt)
-    for_(const auto &i_tag : tag)
-    for_(const auto &i_group : group)
-    for (const auto &i_axis : axis) {
-        const prb_t p(dims, i_dir, i_dt, i_tag, i_axis, i_group);
+void check_correctness(const settings_t &s) {
+    for_(const auto &i_dir : s.dir)
+    for_(const auto &i_dt : s.dt)
+    for_(const auto &i_tag : s.tag)
+    for_(const auto &i_group : s.group)
+    for (const auto &i_axis : s.axis) {
+        const prb_t p(s.dims, i_dir, i_dt, i_tag, i_axis, i_group);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -70,10 +45,10 @@ void check_correctness() {
         const int status = doit(&p, &res);
 
         bool want_perf_report = false;
-        parse_result(res, want_perf_report, allow_unimpl, status, pstr);
+        parse_result(res, want_perf_report, s.allow_unimpl, status, pstr);
 
         if (want_perf_report && bench_mode & PERF) {
-            perf_report_t pr(perf_template);
+            perf_report_t pr(s.perf_template);
             pr.report(&p, &res, pstr);
         }
 
@@ -84,21 +59,22 @@ void check_correctness() {
 int bench(int argc, char **argv) {
     driver_name = "shuffle";
     using namespace parser;
+    static settings_t s;
     for (; argc > 0; --argc, ++argv) {
-        const bool parsed_options = false || parse_bench_settings(argv[0])
-                || parse_batch(bench, argv[0]) || parse_dir(dir, argv[0])
-                || parse_dt(dt, argv[0]) || parse_tag(tag, argv[0])
-                || parse_vector_option(group, atoi, argv[0], "group")
-                || parse_axis(axis, argv[0])
-                || parse_allow_unimpl(allow_unimpl, argv[0])
-                || parse_perf_template(perf_template, perf_template_def,
-                        perf_template_csv, argv[0])
-                || parse_reset(reset_parameters, argv[0]);
+        const bool parsed_options = parse_bench_settings(argv[0])
+                || parse_batch(bench, argv[0]) || parse_dir(s.dir, argv[0])
+                || parse_dt(s.dt, argv[0]) || parse_tag(s.tag, argv[0])
+                || parse_vector_option(s.group, atoi, argv[0], "group")
+                || parse_axis(s.axis, argv[0])
+                || parse_allow_unimpl(s.allow_unimpl, argv[0])
+                || parse_perf_template(s.perf_template, s.perf_template_def,
+                        s.perf_template_csv, argv[0])
+                || parse_reset(s, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);
 
-            parse_dims(dims, argv[0]);
-            check_correctness();
+            parse_dims(s.dims, argv[0]);
+            check_correctness(s);
         }
     }
 

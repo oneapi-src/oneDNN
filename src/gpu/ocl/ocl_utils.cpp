@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <cstring>
 #include <CL/cl_ext.h>
 
 #include "gpu/ocl/ocl_utils.hpp"
@@ -70,7 +71,7 @@ status_t get_ocl_kernel_arg_type(
         compute::scalar_type_t *type, cl_kernel ocl_kernel, int idx) {
     char s_type[16];
     OCL_CHECK(clGetKernelArgInfo(ocl_kernel, idx, CL_KERNEL_ARG_TYPE_NAME,
-            sizeof(type), s_type, nullptr));
+            sizeof(s_type), s_type, nullptr));
 #define CASE(x) \
     if (!strcmp(STRINGIFY(x), s_type)) { \
         *type = compute::scalar_type_t::_##x; \

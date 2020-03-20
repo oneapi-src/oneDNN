@@ -298,6 +298,18 @@ const format_tag_t Abcdef16a = dnnl_Abcdef16a;
 const format_tag_t Acdb32a = dnnl_Acdb32a;
 const format_tag_t BAc16b16a = dnnl_BAc16b16a;
 const format_tag_t BAcd16b16a = dnnl_BAcd16b16a;
+const format_tag_t aBCd2b4c2b = dnnl_aBCd2b4c2b;
+const format_tag_t aBCde2b4c2b = dnnl_aBCde2b4c2b;
+const format_tag_t aBCdef2b4c2b = dnnl_aBCdef2b4c2b;
+const format_tag_t aBCd2c4b2c = dnnl_aBCd2c4b2c;
+const format_tag_t aBCde2c4b2c = dnnl_aBCde2c4b2c;
+const format_tag_t aBCdef2c4b2c = dnnl_aBCdef2c4b2c;
+const format_tag_t aBCd4b8c2b = dnnl_aBCd4b8c2b;
+const format_tag_t aBCde4b8c2b = dnnl_aBCde4b8c2b;
+const format_tag_t aBCdef4b8c2b = dnnl_aBCdef4b8c2b;
+const format_tag_t aBCd4c8b2c = dnnl_aBCd4c8b2c;
+const format_tag_t aBCde4c8b2c = dnnl_aBCde4c8b2c;
+const format_tag_t aBCdef4c8b2c = dnnl_aBCdef4c8b2c;
 const format_tag_t last = dnnl_format_tag_last;
 
 const format_tag_t x = dnnl_x;
@@ -476,6 +488,18 @@ const format_tag_t gOIdhw8o16i2o = dnnl_gOIdhw8o16i2o;
 const format_tag_t gIOdhw8o16i2o = dnnl_gIOdhw8o16i2o;
 const format_tag_t gOIdhw8i8o = dnnl_gOIdhw8i8o;
 const format_tag_t gOIdhw8o8i = dnnl_gOIdhw8o8i;
+const format_tag_t gOIw2i4o2i = dnnl_gOIw2i4o2i;
+const format_tag_t gOIhw2i4o2i = dnnl_gOIhw2i4o2i;
+const format_tag_t gOIdhw2i4o2i = dnnl_gOIdhw2i4o2i;
+const format_tag_t gOIw2o4i2o = dnnl_gOIw2o4i2o;
+const format_tag_t gOIhw2o4i2o = dnnl_gOIhw2o4i2o;
+const format_tag_t gOIdhw2o4i2o = dnnl_gOIdhw2o4i2o;
+const format_tag_t gOIw4i8o2i = dnnl_gOIw4i8o2i;
+const format_tag_t gOIhw4i8o2i = dnnl_gOIhw4i8o2i;
+const format_tag_t gOIdhw4i8o2i = dnnl_gOIdhw4i8o2i;
+const format_tag_t gOIw4o8i2o = dnnl_gOIw4o8i2o;
+const format_tag_t gOIhw4o8i2o = dnnl_gOIhw4o8i2o;
+const format_tag_t gOIdhw4o8i2o = dnnl_gOIdhw4o8i2o;
 } // namespace format_tag
 
 using memory_extra_flags_t = dnnl_memory_extra_flags_t;

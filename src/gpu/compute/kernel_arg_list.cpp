@@ -31,11 +31,10 @@ kernel_arg_t kernel_arg_t::cast(scalar_type_t type, const kernel_arg_t &arg) {
     switch (type) {
         case scalar_type_t::_half:
             return ret.set_value((float16_t)arg.as<float>());
-        case scalar_type_t::_bfloat16:
-            return ret.set_value((bfloat16_t)arg.as<float>());
+        default:
+            assert(!"Cannot convert argument to the kernel argument type.");
+            return arg;
     }
-    assert(!"Cannot convert argument to the kernel argument type.");
-    return arg;
 }
 
 } // namespace compute

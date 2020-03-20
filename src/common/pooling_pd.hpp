@@ -105,6 +105,14 @@ struct pooling_pd_t : public primitive_desc_t {
                 prop_kind::forward_inference);
     }
 
+    const memory_desc_t *invariant_src_md() const {
+        return is_fwd() ? src_md() : diff_src_md();
+    }
+
+    const memory_desc_t *invariant_dst_md() const {
+        return is_fwd() ? dst_md() : diff_dst_md();
+    }
+
 protected:
     pooling_desc_t desc_;
     const pooling_fwd_pd_t *hint_fwd_pd_;

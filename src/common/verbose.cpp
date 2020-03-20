@@ -850,9 +850,9 @@ static void init_info_rnn(pd_t *s, char *buffer) {
             dnnl_alg_kind2str(s->activation_kind()));
 
     DPRINT(prb_str, DNNL_VERBOSE_PRB_LEN, prb_written,
-            "l" DFMT "t" DFMT "mb" DFMT "sic" DFMT "slc" DFMT "dic" DFMT
+            "l" DFMT "t" DFMT "mb" DFMT "sic" DFMT "slc" DFMT "dhc" DFMT
             "dlc" DFMT,
-            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DIC(), s->DLC());
+            s->L(), s->T(), s->MB(), s->SIC(), s->SLC(), s->DHC(), s->DLC());
 
     verbose_templ(buffer, s->engine(), s->kind(), s->name(),
             s->desc()->prop_kind, dat_str, attr_str, aux_str, prb_str);

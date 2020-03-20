@@ -32,6 +32,32 @@
 
 namespace shuffle {
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    dims_t dims;
+
+    std::vector<dir_t> dir {FWD_D};
+    std::vector<dnnl_data_type_t> dt {dnnl_f32};
+    std::vector<std::string> tag {tag::abx};
+    std::vector<int64_t> group {1};
+    std::vector<int> axis {1};
+    bool allow_unimpl = false;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%dir%,%dt%,%tag%,%group%,%axis%,%DESC%,%-time%,%"
+              "0time%";
+    const char *perf_template_def = "perf,%engine%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t {
     prb_t(const dims_t &dims, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, int axis, int64_t group)

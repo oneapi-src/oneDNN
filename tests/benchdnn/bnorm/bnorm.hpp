@@ -53,6 +53,37 @@ struct desc_t {
 int str2desc(desc_t *desc, const char *str);
 std::ostream &operator<<(std::ostream &s, const desc_t &d);
 
+struct settings_t {
+    settings_t() = default;
+
+    // ctor to save certain fields from resetting
+    settings_t(const char *perf_template) : settings_t() {
+        this->perf_template = perf_template;
+    }
+
+    desc_t desc;
+
+    std::vector<dir_t> dir {FWD_D};
+    std::vector<dnnl_data_type_t> dt {dnnl_f32};
+    std::vector<std::string> tag {tag::abx};
+    std::vector<flags_t> flags {0};
+    std::vector<int64_t> mb {0};
+    std::vector<bool> inplace {true};
+    check_alg_t check_alg = ALG_AUTO;
+    attr_t attr = {};
+    bool allow_unimpl = false;
+    const char *pattern = NULL;
+
+    const char *perf_template_csv
+            = "perf,%engine%,%name%,%dir%,%dt%,%tag%,%attr%,%flags%,%DESC%,"
+              "%-time%,%0time%";
+    const char *perf_template_def
+            = "perf,%engine%,%name%,%prb%,%-time%,%0time%";
+    const char *perf_template = perf_template_def;
+
+    void reset() { *this = settings_t(perf_template); }
+};
+
 struct prb_t : public desc_t {
     prb_t(const desc_t &desc, int64_t mb, dir_t dir, dnnl_data_type_t dt,
             const std::string &tag, flags_t flags, bool inplace,
@@ -112,7 +143,6 @@ private:
 };
 
 /* some extra control parameters which shouldn't be placed in prb_t */
-extern const char *skip_impl; /* NULL or "" means do not skip anything */
 
 inline size_t data_off(const prb_t *p, int64_t mb, int64_t c, int64_t d,
         int64_t h, int64_t w) {

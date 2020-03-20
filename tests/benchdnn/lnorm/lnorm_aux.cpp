@@ -28,16 +28,17 @@ flags_t str2flags(const char *str) {
 
 std::ostream &operator<<(std::ostream &s, const prb_t &p) {
     dump_global_params(s);
+    settings_t def;
 
-    if (canonical || p.dir != FWD_D) s << "--dir=" << dir2str(p.dir) << " ";
-    if (canonical || p.tag != tag::abx) s << "--tag=" << p.tag << " ";
-    if (canonical || p.stat_tag != tag::any)
+    if (canonical || p.dir != def.dir[0]) s << "--dir=" << p.dir << " ";
+    if (canonical || p.dt != def.dt[0]) s << "--dt=" << p.dt << " ";
+    if (canonical || p.tag != def.tag[0]) s << "--tag=" << p.tag << " ";
+    if (canonical || p.stat_tag != def.stat_tag[0])
         s << "--stat_tag=" << p.stat_tag << " ";
-    if (canonical || p.dt != dnnl_f32) s << "--dt=" << dt2str(p.dt) << " ";
-    if (canonical || p.flags != (flags_t)0)
+    if (canonical || p.flags != def.flags[0])
         s << "--flags=" << flags2str(p.flags) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
-    if (canonical || p.inplace != true)
+    if (canonical || p.inplace != def.inplace[0])
         s << "--inplace=" << bool2str(p.inplace) << " ";
 
     s << p.dims;
