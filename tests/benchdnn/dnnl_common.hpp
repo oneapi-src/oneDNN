@@ -221,6 +221,32 @@ int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
     init_pd_func(engine, p, pd, r, dir, hint);
     if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
     DNN_SAFE(dnnl_primitive_create(prim, pd), WARN);
+
+#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+    // The idea is to create the requested primitive twice for different engines.
+    // Rationale:
+    // 1. Make sure that the primitive cache is robust for the cases when:
+    //   - CPU engine is re-created
+    //   - GPU engine is re-created for the same device but different context
+    // These 2 cases are commonly used or expected to be used in the frameworks.
+    // 2. (for GPU only) Identify context dependent parts in primitive implementations, e.g.
+    // if a primitive implementation contains memory_storage_t (for scales,
+    // zero points or buffers), which depends on a particular engine,
+    // then it should crash or fail at execution time
+
+    // TODO: add an internal API to be able to get information about cache hit
+    // e.g. bool from_cache = dnnl_primitive_get_cache_hit_state(prim) == true;
+    // If from_cache == true then this step can be skipped
+    DNN_SAFE(dnnl_primitive_desc_destroy(pd), CRIT);
+    DNN_SAFE(dnnl_primitive_destroy(*prim), CRIT);
+    // create 2nd engine
+    engine.reset(engine_tgt_kind);
+    init_pd_func(engine, p, pd, r, dir, hint);
+    // this primitive comes from the cache
+    DNN_SAFE(dnnl_primitive_create(prim, pd), WARN);
+    // XXX: maybe check if the primitive didn't come from the cache and
+    // return FAIL in that case?
+#endif
     DNN_SAFE(dnnl_primitive_desc_destroy(pd), CRIT);
     return OK;
 }
