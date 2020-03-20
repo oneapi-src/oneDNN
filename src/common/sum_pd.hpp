@@ -157,7 +157,7 @@ protected:
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \
         return primitive_t::create_primitive_common<__VA_ARGS__, pd_t>( \
-                primitive, this, engine, is_primitive_nested); \
+                primitive, this, engine, false, is_primitive_nested); \
     } \
     virtual pd_t *clone() const override { return new pd_t(*this); } \
     virtual const char *name() const override { return impl_name; } \

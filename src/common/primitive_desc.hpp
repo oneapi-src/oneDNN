@@ -266,7 +266,8 @@ protected:
     virtual status_t create_primitive(std::shared_ptr<primitive_t> &primitive, \
             engine_t *engine, bool is_primitive_nested) const override { \
         return primitive_t::create_primitive_common<impl_type, pd_t>( \
-                primitive, this, engine, is_primitive_nested); \
+                primitive, this, engine, use_global_scratchpad, \
+                is_primitive_nested); \
     } \
     virtual const char *name() const override { return impl_name; } \
     virtual std::type_index impl_id() const override { return typeid(pd_t); }

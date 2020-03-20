@@ -122,8 +122,8 @@ status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
 }
 
 // primitive_t implementation
-dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
-        engine_t *engine, bool use_global_scratchpad)
+dnnl_primitive::dnnl_primitive(
+        const std::shared_ptr<primitive_t> &primitive, engine_t *engine)
     : primitive_(primitive)
     , scratchpad_(nullptr)
     , pd_(utils::make_unique<primitive_desc_iface_t>(
@@ -133,8 +133,8 @@ dnnl_primitive::dnnl_primitive(const std::shared_ptr<primitive_t> &primitive,
             = primitive_->pd()->scratchpad_size(scratchpad_mode::library);
 
     if (scratchpad_size) {
-        auto *scratchpad_ptr = create_scratchpad(
-                pd_->engine(), scratchpad_size, use_global_scratchpad);
+        auto *scratchpad_ptr = create_scratchpad(pd_->engine(), scratchpad_size,
+                primitive_->use_global_scratchpad());
         scratchpad_.reset(scratchpad_ptr);
     }
 }

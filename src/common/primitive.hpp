@@ -40,6 +40,13 @@ struct primitive_t : public c_compatible {
     virtual ~primitive_t() = default;
 
     virtual status_t init(engine_t *engine) { return status::success; }
+
+    status_t init(engine_t *engine, bool use_global_scratchpad) {
+        CHECK(init(engine));
+        use_global_scratchpad_ = use_global_scratchpad;
+        return status::success;
+    }
+
     std::shared_ptr<primitive_desc_t> pd() const { return pd_; }
     primitive_kind_t kind() const { return pd_->kind(); }
     virtual status_t execute(const exec_ctx_t &ctx) const = 0;
@@ -55,7 +62,8 @@ protected:
     template <typename impl_type, typename pd_t>
     static status_t create_primitive_common(
             std::shared_ptr<primitive_t> &primitive, const pd_t *pd,
-            engine_t *engine, bool is_primitive_nested) {
+            engine_t *engine, bool use_global_scratchpad,
+            bool is_primitive_nested) {
         const auto print_verbose = [&](int level, bool cache_hit,
                                            const char *pd_info, double time) {
             if (level >= 2) {
@@ -90,7 +98,7 @@ protected:
             if (!p) {
                 // the requested primitive hasn't been added to the cache yet
                 p = std::make_shared<impl_type>(pd);
-                status = p->init(engine);
+                status = p->init(engine, use_global_scratchpad);
                 if (status != status::success) {
                     if (!is_primitive_nested)
                         primitive_cache_t::rw_mutex().unlock_write();
@@ -116,6 +124,7 @@ protected:
     }
 
     std::shared_ptr<primitive_desc_t> pd_;
+    bool use_global_scratchpad_;
 
 private:
     primitive_t() = delete;
@@ -211,7 +220,7 @@ private:
 
 struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
-            dnnl::impl::engine_t *engine, bool use_global_scratchpad = false);
+            dnnl::impl::engine_t *engine);
 
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
