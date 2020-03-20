@@ -209,6 +209,22 @@ private:
     std::vector<std::pair<int, const dnn_mem_t *>> args_;
 };
 
+// this function is used to create a primitive and engine
+template <typename func_t, typename prb_t>
+int init_prim(dnnl_primitive_t *prim, const func_t &init_pd_func,
+        engine_t &engine, prb_t *p, res_t *r, dir_t dir = FLAG_FWD,
+        const_dnnl_primitive_desc_t hint = nullptr) {
+    // create 1st engine
+    engine.reset(engine_tgt_kind);
+
+    dnnl_primitive_desc_t pd;
+    init_pd_func(engine, p, pd, r, dir, hint);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    DNN_SAFE(dnnl_primitive_create(prim, pd), WARN);
+    DNN_SAFE(dnnl_primitive_desc_destroy(pd), CRIT);
+    return OK;
+}
+
 dnnl_status_t execute_and_wait(
         dnnl_primitive_t prim, dnnl_engine_t engine, const args_t &args);
 

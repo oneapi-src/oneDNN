@@ -118,8 +118,9 @@ dnnl_primitive_attr_t create_dnnl_fusion_attr(
     return dnnl_attr;
 }
 
-inline int init_pd(dnnl_engine_t eng, const prb_t *p,
-        dnnl_primitive_desc_t &cpd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &cpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_convolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
 
@@ -226,8 +227,8 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
 
     auto dnnl_attr = create_dnnl_fusion_attr(p, p->oc);
 
-    dnnl_status_t init_status
-            = dnnl_primitive_desc_create(&cpd, &cd, dnnl_attr, eng, NULL);
+    dnnl_status_t init_status = dnnl_primitive_desc_create(
+            &cpd, &cd, dnnl_attr, engine_tgt, NULL);
 
     dnnl_primitive_attr_destroy(dnnl_attr);
 
@@ -324,16 +325,14 @@ std::unique_ptr<prb_t> get_fused_conv_prb(const prb_t *p) {
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
+    engine_t engine_tgt;
+    engine_t engine_tgt_c0;
+    engine_t engine_tgt_c1;
 
     // Original problem with fusion attributes
-    dnnl_primitive_desc_t cpd;
-    SAFE(init_pd(engine_tgt, p, cpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t c;
-    DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
+    SAFE(init_prim(&c, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);
@@ -411,13 +410,9 @@ int doit(const prb_t *p, res_t *r) {
     // Fill first convolution
     std::unique_ptr<prb_t> p0 = get_first_conv_prb(p);
 
-    dnnl_primitive_desc_t cpd0;
-    SAFE(init_pd(engine_tgt, p0.get(), cpd0, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t c0;
-    DNN_SAFE(dnnl_primitive_create(&c0, cpd0), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd0), CRIT);
+    SAFE(init_prim(&c0, init_pd, engine_tgt_c0, p0.get(), r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd0;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c0, &const_pd0), CRIT);
@@ -446,33 +441,29 @@ int doit(const prb_t *p, res_t *r) {
     const auto src_tag0 = get_abx_tag(src_md0.ndims);
     const auto wei_tag0 = get_abx_tag(wei_md0.ndims);
 
-    dnn_mem_t src_dt0(src_md0, engine_tgt);
-    dnn_mem_t wei_dt0(wei_md0, engine_tgt);
-    dnn_mem_t bia_dt0(bia_md0, engine_tgt);
-    dnn_mem_t dst_dt0(dst_md0, engine_tgt);
-    dnn_mem_t scratchpad_dt0(scratchpad_md0, engine_tgt);
+    dnn_mem_t src_dt0(src_md0, engine_tgt_c0);
+    dnn_mem_t wei_dt0(wei_md0, engine_tgt_c0);
+    dnn_mem_t bia_dt0(bia_md0, engine_tgt_c0);
+    dnn_mem_t dst_dt0(dst_md0, engine_tgt_c0);
+    dnn_mem_t scratchpad_dt0(scratchpad_md0, engine_tgt_c0);
 
-    dnn_mem_t src_fp0(src_md0, fp, src_tag0, engine_tgt);
-    dnn_mem_t wei_fp0(wei_md0, fp, wei_tag0, engine_tgt);
-    dnn_mem_t bia_fp0(bia_md0, fp, dnnl_x, engine_tgt);
-    dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, engine_tgt);
+    dnn_mem_t src_fp0(src_md0, fp, src_tag0, engine_tgt_c0);
+    dnn_mem_t wei_fp0(wei_md0, fp, wei_tag0, engine_tgt_c0);
+    dnn_mem_t bia_fp0(bia_md0, fp, dnnl_x, engine_tgt_c0);
+    dnn_mem_t dst_fp0(dst_md0, fp, src_tag0, engine_tgt_c0);
 
-    SAFE(conv::fill_src(engine_tgt, p0.get(), src_dt0, src_fp0, r), WARN);
-    SAFE(conv::fill_wei(engine_tgt, p0.get(), wei_dt0, wei_fp0, r), WARN);
-    SAFE(conv::fill_bia(engine_tgt, p0.get(), bia_dt0, bia_fp0, r), WARN);
-    SAFE(conv::fill_dst(engine_tgt, p0.get(), dst_dt0, dst_fp0, r), WARN);
+    SAFE(conv::fill_src(engine_tgt_c0, p0.get(), src_dt0, src_fp0, r), WARN);
+    SAFE(conv::fill_wei(engine_tgt_c0, p0.get(), wei_dt0, wei_fp0, r), WARN);
+    SAFE(conv::fill_bia(engine_tgt_c0, p0.get(), bia_dt0, bia_fp0, r), WARN);
+    SAFE(conv::fill_dst(engine_tgt_c0, p0.get(), dst_dt0, dst_fp0, r), WARN);
 
     // Fill next convolution
     std::unique_ptr<prb_t> p1 = get_fused_conv_prb(p);
     if (!p1) SAFE(FAIL, CRIT);
 
-    dnnl_primitive_desc_t cpd1;
-    SAFE(init_pd(engine_tgt, p1.get(), cpd1, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t c1;
-    DNN_SAFE(dnnl_primitive_create(&c1, cpd1), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd1), CRIT);
+    SAFE(init_prim(&c1, init_pd, engine_tgt_c1, p1.get(), r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd1;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c1, &const_pd1), CRIT);
@@ -492,6 +483,7 @@ int doit(const prb_t *p, res_t *r) {
             = p->dir == BWD_D ? q1(DNNL_ARG_DIFF_SRC) : q1(DNNL_ARG_SRC);
     const auto &wei_md1 = p->dir & FLAG_WEI ? q1(DNNL_ARG_DIFF_WEIGHTS)
                                             : q1(DNNL_ARG_WEIGHTS);
+
     const auto &bia_md1
             = p->dir & FLAG_WEI ? q1(DNNL_ARG_DIFF_BIAS) : q1(DNNL_ARG_BIAS);
     const auto &dst_md1
@@ -500,19 +492,19 @@ int doit(const prb_t *p, res_t *r) {
 
     const auto src_tag1 = get_abx_tag(src_md1.ndims);
     const auto wei_tag1 = get_abx_tag(wei_md1.ndims);
-    dnn_mem_t src_dt1(src_md1, engine_tgt);
-    dnn_mem_t wei_dt1(wei_md1, engine_tgt);
-    dnn_mem_t bia_dt1(bia_md1, engine_tgt);
-    dnn_mem_t dst_dt1(dst_md1, engine_tgt);
-    dnn_mem_t scratchpad_dt1(scratchpad_md1, engine_tgt);
+    dnn_mem_t src_dt1(src_md1, engine_tgt_c1);
+    dnn_mem_t wei_dt1(wei_md1, engine_tgt_c1);
+    dnn_mem_t bia_dt1(bia_md1, engine_tgt_c1);
+    dnn_mem_t dst_dt1(dst_md1, engine_tgt_c1);
+    dnn_mem_t scratchpad_dt1(scratchpad_md1, engine_tgt_c1);
 
-    dnn_mem_t wei_fp1(wei_md1, fp, wei_tag1, engine_tgt);
-    dnn_mem_t bia_fp1(bia_md1, fp, dnnl_x, engine_tgt);
-    dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, engine_tgt);
+    dnn_mem_t wei_fp1(wei_md1, fp, wei_tag1, engine_tgt_c1);
+    dnn_mem_t bia_fp1(bia_md1, fp, dnnl_x, engine_tgt_c1);
+    dnn_mem_t dst_fp1(dst_md1, fp, src_tag1, engine_tgt_c1);
 
-    SAFE(conv::fill_wei(engine_tgt, p1.get(), wei_dt1, wei_fp1, r), WARN);
-    SAFE(conv::fill_bia(engine_tgt, p1.get(), bia_dt1, bia_fp1, r), WARN);
-    SAFE(conv::fill_dst(engine_tgt, p1.get(), dst_dt1, dst_fp1, r), WARN);
+    SAFE(conv::fill_wei(engine_tgt_c1, p1.get(), wei_dt1, wei_fp1, r), WARN);
+    SAFE(conv::fill_bia(engine_tgt_c1, p1.get(), bia_dt1, bia_fp1, r), WARN);
+    SAFE(conv::fill_dst(engine_tgt_c1, p1.get(), dst_dt1, dst_fp1, r), WARN);
 
     // TODO: fix this if irritates.
     // SAFE(conv::fill_src(p, src_dt, src_fp, r), WARN);
@@ -540,7 +532,7 @@ int doit(const prb_t *p, res_t *r) {
         args0.set(DNNL_ARG_DST, dst_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
 
-        DNN_SAFE(execute_and_wait(c0, engine_tgt, args0), WARN);
+        DNN_SAFE(execute_and_wait(c0, engine_tgt_c0, args0), WARN);
         SAFE(src_dt1.reorder(dst_dt0), WARN);
 
         args1.set(DNNL_ARG_SRC, src_dt1);
@@ -549,7 +541,7 @@ int doit(const prb_t *p, res_t *r) {
         args1.set(DNNL_ARG_DST, dst_dt1);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
 
-        DNN_SAFE(execute_and_wait(c1, engine_tgt, args1), WARN);
+        DNN_SAFE(execute_and_wait(c1, engine_tgt_c1, args1), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -565,7 +557,7 @@ int doit(const prb_t *p, res_t *r) {
 
         if (bench_mode & CORR) {
             dnn_mem_t dst_fused(dst_dt, fp, src_tag, engine_tgt);
-            dnn_mem_t dst_unfused(dst_dt1, fp, src_tag, engine_tgt);
+            dnn_mem_t dst_unfused(dst_dt1, fp, src_tag, engine_tgt_c1);
             // Used p1 to avoid writing separate compare function. Compare uses
             // p->cfg which can be u8s8u8 while after fusion it may be u8s8s8,
             // thus, compare() will saturate values which is not correct.

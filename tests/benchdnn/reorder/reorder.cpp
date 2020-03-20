@@ -231,7 +231,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_ref,
     return r->state == FAILED ? FAIL : OK;
 }
 
-static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+static int init_pd_custom(const engine_t &engine_tgt, const prb_t *p,
         dnnl_primitive_desc_t &rpd, const attr_bundle_t &attr_bundle,
         res_t *r) {
     const auto &rc = p->reorder;
@@ -265,7 +265,7 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
+    engine_t engine_tgt;
 
     //                                       ___________________
     //                                      |                   |
@@ -297,13 +297,18 @@ int doit(const prb_t *p, res_t *r) {
     SAFE(prepare_attr_bundle(p, attr_bundle), WARN);
 
     /* Step 2: create target reorder primitive */
-    dnnl_primitive_desc_t rpd;
-    SAFE(init_pd(engine_tgt, p, rpd, attr_bundle, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t rp;
-    DNN_SAFE(dnnl_primitive_create(&rp, rpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
+    // TODO: align init_pd interface with a common one which is used
+    // in the rest of the benchdnn drivers
+    auto init_pd = [&](const engine_t &engine_tgt, const prb_t *p,
+                           dnnl_primitive_desc_t &rpd, res_t *r, dir_t dir,
+                           const_dnnl_primitive_desc_t hint) {
+        SAFE(init_pd_custom(engine_tgt, p, rpd, attr_bundle, r), WARN);
+        return OK;
+    };
+
+    SAFE(init_prim(&rp, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);

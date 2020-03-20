@@ -126,8 +126,9 @@ int fill_dst(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return fill_dat(p, DST, mem_dt, mem_fp, r);
 }
 
-int init_pd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &rpd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &rpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_memory_desc_t src_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
@@ -170,14 +171,14 @@ int init_pd(const engine_t &engine_tgt, const prb_t *p,
                 WARN);
     }
 
-    dnnl_primitive_desc_t hint = NULL;
+    dnnl_primitive_desc_t _hint = NULL;
     if (p->dir & FLAG_BWD) {
         dnnl_resampling_desc_t rd_fwd;
         DNN_SAFE(dnnl_resampling_forward_desc_init(&rd_fwd,
                          dnnl_forward_training, alg, nullptr, &src_d, &dst_d),
                 WARN);
         dnnl_status_t init_fwd_status = dnnl_primitive_desc_create(
-                &hint, &rd_fwd, NULL, engine_tgt, NULL);
+                &_hint, &rd_fwd, NULL, engine_tgt, NULL);
         if (init_fwd_status == dnnl_unimplemented)
             return r->state = UNIMPLEMENTED, OK;
         SAFE(init_fwd_status, WARN);
@@ -186,9 +187,9 @@ int init_pd(const engine_t &engine_tgt, const prb_t *p,
     auto dnnl_attr = create_dnnl_attr(attr_t());
 
     dnnl_status_t init_status = dnnl_primitive_desc_create(
-            &rpd, &pd, dnnl_attr, engine_tgt, hint);
+            &rpd, &pd, dnnl_attr, engine_tgt, _hint);
 
-    dnnl_primitive_desc_destroy(hint);
+    dnnl_primitive_desc_destroy(_hint);
     dnnl_primitive_attr_destroy(dnnl_attr);
 
     if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
@@ -208,15 +209,11 @@ int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
-
-    dnnl_primitive_desc_t rpd;
-    SAFE(init_pd(engine_tgt, p, rpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) { return OK; }
+    engine_t engine_tgt;
 
     dnnl_primitive_t rp;
-    DNN_SAFE(dnnl_primitive_create(&rp, rpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
+    SAFE(init_prim(&rp, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(rp, &const_pd), CRIT);

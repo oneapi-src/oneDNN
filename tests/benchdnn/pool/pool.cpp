@@ -135,9 +135,9 @@ int fill_ws(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, res_t *r) {
     return OK;
 }
 
-int init_pd(const engine_t &engine_tgt, const prb_t *p, dir_t dir,
-        dnnl_primitive_desc_t &ppd, const_dnnl_primitive_desc_t hint,
-        res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &ppd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_memory_desc_t src_d, dst_d;
 
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
@@ -224,29 +224,14 @@ int init_pd(const engine_t &engine_tgt, const prb_t *p, dir_t dir,
     return OK;
 }
 
-int init_pd_fwd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &ppd, res_t *r) {
-    return init_pd(engine_tgt, p, FLAG_FWD, ppd, nullptr, r);
-}
-
-int init_pd_bwd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &ppd, const_dnnl_primitive_desc_t hint,
-        res_t *r) {
-    return init_pd(engine_tgt, p, FLAG_BWD, ppd, hint, r);
-}
-
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
     engine_t engine_tgt_fwd(engine_tgt_kind);
     engine_t engine_tgt_bwd(engine_tgt_kind);
 
-    dnnl_primitive_desc_t ppd;
-    SAFE(init_pd_fwd(engine_tgt_fwd, p, ppd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t pp;
-    DNN_SAFE(dnnl_primitive_create(&pp, ppd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(ppd), CRIT);
+    SAFE(init_prim(&pp, init_pd, engine_tgt_fwd, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_fpd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(pp, &const_fpd), CRIT);
@@ -305,12 +290,9 @@ int doit(const prb_t *p, res_t *r) {
     }
 
     if (p->dir & FLAG_BWD) {
-        SAFE(init_pd_bwd(engine_tgt_bwd, p, ppd, const_fpd, r), WARN);
-        DNN_SAFE(dnnl_primitive_destroy(pp), CRIT);
+        SAFE(init_prim(&pp, init_pd, engine_tgt_bwd, p, r, FLAG_BWD, const_fpd),
+                WARN);
         if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
-        DNN_SAFE(dnnl_primitive_create(&pp, ppd), WARN);
-        DNN_SAFE(dnnl_primitive_desc_destroy(ppd), CRIT);
 
         const_dnnl_primitive_desc_t const_bpd;
         DNN_SAFE(dnnl_primitive_get_primitive_desc(pp, &const_bpd), CRIT);

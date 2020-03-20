@@ -384,8 +384,10 @@ int fill_bias(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     return OK;
 }
 
-inline int init_pd(const engine_t &engine_tgt, const prb_t &p,
-        dnnl_primitive_desc_t &rpd, res_t *r, bool is_fwd) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p_ptr,
+        dnnl_primitive_desc_t &rpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
+    const auto &p = *p_ptr;
     dnnl_rnn_desc_t rd;
     dnnl_prop_kind_t fwd_prop = dnnl_prop_kind_undef;
     switch (p.prop) {
@@ -503,7 +505,7 @@ inline int init_pd(const engine_t &engine_tgt, const prb_t &p,
     // Initializing the forward pass
     // When inference, we use forward_inference
     // When training, we use forward_training
-    if (is_fwd) {
+    if (dir & FLAG_FWD) {
         DNN_SAFE(init_rnn_fwd_desc(&rd, p, fwd_prop, &src_layer_d, &src_iter_d,
                          &src_iter_c_d, &weights_layer_d, &weights_iter_d,
                          &weights_peephole_d, &weights_projection_d, &bias_d,
@@ -580,7 +582,7 @@ inline int init_pd(const engine_t &engine_tgt, const prb_t &p,
     SAFE(init_status, WARN);
 
     // Return if pd is not the one being tested
-    if (is_fwd != (p.prop == dnnl_forward)) return OK;
+    if ((dir & FLAG_FWD) != (p.prop == dnnl_forward)) return OK;
 
     const char *impl_str = query_impl_info(rpd);
     BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
@@ -597,18 +599,13 @@ int doit(const prb_t &p, res_t *r) {
     // trivial strides
     if (p.is_int8() && !p.trivial_strides) return r->state = SKIPPED, OK;
 
-    dnnl_primitive_desc_t rpd;
-    SAFE(init_pd(engine_tgt_fwd, p, rpd, r, true), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t c;
+    SAFE(init_prim(&c, init_pd, engine_tgt_fwd, &p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
     auto cleanup = [&]() {
         DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
         return OK;
     };
-
-    DNN_SAFE(dnnl_primitive_create(&c, rpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
 
     const_dnnl_primitive_desc_t const_fpd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_fpd), CRIT);
@@ -754,12 +751,8 @@ int doit(const prb_t &p, res_t *r) {
     }
 
     if (p.prop == dnnl_backward) {
-        SAFE(init_pd(engine_tgt_bwd, p, rpd, r, false), WARN);
-        DNN_SAFE(dnnl_primitive_destroy(c), CRIT);
+        SAFE(init_prim(&c, init_pd, engine_tgt_bwd, &p, r, FLAG_BWD), WARN);
         if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
-        DNN_SAFE(dnnl_primitive_create(&c, rpd), WARN);
-        DNN_SAFE(dnnl_primitive_desc_destroy(rpd), CRIT);
 
         const_dnnl_primitive_desc_t const_bpd;
         DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_bpd), CRIT);

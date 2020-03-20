@@ -376,7 +376,8 @@ static int compare(const prb_t *p, data_kind_t kind, const dnn_mem_t &fp_mem,
 }
 
 static int init_pd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &lpd, res_t *r) {
+        dnnl_primitive_desc_t &lpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_layer_normalization_desc_t ld;
     dnnl_memory_desc_t data_d, stat_d;
 
@@ -463,15 +464,11 @@ static int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
-
-    dnnl_primitive_desc_t lpd;
-    SAFE(init_pd(engine_tgt, p, lpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t l;
-    DNN_SAFE(dnnl_primitive_create(&l, lpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(lpd), CRIT);
+    SAFE(init_prim(&l, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(l, &const_pd), CRIT);

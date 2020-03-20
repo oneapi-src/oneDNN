@@ -29,7 +29,8 @@
 namespace concat {
 
 static int init_pd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &cpd, res_t *r) {
+        dnnl_primitive_desc_t &cpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     std::vector<dnnl_memory_desc_t> src_d;
     src_d.resize(p->n_inputs());
 
@@ -130,15 +131,11 @@ int fill_src(
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
-
-    dnnl_primitive_desc_t cpd;
-    SAFE(init_pd(engine_tgt, p, cpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t c;
-    DNN_SAFE(dnnl_primitive_create(&c, cpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(cpd), CRIT);
+    SAFE(init_prim(&c, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(c, &const_pd), CRIT);

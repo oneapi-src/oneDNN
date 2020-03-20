@@ -58,8 +58,9 @@ inline int transpose_data_wei(
     return OK;
 }
 
-inline int init_pd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &dpd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &dpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     dnnl_deconvolution_desc_t cd;
     dnnl_memory_desc_t src_d, wei_d, bia_d, dst_d;
     dnnl_dims_t src_1d_dims = {p->mb, p->ic, p->iw};
@@ -175,7 +176,7 @@ inline int init_pd(const engine_t &engine_tgt, const prb_t *p,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
+    engine_t engine_tgt;
 
     prb_t p_tr((desc_t)*p, p->dir, p->cfg, p->stag, p->wtag, p->dtag, p->alg,
             p->attr, p->mb, true);
@@ -184,13 +185,9 @@ int doit(const prb_t *p, res_t *r) {
     swap(p_tr.id, p_tr.od);
     swap(p_tr.iw, p_tr.ow);
 
-    dnnl_primitive_desc_t dpd;
-    SAFE(init_pd(engine_tgt, p, dpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
-
     dnnl_primitive_t d;
-    DNN_SAFE(dnnl_primitive_create(&d, dpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(dpd), CRIT);
+    SAFE(init_prim(&d, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(d, &const_pd), CRIT);

@@ -37,8 +37,9 @@ void prep_bia_dims(
         bia_dims[d] = (p->bia_mask & (1 << d)) ? dst_dims[d] : 1;
 }
 
-int init_pd(const engine_t &engine_tgt, const prb_t *p,
-        dnnl_primitive_desc_t &mpd, res_t *r) {
+static int init_pd(const engine_t &engine_tgt, const prb_t *p,
+        dnnl_primitive_desc_t &mpd, res_t *r, dir_t dir,
+        const_dnnl_primitive_desc_t hint) {
     const int64_t MB = p->runtime_mb ? DNNL_RUNTIME_DIM_VAL : p->mb;
     const int64_t M = p->runtime_m ? DNNL_RUNTIME_DIM_VAL : p->m;
     const int64_t N = p->runtime_n ? DNNL_RUNTIME_DIM_VAL : p->n;
@@ -193,15 +194,11 @@ int fill_data(data_kind_t kind, const prb_t *p, dnn_mem_t &mem_dt,
 
 int doit(const prb_t *p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
-    engine_t engine_tgt(engine_tgt_kind);
-
-    dnnl_primitive_desc_t mpd;
-    SAFE(init_pd(engine_tgt, p, mpd, r), WARN);
-    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
+    engine_t engine_tgt;
 
     dnnl_primitive_t m;
-    DNN_SAFE(dnnl_primitive_create(&m, mpd), WARN);
-    DNN_SAFE(dnnl_primitive_desc_destroy(mpd), CRIT);
+    SAFE(init_prim(&m, init_pd, engine_tgt, p, r), WARN);
+    if (r->state == SKIPPED || r->state == UNIMPLEMENTED) return OK;
 
     const_dnnl_primitive_desc_t const_pd;
     DNN_SAFE(dnnl_primitive_get_primitive_desc(m, &const_pd), CRIT);
