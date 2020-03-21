@@ -46,6 +46,8 @@ set(DPCPP_COMPILER_VERSION 11.0.0)
 
 if(DEFINED ENV{DPCPP_ROOT})
     list(INSERT CMAKE_PREFIX_PATH 0
+        $ENV{DPCPP_ROOT}/compiler/latest/${dpcpp_os}/include/sycl)
+    list(INSERT CMAKE_PREFIX_PATH 0
         $ENV{DPCPP_ROOT}/compiler/latest/${dpcpp_os}/lib/clang/10.0.0)
     list(INSERT CMAKE_PREFIX_PATH 0
         $ENV{DPCPP_ROOT}/compiler/latest/${dpcpp_os}/lib/clang/${DPCPP_COMPILER_VERSION})
@@ -69,6 +71,7 @@ find_path(DPCPP_INCLUDE_DIRS
       "${DPCPP_BINARY_DIR}/.."
     PATH_SUFFIXES
         include
+        include/sycl
         lib/clang/${DPCPP_COMPILER_VERSION}/include
         lib/clang/10.0.0/include
     NO_DEFAULT_PATH)
