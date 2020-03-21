@@ -68,7 +68,7 @@ status_t submit_cpu_primitive_with_params_impl(submit_ctx_t *submit_ctx,
     uintptr_t submit_ctx_ptr = reinterpret_cast<uintptr_t>(submit_ctx);
     using tag_type = make_kernel_tag<param_types...>;
 
-    cgh.single_task<tag_type>([=]() {
+    host_task<tag_type>(cgh, [=]() {
         thunk_params_t thunk_params;
         thunk_params.submit_ctx_ptr = submit_ctx_ptr;
 
