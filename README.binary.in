@@ -90,11 +90,6 @@ GitHub issues page (https://github.com/oneapi-src/oneDNN/issues/new/choose).
 
 You may reach out to project maintainers privately at dnnl.maintainers@intel.com.
 
-WARNING:
-The following functionality has preview status and might be changed without
-prior notification in future releases:
-* Primitive cache
-
 License
 -------
 

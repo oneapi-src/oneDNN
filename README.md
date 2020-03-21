@@ -238,12 +238,6 @@ Please submit your questions, feature requests, and bug reports on the
 
 You may reach out to project maintainers privately at dnnl.maintainers@intel.com.
 
-> **WARNING**
->
-> The following functionality has preview status and might be changed without
-> prior notification in future releases:
-> * [Primitive cache](https://oneapi-src.github.io/oneDNN/dev_guide_primitive_cache.html)
-
 # Contributing
 
 We welcome community contributions to oneDNN. If you have an idea on how

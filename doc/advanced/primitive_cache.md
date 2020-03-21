@@ -1,9 +1,6 @@
 Primitive Cache {#dev_guide_primitive_cache}
 ===========================================================
 
-@note The primitive cache is disabled in the default build configuration
-(see @ref dev_guide_build_options).
-
 Primitive creation time largely depends on the underlying implementation,
 for instance, oneDNN uses just-in-time compilation (JIT) to generate optimal
 code for some CPU and GPU implementations, which introduces overhead.
@@ -15,21 +12,16 @@ primitive implementations, etc. It can significantly reduce primitive creation
 overhead, especially when an application or a framework creates primitives
 for every instance of inference or iteration of training process.
 
-Each engine has independent primitive cache. Since the engine and its primitive
-cache have the same lifetime a user should reuse the engine to benefit
-from the primitive cache.
+The primitive cache is global hence a user doesn't have to maintain any
+persistent oneDNN resources to benefit from the primitive cache.
 
 ## Memory consumption
 Since the primitive cache has limited capacity, it uses
-LRU (Least Recently Used) replacement policy to evict excess primitives.
-The capacity indicates the maximum number of primitives it can hold at a time
-and it can be adjusted with an environment variable
-`DNNL_PRIMITIVE_CACHE_CAPACITY`. The default capacity is 200. If the capacity
-is 0 then the primitve cache is disabled.
-
-## API
-Primitive cache is an experimental feature. No API to control its behavior
-is provided.
+a replacement policy to evict excess primitives. The capacity indicates
+the maximum number of primitives it can hold at a time and it can be adjusted
+with an API or an environment variable `DNNL_PRIMITIVE_CACHE_CAPACITY`.
+If the capacity is set to 0 then the primitve cache is disabled.
+The API takes precedence over the environment variable.
 
 ## Primitive cache profiling
 Information about primitive cache hits and misses can be used for debug
