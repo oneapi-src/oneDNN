@@ -56,6 +56,7 @@ struct jit_uni_eltwise_injector_f32 {
                 eltwise_relu_use_dst_for_bwd, eltwise_tanh_use_dst_for_bwd,
                 eltwise_elu_use_dst_for_bwd, eltwise_sqrt_use_dst_for_bwd,
                 eltwise_logistic_use_dst_for_bwd, eltwise_exp_use_dst_for_bwd));
+        register_table_entries();
     }
 
     jit_uni_eltwise_injector_f32(jit_generator *host,
@@ -100,6 +101,8 @@ private:
     static constexpr size_t vlen = cpu_isa_traits<isa>::vlen;
     static constexpr size_t preserved_vecs_max = 5;
     static constexpr size_t vecs_count = has_avx512() ? 32 : 16;
+    static constexpr int n_mantissa_bits = 23;
+    static constexpr int k_mask_size = 8;
 
     size_t vecs_to_preserve = 0;
     size_t preserved_vecs_count = 0;
@@ -108,12 +111,7 @@ private:
 
     Vmm vmm_mask, vmm_aux0, vmm_aux1, vmm_aux2, vmm_aux3, vmm_aux4;
 
-    Xbyak::Address table_val(int index) {
-        size_t scale_offt_ = vlen;
-        return h->ptr[p_table + scale_offt_ + index * vlen];
-    }
-
-    size_t aux_vecs_count(alg_kind_t alg);
+    size_t aux_vecs_count();
 
     void compute_body(size_t start_idx, size_t end_idx);
     void injector_preamble(size_t start_idx, size_t end_idx);
@@ -137,20 +135,65 @@ private:
     void bounded_relu_compute_vector(const Vmm &vmm_src);
     void soft_relu_compute_vector(const Vmm &vmm_src);
     void logistic_compute_vector(const Vmm &vmm_src);
-    void gelu_compute_vector(const Vmm &vmm_src);
+    void gelu_tanh_compute_vector(const Vmm &vmm_src);
     void swish_compute_vector(const Vmm &vmm_src);
     void log_compute_vector(const Vmm &vmm_src);
     void clip_compute_vector(const Vmm &vmm_src);
     void pow_compute_vector(const Vmm &vmm_src);
     void gelu_erf_compute_vector(const Vmm &vmm_src);
 
-    void relu_prepare_table();
-    void elu_prepare_table();
-    void soft_relu_prepare_table();
-    void abs_prepare_table();
-    void linear_prepare_table();
-    void log_prepare_table();
-    void gelu_erf_prepare_table();
+    enum key_t {
+        scale = 0, // scale argument
+        alpha, // alpha argument
+        beta, // beta argument
+        zero, // 0.f
+        half, // 0.5f
+        one, // 1.f  or  mask for exponent bits
+        minus_two, // -2.f
+        ln2f, // 0.69314718f
+        positive_mask, // changes sign to positive
+        sign_mask, // gets sign value
+        exponent_bias, // (127 = 2^7 - 1), gets exponent bits
+        exp_log2ef, // 1.44269502f - formula-based for approx
+        exp_ln_flt_max_f, // logf(FLT_MAX) - max normal value
+        exp_ln_flt_min_f, // logf(FLT_MIN) - min normal value
+        exp_pol, // see correspondent table for float values
+        tanh_bound_x, // arg below which tanh(x) = x
+        tanh_bound_pol, // arg below which polynomial approx is valid
+        tanh_bound_one, // arg after which tanh(x) = 1.f
+        tanh_pol, // see correspondent table for float values
+        soft_relu_one_twenty_six, // 126.f
+        soft_relu_change_sign_mask, // changes sign to opposite
+        soft_relu_mantissa_sign_mask, // mask for mantissa bits and sign
+        soft_relu_pol, // see correspondent table for float values
+        gelu_tanh_fitting_const, // 0.044715f
+        gelu_tanh_sqrt_two_over_pi, // sqrtf(2.f/pi) = 0.797884f
+        gelu_erf_approx_const, // 0.3275911f - implementation based for approx
+        gelu_erf_one_over_sqrt_two, // 1.f / sqrtf(2.f)
+        gelu_erf_pol, // see correspondent table for float values
+        log_minus_inf, // -inf
+        log_qnan, // qnan
+        log_mantissa_mask, // gets mantissa bits
+        log_full_k_reg_mask, // sets k_register with all bits of 1
+        log_full_vector_reg_mask, // sets vector register will all bits of 1
+        log_five_bit_offset, // 5 bits off (31 = 2^5 - 1)
+        log_pol, // see correspondent table for float values
+        log_predefined_vals, // see correspondent table for float values
+    };
+
+    Xbyak::Address table_val(key_t key, size_t key_off_val_shift = 0) {
+        const auto it = entry_map_.find(key); // search an entry for a key
+        assert(it != entry_map_.end());
+        const auto &t_e = (*it).second;
+        const auto t_e_offset = t_e.first;
+        const auto index = t_e_offset + key_off_val_shift;
+        return h->ptr[p_table + index * vlen];
+    }
+
+    using table_entry_t = std::pair<size_t, size_t>; // {offset, hex_value}
+    using table_t = std::multimap<key_t, table_entry_t>; // {key, table_entry}
+    void register_table_entries();
+    table_t entry_map_;
 };
 
 } // namespace cpu
