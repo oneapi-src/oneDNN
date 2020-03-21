@@ -169,21 +169,21 @@ struct gemm_matmul_t : public primitive_impl_t {
     };
 
     virtual status_t init() override {
-        primitive_t *gemm_ptr;
-        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_ptr);
+        status_t gemm_status = pd()->gemm_pd_->create_primitive(&gemm_);
         if (gemm_status != status::success) return gemm_status;
-        gemm_.reset(gemm_ptr);
         return status::success;
     }
 
     gemm_matmul_t(const pd_t *apd) : primitive_impl_t(apd) {}
+
+    ~gemm_matmul_t() override { gemm_->release(); }
 
     status_t execute(const exec_ctx_t &ctx) const override;
 
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
 
 private:
-    std::unique_ptr<primitive_t> gemm_;
+    primitive_t *gemm_;
 };
 
 } // namespace ocl
