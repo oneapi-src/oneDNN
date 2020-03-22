@@ -99,6 +99,23 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t size) {
     }
 }
 
+void cvt_bfloat16_and_add_to_float(
+        float *out, const bfloat16_t *inp, const float *add, size_t size) {
+    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
+        jit_call_t p_;
+        p_.inp = (void *)inp;
+        p_.out = (void *)out;
+        p_.add = (void *)add;
+        p_.size = size;
+        static const cpu::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_add_to_ps {
+                0, true};
+        cvt_bf16_add_to_ps.jit_ker(&p_);
+    } else {
+        for (size_t i = 0; i < size; ++i)
+            out[i] = (float)inp[i] + add[i];
+    }
+}
+
 void add_floats_and_cvt_to_bfloat16(
         bfloat16_t *out, const float *inp0, const float *inp1, size_t size) {
     if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {

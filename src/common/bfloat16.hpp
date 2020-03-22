@@ -51,9 +51,16 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t size);
 
 // performs element-by-element sum of inp and add float arrays and stores
 // result to bfloat16 out array with downconversion
+// out[:] = (bfloat16_t)(inp0[:] + inp1[:])
 void add_floats_and_cvt_to_bfloat16(
         bfloat16_t *out, const float *inp0, const float *inp1, size_t size);
 
+// performs element-by-element sum of upconverted bfloat16 inp and float add
+// arrays and stores result to float out array
+// it is safe for out pointer to be equal to the add pointer
+// out[:] = (float)inp[:] + add[:]
+void cvt_bfloat16_and_add_to_float(
+        float *out, const bfloat16_t *inp, const float *add, size_t size);
 } // namespace impl
 } // namespace dnnl
 
