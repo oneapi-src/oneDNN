@@ -154,8 +154,7 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
                 = types::data_type_size(pd()->diff_weights_md(1)->data_type);
         diff_bias += bias_dt_size * diff_bias_d.offset0();
         constexpr int blksize = 16;
-        const int OC_blocks = OC / blksize;
-        const int rem_OC = OC % blksize;
+        const int OC_blocks = utils::div_up(OC, blksize);
         float *diff_bias_acc = pd()->diff_bias_is_acc_
                 ? (float *)diff_bias
                 : (float *)ctx.get_scratchpad_grantor()
@@ -164,35 +163,22 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         parallel(0, [&](const int ithr, const int nthr) {
             int oc_s {0}, oc_e {0};
             balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
-            oc_s = oc_s * blksize;
-            oc_e = oc_e * blksize;
+            oc_s = std::min(oc_s * blksize, OC);
+            oc_e = std::min(oc_e * blksize, OC);
+            auto len = oc_e - oc_s;
 
-            PRAGMA_OMP_SIMD()
-            for (int oc = oc_s; oc < oc_e; ++oc)
-                diff_bias_acc[oc] = diff_dst[oc];
+            if (len > 0) {
+                cvt_bfloat16_to_float(&diff_bias_acc[oc_s],
+                        &((bfloat16_t *)diff_dst)[oc_s], len);
 
-            for (int mb = 1; mb < MB; ++mb) {
-                PRAGMA_OMP_SIMD()
-                for (int oc = oc_s; oc < oc_e; ++oc)
-                    diff_bias_acc[oc] += diff_dst[mb * OC + oc];
-            }
-            if (!pd()->diff_bias_is_acc_ && oc_s < oc_e)
-                cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
-                        &((const float *)diff_bias_acc)[oc_s], oc_e - oc_s);
+                for (int mb = 1; mb < MB; ++mb)
+                    cvt_bfloat16_and_add_to_float(&diff_bias_acc[oc_s],
+                            &((bfloat16_t *)diff_dst)[mb * OC + oc_s],
+                            &diff_bias_acc[oc_s], len);
 
-            if (rem_OC != 0 && ithr == nthr - 1) {
-                oc_s = OC_blocks * blksize;
-                oc_e = OC;
-                for (int oc = oc_s; oc < oc_e; ++oc)
-                    diff_bias_acc[oc] = diff_dst[oc];
-                for (int mb = 1; mb < MB; ++mb) {
-                    for (int oc = oc_s; oc < oc_e; ++oc)
-                        diff_bias_acc[oc] += diff_dst[mb * OC + oc];
-                }
-
-                if (!pd()->diff_bias_is_acc_ && oc_s < oc_e)
+                if (!pd()->diff_bias_is_acc_)
                     cvt_float_to_bfloat16(&((bfloat16_t *)diff_bias)[oc_s],
-                            &((const float *)diff_bias_acc)[oc_s], oc_e - oc_s);
+                            &diff_bias_acc[oc_s], len);
             }
         });
     }
