@@ -114,33 +114,22 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     if (diff_bias) {
         diff_bias += diff_bias_d.offset0();
         constexpr int blksize = 8;
-        const int OC_blocks = OC / blksize;
-        const int rem_OC = OC % blksize;
+        const int OC_blocks = utils::div_up(OC, blksize);
         parallel(0, [&](const int ithr, const int nthr) {
-            int oc_st {0}, oc_e {0};
-            balance211(OC_blocks, nthr, ithr, oc_st, oc_e);
-            oc_st = oc_st * blksize;
-            oc_e = oc_e * blksize;
+            int oc_s {0}, oc_e {0};
+            balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
+            oc_s = std::min(oc_s * blksize, OC);
+            oc_e = std::min(oc_e * blksize, OC);
 
             PRAGMA_OMP_SIMD()
-            for (int oc = oc_st; oc < oc_e; ++oc) {
+            for (int oc = oc_s; oc < oc_e; ++oc) {
                 diff_bias[oc] = diff_dst[oc];
             }
 
             for (int mb = 1; mb < MB; ++mb) {
                 PRAGMA_OMP_SIMD()
-                for (int oc = oc_st; oc < oc_e; ++oc) {
+                for (int oc = oc_s; oc < oc_e; ++oc) {
                     diff_bias[oc] += diff_dst[mb * OC + oc];
-                }
-            }
-
-            if (rem_OC != 0 && ithr == nthr - 1) {
-                for (int oc = OC_blocks * blksize; oc < OC; oc++)
-                    diff_bias[oc] = diff_dst[oc];
-                for (int mb = 1; mb < MB; ++mb) {
-                    for (int oc = OC_blocks * blksize; oc < OC; oc++) {
-                        diff_bias[oc] += diff_dst[mb * OC + oc];
-                    }
                 }
             }
         });
