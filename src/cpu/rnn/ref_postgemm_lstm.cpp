@@ -179,12 +179,11 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
     };
 
     auto dequantize_s32_f32 = [&](gemm_acc_t s, int gate, int j) {
-        return pd_->attr()->rnn_weights_qparams_.mask_ == 0
-                ? saturate<float>(s) * (1.f / (weights_scales[0] * data_scale))
-                : saturate<float>(s)
-                        * (1.f
-                                / (weights_scales[gate * rnn.dhc + j]
-                                        * data_scale));
+        float wscale = pd_->attr()->rnn_weights_qparams_.mask_ == 0
+                ? weights_scales[0]
+                : weights_scales[gate * rnn.dhc + j];
+
+        return saturate<float>(s) * (1.f / (wscale * data_scale));
     };
 
     auto linear_f = [](const float *scale, float a) { return *scale * a; };
