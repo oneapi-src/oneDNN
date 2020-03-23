@@ -775,7 +775,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                             p.bcast_data = local_src + sp * jcp.ic_block;
                         if (!jcp.uses_permw_transposition) {
                             bf16_support::jit_call_t ptr;
-                            ptr.size = p.reduce_dim;
+                            ptr.nelems = p.reduce_dim;
                             int thr_src_block_size = rnd_up(jcp.reduce_dim, 2)
                                     * jcp.ic_block * jcp.nb_bcast_blocking_max;
                             src_data_t *tr_src
