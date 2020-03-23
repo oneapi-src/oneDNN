@@ -208,6 +208,9 @@ int init_pd(const prb_t *p, dir_t dir, dnnl_primitive_desc_t &ppd,
     else
         SAFE(init_status, WARN);
 
+    // Return if pd is not the one being tested
+    if ((dir & FLAG_FWD) != (p->dir & FLAG_FWD)) return OK;
+
     const char *impl_str = query_impl_info(ppd);
     if (maybe_skip(impl_str)) {
         BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
