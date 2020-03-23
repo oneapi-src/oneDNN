@@ -142,7 +142,8 @@ struct ref_matmul_t : public primitive_t {
                     : dnnl_alg_kind_undef;
         }
 
-        bool non_default_attrs_ = false, is_defined_[4];
+        bool non_default_attrs_ = false;
+        bool is_defined_[4] = {};
         data_type_t bia_dt_ = data_type::undef;
         data_type_t src_dt_ = data_type::undef;
         data_type_t dst_dt_ = data_type::undef;
