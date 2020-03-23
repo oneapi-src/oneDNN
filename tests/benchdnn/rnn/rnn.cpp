@@ -558,6 +558,9 @@ inline int init_pd(
     if (init_status == dnnl_unimplemented) return r->state = UNIMPLEMENTED, OK;
     SAFE(init_status, WARN);
 
+    // Return if pd is not the one being tested
+    if (is_fwd != (p.prop == dnnl_forward)) return OK;
+
     const char *impl_str = query_impl_info(rpd);
     print(5, "dnnl implementation: %s\n", impl_str);
 

@@ -237,15 +237,16 @@ inline int init_pd(dnnl_engine_t eng, const prb_t *p,
     }
     SAFE(init_status, WARN);
 
-    if (r) {
-        const char *impl_str = query_impl_info(cpd);
-        if (maybe_skip(conv::skip_impl, impl_str)) {
-            print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
-            DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
-            return r->state = SKIPPED, OK;
-        } else {
-            print(5, "dnnl implementation: %s\n", impl_str);
-        }
+    // Return if pd is not the one being tested
+    if (p->attr.post_ops.convolution_index() == -1) return OK;
+
+    const char *impl_str = query_impl_info(cpd);
+    if (maybe_skip(conv::skip_impl, impl_str)) {
+        print(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        DNN_SAFE(dnnl_primitive_desc_destroy(cpd), WARN);
+        return r->state = SKIPPED, OK;
+    } else {
+        print(5, "dnnl implementation: %s\n", impl_str);
     }
 
     return OK;
