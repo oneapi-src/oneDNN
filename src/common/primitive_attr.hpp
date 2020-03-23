@@ -226,8 +226,11 @@ struct zero_points_t : public c_compatible {
             return a == b || (is_runtime_value(a) && is_runtime_value(b));
         };
         return eq(zero_point_src, rhs.zero_point_src)
+                && eq(mask_src, rhs.mask_src)
                 && eq(zero_point_wei, rhs.zero_point_wei)
-                && eq(zero_point_dst, rhs.zero_point_dst);
+                && eq(mask_wei, rhs.mask_wei)
+                && eq(zero_point_dst, rhs.zero_point_dst)
+                && eq(mask_dst, rhs.mask_dst);
     }
 
     // arg-specific checks
