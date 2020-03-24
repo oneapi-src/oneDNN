@@ -139,7 +139,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
         const int g = w_groups ? (input_d.dims()[0]) : 1;
 
         return simple_attr_check(attr, true, false)
-                && output_d.matches_tag(tag_o)
+                && output_d.matches_tag(tag_o) && input_d.is_plain()
                 && (output_d.extra().flags
                         & memory_extra_flags::compensation_conv_s8s8)
                 && (input_d.data_type() == f32 || input_d.data_type() == s8)
