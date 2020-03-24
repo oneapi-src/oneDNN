@@ -90,3 +90,6 @@
 
 # Run-time
 --batch=test_reorder_runtime
+
+# unsupported reorders
+--batch=test_reorder_unsupported
