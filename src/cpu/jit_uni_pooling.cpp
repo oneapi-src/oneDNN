@@ -46,11 +46,12 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
+        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
 
-        arg.src = (const void *)&src[src_d.blk_off(n, b_c, ih)];
-        arg.dst = (const void *)&dst[dst_d.blk_off(n, b_c, oh)];
+        arg.src = (const void *)&src[src_d.blk_off(n, c_off, ih)];
+        arg.dst = (const void *)&dst[dst_d.blk_off(n, c_off, oh)];
         if (indices) {
-            const size_t ind_off = indices_d.blk_off(n, b_c, oh);
+            const size_t ind_off = indices_d.blk_off(n, c_off, oh);
             arg.indices = (const void *)&indices[ind_off * ind_dt_size];
         }
         arg.oh = oh == 0;
@@ -86,11 +87,12 @@ void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(
         const int i_b_overflow
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
+        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
 
-        arg.src = &src[src_d.blk_off(n, b_c, id, ih)];
-        arg.dst = &dst[dst_d.blk_off(n, b_c, od, oh)];
+        arg.src = &src[src_d.blk_off(n, c_off, id, ih)];
+        arg.dst = &dst[dst_d.blk_off(n, c_off, od, oh)];
         if (indices) {
-            const size_t ind_off = indices_d.blk_off(n, b_c, od, oh);
+            const size_t ind_off = indices_d.blk_off(n, c_off, od, oh);
             arg.indices = &indices[ind_off * ind_dt_size];
         }
         arg.oh = (oh + od == 0);
@@ -232,7 +234,7 @@ jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
     kernel_ = new jit_uni_pool_kernel<isa>(pd()->jpp_);
 
     const auto &jpp = pd()->jpp_;
-    if (jpp.is_plain) {
+    if (jpp.tag_kind == jptg_ncsp) {
         using namespace jit_uni_pooling_utils;
         auto diff_src_sp = (dim_t)jpp.id * jpp.ih * jpp.iw;
         auto diff_dst_sp = (dim_t)jpp.od * jpp.oh * jpp.ow;
@@ -304,10 +306,10 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
 
     // if spatial size == 1 && jpp.c_without_padding != jpp.c
     // then we don't need to transpose data
-    bool transpose_diff_src = jpp.is_plain
+    bool transpose_diff_src = jpp.tag_kind == jptg_ncsp
             && (diff_src_sp > 1 || jpp.c_without_padding != jpp.c
                     || d_type != wsp_dt_);
-    bool transpose_diff_dst = jpp.is_plain
+    bool transpose_diff_dst = jpp.tag_kind == jptg_ncsp
             && (indices || diff_dst_sp > 1 || jpp.c_without_padding != jpp.c
                     || d_type != wsp_dt_);
 
@@ -332,7 +334,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
         assert(pd()->ndims() != 3 || utils::everyone_is(0, ih, oh));
 
-        auto c_off = jpp.is_plain ? b_c * jpp.c_block : b_c;
+        auto c_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
         if (transpose_diff_src) {
             wsp_data_t *wsp_ = cvt_slice_src_wsp + ithr * diff_src_slice;
             arg.src = (const void *)&wsp_[ih * jpp.iw * jpp.c_block];
@@ -352,7 +354,7 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
                 arg.indices = (const void *)&wsp_[oh * jpp.ow * jpp.c_block
                         * ind_dt_size];
             } else {
-                const size_t ind_off = indices_d.blk_off(n, b_c, oh);
+                const size_t ind_off = indices_d.blk_off(n, c_off, oh);
                 arg.indices = &indices[ind_off * ind_dt_size];
             }
         }
@@ -384,10 +386,20 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
                 src_diff_base_ptr[idx] = zero_val;
         } else {
             const data_t zero_val = 0;
-            data_t *src_diff_base_ptr = &diff_src[diff_src_d.blk_off(
-                    n, jpp.is_plain ? b_c * jpp.c_block : b_c, 0)];
-            for (dim_t idx = 0; idx < diff_src_slice; ++idx)
-                src_diff_base_ptr[idx] = zero_val;
+            auto ch_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
+            data_t *src_diff_base_ptr
+                    = &diff_src[diff_src_d.blk_off(n, ch_off, 0)];
+            if (jpp.tag_kind == jptg_nspc) {
+                auto sp = (ptrdiff_t)jpp.ih * jpp.iw;
+                for (ptrdiff_t x = 0; x < sp; x++) {
+                    PRAGMA_OMP_SIMD()
+                    for (ptrdiff_t c = 0; c < jpp.c_block; c++)
+                        src_diff_base_ptr[x * jpp.c + c] = zero_val;
+                }
+            } else {
+                for (dim_t idx = 0; idx < diff_src_slice; ++idx)
+                    src_diff_base_ptr[idx] = zero_val;
+            }
         }
 
         dim_t cs = nstl::min(
@@ -471,12 +483,13 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward_3d(
         const int i_b_overflow
                 = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
         const int ih = nstl::max(ij - jpp.t_pad, 0);
+        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
 
         arg.src = (const void
-                        *)&diff_src[diff_src_d.blk_off(n, b_c, id + kd, ih)];
-        arg.dst = (const void *)&diff_dst[diff_dst_d.blk_off(n, b_c, od, oh)];
+                        *)&diff_src[diff_src_d.blk_off(n, c_off, id + kd, ih)];
+        arg.dst = (const void *)&diff_dst[diff_dst_d.blk_off(n, c_off, od, oh)];
         if (indices) {
-            const size_t ind_off = indices_d.blk_off(n, b_c, od, oh);
+            const size_t ind_off = indices_d.blk_off(n, c_off, od, oh);
             arg.indices = (const void *)&indices[ind_off * ind_dt_size];
         }
         arg.oh = zero_size;

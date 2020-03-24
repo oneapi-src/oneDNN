@@ -46,9 +46,7 @@ struct jit_uni_pooling_fwd_t : public primitive_impl_t {
                     && is_fwd() && !has_zero_dim_memory()
                     && everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
-                    && attr()->has_default_values()
-                    && memory_desc_matches_tag(*src_md(), desired_fmt_tag())
-                    && memory_desc_matches_tag(*dst_md(), desired_fmt_tag());
+                    && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
             bool is_training = desc_.prop_kind == prop_kind::forward_training;
@@ -57,13 +55,6 @@ struct jit_uni_pooling_fwd_t : public primitive_impl_t {
 
             auto scratchpad = scratchpad_registry().registrar();
             return jit_uni_pool_kernel<isa>::init_conf(jpp_, scratchpad, this);
-        }
-
-        format_tag_t desired_fmt_tag() {
-            using namespace format_tag;
-            return utils::one_of(isa, avx512_common, avx512_core)
-                    ? utils::pick(ndims() - 3, nCw16c, nChw16c, nCdhw16c)
-                    : utils::pick(ndims() - 3, nCw8c, nChw8c, nCdhw8c);
         }
 
         jit_pool_conf_t jpp_;
