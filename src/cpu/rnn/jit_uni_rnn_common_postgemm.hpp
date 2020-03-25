@@ -73,28 +73,26 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     };
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
-            typename gemm_acc_t, typename gates_t, typename scratch_t,
-            typename ht_t>
+            typename gemm_acc_t, typename gates_t, typename scratch_t>
     rnn_postgemm_sig(execute) {
         if (pd_->desc()->prop_kind == prop_kind::backward)
             execute_bwd(rnn, cell_position, ws_gates_, scratch_gates_,
-                    scratch_ht_, dst_layer_, dst_iter_c_, src_iter_,
-                    src_iter_c_, diff_src_layer_, diff_src_iter_,
-                    diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-                    diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
-                    scratch_cell_, dst_iter_);
+                    dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
+                    diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
+                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    dst_iter_);
         else
             execute_fwd(rnn, cell_position, ws_gates_, scratch_gates_,
-                    scratch_ht_, dst_layer_, dst_iter_c_, src_iter_,
-                    src_iter_c_, diff_src_layer_, diff_src_iter_,
-                    diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
-                    diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
-                    scratch_cell_, dst_iter_);
+                    dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
+                    diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
+                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
+                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
+                    dst_iter_);
     }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
-            typename gemm_acc_t, typename gates_t, typename scratch_t,
-            typename ht_t>
+            typename gemm_acc_t, typename gates_t, typename scratch_t>
     rnn_postgemm_sig(execute_fwd) {
         using namespace rnn_utils;
         rnn_utils::ws_gates_aoc<gates_t> ws_gates(rnn, ws_gates_);
@@ -107,10 +105,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         auto src_iter_ld = rnn.src_iter_ld(cell_position);
         auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
         auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
-        // We use scratch_ht and not dst_iter for lstmp
-        auto dst_iter_ld = rnn.is_lstm_projection
-                ? rnn.scratch_ht_ld
-                : rnn.dst_iter_ld(cell_position);
+        auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
         auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
         rnn_utils::ws_states_layer_aoc<dst_layer_t> dst_layer(
@@ -167,8 +162,7 @@ struct jit_uni_rnn_postgemm : public jit_generator {
     }
 
     template <typename dst_layer_t, typename dst_iter_t, typename src_iter_t,
-            typename gemm_acc_t, typename gates_t, typename scratch_t,
-            typename ht_t>
+            typename gemm_acc_t, typename gates_t, typename scratch_t>
     rnn_postgemm_sig(execute_bwd) {
         using namespace rnn_utils;
         auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);

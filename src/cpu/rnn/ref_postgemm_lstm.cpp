@@ -48,10 +48,11 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
             rnn, weights_peephole_);
     bias_aoc_t bias(rnn, bias_);
 
-    auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
-    // We use scratch_ht and not dst_iter for lstmp
-    auto dst_iter_ld = rnn.is_lstm_projection ? rnn.scratch_ht_ld
-                                              : rnn.dst_iter_ld(cell_position);
+    // If lstmp, instead of dst_layer, we use scratch_ht if inference or ws_ht if training
+    auto dst_layer_ld = rnn.is_lstm_projection
+            ? rnn.scratch_ht_ld
+            : rnn.dst_layer_ld(cell_position);
+    auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
     auto dst_iter_c_ld = rnn.dst_iter_c_ld(cell_position);
     auto src_iter_c_ld = rnn.src_iter_c_ld(cell_position);
 
@@ -238,8 +239,9 @@ void lstm_bwd_postgemm_template(T1 func1, T2 to_src_dt, const float *cscale,
             /// @todo save it in the workspace in fwd pass or recompute it to
             /// save bw
             float tanhCt = func1(cscale, Ct);
-            // we have 2 incoming diffs on Ht
-            // float dHt = diff_dst_iter(i, j) + diff_dst_layer(i, j);
+            // we have 2 incoming diffs on Ht if no projection,
+            // otherwise we have only 1 as the summation happened
+            // before the bwd projection
             float dHt = diff_dst_layer(i, j);
             if (!rnn.is_lstm_projection) dHt += diff_dst_iter(i, j);
             float dCt = diff_dst_iter_c(i, j)

@@ -155,7 +155,7 @@ protected:
         auto t = dims.t, mb = dims.mb, l = dims.l, d = dims.d;
         auto slc = dims.slc, sic = dims.sic, dhc = dims.dhc, dic = dims.dic;
         auto dlc = (p.direction == rnn_direction::bidirectional_concat ? 2 : 1)
-                * dhc;
+                * dic;
         memory::dim g = getNGates();
         memory::dim bias_extra_gate
                 = std::is_same<T, lbr_gru_forward>::value ? 1 : 0;

@@ -206,6 +206,7 @@ enum {
     key_rnn_cell,
     key_rnn_gates,
     key_rnn_ht,
+    key_rnn_diff_ht,
     key_rnn_ptrs_bia,
     key_rnn_ptrs_wei_layer,
     key_rnn_ptrs_wei_iter,

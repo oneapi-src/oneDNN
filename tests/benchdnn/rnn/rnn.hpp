@@ -95,6 +95,10 @@ enum {
     LBR_GRU_U_PRIME = 3,
 };
 
+// dlc is different at the cell level and the primitive level
+// This enum enable to explicitely query the intended one
+enum dlc_type_t { CELL, PRIMITIVE };
+
 template <typename Telem>
 struct array_offset_calculator {
     array_offset_calculator() = default;
@@ -303,8 +307,13 @@ struct prb_t : public desc_t {
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
-    int64_t dlc() const {
-        return (direction == dnnl_bidirectional_concat ? 2 : 1) * dhc;
+
+    int64_t dlc(dlc_type_t type) const {
+        if (type == PRIMITIVE)
+            return (direction == dnnl_bidirectional_concat ? 2 : 1) * dic;
+        if (type == CELL) return dic;
+        assert(!"unsupported dlc type");
+        return 0;
     }
 
     bool is_int8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
@@ -385,7 +394,7 @@ private:
 
 void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
         AOC<float> &ws_src_layer, AOC<float> &ws_src_iter,
-        AOC<float> &ws_src_iter_c, AOC<float> &ws_gates);
+        AOC<float> &ws_src_iter_c, AOC<float> &ws_gates, AOC<float> &ws_ht);
 
 void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
         const float *src_iter_, const float *src_iter_c_,
@@ -394,7 +403,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
         const float *bias_, float *dst_layer_, float *dst_iter_,
         float *dst_iter_c_, const AOC<float> &ws_src_layer,
         const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
-        const AOC<float> &ws_gates);
+        const AOC<float> &ws_gates, const AOC<float> &ws_ht);
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,

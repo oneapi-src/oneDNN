@@ -414,7 +414,7 @@ inline int init_pd(
     dnnl_dims_t bias_dims
             = {p.n_layer, p.n_dir(), p.n_gates() + is_gru_lbr, p.dhc};
     // dnnl_tnc
-    dnnl_dims_t dst_layer_dims = {p.n_iter, p.mb, p.dlc()};
+    dnnl_dims_t dst_layer_dims = {p.n_iter, p.mb, p.dlc(PRIMITIVE)};
 
     DNN_SAFE(dnnl_memory_desc_init_by_tag(&src_layer_d, 3, src_layer_dims,
                      p.cfg[SRC_LAYER].dt, dnnl_tnc),

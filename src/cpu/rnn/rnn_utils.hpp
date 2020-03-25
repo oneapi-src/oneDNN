@@ -28,14 +28,14 @@
 #define rnn_postgemm_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, \
             rnn_utils::cell_position_t cell_position, gates_t *ws_gates_, \
-            scratch_t *scratch_gates_, ht_t *scratch_ht_, \
-            dst_layer_t *dst_layer_, float *dst_iter_c_, \
-            const src_iter_t *src_iter_, const float *src_iter_c_, \
-            gemm_acc_t *diff_src_layer_, gemm_acc_t *diff_src_iter_, \
-            gemm_acc_t *diff_src_iter_c_, gemm_acc_t *diff_dst_layer_, \
-            gemm_acc_t *diff_dst_iter_, gemm_acc_t *diff_dst_iter_c_, \
-            const float *weights_peephole_, float *bias_, gates_t *ws_grid_, \
-            scratch_t *scratch_cell_, dst_iter_t *dst_iter_) const
+            scratch_t *scratch_gates_, dst_layer_t *dst_layer_, \
+            float *dst_iter_c_, const src_iter_t *src_iter_, \
+            const float *src_iter_c_, gemm_acc_t *diff_src_layer_, \
+            gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
+            gemm_acc_t *diff_dst_layer_, gemm_acc_t *diff_dst_iter_, \
+            gemm_acc_t *diff_dst_iter_c_, const float *weights_peephole_, \
+            float *bias_, gates_t *ws_grid_, scratch_t *scratch_cell_, \
+            dst_iter_t *dst_iter_) const
 
 #define rnn_cell_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, \
@@ -50,9 +50,9 @@
             gemm_acc_t *diff_dst_iter_c_, gemm_acc_t *diff_w_layer_, \
             gemm_acc_t *diff_w_iter_, float *diff_weights_projection_, \
             float *diff_weights_peephole_, float *diff_bias_, \
-            gates_t *ws_gates_, scratch_t *scratch_gates_, ht_t *scratch_ht_, \
-            gates_t *ws_grid_, scratch_t *scratch_cell_, \
-            dst_iter_t *dst_iter_) const
+            gates_t *ws_gates_, scratch_t *scratch_gates_, ht_t *proj_ht_, \
+            gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
+            scratch_t *scratch_cell_, dst_iter_t *dst_iter_) const
 
 #define rnn_grid_execution_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, weights_t **weights_layer_, \
@@ -65,7 +65,8 @@
             float *ws_states_iter_c_, gemm_acc_t *ws_diff_states_layer_, \
             gemm_acc_t *ws_diff_states_iter_, \
             gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
-            gates_t *ws_grid_, scratch_t *scratch_gates_, ht_t *scratch_ht_, \
+            ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
+            ht_t *scratch_ht_, gemm_acc_t *scratch_diff_ht_, \
             scratch_t *scratch_cell_, gemm_acc_t *diff_weights_layer_, \
             gemm_acc_t *diff_weights_iter_, float *diff_weights_projection_, \
             float *diff_weights_peephole_, float *diff_bias_) const
@@ -174,7 +175,10 @@ struct rnn_conf_t {
     int weights_projection_ld, weights_projection_nld;
     int diff_weights_projection_ld, diff_weights_projection_nld;
 
+    int proj_ht_ld, proj_ht_nld;
+
     int ws_gates_ld, ws_gates_nld;
+    int ws_ht_ld, ws_ht_nld;
     int ws_states_layer_ld, ws_states_layer_nld;
     int ws_states_iter_ld, ws_states_iter_nld;
     int ws_states_iter_c_ld, ws_states_iter_c_nld;
@@ -184,6 +188,7 @@ struct rnn_conf_t {
 
     int scratch_gates_ld, scratch_gates_nld;
     int scratch_ht_ld, scratch_ht_nld;
+    int scratch_diff_ht_ld, scratch_diff_ht_nld;
 
     int src_layer_ld_, src_layer_nld_;
     int src_iter_ld_, src_iter_nld_;
@@ -201,6 +206,7 @@ struct rnn_conf_t {
     // 1. For non-LSTMP ws_states_iter_size == ws_states_layer_size. The corresponding
     //    pointers should point to the same places.
     size_t ws_gates_size;
+    size_t ws_ht_size;
     size_t ws_states_layer_size;
     size_t ws_states_iter_size;
     size_t ws_states_iter_c_size;
@@ -209,6 +215,7 @@ struct rnn_conf_t {
     size_t ws_diff_states_iter_c_size;
     size_t scratch_gates_size;
     size_t scratch_ht_size;
+    size_t scratch_diff_ht_size;
     size_t scratch_cell_size;
     size_t ws_grid_comp_size;
     size_t ws_per_cell;
@@ -235,11 +242,13 @@ struct rnn_conf_t {
                         dt_conf, u8u8u8u8, u8u8u8f32, all_f32, all_bf16);
     }
     inline bool skip_dst_layer_copy() const {
+        // TODO: enable skip copy with lstm_projection
         return (exec_dir == l2r) && !is_lstm_projection
                 && utils::one_of(
                         dt_conf, u8u8u8u8, f32u8f32u8, all_f32, all_bf16);
     }
     inline bool skip_dst_iter_copy() const {
+        // TODO: enable skip copy with lstm_projection
         return (exec_dir == l2r) && (dst_iter_ld_ > 0) && !is_lstm_projection
                 && utils::one_of(
                         dt_conf, u8u8u8u8, u8u8u8f32, all_f32, all_bf16);
@@ -267,7 +276,11 @@ struct rnn_conf_t {
                                                     : ws_states_iter_c_ld;
     }
 
-    inline dim_t dst_layer_ld(cell_position_t cell_position) const {
+    inline dim_t dst_layer_ld(
+            cell_position_t cell_position, bool after_proj = false) const {
+        // We use scratch_ht and not dst_layer for lstmp
+        if (is_lstm_projection && !after_proj) return scratch_ht_ld;
+
         return (cell_position & last_layer) && skip_dst_layer_copy()
                 ? dst_layer_ld_
                 : (cell_position & last_iter) && skip_dst_iter_copy()
@@ -376,9 +389,9 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.sic = weights_iter_d.dims()[2];
     rnn.slc = weights_layer_d.dims()[2];
     rnn.dhc = weights_layer_d.dims()[4];
-    // if no layer proj, is dhc or 2*dhc if bidir_concat
-    rnn.dlc = dst_layer_d.dims()[2];
-    rnn.dic = rnn.is_lstm_projection ? weights_projection_d.dims()[3] : rnn.dhc;
+    rnn.dlc = rnn.is_lstm_projection ? weights_projection_d.dims()[3] : rnn.dhc;
+    // All supported cells have dic == dlc
+    rnn.dic = rnn.dlc;
 
     // set members with user memories leading dimensions
     // Assumption: weights datatype size is the same as state datatype size
@@ -386,25 +399,33 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             == types::data_type_size(src_layer_d.data_type()));
 
     // set workspace leading dimensions (and non leading-dimensions)
+
+    // the ws and scratch proj_ht need to match as we use them interchangeably
+    assert(IMPLICATION(rnn.is_lstm_projection,
+            sizeof(typename T::ht_t) == sizeof(typename T::dst_iter_t)));
+    rnn.proj_ht_nld = rnn.mb;
+    rnn.proj_ht_ld = get_good_ld(rnn.dhc, sizeof(typename T::ht_t));
+
     rnn.ws_gates_nld = rnn.mb;
     rnn.ws_gates_ld
             = get_good_ld(rnn.dhc * rnn.n_gates, sizeof(typename T::gates_t));
+    rnn.ws_ht_nld = rnn.proj_ht_nld;
+    rnn.ws_ht_ld = rnn.proj_ht_ld;
+
     rnn.ws_states_layer_nld = rnn.mb;
-    // FIXME_LSTMP: why rnn.dlc, while it used to be rnn.dhc before?
-    // FIXME_LSTMP: is this a proper fix for case when sic >> dhc and !l2r?
     static_assert(std::is_same<typename T::src_layer_t,
                           typename T::src_iter_t>::value,
             "src_layer_t and src_iter_t must be the same");
     rnn.ws_states_layer_ld
             = get_good_ld(nstl::max(rnn.sic, nstl::max(rnn.slc, rnn.dlc)),
                     sizeof(typename T::src_layer_t));
-    rnn.ws_states_iter_nld = rnn.mb;
-    rnn.ws_states_iter_ld = !rnn.is_lstm_projection
-            ? rnn.ws_states_layer_ld
-            : get_good_ld(nstl::max(rnn.sic, rnn.dic),
-                    sizeof(typename T::src_iter_t));
-    rnn.ws_states_iter_c_nld = rnn.mb;
+    // there is no need for al separate ws_states_iter for now as all
+    // supported cell have dst_iter == dst_layer
+    rnn.ws_states_iter_nld = rnn.ws_states_layer_nld;
+    rnn.ws_states_iter_ld = rnn.ws_states_layer_ld;
+
     // we do not need a good ld for iter_c as it is not involved in GEMM
+    rnn.ws_states_iter_c_nld = rnn.mb;
     rnn.ws_states_iter_c_ld = rnn.dhc;
 
     // TODO: be more restrictive on the leading dimensions
@@ -425,8 +446,12 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.scratch_gates_nld = rnn.mb;
     rnn.scratch_gates_ld
             = get_good_ld(rnn.n_gates * rnn.dhc, sizeof(typename T::scratch_t));
-    rnn.scratch_ht_nld = rnn.mb;
-    rnn.scratch_ht_ld = get_good_ld(rnn.dhc, sizeof(typename T::ht_t));
+    rnn.scratch_ht_nld = rnn.proj_ht_nld;
+    rnn.scratch_ht_ld = rnn.proj_ht_ld;
+
+    rnn.scratch_diff_ht_nld = rnn.mb;
+    rnn.scratch_diff_ht_ld
+            = get_good_ld(rnn.dlc, sizeof(typename T::gemm_acc_t));
 
     // Assumption: {src,dst}_layer has tnc layout, {src,dst}_iter has ldnc,
     rnn.src_layer_ld_ = src_layer_d.blocking_desc().strides[1];
@@ -666,12 +691,19 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             ? (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.ws_gates_nld
                     * rnn.ws_gates_ld * sizeof(typename T::gates_t)
             : (size_t)0;
+    rnn.ws_ht_size = rnn.is_training
+            ? (size_t)rnn.n_layer * rnn.n_dir * rnn.n_iter * rnn.ws_ht_nld
+                    * rnn.ws_ht_ld * sizeof(typename T::dst_iter_t)
+            : (size_t)0;
     rnn.n_iter_scratch_gates
             = (rnn.merge_gemm_layer || rnn.merge_gemm_iter) ? rnn.n_iter : 1;
     rnn.scratch_gates_size = rnn.n_iter_scratch_gates * rnn.scratch_gates_nld
             * rnn.scratch_gates_ld * sizeof(typename T::scratch_t);
     rnn.scratch_ht_size
             = rnn.scratch_ht_nld * rnn.scratch_ht_ld * sizeof(typename T::ht_t);
+    rnn.scratch_diff_ht_size = rnn.is_training ? rnn.scratch_diff_ht_nld
+                    * rnn.scratch_diff_ht_ld * sizeof(typename T::gemm_acc_t)
+                                               : (size_t)0;
 
     /* set other sizes */
     /// scratchpad buffer for each cell to hold intermediate data in gru/lbr_gru
@@ -694,13 +726,14 @@ void set_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
 }
 
 void set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
-        size_t &ws_state_layer_offset, size_t &ws_states_iter_offset,
-        size_t &ws_states_iter_c_offset, size_t &ws_diff_states_layer_offset,
-        size_t &ws_diff_states_iter_offset,
+        size_t &ws_ht_offset, size_t &ws_state_layer_offset,
+        size_t &ws_states_iter_offset, size_t &ws_states_iter_c_offset,
+        size_t &ws_diff_states_layer_offset, size_t &ws_diff_states_iter_offset,
         size_t &ws_diff_states_iter_c_offset, size_t &ws_grid_comp_offset,
         size_t &ws_bias_offset, size_t &scratch_gates_offset,
-        size_t &scratch_ht_offset, size_t &scratch_cell_offset,
-        size_t &scratchpad_size, size_t &workspace_size);
+        size_t &scratch_ht_offset, size_t &scratch_diff_ht_offset,
+        size_t &scratch_cell_offset, size_t &scratchpad_size,
+        size_t &workspace_size);
 
 void get_scratchpad_and_workspace_sizes(
         const rnn_conf_t &rnn, size_t &scratchpad_size, size_t &workspace_size);
@@ -722,6 +755,16 @@ private:
 };
 using ws_gates_aoc_t = ws_gates_aoc<float>;
 using ws_gates_aoc_s32_t = ws_gates_aoc<int32_t>;
+
+template <typename T>
+struct ws_ht_aoc {
+    ws_ht_aoc(const rnn_conf_t &rnn, T *data)
+        : ht_(data, rnn.ws_ht_nld, rnn.ws_ht_ld) {}
+    T &operator()(int batch, int dhc) { return ht_(batch, dhc); }
+
+private:
+    dnnl::impl::utils::array_offset_calculator<T, 2> ht_;
+};
 
 template <typename T>
 struct scratch_gates_aoc {

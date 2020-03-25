@@ -119,10 +119,10 @@ void lstm_fwd_postgemm(const prb_t &p, float *gates_,
 }
 
 void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
-        float *dst_iter_c_, float *gates_, const float *weights_layer_,
-        const float *weights_iter_, const float *weights_peephole_,
-        const float *weights_projection_, const float *bias_,
-        const float *src_layer_, const float *src_iter_,
+        float *dst_iter_c_, float *gates_, float *ht_,
+        const float *weights_layer_, const float *weights_iter_,
+        const float *weights_peephole_, const float *weights_projection_,
+        const float *bias_, const float *src_layer_, const float *src_iter_,
         const float *src_iter_c_) {
 
     gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.slc, 1.0, src_layer_, p.wc,
@@ -132,16 +132,17 @@ void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
             weights_iter_, p.n_gates() * p.dhc, 1.0, gates_,
             p.n_gates() * p.dhc);
 
+    // if lstmp, we use the workspace to write the postgemm output
+    auto dst_postgemm = p.is_lstm_projection() ? ht_ : dst_layer_;
     lstm_fwd_postgemm(p, gates_, weights_peephole_, bias_, src_iter_c_,
-            dst_layer_, dst_iter_c_);
+            dst_postgemm, dst_iter_c_);
 
+    assert(dst_layer_ == dst_iter_);
     if (p.is_lstm_projection()) {
-        assert(dst_layer_ != dst_iter_);
-        gemm("C", "N", "N", p.mb, p.dic, p.dhc, 1.0, dst_layer_, p.wc,
-                weights_projection_, p.dic, 0.0, dst_iter_, p.wc);
+        gemm("C", "N", "N", p.mb, p.dic, p.dhc, 1.0, dst_postgemm, p.wc,
+                weights_projection_, p.dic, 0.0, dst_layer_, p.wc);
     } else {
         assert(p.dic == p.dhc);
-        assert(dst_layer_ == dst_iter_);
     }
 }
 
@@ -247,8 +248,9 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
         const float *weights_iter_, const float *weights_peephole_,
         const float *weights_projection_, const float *bias_,
         const float *dst_layer_, const float *dst_iter_c_, const float *gates_,
-        const float *diff_dst_layer_, const float *diff_dst_iter_,
-        const float *diff_dst_iter_c_, float *cell_scratchpad_) {
+        const float *ht_, const float *diff_dst_layer_,
+        const float *diff_dst_iter_, const float *diff_dst_iter_c_,
+        float *cell_scratchpad_) {
     float *diff_hidden_state_ = cell_scratchpad_;
 
     AOC<float> diff_hidden_state(diff_hidden_state_, p.mb, p.dhc);
@@ -256,14 +258,20 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
     AOC<const float> diff_dst_iter(diff_dst_iter_, p.mb, p.wc);
 
     if (p.is_lstm_projection()) {
-        gemm("C", "T", "N", p.dhc, p.dic, p.mb, 1.0, dst_layer_, p.wc,
-                diff_dst_iter_, p.wc, 1.0, diff_weights_projection_, p.dic);
-        gemm("C", "N", "T", p.mb, p.dhc, p.dic, 1.0, diff_dst_iter_, p.wc,
-                weights_projection_, p.dic, 0.0, diff_hidden_state_, p.dhc);
+        float *diff_dst = (float *)malloc(p.mb * p.dic * sizeof(float));
 
+        // The loop below relies on this property
+        assert(p.dic == p.dlc(CELL));
         for_(int64_t ib = 0; ib < p.mb; ib++)
-        for (int64_t ih = 0; ih < p.dhc; ih++)
-            diff_hidden_state(ib, ih) += diff_dst_layer(ib, ih);
+        for (int64_t ih = 0; ih < p.dic; ih++)
+            diff_dst[ib * p.dic + ih]
+                    = diff_dst_layer(ib, ih) + diff_dst_iter(ib, ih);
+
+        gemm("C", "T", "N", p.dhc, p.dic, p.mb, 1.0, ht_, p.wc, diff_dst, p.dic,
+                1.0, diff_weights_projection_, p.dic);
+        gemm("C", "N", "T", p.mb, p.dhc, p.dic, 1.0, diff_dst, p.dic,
+                weights_projection_, p.dic, 0.0, diff_hidden_state_, p.dhc);
+        free(diff_dst);
     } else {
         for_(int64_t ib = 0; ib < p.mb; ib++)
         for (int64_t ih = 0; ih < p.dhc; ih++)

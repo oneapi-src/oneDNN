@@ -407,7 +407,8 @@ float one_m_square(float x) {
 namespace {
 void inv_tnc_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &t,
         int64_t &n, int64_t &c) {
-    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? p.slc : p.dlc();
+    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? p.slc
+                                                           : p.dlc(PRIMITIVE);
     c = off % C;
     off /= C;
     n = off % p.mb;
