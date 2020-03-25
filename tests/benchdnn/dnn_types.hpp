@@ -132,6 +132,8 @@ struct attr_t {
             return points.end();
         }
 
+        zero_points_t() : points() {} // needed for debug icc190 build;
+
         std::map<int, entry_t> points;
     };
 
@@ -147,6 +149,8 @@ struct attr_t {
 
         bool is_def() const { return scales.empty(); }
         int from_str(const char *str, const char **end_s);
+
+        arg_scales_t() : scales() {} // needed for debug icc190 build;
 
         std::map<int, scale_t> scales;
     };
