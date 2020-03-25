@@ -395,6 +395,7 @@ int doit(const prb_t *p, res_t *r) {
             compute_ref_bwd(p, arg_fp, d_dst_fp, d_src_fp);
             dnn_mem_t d_src(d_src_dt, fp, tag, engine_tgt);
             SAFE(compare(p, arg_fp, d_src_fp, d_src, r), WARN);
+            SAFE(compare_padded_area_for_zeros(p, d_src_dt, r), WARN);
         }
     }
 
