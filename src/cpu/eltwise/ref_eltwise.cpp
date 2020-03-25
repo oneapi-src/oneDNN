@@ -27,6 +27,16 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+#define DATA_OFF(f, n, c, d, h, w) \
+    (ndims == 1) \
+            ? (f).off(n) \
+            : ((ndims == 2) ? (f).off(n, c) \
+                            : ((ndims == 3) ? (f).off(n, c, w) \
+                                            : ((ndims == 4) ? (f).off( \
+                                                       n, c, h, w) \
+                                                            : (f).off(n, c, d, \
+                                                                    h, w))))
+
 using namespace alg_kind;
 using namespace math;
 
@@ -180,15 +190,13 @@ void ref_eltwise_fwd_t<data_type>::execute_forward_generic(
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
-    const bool is_3d = pd()->desc()->data_desc.ndims == 5;
+    const int ndims = pd()->desc()->data_desc.ndims;
 
     parallel_nd(
-            MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t id, dim_t h, dim_t w) {
-                auto d_off = is_3d ? data_d.off(n, c, id, h, w)
-                                   : data_d.off(n, c, h, w);
-                data_t s = src[d_off];
-                data_t &d = dst[d_off];
-                d = compute_eltwise_scalar_fwd(alg_kind, s, alpha, beta);
+            MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
+                auto data_off = DATA_OFF(data_d, n, c, d, h, w);
+                dst[data_off] = compute_eltwise_scalar_fwd(
+                        alg_kind, src[data_off], alpha, beta);
             });
 }
 
@@ -244,14 +252,12 @@ void ref_eltwise_bwd_t<data_type>::execute_backward_generic(
     const auto alg_kind = pd()->desc()->alg_kind;
     const float alpha = pd()->desc()->alpha;
     const float beta = pd()->desc()->beta;
-    const bool is_3d = pd()->desc()->data_desc.ndims == 5;
+    const int ndims = pd()->desc()->data_desc.ndims;
 
     parallel_nd(
             MB, C, D, H, W, [&](dim_t n, dim_t c, dim_t d, dim_t h, dim_t w) {
-                auto data_off = is_3d ? data_d.off(n, c, d, h, w)
-                                      : data_d.off(n, c, h, w);
-                auto diff_data_off = is_3d ? diff_data_d.off(n, c, d, h, w)
-                                           : diff_data_d.off(n, c, h, w);
+                auto data_off = DATA_OFF(data_d, n, c, d, h, w);
+                auto diff_data_off = DATA_OFF(diff_data_d, n, c, d, h, w);
                 data_t s = src[data_off];
                 data_t dd = diff_dst[diff_data_off];
                 data_t &ds = diff_src[diff_data_off];

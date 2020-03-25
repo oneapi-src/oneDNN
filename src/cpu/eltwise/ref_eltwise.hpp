@@ -56,7 +56,7 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
 
             auto src_d = memory_desc_wrapper(src_md());
 
-            use_dense_ = false || src_d.is_dense()
+            use_dense_ = src_d.is_dense()
                     || (src_d.is_dense(true) && is_zero_preserved());
 
             use_nCspBc_padded_ = !use_dense_
@@ -67,15 +67,10 @@ struct ref_eltwise_fwd_t : public primitive_impl_t {
 
             if (has_zero_dim_memory()) use_dense_ = use_nCspBc_padded_ = false;
 
-            const bool use_generic = !use_dense_ && !use_nCspBc_padded_;
-
-            bool ok = true && is_fwd()
-                    && everyone_is(data_type, desc()->data_desc.data_type)
-                    /*bf16<->f32 cvt operators don't work on non-avx512_core*/
+            bool ok = is_fwd() && data_type == desc()->data_desc.data_type
                     && IMPLICATION(
                             desc()->data_desc.data_type == data_type::bf16,
                             mayiuse(avx512_core))
-                    && IMPLICATION(use_generic, one_of(src_d.ndims(), 4, 5))
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -126,15 +121,11 @@ struct ref_eltwise_bwd_t : public primitive_impl_t {
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            auto diff_dst_d = memory_desc_wrapper(diff_dst_md());
+            const memory_desc_wrapper diff_dst_d(diff_dst_md());
             const bool same_fmt_ = diff_dst_d == memory_desc_wrapper(src_md());
 
-            use_dense_ = true && same_fmt_ && diff_dst_d.is_dense(true)
+            use_dense_ = same_fmt_ && diff_dst_d.is_dense(true)
                     && is_zero_preserved() && !has_zero_dim_memory();
-            const bool use_generic = !use_dense_;
-
-            if (use_generic && !one_of(diff_dst_d.ndims(), 4, 5))
-                return status::unimplemented;
 
             if (data_type == data_type::bf16) init_scratchpad();
 
