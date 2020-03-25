@@ -125,22 +125,23 @@ status_t dnnl_primitive_destroy(primitive_iface_t *primitive_iface) {
 dnnl_primitive::dnnl_primitive(
         const std::shared_ptr<primitive_t> &primitive, engine_t *engine)
     : primitive_(primitive)
-    , scratchpad_(nullptr)
     , pd_(utils::make_unique<primitive_desc_iface_t>(
-              primitive_->pd(), engine)) {
+              primitive_->pd(), engine)) {}
 
+status_t dnnl_primitive::init() {
     const size_t scratchpad_size
             = primitive_->pd()->scratchpad_size(scratchpad_mode::library);
 
     if (scratchpad_size) {
         auto *scratchpad_ptr = create_scratchpad(pd_->engine(), scratchpad_size,
                 primitive_->use_global_scratchpad());
+        if (scratchpad_ptr == nullptr) return out_of_memory;
+        if (scratchpad_ptr->get_memory_storage() == nullptr) {
+            delete scratchpad_ptr;
+            return out_of_memory;
+        }
         scratchpad_.reset(scratchpad_ptr);
     }
-}
-
-status_t dnnl_primitive::init() {
-    // TODO: move scratchpad creation here from ctor
     return primitive_->create_resource(pd()->engine(), resource_mapper_);
 }
 
