@@ -121,14 +121,11 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (use_tmp_stats()) {
-                scratchpad.book(
-                        key_lnorm_tmp_mean, sizeof(float) * across_axis());
-                scratchpad.book(
-                        key_lnorm_tmp_var, sizeof(float) * across_axis());
+                scratchpad.book<float>(key_lnorm_tmp_mean, across_axis());
+                scratchpad.book<float>(key_lnorm_tmp_var, across_axis());
             }
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
-                scratchpad.book(
-                        key_nested, reorder_pd_->scratchpad_registry().size());
+                scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
             }
         }
 
@@ -271,18 +268,14 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (use_tmp_stats()) {
-                scratchpad.book(
-                        key_lnorm_tmp_mean, sizeof(float) * across_axis());
-                scratchpad.book(
-                        key_lnorm_tmp_var, sizeof(float) * across_axis());
+                scratchpad.book<float>(key_lnorm_tmp_mean, across_axis());
+                scratchpad.book<float>(key_lnorm_tmp_var, across_axis());
             }
-            scratchpad.book(key_lnorm_reduction,
-                    sizeof(float) * 2 * norm_axis() * dnnl_get_max_threads());
-            scratchpad.book(
-                    key_lnorm_tmp_diff_ss, sizeof(float) * 2 * norm_axis());
+            scratchpad.book<float>(key_lnorm_reduction,
+                    2 * norm_axis() * dnnl_get_max_threads());
+            scratchpad.book<float>(key_lnorm_tmp_diff_ss, 2 * norm_axis());
             if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
-                scratchpad.book(
-                        key_nested, reorder_pd_->scratchpad_registry().size());
+                scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
             }
         }
 

@@ -225,18 +225,19 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            size_t quantization_size = sizeof(int8_t) * nelems;
+            size_t quantization_size = nelems;
             // we do not use GO directly, as this can cause false sharing
             // (2 threads writing to the same cache line)
             thr_scratch_comp_sz_ = utils::rnd_up(dims[3] * dims[4], 16);
             size_t reduction_size;
-            reduction_size = itag_ == format_tag::ldigo ? dnnl_get_max_threads()
-                            * sizeof(int32_t) * thr_scratch_comp_sz_
-                                                        : 0;
+            reduction_size = itag_ == format_tag::ldigo
+                    ? dnnl_get_max_threads() * thr_scratch_comp_sz_
+                    : 0;
 
-            scratchpad.book(
+            scratchpad.template book<int8_t>(
                     key_reorder_rnn_weights_quantization, quantization_size);
-            scratchpad.book(key_reorder_rnn_weights_reduction, reduction_size);
+            scratchpad.template book<int32_t>(
+                    key_reorder_rnn_weights_reduction, reduction_size);
         }
     };
 
@@ -538,13 +539,14 @@ struct rnn_weights_reorder_t : public primitive_t {
                             && rnn_pdata.format == rnn_packed_format::ldigo_p),
                     dt_cross_case
                     = type_i == data_type::f32 && type_o == data_type::bf16;
-            size_t sz = id.nelems() * sizeof(out_data_t);
+            size_t sz = id.nelems();
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(key_reorder_rnn_weights_transposition,
+            scratchpad.template book<out_data_t>(
+                    key_reorder_rnn_weights_transposition,
                     layout_cross_case ? sz : 0);
-            scratchpad.book(
+            scratchpad.template book<out_data_t>(
                     key_reorder_rnn_weights_bf16_cvt, dt_cross_case ? sz : 0);
         }
     };

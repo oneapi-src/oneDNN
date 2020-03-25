@@ -118,27 +118,27 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.book(key_rnn_space, scratchpad_sz, 4096);
-            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 4096);
+            scratchpad.book(key_rnn_space, scratchpad_sz, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
+            scratchpad.book(key_rnn_gates, rnn_conf.scratch_gates_size, 1,
+                    OCL_BUFFER_ALIGNMENT, 4096);
             // book scratchpad for nested primitives
             switch (aprop) {
                 case prop_kind::forward:
                     scratchpad.book(key_gemm_iter_fwd,
-                            gemm_iter_fwd_pd_->scratchpad_registry().size());
+                            gemm_iter_fwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_layer_fwd,
-                            gemm_layer_fwd_pd_->scratchpad_registry().size());
+                            gemm_layer_fwd_pd_->scratchpad_registry());
                     break;
                 case prop_kind::backward:
                     scratchpad.book(key_gemm_iter_bwd,
-                            gemm_iter_bwd_pd_->scratchpad_registry().size());
+                            gemm_iter_bwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_layer_bwd,
-                            gemm_layer_bwd_pd_->scratchpad_registry().size());
+                            gemm_layer_bwd_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_diff_wei_layer,
-                            gemm_diff_wei_layer_pd_->scratchpad_registry()
-                                    .size());
+                            gemm_diff_wei_layer_pd_->scratchpad_registry());
                     scratchpad.book(key_gemm_diff_wei_iter,
-                            gemm_diff_wei_iter_pd_->scratchpad_registry()
-                                    .size());
+                            gemm_diff_wei_iter_pd_->scratchpad_registry());
                     break;
                 default: assert(!"unknown prop_kind");
             }

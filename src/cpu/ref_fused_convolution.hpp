@@ -295,10 +295,10 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
 
             scratchpad.book(memory_tracking::names::key_fusion_inout_buffer,
-                    inout_buffer_size);
+                    inout_buffer_size, 1, 16);
             scratchpad.book(
                     memory_tracking::names::key_fusion_forward_scratchpad,
-                    user_scratchpad_size_);
+                    user_scratchpad_size_, 1, 16);
             return status::success;
         }
 

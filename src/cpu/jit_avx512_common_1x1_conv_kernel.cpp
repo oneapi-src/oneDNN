@@ -1155,20 +1155,19 @@ void jit_avx512_common_1x1_conv_kernel::init_scratchpad(
 
     if (jcp.prop_kind != backward_data && jcp.with_bias
             && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, jcp.typesize_out * jcp.oc);
+        scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_out);
 
     if (jcp.prop_kind == backward_weights) {
         const size_t wei_size = (size_t)jcp.ngroups * jcp.oc * jcp.ic;
-        scratchpad.book(key_conv_wei_reduction,
-                jcp.typesize_out * wei_size * (jcp.nthr_mb - 1));
+        scratchpad.book(key_conv_wei_reduction, wei_size * (jcp.nthr_mb - 1),
+                jcp.typesize_out);
     }
 
     if (jcp.transpose_src) {
         const size_t tr_src_size
                 = (size_t)jcp.nthr_mb * jcp.ngroups * jcp.ic * jcp.tr_is;
-        scratchpad.book(key_conv_tr_src, jcp.typesize_out * tr_src_size);
-        scratchpad.book(
-                key_conv_tr_src_bctx, sizeof(simple_barrier::ctx_t) * jcp.nthr);
+        scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_out);
+        scratchpad.book<simple_barrier::ctx_t>(key_conv_tr_src_bctx, jcp.nthr);
     }
 }
 

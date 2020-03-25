@@ -301,9 +301,9 @@ void cpu_reducer_t<data_type>::conf_t::init_scratchpad(
     const size_t space_size = balancer_.ngroups_
             * (balancer_.nthr_per_group_ - 1)
             * cpu_reducer_t<data_type>::space_per_thread(balancer_);
-    scratchpad.book(key_reducer_space, sizeof(data_t) * space_size, PAGE_4K);
-    scratchpad.book(key_reducer_space_bctx,
-            sizeof(simple_barrier::ctx_t) * balancer_.ngroups_);
+    scratchpad.book<data_t>(key_reducer_space, space_size, PAGE_4K);
+    scratchpad.book<simple_barrier::ctx_t>(
+            key_reducer_space_bctx, balancer_.ngroups_);
 }
 
 template <impl::data_type_t data_type>
@@ -392,9 +392,9 @@ void cpu_reducer_2d_t<data_type>::conf_t::init_scratchpad(
 
     const size_t space_size = balancer_.ngroups_ * balancer_.nthr_per_group_
             * cpu_reducer_2d_t<data_type>::space_per_thread(balancer_);
-    scratchpad.book(key_reducer_space, sizeof(data_t) * space_size);
-    scratchpad.book(key_reducer_space_bctx,
-            sizeof(simple_barrier::ctx_t) * balancer_.ngroups_);
+    scratchpad.book<data_t>(key_reducer_space, space_size);
+    scratchpad.book<simple_barrier::ctx_t>(
+            key_reducer_space_bctx, balancer_.ngroups_);
 }
 
 template <impl::data_type_t data_type>

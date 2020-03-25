@@ -933,13 +933,12 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                                         < gemm_thrld);
             }
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
-            scratchpad.book(key_conv_gemm_col,
-                    sizeof(int8_t) * jcp.nthr * jcp.im2col_sz);
-            scratchpad.book(key_conv_int_dat_in_acc_dt,
-                    sizeof(int32_t) * jcp.nthr * jcp.oh_block * jcp.ow_block
-                            * jcp.oc);
-            scratchpad.book(key_conv_gemm_imtr,
-                    sizeof(int8_t) * jcp.nthr * jcp.id * jcp.is * jcp.ic);
+            scratchpad.book<int8_t>(
+                    key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
+            scratchpad.book<int32_t>(key_conv_int_dat_in_acc_dt,
+                    jcp.nthr * jcp.oh_block * jcp.ow_block * jcp.oc);
+            scratchpad.book<int8_t>(
+                    key_conv_gemm_imtr, jcp.nthr * jcp.id * jcp.is * jcp.ic);
         } else if (is_bwd_d) {
             jcp.im2col_sz
                     = !everyone_is(true, jcp.ow == jcp.iw, jcp.oh == jcp.ih,
@@ -965,10 +964,10 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
                                     < gemm_thrld);
 
             jcp.nthr = jcp.outer_threading ? max_threads : 1;
-            scratchpad.book(key_conv_gemm_col,
-                    sizeof(int32_t) * jcp.nthr * jcp.im2col_sz);
-            scratchpad.book(key_conv_int_dat_in_acc_dt,
-                    sizeof(int32_t) * jcp.nthr * jcp.is * jcp.id * jcp.ic);
+            scratchpad.book<int32_t>(
+                    key_conv_gemm_col, jcp.nthr * jcp.im2col_sz);
+            scratchpad.book<int32_t>(key_conv_int_dat_in_acc_dt,
+                    jcp.nthr * jcp.is * jcp.id * jcp.ic);
         } else if (is_bwd_w) {
             assert(!"unimplemented prop_kind");
             return status::unimplemented;
@@ -1254,34 +1253,35 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
         const size_t gemm_col_datatype_size = is_bf16_conv && !is_bwd_d
                 ? sizeof(bfloat16_t)
                 : sizeof(float);
-        scratchpad.book(key_conv_gemm_col,
-                gemm_col_datatype_size * jcp.nthr * jcp.im2col_sz);
+        scratchpad.book(key_conv_gemm_col, jcp.nthr * jcp.im2col_sz,
+                gemm_col_datatype_size);
 
         const int sizeof_cacheline_float = 16;
         if (is_bwd_w) {
             jcp.need_wei_reduction = jcp.mb != 1 && jcp.nthr != 1;
-            scratchpad.book(key_conv_wei_reduction,
-                    sizeof(float) * jcp.nthr * weights_d.size());
+            scratchpad.book<float>(
+                    key_conv_wei_reduction, jcp.nthr * weights_d.size());
         }
 
         if (is_bf16_to_bf16_conv) {
             size_t conv_acc_buffer_size = 0;
             if (is_fwd)
-                conv_acc_buffer_size = sizeof(float) * jcp.nthr
+                conv_acc_buffer_size = jcp.nthr
                         * rnd_up(jcp.oc * jcp.oh_block * jcp.ow_block,
                                 sizeof_cacheline_float);
             else if (is_bwd_d)
-                conv_acc_buffer_size = sizeof(float) * jcp.nthr
+                conv_acc_buffer_size = jcp.nthr
                         * rnd_up(jcp.ic * jcp.ih * jcp.iw * jcp.id,
                                 sizeof_cacheline_float);
             else if (is_bwd_w)
-                conv_acc_buffer_size = sizeof(float) * weights_d.size();
-            scratchpad.book(key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
+                conv_acc_buffer_size = weights_d.size();
+            scratchpad.book<float>(
+                    key_conv_int_dat_in_acc_dt, conv_acc_buffer_size);
             if ((is_fwd || is_bwd_w) && jcp.with_bias
                     && one_of(data_type::bf16, cd.diff_bias_desc.data_type,
                             cd.bias_desc.data_type))
-                scratchpad.book(key_conv_bias_bf16_convert_wsp,
-                        sizeof(float) * jcp.ngroups * jcp.oc);
+                scratchpad.book<float>(
+                        key_conv_bias_bf16_convert_wsp, jcp.ngroups * jcp.oc);
         }
     }
     // Heuristic threshold for requested scratchpad memory to avoid

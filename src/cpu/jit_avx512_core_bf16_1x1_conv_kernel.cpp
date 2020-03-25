@@ -1240,36 +1240,35 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
         if (jcp.bia_dt == data_type::bf16
                 && jcp.prop_kind == backward_weights) {
             scratchpad.book(key_conv_bias_bf16_convert_wsp,
-                    jcp.typesize_acc * jcp.ngroups * jcp.oc);
+                    jcp.ngroups * jcp.oc, jcp.typesize_acc);
         } else if (utils::one_of(jcp.prop_kind, forward_inference,
                            forward_training, backward_weights)
                 && jcp.oc != jcp.oc_without_padding)
-            scratchpad.book(key_conv_padded_bias, jcp.typesize_bia * jcp.oc);
+            scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
     }
     if (jcp.prop_kind == backward_weights) {
         const size_t wei_size = (size_t)jcp.ngroups * jcp.oc * jcp.ic;
         const int n_buffers
                 = jcp.dst_dt == data_type::bf16 ? jcp.nthr_mb : jcp.nthr_mb - 1;
-        scratchpad.book(key_conv_wei_reduction,
-                jcp.typesize_acc * wei_size * n_buffers);
+        scratchpad.book(
+                key_conv_wei_reduction, wei_size * n_buffers, jcp.typesize_acc);
 
         if (!jcp.uses_permw_transposition) {
             const size_t dst_diff_tr_size_per_thr
                     = (size_t)rnd_up(jcp.reduce_dim, 2) * jcp.oc_block
-                    * jcp.nb_load_blocking_max * jcp.typesize_in;
-            scratchpad.book(
-                    key_conv_tr_diff_dst, jcp.nthr * dst_diff_tr_size_per_thr);
+                    * jcp.nb_load_blocking_max;
+            scratchpad.book(key_conv_tr_diff_dst,
+                    jcp.nthr * dst_diff_tr_size_per_thr, jcp.typesize_in);
             const size_t src_tr_size_per_thr = (size_t)rnd_up(jcp.reduce_dim, 2)
-                    * jcp.ic_block * jcp.nb_bcast_blocking_max
-                    * jcp.typesize_in;
-            scratchpad.book(key_conv_tr_src, jcp.nthr * src_tr_size_per_thr);
+                    * jcp.ic_block * jcp.nb_bcast_blocking_max;
+            scratchpad.book(key_conv_tr_src, jcp.nthr * src_tr_size_per_thr,
+                    jcp.typesize_in);
         }
 
         if (jcp.with_bias) {
-            const size_t d_dst_f32_size
-                    = (size_t)jcp.typesize_acc * jcp.os * jcp.oc_block;
-            scratchpad.book(
-                    key_conv_dst_bf16_convert_wsp, jcp.nthr * d_dst_f32_size);
+            const size_t d_dst_f32_size = (size_t)jcp.os * jcp.oc_block;
+            scratchpad.book(key_conv_dst_bf16_convert_wsp,
+                    jcp.nthr * d_dst_f32_size, jcp.typesize_acc);
         }
     }
 
@@ -1278,9 +1277,9 @@ void jit_avx512_core_bf16_1x1_conv_kernel::init_scratchpad(
             jcp.nthr, utils::div_up(jcp.nthr, jcp.load_grp_count));
     const size_t max_load_per_thread
             = rnd_up((jcp.load_dim / grp_count), jcp.load_block);
-    const size_t store_buffer_size = (size_t)jcp.typesize_acc * jcp.nthr
-            * jcp.bcast_dim * max_load_per_thread;
-    scratchpad.book(key_conv_store_wsp, store_buffer_size);
+    const size_t store_buffer_size
+            = (size_t)jcp.nthr * jcp.bcast_dim * max_load_per_thread;
+    scratchpad.book(key_conv_store_wsp, store_buffer_size, jcp.typesize_acc);
 }
 
 void jit_avx512_core_bf16_1x1_conv_kernel::balance(

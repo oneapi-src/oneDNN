@@ -616,7 +616,7 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 void jit_avx2_conv_fwd_kernel_f32::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
+        scratchpad.book<float>(key_conv_padded_bias, jcp.oc);
 }
 
 void jit_avx2_conv_bwd_data_kernel_f32::compute_loop(
@@ -1148,7 +1148,7 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
 void jit_avx2_conv_bwd_weights_kernel_f32::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
+        scratchpad.book<float>(key_conv_padded_bias, jcp.oc);
 }
 
 inline void jit_avx2_conv_bwd_weights_kernel_f32::od_step_comeback_pointers() {

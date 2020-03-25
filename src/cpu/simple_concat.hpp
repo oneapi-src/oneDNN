@@ -146,11 +146,11 @@ struct simple_concat_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(key_concat_iptrs, sizeof(data_t *) * n_inputs());
-            scratchpad.book(key_concat_optrs, sizeof(data_t *) * n_inputs());
-            scratchpad.book(key_concat_nelems, sizeof(dim_t) * n_inputs());
-            scratchpad.book(
-                    key_concat_istrides, sizeof(strides_t) * n_inputs());
+            scratchpad.template book<data_t *>(key_concat_iptrs, n_inputs());
+            scratchpad.template book<data_t *>(key_concat_optrs, n_inputs());
+            scratchpad.template book<dim_t>(key_concat_nelems, n_inputs());
+            scratchpad.template book<strides_t>(
+                    key_concat_istrides, n_inputs());
         }
 
         void copy_from(const pd_t &rhs) {

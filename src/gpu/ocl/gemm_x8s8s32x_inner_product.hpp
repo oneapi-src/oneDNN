@@ -29,6 +29,7 @@
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_resource.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -257,12 +258,12 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
                 memory_desc_wrapper scratchpad_mdw(ip_scratchpad_md());
                 size_t sz = scratchpad_mdw.size();
                 scratchpad.book(
-                        memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                        sz);
+                        memory_tracking::names::key_iprod_int_dat_in_acc_dt, sz,
+                        1, OCL_BUFFER_ALIGNMENT);
             }
 
             scratchpad.book(memory_tracking::names::key_nested,
-                    gemm_pd_->scratchpad_registry().size());
+                    gemm_pd_->scratchpad_registry());
         }
     };
 

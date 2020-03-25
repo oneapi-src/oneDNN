@@ -75,7 +75,7 @@ struct nchw_pooling_fwd_t : public primitive_t {
             if (src_md()->data_type == data_type::bf16) {
                 size_t src_sz_ = ID() * IH() * IW() * C() * MB();
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(key_pool_src_bf16cvt, sizeof(float) * src_sz_);
+                scratchpad.template book<float>(key_pool_src_bf16cvt, src_sz_);
             }
         }
     };
@@ -154,10 +154,10 @@ struct nchw_pooling_bwd_t : public primitive_t {
                 size_t nthrs = dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
 
-                scratchpad.book(key_pool_src_bf16cvt,
-                        sizeof(float) * src_sz_ * nthrs * channel_block_size_);
-                scratchpad.book(key_pool_dst_bf16cvt,
-                        sizeof(float) * dst_sz_ * nthrs * channel_block_size_);
+                scratchpad.template book<float>(key_pool_src_bf16cvt,
+                        src_sz_ * nthrs * channel_block_size_);
+                scratchpad.template book<float>(key_pool_dst_bf16cvt,
+                        dst_sz_ * nthrs * channel_block_size_);
             }
         }
 

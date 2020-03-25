@@ -97,9 +97,9 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         void init_scratchpad() {
             if (!dst_is_acc_) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
+                scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                        sizeof(acc_data_t) * MB() * OC());
+                        MB() * OC());
             }
         }
     };

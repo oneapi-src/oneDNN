@@ -87,10 +87,10 @@ struct wino_reorder_t : public primitive_t {
 
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(key_reorder_wino_transform_space,
-                    sizeof(in_data_t) * transform_space_size);
-            scratchpad.book(
-                    key_reorder_wino_plain, sizeof(out_data_t) * plain_size);
+            scratchpad.template book<in_data_t>(
+                    key_reorder_wino_transform_space, transform_space_size);
+            scratchpad.template book<out_data_t>(
+                    key_reorder_wino_plain, plain_size);
         }
     };
 

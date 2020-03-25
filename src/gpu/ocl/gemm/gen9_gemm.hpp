@@ -155,19 +155,20 @@ struct gen9_gemm_t : public gpu_gemm_t {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_gemm_flag,
                     ((m + unroll_m - 1) / unroll_m)
-                            * ((n + unroll_n - 1) / unroll_n) * sizeof(int));
+                            * ((n + unroll_n - 1) / unroll_n),
+                    sizeof(int), OCL_BUFFER_ALIGNMENT);
         }
 
         void init_scratchpad_copy_based() {
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(
-                    memory_tracking::names::key_gemm_tmp_buffer, 128 << 20);
+            scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
+                    128 << 20, 1, OCL_BUFFER_ALIGNMENT);
         }
 
         void init_scratchpad_nocopy_superkernel() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_gemm_tmp_buffer,
-                    max_plan_size());
+                    max_plan_size(), 1, OCL_BUFFER_ALIGNMENT);
         }
 
         bool with_eltwise() const {

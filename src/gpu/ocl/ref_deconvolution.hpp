@@ -167,7 +167,7 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    conv_pd_->scratchpad_registry().size());
+                    conv_pd_->scratchpad_registry());
         }
     };
 
@@ -277,7 +277,7 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    conv_pd_->scratchpad_registry().size());
+                    conv_pd_->scratchpad_registry());
         }
     };
 
@@ -389,7 +389,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    conv_pd_->scratchpad_registry().size());
+                    conv_pd_->scratchpad_registry());
         }
     };
 

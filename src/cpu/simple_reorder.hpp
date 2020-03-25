@@ -1378,8 +1378,8 @@ struct simple_reorder_t : public primitive_t {
                     = simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
                             spec>::get_scratchpad_size(src_md, dst_md);
             auto scratchpad = _pd->scratchpad_registry().registrar();
-            scratchpad.book(
-                    memory_tracking::names::key_reorder_space, scratchpad_sz_);
+            scratchpad.book(memory_tracking::names::key_reorder_space,
+                    scratchpad_sz_, 1, 16);
             _pd->init_scratchpad_md();
             return safe_ptr_assign<reorder_pd_t>(*reorder_pd, _pd);
         }

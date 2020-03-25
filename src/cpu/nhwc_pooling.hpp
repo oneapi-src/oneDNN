@@ -83,10 +83,10 @@ struct nhwc_pooling_fwd_t : public primitive_t {
             if (src_md()->data_type == data_type::bf16) {
                 size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
-                        key_pool_src_bf16cvt, sizeof(float) * bf16cvt_sz_);
-                scratchpad.book(
-                        key_pool_dst_bf16cvt, sizeof(float) * bf16cvt_sz_);
+                scratchpad.template book<float>(
+                        key_pool_src_bf16cvt, bf16cvt_sz_);
+                scratchpad.template book<float>(
+                        key_pool_dst_bf16cvt, bf16cvt_sz_);
             }
         }
     };
@@ -220,10 +220,10 @@ struct nhwc_pooling_bwd_t : public primitive_t {
             if (diff_src_md()->data_type == data_type::bf16) {
                 size_t bf16cvt_sz_ = C() * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
-                        key_pool_src_bf16cvt, sizeof(float) * bf16cvt_sz_);
-                scratchpad.book(
-                        key_pool_dst_bf16cvt, sizeof(float) * bf16cvt_sz_);
+                scratchpad.template book<float>(
+                        key_pool_src_bf16cvt, bf16cvt_sz_);
+                scratchpad.template book<float>(
+                        key_pool_dst_bf16cvt, bf16cvt_sz_);
             }
         }
     };

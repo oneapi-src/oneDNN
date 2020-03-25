@@ -86,6 +86,8 @@ inline status_t convert_to_dnnl(cl_int cl_status) {
     }
 }
 
+enum { OCL_BUFFER_ALIGNMENT = 128 };
+
 #ifndef NDEBUG
 #define MAYBE_REPORT_OCL_ERROR(s) \
     do { \

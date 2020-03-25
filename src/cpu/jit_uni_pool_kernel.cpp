@@ -171,12 +171,11 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
     if (jpp.tag_kind == jptg_ncsp) {
         scratchpad.book(key_pool_src_plain2blocked_cvt,
-                jpp.dt_size * jpp.c_block * jpp.id * jpp.ih * jpp.iw * nscr);
+                jpp.c_block * jpp.id * jpp.ih * jpp.iw * nscr, jpp.dt_size);
         scratchpad.book(key_pool_dst_plain2blocked_cvt,
-                jpp.dt_size * jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr);
-        scratchpad.book(key_pool_ind_plain2blocked_cvt,
-                sizeof(uint32_t) * jpp.c_block * jpp.od * jpp.oh * jpp.ow
-                        * nscr);
+                jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr, jpp.dt_size);
+        scratchpad.book<uint32_t>(key_pool_ind_plain2blocked_cvt,
+                jpp.c_block * jpp.od * jpp.oh * jpp.ow * nscr);
     }
 
     return status::success;

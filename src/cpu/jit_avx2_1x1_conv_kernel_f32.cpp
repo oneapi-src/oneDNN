@@ -694,7 +694,7 @@ void jit_avx2_1x1_conv_kernel_f32::init_scratchpad(
     using namespace dnnl::impl::memory_tracking::names;
 
     if (jcp.prop_kind != backward_data && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
+        scratchpad.book<float>(key_conv_padded_bias, jcp.oc);
 }
 
 } // namespace cpu

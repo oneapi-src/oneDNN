@@ -237,9 +237,9 @@ void jit_uni_dw_conv_fwd_kernel<isa, kernel_dt>::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     using namespace dnnl::impl::memory_tracking::names;
     if (jcp.bia_dt == data_type::bf16)
-        scratchpad.book(key_conv_bias_bf16_convert_wsp, sizeof(float) * jcp.oc);
+        scratchpad.book<float>(key_conv_bias_bf16_convert_wsp, jcp.oc);
     else if (jcp.with_bias && jcp.oc_without_padding != jcp.oc)
-        scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp.oc);
+        scratchpad.book<float>(key_conv_padded_bias, jcp.oc);
 }
 
 template struct jit_uni_dw_conv_fwd_kernel<avx512_core, data_type::bf16>;
@@ -522,18 +522,17 @@ void jit_uni_dw_conv_bwd_weights_kernel<isa, kernel_dt>::init_scratchpad(
         const size_t mb = jcp.dwei_dt == data_type::bf16 ? jcp.nthr_mb
                                                          : jcp.nthr_mb - 1;
         const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-        scratchpad.book(key_conv_wei_reduction, sizeof(float) * wei_size * mb);
+        scratchpad.book<float>(key_conv_wei_reduction, wei_size * mb);
 
         if (jcp.with_bias)
-            scratchpad.book(key_conv_bia_reduction,
-                    sizeof(float) * jcp.ngroups * (jcp.nthr_mb - 1));
+            scratchpad.book<float>(
+                    key_conv_bia_reduction, jcp.ngroups * (jcp.nthr_mb - 1));
     } else if (jcp.nthr_mb == 1 && jcp.dwei_dt == data_type::bf16) {
         const size_t wei_size = jcp.ngroups * jcp.kh * jcp.kw;
-        scratchpad.book(key_conv_wei_reduction, sizeof(float) * wei_size);
+        scratchpad.book<float>(key_conv_wei_reduction, wei_size);
     }
     if (jcp.bia_dt == data_type::bf16)
-        scratchpad.book(
-                key_conv_bias_bf16_convert_wsp, sizeof(float) * jcp.ngroups);
+        scratchpad.book<float>(key_conv_bias_bf16_convert_wsp, jcp.ngroups);
 }
 
 template <cpu_isa_t isa, data_type_t kernel_dt>

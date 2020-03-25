@@ -84,9 +84,9 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
         void init_scratchpad() {
             if (!dst_is_acc_) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
+                scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                        sizeof(acc_data_t) * MB() * OC());
+                        MB() * OC());
             }
         }
     };
@@ -166,9 +166,9 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
         void init_scratchpad() {
             if (!diff_src_is_acc_) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(
+                scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                        sizeof(acc_data_t) * MB() * IC_total_padded());
+                        MB() * IC_total_padded());
             }
         }
     };
@@ -233,13 +233,13 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             if (!diff_wei_is_acc_)
-                scratchpad.book(
+                scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_iprod_int_dat_in_acc_dt,
-                        sizeof(acc_data_t) * OC() * IC_total_padded());
+                        OC() * IC_total_padded());
             if (with_bias() && !diff_bias_is_acc_)
-                scratchpad.book(
+                scratchpad.template book<acc_data_t>(
                         memory_tracking::names::key_iprod_bias_bf16_convert_wsp,
-                        sizeof(acc_data_t) * OC());
+                        OC());
         }
     };
 

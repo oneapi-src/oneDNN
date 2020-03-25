@@ -85,9 +85,9 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
 
             if (conf.do_reorder) {
-                size_t sz = conf.nelems * sizeof(float);
-                scratchpad.book(
-                        memory_tracking::names::key_reorder_rnn_space, sz);
+                size_t sz = conf.nelems;
+                scratchpad.book(memory_tracking::names::key_reorder_rnn_space,
+                        sz, sizeof(float), OCL_BUFFER_ALIGNMENT);
             }
         }
     };

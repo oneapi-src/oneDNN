@@ -87,14 +87,14 @@ struct jit_avx512_core_f32_wino_conv_2x3_fwd_t : public primitive_t {
             int wino_size_offset = (jcp_.yb / 2) * (jcp_.xb / 2) + jcp_.xb;
 
             size_t V_sz = (size_t)jcp_.ic * 16 * wino_size_offset * jcp_.nthr;
-            scratchpad.book(key_wino_V, sizeof(float) * V_sz, PAGE_4K);
+            scratchpad.book<float>(key_wino_V, V_sz, PAGE_4K);
 
             size_t M_sz = (size_t)jcp_.oc * 16 * wino_size_offset * jcp_.nthr;
-            scratchpad.book(key_wino_M, sizeof(float) * M_sz, PAGE_4K);
+            scratchpad.book<float>(key_wino_M, M_sz, PAGE_4K);
 
             if (wants_padded_bias()) {
                 assert(jcp_.ngroups == 1);
-                scratchpad.book(key_conv_padded_bias, sizeof(float) * jcp_.oc);
+                scratchpad.book<float>(key_conv_padded_bias, jcp_.oc);
             }
         }
 

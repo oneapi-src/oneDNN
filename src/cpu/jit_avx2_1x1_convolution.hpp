@@ -247,11 +247,11 @@ struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
             registrar_t dw_scratchpad(scratchpad, names::prefix_fusion);
 
             size_t dw_conv_buffer_size_ = (size_t)nthr * jcp_dw->kh * jcp_dw->iw
-                    * jcp_dw->dw_conv_buffer_oc
-                    * types::data_type_size(dw_conv_pd_->src_md()->data_type);
+                    * jcp_dw->dw_conv_buffer_oc;
             assert(dw_conv_buffer_size_);
             dw_scratchpad.book(memory_tracking::names::key_fusion_inout_buffer,
-                    dw_conv_buffer_size_);
+                    dw_conv_buffer_size_,
+                    types::data_type_size(dw_conv_pd_->src_md()->data_type));
 
             if (jcp_1x1.isa == avx2)
                 dw_conv_kernel_t<avx2>::init_scratchpad(dw_scratchpad, *jcp_dw);

@@ -220,24 +220,24 @@ struct _ref_rnn_common_t : public primitive_t {
         void init_scratchpad(size_t scratchpad_sz) {
             using namespace memory_tracking::names;
             auto scratchpad = this->scratchpad_registry().registrar();
-            scratchpad.book(key_rnn_space, sizeof(float) * scratchpad_sz, 4096);
+            scratchpad.template book<float>(key_rnn_space, scratchpad_sz, 4096);
 
             int max_nparts = this->cell_kind() == alg_kind::vanilla_gru ? 2 : 1;
             int ptr_wei_sz = rnn_.n_layer * rnn_.n_dir * max_nparts;
-            scratchpad.book(
-                    key_rnn_ptrs_wei_layer, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(
-                    key_rnn_ptrs_wei_iter, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(
-                    key_rnn_ptrs_wei_projection, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(key_rnn_ptrs_bia, sizeof(float *) * ptr_wei_sz);
-            scratchpad.book(
-                    key_rnn_gates, sizeof(scratch_t) * rnn_.scratch_gates_size);
-            scratchpad.book(key_rnn_ht, sizeof(ht_t) * rnn_.scratch_ht_size);
-            scratchpad.book(key_rnn_diff_ht,
-                    sizeof(gemm_acc_t) * rnn_.scratch_diff_ht_size);
-            scratchpad.book(
-                    key_rnn_cell, sizeof(scratch_t) * rnn_.scratch_cell_size);
+            scratchpad.template book<float *>(
+                    key_rnn_ptrs_wei_layer, ptr_wei_sz);
+            scratchpad.template book<float *>(
+                    key_rnn_ptrs_wei_iter, ptr_wei_sz);
+            scratchpad.template book<float *>(
+                    key_rnn_ptrs_wei_projection, ptr_wei_sz);
+            scratchpad.template book<float *>(key_rnn_ptrs_bia, ptr_wei_sz);
+            scratchpad.template book<scratch_t>(
+                    key_rnn_gates, rnn_.scratch_gates_size);
+            scratchpad.template book<ht_t>(key_rnn_ht, rnn_.scratch_ht_size);
+            scratchpad.template book<gemm_acc_t>(
+                    key_rnn_diff_ht, rnn_.scratch_diff_ht_size);
+            scratchpad.template book<scratch_t>(
+                    key_rnn_cell, rnn_.scratch_cell_size);
         }
     };
 

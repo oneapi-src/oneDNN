@@ -33,9 +33,9 @@ void cross_engine_reorder_t::pd_t::init_scratchpad() {
             desc()->src_engine_kind == reorder_engine_kind_ ? dst_md()
                                                             : src_md());
     auto scratchpad = scratchpad_registry().registrar();
-    scratchpad.book(
-            memory_tracking::names::key_reorder_cross_space, wspace_md.size());
-    scratchpad.book(key_nested, reorder_pd_->scratchpad_registry().size());
+    scratchpad.book(memory_tracking::names::key_reorder_cross_space,
+            wspace_md.size(), 1, OCL_BUFFER_ALIGNMENT);
+    scratchpad.book(key_nested, reorder_pd_->scratchpad_registry());
 }
 
 status_t cross_engine_reorder_t::pd_t::init(

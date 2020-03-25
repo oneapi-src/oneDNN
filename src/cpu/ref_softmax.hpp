@@ -55,8 +55,9 @@ struct ref_softmax_fwd_t : public primitive_t {
 
             if (in_s > 1) {
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(memory_tracking::names::key_softmax_reduction,
-                        sizeof(float) * 2 * in_s * ou_s);
+                scratchpad.template book<float>(
+                        memory_tracking::names::key_softmax_reduction,
+                        2 * in_s * ou_s);
             }
         }
     };

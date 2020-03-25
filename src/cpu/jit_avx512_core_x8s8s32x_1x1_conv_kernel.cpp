@@ -885,7 +885,7 @@ void jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_scratchpad(
     if (jcp.signed_input && jcp.ver != ver_vnni) {
         dim_t count = nstl::max<dim_t>(
                 attr.output_scales_.count_, (dim_t)jcp.ic_block);
-        scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
+        scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 }
 

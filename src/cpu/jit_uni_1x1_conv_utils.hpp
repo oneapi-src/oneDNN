@@ -121,7 +121,7 @@ inline void rtus_prepare_space_info(conv_pd_t *self,
     self->rtus_.space_per_thread_
             = is_nspc ? jcp.is * jcp.ic : factor * jcp.is * jcp.ic_block;
     scratchpad.book(memory_tracking::names::key_conv_rtus_space,
-            typesize * max_threads * self->rtus_.space_per_thread_);
+            max_threads * self->rtus_.space_per_thread_, typesize);
 }
 
 template <cpu_isa_t isa>

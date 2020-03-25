@@ -105,12 +105,13 @@ struct ref_sum_t : public primitive_t {
             auto scratchpad = scratchpad_registry().registrar();
             if (need_output_reorder()) {
                 const memory_desc_wrapper dst_acc_d(dst_acc_md());
-                scratchpad.book(key_sum_reduction, dst_acc_d.size());
+                scratchpad.book(key_sum_reduction, dst_acc_d.size(), 1,
+                        dst_acc_d.data_type_size());
             }
 
             for (size_t i = 0; i < reorder_pds_.size(); i++) {
                 scratchpad.book(key_nested_multiple + (int)i,
-                        reorder_pds_[i]->scratchpad_registry().size());
+                        reorder_pds_[i]->scratchpad_registry());
             }
         };
     };

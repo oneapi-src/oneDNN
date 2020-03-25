@@ -324,7 +324,7 @@ void jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_scratchpad(
         const primitive_attr_t &attr) {
     if (jcp.signed_input && jcp.ver != ver_vnni) {
         dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 16);
-        scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
+        scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 }
 

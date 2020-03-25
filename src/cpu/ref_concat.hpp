@@ -117,13 +117,14 @@ struct ref_concat_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (use_tent_dst()) {
+                const memory_desc_wrapper tent_dst_d(&tent_dst_md_);
                 scratchpad.book(memory_tracking::names::key_concat_tent_dst,
-                        dnnl_memory_desc_get_size(&tent_dst_md_));
+                        tent_dst_d.size(), 1, tent_dst_d.data_type_size());
             }
 
             for (size_t i = 0; i < reorder_pds_.size(); i++) {
                 scratchpad.book(key_nested_multiple + (int)i,
-                        reorder_pds_[i]->scratchpad_registry().size());
+                        reorder_pds_[i]->scratchpad_registry());
             }
         }
     };

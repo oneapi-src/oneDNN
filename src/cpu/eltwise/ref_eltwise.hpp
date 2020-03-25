@@ -141,10 +141,11 @@ struct ref_eltwise_bwd_t : public primitive_t {
             const memory_desc_wrapper diff_data_d(diff_dst_md());
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            const auto diff_dst_size = diff_data_d.nelems(true) * sizeof(float);
-            scratchpad.book(
-                    key_eltwise_src, data_d.nelems(true) * sizeof(float));
-            scratchpad.book(key_eltwise_diff_dst, diff_dst_size);
+            const auto diff_dst_size = diff_data_d.nelems(true);
+            scratchpad.template book<float>(
+                    key_eltwise_src, data_d.nelems(true));
+            scratchpad.template book<float>(
+                    key_eltwise_diff_dst, diff_dst_size);
         }
     };
 

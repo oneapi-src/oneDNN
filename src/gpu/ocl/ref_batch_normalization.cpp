@@ -231,10 +231,11 @@ status_t ref_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
 void ref_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
 
-        size_t size = 2 * conf.stat_ic * types::data_type_size(data_type::f32);
+        size_t size = 2 * conf.stat_ic;
 
         auto scratchpad = scratchpad_registry().registrar();
-        scratchpad.book(memory_tracking::names::key_bnorm_reduction, size);
+        scratchpad.book(memory_tracking::names::key_bnorm_reduction, size,
+                types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
     }
 }
 
@@ -346,14 +347,14 @@ status_t ref_batch_normalization_bwd_t::pd_t::init_kernel_ctx(
 void ref_batch_normalization_bwd_t::pd_t::init_scratchpad() {
     size_t size;
     if (conf.use_16mb_unroll) {
-        size = 2 * conf.reduce_stat_nblocks * conf.ic
-                * types::data_type_size(data_type::f32);
+        size = 2 * conf.reduce_stat_nblocks * conf.ic;
     } else {
-        size = 2 * conf.stat_ic * types::data_type_size(data_type::f32);
+        size = 2 * conf.stat_ic;
     }
 
     auto scratchpad = scratchpad_registry().registrar();
-    scratchpad.book(memory_tracking::names::key_bnorm_reduction, size);
+    scratchpad.book(memory_tracking::names::key_bnorm_reduction, size,
+            types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
 }
 
 status_t ref_batch_normalization_bwd_t::execute_backward(

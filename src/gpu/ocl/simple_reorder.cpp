@@ -226,7 +226,7 @@ void simple_reorder_t::pd_t::init_scratchpad() {
     if (conf.scales_num > 0) {
         auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_reorder_scales,
-                sizeof(float) * conf.scales_num);
+                conf.scales_num, sizeof(float), OCL_BUFFER_ALIGNMENT);
     }
 }
 

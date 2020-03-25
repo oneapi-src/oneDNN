@@ -66,13 +66,13 @@ inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         default: break;
     }
 
-    scratchpad.book(key_wino_U, sizeof(float) * U_sz, PAGE_2M);
-    scratchpad.book(key_wino_V, sizeof(float) * V_sz, PAGE_2M);
-    scratchpad.book(key_wino_M, sizeof(float) * M_sz, PAGE_2M);
+    scratchpad.book<float>(key_wino_U, U_sz, PAGE_2M);
+    scratchpad.book<float>(key_wino_V, V_sz, PAGE_2M);
+    scratchpad.book<float>(key_wino_M, M_sz, PAGE_2M);
 
     if (one_of(jcp.sched_policy, WSCHED_WEI_SDGtWo, WSCHED_WEI_S_D_Giot_W)) {
         size_t br_sz = (size_t)jcp.nthr * jcp.oc;
-        scratchpad.book(key_conv_bia_reduction, sizeof(float) * br_sz, PAGE_2M);
+        scratchpad.book<float>(key_conv_bia_reduction, br_sz, PAGE_2M);
     }
 }
 } // namespace winograd_avx512_core

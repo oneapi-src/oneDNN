@@ -154,7 +154,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_gemm_int_c_in_acc_dt,
-                    desc()->m * desc()->n * sizeof(int));
+                    desc()->m * desc()->n, sizeof(int), OCL_BUFFER_ALIGNMENT);
         }
     };
 

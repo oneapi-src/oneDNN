@@ -151,16 +151,16 @@ status_t convolution_inner_product_fwd_t::pd_t::init_scratchpad() {
     auto scratchpad = scratchpad_registry().registrar();
     if (conf.reorder_dst) {
         memory_desc_wrapper md_d(*cpd_->dst_md());
-        scratchpad.book(
-                memory_tracking::names::key_iprod_dst_reorder, md_d.size());
+        scratchpad.book(memory_tracking::names::key_iprod_dst_reorder,
+                md_d.size(), 1, OCL_BUFFER_ALIGNMENT);
         scratchpad.book(memory_tracking::names::key_nested_multiple + 1,
-                rpd_dst_->scratchpad_registry().size());
+                rpd_dst_->scratchpad_registry());
         if (with_sum())
             scratchpad.book(memory_tracking::names::key_nested_multiple + 2,
-                    rpd_postop_->scratchpad_registry().size());
+                    rpd_postop_->scratchpad_registry());
     }
     scratchpad.book(memory_tracking::names::key_nested_multiple,
-            cpd_->scratchpad_registry().size());
+            cpd_->scratchpad_registry());
     return status::success;
 }
 

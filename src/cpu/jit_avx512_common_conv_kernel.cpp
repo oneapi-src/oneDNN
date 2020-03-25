@@ -1640,7 +1640,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 void jit_avx512_common_conv_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp) {
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, jcp.typesize_out * jcp.oc);
+        scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_out);
 }
 
 template <typename Vmm>
@@ -4841,7 +4841,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
         if (jcp.is_1stconv) {
             const size_t tr_src_size = jcp.nthr / jcp.nthr_oc_b * jcp.ih
                     * jcp.stride_w * jcp.tr_ld;
-            scratchpad.book(key_conv_tr_src, jcp.typesize_in * tr_src_size);
+            scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_in);
         } else {
             // XXX: See the comment about tr_iw and guarding elements in
             // jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf()
@@ -4850,14 +4850,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
                     = jcp.ih * jcp.ic_block * jcp.tr_iw;
             const size_t tr_src_size = max_nthr * min_tr_src_size_per_thr
                     + jcp.tr_src_num_guard_elems;
-            scratchpad.book(key_conv_tr_src, jcp.typesize_in * tr_src_size);
+            scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_in);
         }
 
         /* prepare synchronization contexts */
         if (jcp.nthr_oc_b > 1) {
             const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
-            scratchpad.book(key_conv_tr_src_bctx,
-                    sizeof(simple_barrier::ctx_t) * tr_src_bctx_size);
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_tr_src_bctx, tr_src_bctx_size);
         }
     }
 
@@ -4868,13 +4868,13 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
         const size_t wei_bia_reduction_size = wei_size + bia_size;
 
         scratchpad.book(key_conv_wei_bia_reduction,
-                jcp.typesize_out * wei_bia_reduction_size * (jcp.nthr_mb - 1));
-        scratchpad.book(
-                key_conv_wei_bia_reduction_bctx, sizeof(simple_barrier::ctx_t));
+                wei_bia_reduction_size * (jcp.nthr_mb - 1), jcp.typesize_out);
+        scratchpad.book<simple_barrier::ctx_t>(
+                key_conv_wei_bia_reduction_bctx, 1);
     }
 
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding)
-        scratchpad.book(key_conv_padded_bias, jcp.typesize_out * jcp.oc);
+        scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_out);
 }
 
 void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(

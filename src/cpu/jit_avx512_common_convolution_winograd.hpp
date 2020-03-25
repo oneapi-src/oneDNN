@@ -41,9 +41,9 @@ inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
     size_t M_sz = (size_t)alpha * alpha * jcp.mb * jcp.oc
             * (jcp.itiles * jcp.jtiles + jcp.tile_4fma_padding);
 
-    scratchpad.book(key_wino_U, sizeof(float) * U_sz, PAGE_2M);
-    scratchpad.book(key_wino_V, sizeof(float) * V_sz, PAGE_2M);
-    scratchpad.book(key_wino_M, sizeof(float) * M_sz, PAGE_2M);
+    scratchpad.book<float>(key_wino_U, U_sz, PAGE_2M);
+    scratchpad.book<float>(key_wino_V, V_sz, PAGE_2M);
+    scratchpad.book<float>(key_wino_M, M_sz, PAGE_2M);
 
     if (jcp.sched_policy == WSCHED_WEI_S_D_G_W) {
         const int nthr = dnnl_get_max_threads();
@@ -51,15 +51,15 @@ inline void init_scratchpad(memory_tracking::registrar_t &scratchpad,
         size_t tr_src_sz = jcp.ver != ver_4fma ? 0
                                                : (size_t)nthr * alpha * alpha
                         * jcp.tile_4fma * jcp.ic_simd_block;
-        scratchpad.book(key_conv_tr_src, sizeof(float) * tr_src_sz, PAGE_2M);
+        scratchpad.book<float>(key_conv_tr_src, tr_src_sz, PAGE_2M);
 
         size_t br_sz = jcp.with_bias ? nthr * jcp.oc : 0;
-        scratchpad.book(key_conv_bia_reduction, sizeof(float) * br_sz, PAGE_2M);
+        scratchpad.book<float>(key_conv_bia_reduction, br_sz, PAGE_2M);
 
         size_t padded_bias_sz
                 = jcp.with_bias && jcp.oc_without_padding != jcp.oc ? jcp.oc
                                                                     : 0;
-        scratchpad.book(key_conv_padded_bias, sizeof(float) * padded_bias_sz);
+        scratchpad.book<float>(key_conv_padded_bias, padded_bias_sz);
     }
 }
 } // namespace winograd_avx512_common

@@ -617,7 +617,7 @@ void jit_avx512_core_bf16_fwd_kernel::init_scratchpad(
     using namespace memory_tracking::names;
     if (jcp.with_bias && jcp.oc != jcp.oc_without_padding) {
         assert(jcp.ngroups == 1);
-        scratchpad.book(key_conv_padded_bias, jcp.typesize_bia * jcp.oc);
+        scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
     }
 }
 
@@ -3737,26 +3737,26 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
         // jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf()
         const size_t tr_src_size = jcp.tr_src_buf_count * jcp.tr_src_buf_size
                 + jcp.tr_src_num_guard_elems;
-        scratchpad.book(key_conv_tr_src, jcp.typesize_in * tr_src_size);
+        scratchpad.book(key_conv_tr_src, tr_src_size, jcp.typesize_in);
 
         /* prepare synchronization contexts */
         if (dnnl_thr_syncable() && jcp.nthr_oc_b > 1) {
             const int tr_src_bctx_size = jcp.nthr / jcp.nthr_oc_b;
-            scratchpad.book(key_conv_tr_src_bctx,
-                    sizeof(simple_barrier::ctx_t) * tr_src_bctx_size);
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_tr_src_bctx, tr_src_bctx_size);
         }
 
         const size_t tr_diff_dst_size
                 = jcp.tr_diff_dst_buf_count * jcp.tr_diff_dst_buf_size;
 
         scratchpad.book(
-                key_conv_tr_diff_dst, jcp.typesize_in * tr_diff_dst_size);
+                key_conv_tr_diff_dst, tr_diff_dst_size, jcp.typesize_in);
 
         /* prepare synchronization contexts */
         if (dnnl_thr_syncable() && jcp.nthr_ic_b > 1) {
             const size_t tr_diff_dst_bctx_size = jcp.nthr / jcp.nthr_ic_b;
-            scratchpad.book(key_conv_tr_diff_dst_bctx,
-                    sizeof(simple_barrier::ctx_t) * tr_diff_dst_bctx_size);
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_tr_diff_dst_bctx, tr_diff_dst_bctx_size);
         }
     }
 
@@ -3770,24 +3770,25 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_scratchpad(
 
         const size_t wei_bia_reduction_size = wei_size + bia_size;
 
-        scratchpad.book(key_conv_wei_bia_reduction,
-                sizeof(float) * wei_bia_reduction_size * num_wei_buffers);
+        scratchpad.book<float>(key_conv_wei_bia_reduction,
+                wei_bia_reduction_size * num_wei_buffers);
 
         if (dnnl_thr_syncable())
-            scratchpad.book(key_conv_wei_bia_reduction_bctx,
-                    sizeof(simple_barrier::ctx_t));
+            scratchpad.book<simple_barrier::ctx_t>(
+                    key_conv_wei_bia_reduction_bctx, 1);
     }
 
     if (jcp.with_bias) {
-        const size_t dst_f32_size = (size_t)jcp.od * jcp.oh * jcp.ow
-                * jcp.oc_block * jcp.typesize_out;
-        scratchpad.book(key_conv_dst_bf16_convert_wsp, jcp.nthr * dst_f32_size);
+        const size_t dst_f32_size
+                = (size_t)jcp.od * jcp.oh * jcp.ow * jcp.oc_block;
+        scratchpad.book(key_conv_dst_bf16_convert_wsp, jcp.nthr * dst_f32_size,
+                jcp.typesize_out);
 
         if (jcp.oc != jcp.oc_without_padding && jcp.bia_dt == data_type::f32)
-            scratchpad.book(key_conv_padded_bias, jcp.typesize_bia * jcp.oc);
+            scratchpad.book(key_conv_padded_bias, jcp.oc, jcp.typesize_bia);
         else if (jcp.bia_dt == data_type::bf16)
-            scratchpad.book(key_conv_bias_bf16_convert_wsp,
-                    sizeof(float) * jcp.oc * jcp.ngroups);
+            scratchpad.book<float>(
+                    key_conv_bias_bf16_convert_wsp, jcp.oc * jcp.ngroups);
     }
 }
 

@@ -68,14 +68,14 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
             if (!stats_is_src()) {
-                scratchpad.book(key_bnorm_reduction,
-                        sizeof(acc_data_t) * C() * dnnl_get_max_threads());
+                scratchpad.template book<acc_data_t>(
+                        key_bnorm_reduction, C() * dnnl_get_max_threads());
 
                 if (!is_training()) {
-                    scratchpad.book(
-                            key_bnorm_tmp_mean, sizeof(acc_data_t) * C());
-                    scratchpad.book(
-                            key_bnorm_tmp_var, sizeof(acc_data_t) * C());
+                    scratchpad.template book<acc_data_t>(
+                            key_bnorm_tmp_mean, C());
+                    scratchpad.template book<acc_data_t>(
+                            key_bnorm_tmp_var, C());
                 }
             }
 
@@ -84,9 +84,10 @@ struct ncsp_batch_normalization_fwd_t : public primitive_t {
                 const bool has_spatial = utils::one_of(ndims(), 4, 5);
                 const int SP = has_spatial ? D() * H() * W() : 1;
                 const int nbufs = 2;
-                const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
-                        * dnnl_get_max_threads() * utils::rnd_up(SP, simd_w);
-                scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
+                const size_t bf16cvt_buf_sz = nbufs * dnnl_get_max_threads()
+                        * utils::rnd_up(SP, simd_w);
+                scratchpad.template book<acc_data_t>(
+                        key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
         }
     };
@@ -148,20 +149,21 @@ struct ncsp_batch_normalization_bwd_t : public primitive_t {
         void init_scratchpad() {
             using namespace memory_tracking::names;
             auto scratchpad = scratchpad_registry().registrar();
-            scratchpad.book(key_bnorm_reduction,
-                    sizeof(acc_data_t) * 2 * C() * dnnl_get_max_threads());
+            scratchpad.template book<acc_data_t>(
+                    key_bnorm_reduction, 2 * C() * dnnl_get_max_threads());
             if (!(use_scaleshift() && desc()->prop_kind == prop_kind::backward))
-                scratchpad.book(
-                        key_bnorm_tmp_diff_ss, sizeof(acc_data_t) * 2 * C());
+                scratchpad.template book<acc_data_t>(
+                        key_bnorm_tmp_diff_ss, 2 * C());
 
             if (d_type == data_type::bf16) {
                 const int simd_w = 16;
                 const bool has_spatial = utils::one_of(ndims(), 4, 5);
                 const int SP = has_spatial ? D() * H() * W() : 1;
                 const int nbufs = 2 + !use_global_stats();
-                const size_t bf16cvt_buf_sz = sizeof(acc_data_t) * nbufs
-                        * dnnl_get_max_threads() * utils::rnd_up(SP, simd_w);
-                scratchpad.book(key_bnorm_bf16cvt, bf16cvt_buf_sz);
+                const size_t bf16cvt_buf_sz = nbufs * dnnl_get_max_threads()
+                        * utils::rnd_up(SP, simd_w);
+                scratchpad.template book<acc_data_t>(
+                        key_bnorm_bf16cvt, bf16cvt_buf_sz);
             }
         }
     };

@@ -125,7 +125,7 @@ struct jit_avx512_core_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    conv_pd_->scratchpad_registry().size());
+                    conv_pd_->scratchpad_registry());
         }
     };
 

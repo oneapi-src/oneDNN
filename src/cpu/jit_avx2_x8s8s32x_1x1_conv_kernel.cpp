@@ -740,7 +740,7 @@ void jit_avx2_x8s8s32x_1x1_conv_kernel::init_scratchpad(
 
     if (jcp.signed_input) {
         dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 8);
-        scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
+        scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
 }
 

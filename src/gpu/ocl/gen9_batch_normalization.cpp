@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gen9_batch_normalization.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 
@@ -186,11 +187,11 @@ status_t gen9_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
 
 void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
-        size_t size = 2 * conf.reduce_stat_nblocks * conf.ic
-                * types::data_type_size(data_type::f32);
+        size_t size = 2 * conf.reduce_stat_nblocks * conf.ic;
 
         auto scratchpad = scratchpad_registry().registrar();
-        scratchpad.book(key_bnorm_reduction, size);
+        scratchpad.book(key_bnorm_reduction, size,
+                types::data_type_size(data_type::f32), OCL_BUFFER_ALIGNMENT);
     }
 }
 

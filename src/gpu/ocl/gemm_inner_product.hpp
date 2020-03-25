@@ -140,7 +140,7 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    gemm_pd_->scratchpad_registry().size());
+                    gemm_pd_->scratchpad_registry());
         }
     };
 
@@ -244,7 +244,7 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    gemm_pd_->scratchpad_registry().size());
+                    gemm_pd_->scratchpad_registry());
         }
     };
 
@@ -346,7 +346,7 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    gemm_pd_->scratchpad_registry().size());
+                    gemm_pd_->scratchpad_registry());
         }
     };
 

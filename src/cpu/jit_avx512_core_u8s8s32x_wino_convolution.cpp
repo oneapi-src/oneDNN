@@ -985,14 +985,14 @@ void jit_avx512_core_u8s8s32x_wino_convolution_fwd_t<
     auto scratchpad = this->scratchpad_registry().registrar();
 
     int nthr_multiplier = jcp_.small_mb ? 1 : jcp_.nthr;
-    scratchpad.book(key_wino_V,
-            sizeof(src_data_t) * jcp_.size_wino_src * nthr_multiplier, PAGE_4K);
-    scratchpad.book(key_wino_M,
-            sizeof(acc_data_t) * jcp_.size_wino_dst * nthr_multiplier, PAGE_4K);
+    scratchpad.template book<src_data_t>(
+            key_wino_V, jcp_.size_wino_src * nthr_multiplier, PAGE_4K);
+    scratchpad.template book<acc_data_t>(
+            key_wino_M, jcp_.size_wino_dst * nthr_multiplier, PAGE_4K);
 
     dim_t scale_count = attr()->output_scales_.count_;
-    scratchpad.book(key_conv_adjusted_scales,
-            sizeof(float) * nstl::max<dim_t>(scale_count, 16));
+    scratchpad.template book<float>(
+            key_conv_adjusted_scales, nstl::max<dim_t>(scale_count, 16));
 }
 
 template <data_type_t dst_data_type>

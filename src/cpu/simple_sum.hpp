@@ -107,11 +107,11 @@ struct simple_sum_t : public primitive_t {
                 bf16_p_.ws_elements_per_thread_
                         = bf16_p_.ws_cvt_elements_per_thread_
                         + bf16_p_.ws_acc_elements_per_thread_;
-                dim_t bf16cvt_buf_sz_ = sizeof(acc_data_t)
-                        * bf16_p_.ws_elements_per_thread_
+                dim_t bf16cvt_buf_sz_ = bf16_p_.ws_elements_per_thread_
                         * dnnl_get_max_threads();
                 auto scratchpad = scratchpad_registry().registrar();
-                scratchpad.book(memory_tracking::names::key_sum_srcs_cvt,
+                scratchpad.template book<acc_data_t>(
+                        memory_tracking::names::key_sum_srcs_cvt,
                         bf16cvt_buf_sz_);
             }
         }

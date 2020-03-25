@@ -23,6 +23,7 @@
 #include "common/stream.hpp"
 #include "gpu/gpu_concat_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -123,13 +124,13 @@ struct ref_concat_t : public gpu_primitive_t {
             if (use_tent_dst()) {
                 const memory_desc_wrapper wtent_dst_md(tent_dst_md_);
                 scratchpad.book(memory_tracking::names::key_concat_tent_dst,
-                        wtent_dst_md.size());
+                        wtent_dst_md.size(), 1, OCL_BUFFER_ALIGNMENT);
             }
 
             for (size_t i = 0; i < reorder_pds_.size(); i++) {
                 scratchpad.book(
                         memory_tracking::names::key_nested_multiple + (int)i,
-                        reorder_pds_[i]->scratchpad_registry().size());
+                        reorder_pds_[i]->scratchpad_registry());
             }
         }
     };

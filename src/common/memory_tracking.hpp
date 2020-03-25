@@ -85,8 +85,8 @@ namespace memory_tracking {
  *  ``` c++
  *  struct reducer_t {
  *      static void init(registrar_t &scratchpad) {
- *          // preserve space for the reduction (one page aligned)
- *          scratchpad.book(key_space, sizeof(float) * 980 * 1024, 4096);
+ *          // reserve space for 980*1024 floats (one page aligned)
+ *          scratchpad.book<float>(key_space, 980 * 1024, 4096);
  *      }
  *
  *      void exec(const grantor_t &scratchpad) {
@@ -103,8 +103,12 @@ namespace memory_tracking {
  *          void init() {
  *              registrar_t scratchpad(scratchpad_registry_);
  *
- *              // preserve a space for padded bias (using default alignment)
- *              scratchpad.book(key_conv_padded_bias, 128);
+ *              // reserve space for 128 elements which are two bytes long that
+ *              // require 4 byte alignment, but preferably have 64 byte
+ *              // alignment for performance reasons
+ *              // two alignment parameters are included for implementation
+ *              // flexibility targeted at memory debugging purposes
+ *              scratchpad.book(key_conv_padded_bias, 128, 2, 4, 64);
  *
  *              // create a proxy registrar for the reducer All entries made
  *              // by reducer would live in convolution's registry, but would
@@ -264,14 +268,24 @@ inline key_t make_prefix(key_t parent_prefix, key_t prefix) {
 struct registrar_t;
 struct grantor_t;
 
+enum { default_alignment = 128 };
+inline size_t get_alignment(size_t alignment) {
+    size_t minimal_alignment = default_alignment;
+    return nstl::max<size_t>(alignment, minimal_alignment);
+}
+
 struct registry_t {
-    void book(const key_t &key, size_t size, size_t alignment) {
+    // perf_align is the desired alignment for performance.
+    // data_align is the minimum data alignment required for functionality,
+    //    this parameter is included for memory debugging purposes.
+    void book(const key_t &key, size_t size, size_t data_align,
+            size_t perf_align = default_alignment) {
         if (size == 0) return;
         assert(offset_map_.count(key) == 0);
+        size_t alignment = nstl::max(data_align, perf_align);
 
-        alignment = nstl::max<size_t>(alignment, minimal_alignment);
         assert(alignment > 0 && (alignment & (alignment - 1)) == 0);
-        size_t capacity = size + alignment;
+        size_t capacity = size + get_alignment(alignment);
         offset_map_[key] = entry_t {size_, size, capacity, alignment};
 
         size_ += capacity;
@@ -323,16 +337,27 @@ protected:
 };
 
 struct registrar_t {
-    enum { default_alignment = 128 };
-
     registrar_t(registry_t &registry) : registry_(registry), prefix_(0) {}
     registrar_t(registrar_t &parent, const key_t &prefix)
         : registry_(parent.registry_)
         , prefix_(make_prefix(parent.prefix_, prefix)) {}
 
-    void book(const key_t &key, size_t size,
-            size_t alignment = default_alignment) {
-        registry_.book(make_key(prefix_, key), size, alignment);
+    void book(const key_t &key, size_t nelems, size_t data_size,
+            size_t data_align = 0, size_t perf_align = default_alignment) {
+        if (data_align == 0) data_align = data_size;
+        registry_.book(make_key(prefix_, key), nelems * data_size, data_align,
+                perf_align);
+    }
+    template <typename T>
+    void book(const key_t &key, size_t nelems,
+            size_t perf_align = default_alignment) {
+        registry_.book(make_key(prefix_, key), nelems * sizeof(T), alignof(T),
+                perf_align);
+    }
+
+    void book(const key_t &key, const registry_t &registry,
+            size_t perf_align = default_alignment) {
+        registry_.book(make_key(prefix_, key), registry.size(), 1, perf_align);
     }
 
     size_t size() const { return registry_.size(); }

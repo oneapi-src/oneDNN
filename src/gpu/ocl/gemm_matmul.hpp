@@ -194,7 +194,7 @@ struct gemm_matmul_t : public gpu_primitive_t {
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
             scratchpad.book(memory_tracking::names::key_nested,
-                    gemm_pd_->scratchpad_registry().size());
+                    gemm_pd_->scratchpad_registry());
         }
     };
 

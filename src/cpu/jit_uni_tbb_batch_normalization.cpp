@@ -1321,9 +1321,9 @@ public:
         int pbuf_sz = use_tmp_diff_scale_shift(bdesc) * 2 * C_PADDED;
         int rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthrs;
 
-        scratchpad.book(key_bnorm_tmp_stats, sizeof(acc_data_t) * sbuf_sz);
-        scratchpad.book(key_bnorm_tmp_diff_ss, sizeof(acc_data_t) * pbuf_sz);
-        scratchpad.book(key_bnorm_reduction, sizeof(acc_data_t) * rbuf_sz);
+        scratchpad.book<acc_data_t>(key_bnorm_tmp_stats, sbuf_sz);
+        scratchpad.book<acc_data_t>(key_bnorm_tmp_diff_ss, pbuf_sz);
+        scratchpad.book<acc_data_t>(key_bnorm_reduction, rbuf_sz);
     }
 
     void exec_fwd_step_stats(const dim_t C_blks, const bnorm_dims_t &nthr,
