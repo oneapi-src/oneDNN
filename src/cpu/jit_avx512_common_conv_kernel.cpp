@@ -2448,6 +2448,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.simd_w = full_simd_w;
     bool ok_to_try_lower_zmm = true && mayiuse(avx512_core)
             && diff_src_d.data_type() == data_type::f32 && !jcp.is_1stconv
+            && (jcp.oc % jcp.simd_w != 0 || jcp.ic % jcp.simd_w != 0)
             && !ok_to_pad_channels;
 
     if (ok_to_try_lower_zmm) {
