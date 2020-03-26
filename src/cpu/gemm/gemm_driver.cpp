@@ -1449,6 +1449,7 @@ static dnnl_status_t gemm_threading_driver(
     auto is_b_packed = (arg->transb == packed);
     constexpr bool is_int8 = utils::one_of(
             data_traits<a_type>::data_type, data_type::s8, data_type::u8);
+    constexpr bool is_bf16 = data_traits<a_type>::data_type == data_type::bf16;
 
     if ((arg->m <= 0) || (arg->n <= 0)) return dnnl_success;
 
@@ -1485,9 +1486,14 @@ static dnnl_status_t gemm_threading_driver(
             force_threading = &arg->a_packed->threading();
         else if (is_b_packed)
             force_threading = &arg->b_packed->threading();
-        else
-                // Use k-partitioning if necessary.
-                if (arg->n <= 128 && arg->k >= 3072 && is_int8) {
+        else if (arg->m <= 768 && arg->n <= 768 && arg->k >= 2048 && is_bf16) {
+            // Try k-partitioning.
+            set_thread_opts_pack(nthr_goal, force_k_decomp, arg);
+
+            // Decide partition type later if no partitions in k-dimension.
+            if (force_k_decomp.nthrs_k > 1) force_threading = &force_k_decomp;
+        } else if (arg->n <= 128 && arg->k >= 3072 && is_int8) {
+            // Use k-partitioning if necessary.
             // Use 3D decomposition from pack api without n-partitioning.
             set_thread_opts_pack(
                     nthr_goal, force_k_decomp, arg, true, true, false);
