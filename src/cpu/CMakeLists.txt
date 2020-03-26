@@ -26,10 +26,13 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak
     )
 
-# Don't build sources from linux_perf direcotry if JIT Profiling isn't enabled.
+# Don't enable support for linux_perf and VTune if JIT Profiling is disabled.
 # NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.
 if(NOT DNNL_ENABLE_JIT_PROFILING)
-    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp")
+    list(REMOVE_ITEM SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/jitprofiling/jitprofiling.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
+        )
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
