@@ -212,3 +212,12 @@ ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"
 mb1ic16ih2iw30oc1oh1ow30kh2kw3ph0pw17dh0dw16n"bwd-w_check_dilation_padding_1"
 mb1ic16ih2iw84oc1oh1ow84kh2kw3ph0pw29dh0dw28n"bwd-w_check_dilation_padding_2"
 mb1ic16ih2iw70oc1oh1ow10kh2kw3ph0pw0dh0dw29n"bwd_w_check_large-dilation"
+
+--reset
+--allow-unimpl=true --skip-impl="ref:gemm"
+--cfg=bf16bf16bf16 --dir=bwd_w
+# shape that verifies proper selection of ic_block_step for large filter sizes
+mb2ic16oc1_ih2iw100_kh2kw13_dh0dw3_ph0pw12n"check_large-filter_ic-step"
+# shape that verifies checks for supported padding sizes in width dimension
+mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw128n"1d_conv_large_dilated_padding_1"
+mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw127n"1d_conv_large_dilated_padding_2"
