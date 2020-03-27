@@ -584,6 +584,12 @@ inline dnnl_alg_kind_t convert_to_c(algorithm algorithm) {
 
 /// Flags for normalization primitives.
 enum class normalization_flags : unsigned {
+    /// Use no normalization flags. If specified, the library computes mean and
+    /// variance on forward propagation for training and inference, outputs them
+    /// on forward propagation for training, and computes the respective
+    /// derivatives on backward propagation.
+    none = dnnl_normalization_flags_none,
+
     /// Use global statistics. If specified, the library uses mean and
     /// variance provided by the user as an input on forward propagation and
     /// does not compute their derivatives on backward propagation. Otherwise,

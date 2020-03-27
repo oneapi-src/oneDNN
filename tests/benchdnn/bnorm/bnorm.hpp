@@ -38,6 +38,7 @@ check_alg_t str2check_alg(const char *str);
 const char *check_alg2str(check_alg_t alg);
 
 using flags_t = unsigned;
+const flags_t NONE = dnnl_normalization_flags_none;
 const flags_t GLOB_STATS = dnnl_use_global_stats;
 const flags_t USE_SCALESHIFT = dnnl_use_scaleshift;
 const flags_t FUSE_NORM_RELU = dnnl_fuse_norm_relu;
@@ -66,7 +67,7 @@ struct settings_t {
     std::vector<dir_t> dir {FWD_D};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx};
-    std::vector<flags_t> flags {0};
+    std::vector<flags_t> flags {NONE};
     std::vector<int64_t> mb {0};
     std::vector<bool> inplace {true};
     check_alg_t check_alg = ALG_AUTO;

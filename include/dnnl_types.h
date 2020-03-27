@@ -848,8 +848,18 @@ typedef enum {
     dnnl_resampling_linear = 0x2fff1,
 } dnnl_alg_kind_t;
 
-/// Flags for batch normalization primitive.
+/// Flags for normalization primitives.
 typedef enum {
+    /// Use no normalization flags
+    ///
+    /// If specified
+    ///  - on forward training propagation mean and variance are computed and
+    ///    stored as output
+    ///  - on backward propagation compute full derivative wrt data
+    ///  - on backward propagation prop_kind == #dnnl_backward_data has the same
+    ///    behavior as prop_kind == #dnnl_backward
+    dnnl_normalization_flags_none = 0x0U,
+
     /// Use global statistics
     ///
     /// If specified
@@ -858,9 +868,9 @@ typedef enum {
     ///    mean and variance are considered as constants
     ///
     ///  If not specified:
-    ///   - on forward propagation mean and variance are computed and stored in
+    ///   - on forward propagation mean and variance are computed and stored as
     ///     output
-    ///   - on backward propagation compute full derivative wrt to data
+    ///   - on backward propagation compute full derivative wrt data
     dnnl_use_global_stats = 0x1U,
 
     /// Use scale and shift parameters
@@ -869,7 +879,7 @@ typedef enum {
     ///  - on forward propagation use scale and shift (aka scale and bias) for
     ///    the batch normalization results
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
-    ///    diff wrt to scale and shift (hence one extra output used)
+    ///    diff wrt scale and shift (hence one extra output used)
     ///
     /// If no specified:
     ///  - on backward propagation prop_kind == #dnnl_backward_data has the
