@@ -156,6 +156,7 @@ status_t gen9_gemm_x8x8s32_t::execute(const gemm_exec_ctx_t &ctx) const {
 
 status_t gen9_gemm_x8x8s32_t::execute_standard(
         const gemm_exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     auto a_type = pd()->desc()->a_type;
     auto b_type = pd()->desc()->b_type;
     auto c_type = pd()->desc()->c_type;
@@ -235,6 +236,11 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     bool apply_co = true;
     int64_t size_k, size_m, size_n;
 
+    std::unique_ptr<memory_storage_t> acc;
+    if (do_scale)
+        acc = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_gemm_int_c_in_acc_dt);
+
     if (do_compute) {
         for (int64_t Bk = 0; Bk < k; Bk += size_k) {
             size_k = k - Bk;
@@ -268,11 +274,11 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
                         if (status) return status;
                     } else if (do_scale) {
                         auto off_c = 0 + Bm + Bn * m;
-                        status = launch_x8x8s32(ctx, compute_stream, a, b,
-                                *temp_buf_, off_a_src, off_b_src, off_c, lda,
-                                ldb, m, size_m, size_n, size_k, eff_beta, ao,
-                                bo, co, offset_co_src, apply_co, 0,
-                                eltwise_alpha, eltwise_beta, eltwise_scale);
+                        status = launch_x8x8s32(ctx, compute_stream, a, b, *acc,
+                                off_a_src, off_b_src, off_c, lda, ldb, m,
+                                size_m, size_n, size_k, eff_beta, ao, bo, co,
+                                offset_co_src, apply_co, 0, eltwise_alpha,
+                                eltwise_beta, eltwise_scale);
                         if (status) return status;
                     }
                 }
@@ -281,7 +287,7 @@ status_t gen9_gemm_x8x8s32_t::execute_standard(
     }
     bool alpha_is_zero = false;
     if (do_scale) {
-        status = launch_scale_x8x8s32(ctx, compute_stream, *temp_buf_, c,
+        status = launch_scale_x8x8s32(ctx, compute_stream, *acc, c,
                 offsetc_char, off_c0, m, n, ldc, alpha, beta, co, offset_co,
                 (int)alpha_is_zero, 1, eltwise_alpha, eltwise_beta,
                 eltwise_scale);

@@ -90,6 +90,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                             attr()->post_ops_.find(sum) == 0
                                     && attr()->post_ops_.find(eltwise) == 1);
             if (!ok) return status::unimplemented;
+            init_scratchpad();
             return status::success;
         }
 
@@ -148,6 +149,13 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         size_t dyn_offset_b = 0;
         size_t dyn_offset_c = 0;
         size_t dyn_offset_co = 0;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+            scratchpad.book(memory_tracking::names::key_gemm_int_c_in_acc_dt,
+                    desc()->m * desc()->n * sizeof(int));
+        }
     };
 
     status_t init(engine_t *engine) override {
@@ -184,11 +192,6 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
-
-        memory_storage_t *temp_buf_ptr;
-        engine->create_memory_storage(
-                &temp_buf_ptr, pd()->desc()->m * pd()->desc()->n * sizeof(int));
-        temp_buf_.reset(temp_buf_ptr);
 
         int cmask = 0;
         pd()->attr()->zero_points_.get(DNNL_ARG_DST, nullptr, &cmask, nullptr);
@@ -265,8 +268,6 @@ private:
 
     compute::binary_t compute_x8x8s32_binary_;
     compute::binary_t scale_x8x8s32_binary_;
-
-    std::unique_ptr<memory_storage_t> temp_buf_;
 
     type gemm_type_ = type::no_copy;
     int hw_threads_ = 0;
