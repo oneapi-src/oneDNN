@@ -33,8 +33,13 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
 
+    std::unique_ptr<memory_storage_t> acc;
+    if (pd()->use_scratchpad() || pd()->use_temp_dst())
+        acc = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_iprod_int_dat_in_acc_dt);
+
     if (pd()->use_temp_dst()) {
-        gemm_args.c = scratchpad_.get();
+        gemm_args.c = acc.get();
     } else {
         gemm_args.c = &CTX_OUT_STORAGE(DNNL_ARG_DST);
     }
@@ -58,7 +63,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
         arg_list.set(5, pd()->eltwise_scale());
         arg_list.set(6, pd()->sum_scale());
         arg_list.set(7,
-                pd()->use_scratchpad() ? *scratchpad_
+                pd()->use_scratchpad() ? *acc
                                        : memory_storage_t::empty_storage());
         arg_list.set(8,
                 pd()->with_scales() ? *pr->get_memory_storage(SCALES_)

@@ -154,6 +154,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
             status_t scales_status = init_scales_md();
             if (scales_status != success) return scales_status;
+            init_scratchpad();
 
             return success;
         }
@@ -250,6 +251,15 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     private:
         void init_scratchpad() {
             auto scratchpad = scratchpad_registry().registrar();
+
+            if (use_scratchpad()) {
+                memory_desc_wrapper scratchpad_mdw(ip_scratchpad_md());
+                size_t sz = scratchpad_mdw.size();
+                scratchpad.book(
+                        memory_tracking::names::key_iprod_int_dat_in_acc_dt,
+                        sz);
+            }
+
             scratchpad.book(memory_tracking::names::key_nested,
                     gemm_pd_->scratchpad_registry().size());
         }
@@ -263,16 +273,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
 
         const size_t mb = pd()->MB();
         const size_t oc = pd()->OC();
-
-        // Prepare scratchpad memory storage
-        if (pd()->use_scratchpad()) {
-            memory_desc_wrapper scratchpad_mdw(pd()->ip_scratchpad_md());
-            const size_t scratchpad_size = scratchpad_mdw.size();
-            memory_storage_t *scratchpad_ptr = nullptr;
-            engine->create_memory_storage(&scratchpad_ptr, scratchpad_size);
-            scratchpad_.reset(scratchpad_ptr);
-            if (!scratchpad_) return status::runtime_error;
-        }
 
         // Prepare post process kernel
         if (pd()->with_post_process()) {
@@ -355,7 +355,6 @@ private:
 
     std::shared_ptr<primitive_t> gemm_;
     compute::binary_t post_process_binary_;
-    std::unique_ptr<memory_storage_t> scratchpad_;
     enum { SCALES_ = 0 };
 };
 
