@@ -115,6 +115,7 @@ status_t rnn_weights_reorder_t::pd_t::init_kernel_ctx(
 }
 
 status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
+    using namespace memory_tracking::names;
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
@@ -142,17 +143,20 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     const memory_storage_t *scales_buf = nullptr;
+    std::unique_ptr<memory_storage_t> wspace;
     if (do_reorder) {
+        wspace = ctx.get_scratchpad_grantor().get_memory_storage(
+                key_reorder_rnn_space);
         scales_buf = pr->get_memory_storage(SCALES_);
     }
 
     // Copy to gpu
     memory_desc_wrapper src_mdw(pd()->src_md());
     status = compute_stream->copy(
-            input, do_reorder ? *temp_buf : output, src_mdw.size());
+            input, do_reorder ? *wspace : output, src_mdw.size());
 
     if (status == status::success && do_reorder)
-        status = ocl_reorder(*temp_buf, *scales_buf, output);
+        status = ocl_reorder(*wspace, *scales_buf, output);
 
     return status;
 }

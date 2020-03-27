@@ -199,6 +199,7 @@ enum {
     key_reorder_scales,
     key_reorder_wino_plain,
     key_reorder_wino_transform_space,
+    key_reorder_rnn_space,
     key_reorder_rnn_weights_bf16_cvt,
     key_reorder_rnn_weights_quantization,
     key_reorder_rnn_weights_reduction,

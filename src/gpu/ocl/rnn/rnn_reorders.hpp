@@ -68,13 +68,27 @@ struct rnn_weights_reorder_t : public primitive_t {
                                             compute::device_ext_t::
                                                     intel_subgroups_short));
 
-            return init_conf(engine);
+            auto status = init_conf(engine);
+            if (status != status::success) return status;
+            init_scratchpad();
+            return status;
         }
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         rnn_reorder_conf_t conf;
+
+    private:
+        void init_scratchpad() {
+            auto scratchpad = scratchpad_registry().registrar();
+
+            if (conf.do_reorder) {
+                size_t sz = conf.nelems * sizeof(float);
+                scratchpad.book(
+                        memory_tracking::names::key_reorder_rnn_space, sz);
+            }
+        }
     };
 
     rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
@@ -89,14 +103,6 @@ struct rnn_weights_reorder_t : public primitive_t {
 
         compute_engine->create_binary(&binary_, "wei_reorder", kernel_ctx);
         if (!binary_) return status::runtime_error;
-
-        if (pd()->conf.do_reorder) {
-            size_t size = pd()->conf.nelems * sizeof(float);
-            memory_storage_t *temp_buf_ptr;
-            engine->create_memory_storage(&temp_buf_ptr, size);
-            temp_buf.reset(temp_buf_ptr);
-            if (!temp_buf) return status::runtime_error;
-        }
         return status::success;
     }
 
@@ -130,7 +136,6 @@ struct rnn_weights_reorder_t : public primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     compute::binary_t binary_;
-    std::unique_ptr<memory_storage_t> temp_buf;
     enum { SCALES_ = 0 };
 };
 
