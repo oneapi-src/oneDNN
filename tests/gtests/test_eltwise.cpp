@@ -239,7 +239,7 @@ void compare_eltwise_fwd(const eltwise_test_params &p, const memory::desc &md,
                                   || p.alg_kind == algorithm::eltwise_gelu_erf)
                                 ? 2e-5
                                 : p.alg_kind == algorithm::eltwise_soft_relu
-                                        ? 2e-6
+                                        ? 3e-5
                                         : 1e-6);
     compare_data(ref_dst, dst, eps);
 }
