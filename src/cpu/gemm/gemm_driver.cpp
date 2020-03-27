@@ -1617,8 +1617,9 @@ static dnnl_status_t gemm_threading_driver(
                 thread_info = *force_threading;
             else {
                 nthr_eff = set_thread_opts(nthr_eff, thread_info, arg);
-                thread_arg[ithr].slice = thread_info.get_thread_slice(
-                        ithr, arg->m, arg->n, arg->k);
+                if (ithr < nthr_eff)
+                    thread_arg[ithr].slice = thread_info.get_thread_slice(
+                            ithr, arg->m, arg->n, arg->k);
             }
 
             for (; ithr < nthr_eff; ithr += nthr) {
