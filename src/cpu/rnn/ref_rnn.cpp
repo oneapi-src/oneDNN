@@ -215,7 +215,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         = &(ws_states_layer(lay, dir, 1, 0));
                 auto src_layer_ld = rnn.ws_states_layer_ld;
                 // If we avoid copying the last iteration, the corresponding
-                // input states appear in `dst_layer_` instead of `ws_states_layer`,
+                // input states appear in `dst_iter_` instead of `ws_states_layer`,
                 // hence we cannot merge all iterations.
                 // This is not applicable for the first layer though, since
                 // all the states come from user's `src_layer_`.
@@ -357,9 +357,17 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 const src_layer_t *src_layer
                         = &(ws_states_layer(lay, dir, 1, 0));
                 auto src_layer_ld = rnn.ws_states_layer_ld;
+                // If we avoid copying the last iteration, the corresponding
+                // input states appear in `dst_iter_` instead of `ws_states_layer`,
+                // hence we cannot merge all iterations.
+                // This is not applicable for the first layer though, since
+                // all the states come from user's `src_layer_`.
+                int n_iter = rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
+
                 if ((lay == 0) && rnn.skip_src_layer_copy()) {
                     src_layer = src_layer_;
                     src_layer_ld = rnn.src_layer_ld_;
+                    n_iter = rnn.n_iter;
                 }
 
                 (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
@@ -368,9 +376,9 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         rnn.scratch_gates_ld, 0.0,
                         &(ws_diff_states_layer(lay, dir, 0, 0)),
                         rnn.ws_diff_states_layer_ld);
-                gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc,
-                        rnn.mb * rnn.n_iter, 1.0, (weights_t *)scratch_gates_,
-                        rnn.scratch_gates_ld, src_layer, src_layer_ld, 1.0,
+                gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.slc, rnn.mb * n_iter,
+                        1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
+                        src_layer, src_layer_ld, 1.0,
                         &(diff_weights_layer(lay, dir, 0)),
                         rnn.diff_weights_layer_ld);
             }

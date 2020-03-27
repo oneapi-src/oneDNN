@@ -181,12 +181,12 @@ void common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     /// bwd by data on the cell
     gemm_iter_f(w_iter_[0], scratch_gates_, diff_src_iter_);
 
-    if (!rnn.merge_gemm_layer) {
-        gemm_layer_f(w_layer_[0], scratch_gates_, diff_src_layer_);
-
-        /// bwd by weights on the cell
+    /// bwd by weights on the cell
+    if (rnn.need_gemm_layer(cell_position))
         gemm_weights_layer_f(scratch_gates_, src_layer_, diff_w_layer_);
-    }
+
+    if (!rnn.merge_gemm_layer)
+        gemm_layer_f(w_layer_[0], scratch_gates_, diff_src_layer_);
 
     if (!rnn.merge_gemm_iter)
         gemm_weights_iter_f(scratch_gates_, src_iter_, diff_w_iter_);
