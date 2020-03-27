@@ -212,3 +212,12 @@ ic256oc256_ih60oh20kh1ph0sh3_iw50ow25kw1pw0sw2n"dw_fusion_with_strides"
 --cfg=f32
 --attr=post_ops='relu;dw_k3s1p1;sqrt';
 ic16oc16_ih10oh6kh1ph0sh2n"dw_fusion_with_reorder"
+
+--reset
+--allow-unimpl=true --skip-impl="ref:gemm"
+--cfg=bf16bf16bf16 --dir=bwd_w
+# shape that verifies proper selection of ic_block_step for large filter sizes
+mb2ic16oc1_ih2iw100_kh2kw13_dh0dw3_ph0pw12n"check_large-filter_ic-step"
+# shape that verifies checks for supported padding sizes in width dimension
+mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw128n"1d_conv_large_dilated_padding_1"
+mb1_ic16oc1_ih2oh1kh2sh1dh0ph0_iw1000kw6sw1dw30pw127n"1d_conv_large_dilated_padding_2"
