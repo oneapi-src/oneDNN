@@ -148,14 +148,15 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     gemm_iter_f(rnn.sic, rnn.mb, (rnn.n_gates - 1) * rnn.dic, w_iter_[0],
             scratch_gates_, 1.0f, diff_states_t_l_);
 
-    if (!rnn.merge_gemm_layer) {
-        // dWx += [dG0 dG1 dG2] * [x]
+    // dWx += [dG0 dG1 dG2] * [x]
+    if (rnn.need_gemm_layer(cell_position))
         gemm_weights_layer_f(
                 scratch_gates_, states_t_lm1_, src_layer_ld, diff_w_layer_);
-        // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
+
+    // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
+    if (!rnn.merge_gemm_layer)
         gemm_layer_f(w_layer_[0], scratch_gates_,
                 &(diff_states_t_l(rnn.n_states, 0, 0)));
-    }
 
     // 6. calculate diff bias
     gates_reduction(rnn, scratch_gates_, diff_bias_);
