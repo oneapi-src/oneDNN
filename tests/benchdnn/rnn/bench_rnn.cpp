@@ -40,6 +40,7 @@ void check_correctness(const settings_t &s) {
     for_(const auto &i_direction : s.direction)
     for_(const auto &i_activation : s.activation)
     for_(auto i_skip_nonlinear : s.skip_nonlinear)
+    for_(auto i_trivial_strides : s.trivial_strides)
     for (const auto &i_mb : s.mb) {
         if (i_with_peephole && i_alg != VANILLA_LSTM) continue;
 
@@ -48,7 +49,8 @@ void check_correctness(const settings_t &s) {
 
         const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole,
                 i_with_projection, i_direction, s.attr, i_scale_policy, s.flags,
-                i_activation, s.alpha, s.beta, i_skip_nonlinear, i_mb);
+                i_activation, s.alpha, s.beta, i_skip_nonlinear,
+                i_trivial_strides, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -88,6 +90,7 @@ int bench(int argc, char **argv) {
                 || parse_scale_policy(s.scale_policy, argv[0])
                 || parse_mb(s.mb, argv[0])
                 || parse_skip_nonlinear(s.skip_nonlinear, argv[0])
+                || parse_trivial_strides(s.trivial_strides, argv[0])
                 || parse_vector_option(
                         s.with_peephole, str2bool, argv[0], "with-peephole")
                 || parse_vector_option(

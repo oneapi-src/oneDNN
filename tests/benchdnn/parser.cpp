@@ -95,6 +95,11 @@ bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
     return parse_vector_option(skip, str2bool, str, option_name);
 }
 
+bool parse_trivial_strides(std::vector<bool> &ts, const char *str,
+        const std::string &option_name /* = "trivial-strides"*/) {
+    return parse_vector_option(ts, str2bool, str, option_name);
+}
+
 bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
         const std::string &option_name /*= "scaling"*/) {
     return parse_vector_option(

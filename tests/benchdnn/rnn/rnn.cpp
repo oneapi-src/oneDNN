@@ -388,11 +388,8 @@ inline int init_pd(
     }
 
     const bool is_gru_lbr = p.alg == LBR_GRU;
-    // Enable testing non trivial strides in correctness mode and non-int8
-    // FIXME: enable the stride testing back when the corresponding missing
-    //        reorder added to the library;
-    // TODO:  testing with non-trivial stride should be a testing option!
-    int the_stride = (bench_mode == CORR && !p.is_int8()) ? 1 : 0;
+    // Enable testing with non trivial strides
+    int the_stride = p.trivial_strides ? 0 : 1;
     /// @todo we need to add stride support for diff_* tensors too
     dnnl_memory_desc_t src_layer_d, src_iter_d, src_iter_c_d, weights_layer_d,
             weights_iter_d, weights_peephole_d {}, weights_projection_d {},
@@ -584,6 +581,10 @@ inline int init_pd(
 
 int doit(const prb_t &p, res_t *r) {
     if (bench_mode == LIST) return r->state = LISTED, OK;
+
+    // TODO: remove early exit when int8 weights reorder supports non
+    // trivial strides
+    if (p.is_int8() && !p.trivial_strides) return r->state = SKIPPED, OK;
 
     dnnl_primitive_desc_t rpd;
     SAFE(init_pd(p, rpd, r, true), WARN);
