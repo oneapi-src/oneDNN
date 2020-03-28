@@ -362,7 +362,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 // hence we cannot merge all iterations.
                 // This is not applicable for the first layer though, since
                 // all the states come from user's `src_layer_`.
-                int n_iter = rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
+                int n_iter = rnn.n_iter - rnn.skip_dst_iter_copy();
 
                 if ((lay == 0) && rnn.skip_src_layer_copy()) {
                     src_layer = src_layer_;
