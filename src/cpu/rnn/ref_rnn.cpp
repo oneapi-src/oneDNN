@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2019 Intel Corporation
+* Copyright 2018-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                 const src_data_t *states_t_lm1 = &(ws_states(lay, dir, 1, 0));
                 auto src_layer_ld = rnn.states_ws_ld;
                 // If we avoid copying the last iteration, the corresponding
-                // input states appear in `dst_layer_` instead of `ws_states`,
+                // input states appear in `dst_iter_` instead of `ws_states`,
                 // hence we cannot merge all iterations.
                 // This is not applicable for the first layer though, since
                 // all the states come from user's `src_layer_`.
@@ -302,9 +302,17 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             if ((aprop == prop_kind::backward) && rnn.merge_gemm_layer) {
                 const src_data_t *states_t_lm1 = &(ws_states(lay, dir, 1, 0));
                 auto src_layer_ld = rnn.states_ws_ld;
+                // If we avoid copying the last iteration, the corresponding
+                // input states appear in `dst_iter_` instead of `ws_states`,
+                // hence we cannot merge all iterations.
+                // This is not applicable for the first layer though, since
+                // all the states come from user's `src_layer_`.
+                int n_iter = rnn.n_iter - (rnn.skip_dst_iter_copy() ? 1 : 0);
+
                 if ((lay == 0) && rnn.skip_src_layer_copy()) {
                     states_t_lm1 = src_layer_;
                     src_layer_ld = rnn.src_layer_ld_;
+                    n_iter = rnn.n_iter;
                 }
 
                 (this->*gemm_layer_func)('N', 'N', rnn.slc, rnn.mb * rnn.n_iter,
@@ -313,9 +321,8 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         rnn.gates_ws_ld, 0.0,
                         &(ws_diff_states(lay, dir, rnn.n_states, 0, 0)),
                         rnn.states_ws_ld);
-                gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc,
-                        rnn.mb * rnn.n_iter, 1.0,
-                        (weights_data_t *)scratch_gates_, rnn.gates_ws_ld,
+                gemm('N', 'T', rnn.n_gates * rnn.dic, rnn.slc, rnn.mb * n_iter,
+                        1.0, (weights_data_t *)scratch_gates_, rnn.gates_ws_ld,
                         states_t_lm1, src_layer_ld, 1.0,
                         &(diff_weights_layer(lay, dir, 0)),
                         rnn.diff_weights_layer_ld);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2019 Intel Corporation
+* Copyright 2018-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,13 +73,13 @@ void common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     /// bwd by data on the cell
     gemm_iter_f(w_iter_[0], scratch_gates_, diff_states_t_l_);
 
-    if (!rnn.merge_gemm_layer) {
+    if (!rnn.merge_gemm_layer)
         gemm_layer_f(w_layer_[0], scratch_gates_,
                 &diff_states_t_l(rnn.n_states, 0, 0));
 
-        /// bwd by weights on the cell
+    /// bwd by weights on the cell
+    if (rnn.need_gemm_layer(cell_position))
         gemm_weights_layer_f(scratch_gates_, states_t_lm1_, diff_w_layer_);
-    }
 
     if (!rnn.merge_gemm_iter)
         gemm_weights_iter_f(scratch_gates_, states_tm1_l_, diff_w_iter_);
