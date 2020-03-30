@@ -632,8 +632,10 @@ void jit_uni_pool_kernel<isa>::maybe_zero_diff_src() {
     L(l_zero);
     {
         const int dim = jpp.iw * c_off * jpp.dt_size;
-        const int step = jpp.dt_size
-                * ((jpp.tag_kind == jptg_nspc) ? jpp.c : jpp.c_block);
+        const int step = (jpp.tag_kind == jptg_nspc)
+                ? jpp.dt_size * jpp.c
+                : (jpp.is_bf16) ? cpu_isa_traits<isa>::vlen / 2
+                                : cpu_isa_traits<isa>::vlen;
         for (int i = 0; i < dim; i += step)
             if (jpp.is_bf16) {
                 vmovdqu16(ptr[reg_input + reg_off + i], yzero);
