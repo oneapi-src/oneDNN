@@ -354,8 +354,8 @@ struct primitive : public handle<dnnl_primitive_t> {
     /// @param stream Stream object. The stream must belong to the same engine
     ///     as the primitive.
     /// @param args Arguments map.
-    void execute(
-            stream &stream, const std::unordered_map<int, memory> &args) const;
+    void execute(const stream &stream,
+            const std::unordered_map<int, memory> &args) const;
 };
 
 /// Converts primitive kind enum value from C++ API to C API type.
@@ -3142,7 +3142,7 @@ struct reorder : public primitive {
     ///     as the primitive.
     /// @param src Source memory object.
     /// @param dst Destination memory object.
-    void execute(stream stream, memory &src, memory &dst) const {
+    void execute(const stream &stream, memory &src, memory &dst) const {
         primitive::execute(stream, {{DNNL_ARG_FROM, src}, {DNNL_ARG_TO, dst}});
     }
 };
@@ -10449,8 +10449,8 @@ inline primitive::primitive(const_dnnl_primitive_desc_t c_pd) {
 
 inline primitive::primitive(const primitive_desc &pd) : primitive(pd.get()) {}
 
-inline void primitive::execute(
-        stream &stream, const std::unordered_map<int, memory> &args) const {
+inline void primitive::execute(const stream &stream,
+        const std::unordered_map<int, memory> &args) const {
     std::vector<dnnl_exec_arg_t> c_args;
     c_args.reserve(args.size());
     for (const auto &a : args)
