@@ -258,7 +258,8 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
     AOC<const float> diff_dst_iter(diff_dst_iter_, p.mb, p.wc);
 
     if (p.is_lstm_projection()) {
-        float *diff_dst = (float *)malloc(p.mb * p.dic * sizeof(float));
+        float *diff_dst = (float *)zmalloc(p.mb * p.dic * sizeof(float), 64);
+        assert(diff_dst != nullptr);
 
         // The loop below relies on this property
         assert(p.dic == p.dlc(CELL));
@@ -271,7 +272,7 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
                 1.0, diff_weights_projection_, p.dic);
         gemm("C", "N", "T", p.mb, p.dhc, p.dic, 1.0, diff_dst, p.dic,
                 weights_projection_, p.dic, 0.0, diff_hidden_state_, p.dhc);
-        free(diff_dst);
+        zfree(diff_dst);
     } else {
         for_(int64_t ib = 0; ib < p.mb; ib++)
         for (int64_t ih = 0; ih < p.dhc; ih++)
