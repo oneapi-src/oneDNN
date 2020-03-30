@@ -414,39 +414,40 @@ void jit_trans_iw_ic_int16_t::transpose(
     };
 
     auto store = [=](Zmm r, int i) {
-        auto padding = [=](Reg64 reg, int pad) {
-            kmovw(kTail, (1 << pad) - 1);
-            auto k = kTail;
-            auto base = reg;
-            base.setOpmaskIdx(k.getIdx(), true);
-
+        auto padding = [=](Reg64 base, int pad_rows, int pad_tail) {
+            // note: pad can be bigger than 16 because of dilation
+            const size_t row_offset = 2 * transpose_size * typesize;
             auto zmm_zero = zmm_tmp;
             vpxord(zmm_zero, zmm_zero, zmm_zero);
-            auto addr = EVEX_compress_addr(base, i * tr_src_stride);
-            vmovups(addr, zmm_zero);
+            for (int i_row = 0; i_row < pad_rows; i_row++) {
+                auto addr = EVEX_compress_addr(
+                        base, i * tr_src_stride + i_row * row_offset);
+                vmovups(addr, zmm_zero);
+            }
+            if (pad_tail > 0) {
+                kmovw(kTail, (1 << pad_tail) - 1);
+                base.setOpmaskIdx(kTail.getIdx(), true);
+                auto addr = EVEX_compress_addr(
+                        base, i * tr_src_stride + pad_rows * row_offset);
+                vmovups(addr, zmm_zero);
+            }
         };
 
         mov(reg_tr_src_tmp, reg_tr_src);
         if (l_pad > 0) {
-            int store_pad = div_up(l_pad, 2);
-            padding(reg_tr_src, store_pad);
-            add(reg_tr_src_tmp, l_pad * typesize);
+            int store_pad = 2 * transpose_size;
+            int pad_rows = l_pad / store_pad;
+            int tail = l_pad % store_pad;
+            padding(reg_tr_src_tmp, pad_rows, div_up(tail, 2));
+            add(reg_tr_src_tmp, (pad_rows * store_pad + tail) * typesize);
         }
         if (r_pad > 0) {
+            int addr_shift = nrows - r_pad % 2;
             int store_pad = div_up(r_pad, 2);
-            int addr_shift = r_pad % 2;
-            add(reg_tr_src_tmp, (nrows - addr_shift) * typesize);
-            // note: r_pad can be bigger than 16 because of dilation
-            int tail = store_pad % transpose_size;
             int pad_rows = store_pad / transpose_size;
-            for (int pad = 0; pad < pad_rows; pad++) {
-                padding(reg_tr_src_tmp, transpose_size);
-                add(reg_tr_src_tmp, 2 * transpose_size * typesize);
-            }
-            if (tail > 0) padding(reg_tr_src_tmp, tail);
-            sub(reg_tr_src_tmp,
-                    (pad_rows * 2 * transpose_size + nrows - addr_shift)
-                            * typesize);
+            add(reg_tr_src_tmp, addr_shift * typesize);
+            padding(reg_tr_src_tmp, pad_rows, store_pad % transpose_size);
+            sub(reg_tr_src_tmp, addr_shift * typesize);
         }
 
         int store_tail = rnd_up(nrows, 2);
