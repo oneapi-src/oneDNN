@@ -70,7 +70,19 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #if KH != 1 || KW != 1 || KD != 1
     for (int kd = 0; kd < KD; kd++)
-        for (int kh = 0; kh < KH; kh++)
+        for (int kh = 0; kh < KH; kh++) {
+            const __global DATA_T *src1 = src
+                    + (kd * (1 + DD) * IH + kh * (1 + DH)) * IW * MB_BLOCK
+                            * IC_BLOCK;
+            DATA_T tempA[SW * OW_BLOCK + KW * (1 + DW)] = {0};
+            __attribute__((opencl_unroll_hint(
+                    SW * OW_BLOCK + KW * (1 + DW)))) // attr:no-format
+            for (int i = 0; i < SW * OW_BLOCK + KW * (1 + DW); i++) {
+                if ((i + iw) >= 0 && (i + iw) < IW) {
+                    tempA[i] = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T
+                                    *)(&src1[i * IC_BLOCK])));
+                }
+            }
             for (int kw = 0; kw < KW; kw++) {
 
                 if (id + kd * (1 + DD) < 0 || id + kd * (1 + DD) >= ID)
@@ -80,10 +92,6 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
                 const __global DATA_T *wei1
                         = wei + (kd * KH * KW + kh * KW + kw) * OC_BLOCK;
-                const __global DATA_T *src1 = src
-                        + (kd * (1 + DD) * IH * IW + kh * (1 + DH) * IW
-                                  + kw * (1 + DW))
-                                * MB_BLOCK * IC_BLOCK;
 #else
     const int kw = 0;
     const __global DATA_T *wei1 = wei;
@@ -95,18 +103,21 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
                 __attribute__((opencl_unroll_hint(OW_BLOCK))) // attr:no-format
                 for (int k = 0; k < OW_BLOCK; k++) {
-
+#if KH != 1 || KW != 1 || KD != 1
+                    A0 = tempA[k * SW + kw * (1 + DW)];
+#else
                     if (iw + kw * (1 + DW) + k * SW < 0
                             || iw + kw * (1 + DW) + k * SW >= IW)
                         A0 = DATA_ZERO;
                     else
                         A0 = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T
                                         *)(&src1[k * SW * IC_BLOCK])));
-
+#endif
                     S00[k] = fma(A0, (DATA_T)B0, S00[k]);
                 }
 #if KH != 1 || KW != 1 || KD != 1
             }
+        }
 #endif
 
 #if WITH_SUM == 1 || WITH_ELTWISE == 1
