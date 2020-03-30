@@ -113,13 +113,14 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
                     && (fabsf(expf(s) - 1.f) <= comp_err);
         case alg_t::GELU_TANH: {
             // catch catastrophic cancellation
+            // (4.f is magic scale for f32)
             const float sqrt_2_over_pi = 0.797884;
             const float fitting_const = 0.044715;
             float v = tanhf(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
             float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
             if (fabsf(1.f + v) <= comp_err) return true;
             return (p->dir & FLAG_BWD) && std::signbit(s)
-                    && fabsf(1.f + s * (1.f - v) * dg) <= comp_err;
+                    && fabsf(1.f + s * (1.f - v) * dg) <= 4.f * comp_err;
         }
         case alg_t::GELU_ERF: {
             // catch catastrophic cancellation
@@ -138,6 +139,10 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
             // catch catastrophic cancellation, which occurs when err in tanh(s)
             // is high and tanh(s) is close to 1.
             return (p->dir & FLAG_BWD) && (1.f - tanhf(fabsf(s))) <= comp_err;
+        case alg_t::TANH_DST: // sse41 can't do fma
+            // catch catastrophic cancellation, which occurs when err in tanh(s)
+            // is high and tanh(s) is close to 1.
+            return (p->dir & FLAG_BWD) && (1.f - s * s) <= comp_err;
         case alg_t::SRELU:
             // when s is negative, expf(s) -> 0 rapidly
             // which leads to log1pf(expf(s)) -> 0
@@ -146,6 +151,12 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
             // (10.f is magic scale for bf16)
             return (p->dir & FLAG_FWD) && std::signbit(s)
                     && log1pf(expf(s)) <= 10.f * comp_err;
+        case alg_t::LOGISTIC:
+            // when s >= 4, logistic(s) -> 0 rapidly, which leads to high
+            // relative error of logistic(s) * (1 - logistic(s)) due to
+            // catastrohic cancellation.
+            return (p->dir & FLAG_BWD) && !std::signbit(s)
+                    && (1.f / (1.f + expf(s))) <= comp_err;
         default: return false;
     }
 }

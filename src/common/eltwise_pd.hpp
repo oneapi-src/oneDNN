@@ -74,6 +74,17 @@ struct eltwise_pd_t : public primitive_desc_t {
         return memory_desc_wrapper(desc_.data_desc).has_zero_dim();
     }
 
+    bool use_dst() const {
+        using namespace alg_kind;
+        return !is_fwd()
+                && utils::one_of(desc_.alg_kind, eltwise_relu_use_dst_for_bwd,
+                        eltwise_tanh_use_dst_for_bwd,
+                        eltwise_elu_use_dst_for_bwd,
+                        eltwise_sqrt_use_dst_for_bwd,
+                        eltwise_logistic_use_dst_for_bwd,
+                        eltwise_exp_use_dst_for_bwd);
+    }
+
 protected:
     eltwise_desc_t desc_;
     const eltwise_fwd_pd_t *hint_fwd_pd_;
@@ -172,14 +183,6 @@ struct eltwise_bwd_pd_t : public eltwise_pd_t {
     bool is_zero_preserved() const {
         return math::eltwise_bwd_preserves_zero(
                 desc_.alg_kind, desc_.alpha, desc_.beta);
-    }
-
-    bool use_dst() const {
-        using namespace alg_kind;
-        return utils::one_of(desc_.alg_kind, eltwise_relu_use_dst_for_bwd,
-                eltwise_tanh_use_dst_for_bwd, eltwise_elu_use_dst_for_bwd,
-                eltwise_sqrt_use_dst_for_bwd, eltwise_logistic_use_dst_for_bwd,
-                eltwise_exp_use_dst_for_bwd);
     }
 
 protected:

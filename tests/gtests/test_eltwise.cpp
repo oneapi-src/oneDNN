@@ -313,11 +313,15 @@ void check_eltwise_bwd(const eltwise_test_params &p, const memory::desc &md,
             default: assert(!"unknown alg_kind");
         }
 
-        auto tgt = diff_src_data[diff_data_mdw.off_l(i)];
+        data_t tgt = diff_src_data[diff_data_mdw.off_l(i)];
         const data_t diff = tgt == ref_ds ? 0 : tgt - ref_ds;
-        const data_t error = (std::abs(ref_ds) > eps)
+        data_t error = (std::abs(ref_ds) > eps)
                 ? static_cast<data_t>(diff / ref_ds)
                 : diff;
+        if (p.alg_kind == algorithm::eltwise_logistic
+                && (tgt < 1e-3)) { // check for cancellation
+            error = diff;
+        }
         ASSERT_NEAR(error, 0.0, eps);
     }
 }
