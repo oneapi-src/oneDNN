@@ -3584,7 +3584,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     const bool boundaries_ok = true && jcp.l_pad < ext_kw && jcp.r_pad < ext_kw
             && jcp.t_pad <= max_pad_h && jcp.b_pad <= max_pad_h
             && jcp.f_pad < ext_kd && jcp.back_pad < ext_kd
-            && IMPLICATION(jcp.ow > max_ur_w,
+            && IMPLICATION(jcp.is_1stconv && jcp.ow > max_ur_w,
                     jcp.l_pad < max_ur_w && ext_kw <= jcp.ow);
     if (!boundaries_ok) return status::unimplemented;
 
