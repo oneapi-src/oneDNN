@@ -123,24 +123,24 @@ private:
     void blend_with_mask(const Vmm &vmm_dst, const Xbyak::Operand &src);
     void test_mask();
 
-    void exp_compute_vector(const Vmm &vmm_src);
-    void relu_compute_vector(const Vmm &vmm_src);
-    void relu_zero_ns_compute_vector(const Vmm &vmm_src);
-    void elu_compute_vector(const Vmm &vmm_src);
-    void tanh_compute_vector(const Vmm &vmm_src);
-    void square_compute_vector(const Vmm &vmm_src);
-    void abs_compute_vector(const Vmm &vmm_src);
-    void sqrt_compute_vector(const Vmm &vmm_src);
-    void linear_compute_vector(const Vmm &vmm_src);
-    void bounded_relu_compute_vector(const Vmm &vmm_src);
-    void soft_relu_compute_vector(const Vmm &vmm_src);
-    void logistic_compute_vector(const Vmm &vmm_src);
-    void gelu_tanh_compute_vector(const Vmm &vmm_src);
-    void swish_compute_vector(const Vmm &vmm_src);
-    void log_compute_vector(const Vmm &vmm_src);
-    void clip_compute_vector(const Vmm &vmm_src);
-    void pow_compute_vector(const Vmm &vmm_src);
-    void gelu_erf_compute_vector(const Vmm &vmm_src);
+    void exp_compute_vector_fwd(const Vmm &vmm_src);
+    void relu_compute_vector_fwd(const Vmm &vmm_src);
+    void relu_zero_ns_compute_vector_fwd(const Vmm &vmm_src);
+    void elu_compute_vector_fwd(const Vmm &vmm_src);
+    void tanh_compute_vector_fwd(const Vmm &vmm_src);
+    void square_compute_vector_fwd(const Vmm &vmm_src);
+    void abs_compute_vector_fwd(const Vmm &vmm_src);
+    void sqrt_compute_vector_fwd(const Vmm &vmm_src);
+    void linear_compute_vector_fwd(const Vmm &vmm_src);
+    void bounded_relu_compute_vector_fwd(const Vmm &vmm_src);
+    void soft_relu_compute_vector_fwd(const Vmm &vmm_src);
+    void logistic_compute_vector_fwd(const Vmm &vmm_src);
+    void gelu_tanh_compute_vector_fwd(const Vmm &vmm_src);
+    void swish_compute_vector_fwd(const Vmm &vmm_src);
+    void log_compute_vector_fwd(const Vmm &vmm_src);
+    void clip_compute_vector_fwd(const Vmm &vmm_src);
+    void pow_compute_vector_fwd(const Vmm &vmm_src);
+    void gelu_erf_compute_vector_fwd(const Vmm &vmm_src);
 
     enum key_t {
         scale = 0, // scale argument

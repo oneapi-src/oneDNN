@@ -159,7 +159,8 @@ void jit_uni_eltwise_injector_f32<isa>::test_mask() {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
+void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector_fwd(
+        const Vmm &vmm_src) {
     // get mask of values lower than log(FLT_MIN) to zero them in the output
     compute_cmp_mask(vmm_src, table_val(exp_ln_flt_min_f), _cmp_lt_os);
 
@@ -202,7 +203,7 @@ void jit_uni_eltwise_injector_f32<isa>::exp_compute_vector(const Vmm &vmm_src) {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_aux1, vmm_src);
     compute_cmp_mask(vmm_src, table_val(zero), _cmp_gt_os);
@@ -211,17 +212,19 @@ void jit_uni_eltwise_injector_f32<isa>::relu_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::relu_zero_ns_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::relu_zero_ns_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(zero));
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
+void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector_fwd(
+        const Vmm &vmm_src) {
     // IMPORTANT: we use vmm_aux3 for the mask as exp_compute does not use it.
     h->uni_vmovups(vmm_aux3, vmm_src);
     // compute exponent
-    exp_compute_vector(vmm_src);
+    exp_compute_vector_fwd(vmm_src);
+
     // alpha * (exp(x) - 1)
     h->uni_vsubps(vmm_src, vmm_src, table_val(one));
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
@@ -232,7 +235,7 @@ void jit_uni_eltwise_injector_f32<isa>::elu_compute_vector(const Vmm &vmm_src) {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector_fwd(
         const Vmm &vmm_src) {
     // register mapping
     // vmm_src contains input
@@ -294,7 +297,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
     h->uni_vmovups(h->ptr[h->rsp + 3 * vlen], vmm_src);
     if (has_avx512()) h->kmovw(h->ptr[h->rsp + 4 * vlen], k_mask);
 
-    exp_compute_vector(vmm_aux3);
+    exp_compute_vector_fwd(vmm_aux3);
 
     h->uni_vmovups(vmm_mask, h->ptr[h->rsp + 0 * vlen]);
     h->uni_vmovups(vmm_aux1, h->ptr[h->rsp + 1 * vlen]);
@@ -329,7 +332,7 @@ void jit_uni_eltwise_injector_f32<isa>::tanh_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmovups(vmm_aux0, vmm_src);
 
@@ -345,7 +348,7 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector(
     h->uni_vmovups(h->ptr[h->rsp], vmm_aux0);
 
     // compute tanh(G(x))
-    tanh_compute_vector(vmm_src);
+    tanh_compute_vector_fwd(vmm_src);
 
     h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
     h->add(h->rsp, vlen);
@@ -357,25 +360,26 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_tanh_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::square_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::square_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector(const Vmm &vmm_src) {
+void jit_uni_eltwise_injector_f32<isa>::abs_compute_vector_fwd(
+        const Vmm &vmm_src) {
     // compute abs(x) = _mm_and_ps(x, 01111..111));
     h->uni_vandps(vmm_src, vmm_src, table_val(positive_mask));
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::sqrt_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vsqrtps(vmm_src, vmm_src);
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector_fwd(
         const Vmm &vmm_src) {
     // compute x = alpha * x + beta;
     h->uni_vmovups(vmm_aux0, table_val(alpha));
@@ -383,21 +387,21 @@ void jit_uni_eltwise_injector_f32<isa>::linear_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::bounded_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(zero));
     h->uni_vminps(vmm_src, vmm_src, table_val(alpha));
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::clip_compute_vector_fwd(
         const Vmm &vmm_src) {
     h->uni_vmaxps(vmm_src, vmm_src, table_val(alpha));
     h->uni_vminps(vmm_src, vmm_src, table_val(beta));
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector_fwd(
         const Vmm &vmm_src) {
     // keep src for further computations
     h->uni_vmovups(vmm_aux2, vmm_src);
@@ -476,7 +480,7 @@ void jit_uni_eltwise_injector_f32<isa>::soft_relu_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector_fwd(
         const Vmm &vmm_src) {
     // To avoid exp(x) overflow happened at x > logf(FLT_MAX), negate positive,
     // compute exp(x), where x <= 0 to get 0 <= exp(x) <= 1 and restore value
@@ -488,7 +492,7 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
     h->uni_vandps(vmm_aux3, vmm_aux3, table_val(sign_mask));
     h->uni_vorps(vmm_src, vmm_src, table_val(sign_mask));
 
-    exp_compute_vector(vmm_src);
+    exp_compute_vector_fwd(vmm_src);
     // dup exp(x)
     h->uni_vmovups(vmm_aux1, vmm_src);
     // (exp(x) + 1)
@@ -509,7 +513,7 @@ void jit_uni_eltwise_injector_f32<isa>::logistic_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector_fwd(
         const Vmm &vmm_src) {
     // Save src data on stack for later usage
     h->sub(h->rsp, vlen);
@@ -517,7 +521,7 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector(
     // x*alpha
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     // sigmoid(x*alpha)
-    logistic_compute_vector(vmm_src);
+    logistic_compute_vector_fwd(vmm_src);
     // x*sigmoid(alpha*x)
     h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
     h->add(h->rsp, vlen);
@@ -525,7 +529,8 @@ void jit_uni_eltwise_injector_f32<isa>::swish_compute_vector(
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::log_compute_vector(const Vmm &vmm_src) {
+void jit_uni_eltwise_injector_f32<isa>::log_compute_vector_fwd(
+        const Vmm &vmm_src) {
     // From J.-M. Muller and others, Handbook of Floating-Point Arithmetic, 2010
     // Here is a brief mathematics to approximate log(x):
     // log(x) = E * log(2) + log(y), where -log(2)/2 <= log(y) <= log(2)/2;
@@ -676,7 +681,8 @@ void jit_uni_eltwise_injector_f32<isa>::log_compute_vector(const Vmm &vmm_src) {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
+void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector_fwd(
+        const Vmm &vmm_src) {
     // dispatch between special cases.
     if (beta_ == -1) { // alpha / x
         h->uni_vmovups(vmm_aux0, table_val(alpha));
@@ -684,12 +690,12 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
     } else if (beta_ == 0) { // alpha
         h->uni_vmovups(vmm_src, table_val(alpha));
     } else if (beta_ == 0.5) { // alpha * sqrt(x)
-        sqrt_compute_vector(vmm_src);
+        sqrt_compute_vector_fwd(vmm_src);
         h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     } else if (beta_ == 1) { // alpha * x
         h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     } else if (beta_ == 2) { // alpha * x^2
-        square_compute_vector(vmm_src);
+        square_compute_vector_fwd(vmm_src);
         h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     } else { // general path
         // caller obligation to save gprs as callee may use them
@@ -775,7 +781,7 @@ void jit_uni_eltwise_injector_f32<isa>::pow_compute_vector(const Vmm &vmm_src) {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector(
+void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector_fwd(
         const Vmm &vmm_src) {
     // Here we approximate erf(x) using the expression by
     // Abramowitz and Stegun from ``Handbook of Mathematical
@@ -795,7 +801,7 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector(
     // -exp(-x*x)
     h->uni_vmulps(vmm_src, vmm_src, vmm_src);
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
-    exp_compute_vector(vmm_src);
+    exp_compute_vector_fwd(vmm_src);
     h->uni_vxorps(vmm_src, vmm_src, table_val(sign_mask));
 
     // get sign
@@ -804,7 +810,7 @@ void jit_uni_eltwise_injector_f32<isa>::gelu_erf_compute_vector(
 
     // abs(x)
     h->uni_vmovups(vmm_aux1, vmm_aux3);
-    abs_compute_vector(vmm_aux1);
+    abs_compute_vector_fwd(vmm_aux1);
 
     // t = 1 / (p*x + 1)
     h->uni_vmovups(vmm_aux2, table_val(gelu_erf_approx_const));
@@ -845,8 +851,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
         case eltwise_square: return 0;
         case eltwise_abs: return 0;
         case eltwise_sqrt_use_dst_for_bwd:
-        case eltwise_sqrt: return 2;
-        case eltwise_swish: return 4;
+        case eltwise_sqrt: return 0;
         case eltwise_linear: return 1;
         case eltwise_bounded_relu: return 0;
         case eltwise_soft_relu: return 4;
@@ -855,6 +860,7 @@ size_t jit_uni_eltwise_injector_f32<isa>::aux_vecs_count() {
         case eltwise_exp_use_dst_for_bwd:
         case eltwise_exp: return 3;
         case eltwise_gelu_tanh: return 5;
+        case eltwise_swish: return 4;
         case eltwise_log: return 5;
         case eltwise_clip: return 0;
         case eltwise_pow: return 2;
@@ -870,37 +876,42 @@ void jit_uni_eltwise_injector_f32<isa>::compute_body(
         size_t start_idx, size_t end_idx) {
     using namespace alg_kind;
     for (size_t idx = start_idx; idx < end_idx; idx++) {
+
         switch (alg_) {
             case eltwise_relu_use_dst_for_bwd:
             case eltwise_relu:
                 if (alpha_ == 0.f)
-                    relu_zero_ns_compute_vector(Vmm(idx));
+                    relu_zero_ns_compute_vector_fwd(Vmm(idx));
                 else
-                    relu_compute_vector(Vmm(idx));
+                    relu_compute_vector_fwd(Vmm(idx));
                 break;
             case eltwise_elu_use_dst_for_bwd:
-            case eltwise_elu: elu_compute_vector(Vmm(idx)); break;
+            case eltwise_elu: elu_compute_vector_fwd(Vmm(idx)); break;
             case eltwise_tanh_use_dst_for_bwd:
-            case eltwise_tanh: tanh_compute_vector(Vmm(idx)); break;
-            case eltwise_square: square_compute_vector(Vmm(idx)); break;
-            case eltwise_abs: abs_compute_vector(Vmm(idx)); break;
+            case eltwise_tanh: tanh_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_square: square_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_abs: abs_compute_vector_fwd(Vmm(idx)); break;
             case eltwise_sqrt_use_dst_for_bwd:
-            case eltwise_sqrt: sqrt_compute_vector(Vmm(idx)); break;
-            case eltwise_swish: swish_compute_vector(Vmm(idx)); break;
-            case eltwise_linear: linear_compute_vector(Vmm(idx)); break;
+            case eltwise_sqrt: sqrt_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_swish: swish_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_linear: linear_compute_vector_fwd(Vmm(idx)); break;
             case eltwise_bounded_relu:
-                bounded_relu_compute_vector(Vmm(idx));
+                bounded_relu_compute_vector_fwd(Vmm(idx));
                 break;
-            case eltwise_soft_relu: soft_relu_compute_vector(Vmm(idx)); break;
+            case eltwise_soft_relu:
+                soft_relu_compute_vector_fwd(Vmm(idx));
+                break;
             case eltwise_logistic_use_dst_for_bwd:
-            case eltwise_logistic: logistic_compute_vector(Vmm(idx)); break;
+            case eltwise_logistic: logistic_compute_vector_fwd(Vmm(idx)); break;
             case eltwise_exp_use_dst_for_bwd:
-            case eltwise_exp: exp_compute_vector(Vmm(idx)); break;
-            case eltwise_gelu_tanh: gelu_tanh_compute_vector(Vmm(idx)); break;
-            case eltwise_log: log_compute_vector(Vmm(idx)); break;
-            case eltwise_clip: clip_compute_vector(Vmm(idx)); break;
-            case eltwise_pow: pow_compute_vector(Vmm(idx)); break;
-            case eltwise_gelu_erf: gelu_erf_compute_vector(Vmm(idx)); break;
+            case eltwise_exp: exp_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_gelu_tanh:
+                gelu_tanh_compute_vector_fwd(Vmm(idx));
+                break;
+            case eltwise_log: log_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_clip: clip_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_pow: pow_compute_vector_fwd(Vmm(idx)); break;
+            case eltwise_gelu_erf: gelu_erf_compute_vector_fwd(Vmm(idx)); break;
             default: assert(!"unsupported eltwise algorithm");
         }
         if (scale_ != 1.f) {
