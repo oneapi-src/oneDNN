@@ -78,7 +78,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
         // If dst_iter is not nullptr, we need to copy the state to dst_iter
         if (dst_iter_ != nullptr)
             for (int i = 0; i < rnn.mb; i++)
-                memcpy(dst_iter_ + i * dst_iter_ld,
+                std::memcpy(dst_iter_ + i * dst_iter_ld,
                         dst_layer_ + i * dst_layer_ld,
                         rnn.dlc * sizeof(dst_layer_t));
     }
