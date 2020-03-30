@@ -50,19 +50,15 @@ struct jit_uni_eltwise_fwd_t : public primitive_impl_t {
     };
 
     jit_uni_eltwise_fwd_t(const pd_t *apd);
-    ~jit_uni_eltwise_fwd_t();
+    virtual ~jit_uni_eltwise_fwd_t();
 
     typedef typename prec_traits<d_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_forward(ctx);
-        return status::success;
-    }
+    virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_uni_eltwise_kernel *kernel_;
+    std::unique_ptr<jit_uni_eltwise_kernel> kernel_;
 };
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
@@ -82,19 +78,15 @@ struct jit_uni_eltwise_bwd_t : public primitive_impl_t {
     };
 
     jit_uni_eltwise_bwd_t(const pd_t *apd);
-    ~jit_uni_eltwise_bwd_t();
+    virtual ~jit_uni_eltwise_bwd_t();
 
     typedef typename prec_traits<d_type>::type data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        execute_backward(ctx);
-        return status::success;
-    }
+    virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
-    void execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_impl_t::pd(); }
-    jit_uni_eltwise_kernel *kernel_;
+    std::unique_ptr<jit_uni_eltwise_kernel> kernel_;
 };
 
 } // namespace cpu
