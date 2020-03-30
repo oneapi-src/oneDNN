@@ -108,12 +108,9 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
             const float fitting_const = 0.044715;
             float v = tanhf(sqrt_2_over_pi * s * (1 + fitting_const * s * s));
             float dg = sqrt_2_over_pi * (1 + 3 * fitting_const * s * s);
-            if (p->dir & FLAG_FWD)
-                return fabsf(1.f + v) <= comp_err;
-            else
-                return fabsf(1.f + v) <= comp_err
-                        || (std::signbit(s)
-                                && fabsf(1.f + s * (1.f - v) * dg) <= comp_err);
+            if (fabsf(1.f + v) <= comp_err) return true;
+            return (p->dir & FLAG_BWD) && std::signbit(s)
+                    && fabsf(1.f + s * (1.f - v) * dg) <= comp_err;
         }
         case alg_t::GELU_ERF: {
             // catch catastrophic cancellation
@@ -128,7 +125,6 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
                                + v * two_over_sqrt_pi * expf(-v * v))
                         <= comp_err;
         }
-
         case alg_t::TANH:
             // catch catastrophic cancellation, which occurs when err in tanh(s)
             // is high and tanh(s) is close to 1.
@@ -158,9 +154,9 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
                 || p->alg == alg_t::SRELU || p->alg == alg_t::LOG
                 || (is_fwd && p->alg == alg_t::ELU_DST)
                 || (is_fwd && p->alg == alg_t::TANH_DST))
-            trh *= 300; // 3e-5
+            trh = 3e-5;
         else
-            trh *= 20; // 2e-6
+            trh = 2e-6;
     }
 
     const auto nelems = mem_dt.nelems();

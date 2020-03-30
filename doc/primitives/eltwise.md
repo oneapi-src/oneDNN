@@ -33,10 +33,10 @@ The following operations are supported:
 | soft_relu    | #dnnl_eltwise_soft_relu    | \f$ d = \log_{e}(1+e^s) \f$ | \f$ ds = \frac{dd}{1 + e^{-s}} \f$ | --
 | sqrt         | #dnnl_eltwise_sqrt <br> #dnnl_eltwise_sqrt_use_dst_for_bwd | \f$ d = \sqrt{s} \f$ | \f$ ds = \frac{dd}{2\sqrt{s}} \f$ | \f$ ds = \frac{dd}{2d} \f$
 | square       | #dnnl_eltwise_square       | \f$ d = s^2 \f$ | \f$ ds = dd \cdot 2 s \f$ | --
-| swish        | #dnnl_eltwise_swish        | \f$ d = \frac{s}{1+e^{-\alpha s}} \f$ | \f$ ds = \frac{dd}{1 + e^{-\alpha s}}(1 + \alpha s (1 - \frac{1}{1 + e^{-\alpha s}}) \f$ | --
+| swish        | #dnnl_eltwise_swish        | \f$ d = \frac{s}{1+e^{-\alpha s}} \f$ | \f$ ds = \frac{dd}{1 + e^{-\alpha s}}(1 + \alpha s (1 - \frac{1}{1 + e^{-\alpha s}})) \f$ | --
 | tanh         | #dnnl_eltwise_tanh <br> #dnnl_eltwise_tanh_use_dst_for_bwd | \f$ d = \tanh{s} \f$ | \f$ ds = dd \cdot (1 - \tanh^2{s}) \f$ | \f$ ds = dd \cdot (1 - d^2) \f$
 
-\f$ (1)\ ds = dd \cdot 0.5 (1 + tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) (1 + \sqrt{\frac{2}{\pi}} (s + 0.134145 s^3) (1 -  tanh[s \sqrt{\frac{2}{\pi}} (1 + 0.044715 s^2)]) ) \f$
+\f$ (1)\ ds = dd \cdot 0.5 (1 + tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) \cdot (1 + \sqrt{\frac{2}{\pi}} (s + 0.134145 s^3) (1 -  tanh[\sqrt{\frac{2}{\pi}} (s + 0.044715 s^3)]) ) \f$
 
 \f$ (2)\ \text{Operation is supported only for } \alpha \geq 0. \f$
 
