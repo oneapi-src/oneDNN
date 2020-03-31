@@ -75,7 +75,7 @@ The softmax primitive supports the following combinations of data types:
 
 | Propagation        | Source / Destination
 | :--                | :--
-| forward / backward | f32
+| forward / backward | bf16, f32
 | forward            | f16
 
 ### Data Representation

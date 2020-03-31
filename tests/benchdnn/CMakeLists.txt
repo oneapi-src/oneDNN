@@ -162,6 +162,8 @@ register_benchdnn_test(test_benchdnn_shuffle_bf16
     cpu "--shuffle --batch=inputs/shuffle/test_shuffle_bfloat16")
 register_benchdnn_test(test_benchdnn_softmax
     cpu "--softmax --batch=inputs/softmax/test_softmax_all")
+register_benchdnn_test(test_benchdnn_softmax_bf16
+    cpu "--softmax --batch=inputs/softmax/test_softmax_bfloat16")
 register_benchdnn_test(test_benchdnn_pool
     cpu "--pool --batch=inputs/pool/test_pool_all")
 register_benchdnn_test(test_benchdnn_pool_bf16

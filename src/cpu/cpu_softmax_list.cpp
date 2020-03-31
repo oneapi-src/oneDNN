@@ -35,6 +35,8 @@ static const pd_create_f impl_list[] = {
         INSTANCE(jit_uni_softmax_fwd_t<sse41>),
         INSTANCE(ref_softmax_fwd_t<f32>),
         INSTANCE(ref_softmax_bwd_t<f32>),
+        INSTANCE(ref_softmax_fwd_t<bf16>),
+        INSTANCE(ref_softmax_bwd_t<bf16>),
         /* eol */
         nullptr,
 };

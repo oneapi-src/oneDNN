@@ -39,8 +39,8 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
     parallel_nd(outer_size_, [&](int ou) {
         const data_t *src_data = src + ou * ou_stride;
         data_t *dst_data = dst + ou * ou_stride;
-        data_t space_max = -(data_t)FLT_MAX;
-        data_t space_denom = (data_t)0;
+        float space_max = -FLT_MAX;
+        float space_denom = 0;
         constexpr int unroll_factor = 32;
 
 // Intel(R) C++ Compiler generates the maxps + shuffle pattern
@@ -48,17 +48,17 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
 #if !defined(__INTEL_COMPILER)
         // The code below makes the compiler generate maxps instruction.
         // rather than maxss, which is generated for the 'else' code path
-        auto max_wrapper = [](data_t a, data_t b) { return nstl::max(a, b); };
+        auto max_wrapper = [](float a, float b) { return nstl::max(a, b); };
         auto min_wrapper = [](int a, int b) { return nstl::min(a, b); };
 
         if (channels_ < unroll_factor) {
-            data_t max_val = -(data_t)FLT_MAX;
+            float max_val = -FLT_MAX;
             for (int i = 0; i < channels_; i++) {
                 max_val = max_wrapper(max_val, src_data[i]);
             }
             space_max = max_val;
         } else {
-            data_t max_values[unroll_factor];
+            float max_values[unroll_factor];
 
             for (int i = 0; i < unroll_factor; i++) {
                 max_values[i] = src_data[i];
@@ -70,7 +70,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
                             = max_wrapper(max_values[j], src_data[offset + j]);
                 }
             }
-            data_t max_val = -(data_t)FLT_MAX;
+            float max_val = -FLT_MAX;
             for (int i = 0; i < unroll_factor; i++) {
                 max_val = max_wrapper(max_val, max_values[i]);
             }
@@ -78,7 +78,7 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
         }
 #else
         for (int c = 0; c < channels_; ++c)
-            space_max = nstl::max(space_max, src_data[c]);
+            space_max = nstl::max(space_max, (float)src_data[c]);
 #endif
 
         // sub + exp + sum
@@ -87,34 +87,39 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
             PRAGMA_OMP_SIMD()
             for (int j = 0; j < unroll_factor; j++) {
                 if (pd()->is_softmax()) {
-                    space_denom += dst_data[i + j]
-                            = expf(src_data[i + j] - space_max);
+                    float D = expf(src_data[i + j] - space_max);
+                    space_denom += D;
+                    dst_data[i + j] = D;
                 } else if (pd()->is_logsoftmax()) {
-                    float D = dst_data[i + j] = src_data[i + j] - space_max;
+                    float D = src_data[i + j] - space_max;
                     space_denom += expf(D);
+                    dst_data[i + j] = D;
                 }
             }
         }
         for (int i = channels_ - tail; i < channels_; i++) {
             if (pd()->is_softmax()) {
-                space_denom += dst_data[i] = expf(src_data[i] - space_max);
+                float D = expf(src_data[i] - space_max);
+                space_denom += D;
+                dst_data[i] = D;
             } else if (pd()->is_logsoftmax()) {
-                float D = dst_data[i] = src_data[i] - space_max;
+                float D = src_data[i] - space_max;
                 space_denom += expf(D);
+                dst_data[i] = D;
             }
         }
 
         // scal
         if (pd()->is_softmax()) {
-            space_denom = space_denom ? (data_t(1) / space_denom) : data_t(1);
+            space_denom = space_denom ? (1.f / space_denom) : 1.f;
         } else if (pd()->is_logsoftmax()) {
             space_denom = logf(space_denom);
         }
         for (int c = 0; c < channels_; ++c) {
             if (pd()->is_softmax()) {
-                dst_data[c] *= space_denom;
+                dst_data[c] = dst_data[c] * space_denom;
             } else if (pd()->is_logsoftmax()) {
-                dst_data[c] -= space_denom;
+                dst_data[c] = dst_data[c] - space_denom;
             }
         }
     });
@@ -123,17 +128,18 @@ void ref_softmax_fwd_t<data_type>::execute_forward_dense(
 template <impl::data_type_t data_type>
 void ref_softmax_fwd_t<data_type>::execute_forward_generic(
         const exec_ctx_t &ctx) const {
+
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper data_d(pd()->src_md());
 
     parallel_nd(outer_size_, [&](int ou) {
-        data_t space_max_val = 0, space_denom_val = 0;
-        data_t *space_max = &space_max_val, *space_denom = &space_denom_val;
+        float space_max_val = 0, space_denom_val = 0;
+        float *space_max = &space_max_val, *space_denom = &space_denom_val;
         if (inner_size_ > 1) {
             using namespace memory_tracking::names;
-            space_max = ctx.get_scratchpad_grantor().template get<data_t>(
+            space_max = ctx.get_scratchpad_grantor().template get<float>(
                                 key_softmax_reduction)
                     + ou * 2 * inner_size_;
             space_denom = space_max + inner_size_;
@@ -147,17 +153,19 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
 
             for (int c = 0; c < channels_; c++) {
                 size_t off = data_d.off_l(ou_in_offset + c * inner_size_);
-                space_max[in] = nstl::max(space_max[in], src[off]);
+                space_max[in] = nstl::max(space_max[in], (float)src[off]);
             }
 
             for (int c = 0; c < channels_; c++) {
                 size_t off = data_d.off_l(ou_in_offset + c * inner_size_);
                 if (pd()->is_softmax()) {
-                    space_denom[in] += dst[off]
-                            = expf(src[off] - space_max[in]);
+                    float D = expf(src[off] - space_max[in]);
+                    space_denom[in] += D;
+                    dst[off] = D;
                 } else if (pd()->is_logsoftmax()) {
-                    float D = dst[off] = src[off] - space_max[in];
+                    float D = src[off] - space_max[in];
                     space_denom[in] += expf(D);
+                    dst[off] = D;
                 }
             }
 
@@ -168,15 +176,16 @@ void ref_softmax_fwd_t<data_type>::execute_forward_generic(
             for (int c = 0; c < channels_; c++) {
                 size_t off = data_d.off_l(ou_in_offset + c * inner_size_);
                 if (pd()->is_softmax()) {
-                    dst[off] /= space_denom[in];
+                    dst[off] = dst[off] / space_denom[in];
                 } else if (pd()->is_logsoftmax()) {
-                    dst[off] -= space_denom[in];
+                    dst[off] = dst[off] - space_denom[in];
                 }
             }
         }
     });
 }
 
+template struct ref_softmax_fwd_t<data_type::bf16>;
 template struct ref_softmax_fwd_t<data_type::f32>;
 
 // softmax along last physical dimension
@@ -190,7 +199,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_dense(
     const auto ou_stride = pd()->outer_stride();
 
     parallel_nd(outer_size_, [&](int ou) {
-        data_t sbr = (data_t)0;
+        float sbr = 0;
         size_t off = ou * ou_stride;
         if (pd()->is_softmax()) {
             for (size_t loff = off; loff < off + channels_; ++loff)
@@ -218,7 +227,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
 
     parallel_nd(outer_size_, inner_size_, [&](int ou, int in) {
         dim_t ou_in_offset = ou * channels_ * inner_size_ + in;
-        data_t sbr = (data_t)0;
+        float sbr = 0;
         for (int c = 0; c < channels_; ++c) {
             auto off_diff = diff_d.off_l(ou_in_offset + c * inner_size_);
             if (pd()->is_softmax()) {
@@ -242,6 +251,7 @@ void ref_softmax_bwd_t<data_type>::execute_backward_generic(
     });
 }
 
+template struct ref_softmax_bwd_t<data_type::bf16>;
 template struct ref_softmax_bwd_t<data_type::f32>;
 
 } // namespace cpu

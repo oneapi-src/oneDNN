@@ -9,7 +9,7 @@ where *softmax-knobs* are:
 
  - `--dir={FWD_D [default], BWD_D}` -- dnnl_prop_kind_t. Refer to the common
             glossary in README.md for details.
- - `--dt={f32 [default], f16}` -- src and dst data type.
+ - `--dt={f32 [default], bf16, f16}` -- src and dst data type.
             Refer to the common glossary in README.md for details.
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to the common glossary in README.md for details.
