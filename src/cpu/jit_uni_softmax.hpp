@@ -25,6 +25,7 @@
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_softmax_pd.hpp"
+#include "jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -47,15 +48,17 @@ struct jit_uni_softmax_fwd_t : public primitive_impl_t {
                 JIT_IMPL_NAME_HELPER("jit:", isa, ""), jit_uni_softmax_fwd_t);
 
         status_t init() {
+            const memory_desc_wrapper src_d(src_md());
+            const memory_desc_wrapper dst_d(dst_md());
+            auto data_type = src_d.data_type();
             auto is_dense = [&]() {
-                const memory_desc_wrapper data_d(src_md());
-                const auto &bd = data_d.blocking_desc();
+                const auto &bd = src_d.blocking_desc();
 
-                if (!data_d.is_dense(true) || !data_d.only_padded_dim(axis()))
+                if (!src_d.is_dense(true) || !src_d.only_padded_dim(axis()))
                     return false;
 
                 const auto blk_size = cpu_isa_traits<isa>::vlen / sizeof(float);
-                if (data_d.is_plain())
+                if (src_d.is_plain())
                     return bd.strides[axis()] == 1;
                 else {
                     // 31 is a general limit, 2 is for unroll_regs_ = 4;
@@ -67,8 +70,16 @@ struct jit_uni_softmax_fwd_t : public primitive_impl_t {
                 }
             };
 
-            bool ok = true && mayiuse(isa) && is_fwd() && !has_zero_dim_memory()
-                    && src_md()->data_type == data_type::f32
+            using namespace data_type;
+            bool ok = src_d == dst_d && mayiuse(isa) && is_fwd()
+                    && !has_zero_dim_memory()
+                    && utils::one_of(data_type, f32, bf16)
+                    && IMPLICATION(data_type == bf16,
+                            // extra check for isa is required because
+                            // the avx512_common version may reject a
+                            // problem because it is blocked by 8
+                            // instead of 16.
+                            isa >= avx512_common && mayiuse(avx512_core))
                     && is_dense() // not dense impl can be easily done
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -79,8 +90,6 @@ struct jit_uni_softmax_fwd_t : public primitive_impl_t {
 
     jit_uni_softmax_fwd_t(const pd_t *apd);
     ~jit_uni_softmax_fwd_t();
-
-    typedef float data_t;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
