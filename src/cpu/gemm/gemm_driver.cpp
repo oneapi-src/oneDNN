@@ -897,7 +897,7 @@ static inline bool nocopy_checker(
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline void set_thread_opts_nopack(int nthrs,
+static inline void set_thread_opts_nopack(int nthrs, int nthrs_spawn,
         gemm_threading_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
@@ -1004,7 +1004,7 @@ static inline void set_thread_opts_nopack(int nthrs,
         thread_info.copy = copy_type::shared_a;
         thread_info.partition = partition_type::col_1d;
         thread_info.nthrs_m = 1;
-        thread_info.nthrs_n = nthrs;
+        thread_info.nthrs_n = nthrs_spawn; // Using all spawned threads.
     } else {
         auto veclen = get_vector_length<c_type>();
 
@@ -1132,7 +1132,8 @@ static inline void set_thread_opts_pack(int nthrs,
 }
 
 template <typename a_type, typename b_type, typename c_type>
-static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
+static inline int set_thread_opts(int nthrs, int nthrs_spawn,
+        gemm_threading_t &thread_info,
         const gemm_info_t<a_type, b_type, c_type> *arg) {
 
     thread_info.block_m = thread_info.block_n = thread_info.block_k = -1;
@@ -1170,7 +1171,7 @@ static inline int set_thread_opts(int nthrs, gemm_threading_t &thread_info,
         if (arg->packing != pack_type::none && (is_int8 || is_bf16))
             set_thread_opts_pack(nthrs, thread_info, arg);
         else
-            set_thread_opts_nopack(nthrs, thread_info, arg);
+            set_thread_opts_nopack(nthrs, nthrs_spawn, thread_info, arg);
     }
 
     return thread_info.nthrs_m * thread_info.nthrs_n * thread_info.nthrs_k;
@@ -1518,7 +1519,7 @@ static dnnl_status_t gemm_threading_driver(
         auto &thread_info = pack_dst->threading();
         force_threading = &thread_info;
 
-        nthr_goal = set_thread_opts(nthr_goal, thread_info, arg);
+        nthr_goal = set_thread_opts(nthr_goal, nthr_max, thread_info, arg);
         arg->update_blocking(thread_info);
 
         if (thread_info.copy != copy_type::no_copy) {
@@ -1563,12 +1564,12 @@ static dnnl_status_t gemm_threading_driver(
     bool k_summing = k_blocking && !packing;
 
     auto *thread_arg = (gemm_per_thread_t<c_type> *)malloc(
-            sizeof(gemm_per_thread_t<c_type>) * nthr_goal, PAGE_4K);
+            sizeof(gemm_per_thread_t<c_type>) * nthr_max, PAGE_4K);
 
     if (!thread_arg) return dnnl_out_of_memory;
 
     dim_t max_mt = 0, max_nt = 0;
-    for (int ithr = 0; ithr < nthr_goal; ithr++) {
+    for (int ithr = 0; ithr < nthr_max; ithr++) {
         thread_arg[ithr].result = dnnl_success;
         thread_arg[ithr].compute_done = false;
         thread_arg[ithr].c_local = thread_arg[ithr].c_global = nullptr;
@@ -1622,7 +1623,7 @@ static dnnl_status_t gemm_threading_driver(
             if (force_threading)
                 thread_info = *force_threading;
             else {
-                nthr_eff = set_thread_opts(nthr_eff, thread_info, arg);
+                nthr_eff = set_thread_opts(nthr_eff, nthr, thread_info, arg);
                 if (ithr < nthr_eff)
                     thread_arg[ithr].slice = thread_info.get_thread_slice(
                             ithr, arg->m, arg->n, arg->k);
@@ -1712,7 +1713,7 @@ static dnnl_status_t gemm_threading_driver(
     });
 
     dnnl_status_t result = dnnl_success; // Initialize to success
-    for (int ithr = 0; ithr < nthr_goal; ithr++) {
+    for (int ithr = 0; ithr < nthr_max; ithr++) {
         if (thread_arg[ithr].result != dnnl_success) {
             result = static_cast<dnnl_status_t>(thread_arg[ithr].result);
             break;
