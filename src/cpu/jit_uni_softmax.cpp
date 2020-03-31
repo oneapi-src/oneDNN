@@ -40,7 +40,7 @@ template <cpu_isa_t isa>
 struct jit_softmax_base_t : public jit_generator {
     struct call_params_t {
         // keep all sizes at 8 bytes -- jit code expects this
-        const void *src, *dst;
+        const void *src, *dst, *diff_dst; // src dubs as diff_src
         size_t spat_offt_count;
     };
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_softmax_t)
@@ -52,17 +52,21 @@ struct jit_softmax_base_t : public jit_generator {
     const int vlen = cpu_isa_traits<isa>::vlen;
 
     const softmax_pd_t *pd_;
+    const memory_desc_wrapper data_d_;
 
     void (*ker)(const call_params_t *);
     void operator()(const call_params_t *p) { (*ker)(p); }
-    jit_uni_eltwise_injector_f32<isa> *exp_injector_, *log_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> exp_injector_;
+    std::unique_ptr<jit_uni_eltwise_injector_f32<isa>> log_injector_;
 
     Reg64 reg_param = abi_param1;
 
     Reg64 reg_exp_injector_table = rax;
     Reg64 reg_log_injector_table = rbx;
     Reg64 reg_src = r8;
+    Reg64 reg_diff_src = reg_src;
     Reg64 reg_dst = r9;
+    Reg64 reg_diff_dst = r14;
     Reg64 reg_spat_offt = r10;
     Reg64 reg_spat_offt_count = r11;
     Reg64 reg_reverse_spat_offt = r12;
@@ -78,6 +82,7 @@ struct jit_softmax_base_t : public jit_generator {
     Vmm vone = Vmm(isa == avx512_common ? 29 : 13);
     Vmm vsum = Vmm(isa == avx512_common ? 30 : 14);
     Vmm vmax = Vmm(isa == avx512_common ? 31 : 15);
+    Vmm vsbr = vsum; // must be not equal to vmax
 
     bool is_bf16_ = false;
     bool is_softmax_ = pd_->is_softmax();
@@ -102,8 +107,7 @@ struct jit_softmax_base_t : public jit_generator {
     }
 
     size_t compute_axis_stride() {
-        const memory_desc_wrapper data_d(pd_->src_md());
-        const auto &bd = data_d.blocking_desc();
+        const auto &bd = data_d_.blocking_desc();
 
         if (bd.inner_nblks) return data_type_size_ * bd.strides[pd_->axis()];
         return is_bf16_ ? vlen / 2 : vlen;
@@ -119,9 +123,18 @@ struct jit_softmax_base_t : public jit_generator {
 
 #define PARAM_OFF(x) offsetof(call_params_t, x)
         mov(reg_spat_offt_count, ptr[reg_param + PARAM_OFF(spat_offt_count)]);
-        mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
         mov(reg_dst, ptr[reg_param + PARAM_OFF(dst)]);
+        if (pd_->is_fwd())
+            mov(reg_src, ptr[reg_param + PARAM_OFF(src)]);
+        else {
+            mov(reg_diff_src, ptr[reg_param + PARAM_OFF(src)]); // src is reused
+            mov(reg_diff_dst, ptr[reg_param + PARAM_OFF(diff_dst)]);
+        }
 #undef PARAM_OFF
+    }
+
+    Address diff_src_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_src + reg_spat_offt + offt];
     }
 
     Address src_ptr(size_t offt = 0) {
@@ -130,6 +143,10 @@ struct jit_softmax_base_t : public jit_generator {
 
     Address dst_ptr(size_t offt = 0) {
         return vmmword[reg_dst + reg_spat_offt + offt];
+    }
+
+    Address diff_dst_ptr(size_t offt = 0) {
+        return vmmword[reg_diff_dst + reg_spat_offt + offt];
     }
 
     enum class op_t : unsigned { max, sum };
@@ -181,6 +198,8 @@ struct jit_softmax_base_t : public jit_generator {
     virtual void accumulate_vsum() = 0;
     virtual void compute_dst() = 0;
     virtual void initialization_hook() {}
+    virtual void accumulate_vsbr() {}
+    virtual void compute_diff_src() {}
 
     void forward() {
         accumulate_vmax();
@@ -188,44 +207,48 @@ struct jit_softmax_base_t : public jit_generator {
         compute_dst();
     }
 
+    void backward() {
+        accumulate_vsbr();
+        compute_diff_src();
+    }
+
     // either this stub or duplication at each jit_binary_t ctor due to methods
     // that are participated are not defined at the moment of base ctor
     // initialization.
     void get_code() {
-        exp_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
-                alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
-                reg_exp_injector_table, injector_mask);
-        if (is_logsoftmax_) {
-            log_injector_ = new jit_uni_eltwise_injector_f32<isa>(this,
+        if (pd_->is_fwd() || is_logsoftmax_)
+            exp_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
+                    alg_kind::eltwise_exp, 0.0f, 0.0f, 1.0f, true,
+                    reg_exp_injector_table, injector_mask));
+        if (pd_->is_fwd() && is_logsoftmax_) {
+            log_injector_.reset(new jit_uni_eltwise_injector_f32<isa>(this,
                     alg_kind::eltwise_log, 0.0f, 0.0f, 1.0f, true,
-                    reg_log_injector_table, injector_mask);
+                    reg_log_injector_table, injector_mask));
         }
 
         compute_predefined_variables();
         preamble();
         initialization_hook();
-        exp_injector_->load_table_addr();
-        if (is_logsoftmax_) log_injector_->load_table_addr();
+        if (exp_injector_) exp_injector_->load_table_addr();
+        if (log_injector_) log_injector_->load_table_addr();
         if (axis_simd_tail_) prepare_tail_mask();
         load_common_params();
-        forward();
+        if (pd_->is_fwd())
+            forward();
+        else
+            backward();
         postamble();
-        exp_injector_->prepare_table();
-        if (is_logsoftmax_) log_injector_->prepare_table();
+        if (exp_injector_) exp_injector_->prepare_table();
+        if (log_injector_) log_injector_->prepare_table();
 
         ker = reinterpret_cast<decltype(ker)>(const_cast<uint8_t *>(getCode()));
     }
 
-    jit_softmax_base_t(const softmax_pd_t *pd) : pd_(pd) {
-        const memory_desc_wrapper src_d(pd_->src_md(0));
-        is_bf16_ = src_d.data_type() == data_type::bf16;
+    jit_softmax_base_t(const softmax_pd_t *pd)
+        : pd_(pd), data_d_(pd_->dst_md()) {
+        is_bf16_ = data_d_.data_type() == data_type::bf16;
         data_type_size_ = is_bf16_ ? sizeof(bfloat16_t) : sizeof(float);
         simd_w_ = vlen / sizeof(float); // bf16 works on ymms
-    }
-
-    virtual ~jit_softmax_base_t() {
-        delete exp_injector_;
-        if (is_logsoftmax_) delete log_injector_;
     }
 };
 
@@ -234,7 +257,7 @@ struct jit_softmax_t;
 
 template <>
 struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
-    bf16_emulation_t *bf16_emu_ = nullptr;
+    std::unique_ptr<bf16_emulation_t> bf16_emu_ = nullptr;
     Ymm bf16_cvt_ymm = Ymm(22);
     Zmm bf16_emu_zmm_1 = Zmm(23);
     Zmm bf16_emu_zmm_2 = Zmm(24);
@@ -347,19 +370,56 @@ struct jit_softmax_t<avx512_common> : public jit_softmax_base_t<avx512_common> {
         });
     }
 
+    void accumulate_vsbr() override {
+        uni_vpxor(vsbr, vsbr, vsbr); // flush to zero before accumulation
+
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
+                Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
+                load(vreg_tmp_diff_dst, diff_dst_ptr(axis_stride_ * i), tail);
+                if (is_softmax_) {
+                    load(vreg_tmp_dst, dst_ptr(axis_stride_ * i), tail);
+                    uni_vmulps(
+                            vreg_tmp_diff_dst, vreg_tmp_diff_dst, vreg_tmp_dst);
+                }
+                uni_vaddps(vsbr, vsbr, vreg_tmp_diff_dst);
+            }
+        });
+
+        get_horizontal_op(vsbr, vtmp = vmax, op_t::sum);
+    }
+
+    void compute_diff_src() override {
+        axis_loop([&](int unroll, bool tail = false) {
+            for (int i = 0; i < unroll; i++) {
+                Vmm vreg_tmp_dst = Vmm(i * 2 + 1);
+                Vmm vreg_tmp_diff_dst = Vmm(i * 2 + 2);
+                load(vreg_tmp_dst, dst_ptr(axis_stride_ * i), tail);
+                load(vreg_tmp_diff_dst, diff_dst_ptr(axis_stride_ * i), tail);
+                if (is_softmax_) {
+                    vsubps(vreg_tmp_diff_dst, vreg_tmp_diff_dst, vsbr);
+                    vmulps(vreg_tmp_diff_dst, vreg_tmp_dst, vreg_tmp_diff_dst);
+                }
+                if (is_logsoftmax_) {
+                    exp_injector_->compute_vector(vreg_tmp_dst.getIdx());
+                    uni_vfnmadd231ps(vreg_tmp_diff_dst, vreg_tmp_dst, vsbr);
+                }
+                store(diff_src_ptr(axis_stride_ * i), vreg_tmp_diff_dst, tail);
+            }
+        });
+    }
+
     void initialization_hook() override {
         if (bf16_emu_) bf16_emu_->init_vcvtneps2bf16();
     }
 
     jit_softmax_t(const softmax_pd_t *pd) : jit_softmax_base_t(pd) {
         if (is_bf16_ && !mayiuse(avx512_core_bf16))
-            bf16_emu_ = new bf16_emulation_t(this, bf16_emu_zmm_1,
+            bf16_emu_.reset(new bf16_emulation_t(this, bf16_emu_zmm_1,
                     bf16_emu_zmm_2, bf16_emu_zmm_3, bf16_emu_gpr,
-                    bf16_emu_zmm_4, bf16_emu_zmm_5);
+                    bf16_emu_zmm_4, bf16_emu_zmm_5));
         get_code();
-    }
-    virtual ~jit_softmax_t() {
-        if (bf16_emu_) delete bf16_emu_;
     }
 };
 
@@ -608,9 +668,8 @@ struct jit_softmax_t<sse41> : public jit_softmax_base_t<sse41> {
 
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::jit_uni_softmax_fwd_t(const pd_t *apd)
-    : primitive_impl_t(apd) {
-    softmax_driver_ = new softmax_impl::driver_t<isa>(pd());
-}
+    : primitive_impl_t(apd)
+    , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
 
 template <cpu_isa_t isa>
 jit_uni_softmax_fwd_t<isa>::~jit_uni_softmax_fwd_t() {
@@ -645,19 +704,69 @@ status_t jit_uni_softmax_fwd_t<isa>::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
+template <cpu_isa_t isa>
+jit_uni_softmax_bwd_t<isa>::jit_uni_softmax_bwd_t(const pd_t *apd)
+    : primitive_impl_t(apd)
+    , softmax_driver_(new softmax_impl::driver_t<isa>(pd())) {}
+
+template <cpu_isa_t isa>
+jit_uni_softmax_bwd_t<isa>::~jit_uni_softmax_bwd_t() {
+    delete softmax_driver_;
+}
+
+template <cpu_isa_t isa>
+status_t jit_uni_softmax_bwd_t<isa>::execute(const exec_ctx_t &ctx) const {
+    auto dst = CTX_IN_MEM(const char *, DNNL_ARG_DST);
+    auto diff_dst = CTX_IN_MEM(const char *, DNNL_ARG_DIFF_DST);
+    auto diff_src = CTX_OUT_MEM(char *, DNNL_ARG_DIFF_SRC);
+
+    const memory_desc_wrapper data_d(pd()->dst_md());
+    const auto data_type_size = data_d.data_type() == data_type::bf16
+            ? sizeof(bfloat16_t)
+            : sizeof(float);
+    const auto &bd = data_d.blocking_desc();
+    const auto axis = pd()->axis();
+
+    const auto inner_stride
+            = bd.inner_nblks ? bd.inner_blks[bd.inner_nblks - 1] : (dim_t)1;
+    const auto inner_size = bd.strides[axis] / inner_stride;
+    const auto outer_stride = data_d.padded_dims()[axis] * inner_size;
+    const auto outer_size = data_d.nelems(true) / outer_stride;
+
+    parallel_nd(outer_size, inner_size, [&](dim_t ou, dim_t in) {
+        dim_t offset = (ou * outer_stride + in * inner_stride) * data_type_size;
+        char *diff_src_ptr = diff_src + offset;
+        const char *dst_ptr = dst + offset;
+        const char *diff_dst_ptr = diff_dst + offset;
+        softmax_driver_->exec(
+                diff_src_ptr, dst_ptr, diff_dst_ptr, outer_stride);
+    });
+
+    return status::success;
+}
+
 namespace softmax_impl {
 
 template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
 
     driver_t(const softmax_pd_t *pd) : pd_(pd), ker_(pd_) {}
-    ~driver_t() {}
 
     void exec(const void *src, void *dst, const dim_t outer_stride) {
         typename jit_softmax_t<isa>::call_params_t p;
         p.spat_offt_count = outer_stride * ker_.data_type_size_;
         p.src = src;
         p.dst = dst;
+        ker_(&p);
+    }
+
+    void exec(void *diff_src, const void *dst, const void *diff_dst,
+            const dim_t outer_stride) {
+        typename jit_softmax_t<isa>::call_params_t p;
+        p.spat_offt_count = outer_stride * ker_.data_type_size_;
+        p.src = diff_src;
+        p.dst = dst;
+        p.diff_dst = diff_dst;
         ker_(&p);
     }
 
@@ -672,6 +781,7 @@ private:
 template struct jit_uni_softmax_fwd_t<sse41>;
 template struct jit_uni_softmax_fwd_t<avx2>;
 template struct jit_uni_softmax_fwd_t<avx512_common>;
+template struct jit_uni_softmax_bwd_t<avx512_common>;
 
 } // namespace cpu
 } // namespace impl
