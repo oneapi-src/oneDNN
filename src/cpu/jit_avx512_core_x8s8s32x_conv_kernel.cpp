@@ -1180,7 +1180,9 @@ void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     if (jcp.signed_input && jcp.ver != ver_vnni) {
-        size_t count = nstl::max(attr.output_scales_.count_, jcp.ic_block);
+        size_t count = attr.output_scales_.count_ == 1
+                ? (size_t) 16
+                : attr.output_scales_.count_;
         scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
     }
 }
