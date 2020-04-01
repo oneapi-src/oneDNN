@@ -52,7 +52,10 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             if (copy(other) != status::success) is_initialized_ = false;
         }
 
-        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit_uni_int8_1x1:", isa, ""),
+        DECLARE_COMMON_PD_T(
+                JIT_IMPL_NAME_HELPER("jit_uni_int8_1x1:",
+                        isa == avx2 && jcp_.ver == ver_vnni ? avx2_vnni : isa,
+                        ""),
                 jit_uni_x8s8s32x_1x1_convolution_fwd_t);
 
         status_t init(engine_t *engine) {
@@ -227,7 +230,8 @@ struct jit_uni_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                         = 0 | compensation_conv_s8s8 | scale_adjust;
                 want_wei_md.extra.compensation_mask
                         = with_groups() ? g_mask : c_mask;
-                want_wei_md.extra.scale_adjust = 0.5f;
+                want_wei_md.extra.scale_adjust
+                        = mayiuse(avx2_vnni) ? 1.0f : 0.5f;
             }
             if (is_src_zero_point) {
                 want_wei_md.extra.flags |= compensation_conv_asymmetric_src;

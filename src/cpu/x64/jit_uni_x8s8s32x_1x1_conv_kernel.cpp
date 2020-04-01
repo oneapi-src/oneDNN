@@ -271,7 +271,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
             mov(ptr[rsp + reg_load_data_off], reg_load_data);
             mov(reg_ptr_sum_scale, (size_t)p_sum_scale);
         }
-        if (jcp.signed_input) {
+        if (jcp.signed_input && jcp.ver != ver_vnni) {
             mov(reg_store_bcast, float2int(jcp.wei_adj_scale));
             uni_vmovq(xmm_bias_alpha(), reg_store_bcast);
             uni_vbroadcastss(vmm_bias_alpha(), xmm_bias_alpha());
@@ -293,7 +293,7 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
                     mov(reg_bias_data, ptr[rsp + reg_bias_data_off]);
                 cvt2ps(jcp.bia_dt, vmm_bias, reg_bias_data,
                         jcp.typesize_bia * jcp.oc_block * i_load, load_size);
-                if (jcp.signed_input)
+                if (jcp.signed_input && jcp.ver != ver_vnni)
                     uni_vmulps(vmm_bias, vmm_bias, vmm_bias_alpha());
             }
             if (jcp.signed_input) {
@@ -376,9 +376,13 @@ void _jit_uni_x8s8s32x_1x1_conv_kernel<isa, Vmm>::reduce_loop(
     };
 
     auto compute = [&](Vmm vreg_acc, Vmm vreg_wei, Vmm vreg_src) {
-        uni_vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
-        uni_vpmaddwd(vmm_tmp, vmm_tmp, vmm_one);
-        uni_vpaddd(vreg_acc, vreg_acc, vmm_tmp);
+        if (jcp.ver == ver_vnni) {
+            vpdpbusd(vreg_acc, vreg_src, vreg_wei, VexEncoding);
+        } else {
+            uni_vpmaddubsw(vmm_tmp, vreg_src, vreg_wei);
+            uni_vpmaddwd(vmm_tmp, vmm_tmp, vmm_one);
+            uni_vpaddd(vreg_acc, vreg_acc, vmm_tmp);
+        }
     };
 
     auto fma_block = [&](bool last_block) {
@@ -670,6 +674,8 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
             && jcp.dst_tag == dat_tag;
     if (!args_ok) return status::unimplemented;
 
+    jcp.ver = mayiuse(avx2_vnni) ? ver_vnni : ver_unused;
+
     jcp.oc = rnd_up(jcp.oc, simd_w);
     jcp.ic = rnd_up(jcp.ic, simd_w);
 
@@ -888,7 +894,7 @@ void jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_scratchpad(
         const jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr) {
     using namespace dnnl::impl::memory_tracking::names;
 
-    if (jcp.signed_input) {
+    if (jcp.signed_input && jcp.ver != ver_vnni) {
         dim_t count = nstl::max<dim_t>(attr.output_scales_.count_, 8);
         scratchpad.book<float>(key_conv_adjusted_scales, count);
     }
