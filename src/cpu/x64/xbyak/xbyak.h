@@ -1565,6 +1565,12 @@ inline const uint8* Label::getAddress() const
 	return mgr->getCode() + offset;
 }
 
+typedef enum {
+	DefaultEncoding,
+	VexEncoding,
+	EvexEncoding
+} PreferredEncoding;
+
 class CodeGenerator : public CodeArray {
 public:
 	enum LabelType {
@@ -2318,6 +2324,19 @@ private:
 		if (addr.hasZero()) XBYAK_THROW(ERR_INVALID_ZERO)
 		if (addr.getRegExp().getIndex().getKind() != kind) XBYAK_THROW(ERR_BAD_VSIB_ADDRESSING)
 		opVex(x, 0, addr, type, code);
+	}
+	void opVnni(const Xmm& x1, const Xmm& x2, const Operand& op, int type, int code0, PreferredEncoding encoding)
+	{
+		if (encoding == DefaultEncoding) {
+			encoding = EvexEncoding;
+		}
+		if (encoding == EvexEncoding) {
+#ifdef XBYAK_DISABLE_AVX512
+			XBYAK_THROW(ERR_EVEX_IS_INVALID)
+#endif
+			type |= T_MUST_EVEX;
+		}
+		opAVX_X_X_XM(x1, x2, op, type, code0);
 	}
 	void opInOut(const Reg& a, const Reg& d, uint8 code)
 	{
