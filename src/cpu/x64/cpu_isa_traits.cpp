@@ -99,6 +99,7 @@ bool init_max_cpu_isa() {
         ELSEIF_HANDLE_CASE(sse41);
         ELSEIF_HANDLE_CASE(avx);
         ELSEIF_HANDLE_CASE(avx2);
+        ELSEIF_HANDLE_CASE(avx2_vnni);
         ELSEIF_HANDLE_CASE(avx512_mic);
         ELSEIF_HANDLE_CASE(avx512_mic_4ops);
         ELSEIF_HANDLE_CASE(avx512_core);
@@ -131,6 +132,7 @@ struct isa_info_t {
             case avx512_core: return dnnl_cpu_isa_avx512_core;
             case avx512_mic_4ops: return dnnl_cpu_isa_avx512_mic_4ops;
             case avx512_mic: return dnnl_cpu_isa_avx512_mic;
+            case avx2_vnni: return dnnl_cpu_isa_avx2_vnni;
             case avx2: return dnnl_cpu_isa_avx2;
             case avx: return dnnl_cpu_isa_avx;
             case sse41: return dnnl_cpu_isa_sse41;
@@ -162,6 +164,7 @@ struct isa_info_t {
                 return "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF "
                        "extensions";
             case avx512_common: return "Intel AVX-512";
+            case avx2_vnni: return "Intel AVX2 with Intel DL Boost";
             case avx2: return "Intel AVX2";
             case avx: return "Intel AVX";
             case sse41: return "Intel SSE4.1";
@@ -220,6 +223,7 @@ status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
         HANDLE_CASE(sse41);
         HANDLE_CASE(avx);
         HANDLE_CASE(avx2);
+        HANDLE_CASE(avx2_vnni);
         HANDLE_CASE(avx512_mic);
         HANDLE_CASE(avx512_mic_4ops);
         HANDLE_CASE(avx512_core);
