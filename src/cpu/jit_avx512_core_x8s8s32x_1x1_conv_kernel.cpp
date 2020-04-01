@@ -538,13 +538,13 @@ bool jit_avx512_core_x8s8s32x_1x1_conv_kernel::post_ops_ok(
 
 status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
         jit_1x1_conv_conf_t &jcp, const convolution_desc_t &cd,
-        memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
-        memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads,
-        bool reduce_src) {
+        const memory_desc_t *&src_md, memory_desc_t &weights_md,
+        memory_desc_t &dst_md, memory_desc_t &bias_md,
+        const primitive_attr_t &attr, int nthreads, bool reduce_src) {
 
     if (!mayiuse(avx512_core)) return status::unimplemented;
 
-    const memory_desc_wrapper src_d(&src_md);
+    const memory_desc_wrapper src_d(src_md);
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);

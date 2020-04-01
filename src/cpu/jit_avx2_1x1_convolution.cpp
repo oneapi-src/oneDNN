@@ -170,7 +170,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
 
         p.reduce_dim = this_block_size(
                 icb * jcp.ic_block, jcp.ic, nb_ic_blocking * jcp.ic_block);
-        rp.icb = p.reduce_dim / jcp.reduce_block;
+        rp.icb = p.reduce_dim;
 
         p.load_data
                 = &weights[pd()->with_groups() ? weights_d.blk_off(g, ocb, icb)
@@ -379,7 +379,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
 
             p.load_dim = this_block_size(
                     icb * jcp.ic_block, jcp.ic, load_step * jcp.ic_block);
-            rp.icb = p.load_dim / jcp.ic_block;
+            rp.icb = p.load_dim;
 
             int bcast_step;
             for (int iwork = start; iwork < end; iwork += bcast_step) {
@@ -532,7 +532,7 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
             for (int ic_b = 0; ic_b < nb_ic_blocking; ic_b += ic_b_step) {
                 ic_b_step = step(12, nb_ic_blocking - ic_b, 18);
                 p.bcast_dim = ic_b_step * jcp.ic_block;
-                rp.icb = p.bcast_dim / jcp.ic_block;
+                rp.icb = p.bcast_dim;
 
                 p.output_data = store_to + oc_b * store_to_ld
                         + ic_b * jcp.ic_block * jcp.oc_block;

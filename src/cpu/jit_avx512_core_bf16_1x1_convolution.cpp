@@ -207,7 +207,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
         p.reduce_dim = this_block_size(
                 icb * jcp.ic_block, jcp.ic, nb_ic_blocking_step * jcp.ic_block);
-        rp.icb = p.reduce_dim / jcp.reduce_block;
+        rp.icb = p.reduce_dim;
     };
 
     auto ker_1x1 = [&](int ocb, int ocb_start, int icb, int n, int g, int od,
@@ -499,7 +499,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
                 jcp.nb_load_blocking, icb_end - icb, jcp.nb_load_blocking_max);
         p.load_dim = this_block_size(icb * jcp.ic_block, icb_end * jcp.ic_block,
                 load_step * jcp.ic_block);
-        rp.icb = p.load_dim / jcp.ic_block;
+        rp.icb = p.load_dim;
     };
 
     auto init_reduce = [&](int ocb) {
@@ -737,7 +737,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                         p.load_dim = load_step * jcp.oc_block;
 
                         p.bcast_dim = bcast_step * jcp.ic_block;
-                        rp.icb = bcast_step;
+                        rp.icb = p.bcast_dim;
                         p.output_data = store_to;
 
                         p.reduce_dim = sp_b_step * jcp.reduce_block;

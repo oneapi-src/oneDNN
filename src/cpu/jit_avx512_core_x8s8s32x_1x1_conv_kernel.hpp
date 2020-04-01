@@ -139,7 +139,7 @@ struct jit_avx512_core_x8s8s32x_1x1_conv_kernel {
             jit_1x1_conv_conf_t &jcp, const primitive_attr_t &attr);
 
     static status_t init_conf(jit_1x1_conv_conf_t &jcp,
-            const convolution_desc_t &cd, memory_desc_t &src_md,
+            const convolution_desc_t &cd, const memory_desc_t *&src_md,
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             memory_desc_t &bias_md, const primitive_attr_t &attr, int nthreads,
             bool reduce_src);
