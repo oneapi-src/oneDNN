@@ -401,6 +401,7 @@ public:
 	static const Type tAMX_TILE = uint64(1) << 59;
 	static const Type tAMX_INT8 = uint64(1) << 60;
 	static const Type tAMX_BF16 = uint64(1) << 61;
+	static const Type tAVX_VNNI = uint64(1) << 62;
 
 	Cpu()
 		: type_(NONE)
@@ -488,6 +489,8 @@ public:
 						if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
 					}
 				}
+				getCpuidEx(7, 1, data);
+				if (EAX & (1U << 4)) type_ |= tAVX_VNNI;
 			}
 		}
 		if (maxNum >= 7) {
