@@ -106,12 +106,12 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 #if KH != 1 || KW != 1 || KD != 1
                     A0 = tempA[k * SW + kw * (1 + DW)];
 #else
-                    if (iw + kw * (1 + DW) + k * SW < 0
-                            || iw + kw * (1 + DW) + k * SW >= IW)
-                        A0 = DATA_ZERO;
-                    else
-                        A0 = AS_DATA_T(BLOCK_READ((const __global BLOCK_DATA_T
-                                        *)(&src1[k * SW * IC_BLOCK])));
+        if (iw + kw * (1 + DW) + k * SW < 0
+                || iw + kw * (1 + DW) + k * SW >= IW)
+            A0 = DATA_ZERO;
+        else
+            A0 = AS_DATA_T(BLOCK_READ(
+                    (const __global BLOCK_DATA_T *)(&src1[k * SW * IC_BLOCK])));
 #endif
                     S00[k] = fma(A0, (DATA_T)B0, S00[k]);
                 }
