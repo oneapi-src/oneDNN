@@ -1188,8 +1188,9 @@ void jit_avx2_x8s8s32x_fwd_kernel::init_scratchpad(
         const primitive_attr_t &attr) {
 
     if (jcp.signed_input) {
-        dim_t count
-                = nstl::max(attr.output_scales_.count_, (dim_t)jcp.ic_block);
+        dim_t count = attr.output_scales_.count_ == 1
+                ? (dim_t)8
+                : attr.output_scales_.count_;
         scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
     }
 }
