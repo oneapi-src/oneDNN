@@ -22,6 +22,12 @@
 // simplicity, it contains both declarations and definitions
 // ----------------------------------------------------------------------------
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <stdlib.h>
+#endif
+
 #include <mutex>
 
 #include "dnnl_threadpool_iface.hpp"
@@ -51,8 +57,19 @@ inline void balance211(T n, U team, U tid, T &n_start, T &n_end) {
 }
 
 inline int read_num_threads_from_env() {
+    const char *env_num_threads = nullptr;
+    const char *env_var_name = "OMP_NUM_THREADS";
+#ifdef _WIN32
+    // This is only required to avoid using _CRT_SECURE_NO_WARNINGS
+    const size_t buf_size = 12;
+    char buf[buf_size];
+    size_t val_size = GetEnvironmentVariable(env_var_name, buf, buf_size);
+    if (val_size > 0 && val_size < buf_size) env_num_threads = buf;
+#else
+    env_num_threads = ::getenv(env_var_name);
+#endif
+
     int num_threads = 0;
-    const char *env_num_threads = getenv("OMP_NUM_THREADS");
     if (env_num_threads) {
         char *endp;
         int nt = strtol(env_num_threads, &endp, 10);
@@ -222,7 +239,7 @@ private:
     };
     std::unique_ptr<std::vector<worker_data>> workers_;
     static thread_local worker_data *worker_self_;
-    worker_data *worker_self() {
+    worker_data *worker_self() const {
         return worker_self_ != nullptr && worker_self_->tp == this
                 ? worker_self_
                 : nullptr;
