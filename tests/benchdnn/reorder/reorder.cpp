@@ -317,6 +317,7 @@ int doit(const prb_t *p, res_t *r) {
         print(5, "dnnl implementation: %s\n", impl_str);
     }
 
+    if (r->state == UNIMPLEMENTED || r->state == SKIPPED) return OK;
     SAFE(init_status, WARN);
 
     dnnl_primitive_t rp = NULL;
