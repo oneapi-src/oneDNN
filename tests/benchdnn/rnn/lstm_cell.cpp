@@ -259,7 +259,7 @@ void lstm_bwd(const prb_t &p, float *diff_src_layer_, float *diff_src_iter_,
 
     if (p.is_lstm_projection()) {
         float *diff_dst = (float *)zmalloc(p.mb * p.dic * sizeof(float), 64);
-        assert(diff_dst != nullptr);
+        DNN_SAFE_V(diff_dst == nullptr ? dnnl_out_of_memory : dnnl_success);
 
         // The loop below relies on this property
         assert(p.dic == p.dlc(CELL));
