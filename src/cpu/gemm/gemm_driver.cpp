@@ -1605,6 +1605,11 @@ static dnnl_status_t gemm_threading_driver(
         c_local_storage = (c_type *)malloc(
                 sizeof(c_type) * c_local_stride * nthr_goal, PAGE_4K);
 
+        if (!c_local_storage) {
+            free(thread_arg);
+            return dnnl_out_of_memory;
+        }
+
         for (int ithr = 0; ithr < nthr_goal; ithr++) {
             thread_arg[ithr].c_local = c_local_storage + ithr * c_local_stride;
             thread_arg[ithr].ldc_local = ldc_local;

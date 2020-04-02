@@ -165,6 +165,7 @@ dnnl_status_t sgemm_pack_get_size(const char *identifier, const char *transa,
     bool do_a = utils::one_of(*identifier, 'a', 'A');
     float alpha = 1.0f;
     gemm_pack_storage_shell_t shell {dnnl_get_max_threads()};
+    if (!shell.get()) return dnnl_out_of_memory;
 
     result = gemm_pack_driver<float, float, float>(identifier, transa, transb,
             M, N, K, &alpha, lda, ldb, nullptr, &shell, true);
@@ -204,6 +205,7 @@ dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
 
     float alpha = 1.0f;
     gemm_pack_storage_shell_t shell {dnnl_get_max_threads()};
+    if (!shell.get()) return dnnl_out_of_memory;
 
     result = gemm_pack_driver<bfloat16_t, bfloat16_t, float>(identifier, transa,
             transb, &M_s32, &N_s32, &K_s32, &alpha, &lda_s32, &ldb_s32, nullptr,
@@ -244,6 +246,7 @@ dnnl_status_t gemm_x8x8s32_pack_get_size(const char *identifier,
     bool do_a = utils::one_of(*identifier, 'a', 'A');
     float alpha = 1.0f;
     gemm_pack_storage_shell_t shell {dnnl_get_max_threads(), do_a, !do_a};
+    if (!shell.get()) return dnnl_out_of_memory;
 
     if (!use_reference_igemm<a_dt, b_dt>()) {
         result = gemm_pack_driver<a_dt, b_dt, int32_t>(identifier, transa,
