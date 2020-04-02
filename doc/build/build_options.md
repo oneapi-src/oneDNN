@@ -62,9 +62,9 @@ run-time to, for example, test SSE4.1 code on an AVX2-capable processor. The
 feature. See @ref dev_guide_cpu_dispatcher_control for more information.
 
 ### Runtimes
-CPU engine can use OpenMP, TBB or sequential threading runtimes. OpenMP
-threading is the default build mode. This behavior is controlled by the
-`DNNL_CPU_RUNTIME` CMake option.
+CPU engine can use OpenMP, Threading Building Blocks (TBB) or sequential
+threading runtimes. OpenMP threading is the default build mode. This behavior
+is controlled by the `DNNL_CPU_RUNTIME` CMake option.
 
 #### OpenMP
 oneDNN uses OpenMP runtime library provided by the compiler.
@@ -77,7 +77,7 @@ undefined behavior including incorrect results or crashes. However as long as
 both the library and the application use the same or compatible compilers there
 would be no conflicts.
 
-#### TBB
+#### Threading Building Blocks (TBB)
 To build oneDNN with TBB support, set `DNNL_CPU_RUNTIME` to `TBB`:
 
 ~~~sh
@@ -91,10 +91,7 @@ installation path or pass the path directly to CMake:
 $ cmake -DDNNL_CPU_RUNTIME=TBB -DTBBROOT=/opt/intel/path/tbb ..
 ~~~
 
-oneDNN has limited optimizations for Intel TBB and has some functional
-limitations if built with Intel TBB.
-
-Functional limitations:
+oneDNN has functional limitations if built with TBB:
 * Winograd convolution algorithm is not supported for fp32 backward
   by data and backward by weights propagation.
 

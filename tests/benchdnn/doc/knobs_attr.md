@@ -96,7 +96,7 @@ Eltwise operations that support both alpha and beta:
 Depthwise convolution:
 
 This post-op appends depthwise convolution as post-op. The weights of depthwise
-convolution have a spatial size of 3 and padding 1. This post-op is currently 
+convolution have a spatial size of 3 and padding 1. This post-op is currently
 only supported for 1x1 convolution.
   - `dw_k3s1p1` -- appends depthwise post-op with stride=1
   - `dw_k3s2p1` -- appends depthwise post-op with stride=2
@@ -129,10 +129,10 @@ applying scales to both inputs:
 ```
 
 Run a 1x1 convolution fused with depthwise convolution where output scales set
-to 0.5 for 1x1 convolution and 1.5 for depthwise post-op followed by a relu 
+to 0.5 for 1x1 convolution and 1.5 for depthwise post-op followed by a relu
 post-op. The final dst datatype after the fusion in the example below is `s8`.
 The weights datatype is inferred as `s8`, `f32` and `bf16` for int8, f32 and
-bf16 convolutions respectively. 
+bf16 convolutions respectively.
 ``` sh
   ./benchdnn --conv --cfg=u8s8u8 \
   --attr="oscale=per_oc:0.5;post_ops='relu;dw_k3s1p1:s8:per_oc:1.5;relu';" \

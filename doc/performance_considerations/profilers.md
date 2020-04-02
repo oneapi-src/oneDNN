@@ -4,7 +4,7 @@ Profiling oneDNN performance {#dev_guide_profilers}
 oneDNN uses JIT (just-in-time) code generation based on primitive parameters and
 instruction set supported by the system. In order to correctly attribute
 performance event information, profilers need to be notified about
-address ranges containing JIT-ed code. oneDNN supports two profilers: Intel
+address ranges containing JIT-ed code. oneDNN supports two profilers:
 VTune Amplifier and Linux perf.
 
 At build-time, support for this feature is controlled via cmake option
@@ -29,11 +29,11 @@ individual flags may be OR-ed:
 * @ref DNNL_JIT_PROFILE_LINUX_JITDUMP = 4: @copybrief DNNL_JIT_PROFILE_LINUX_JITDUMP
 * @ref DNNL_JIT_PROFILE_LINUX_JITDUMP_USE_TSC = 8: @copybrief DNNL_JIT_PROFILE_LINUX_JITDUMP_USE_TSC
 
-The default setting of the profiling flags is to enable integration with Intel
+The default setting of the profiling flags is to enable integration with
 VTune Amplifier, therefore it does not require any additional setup and works
 out of the box. Code integrating oneDNN may override this behavior.
 
-## Example: profiling with Intel VTune Amplifier
+## Example: profiling with VTune Amplifier
 
 Assuming that environment is set up already.
 
@@ -70,7 +70,7 @@ benchdnn  vmlinux           plist_check_prev_next                               
 The JIT-ed function `jit_avx2_conv_fwd_kernel_f32` is shown as belonging to
 the `[Dynamic code]` module.
 
-See more examples in the [Intel VTune Amplifier User Guide](https://software.intel.com/en-us/vtune-amplifier-help-tutorials-and-samples)
+See more examples in the [VTune Amplifier User Guide](https://software.intel.com/en-us/vtune-amplifier-help-tutorials-and-samples)
 
 ## Example: profiling with Linux perf
 

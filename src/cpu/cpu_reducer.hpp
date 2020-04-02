@@ -62,7 +62,7 @@ namespace cpu {
  * master (@sa reduce_balancer_t::master()).
  *
  * If threading driver does not allow sync between sub-group of threads (e.g.
- * Intel(R) TBB) the # of thread per group is enforced to be 1.
+ * TBB) the # of thread per group is enforced to be 1.
  */
 struct reduce_balancer_t {
     reduce_balancer_t() { init(1, 1, 1, 1, 0); } /* trivial balance */

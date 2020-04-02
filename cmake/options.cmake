@@ -79,7 +79,7 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
     If empty default optimization level would be applied which depends on the
     compiler being used.
 
-    - For Intel(R) C++ Compilers the default option is `-xSSE4.1` which instructs
+    - For Intel C++ Compilers the default option is `-xSSE4.1` which instructs
       the compiler to generate the code for the processors that support SSE4.1
       instructions. This option would not allow to run the library on older
       architectures.
@@ -97,14 +97,13 @@ set(DNNL_ARCH_OPT_FLAGS "HostOpts" CACHE STRING
 # Profiling capabilities
 # ======================
 
-# TODO: restore default to ON after the issue with linking C files by DPC++
-# compiler is fixed.
-# DPC++ compiler issues a warning when linking object files built from C and C++
-# sources.
+# TODO: restore default to ON after the issue with linking C files by 
+# Intel oneAPI DPC++ Compiler is fixed. Currently this compiler issues a warning
+# when linking object files built from C and C++ sources.
 option(DNNL_ENABLE_JIT_PROFILING
     "Enable registration of oneDNN kernels that are generated at
-    runtime with Intel VTune Amplifier (on by default). Without the
-    registrations, Intel VTune Amplifier would report data collected inside
+    runtime with VTune Amplifier (on by default). Without the
+    registrations, VTune Amplifier would report data collected inside
     the kernels as `outside any known module`."
     OFF)
 
@@ -116,7 +115,7 @@ set(DNNL_CPU_RUNTIME "OMP" CACHE STRING
     "specifies the threading runtime for CPU engines;
     supports OMP (default), TBB or DPCPP (DPC++ CPU engines).
 
-    To use Intel(R) Threading Building Blocks (Intel(R) TBB) one should also
+    To use Threading Building Blocks (TBB) one should also
     set TBBROOT (either environment variable or CMake option) to the library
     location.
 
@@ -136,8 +135,8 @@ if(NOT "${_DNNL_TEST_THREADPOOL_IMPL}" MATCHES "^(STANDALONE|TBB|EIGEN)$")
 endif()
 
 set(TBBROOT "" CACHE STRING
-    "path to Intel(R) Thread Building Blocks (Intel(R) TBB).
-    Use this option to specify Intel(R) TBB installation locaton.")
+    "path to Thread Building Blocks (TBB).
+    Use this option to specify TBB installation locaton.")
 
 set(DNNL_GPU_RUNTIME "NONE" CACHE STRING
     "specifies the runtime to use for GPU engines.
@@ -154,7 +153,7 @@ if(NOT "${DNNL_GPU_RUNTIME}" MATCHES "^(OCL|NONE|DPCPP|SYCL)$")
 endif()
 
 set(OPENCLROOT "" CACHE STRING
-    "path to Intel(R) SDK for OpenCL(TM).
+    "path to Intel SDK for OpenCL applications.
     Use this option to specify custom location for OpenCL.")
 
 set(DPCPPROOT "" CACHE STRING

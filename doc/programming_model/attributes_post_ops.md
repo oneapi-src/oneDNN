@@ -53,7 +53,7 @@ primitive::primitive_desc op_pd(params, attr); // create a pd with the attr
     primitive. For instance, the library generally doesn't support post-ops
     for reference primitives (which are typically very slow, so there is no
     point in doing the actual fusion). So the robust integration should handle
-    errors accordingly. See the 
+    errors accordingly. See the
     [section on attributes error handling](@ref dev_guide_attributes_error_handling).
 
 The post-op object can be inspected by @ref dnnl::post_ops::kind()
@@ -138,7 +138,7 @@ with
 @anchor dev_guide_attributes_post_ops_depthwise
 ### Depthwise Post-op
 
-Appends a Depthwise convolution as a post-op. This post-op can only be fused 
+Appends a Depthwise convolution as a post-op. This post-op can only be fused
 with 1x1 convolution as generally seen in models (like MobileNet_v1) that use a
 stack of Separable convolutions: Depthwise convolution followed by 1x1
 convolution. The stack of these Separable convolutions (like in MobileNet_v1)
@@ -152,7 +152,7 @@ There are two variants of this post-op: dw_k3s1p1 and dw_k3_s2p1 for stride-1
 and and stride-2 respectively.
 
 API:
-- C: @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1 
+- C: @ref dnnl_post_ops_append_dw_k3s1p1 , @ref dnnl_post_ops_append_dw_k3s2p1
 - C++: @ref dnnl::post_ops::append_dw_k3s1p1 , @ref dnnl::post_ops::append_dw_k3s2p1
 
 For better readability, below we assume a 2D convolution and use the following
@@ -160,7 +160,7 @@ notations:
 
   `conv_1x1` Convolution with weights spatial=1 i.e., `kh` = `kw` = 1.
 
-  `conv_dw` Depthwise convolution with weights spatial=3 i.e., `kh` = `kw` = 3, 
+  `conv_dw` Depthwise convolution with weights spatial=3 i.e., `kh` = `kw` = 3,
   `g` = `oc` = `ic` and `pad_l` = `pad_r` = {1, 1}.
 
 The Depthwise post-op replaces
@@ -198,7 +198,7 @@ Supported data types
 @note
   * Currently only supported for 2D 1x1 convolution.
 
-  * Only eltwise post-op can be part of post-op chain (i.e., sum post-op is 
+  * Only eltwise post-op can be part of post-op chain (i.e., sum post-op is
     not supported)
 
   * The `dst_1x1`, `wei_dw` and `dst_dw` are assumed to be #dnnl_format_tag_any.
@@ -335,8 +335,8 @@ auto dw_bias_md = cpd.query(query::exec_arg_md,
 This will lead to the following primitive behaviour:
 
 \f[
-    dst 
-        = 
+    dst
+        =
         ReLU_{depthwise}
         (
             scales_{depthwise} \cdot

@@ -83,22 +83,23 @@ cmake --build . --target DOC
 cmake --build . --target INSTALL
 ~~~
 
-### DPC++ Support
+### Building with DPCPP runtime
 
-DPC++ runtime requires the oneAPI DPC++ Compiler. You can explicitly specify the path
-to the DPC++ installation using `-DDPCPPROOT` CMake option.
+DPCPP runtime requires Intel oneAPI DPC++ Compiler. You can explicitly specify
+the path to Intel oneAPI DPC++ Compiler installation using 
+`-DDPCPPROOT` CMake option.
 
-C and C++ compilers need to be set to point to oneAPI DPC++ Compilers.
+C and C++ compilers need to be set to point to Intel oneAPI DPC++ Compilers.
 
 #### Linux
 
 ~~~sh
-# Set DPC++ environment variables
+# Set Intel oneAPI DPC++ Compiler environment
 # <..>/setvars.sh
 
 # Set C and C++ compilers
-export CC=<C compiler>
-export CXX=<DPC++ compiler>
+export CC=clang
+export CXX=clang++
 
 mkdir build
 cd build
@@ -116,12 +117,12 @@ cmake --build .
     - CMake version must be 3.15 or newer.
 
 ~~~bat
-:: Set DPC++ environment variables
+:: Set Intel oneAPI DPC++ Compiler environment
 :: <..>\setvars.bat
 
 :: Set C and C++ compilers (must have GNU-like command-line interface)
-set CC=<C compiler>
-set CXX=<DPC++ compiler>
+set CC=clang
+set CXX=clang++
 
 mkdir build
 cd build
