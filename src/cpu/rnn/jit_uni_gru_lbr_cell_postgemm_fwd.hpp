@@ -43,7 +43,8 @@ struct jit_uni_gru_lbr_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
 
     void init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
-        // we use rax for both constant tables as they use the same table
+        // we use rax for both constant tables and load correspondent label
+        // into it when calling correspondent injector.
         sigmoid_injector_ = new injector_t(
                 this, alg_kind::eltwise_logistic, 0.0f, 0.0f, 1.0f, true, rax);
         tanh_injector_ = new injector_t(
@@ -138,9 +139,6 @@ protected:
         mov(table_reg, table_label);
         init_regs(vlen);
 
-        // both sigmoid and tanh use the same table so load address just once in rax
-        sigmoid_injector_->load_table_addr();
-
         mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen);
         jl(vector_loop_end_label, Xbyak::CodeGenerator::T_NEAR);
@@ -153,6 +151,7 @@ protected:
             uni_vaddps(G0, G0, tmp1_vmm);
             uni_vmovups(tmp1_vmm, sc_addr(0));
             uni_vaddps(G0, G0, tmp1_vmm);
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G0.getIdx());
             // if training we write back the gates
             if (is_training) to_src<src_data_t>(wg_addr(0), G0, vlen);
@@ -163,6 +162,7 @@ protected:
             uni_vaddps(G1, G1, tmp1_vmm);
             uni_vmovups(tmp1_vmm, sc_addr(1));
             uni_vaddps(G1, G1, tmp1_vmm);
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G1.getIdx());
             // if training we write back the gates
             if (is_training) to_src<src_data_t>(wg_addr(1), G1, vlen);
@@ -178,6 +178,7 @@ protected:
             uni_vmovups(tmp2_vmm, B_addr(2));
             uni_vaddps(G2, G2, tmp2_vmm);
             uni_vfmadd231ps(G2, G1, tmp1_vmm);
+            tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(G2.getIdx());
             // if training we write back the gates
             if (is_training) to_src<src_data_t>(wg_addr(2), G2, vlen);
@@ -228,6 +229,7 @@ protected:
             uni_vmovss(G0s, sg_addr(0));
             uni_vaddss(G0s, G0s, B_addr(0));
             uni_vaddss(G0s, G0s, sc_addr(0));
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G0s.getIdx());
             // if training we write back the gates
             if (is_training)
@@ -237,6 +239,7 @@ protected:
             uni_vmovss(G1s, sg_addr(1));
             uni_vaddss(G1s, G1s, B_addr(1));
             uni_vaddss(G1s, G1s, sc_addr(1));
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G1s.getIdx());
             // if training we write back the gates
             if (is_training)
@@ -252,6 +255,7 @@ protected:
             uni_vmovss(G2s, sg_addr(2));
             uni_vaddss(G2s, G2s, B_addr(2));
             uni_vfmadd231ss(G2s, G1s, tmp1s_vmm);
+            tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(G2s.getIdx());
             // if training we write back the gates
             if (is_training)
@@ -293,8 +297,7 @@ protected:
 
         postamble();
 
-        // Again, only one table is needed and shared between sigmoid and tanh
-        sigmoid_injector_->prepare_table(false);
+        sigmoid_injector_->prepare_table(true);
         tanh_injector_->prepare_table(true);
         init_table(vlen);
 
