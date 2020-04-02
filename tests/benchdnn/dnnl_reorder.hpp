@@ -97,7 +97,7 @@ int execute_reorder(const dnn_mem_t &src, dnn_mem_t &dst,
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
-    DNN_SAFE(execute_and_wait(r, args), CRIT);
+    SAFE(execute_and_wait(r, args), CRIT);
     DNN_SAFE(dnnl_primitive_destroy(r), CRIT);
 
     return OK;

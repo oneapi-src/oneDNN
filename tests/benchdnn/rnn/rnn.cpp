@@ -735,7 +735,7 @@ int doit(const prb_t &p, res_t *r) {
     args.set(DNNL_ARG_WORKSPACE, workspace_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
+    SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
 
     if ((p.prop == dnnl_forward) && (bench_mode & CORR)) {
         compute_ref_fwd(p, src_layer_fp, src_iter_fp, src_iter_c_fp,
@@ -894,7 +894,7 @@ int doit(const prb_t &p, res_t *r) {
         args.set(DNNL_ARG_DIFF_BIAS, diff_bias_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
+        SAFE_CLEAN(execute_and_wait(c, args), WARN, cleanup);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_layer_fp, src_iter_fp, src_iter_c_fp,

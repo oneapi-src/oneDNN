@@ -541,7 +541,7 @@ int doit(const prb_t *p, res_t *r) {
         args0.set(DNNL_ARG_DST, dst_dt0);
         args0.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt0);
 
-        DNN_SAFE(execute_and_wait(c0, args0), WARN);
+        SAFE(execute_and_wait(c0, args0), WARN);
         SAFE(src_dt1.reorder(dst_dt0), WARN);
 
         args1.set(DNNL_ARG_SRC, src_dt1);
@@ -550,7 +550,7 @@ int doit(const prb_t *p, res_t *r) {
         args1.set(DNNL_ARG_DST, dst_dt1);
         args1.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt1);
 
-        DNN_SAFE(execute_and_wait(c1, args1), WARN);
+        SAFE(execute_and_wait(c1, args1), WARN);
 
         args.set(DNNL_ARG_SRC, src_dt);
         args.set(DNNL_ARG_WEIGHTS, wei_dt);
@@ -562,7 +562,7 @@ int doit(const prb_t *p, res_t *r) {
             args.set(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS, fused_bia_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(c, args), WARN);
+        SAFE(execute_and_wait(c, args), WARN);
 
         if (bench_mode & CORR) {
             dnn_mem_t dst_fused(dst_dt, fp, src_tag, test_engine);

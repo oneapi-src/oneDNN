@@ -285,7 +285,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE(execute_and_wait(pp, args), WARN);
+    SAFE(execute_and_wait(pp, args), WARN);
 
     // want this pass on backward to get ws_fp filled properly
     if (bench_mode & CORR) {
@@ -332,7 +332,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(pp, args), WARN);
+        SAFE(execute_and_wait(pp, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, d_src_fp, d_dst_fp, ws_fp);

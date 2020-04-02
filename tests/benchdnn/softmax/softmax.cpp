@@ -259,7 +259,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DST, dst_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(s, args), WARN);
+        SAFE(execute_and_wait(s, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_fwd(p, src_fp, dst_fp);
@@ -287,7 +287,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_DIFF_SRC, d_src_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(s, args), WARN);
+        SAFE(execute_and_wait(s, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_fp, d_dst_fp, d_src_fp);

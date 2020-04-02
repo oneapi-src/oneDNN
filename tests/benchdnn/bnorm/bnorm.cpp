@@ -540,7 +540,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_WORKSPACE, ws_dt);
     args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-    DNN_SAFE(execute_and_wait(b, args), WARN);
+    SAFE(execute_and_wait(b, args), WARN);
 
     // Running ref to collect src_hat (used instead of src + mean) and ws, if
     // fuse_relu flag is requested.
@@ -601,7 +601,7 @@ int doit(const prb_t *p, res_t *r) {
         args.set(DNNL_ARG_WORKSPACE, ws_dt);
         args.set(DNNL_ARG_SCRATCHPAD, scratchpad_dt);
 
-        DNN_SAFE(execute_and_wait(b, args), WARN);
+        SAFE(execute_and_wait(b, args), WARN);
 
         if (bench_mode & CORR) {
             compute_ref_bwd(p, src_hat_fp, var_fp, d_dst_fp, ss_fp, ws_fp,

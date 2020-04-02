@@ -389,7 +389,7 @@ int doit(const prb_t *p, res_t *r) {
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC, src_zero_points_m);
     args.set(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST, dst_zero_points_m);
 
-    DNN_SAFE(execute_and_wait(rp, args), WARN);
+    SAFE(execute_and_wait(rp, args), WARN);
 
     /* Step 6: check correctness */
     if (bench_mode & CORR) {
