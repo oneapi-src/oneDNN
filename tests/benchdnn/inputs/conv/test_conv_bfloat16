@@ -46,3 +46,9 @@
 --batch=shapes_fused_mobilenet_stride_2
 --attr=post_ops='relu;dw_k3s2p1:f32;tanh'
 --batch=shapes_fused_mobilenet_stride_2
+
+# Test src-transpose padding handling in bf16 bwd-w convolution
+--reset --mb=2
+--allow-unimpl=true --skip-impl="ref:gemm"
+--cfg=bf16bf16bf16 --dir=BWD_W
+--batch=shapes_src-transpose_padding
