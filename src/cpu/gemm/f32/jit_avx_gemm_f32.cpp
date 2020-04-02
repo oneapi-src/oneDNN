@@ -2496,6 +2496,8 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
     if (nthr_k > 1) {
         ompstatus_ = (unsigned char *)malloc(
                 nthr_to_use * CACHE_LINE_SIZE, CACHE_LINE_SIZE);
+        if (!ompstatus_) return dnnl_out_of_memory;
+
         ompstatus = (unsigned char volatile *)ompstatus_;
         assert(ompstatus);
 
@@ -2505,6 +2507,10 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
         c_buffers = (float *)malloc(
                 nthr_m * nthr_n * (nthr_k - 1) * MB * NB * sizeof(float),
                 PAGE_4K);
+        if (!c_buffers) {
+            free(ompstatus_);
+            return dnnl_out_of_memory;
+        }
     }
 
     const size_t ws_elems_per_thr = (size_t)k * 16 + 64;
@@ -2512,6 +2518,11 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
             = rnd_up(ws_elems_per_thr * sizeof(float), PAGE_4K);
     if (k > STACK_K_CAPACITY) {
         ws_buffers = (float *)malloc(nthr_to_use * ws_size_per_thr, PAGE_4K);
+        if (!ws_buffers) {
+            free(ompstatus_);
+            free(c_buffers);
+            return dnnl_out_of_memory;
+        }
     }
 
     parallel(nthr_to_use, [&](int ithr, int nthr) {
