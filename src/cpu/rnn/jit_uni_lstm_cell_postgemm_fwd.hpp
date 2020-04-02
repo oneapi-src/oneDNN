@@ -43,7 +43,8 @@ struct jit_uni_lstm_cell_postgemm_fwd : public jit_uni_rnn_postgemm {
 
     void init(data_type_t sdt) override {
         jit_uni_rnn_postgemm::init(src_data_t);
-        // we use rax for both constant tables as they use the same table
+        // we use rax for both constant tables and load correspondent label
+        // into it when calling correspondent injector.
         sigmoid_injector_ = new injector_t(
                 this, alg_kind::eltwise_logistic, 0.0f, 0.0f, 1.0f, true, rax);
         tanh_injector_ = new injector_t(
@@ -134,8 +135,8 @@ protected:
         // initialize registers with addresses and constants
         init_regs(vlen);
 
-        // both sigmoid and tanh use the same table so load address just once in rax
         sigmoid_injector_->load_table_addr();
+        tanh_injector_->load_table_addr();
 
         mov(loop_cnt, rnn_.dhc * scratch_dt_size);
         cmp(loop_cnt, vlen);
@@ -177,8 +178,10 @@ protected:
             }
 
             // inject eltwise code
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G0.getIdx());
             sigmoid_injector_->compute_vector(G1.getIdx());
+            tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(G2.getIdx());
 
             // if training we write back the gates
@@ -201,6 +204,7 @@ protected:
                 uni_vfmadd231ps(G3, tmp1_vmm, tmp2_vmm);
             }
 
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G3.getIdx());
 
             // if training we write back the gates
@@ -208,6 +212,7 @@ protected:
 
             // states_t_l = G3 * tanh(c_states_t_l)
             uni_vmovups(tmp1_vmm, ptr[addr_c_states_t_l_reg]);
+            tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(tmp1_vmm.getIdx());
             uni_vmulps(tmp1_vmm, tmp1_vmm, G3);
 
@@ -277,8 +282,10 @@ protected:
             }
 
             // inject eltwise code
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G0.getIdx());
             sigmoid_injector_->compute_vector(G1.getIdx());
+            tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(G2.getIdx());
 
             // if training we write back the gates
@@ -302,6 +309,7 @@ protected:
             }
 
             // inject eltwise code
+            sigmoid_injector_->load_table_addr();
             sigmoid_injector_->compute_vector(G3.getIdx());
 
             // if training we write back the gates
@@ -311,6 +319,7 @@ protected:
 
             // states_t_l = G3 * tanh(c_states_t_l)
             uni_vmovss(tmp1_vmm, ptr[addr_c_states_t_l_reg]);
+            tanh_injector_->load_table_addr();
             tanh_injector_->compute_vector(tmp1_vmm.getIdx());
             uni_vmulps(tmp1_vmm, tmp1_vmm, G3);
 
@@ -345,8 +354,7 @@ protected:
 
         postamble();
 
-        // Again, only one table is needed and shared between sigmoid and tanh
-        sigmoid_injector_->prepare_table(false);
+        sigmoid_injector_->prepare_table(true);
         tanh_injector_->prepare_table(true);
 
         init_table(vlen);
