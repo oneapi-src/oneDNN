@@ -299,6 +299,12 @@ status_t gen12lp_x8s8s32x_convolution_fwd_t::pd_t::init_kernel_ctx(
     kernel_ctx.set_data_type(conf.dst_data_type);
     def_data_type(kernel_ctx, conf.src_data_type, "SRC");
     def_data_type(kernel_ctx, conf.dst_data_type, "DST");
+    def_data_type(kernel_ctx,
+            conf.attr_info.sum_data_type == dnnl_data_type_undef
+                    ? conf.dst_data_type
+                    : conf.attr_info.sum_data_type,
+            "SUM");
+
     kernel_ctx.add_option("-Dcl_intel_subgroups_char");
     kernel_ctx.add_option("-Dcl_intel_subgroups_long");
 

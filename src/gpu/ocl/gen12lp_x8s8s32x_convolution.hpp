@@ -48,7 +48,8 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
 
             const auto attr_skip_mask
                     = primitive_attr_t::skip_mask_t::oscale_runtime
-                    | primitive_attr_t::skip_mask_t::post_ops;
+                    | primitive_attr_t::skip_mask_t::post_ops
+                    | primitive_attr_t::skip_mask_t::sum_dt;
 
             bool ok = true
                     && utils::one_of(this->desc()->prop_kind, forward_training,
@@ -61,7 +62,8 @@ struct gen12lp_x8s8s32x_convolution_fwd_t : public gpu_primitive_t {
                             desc()->dst_desc.data_type, s32)
                     && compute_engine->mayiuse(
                             compute::device_ext_t::intel_subgroups)
-                    && attr()->has_default_values(attr_skip_mask)
+                    && attr()->has_default_values(
+                            attr_skip_mask, desc()->dst_desc.data_type)
                     && post_ops_ok(attr())
                     && IMPLICATION(!attr()->output_scales_.has_default_values(),
                             utils::one_of(

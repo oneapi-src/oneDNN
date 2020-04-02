@@ -679,6 +679,23 @@
 #endif
 #endif
 
+#ifdef SUM_DATA_T
+#define SUM_DATA2_T CONCAT2(SUM_DATA_T, 2)
+#define SUM_DATA4_T CONCAT2(SUM_DATA_T, 4)
+#define SUM_DATA8_T CONCAT2(SUM_DATA_T, 8)
+#define SUM_DATA16_T CONCAT2(SUM_DATA_T, 16)
+#define AS_SUM_DATA_T CONCAT2(as_, SUM_DATA_T)
+#define AS_SUM_DATA2_T CONCAT2(as_, SUM_DATA2_T)
+#define AS_SUM_DATA4_T CONCAT2(as_, SUM_DATA4_T)
+#define AS_SUM_DATA8_T CONCAT2(as_, SUM_DATA8_T)
+#define AS_SUM_DATA16_T CONCAT2(as_, SUM_DATA16_T)
+#if SUM_DT_BF16
+#define SUM_TO_REF cvt_bf16_to_f32
+#else
+#define SUM_TO_REF
+#endif
+#endif
+
 #define OFF_MD(prefix, x0, x1, x2, x3, x4, x5) \
     ((x0 / prefix##_B0_2) / prefix##_B0_1 * prefix##_S0_0) \
             + ((x0 / prefix##_B0_2) % prefix##_B0_1 * prefix##_S0_1) \

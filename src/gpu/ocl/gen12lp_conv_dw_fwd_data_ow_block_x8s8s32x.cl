@@ -496,11 +496,11 @@ conv_dw_fwd_ow_block_x8s8s32x(const __global uchar *src,
         block_read_dst(OW_BLOCK - 8, &D1, dst + 8 * OC_BLOCK);
     }
 #if SUM_SCALE1
-    ACC0 += CONVERT_TO_ACC(D0);
-    ACC1 += CONVERT_TO_ACC(D1);
+    ACC0 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D0));
+    ACC1 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D1));
 #else // SUM_SCALE == 1
-    ACC0 += CONVERT_TO_ACC(D0) * sum_scale;
-    ACC1 += CONVERT_TO_ACC(D1) * sum_scale;
+    ACC0 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D0)) * sum_scale;
+    ACC1 += CONVERT_TO_ACC(AS_SUM_DATA16_T(D1)) * sum_scale;
 #endif // SUM_SCALE == 1
 #endif // WITH_SUM
 

@@ -323,6 +323,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         union {
             struct {
                 float scale;
+                dnnl::impl::data_type_t dt;
             } sum;
             eltwise_t eltwise;
             depthwise_conv_t depthwise_conv;
@@ -367,7 +368,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
                             && eltwise.beta == rhs.eltwise.beta;
                     break;
                 case primitive_kind::sum:
-                    ret = sum.scale == rhs.sum.scale;
+                    ret = sum.scale == rhs.sum.scale && sum.dt == rhs.sum.dt;
                     break;
                 case primitive_kind::convolution:
                     // Depthwise Only
@@ -421,7 +422,8 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     dnnl_post_ops() : len_(0) {}
 
-    dnnl::impl::status_t append_sum(float scale);
+    dnnl::impl::status_t append_sum(
+            float scale, dnnl::impl::data_type_t dt = dnnl_data_type_undef);
     dnnl::impl::status_t append_eltwise(
             float scale, dnnl::impl::alg_kind_t alg, float alpha, float beta);
     dnnl::impl::status_t append_dw_k3s1p1(dnnl::impl::data_type_t wei_dt,
@@ -442,6 +444,13 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
     bool defined() const;
     bool has_default_values() const { return len_ == 0; }
+
+    bool sum_with_default_dt(
+            dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const {
+        int sum_ind = find(dnnl::impl::primitive_kind::sum);
+        return sum_ind == -1 || entry_[sum_ind].sum.dt == dnnl_data_type_undef
+                || entry_[sum_ind].sum.dt == dst_dt;
+    }
 
     bool contain(dnnl::impl::primitive_kind_t kind, int index) const {
         return find(kind, index, index + 1) == index;
@@ -478,12 +487,14 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         rnn_data_qparams = 1u << 6,
         rnn_weights_qparams = 1u << 7,
         rnn_tparams = 1u << 8,
+        sum_dt = 1 << 9
     };
 
     /** Returns true if the attributes have default values.
      *
      * @note The scratchpad_mode_ is not take into account */
-    bool has_default_values(skip_mask_t mask = skip_mask_t::none) const;
+    bool has_default_values(skip_mask_t mask = skip_mask_t::none,
+            dnnl::impl::data_type_t dst_dt = dnnl_data_type_undef) const;
 
     /** Returns true if the attributes are fully defined. */
     bool defined(skip_mask_t mask = skip_mask_t::none) const;

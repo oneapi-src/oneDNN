@@ -557,14 +557,14 @@ conv_fwd_first_x8s8s32x(const __global uchar *src, const __global char *wei,
 #if WITH_SUM
 #define DO_SUM() \
     do { \
-        DST_DATA4_T d = BLOCK_READ_DST4(dst); \
+        SUM_DATA4_T d = AS_SUM_DATA4_T(BLOCK_READ_DST4(dst)); \
         float4 df = convert_float4(d); \
         tmp = fma(df, (float4)sum_scale, tmp); \
     } while (0)
 
 #define DO_SUM_4() \
     do { \
-        DST_DATA16_T d = BLOCK_READ_DST16(dst); \
+        SUM_DATA16_T d = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst)); \
         float8 df0 = convert_float8(d.s01234567); \
         float8 df1 = convert_float8(d.s89abcdef); \
         tmp0 = fma(df0, (float8)sum_scale, tmp0); \

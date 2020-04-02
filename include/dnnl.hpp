@@ -2270,14 +2270,29 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     /// the computations would be `dst[:] := scale * dst[:] + op(...)`
     /// instead of `dst[:] := op(...)`.
     ///
+    /// If @p data_type is specified, original dst tensor will be reinterpreted
+    /// as a tensor with provided data type. Since it is reinterpretation,
+    /// data_type and dst data type should have same size.
+    /// As a result, computations would be:
+    ///
+    ///     dst[:] <- scale * as_data_type(dst[:]) + op(...)
+    ///                                        // instead of dst[:] <- op(...)
+    ///
     /// @note
     ///     This post-op executes in-place and does not change the
     ///     destination layout.
     ///
     /// @param scale Scaling factor.
-    void append_sum(float scale = 1.) {
-        error::wrap_c_api(dnnl_post_ops_append_sum(get(), scale),
-                "could not append a sum post-op");
+    /// @param data_type Data type.
+    void append_sum(float scale = 1.f,
+            memory::data_type data_type = memory::data_type::undef) {
+        if (data_type == memory::data_type::undef)
+            error::wrap_c_api(dnnl_post_ops_append_sum(get(), scale),
+                    "could not append a sum post-op");
+        else
+            error::wrap_c_api(dnnl_post_ops_append_sum_v2(get(), scale,
+                                      memory::convert_to_c(data_type)),
+                    "could not append a sum post-op");
     }
 
     /// Returns the parameters of an accumulation (sum) post-op.
@@ -2287,6 +2302,20 @@ struct post_ops : public handle<dnnl_post_ops_t> {
     void get_params_sum(int index, float &scale) const {
         error::wrap_c_api(dnnl_post_ops_get_params_sum(get(), index, &scale),
                 "could not get parameters of a sum post-op");
+    }
+
+    /// Returns the parameters of an accumulation (sum) post-op.
+    ///
+    /// @param index Index of the sum post-op.
+    /// @param scale Scaling factor of the sum post-op.
+    /// @param data_type Data type of the sum post-op.
+    void get_params_sum(
+            int index, float &scale, memory::data_type &data_type) const {
+        dnnl_data_type_t c_data_type;
+        error::wrap_c_api(dnnl_post_ops_get_params_sum_v2(
+                                  get(), index, &scale, &c_data_type),
+                "could not get parameters of a sum post-op");
+        data_type = static_cast<memory::data_type>(c_data_type);
     }
 
     /// Appends an elementwise post-op.

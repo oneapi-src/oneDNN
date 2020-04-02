@@ -136,7 +136,8 @@ struct jit_avx512_core_f32_wino_conv_4x3_fwd_t
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                            primitive_attr_t::skip_mask_t::post_ops,
+                            data_type::f32)
                     && set_default_formats();
             if (!ok) return status::unimplemented;
 

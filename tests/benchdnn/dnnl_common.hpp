@@ -152,6 +152,32 @@ inline float epsilon_dt(dnnl_data_type_t dt) {
     return 0;
 }
 
+inline float lowest_dt(dnnl_data_type_t dt) {
+#define CASE(dt) \
+    case dt: \
+        return (float)dnnl::impl::nstl::numeric_limits< \
+                typename prec_traits<dt>::type>::lowest();
+
+    CASE_ALL(dt);
+
+#undef CASE
+
+    return 0;
+}
+
+inline float max_dt(dnnl_data_type_t dt) {
+#define CASE(dt) \
+    case dt: \
+        return (float)dnnl::impl::nstl::numeric_limits< \
+                typename prec_traits<dt>::type>::max();
+
+    CASE_ALL(dt);
+
+#undef CASE
+
+    return 0;
+}
+
 #undef CASE_ALL
 
 template <dnnl_data_type_t dt>

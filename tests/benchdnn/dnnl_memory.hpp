@@ -102,6 +102,8 @@ struct dnn_mem_t {
     dnnl_data_type_t dt() const { return md_.data_type; }
     size_t sizeof_dt() const { return ::sizeof_dt(dt()); }
 
+    void set_dt(dnnl_data_type_t dt) { md_.data_type = dt; }
+
     template <typename T>
     explicit operator T *() const {
         assert(is_mapped_);

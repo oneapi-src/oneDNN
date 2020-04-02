@@ -107,6 +107,9 @@ struct attr_info_t {
         attr_info.sum_scale = (attr_info.sum_idx != -1
                         ? po.entry_[attr_info.sum_idx].sum.scale
                         : 0.0f);
+        attr_info.sum_data_type = (attr_info.sum_idx != -1)
+                ? po.entry_[attr_info.sum_idx].sum.dt
+                : dnnl_data_type_undef;
         attr_info.with_sum
                 = (attr_info.sum_idx != -1) && (attr_info.sum_scale != 0.0f);
 
@@ -152,6 +155,7 @@ struct attr_info_t {
     bool with_sum;
     int sum_idx;
     float sum_scale;
+    data_type_t sum_data_type;
 
     bool with_oscales;
     bool with_common_oscales;

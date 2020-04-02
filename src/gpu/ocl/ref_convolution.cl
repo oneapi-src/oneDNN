@@ -69,8 +69,8 @@ __kernel void ref_convolution_fwd(const __global SRC_DATA_T *src,
 
 #if WITH_SUM
     tmp += (SUM_SCALE1 ? 1 : sum_scale)
-            * (POST_OP_DATA_T)DST_TO_REF(
-                    dst[DST_OFF(n, g * OC + oc, od, oh, ow)]);
+            * (POST_OP_DATA_T)SUM_TO_REF(
+                    AS_SUM_DATA_T(dst[DST_OFF(n, g * OC + oc, od, oh, ow)]));
 #endif
 
 #if ELTWISE_IDX == 1

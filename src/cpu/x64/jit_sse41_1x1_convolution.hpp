@@ -64,7 +64,8 @@ struct jit_sse41_1x1_convolution_fwd_t : public primitive_t {
                     && expect_data_types(data_type::f32, data_type::f32,
                             data_type::f32, data_type::f32, data_type::f32)
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                            primitive_attr_t::skip_mask_t::post_ops,
+                            data_type::f32)
                     && !has_zero_dim_memory() && set_default_formats();
             if (!ok) return status::unimplemented;
 

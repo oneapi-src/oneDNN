@@ -212,7 +212,7 @@ conv_dw_fwd_mb_block_x8s8s32x(const __global uchar *src,
     DO_ELTWISE();
 #endif
 #if WITH_SUM
-    DST_DATA16_T D00 = BLOCK_READ_DST16(dst);
+    SUM_DATA16_T D00 = AS_SUM_DATA16_T(BLOCK_READ_DST16(dst));
 #if SUM_SCALE
     tmp00 += convert_float8(D00.s01234567);
     tmp01 += convert_float8(D00.s89abcdef);

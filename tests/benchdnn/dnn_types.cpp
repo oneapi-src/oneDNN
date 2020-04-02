@@ -365,13 +365,22 @@ int attr_t::post_ops_t::from_str(const char *str, const char **end_s) {
                 e.kind = k;
                 s += strlen(ks);
                 if (k == SUM) {
+                    e.sum.scale = 1.f;
+                    e.sum.dt = dnnl_data_type_undef;
                     if (*s == ':') {
                         char *end;
+                        const char *end_dt;
                         e.sum.scale = strtof(++s, &end);
                         if (end == s) return FAIL;
                         s = end;
-                    } else {
-                        e.sum.scale = 1.f;
+                        if (*s == ':') ++s;
+                        end_dt = s;
+                        while (*s && isalnum(*s))
+                            ++s;
+                        if (end_dt != s) {
+                            e.sum.dt = str2dt(
+                                    std::string(end_dt, s - end_dt).c_str());
+                        }
                     }
                 } else if (e.is_convolution_kind()) {
                     e.convolution.dst_dt = dnnl_f32;
@@ -572,7 +581,9 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops) {
         s << e.kind;
 
         if (e.kind == pk_t::SUM) {
-            if (e.sum.scale != 1.0f) s << ":" << e.sum.scale;
+            if (e.sum.scale != 1.0f || e.sum.dt != dnnl_data_type_undef)
+                s << ":" << e.sum.scale;
+            if (e.sum.dt != dnnl_data_type_undef) s << ":" << e.sum.dt;
         } else if (e.is_convolution_kind()) {
             if (e.convolution.dst_dt != dnnl_f32)
                 s << ":" << e.convolution.dst_dt;
@@ -716,7 +727,8 @@ dnnl_primitive_attr_t create_dnnl_attr(const attr_t &attr, int64_t scale_cnt,
         for (int idx = 0; idx < attr.post_ops.len; ++idx) {
             const auto &e = attr.post_ops.entry[idx];
             if (e.kind == pk_t::SUM) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum(ops, e.sum.scale));
+                DNN_SAFE_V(dnnl_post_ops_append_sum_v2(
+                        ops, e.sum.scale, e.sum.dt));
             } else if (e.is_eltwise_kind()) {
                 DNN_SAFE_V(dnnl_post_ops_append_eltwise(ops, e.eltwise.scale,
                         e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));

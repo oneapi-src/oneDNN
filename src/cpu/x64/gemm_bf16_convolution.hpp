@@ -54,7 +54,8 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                                     data_type::bf16, data_type::f32))
                     && !has_zero_dim_memory()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops)
+                            primitive_attr_t::skip_mask_t::post_ops,
+                            dst_data_type)
                     && post_ops_ok();
             if (!ok) return status::unimplemented;
 

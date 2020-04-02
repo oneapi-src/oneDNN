@@ -135,6 +135,21 @@ with
     \dst[:] = scale \cdot \dst[:] + \operatorname{Op}(...)
 \f]
 
+
+If the data type parameter is specified, the original destination tensor will be
+reinterpreted as a tensor with the provided data type. Because it is a
+reinterpretation, data_type and the destination data type must have the same size. As a
+result, the computation will be:
+
+\f[
+    \dst(:) = scale \cdot \operatorname{as_data_type}(\dst(:)) + \operatorname{Op}(...)
+\f]
+
+@note
+* Currently only a u8/s8 data type parameter is supported.
+**CPU**
+    - No support for different destination and sum data type.
+
 @anchor dev_guide_attributes_post_ops_depthwise
 ### Depthwise Post-op
 

@@ -116,8 +116,8 @@ status_t zero_points_t::set(
 } // namespace impl
 } // namespace dnnl
 
-bool primitive_attr_t::has_default_values(
-        dnnl_primitive_attr::skip_mask_t mask) const {
+bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
+        dnnl::impl::data_type_t dst_dt) const {
     // prepare mask for runtime-parameters check
     skip_mask_t defined_mask {};
     if ((mask & skip_mask_t::oscale_runtime) == skip_mask_t::oscale_runtime)
@@ -139,6 +139,8 @@ bool primitive_attr_t::has_default_values(
                     rnn_data_qparams_.has_default_values())
             && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
                     rnn_weights_qparams_.has_default_values())
+            && IMPLICATION((bool)(~mask & skip_mask_t::sum_dt),
+                    post_ops_.sum_with_default_dt(dst_dt))
             && this->defined(defined_mask);
 }
 
@@ -156,11 +158,12 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
                     rnn_weights_qparams_.defined());
 }
 
-status_t post_ops_t::append_sum(float scale) {
+status_t post_ops_t::append_sum(float scale, data_type_t dt) {
     if (len_ == capacity) return out_of_memory;
 
     entry_[len_].kind = primitive_kind::sum;
     entry_[len_].sum.scale = scale;
+    entry_[len_].sum.dt = dt;
 
     len_++;
 
@@ -420,6 +423,13 @@ status_t dnnl_post_ops_append_sum(post_ops_t *post_ops, float scale) {
     return post_ops->append_sum(scale);
 }
 
+status_t dnnl_post_ops_append_sum_v2(
+        post_ops_t *post_ops, float scale, data_type_t dt) {
+    if (post_ops == nullptr) return invalid_arguments;
+
+    return post_ops->append_sum(scale, dt);
+}
+
 namespace {
 bool simple_get_params_check(
         const post_ops_t *post_ops, int index, primitive_kind_t kind) {
@@ -437,6 +447,18 @@ status_t dnnl_post_ops_get_params_sum(
     if (!ok) return invalid_arguments;
 
     *scale = post_ops->entry_[index].sum.scale;
+    return success;
+}
+
+status_t dnnl_post_ops_get_params_sum_v2(
+        const post_ops_t *post_ops, int index, float *scale, data_type_t *dt) {
+    bool ok = true
+            && simple_get_params_check(post_ops, index, primitive_kind::sum)
+            && !any_null(scale);
+    if (!ok) return invalid_arguments;
+
+    *scale = post_ops->entry_[index].sum.scale;
+    *dt = post_ops->entry_[index].sum.dt;
     return success;
 }
 

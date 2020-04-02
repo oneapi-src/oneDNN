@@ -25,6 +25,11 @@
 --attr-post-ops='relu:0.5;sum'
 --cfg=u8s8s8 --batch=shapes_resnet_50
 
+--attr-post-ops='relu:0.5;sum:1.5:u8'
+--cfg=u8s8s8 --batch=shapes_resnet_50
+
+--attr-post-ops='sum:0.5:s8;relu:1.5'
+--cfg=u8s8u8 --batch=shapes_resnet_50
 
 # f32
 --reset --cfg=f32,f16

@@ -157,6 +157,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     def_data_type(kernel_ctx, conf.bias_data_type, "BIA");
     def_data_type(kernel_ctx, conf.dst_data_type, "DST");
     def_data_type(kernel_ctx, conf.acc_data_type, "ACC");
+    def_data_type(kernel_ctx,
+            conf.attr_info.sum_data_type == dnnl_data_type_undef
+                    ? conf.dst_data_type
+                    : conf.attr_info.sum_data_type,
+            "SUM");
 
     def_attr_info(kernel_ctx, conf.attr_info);
 

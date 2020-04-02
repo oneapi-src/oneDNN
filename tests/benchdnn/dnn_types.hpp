@@ -199,6 +199,7 @@ struct attr_t {
             union {
                 struct {
                     float scale;
+                    dnnl_data_type_t dt;
                 } sum;
                 struct {
                     dnnl_alg_kind_t alg;

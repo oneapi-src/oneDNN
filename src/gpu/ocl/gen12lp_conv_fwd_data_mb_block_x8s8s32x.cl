@@ -207,7 +207,7 @@ conv_fwd_mb_block_x8s8s32x(const __global uchar *src, const __global char *wei,
 
 #define DO_SUM(d) \
     do { \
-        float4 df = convert_float4(d); \
+        float4 df = convert_float4(AS_SUM_DATA4_T(d)); \
         tmp = fma(df, (float4)sum_scale, tmp); \
     } while (0)
 
