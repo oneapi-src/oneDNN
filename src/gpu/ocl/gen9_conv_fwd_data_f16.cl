@@ -1046,6 +1046,9 @@ gen9_conv_fwd_f16(const __global half *src, const __global half *wei,
         __attribute__((opencl_unroll_hint(8))) // attr:no-format
         for (int i = 0; i < 8; i++) {
             MULTIPLY_BLOCKS_1x16x16(blockC00[i], blockA[i], blockB00, blockB01);
+        }
+        __attribute__((opencl_unroll_hint(8))) // attr:no-format
+        for (int i = 0; i < 8; i++) {
             MULTIPLY_BLOCKS_1x16x16(
                     blockC01[i], blockA[i + 8], blockB00, blockB01);
         }
