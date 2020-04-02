@@ -23,7 +23,7 @@
 
 /// @page cross_engine_reorder_cpp Getting started on GPU
 /// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with Intel(R) MKL-DNN.
+/// Graphics with Intel MKL-DNN.
 ///
 /// > Example code: @ref cross_engine_reorder.cpp
 ///

@@ -4,7 +4,7 @@ Inspecting JIT Code {#dev_guide_inspecting_jit}
 oneDNN uses just-in-time compilation (JIT) to generate optimal code
 for some functions based on input parameters and instruction set supported
 by the system. The library provides a mechanism to save the generated code
-into a file for inspection. 
+into a file for inspection.
 
 This behavior can be enabled with `DNNL_JIT_DUMP` environment variable
 or @ref dnnl_set_jit_dump function.
@@ -23,7 +23,7 @@ The function setting takes precedence over the environment variable.
 ~~~
 
 This will produce the following output files if running on a CPU supporting
-Intel(R) AVX2:
+Intel(R) Advanced Vector Extensions 2 (Intel(R) AVX2):
 
 ~~~sh
     dnnl_dump_jit_avx2_conv_fwd_kernel_f32.1.bin
@@ -36,4 +36,4 @@ Use any disassembler to view the code. For example:
 - `xed -64 -ir file.bin`
 
 [XED](https://github.com/intelxed/xed) is a decoder tool available as part as
-[Intel(R) Software Development Emulator (Intel(R) SDE)](https://software.intel.com/en-us/articles/intel-software-development-emulator).
+[Intel Software Development Emulator (Intel SDE)](https://software.intel.com/en-us/articles/intel-software-development-emulator).

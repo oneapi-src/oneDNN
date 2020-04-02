@@ -26,7 +26,8 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak
     )
 
-# Don't enable support for linux_perf and VTune if JIT Profiling is disabled.
+# Don't enable support for linux_perf and VTune Amplifier if JIT Profiling
+# is disabled.
 # NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.
 if(NOT DNNL_ENABLE_JIT_PROFILING)
     list(REMOVE_ITEM SOURCES
