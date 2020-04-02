@@ -1,8 +1,8 @@
 oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
-> This software was previously known as 
-> **Intel Math Kernel Library for Deep Neural Networks (Intel MKL-DNN)**
+> This software was previously known as
+> **Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)**
 > and
 > **Deep Neural Network Library (DNNL)**.
 
@@ -10,7 +10,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 > name and repository location to be consistent with the rest of oneAPI
 > libraries:
 > * Short library name changed to **oneDNN**.
-> * Repository moved from `intel/mkl-dnn` to `oneapi-src/oneDNN`. Existing 
+> * Repository moved from `intel/mkl-dnn` to `oneapi-src/oneDNN`. Existing
 > links to the code and documentation will continue to work.
 >
 > There are no changes to API, environment variable or build options
@@ -68,7 +68,7 @@ interoperability with CPU or GPU runtime libraries used by the application.
 | `cpu_iomp`    | Intel OpenMP runtime
 | `cpu_gomp`    | GNU\* OpenMP runtime
 | `cpu_vcomp`   | Microsoft Visual C OpenMP runtime
-| `cpu_tbb`     | Threading Building Blocks
+| `cpu_tbb`     | Threading Building Blocks (TBB)
 
 The packages do not include library dependencies and these need to be resolved
 in the application at build time. See the
@@ -87,10 +87,10 @@ oneDNN supports systems based on
 
 The library is optimized for the following CPUs:
 * Intel Atom processor with Intel SSE4.1 support
-* 4th, 5th, 6th, 7th, and 8th generation Intel Core(TM) processor
-* Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
+* 4th, 5th, 6th, 7th, and 8th generation Intel(R) Core(TM) processor
+* Intel(R) Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
   Ivy Bridge, Haswell, and Broadwell)
-* Intel Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
+* Intel(R) Xeon Phi(TM) processor (formerly Knights Landing and Knights Mill)
 * Intel Xeon Scalable processor (formerly Skylake and Cascade Lake)
 * future Intel Xeon Scalable processor (code name Cooper Lake)
 
@@ -165,7 +165,7 @@ Runtime specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP` | GCC                           | GNU OpenMP runtime (libgomp.so)
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.so)
 | `DNNL_CPU_RUNTIME=OMP` | Clang                         | Intel OpenMP runtime (libiomp5.so)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.so)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (libtbb.so)
 | `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (libOpenCL.so)
 
 #### Windows
@@ -179,7 +179,7 @@ Runtime specific dependencies:
 | :--------------------- | :---------------------------- | :---------
 | `DNNL_CPU_RUNTIME=OMP` | Microsoft Visual C++ Compiler | No additional requirements
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (iomp5.dll)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (tbb.dll)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (tbb.dll)
 | `DNNL_GPU_RUNTIME=OCL` | any                           | OpenCL runtime (OpenCL.dll)
 
 #### macOS
@@ -192,7 +192,7 @@ Runtime specific dependencies:
 | Runtime configuration  | Compiler                      | Dependency
 | :--------------------- | :---------------------------- | :---------
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (libiomp5.dylib)
-| `DNNL_CPU_RUNTIME=TBB` | any                           | Threading Building Blocks (libtbb.dylib)
+| `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (libtbb.dylib)
 
 ### Validated Configurations
 

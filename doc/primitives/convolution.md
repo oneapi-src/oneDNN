@@ -337,7 +337,9 @@ fall back to an explicit GEMM algorithm.
 #### Winograd Convolution
 
 oneDNN supports the Winograd convolution algorithm on systems with
-Intel(R) AVX-512 support and above under the following conditions:
+Intel(R) Advanced Vector Extensions 512 (Intel(R) AVX-512) support and
+Intel Deep Learning Boost (Intel DL Boost)
+under the following conditions:
 
 - Data and weights memory formats are defined by the convolution primitive
   (user passes `any` as the data format).
@@ -403,8 +405,8 @@ the convolution.)
    support.
 
 2. **CPU**
-   - Winograd are implemented only for Intel(R) AVX-512 or
-     Intel(R) AVX512-DL Boost instruction sets
+   - Winograd are implemented only for processors with Intel AVX-512 and
+     Intel DL Boost instruction sets
    - Run-time output scales are not supported
 
 3. **GPU**

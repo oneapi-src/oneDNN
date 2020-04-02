@@ -44,7 +44,7 @@ DNNL_VERBOSE=1 ./benchdnn --conv ic16ih7oc16oh7kh5ph2n"wip"
 This produces the following output (the line break was added to fit the page width):
 
 ~~~sh
-dnnl_verbose,info,oneDNN v1.3.0 (commit d0fc158e98590dfad0165e568ca466876a794597)
+dnnl_verbose,info,DNNL v1.3.0 (commit d0fc158e98590dfad0165e568ca466876a794597)
 dnnl_verbose,info,cpu,runtime:OpenMP
 dnnl_verbose,info,cpu,isa:Intel AVX2
 dnnl_verbose,info,gpu,runtime:none

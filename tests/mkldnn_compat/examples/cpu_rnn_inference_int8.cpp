@@ -31,7 +31,7 @@
 ///  - one primitive for all subsequent iterations in the decoder. Note that
 ///    in this example, this primitive computes the states in place.
 ///  - the attention mechanism is implemented separately as there is no support
-///    for the context vectors in MKL-DNN yet
+///    for the context vectors in Intel MKL-DNN yet
 
 #include <assert.h>
 
@@ -341,10 +341,9 @@ void simple_net() {
                 enc_bidir_dst_layer_md, memory::desc(), memory::desc());
     } catch (error &e) {
         if (e.status == mkldnn_unimplemented) {
-            std::cerr
-                    << "Dependency on Intel(R) MKL version 2019u2 or newer is "
-                       "required for int8 RNN"
-                    << std::endl;
+            std::cerr << "Dependency on Intel MKL version 2019u2 or newer is "
+                         "required for int8 RNN"
+                      << std::endl;
         }
         throw;
     }

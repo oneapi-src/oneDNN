@@ -20,8 +20,8 @@
 /// @page  gpu_opencl_interop_cpp Getting started on GPU with OpenCL extensions API
 /// Full example text: @ref gpu_opencl_interop.cpp
 ///
-/// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with OpenCL* extensions API in Intel MKL-DNN.
+/// This C++ API example demonstrates programming for
+/// Intel(R) Processor Graphics with OpenCL* extensions API in Intel MKL-DNN.
 /// The workflow includes following steps:
 ///   - Create a GPU engine. It uses OpenCL as the runtime in this sample.
 ///   - Create a GPU memory descriptor/object.

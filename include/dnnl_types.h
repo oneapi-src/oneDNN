@@ -2129,7 +2129,7 @@ typedef struct {
 /// Disable profiling completely
 #define DNNL_JIT_PROFILE_NONE 0u
 
-/// Enable VTune integration
+/// Enable VTune Amplifier integration
 #define DNNL_JIT_PROFILE_VTUNE 1u
 
 /// Enable Linux perf integration via perfmap files
@@ -2151,35 +2151,35 @@ typedef enum {
     /// Any ISA (no restrictions)
     dnnl_cpu_isa_all = 0x0,
 
-    /// Intel(R) SSE4.1.
+    /// Intel Streaming SIMD Extensions 4.1 (Intel SSE4.1)
     dnnl_cpu_isa_sse41 = 0x1,
 
-    /// Intel(R) Advanced Vector Extensions.
+    /// Intel Advanced Vector Extensions (Intel AVX)
     dnnl_cpu_isa_avx = 0x3,
 
-    /// Intel(R) Advanced Vector Extensions 2.
+    /// Intel Advanced Vector Extensions 2 (Intel AVX2)
     dnnl_cpu_isa_avx2 = 0x7,
 
-    /// Intel(R) Advanced Vector Extensions 512 subset for Intel(R) Xeon
-    /// Phi(TM) Processors x200 Series.
+    /// Intel Advanced Vector Extensions 512 (Intel AVX-512) subset
+    /// for Intel Xeon Phi processors x200 Series.
     dnnl_cpu_isa_avx512_mic = 0xf,
 
-    /// Intel(R) Advanced Vector Extensions 512 subset for Intel(R) Xeon
-    /// Phi(TM) Processors 7235, 7285, 7295 Series.
+    /// Intel AVX-512 subset
+    /// for Intel Xeon Phi processors 7235, 7285, 7295 Series.
     dnnl_cpu_isa_avx512_mic_4ops = 0x1f,
 
-    /// Intel(R) Advanced Vector Extensions 512 for Intel(R) Xeon(R) Processor
-    /// Scalable Family and Intel(R) Core(TM) processor family.
+    /// Intel AVX-512 subset for Intel Xeon Scalable processor family
+    /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core = 0x27,
 
-    /// Intel(R) Advanced Vector Extensions 512 with Intel(R) DL Boost Support
-    /// for Intel(R) Xeon(R) Processor Scalable Family and Intel(R) Core(TM)
-    /// processor family.
+    /// Intel AVX-512 and Intel Deep Learning Boost (Intel DL Boost) support
+    /// for Intel Xeon Scalable processor family
+    /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core_vnni = 0x67,
 
-    /// Intel(R) Advanced Vector Extensions 512 with Intel(R) DL Boost and
-    /// Bfloat16 Support for Intel(R) Xeon(R) Processor Scalable Family and
-    /// Intel(R) Core(TM) processor family.
+    /// Intel AVX-512, Intel DL Boost and bfloat16 support
+    /// for Intel Xeon Scalable processor family
+    /// and Intel Core processor family.
     dnnl_cpu_isa_avx512_core_bf16 = 0xe7,
 } dnnl_cpu_isa_t;
 
