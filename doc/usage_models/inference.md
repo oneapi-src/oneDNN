@@ -35,7 +35,7 @@ on CPU-friendly data formats. Please see description of data formats
 [here](@ref memory_format_propagation_cpp).
 
 Performance gains are maximized by reordering once, and then propagating the
-CPU-friendly format through as many layers as possible in your topology. 
+CPU-friendly format through as many layers as possible in your topology.
 oneDNN provides the `format_tag=any` for memory descriptors that will be
 passed to compute-intensive primitives. The compute-intensive primitive types
 in oneDNN are @ref dev_guide_convolution, @ref dev_guide_inner_product,

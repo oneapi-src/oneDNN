@@ -60,7 +60,7 @@ systems and the reasons behind them.
 @anchor dg_i8_comp_s11
 ### 1. Inputs of mixed type: u8 and s8
 
-The Intel(R) Instruction Set Architecture has special instructions that enable
+Instruction Set Architecture (ISA) has special instructions that enable
 multiplying and adding the vectors of u8 and s8 very efficiently. oneDNN
 enables int8 support using these particular instructions.
 
@@ -69,9 +69,9 @@ vectors of the same type (either s8/s8 or u8/u8). The details for the s8/s8
 case are covered in the
 [2. Inputs of the same type: s8](@ref dg_i8_comp_s12) section below.
 
-#### 1.1. Processors with the Intel AVX2 or Intel AVX512 Instruction Set
+#### 1.1. Processors with the Intel AVX2 or Intel AVX-512 Support
 
-*System examples: Intel Xeon Processor E7 v3 Family (formerly Haswell),
+*System examples: Intel Xeon processor E7 v3 Family (formerly Haswell),
 Intel Xeon Scalable processor x1xx series (formerly Skylake).*
 
 oneDNN implements matrix multiplication such as operations with u8 and s8
@@ -154,7 +154,7 @@ The recommended ones are:
    where `W_max` is \f$\max | W_{f32}(:)| {}_{} \f$.
 
 
-#### 1.2. Processors with the Intel(R) DL Boost Instruction Set
+#### 1.2. Processors with the Intel DL Boost Support
 
 *System examples: Intel Xeon Scalable processor x2xx series
 (formerly Cascade Lake).*

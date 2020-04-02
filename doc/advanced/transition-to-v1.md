@@ -3,7 +3,9 @@ Version 1.0 Transition Guide {#dev_guide_transition_to_v1}
 
 > **NOTE**
 >
-> Starting with version 1.1 Intel MKL-DNN is renamed to DNNL.
+> Starting with version 1.4
+> Intel(R) Math Kernel Library for Deep Neural Networks (Intel(R) MKL-DNN)
+> is renamed to oneAPI Deep Neural Network Library (oneDNN).
 > For consistency, only this guide uses Intel MKL-DNN nomenclature.
 
 ## Introduction

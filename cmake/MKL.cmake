@@ -14,7 +14,7 @@
 # limitations under the License.
 #===============================================================================
 
-# Locate Intel(R) MKL installation using MKLROOT
+# Locate Intel MKL installation using MKLROOT
 #===============================================================================
 
 if(MKL_cmake_included)
@@ -65,7 +65,7 @@ if(HAVE_MKL)
     add_definitions(-DUSE_MKL)
     include_directories(AFTER ${MKLINC})
 
-    set(MSG "Intel(R) MKL:")
+    set(MSG "Intel MKL:")
     message(STATUS "${MSG} include ${MKLINC}")
     message(STATUS "${MSG} lib ${MKLLIB}")
     if(WIN32 AND MKLDLL)

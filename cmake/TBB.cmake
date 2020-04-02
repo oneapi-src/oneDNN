@@ -48,8 +48,8 @@ endif()
 get_target_property(_tbb_lib_path TBB::tbb IMPORTED_LOCATION_RELEASE)
 get_filename_component(_tbb_lib_dir "${_tbb_lib_path}" PATH)
 
-# XXX: workaround for DPC++. DPC++ compiler "unbundles" tbb.lib and loses its
-# abosulte path
+# XXX: workaround for Intel oneAPI DPC++ Compiler. This compiler
+# "unbundles" tbb.lib and loses its abosulte path
 if(DNNL_SYCL_DPCPP)
     link_directories(${_tbb_lib_dir})
 endif()

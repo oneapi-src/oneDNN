@@ -558,7 +558,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<avx2>::store_dst_avg_op(
         lea(reg_ptr_maskmovdqu_dst, ptr[reg_ptr_dst_i8 + offset]);
 
         // Need to use mmx 8-bytes operation to avoid memory violations.
-        // NOTICE: it was discovered that SSE/AVX instruction maskmovdqu/vmaskmovdqu
+        // NOTICE: it was discovered that Intel SSE and Intel AVX instructions
+        //         maskmovdqu/vmaskmovdqu
         //         with low 8-bytes mask throws exception if high 8-bytes belongs write-protected page.
         // NOTE: use indirect move via gpr to avoid transition penalty
         vmovq(reg_tmp, Xmm(vr_dst.getIdx()));
