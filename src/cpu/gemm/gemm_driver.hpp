@@ -17,6 +17,7 @@
 #ifndef GEMM_DRIVER_HPP
 #define GEMM_DRIVER_HPP
 
+#include "c_types_map.hpp"
 #include "dnnl_types.h"
 #include "gemm_info.hpp"
 #include "gemm_pack_storage.hpp"
@@ -26,13 +27,13 @@ namespace impl {
 namespace cpu {
 
 inline void msan_unpoison_matrix(
-        void *C, int M, int N, int LDC, size_t typesize) {
+        void *C, dim_t M, dim_t N, dim_t LDC, size_t typesize) {
     assert(C != nullptr && M > 0 && N > 0 && LDC >= M && typesize);
     if (msan_enabled && C != nullptr) {
         size_t col_size = M * typesize;
         size_t col_stride = LDC * typesize;
         uint8_t *col = (uint8_t *)C;
-        for (int j = 0; j < N; j++) {
+        for (dim_t j = 0; j < N; j++) {
             msan_unpoison(col, col_size);
             col += col_stride;
         }
@@ -41,10 +42,10 @@ inline void msan_unpoison_matrix(
 
 template <typename a_type, typename b_type, typename c_type>
 dnnl_status_t gemm_driver(const char *transA, const char *transB,
-        const char *offsetC, const int *m, const int *n, const int *k,
-        const float *alpha, const a_type *a, const int *lda, const a_type *oa,
-        const b_type *b, const int *ldb, const b_type *ob, const float *beta,
-        c_type *c, const int *ldc, const c_type *oc,
+        const char *offsetC, const dim_t *m, const dim_t *n, const dim_t *k,
+        const float *alpha, const a_type *a, const dim_t *lda, const a_type *oa,
+        const b_type *b, const dim_t *ldb, const b_type *ob, const float *beta,
+        c_type *c, const dim_t *ldc, const c_type *oc,
         const bool force_jit_nocopy_gemm, pack_type packing = pack_type::none,
         gemm_pack_storage_t *pack_dst = NULL, bool measure_only = false);
 

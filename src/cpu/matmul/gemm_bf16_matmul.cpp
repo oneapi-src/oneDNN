@@ -178,14 +178,9 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             ? "N"
             : "T";
 
-    const int M_s32 = (int)M;
-    const int N_s32 = (int)N;
-    const int K_s32 = (int)K;
-
-    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-
-    const int ldc = dst_is_acc ? (int)dst_bd.strides[batched + 0] : N_s32;
+    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
+    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
+    const dim_t ldc = dst_is_acc ? dst_bd.strides[batched + 0] : N;
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
@@ -213,7 +208,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
                 if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
-                gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
+                gemm_bf16bf16f32(transB, transA, &N, &M, &K, &alpha,
                         curr_weights, &ldb, curr_src, &lda, &beta, curr_acc,
                         &ldc);
 
@@ -227,8 +222,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             }
         });
     } else {
-        gemm_bf16bf16f32(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
-                weights, &ldb, src, &lda, &beta, acc, &ldc);
+        gemm_bf16bf16f32(transB, transA, &N, &M, &K, &alpha, weights, &ldb, src,
+                &lda, &beta, acc, &ldc);
 
         if (params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();

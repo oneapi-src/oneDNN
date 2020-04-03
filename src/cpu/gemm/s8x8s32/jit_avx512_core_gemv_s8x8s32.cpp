@@ -145,7 +145,7 @@ int gemv_threading_driver(gemm_info_t<int8_t, b_type, int32_t> *arg) {
         int32_t *loc_y;
 
         gemm_info_t<int8_t, b_type, int32_t> arg_loc = arg_seq;
-        int j;
+        dim_t j;
 
         m_id = ithr / nthr_n;
         n_id = ithr % nthr_n;

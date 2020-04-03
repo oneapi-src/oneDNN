@@ -120,66 +120,66 @@ namespace cpu {
 
 // Get pack-size functions.
 extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack = nullptr);
 
 extern dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack = nullptr);
 
 extern dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack = nullptr);
 
 extern dnnl_status_t gemm_s8s8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack = nullptr);
 
 // Pack functions.
 extern dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const float *src, float *dst);
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, const float *src, float *dst);
 
 extern dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, const bfloat16_t *src,
-        bfloat16_t *dst);
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb,
+        const bfloat16_t *src, bfloat16_t *dst);
 
 extern dnnl_status_t gemm_s8u8s32_pack(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, const void *src,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, const void *src,
         void *dst);
 
 extern dnnl_status_t gemm_s8s8s32_pack(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, const void *src,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, const void *src,
         void *dst);
 
 // Compute functions.
 extern dnnl_status_t sgemm_compute(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const float *A,
-        const int *lda, const float *B, const int *ldb, const float *beta,
-        float *C, const int *ldc);
+        const dim_t *M, const dim_t *N, const dim_t *K, const float *A,
+        const dim_t *lda, const float *B, const dim_t *ldb, const float *beta,
+        float *C, const dim_t *ldc);
 
 extern dnnl_status_t gemm_bf16bf16f32_compute(const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const bfloat16_t *A, const int *lda, const bfloat16_t *B,
-        const int *ldb, const float *beta, float *C, const int *ldc);
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const bfloat16_t *A, const dim_t *lda, const bfloat16_t *B,
+        const dim_t *ldb, const float *beta, float *C, const dim_t *ldc);
 
 extern dnnl_status_t gemm_s8u8s32_compute(const char *transa,
-        const char *transb, const char *offsetc, const int *M, const int *N,
-        const int *K, const int8_t *A, const int *lda, const uint8_t *B,
-        const int *ldb, const float *beta, int32_t *C, const int *ldc,
+        const char *transb, const char *offsetc, const dim_t *M, const dim_t *N,
+        const dim_t *K, const int8_t *A, const dim_t *lda, const uint8_t *B,
+        const dim_t *ldb, const float *beta, int32_t *C, const dim_t *ldc,
         const int32_t *co);
 
 extern dnnl_status_t gemm_s8s8s32_compute(const char *transa,
-        const char *transb, const char *offsetc, const int *M, const int *N,
-        const int *K, const int8_t *A, const int *lda, const int8_t *B,
-        const int *ldb, const float *beta, int32_t *C, const int *ldc,
+        const char *transb, const char *offsetc, const dim_t *M, const dim_t *N,
+        const dim_t *K, const int8_t *A, const dim_t *lda, const int8_t *B,
+        const dim_t *ldb, const float *beta, int32_t *C, const dim_t *ldc,
         const int32_t *co);
 
 } // namespace cpu
@@ -640,8 +640,8 @@ struct dnnl_gemm<float, float, float> {
         /* Prepare for Fortran style, hence A <-> B */
         char trans_a = p.transB, trans_b = p.transA;
 
-        int m = p.N, n = p.M, k = p.K;
-        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+        int64_t m = p.N, n = p.M, k = p.K;
+        int64_t lda = p.ldb, ldb = p.lda, ldc = p.ldc;
 
         std::vector<float> a_pack_buf, b_pack_buf;
         float *A = map_memory<float>(b_mem), *a_eff = A;
@@ -740,8 +740,8 @@ struct dnnl_gemm<int8_t, int8_t, int32_t> {
         /* Prepare for Fortran style, hence A <-> B */
         char trans_a = p.transB, trans_b = p.transA;
 
-        int m = p.N, n = p.M, k = p.K;
-        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+        int64_t m = p.N, n = p.M, k = p.K;
+        int64_t lda = p.ldb, ldb = p.lda, ldc = p.ldc;
 
         int8_t *A = map_memory<int8_t>(b_mem), *a_eff = A;
         int8_t *B = map_memory<int8_t>(a_mem), *b_eff = B;
@@ -912,8 +912,8 @@ struct dnnl_gemm<uint8_t, int8_t, int32_t> {
         /* Prepare for Fortran style, hence A <-> B */
         char trans_a = p.transB, trans_b = p.transA;
 
-        int m = p.N, n = p.M, k = p.K;
-        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+        int64_t m = p.N, n = p.M, k = p.K;
+        int64_t lda = p.ldb, ldb = p.lda, ldc = p.ldc;
 
         int8_t *A = map_memory<int8_t>(b_mem), *a_eff = A;
         uint8_t *B = map_memory<uint8_t>(a_mem), *b_eff = B;
@@ -1056,8 +1056,8 @@ struct dnnl_gemm<bfloat16_t, bfloat16_t, float> {
         /* Prepare for Fortran style, hence A <-> B */
         char trans_a = p.transB, trans_b = p.transA;
 
-        int m = p.N, n = p.M, k = p.K;
-        int lda = p.ldb, ldb = p.lda, ldc = p.ldc;
+        int64_t m = p.N, n = p.M, k = p.K;
+        int64_t lda = p.ldb, ldb = p.lda, ldc = p.ldc;
 
         std::vector<bfloat16_t> a_pack_buf, b_pack_buf;
         bfloat16_t *A = map_memory<bfloat16_t>(b_mem), *a_eff = A;

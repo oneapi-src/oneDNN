@@ -37,15 +37,15 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
-    const int MB = pd()->MB();
-    const int OC = pd()->OC();
+    const dim_t MB = pd()->MB();
+    const dim_t OC = pd()->OC();
 
     const auto &wmd = *pd()->weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
 
-    const int M = OC;
-    const int N = MB;
-    const int K = pd()->IC_total_padded();
+    const dim_t M = OC;
+    const dim_t N = MB;
+    const dim_t K = pd()->IC_total_padded();
     const int8_t off_a = 0;
     const src_data_t off_b = 0;
     const int32_t off_c = 0;
@@ -67,7 +67,7 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
                 = pp_kernel_->sequential_kernel() || MB * OC < 2000;
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
-            balance211((size_t)OC * MB, nthr, ithr, start, end);
+            balance211((size_t)(OC * MB), nthr, ithr, start, end);
             (*pp_kernel_)(dst, acc, bias, scales, start, end);
         });
     }

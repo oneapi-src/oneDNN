@@ -148,13 +148,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             ? "N"
             : "T";
 
-    const int M_s32 = (int)M;
-    const int N_s32 = (int)N;
-    const int K_s32 = (int)K;
-
-    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-    const int ldc = (int)dst_bd.strides[batched + 0];
+    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
+    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
+    const dim_t ldc = dst_bd.strides[batched + 0];
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
@@ -175,9 +171,9 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                         = weights + b * weights_batch_stride;
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
 
-                extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32, &alpha,
-                        curr_weights, &ldb, curr_src, &lda, &beta, curr_dst,
-                        &ldc, nullptr, false);
+                extended_sgemm(transB, transA, &N, &M, &K, &alpha, curr_weights,
+                        &ldb, curr_src, &lda, &beta, curr_dst, &ldc, nullptr,
+                        false);
 
                 if (params.has_pp_kernel_) {
                     const float *pp_scales
@@ -188,8 +184,8 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
             }
         });
     } else {
-        extended_sgemm(transB, transA, &N_s32, &M_s32, &K_s32, &alpha, weights,
-                &ldb, src, &lda, &beta, dst, &ldc, nullptr, false);
+        extended_sgemm(transB, transA, &N, &M, &K, &alpha, weights, &ldb, src,
+                &lda, &beta, dst, &ldc, nullptr, false);
 
         if (params.has_pp_kernel_) {
             const bool force_sequential = pp_kernel_->sequential_kernel();

@@ -42,7 +42,7 @@ struct gemm_slice_t {
 
 struct gemm_threading_t {
     int nthrs_m, nthrs_n, nthrs_k;
-    int block_m, block_n, block_k; // Blocking sizes (-1 = default)
+    dim_t block_m, block_n, block_k; // Blocking sizes (-1 = default)
     dim_t thread_m, thread_n, thread_k; // Thread matrix sizes (-1 = default)
     partition_type partition;
     copy_type copy;

@@ -38,9 +38,9 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
     auto bias = CTX_IN_MEM(const data_t *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);
 
-    const int MB = pd()->MB();
-    const int OC = pd()->OC();
-    const int IC = pd()->IC_total_padded();
+    const dim_t MB = pd()->MB();
+    const dim_t OC = pd()->OC();
+    const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
     // check if OC is NOT the leading dimension
@@ -57,7 +57,7 @@ void gemm_inner_product_fwd_t<data_type>::execute_forward(
         const bool force_sequential = pp_kernel_->sequential_kernel();
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
-            balance211((size_t)OC * MB, nthr, ithr, start, end);
+            balance211((size_t)(OC * MB), nthr, ithr, start, end);
             (*pp_kernel_)(dst, dst, (char *)bias, scales, start, end);
         });
     }
@@ -70,9 +70,9 @@ void gemm_inner_product_bwd_data_t<data_type>::execute_backward_data(
     auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(data_t *, DNNL_ARG_DIFF_SRC);
 
-    const int MB = pd()->MB();
-    const int OC = pd()->OC();
-    const int IC = pd()->IC_total_padded();
+    const dim_t MB = pd()->MB();
+    const dim_t OC = pd()->OC();
+    const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
@@ -95,9 +95,9 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
 
     diff_dst += diff_dst_d.offset0();
 
-    const int MB = pd()->MB();
-    const int OC = pd()->OC();
-    const int IC = pd()->IC_total_padded();
+    const dim_t MB = pd()->MB();
+    const dim_t OC = pd()->OC();
+    const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->diff_weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
@@ -112,22 +112,22 @@ void gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
 
     if (diff_bias) {
         diff_bias += diff_bias_d.offset0();
-        constexpr int blksize = 8;
-        const int OC_blocks = utils::div_up(OC, blksize);
+        constexpr dim_t blksize = 8;
+        const dim_t OC_blocks = utils::div_up(OC, blksize);
         parallel(0, [&](const int ithr, const int nthr) {
-            int oc_s {0}, oc_e {0};
+            dim_t oc_s {0}, oc_e {0};
             balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
             oc_s = std::min(oc_s * blksize, OC);
             oc_e = std::min(oc_e * blksize, OC);
 
             PRAGMA_OMP_SIMD()
-            for (int oc = oc_s; oc < oc_e; ++oc) {
+            for (dim_t oc = oc_s; oc < oc_e; ++oc) {
                 diff_bias[oc] = diff_dst[oc];
             }
 
-            for (int mb = 1; mb < MB; ++mb) {
+            for (dim_t mb = 1; mb < MB; ++mb) {
                 PRAGMA_OMP_SIMD()
-                for (int oc = oc_s; oc < oc_e; ++oc) {
+                for (dim_t oc = oc_s; oc < oc_e; ++oc) {
                     diff_bias[oc] += diff_dst[mb * OC + oc];
                 }
             }

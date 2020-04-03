@@ -309,7 +309,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
     const bool do_sum = post_ops.contain(primitive_kind::sum, 0);
     const float sum_scale = do_sum ? post_ops.entry_[0].sum.scale : 0;
 
-    const int M = jcp.os * jcp.od;
+    const dim_t M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = (size_t)jcp.oc * M;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
@@ -319,8 +319,8 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
             is_problem_3d, jcp.oh_block == jcp.oh && jcp.ow_block == jcp.ow));
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
-    const int K = jcp.ic * jcp.ks;
-    const int N = jcp.oc;
+    const dim_t K = jcp.ic * jcp.ks;
+    const dim_t N = jcp.oc;
 
     const int nb_oh = div_up(jcp.oh, jcp.oh_block);
     const int nb_ow = div_up(jcp.ow, jcp.ow_block);
@@ -360,9 +360,9 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
 
             const acc_data_t one = 1.0;
 
-            const int m = h_step * w_step;
-            const int LDA = jcp.im2col_sz ? m : M;
-            const int LDC = is_bf16_dst ? m : M;
+            const dim_t m = h_step * w_step;
+            const dim_t LDA = jcp.im2col_sz ? m : M;
+            const dim_t LDC = is_bf16_dst ? m : M;
             dst_data_t *dst_local = _dst_im + od * jcp.os + oh * jcp.ow + ow;
             acc_data_t *_acc = is_bf16_dst ? acc_base
                             + ithr
@@ -404,15 +404,15 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
 
     const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
 
-    const int M = jcp.os * jcp.od;
+    const dim_t M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = (size_t)jcp.oc * M;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
-    const int m = jcp.os;
-    const int K = jcp.oc;
-    const int N = jcp.ic * jcp.ks;
-    const int LDC = jcp.im2col_sz ? m : M;
+    const dim_t m = jcp.os;
+    const dim_t K = jcp.oc;
+    const dim_t N = jcp.ic * jcp.ks;
+    const dim_t LDC = jcp.im2col_sz ? m : M;
 
     const size_t work_amount = (size_t)jcp.ngroups * jcp.mb;
     const bool is_problem_3d = pd()->ndims() == 5;
@@ -537,15 +537,15 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
             diff_bias = CTX_OUT_MEM(float *, DNNL_ARG_DIFF_BIAS);
     }
 
-    const int K = jcp.os * jcp.od;
+    const dim_t K = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t dst_step = (size_t)jcp.oc * K;
     const size_t weights_g_size = (size_t)jcp.ic * jcp.oc * jcp.ks;
 
-    const int k = jcp.os;
-    const int N = jcp.oc;
-    const int M = jcp.ic * jcp.ks;
-    const int LDA = jcp.im2col_sz ? k : K;
+    const dim_t k = jcp.os;
+    const dim_t N = jcp.oc;
+    const dim_t M = jcp.ic * jcp.ks;
+    const dim_t LDA = jcp.im2col_sz ? k : K;
     const bool is_problem_3d = pd()->ndims() == 5;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {

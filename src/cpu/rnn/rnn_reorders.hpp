@@ -445,17 +445,17 @@ private:
         int n_parts = dst_d.rnn_packed_desc().n_parts;
         const size_t *size_packed_cell = dst_d.rnn_packed_desc().part_pack_size;
         const int *parts = dst_d.rnn_packed_desc().parts;
-        const int n = dst_d.rnn_packed_desc().n;
-        const int ldb = dst_d.rnn_packed_desc().ldb;
+        const dim_t n = dst_d.rnn_packed_desc().n;
+        const dim_t ldb = dst_d.rnn_packed_desc().ldb;
         char *to_pack = dst;
 
         for (int l = 0; l < L; l++) {
             for (int d = 0; d < D; d++) {
                 for (int p = 0; p < n_parts; p++) {
                     int g = (p > 0) ? parts[p - 1] : 0;
-                    int m_p = parts[p] * O;
-                    int k_p = I;
-                    int lda = G * O;
+                    dim_t m_p = parts[p] * O;
+                    dim_t k_p = I;
+                    dim_t lda = (dim_t)G * O;
                     gemm_s8u8s32_pack("A", "N", "N", &m_p, &n, &k_p, &lda, &ldb,
                             &scratch_quantized[off_igo(l, d, 0, g, 0)],
                             to_pack);
@@ -579,7 +579,7 @@ private:
         int n_parts = rnn_pdata.n_parts;
         const size_t *size_packed_cell = rnn_pdata.part_pack_size;
         const int *parts = rnn_pdata.parts;
-        const int n = rnn_pdata.n;
+        const dim_t n = rnn_pdata.n;
 
         /* Convert fp32 input to bf16 */
         out_data_t *input_cvt = (out_data_t *)input;
@@ -618,14 +618,14 @@ private:
         auto off_goi = [&](int l, int d, int i, int g, int o) {
             return l * D * G * O * I + d * G * O * I + g * O * I + o * I + i;
         };
-        const int lda = to_igo ? G * O : I;
-        const int ldb = rnn_pdata.ldb;
+        const dim_t lda = to_igo ? G * O : I;
+        const dim_t ldb = rnn_pdata.ldb;
         for (int l = 0; l < L; l++) {
             for (int d = 0; d < D; d++) {
                 for (int p = 0; p < n_parts; p++) {
                     int g = (p > 0) ? parts[p - 1] : 0;
-                    int m_p = to_igo ? parts[p] * O : I;
-                    int k_p = to_igo ? I : parts[p] * O;
+                    dim_t m_p = to_igo ? parts[p] * O : I;
+                    dim_t k_p = to_igo ? I : parts[p] * O;
                     dnnl_status_t st;
                     if (type_o == data_type::bf16) {
                         st = gemm_bf16bf16f32_pack("A", "N", "N", &m_p, &n,

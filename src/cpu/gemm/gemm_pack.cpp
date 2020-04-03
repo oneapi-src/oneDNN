@@ -89,8 +89,8 @@ static bool is_good_ld(dim_t ld) {
 }
 
 static dnnl_status_t check_pack_get_size_input(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb) {
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb) {
 
     if (utils::any_null(identifier, transa, transb, M, N, K, lda, ldb))
         return dnnl_invalid_arguments;
@@ -101,8 +101,9 @@ static dnnl_status_t check_pack_get_size_input(const char *identifier,
     bool ok = true && utils::one_of(*transa, 'T', 't', 'N', 'n')
             && utils::one_of(*transb, 'T', 't', 'N', 'n')
             && utils::one_of(*identifier, 'A', 'a', 'B', 'b') && *M >= 0
-            && *N >= 0 && *K >= 0 && *lda >= nstl::max(1, !is_transa ? *M : *K)
-            && *ldb >= nstl::max(1, !is_transb ? *K : *N);
+            && *N >= 0 && *K >= 0
+            && *lda >= nstl::max(dim_t(1), !is_transa ? *M : *K)
+            && *ldb >= nstl::max(dim_t(1), !is_transb ? *K : *N);
 
     if (!ok) return dnnl_invalid_arguments;
 
@@ -110,8 +111,8 @@ static dnnl_status_t check_pack_get_size_input(const char *identifier,
 }
 
 static dnnl_status_t check_pack_input(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const float *alpha, const int *lda, const int *ldb,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const float *alpha, const dim_t *lda, const dim_t *ldb,
         const void *src, void *dst) {
     if (utils::any_null(src, dst, alpha)) return dnnl_invalid_arguments;
 
@@ -121,8 +122,8 @@ static dnnl_status_t check_pack_input(const char *identifier,
 
 template <typename a_dt, typename b_dt, typename c_dt>
 static dnnl_status_t gemm_pack_driver(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const float *alpha, const int *lda, const int *ldb,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const float *alpha, const dim_t *lda, const dim_t *ldb,
         const void *src, gemm_pack_storage_t *pack_dst, bool measure_only) {
 
     a_dt oa = 0;
@@ -146,8 +147,8 @@ static dnnl_status_t gemm_pack_driver(const char *identifier,
 }
 
 dnnl_status_t sgemm_pack_get_size(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, size_t *size, bool *pack) {
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, size_t *size, bool *pack) {
 
     if (!pack_sgemm_supported()) return dnnl_unimplemented;
 
@@ -183,8 +184,8 @@ dnnl_status_t sgemm_pack_get_size(const char *identifier, const char *transa,
 }
 
 dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack) {
 
     if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
@@ -193,14 +194,8 @@ dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
     *size = 0;
     if (pack) *pack = true;
 
-    int M_s32 = (int)*M;
-    int N_s32 = (int)*N;
-    int K_s32 = (int)*K;
-    int lda_s32 = (int)*lda;
-    int ldb_s32 = (int)*ldb;
-
-    result = check_pack_get_size_input(identifier, transa, transb, &M_s32,
-            &N_s32, &K_s32, &lda_s32, &ldb_s32);
+    result = check_pack_get_size_input(
+            identifier, transa, transb, M, N, K, lda, ldb);
     if (result != dnnl_success) return result;
 
     float alpha = 1.0f;
@@ -208,8 +203,7 @@ dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
     if (!shell.get()) return dnnl_out_of_memory;
 
     result = gemm_pack_driver<bfloat16_t, bfloat16_t, float>(identifier, transa,
-            transb, &M_s32, &N_s32, &K_s32, &alpha, &lda_s32, &ldb_s32, nullptr,
-            &shell, true);
+            transb, M, N, K, &alpha, lda, ldb, nullptr, &shell, true);
     if (result != dnnl_success) return result;
 
     *size = shell.size();
@@ -219,8 +213,8 @@ dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
 
 template <typename a_dt, typename b_dt>
 dnnl_status_t gemm_x8x8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack) {
 
     dnnl_status_t result;
@@ -275,8 +269,8 @@ dnnl_status_t gemm_x8x8s32_pack_get_size(const char *identifier,
 }
 
 dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack) {
 
     return gemm_x8x8s32_pack_get_size<int8_t, uint8_t>(
@@ -284,8 +278,8 @@ dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
 }
 
 dnnl_status_t gemm_s8s8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const int *M, const int *N,
-        const int *K, const int *lda, const int *ldb, size_t *size,
+        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
+        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
         bool *pack) {
 
     return gemm_x8x8s32_pack_get_size<int8_t, int8_t>(
@@ -293,8 +287,8 @@ dnnl_status_t gemm_s8s8s32_pack_get_size(const char *identifier,
 }
 
 dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const float *src, float *dst) {
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, const float *src, float *dst) {
     float one = 1.f, *alpha = &one;
 
     if (!pack_sgemm_supported()) return dnnl_unimplemented;
@@ -319,34 +313,27 @@ dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
 }
 
 dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const bfloat16_t *src,
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, const bfloat16_t *src,
         bfloat16_t *dst) {
     float one = 1.f, *alpha = &one;
 
     if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
 
-    int M_s32 = (int)*M;
-    int N_s32 = (int)*N;
-    int K_s32 = (int)*K;
-    int lda_s32 = (int)*lda;
-    int ldb_s32 = (int)*ldb;
-
-    auto result = check_pack_input(identifier, transa, transb, &M_s32, &N_s32,
-            &K_s32, alpha, &lda_s32, &ldb_s32, src, dst);
+    auto result = check_pack_input(
+            identifier, transa, transb, M, N, K, alpha, lda, ldb, src, dst);
     if (result != dnnl_success) return result;
 
     gemm_pack_storage_t pack_dst {dst};
 
     return gemm_pack_driver<bfloat16_t, bfloat16_t, float>(identifier, transa,
-            transb, &M_s32, &N_s32, &K_s32, alpha, &lda_s32, &ldb_s32, src,
-            &pack_dst, false);
+            transb, M, N, K, alpha, lda, ldb, src, &pack_dst, false);
 }
 
 template <typename a_dt, typename b_dt>
 dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const void *src_void, void *dst) {
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, const void *src_void, void *dst) {
 
     float alpha = 1.0f; // Not used with igemm.
     auto result = check_pack_input(identifier, transa, transb, M, N, K, &alpha,
@@ -396,25 +383,25 @@ dnnl_status_t gemm_x8x8s32_pack(const char *identifier, const char *transa,
 }
 
 dnnl_status_t gemm_s8u8s32_pack(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const void *src, void *dst) {
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, const void *src, void *dst) {
 
     return gemm_x8x8s32_pack<int8_t, uint8_t>(
             identifier, transa, transb, M, N, K, lda, ldb, src, dst);
 }
 
 dnnl_status_t gemm_s8s8s32_pack(const char *identifier, const char *transa,
-        const char *transb, const int *M, const int *N, const int *K,
-        const int *lda, const int *ldb, const void *src, void *dst) {
+        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
+        const dim_t *lda, const dim_t *ldb, const void *src, void *dst) {
 
     return gemm_x8x8s32_pack<int8_t, int8_t>(
             identifier, transa, transb, M, N, K, lda, ldb, src, dst);
 }
 
 dnnl_status_t sgemm_compute(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const float *A,
-        const int *lda, const float *B, const int *ldb, const float *beta,
-        float *C, const int *ldc) {
+        const dim_t *M, const dim_t *N, const dim_t *K, const float *A,
+        const dim_t *lda, const float *B, const dim_t *ldb, const float *beta,
+        float *C, const dim_t *ldc) {
 
 #if USE_MKL_PACKED_GEMM
     if (utils::any_null(transa, transb, M, N, K, A, lda, B, ldb, beta, C, ldc))
@@ -434,9 +421,9 @@ dnnl_status_t sgemm_compute(const char *transa, const char *transb,
 }
 
 dnnl_status_t gemm_bf16bf16f32_compute(const char *transa, const char *transb,
-        const int *M, const int *N, const int *K, const bfloat16_t *A,
-        const int *lda, const bfloat16_t *B, const int *ldb, const float *beta,
-        float *C, const int *ldc) {
+        const dim_t *M, const dim_t *N, const dim_t *K, const bfloat16_t *A,
+        const dim_t *lda, const bfloat16_t *B, const dim_t *ldb,
+        const float *beta, float *C, const dim_t *ldc) {
 
     if (!pack_gemm_bf16bf16f32_supported()) return dnnl_unimplemented;
 
@@ -448,9 +435,9 @@ dnnl_status_t gemm_bf16bf16f32_compute(const char *transa, const char *transb,
 
 template <typename a_dt, typename b_dt>
 dnnl_status_t gemm_x8x8s32_compute(const char *transa, const char *transb,
-        const char *offsetc, const int *M, const int *N, const int *K,
-        const a_dt *A, const int *lda, const b_dt *B, const int *ldb,
-        const float *beta, int32_t *C, const int *ldc, const int32_t *co) {
+        const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
+        const a_dt *A, const dim_t *lda, const b_dt *B, const dim_t *ldb,
+        const float *beta, int32_t *C, const dim_t *ldc, const int32_t *co) {
 
     const float one = 1.f, *alpha = &one;
     const a_dt zero_a_dt = 0, *ao = &zero_a_dt;
@@ -506,18 +493,18 @@ dnnl_status_t gemm_x8x8s32_compute(const char *transa, const char *transb,
 }
 
 dnnl_status_t gemm_s8u8s32_compute(const char *transa, const char *transb,
-        const char *offsetc, const int *M, const int *N, const int *K,
-        const int8_t *A, const int *lda, const uint8_t *B, const int *ldb,
-        const float *beta, int32_t *C, const int *ldc, const int32_t *co) {
+        const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
+        const int8_t *A, const dim_t *lda, const uint8_t *B, const dim_t *ldb,
+        const float *beta, int32_t *C, const dim_t *ldc, const int32_t *co) {
 
     return gemm_x8x8s32_compute(
             transa, transb, offsetc, M, N, K, A, lda, B, ldb, beta, C, ldc, co);
 }
 
 dnnl_status_t gemm_s8s8s32_compute(const char *transa, const char *transb,
-        const char *offsetc, const int *M, const int *N, const int *K,
-        const int8_t *A, const int *lda, const int8_t *B, const int *ldb,
-        const float *beta, int32_t *C, const int *ldc, const int32_t *co) {
+        const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
+        const int8_t *A, const dim_t *lda, const int8_t *B, const dim_t *ldb,
+        const float *beta, int32_t *C, const dim_t *ldc, const int32_t *co) {
 
     return gemm_x8x8s32_compute(
             transa, transb, offsetc, M, N, K, A, lda, B, ldb, beta, C, ldc, co);
