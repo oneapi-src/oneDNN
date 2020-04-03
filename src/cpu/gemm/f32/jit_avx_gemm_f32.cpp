@@ -2343,17 +2343,17 @@ const xbyak_gemm *get_xbyak_gemm(
     return kernel_table[isTransA][isTransB][hasBias][beta_idx(beta)];
 }
 
-void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
-        int k, const float *alpha, const float *a, dim_t lda, const float *b,
-        dim_t ldb, const float *beta, float *c, dim_t ldc, const float *bias,
-        float *ws) {
+void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
+        dim_t n, dim_t k, const float *alpha, const float *a, dim_t lda,
+        const float *b, dim_t ldb, const float *beta, float *c, dim_t ldc,
+        const float *bias, float *ws) {
 
     bool isTransA = (*transa == 'T' || *transa == 't');
     bool isTransB = (*transb == 'T' || *transb == 't');
 
-    int Bm, sizeM, Bn, sizeN, Bk, sizeK;
+    dim_t Bm, sizeM, Bn, sizeN, Bk, sizeK;
 
-    int i, j;
+    dim_t i, j;
 
     if ((m <= 0) || (n <= 0)) return;
 
@@ -2381,9 +2381,9 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
     auto ker_b0 = get_xbyak_gemm(isTransA, isTransB, 0.0, false);
     assert(ker_bn && ker_b1 && ker_b0);
 
-    int BM = 4032;
-    int BN = isTransA ? 96 : 48;
-    int BK = isTransB ? 96 : 256;
+    dim_t BM = 4032;
+    dim_t BN = isTransA ? 96 : 48;
+    dim_t BK = isTransB ? 96 : 256;
     const float *curA, *curB, *curBias = nullptr;
     float *curC;
 
@@ -2431,16 +2431,14 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
                 }
                 if (Bk == 0) {
                     if (*beta == 0.0 && bias == nullptr)
-                        (*ker_b0)((dim_t)sizeM, (dim_t)sizeN, (dim_t)sizeK,
-                                alpha, curA, lda, curB, ldb, beta, curC, ldc,
-                                curBias, ws);
+                        (*ker_b0)(sizeM, sizeN, sizeK, alpha, curA, lda, curB,
+                                ldb, beta, curC, ldc, curBias, ws);
                     else
-                        (*ker_bn)((dim_t)sizeM, (dim_t)sizeN, (dim_t)sizeK,
-                                alpha, curA, lda, curB, ldb, beta, curC, ldc,
-                                curBias, ws);
+                        (*ker_bn)(sizeM, sizeN, sizeK, alpha, curA, lda, curB,
+                                ldb, beta, curC, ldc, curBias, ws);
                 } else {
-                    (*ker_b1)((dim_t)sizeM, (dim_t)sizeN, (dim_t)sizeK, alpha,
-                            curA, lda, curB, ldb, beta, curC, ldc, curBias, ws);
+                    (*ker_b1)(sizeM, sizeN, sizeK, alpha, curA, lda, curB, ldb,
+                            beta, curC, ldc, curBias, ws);
                 }
             }
         }
@@ -2451,9 +2449,10 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, int m, int n,
 } // namespace avx_gemm_f32
 
 dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
-        const int *p_m, const int *p_n, const int *p_k, const float *p_alpha,
-        const float *A, const int *p_lda, const float *B, const int *p_ldb,
-        const float *p_beta, float *C, const int *p_ldc, const float *bias) {
+        const dim_t *p_m, const dim_t *p_n, const dim_t *p_k,
+        const float *p_alpha, const float *A, const dim_t *p_lda,
+        const float *B, const dim_t *p_ldb, const float *p_beta, float *C,
+        const dim_t *p_ldc, const float *bias) {
 
     using namespace dnnl::impl::utils;
     using namespace avx_gemm_f32;
@@ -2465,14 +2464,14 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
 
     int nthr_to_use = (dnnl_in_parallel()) ? 1 : dnnl_get_max_threads();
 
-    int m = *p_m;
-    int n = *p_n;
-    int k = *p_k;
+    dim_t m = *p_m;
+    dim_t n = *p_n;
+    dim_t k = *p_k;
     dim_t lda = *p_lda;
     dim_t ldb = *p_ldb;
     dim_t ldc = *p_ldc;
     float beta = *p_beta;
-    int MB, NB, KB;
+    dim_t MB, NB, KB;
 
     int nthr_m, nthr_n, nthr_k, nthr_mn;
 
@@ -2505,7 +2504,7 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
             ompstatus[i * CACHE_LINE_SIZE] = 0;
 
         c_buffers = (float *)malloc(
-                nthr_m * nthr_n * (nthr_k - 1) * MB * NB * sizeof(float),
+                sizeof(*c_buffers) * nthr_m * nthr_n * (nthr_k - 1) * MB * NB,
                 PAGE_4K);
         if (!c_buffers) {
             free(ompstatus_);
@@ -2530,9 +2529,9 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
         MAYBE_UNUSED(nthr);
 
         int ithr_m, ithr_n, ithr_k, ithr_mn;
-        int m_from, m_to, myM;
-        int n_from, n_to, myN;
-        int k_from, k_to, myK;
+        dim_t m_from, m_to, myM;
+        dim_t n_from, n_to, myN;
+        dim_t k_from, k_to, myK;
         int cbase, ibase;
         const float *myA, *myB, *myBias = nullptr;
         float *myC = C, myBeta;
@@ -2592,7 +2591,7 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
                     ld = ldc;
                     if (bias) myBias = &(bias[m_from]);
                 } else {
-                    myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1);
+                    myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
                     myBeta = 0.0;
                     ld = MB;
                     myBias = nullptr;
@@ -2608,14 +2607,13 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
             if (nthr_k > 1 && !sum_later) {
 
                 // sum matrices partitioned along K dimension
-                int n1, n2;
+                dim_t n1, n2;
 
                 partition_unit_diff(ithr_k, nthr_k, myN, &n1, &n2);
 
                 if (ithr_k > 0) {
 
-                    myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1)
-                            + (dim_t)n1 * MB;
+                    myC = c_buffers + MB * NB * (cbase + ithr_k - 1) + n1 * MB;
                     /* need to wait until main thread finishes */
                     while (ompstatus[ibase * CACHE_LINE_SIZE] != 1) {};
 
@@ -2627,8 +2625,7 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
                 for (int ik = 1; ik < nthr_k; ++ik) {
                     if (ik != ithr_k) {
 
-                        myC = c_buffers + (dim_t)MB * NB * (cbase + ik - 1)
-                                + (dim_t)n1 * MB;
+                        myC = c_buffers + MB * NB * (cbase + ik - 1) + n1 * MB;
 
                         while (ompstatus[(ibase + ik) * CACHE_LINE_SIZE] != 1) {
                         };
@@ -2649,8 +2646,8 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
             MAYBE_UNUSED(nthr);
 
             int ithr_m, ithr_n, ithr_k, ithr_mn;
-            int m_from, m_to, myM;
-            int n_from, n_to, myN;
+            dim_t m_from, m_to, myM;
+            dim_t n_from, n_to, myN;
             int cbase;
             float *myC = C;
 
@@ -2681,14 +2678,14 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
 
                 if (nthr_k > 1) {
                     // sum matrices partitioned along K dimension
-                    int n1, n2;
+                    dim_t n1, n2;
 
                     partition_unit_diff(ithr_k, nthr_k, myN, &n1, &n2);
 
                     if (ithr_k > 0) {
 
-                        myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1)
-                                + (dim_t)n1 * MB;
+                        myC = c_buffers + MB * NB * (cbase + ithr_k - 1)
+                                + n1 * MB;
 
                         /* my cache is hot */
                         sum_two_matrices(myM, n2, myC, MB,
@@ -2698,8 +2695,8 @@ dnnl_status_t jit_avx_gemm_f32(const char *transa, const char *transb,
                     for (int ik = 1; ik < nthr_k; ++ik) {
                         if (ik != ithr_k) {
 
-                            myC = c_buffers + (dim_t)MB * NB * (cbase + ik - 1)
-                                    + (dim_t)n1 * MB;
+                            myC = c_buffers + MB * NB * (cbase + ik - 1)
+                                    + n1 * MB;
 
                             sum_two_matrices(myM, n2, myC, MB,
                                     &C[m_from + (n_from + n1) * ldc], ldc);

@@ -28,13 +28,13 @@ namespace cpu {
 namespace gemm_utils {
 
 template <typename T>
-static inline dim_t get_ld_padd(const dnnl::impl::dim_t x) {
+static inline dim_t get_ld_padd(const dim_t x) {
     return x != 1 ? utils::rnd_up(x, 2048 / sizeof(T)) + (64 / sizeof(T)) : 1;
 }
 
 template <typename mat_t, typename acc_t>
-void prep_gemm_pack(bool do_a, int is_trans, dnnl::impl::dim_t nrows,
-        dnnl::impl::dim_t ncols, gemm_pack_storage_t *pack_dst) {
+void prep_gemm_pack(bool do_a, int is_trans, dim_t nrows, dim_t ncols,
+        gemm_pack_storage_t *pack_dst) {
 
     auto ld = !is_trans ? get_ld_padd<mat_t>(nrows) : get_ld_padd<mat_t>(ncols);
     auto td = !is_trans ? ncols : nrows;
@@ -51,14 +51,13 @@ void prep_gemm_pack(bool do_a, int is_trans, dnnl::impl::dim_t nrows,
 }
 
 template <typename T>
-dnnl_status_t pack_no_copy(const T *src, dnnl::impl::dim_t ld_src,
-        dnnl::impl::dim_t nrows, dnnl::impl::dim_t ncols, int trans_src,
-        float alpha, gemm_pack_storage_t *dst_pack) {
+dnnl_status_t pack_no_copy(const T *src, dim_t ld_src, dim_t nrows, dim_t ncols,
+        int trans_src, float alpha, gemm_pack_storage_t *dst_pack) {
 
     auto dst = dst_pack->matrix<T>(0);
     int trans_dst;
     dim_t nrows_dst, ncols_dst;
-    dnnl::impl::dim_t ld_dst, td_dst;
+    dim_t ld_dst, td_dst;
 
     constexpr bool is_f32 = data_traits<T>::data_type == data_type::f32;
 

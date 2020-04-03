@@ -208,13 +208,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
             ? "N"
             : "T";
 
-    const int M_s32 = (int)M;
-    const int N_s32 = (int)N;
-    const int K_s32 = (int)K;
-
-    const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
-    const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-    const int ldc = dst_is_acc ? (int)dst_bd.strides[batched + 0] : N_s32;
+    const dim_t lda = src_strides[*transA == 'N' ? 0 : 1];
+    const dim_t ldb = weights_strides[*transB == 'N' ? 0 : 1];
+    const dim_t ldc = dst_is_acc ? dst_bd.strides[batched + 0] : N;
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
@@ -249,8 +245,8 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
                 dst_data_t *curr_dst = dst + b * dst_batch_stride;
                 if (!reuse_acc) curr_acc = acc + b * acc_batch_stride;
 
-                gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32, &K_s32,
-                        &alpha, curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
+                gemm_s8x8s32(transB, transA, "F", &N, &M, &K, &alpha,
+                        curr_weights, &ldb, &gemm_off_b, curr_src, &lda,
                         &gemm_off_a, &beta, curr_acc, &ldc, &gemm_off_c);
 
                 // if igemm cannot handle src and weights zero points
@@ -277,9 +273,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         // at compilation time in lambdas
         const int32_t gemm_off_c = 0;
 
-        gemm_s8x8s32(transB, transA, "F", &N_s32, &M_s32, &K_s32, &alpha,
-                weights, &ldb, &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc,
-                &ldc, &gemm_off_c);
+        gemm_s8x8s32(transB, transA, "F", &N, &M, &K, &alpha, weights, &ldb,
+                &gemm_off_b, src, &lda, &gemm_off_a, &beta, acc, &ldc,
+                &gemm_off_c);
 
         std::vector<acc_data_t> src_compensation(M, 0);
         std::vector<acc_data_t> weights_compensation(N, 0);

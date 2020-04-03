@@ -104,11 +104,11 @@ struct gemm_info_t {
     bool force_nocopy;
 
     gemm_info_t(const char *transA, const char *transB, const char *offsetC,
-            const int *m, const int *n, const int *k, const float *alpha,
-            const a_type *a, const int *lda, const a_type *oa, const b_type *b,
-            const int *ldb, const b_type *ob, const float *beta, c_type *c,
-            const int *ldc, const c_type *oc, bool force_nocopy,
-            pack_type packing, gemm_pack_storage_t *pack_dst,
+            const dim_t *m, const dim_t *n, const dim_t *k, const float *alpha,
+            const a_type *a, const dim_t *lda, const a_type *oa,
+            const b_type *b, const dim_t *ldb, const b_type *ob,
+            const float *beta, c_type *c, const dim_t *ldc, const c_type *oc,
+            bool force_nocopy, pack_type packing, gemm_pack_storage_t *pack_dst,
             bool measure_only);
 
     bool hasKernels(void);

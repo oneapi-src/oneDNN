@@ -591,11 +591,11 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
                             jcp, src, imtr, col, oh, h_step, ow, w_step);
             }
 
-            const int M = jcp.oc;
-            const int K = jcp.ks * jcp.ic;
-            const int N = h_step * w_step;
-            const int LDA = M * jcp.ngroups;
-            const int LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
+            const dim_t M = jcp.oc;
+            const dim_t K = jcp.ks * jcp.ic;
+            const dim_t N = h_step * w_step;
+            const dim_t LDA = M * jcp.ngroups;
+            const dim_t LDB = jcp.im2col_sz ? N : K * jcp.ngroups;
             const char *BT = jcp.im2col_sz ? "T" : "N";
             const int8_t off_a = 0;
             const uint8_t off_b = 0;
@@ -687,14 +687,14 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         diff_src_data_t *__restrict diff_src = diff_src_base
                 + n * diff_src_mb_stride + g * diff_src_g_stride;
 
-        const int M = jcp.ks * jcp.ic;
-        const int N = jcp.os * jcp.od;
-        const int K = jcp.oc;
+        const dim_t M = jcp.ks * jcp.ic;
+        const dim_t N = jcp.os * jcp.od;
+        const dim_t K = jcp.oc;
         const int8_t off_a = 0;
         const diff_dst_data_t off_b = 0;
         const int32_t off_c = 0;
         const float onef = 1.0, zerof = 0.0;
-        const int LD = K * jcp.ngroups;
+        const dim_t LD = K * jcp.ngroups;
 
         gemm_s8x8s32("T", "N", "F", &M, &N, &K, &onef, wei, &LD, &off_a,
                 diff_dst, &LD, &off_b, &zerof, jcp.im2col_sz ? col : acc, &M,

@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "c_types_map.hpp"
 #include "dnnl_types.h"
 
 namespace dnnl {
@@ -27,10 +28,10 @@ namespace cpu {
 
 template <typename b_dt>
 dnnl_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
-        const char *offsetc, const int *M, const int *N, const int *K,
-        const float *alpha, const int8_t *A, const int *LDA, const int8_t *ao,
-        const b_dt *B, const int *LDB, const b_dt *bo, const float *beta,
-        int32_t *C, const int *LDC, const int32_t *co);
+        const char *offsetc, const dim_t *M, const dim_t *N, const dim_t *K,
+        const float *alpha, const int8_t *A, const dim_t *LDA, const int8_t *ao,
+        const b_dt *B, const dim_t *LDB, const b_dt *bo, const float *beta,
+        int32_t *C, const dim_t *LDC, const int32_t *co);
 }
 } // namespace impl
 } // namespace dnnl

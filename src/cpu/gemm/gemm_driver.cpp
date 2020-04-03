@@ -1059,8 +1059,8 @@ static inline void set_thread_opts_pack(int nthrs,
     thread_info.partition = partition_type::mnk_3d;
 
     auto choose_blocking
-            = [](dim_t size_z, dim_t &thread_z, int &nthr_z, int block_z_init,
-                      int &block_z, int block_align) {
+            = [](dim_t size_z, dim_t &thread_z, int &nthr_z, dim_t block_z_init,
+                      dim_t &block_z, dim_t block_align) {
                   thread_z = utils::div_up(size_z, nthr_z);
                   auto num_blk = utils::div_up(thread_z, block_z_init);
                   block_z = utils::div_up(thread_z, num_blk);
@@ -1149,9 +1149,9 @@ static inline int set_thread_opts(int nthrs, int nthrs_spawn,
         int nthrs_m = 0;
         int nthrs_n = 0;
         int nthrs_k = 0;
-        int BM = 0;
-        int BN = 0;
-        int BK = 0;
+        dim_t BM = 0;
+        dim_t BN = 0;
+        dim_t BK = 0;
         auto m = arg->m, n = arg->n, k = arg->k;
 
         if (mayiuse(avx512_core)) {
@@ -1418,25 +1418,19 @@ static dnnl_status_t call_no_copy_sgemm(
         gemm_info_t<a_type, b_type, c_type> *arg) {
 
     if (arg->packing == pack_type::none) {
-        int m_s32 = (int)arg->m;
-        int n_s32 = (int)arg->n;
-        int k_s32 = (int)arg->k;
-        int lda_s32 = (int)arg->lda;
-        int ldb_s32 = (int)arg->ldb;
-        int ldc_s32 = (int)arg->ldc;
         auto transa_char = (arg->transa != do_trans) ? "N" : "T";
         auto transb_char = (arg->transb != do_trans) ? "N" : "T";
 
         if (mayiuse(avx512_core))
-            return jit_avx512_common_gemm_f32(transa_char, transb_char, &m_s32,
-                    &n_s32, &k_s32, &arg->alpha, (float *)arg->a, &lda_s32,
-                    (float *)arg->b, &ldb_s32, &arg->beta, (float *)arg->c,
-                    &ldc_s32, (float *)arg->co);
+            return jit_avx512_common_gemm_f32(transa_char, transb_char, &arg->m,
+                    &arg->n, &arg->k, &arg->alpha, (float *)arg->a, &arg->lda,
+                    (float *)arg->b, &arg->ldb, &arg->beta, (float *)arg->c,
+                    &arg->ldc, (float *)arg->co);
         else
-            return jit_avx_gemm_f32(transa_char, transb_char, &m_s32, &n_s32,
-                    &k_s32, &arg->alpha, (float *)arg->a, &lda_s32,
-                    (float *)arg->b, &ldb_s32, &arg->beta, (float *)arg->c,
-                    &ldc_s32, (float *)arg->co);
+            return jit_avx_gemm_f32(transa_char, transb_char, &arg->m, &arg->n,
+                    &arg->k, &arg->alpha, (float *)arg->a, &arg->lda,
+                    (float *)arg->b, &arg->ldb, &arg->beta, (float *)arg->c,
+                    &arg->ldc, (float *)arg->co);
     } else
         return pack_no_copy(arg);
 }
@@ -1741,10 +1735,10 @@ static dnnl_status_t gemm_threading_driver(
 
 template <typename a_type, typename b_type, typename c_type>
 dnnl_status_t gemm_driver(const char *transA, const char *transB,
-        const char *offsetC, const int *m, const int *n, const int *k,
-        const float *alpha, const a_type *a, const int *lda, const a_type *oa,
-        const b_type *b, const int *ldb, const b_type *ob, const float *beta,
-        c_type *c, const int *ldc, const c_type *oc, const bool force_nocopy,
+        const char *offsetC, const dim_t *m, const dim_t *n, const dim_t *k,
+        const float *alpha, const a_type *a, const dim_t *lda, const a_type *oa,
+        const b_type *b, const dim_t *ldb, const b_type *ob, const float *beta,
+        c_type *c, const dim_t *ldc, const c_type *oc, const bool force_nocopy,
         pack_type packing, gemm_pack_storage_t *pack_dst, bool measure_only) {
 
     constexpr bool is_int8 = utils::one_of(
@@ -1786,45 +1780,46 @@ dnnl_status_t gemm_driver(const char *transA, const char *transB,
 template // Instantiate gemm_bf16bf16f32
         dnnl_status_t
         gemm_driver<bfloat16_t, bfloat16_t, float>(const char *transA,
-                const char *transB, const char *offsetC, const int *m,
-                const int *n, const int *k, const float *alpha,
-                const bfloat16_t *a, const int *lda, const bfloat16_t *oa,
-                const bfloat16_t *b, const int *ldb, const bfloat16_t *ob,
-                const float *beta, float *c, const int *ldc, const float *oc,
+                const char *transB, const char *offsetC, const dim_t *m,
+                const dim_t *n, const dim_t *k, const float *alpha,
+                const bfloat16_t *a, const dim_t *lda, const bfloat16_t *oa,
+                const bfloat16_t *b, const dim_t *ldb, const bfloat16_t *ob,
+                const float *beta, float *c, const dim_t *ldc, const float *oc,
                 const bool force_nocopy, pack_type packing,
                 gemm_pack_storage_t *pack_dst, bool measure_only);
 
 template // Instantiate gemm_s8s8s32
         dnnl_status_t
         gemm_driver<int8_t, int8_t, int32_t>(const char *transA,
-                const char *transB, const char *offsetC, const int *m,
-                const int *n, const int *k, const float *alpha, const int8_t *a,
-                const int *lda, const int8_t *oa, const int8_t *b,
-                const int *ldb, const int8_t *ob, const float *beta, int32_t *c,
-                const int *ldc, const int32_t *oc, const bool force_nocopy,
-                pack_type packing, gemm_pack_storage_t *pack_dst,
-                bool measure_only);
+                const char *transB, const char *offsetC, const dim_t *m,
+                const dim_t *n, const dim_t *k, const float *alpha,
+                const int8_t *a, const dim_t *lda, const int8_t *oa,
+                const int8_t *b, const dim_t *ldb, const int8_t *ob,
+                const float *beta, int32_t *c, const dim_t *ldc,
+                const int32_t *oc, const bool force_nocopy, pack_type packing,
+                gemm_pack_storage_t *pack_dst, bool measure_only);
 
 template // Instantiate gemm_s8u8s32
         dnnl_status_t
         gemm_driver<int8_t, uint8_t, int32_t>(const char *transA,
-                const char *transB, const char *offsetC, const int *m,
-                const int *n, const int *k, const float *alpha, const int8_t *a,
-                const int *lda, const int8_t *oa, const uint8_t *b,
-                const int *ldb, const uint8_t *ob, const float *beta,
-                int32_t *c, const int *ldc, const int32_t *oc,
-                const bool force_nocopy, pack_type packing,
+                const char *transB, const char *offsetC, const dim_t *m,
+                const dim_t *n, const dim_t *k, const float *alpha,
+                const int8_t *a, const dim_t *lda, const int8_t *oa,
+                const uint8_t *b, const dim_t *ldb, const uint8_t *ob,
+                const float *beta, int32_t *c, const dim_t *ldc,
+                const int32_t *oc, const bool force_nocopy, pack_type packing,
                 gemm_pack_storage_t *pack_dst, bool measure_only);
 
 template // Instantiate sgemm
         dnnl_status_t
         gemm_driver<float, float, float>(const char *transA, const char *transB,
-                const char *offsetC, const int *m, const int *n, const int *k,
-                const float *alpha, const float *a, const int *lda,
-                const float *oa, const float *b, const int *ldb,
-                const float *ob, const float *beta, float *c, const int *ldc,
-                const float *oc, const bool force_nocopy, pack_type packing,
-                gemm_pack_storage_t *pack_dst, bool measure_only);
+                const char *offsetC, const dim_t *m, const dim_t *n,
+                const dim_t *k, const float *alpha, const float *a,
+                const dim_t *lda, const float *oa, const float *b,
+                const dim_t *ldb, const float *ob, const float *beta, float *c,
+                const dim_t *ldc, const float *oc, const bool force_nocopy,
+                pack_type packing, gemm_pack_storage_t *pack_dst,
+                bool measure_only);
 
 } // namespace cpu
 } // namespace impl

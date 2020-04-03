@@ -36,10 +36,10 @@ namespace {
 
 template <typename data_t>
 void copy_A(
-        bool isTransA, int K, const data_t *A, const dim_t lda, data_t *ws) {
-    for (int k = 0; k < K; k++) {
+        bool isTransA, dim_t K, const data_t *A, const dim_t lda, data_t *ws) {
+    for (dim_t k = 0; k < K; k++) {
         PRAGMA_OMP_SIMD()
-        for (int i = 0; i < unroll_factor<data_t>::m; i++) {
+        for (dim_t i = 0; i < unroll_factor<data_t>::m; i++) {
             ws[i] = isTransA ? A[i * lda + k] : A[i + k * lda];
         }
         ws += unroll_factor<data_t>::m;
@@ -47,24 +47,24 @@ void copy_A(
 }
 
 template <typename data_t, bool isTransA, bool isTransB>
-void kernel_mxn(int K, const data_t *A, const dim_t lda, const data_t *B,
+void kernel_mxn(dim_t K, const data_t *A, const dim_t lda, const data_t *B,
         const dim_t ldb, data_t *C, const dim_t ldc, const data_t alpha,
         const data_t beta) {
     data_t c[unroll_factor<data_t>::m * unroll_factor<data_t>::n]
             = {static_cast<data_t>(0.)};
-    for (int k = 0; k < K; k++) {
-        for (int j = 0; j < unroll_factor<data_t>::n; j++) {
+    for (dim_t k = 0; k < K; k++) {
+        for (dim_t j = 0; j < unroll_factor<data_t>::n; j++) {
             data_t b = isTransB ? B[j + k * ldb] : B[k + j * ldb];
             PRAGMA_OMP_SIMD()
-            for (int i = 0; i < unroll_factor<data_t>::m; i++) {
+            for (dim_t i = 0; i < unroll_factor<data_t>::m; i++) {
                 data_t a = isTransA ? A[i * lda + k] : A[i + lda * k];
                 c[i + unroll_factor<data_t>::m * j] += a * b;
             }
         }
     }
-    for (int j = 0; j < unroll_factor<data_t>::n; j++) {
+    for (dim_t j = 0; j < unroll_factor<data_t>::n; j++) {
         PRAGMA_OMP_SIMD()
-        for (int i = 0; i < unroll_factor<data_t>::m; i++) {
+        for (dim_t i = 0; i < unroll_factor<data_t>::m; i++) {
             C[i + j * ldc] = (beta == static_cast<data_t>(0.))
                     ? alpha * c[i + unroll_factor<data_t>::m * j]
                     : alpha * c[i + unroll_factor<data_t>::m * j]
@@ -74,14 +74,14 @@ void kernel_mxn(int K, const data_t *A, const dim_t lda, const data_t *B,
 }
 
 template <typename data_t, bool isTransA, bool isTransB>
-void block_ker(const int M, const int N, const int K, const data_t *A,
+void block_ker(const dim_t M, const dim_t N, const dim_t K, const data_t *A,
         const dim_t lda, const data_t *B, const dim_t ldb, data_t *C,
         const dim_t ldc, const data_t alpha, const data_t beta, data_t *ws,
         bool do_copy) {
-    int Nu = rnd_dn(N, unroll_factor<data_t>::n);
-    int Mu = rnd_dn(M, unroll_factor<data_t>::m);
-    for (int i = 0; i < Mu; i += unroll_factor<data_t>::m) {
-        for (int j = 0; j < Nu; j += unroll_factor<data_t>::n) {
+    dim_t Nu = rnd_dn(N, unroll_factor<data_t>::n);
+    dim_t Mu = rnd_dn(M, unroll_factor<data_t>::m);
+    for (dim_t i = 0; i < Mu; i += unroll_factor<data_t>::m) {
+        for (dim_t j = 0; j < Nu; j += unroll_factor<data_t>::n) {
             const data_t *b = isTransB ? &B[j] : &B[j * ldb];
             const data_t *a = isTransA ? &A[i * lda] : &A[i];
             if (do_copy) {
@@ -96,11 +96,11 @@ void block_ker(const int M, const int N, const int K, const data_t *A,
         }
     }
     // tail processing
-    for (int i = 0; i < M; i++) {
-        for (int j = Nu; j < N; j++) {
+    for (dim_t i = 0; i < M; i++) {
+        for (dim_t j = Nu; j < N; j++) {
             data_t c = beta == static_cast<data_t>(0.) ? static_cast<data_t>(0.)
                                                        : beta * C[i + j * ldc];
-            for (int p = 0; p < K; p++) {
+            for (dim_t p = 0; p < K; p++) {
                 data_t b = isTransB ? B[j + p * ldb] : B[p + j * ldb];
                 data_t a = isTransA ? A[p + i * lda] : A[i + p * lda];
                 c += alpha * a * b;
@@ -108,11 +108,11 @@ void block_ker(const int M, const int N, const int K, const data_t *A,
             C[i + j * ldc] = c;
         }
     }
-    for (int i = Mu; i < M; i++) {
-        for (int j = 0; j < Nu; j++) {
+    for (dim_t i = Mu; i < M; i++) {
+        for (dim_t j = 0; j < Nu; j++) {
             data_t c = beta == static_cast<data_t>(0.) ? static_cast<data_t>(0.)
                                                        : beta * C[i + j * ldc];
-            for (int p = 0; p < K; p++) {
+            for (dim_t p = 0; p < K; p++) {
                 data_t b = isTransB ? B[j + p * ldb] : B[p + j * ldb];
                 data_t a = isTransA ? A[p + i * lda] : A[i + p * lda];
                 c += alpha * a * b;
@@ -123,13 +123,13 @@ void block_ker(const int M, const int N, const int K, const data_t *A,
 }
 
 template <typename data_t, bool isTransA, bool isTransB>
-void gemm_ithr(const int M, const int N, const int K, const data_t alpha,
+void gemm_ithr(const dim_t M, const dim_t N, const dim_t K, const data_t alpha,
         const data_t *A, const dim_t lda, const data_t *B, const dim_t ldb,
         const data_t beta, data_t *C, const dim_t ldc, bool do_copy,
         data_t *ws) {
-    constexpr int BM = gemm_traits<data_t, isTransA, isTransB>::BM;
-    constexpr int BN = gemm_traits<data_t, isTransA, isTransB>::BN;
-    constexpr int BK = gemm_traits<data_t, isTransA, isTransB>::BK;
+    constexpr dim_t BM = gemm_traits<data_t, isTransA, isTransB>::BM;
+    constexpr dim_t BN = gemm_traits<data_t, isTransA, isTransB>::BN;
+    constexpr dim_t BK = gemm_traits<data_t, isTransA, isTransB>::BK;
 
     const data_t *curA;
     const data_t *curB;
@@ -149,12 +149,12 @@ void gemm_ithr(const int M, const int N, const int K, const data_t alpha,
         return;
     }
 
-    for (int Bk = 0; Bk < K; Bk += BK) {
-        int kb = nstl::min(K - Bk, BK);
-        for (int Bm = 0; Bm < M; Bm += BM) {
-            int mb = nstl::min(M - Bm, BM);
-            for (int Bn = 0; Bn < N; Bn += BN) {
-                int nb = nstl::min(N - Bn, BN);
+    for (dim_t Bk = 0; Bk < K; Bk += BK) {
+        dim_t kb = nstl::min(K - Bk, BK);
+        for (dim_t Bm = 0; Bm < M; Bm += BM) {
+            dim_t mb = nstl::min(M - Bm, BM);
+            for (dim_t Bn = 0; Bn < N; Bn += BN) {
+                dim_t nb = nstl::min(N - Bn, BN);
                 curA = isTransA ? A + Bk + Bm * lda : A + Bm + Bk * lda;
                 curB = isTransB ? B + Bn + Bk * ldb : B + Bk + Bn * ldb;
                 curC = C + Bm + Bn * ldc;
@@ -174,10 +174,10 @@ void gemm_ithr(const int M, const int N, const int K, const data_t alpha,
 } // namespace
 
 template <typename data_t>
-dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
-        const int *N_, const int *K_, const data_t *alpha_, const data_t *A,
-        const int *lda_, const data_t *B, const int *ldb_, const data_t *beta_,
-        data_t *C, const int *ldc_, const data_t *bias) {
+dnnl_status_t ref_gemm(const char *transa_, const char *transb_,
+        const dim_t *M_, const dim_t *N_, const dim_t *K_, const data_t *alpha_,
+        const data_t *A, const dim_t *lda_, const data_t *B, const dim_t *ldb_,
+        const data_t *beta_, data_t *C, const dim_t *ldc_, const data_t *bias) {
 
     if (!(utils::one_of(*transa_, 'n', 'N', 't', 'T')
                 && utils::one_of(*transb_, 'n', 'N', 't', 'T')))
@@ -185,13 +185,13 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
 
     bool isTransA = (*transa_ == 'T' || *transa_ == 't');
     bool isTransB = (*transb_ == 'T' || *transb_ == 't');
-    const int M = *M_, N = *N_, K = *K_;
+    const dim_t M = *M_, N = *N_, K = *K_;
     const dim_t lda = *lda_, ldb = *ldb_, ldc = *ldc_;
     const data_t alpha = *alpha_, beta = *beta_;
 
     int max_nthr = dnnl_in_parallel() ? 1 : dnnl_get_max_threads();
     int nthr_m, nthr_n, nthr_k;
-    int MB, NB, KB;
+    dim_t MB, NB, KB;
     // thread balancing over M, N, K & size of blocking dimensions
     calc_nthr_nocopy_avx(
             M, N, K, max_nthr, &nthr_m, &nthr_n, &nthr_k, &MB, &NB, &KB);
@@ -201,7 +201,7 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
     data_t *ws_buffers = nullptr;
     if (nthr_k > 1) {
         c_buffers = (data_t *)malloc(
-                nthr_m * nthr_n * (nthr_k - 1) * MB * NB * sizeof(data_t),
+                sizeof(*c_buffers) * nthr_m * nthr_n * (nthr_k - 1) * MB * NB,
                 PAGE_4K);
         if (!c_buffers) {
             nthr_k = 1;
@@ -220,13 +220,13 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
         if (!ws_buffers) do_copy = false;
     }
 
-    auto get_thr_block
-            = [&](int &from, int &to, int &myN, int NB, int N, int ithr) {
-                  from = NB * (ithr);
-                  to = NB * (ithr + 1);
-                  if (to > N) to = N;
-                  myN = to - from;
-              };
+    auto get_thr_block = [&](dim_t &from, dim_t &to, dim_t &myN, dim_t NB,
+                                 dim_t N, int ithr) {
+        from = NB * (ithr);
+        to = NB * (ithr + 1);
+        if (to > N) to = N;
+        myN = to - from;
+    };
 
     parallel(nthr_to_use, [&](int ithr, int nthr) {
         assert(nthr_to_use == nthr);
@@ -243,8 +243,8 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
                 ? ws_buffers + ithr * ws_size_per_thr / sizeof(data_t)
                 : nullptr;
 
-        int m_from = 0, m_to = 0, myM = 0, n_from = 0, n_to = 0, myN = 0,
-            k_from = 0, k_to = 0, myK = 0;
+        dim_t m_from = 0, m_to = 0, myM = 0, n_from = 0, n_to = 0, myN = 0,
+              k_from = 0, k_to = 0, myK = 0;
 
         get_thr_block(m_from, m_to, myM, MB, M, ithr_m);
         get_thr_block(n_from, n_to, myN, NB, N, ithr_n);
@@ -258,7 +258,7 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
                 myBeta = beta;
                 ld = ldc;
             } else {
-                myC = c_buffers + (dim_t)MB * NB * (cbase + ithr_k - 1);
+                myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
                 myBeta = 0.0f;
                 ld = MB;
             }
@@ -297,8 +297,8 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
             int ithr_k = ithr / nthr_mn;
             int ithr_n = ithr_mn / nthr_m;
 
-            int n_from = 0, n_to = 0, myN = 0;
-            int m_from = 0, m_to = 0, myM = 0;
+            dim_t n_from = 0, n_to = 0, myN = 0;
+            dim_t m_from = 0, m_to = 0, myM = 0;
 
             int cbase = (ithr_m + nthr_m * ithr_n) * (nthr_k - 1);
 
@@ -306,7 +306,7 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
             get_thr_block(m_from, m_to, myM, MB, M, ithr_m);
 
             // sum matrices partitioned along K dimension
-            int offset = 0, block = 0;
+            dim_t offset = 0, block = 0;
             gemm_utils::partition_unit_diff(
                     ithr_k, nthr_k, myN, &offset, &block);
             for (int ik = 1; ik < nthr_k; ++ik) {
@@ -320,7 +320,7 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
     }
 
     if (bias) {
-        parallel_nd(N, M, [&](int i, int j) { C[i * ldc + j] += bias[j]; });
+        parallel_nd(N, M, [&](dim_t i, dim_t j) { C[i * ldc + j] += bias[j]; });
     }
 
     free(ws_buffers);
@@ -330,15 +330,15 @@ dnnl_status_t ref_gemm(const char *transa_, const char *transb_, const int *M_,
 }
 
 template dnnl_status_t ref_gemm<float>(const char *transa_, const char *transb_,
-        const int *M_, const int *N_, const int *K_, const float *alpha_,
-        const float *A, const int *lda_, const float *B, const int *ldb_,
-        const float *beta_, float *C, const int *ldc_, const float *bias);
+        const dim_t *M_, const dim_t *N_, const dim_t *K_, const float *alpha_,
+        const float *A, const dim_t *lda_, const float *B, const dim_t *ldb_,
+        const float *beta_, float *C, const dim_t *ldc_, const float *bias);
 
 template dnnl_status_t ref_gemm<double>(const char *transa_,
-        const char *transb_, const int *M_, const int *N_, const int *K_,
-        const double *alpha_, const double *A, const int *lda_, const double *B,
-        const int *ldb_, const double *beta_, double *C, const int *ldc_,
-        const double *bias);
+        const char *transb_, const dim_t *M_, const dim_t *N_, const dim_t *K_,
+        const double *alpha_, const double *A, const dim_t *lda_,
+        const double *B, const dim_t *ldb_, const double *beta_, double *C,
+        const dim_t *ldc_, const double *bias);
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

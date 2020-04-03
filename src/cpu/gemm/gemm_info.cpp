@@ -68,11 +68,11 @@ void prepare_bo(uint8_t &bo_gemm_info, const int8_t *bo_orig) {
 
 template <typename a_t, typename b_t, typename c_t>
 gemm_info_t<a_t, b_t, c_t>::gemm_info_t(const char *transA, const char *transB,
-        const char *offsetC, const int *m, const int *n, const int *k,
-        const float *alpha, const a_t *a, const int *lda, const a_t *oa,
-        const b_t *b, const int *ldb, const b_t *ob, const float *beta, c_t *c,
-        const int *ldc, const c_t *oc, bool force_nocopy, pack_type packing,
-        gemm_pack_storage_t *pack_dst, bool measure_only) {
+        const char *offsetC, const dim_t *m, const dim_t *n, const dim_t *k,
+        const float *alpha, const a_t *a, const dim_t *lda, const a_t *oa,
+        const b_t *b, const dim_t *ldb, const b_t *ob, const float *beta,
+        c_t *c, const dim_t *ldc, const c_t *oc, bool force_nocopy,
+        pack_type packing, gemm_pack_storage_t *pack_dst, bool measure_only) {
 
     this->transa = decode_trans(*transA);
     this->transb = decode_trans(*transB);

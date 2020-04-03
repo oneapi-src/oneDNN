@@ -72,10 +72,10 @@
             float *diff_weights_peephole_, float *diff_bias_) const
 
 #define rnn_gemm_sig(f) \
-    void f(const char transA, const char transB, int m, int n, int k, \
-            const float alpha, const weights_t *a_, const int ldA, \
-            const gemm_data_t *b_, const int ldB, const float beta, \
-            gemm_acc_t *c_, const int ldC) const
+    void f(const char transA, const char transB, dim_t m, dim_t n, dim_t k, \
+            const float alpha, const weights_t *a_, const dim_t ldA, \
+            const gemm_data_t *b_, const dim_t ldB, const float beta, \
+            gemm_acc_t *c_, const dim_t ldC) const
 
 #define rnn_bias_prepare_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, float **bias_, const float *b_, \
@@ -533,13 +533,13 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             = [&](bool merge, bool &do_pack, size_t &weights_pack_size,
                       int &n_parts, int *parts, size_t *parts_pack_size,
                       size_t &comp_offset, int feature_size,
-                      int weights_ld) -> bool {
+                      dim_t weights_ld) -> bool {
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
-            int m_p = rnn.is_fwd ? (parts[p] * rnn.dhc) : feature_size;
-            int k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dhc);
-            int n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
+            dim_t m_p = rnn.is_fwd ? (parts[p] * rnn.dhc) : feature_size;
+            dim_t k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dhc);
+            dim_t n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
             dnnl_status_t st = dnnl_success;

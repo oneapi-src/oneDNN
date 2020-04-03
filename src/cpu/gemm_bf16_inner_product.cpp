@@ -42,9 +42,9 @@ void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
     auto bias = CTX_IN_MEM(const char *, DNNL_ARG_BIAS);
     auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
-    const int M = pd()->OC();
-    const int N = pd()->MB();
-    const int K = pd()->IC_total_padded();
+    const dim_t M = pd()->OC();
+    const dim_t N = pd()->MB();
+    const dim_t K = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] != 1;
@@ -77,9 +77,9 @@ void gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
 
-    const int M = pd()->IC_total_padded();
-    const int N = pd()->MB();
-    const int K = pd()->OC();
+    const dim_t M = pd()->IC_total_padded();
+    const dim_t N = pd()->MB();
+    const dim_t K = pd()->OC();
 
     const auto &wmd = *pd()->weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
@@ -118,16 +118,16 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
 
     diff_dst += diff_dst_d.offset0();
 
-    const int MB = pd()->MB();
-    const int OC = pd()->OC();
-    const int IC = pd()->IC_total_padded();
+    const dim_t MB = pd()->MB();
+    const dim_t OC = pd()->OC();
+    const dim_t IC = pd()->IC_total_padded();
 
     const auto &wmd = *pd()->diff_weights_md();
     bool wei_tr = wmd.format_desc.blocking.strides[0] == 1;
 
-    const int M = wei_tr ? OC : IC;
-    const int N = wei_tr ? IC : OC;
-    const int K = MB;
+    const dim_t M = wei_tr ? OC : IC;
+    const dim_t N = wei_tr ? IC : OC;
+    const dim_t K = MB;
 
     acc_data_t *acc = pd()->diff_wei_is_acc_
             ? (acc_data_t *)diff_weights
@@ -153,15 +153,15 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
         const size_t bias_dt_size
                 = types::data_type_size(pd()->diff_weights_md(1)->data_type);
         diff_bias += bias_dt_size * diff_bias_d.offset0();
-        constexpr int blksize = 16;
-        const int OC_blocks = utils::div_up(OC, blksize);
+        constexpr dim_t blksize = 16;
+        const dim_t OC_blocks = utils::div_up(OC, blksize);
         float *diff_bias_acc = pd()->diff_bias_is_acc_
                 ? (float *)diff_bias
                 : (float *)ctx.get_scratchpad_grantor()
                           .template get<acc_data_t>(
                                   key_iprod_bias_bf16_convert_wsp);
         parallel(0, [&](const int ithr, const int nthr) {
-            int oc_s {0}, oc_e {0};
+            dim_t oc_s {0}, oc_e {0};
             balance211(OC_blocks, nthr, ithr, oc_s, oc_e);
             oc_s = std::min(oc_s * blksize, OC);
             oc_e = std::min(oc_e * blksize, OC);
@@ -171,7 +171,7 @@ void gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
                 cvt_bfloat16_to_float(&diff_bias_acc[oc_s],
                         &((bfloat16_t *)diff_dst)[oc_s], len);
 
-                for (int mb = 1; mb < MB; ++mb)
+                for (dim_t mb = 1; mb < MB; ++mb)
                     cvt_bfloat16_and_add_to_float(&diff_bias_acc[oc_s],
                             &((bfloat16_t *)diff_dst)[mb * OC + oc_s],
                             &diff_bias_acc[oc_s], len);
