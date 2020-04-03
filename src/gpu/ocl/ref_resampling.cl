@@ -46,31 +46,32 @@ __kernel void ref_resampling_fwd(
     float Wih = 1.0 - fabs(ih - .5 - ih0);
     float Wiw = 1.0 - fabs(iw - .5 - iw0);
     for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
-        dst[DST_OFF(mb, c, od, oh, ow)] = TO_DATA_T(
-                ((TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, c, id0, ih0, iw0)]) * Wih
-                         + TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, c, id0, ih1, iw0)])
-                                 * (1.0 - Wih))
-                                * Wiw
-                        + (TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, c, id0, ih0, iw1)])
+        float dst_val = (((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)])
                                           * Wih
-                                  + TO_DEF_ACC_DATA_T(
-                                            src[SRC_OFF(mb, c, id0, ih1, iw1)])
+                                  + CONVERT_FLOAT_T(
+                                            src[SRC_OFF(mb, c, id0, ih1, iw0)])
                                           * (1.0 - Wih))
-                                * (1.0 - Wiw))
+                                         * Wiw
+                                 + (CONVERT_FLOAT_T(
+                                            src[SRC_OFF(mb, c, id0, ih0, iw1)])
+                                                   * Wih
+                                           + CONVERT_FLOAT_T(src[SRC_OFF(
+                                                     mb, c, id0, ih1, iw1)])
+                                                   * (1.0 - Wih))
+                                         * (1.0 - Wiw))
                         * Wid
-                + ((TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih
-                           + TO_DEF_ACC_DATA_T(
-                                     src[SRC_OFF(mb, c, id1, ih1, iw0)])
+                + ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih
+                           + CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw0)])
                                    * (1.0 - Wih))
                                   * Wiw
-                          + (TO_DEF_ACC_DATA_T(
-                                     src[SRC_OFF(mb, c, id1, ih0, iw1)])
+                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw1)])
                                             * Wih
-                                    + TO_DEF_ACC_DATA_T(src[SRC_OFF(
+                                    + CONVERT_FLOAT_T(src[SRC_OFF(
                                               mb, c, id1, ih1, iw1)])
                                             * (1.0 - Wih))
                                   * (1.0 - Wiw))
                         * (1.0 - Wid));
+        dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(dst_val);
     }
 #endif
 }

@@ -47,8 +47,7 @@ struct ref_resampling_fwd_t : public primitive_t {
             assert(engine->kind() == engine_kind::gpu);
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
-            bool ok = is_fwd() && utils::one_of(src_md()->data_type, f32, bf16)
-                    && src_md()->data_type == dst_md()->data_type
+            bool ok = is_fwd() && src_md()->data_type == dst_md()->data_type
                     && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;

@@ -52,7 +52,7 @@ inline int compare_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
             trh = p->dt != dnnl_f32 ? epsilon_dt(p->dt) : 0;
     } else {
         assert(p->alg == linear);
-        trh = p->dt == dnnl_bf16 ? 1e-2 : 1e-6;
+        trh = p->dt == dnnl_f32 ? 1e-6 : 1e-2;
     }
 
     for (int64_t i = 0; i < nelems; ++i) {
@@ -107,9 +107,9 @@ int fill_dat(const prb_t *p, data_kind_t kind, dnn_mem_t &mem_dt,
 
     dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
         const float gen = ((97 * i) - 17 * kind + 101) % (range + 1);
-        const float value = (dt == dnnl_bf16 || dt == dnnl_f16)
-                ? (f_min + gen) / range
-                : (f_min + gen) * (1.0f + 4.0f / range);
+        const float value = (dt == dnnl_f32)
+                ? (f_min + gen) * (1.0f + 4.0f / range)
+                : (f_min + gen) / range;
         mem_fp.set_elem(i, maybe_saturate(dt, value));
     });
 
