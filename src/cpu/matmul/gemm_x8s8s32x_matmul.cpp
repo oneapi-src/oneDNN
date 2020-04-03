@@ -172,8 +172,9 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
 
     const gemm_based::params_t &params = pd()->params();
+    bool dst_is_acc = params.dst_is_acc_;
 
-    acc_data_t *acc = params.dst_is_acc_
+    acc_data_t *acc = dst_is_acc
             ? (acc_data_t *)dst
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                     memory_tracking::names::key_matmul_dst_in_acc_dt);
@@ -213,7 +214,7 @@ status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
 
     const int lda = (int)src_strides[*transA == 'N' ? 0 : 1];
     const int ldb = (int)weights_strides[*transB == 'N' ? 0 : 1];
-    const int ldc = (int)dst_bd.strides[batched + 0];
+    const int ldc = dst_is_acc ? (int)dst_bd.strides[batched + 0] : N_s32;
 
     const float alpha = params.get_gemm_alpha(scales);
     const float beta = params.gemm_beta_;
