@@ -29,6 +29,7 @@
 #include "gpu/ocl/ocl_utils.hpp"
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_ocl_gpu_kernel.hpp"
+#include "sycl/sycl_utils.hpp"
 
 #include <CL/sycl.hpp>
 
@@ -47,6 +48,12 @@ public:
 
     status_t init() {
         CHECK(gpu::compute::compute_engine_t::init());
+
+        backend_ = get_sycl_backend(device_);
+        if (!utils::one_of(backend_, backend_t::host, backend_t::opencl,
+                    backend_t::level0))
+            return status::invalid_arguments;
+
         stream_t *service_stream_ptr;
         status_t status = create_stream(
                 &service_stream_ptr, stream_flags::default_flags, nullptr);
@@ -71,10 +78,28 @@ public:
             return status::invalid_arguments;
         }
         gpu::ocl::ocl_engine_factory_t f(engine_kind::gpu);
-        engine_t *ocl_engine_ptr;
-        CHECK(f.engine_create(&ocl_engine_ptr, ocl_device(), ocl_context()));
-        auto ocl_engine = std::unique_ptr<gpu::ocl::ocl_gpu_engine_t>(
-                utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(ocl_engine_ptr));
+        std::unique_ptr<gpu::ocl::ocl_gpu_engine_t> ocl_engine;
+
+        if (backend_ == backend_t::opencl) {
+            engine_t *ocl_engine_ptr;
+            CHECK(f.engine_create(
+                    &ocl_engine_ptr, ocl_device(), ocl_context()));
+            ocl_engine.reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
+                    ocl_engine_ptr));
+        } else if (backend_ == backend_t::level0) {
+            engine_t *ocl_engine_ptr;
+            // FIXME: This does not work for multi-GPU systems. OpenCL engine
+            // should be created based on the Level0 device to ensure that a
+            // program is compiled for the same physical device. However,
+            // OpenCL does not provide any API to match its devices with
+            // Level0.
+            CHECK(f.engine_create(&ocl_engine_ptr, 0));
+            ocl_engine.reset(utils::downcast<gpu::ocl::ocl_gpu_engine_t *>(
+                    ocl_engine_ptr));
+        } else {
+            assert(!"not expected");
+            return status::invalid_arguments;
+        }
 
         std::vector<gpu::compute::kernel_t> ocl_kernels;
         CHECK(ocl_engine->create_kernels(
@@ -96,6 +121,8 @@ public:
     const cl::sycl::device &device() const { return device_; }
     const cl::sycl::context &context() const { return context_; }
 
+    backend_t backend() const { return backend_; }
+
     stream_t *service_stream() const { return service_stream_.get(); }
 
     cl_device_id ocl_device() const {
@@ -110,6 +137,8 @@ public:
 private:
     cl::sycl::device device_;
     cl::sycl::context context_;
+
+    backend_t backend_;
 
     std::unique_ptr<stream_t> service_stream_;
 };

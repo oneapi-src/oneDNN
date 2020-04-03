@@ -17,6 +17,7 @@
 #ifndef SYCL_ENGINE_FACTORY_HPP
 #define SYCL_ENGINE_FACTORY_HPP
 
+#include <algorithm>
 #include <assert.h>
 #include <cstdio>
 #include <exception>
@@ -27,6 +28,7 @@
 #include "common/utils.hpp"
 #include "sycl/sycl_cpu_engine.hpp"
 #include "sycl/sycl_gpu_engine.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -36,15 +38,27 @@ inline std::vector<cl::sycl::device> get_intel_sycl_devices(
         cl::sycl::info::device_type dev_type) {
     const int intel_vendor_id = 0x8086;
     auto devices = cl::sycl::device::get_devices(dev_type);
-    devices.erase(std::remove_if(devices.begin(), devices.end(),
-                          [=](const cl::sycl::device &dev) {
-                              auto _vendor_id = dev.get_info<
-                                      cl::sycl::info::device::vendor_id>();
-                              auto _dev_type = dev.get_info<
-                                      cl::sycl::info::device::device_type>();
-                              return (_vendor_id != intel_vendor_id)
-                                      || (_dev_type != dev_type);
-                          }),
+    auto gpu_backend = get_sycl_gpu_backend();
+    devices.erase(
+            std::remove_if(devices.begin(), devices.end(),
+                    [=](const cl::sycl::device &dev) {
+                        auto _vendor_id = dev.get_info<
+                                cl::sycl::info::device::vendor_id>();
+                        if (_vendor_id != intel_vendor_id) return true;
+
+                        auto _dev_type = dev.get_info<
+                                cl::sycl::info::device::device_type>();
+                        if (_dev_type != dev_type) return true;
+
+                        if (dev_type == cl::sycl::info::device_type::gpu) {
+                            auto _backend = get_sycl_backend(dev);
+                            if (_backend == backend_t::unknown
+                                    || _backend != gpu_backend)
+                                return true;
+                        }
+
+                        return false;
+                    }),
             devices.end());
     return devices;
 }
@@ -52,7 +66,9 @@ inline std::vector<cl::sycl::device> get_intel_sycl_devices(
 class sycl_engine_factory_t : public engine_factory_t {
 public:
     sycl_engine_factory_t(engine_kind_t engine_kind)
-        : engine_kind_(engine_kind) {}
+        : engine_kind_(engine_kind) {
+        assert(utils::one_of(engine_kind_, engine_kind::cpu, engine_kind::gpu));
+    }
 
     virtual size_t count() const override {
         auto dev_type = (engine_kind_ == engine_kind::cpu)
@@ -99,16 +115,18 @@ public:
 
         status_t status = status::success;
 
-        // CPU and GPU devices work through OpenCL, so we can extract their
-        // OpenCL device/context and validate them.
-        if (dev.is_cpu() || dev.is_gpu()) {
-            auto ocl_dev = gpu::ocl::make_ocl_wrapper(dev.get());
-            auto ocl_ctx = gpu::ocl::make_ocl_wrapper(ctx.get());
-            status = gpu::ocl::check_device(engine_kind_, ocl_dev, ocl_ctx);
-            if (status != status::success) { return status; }
-        }
+        // Validate device and context.
+        auto ctx_devs = ctx.get_devices();
+        auto it = std::find_if(ctx_devs.begin(), ctx_devs.end(),
+                [&](const cl::sycl::device &ctx_dev) {
+                    return are_equal(ctx_dev, dev);
+                });
+        if (it == ctx_devs.end()) return status::invalid_arguments;
 
-        assert(utils::one_of(engine_kind_, engine_kind::cpu, engine_kind::gpu));
+        if (engine_kind_ == engine_kind::cpu && !dev.is_cpu() && !dev.is_host())
+            return status::invalid_arguments;
+        if (engine_kind_ == engine_kind::gpu && !dev.is_gpu())
+            return status::invalid_arguments;
 
         std::unique_ptr<sycl_engine_base_t> sycl_engine(
                 (engine_kind_ == engine_kind::cpu)

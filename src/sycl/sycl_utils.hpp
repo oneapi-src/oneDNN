@@ -19,9 +19,14 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/ocl/ocl_utils.hpp"
 
 #include <vector>
 #include <CL/sycl.hpp>
+
+#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20200402)
+#include <CL/sycl/detail/pi.hpp>
+#endif
 
 // Intel(R) oneAPI DPC++ Compiler uses reversed global work-item IDs starting
 // from 10-24-2019.
@@ -98,6 +103,71 @@ inline void host_task(H &cgh, F f) {
     // Third argument is 0 (int) which prefers the
     // run_on_host_intel option if both are available.
     host_task_impl<K>(cgh, f, 0);
+}
+
+enum class backend_t {
+    unknown,
+    host,
+    level0,
+    opencl,
+};
+
+inline backend_t get_sycl_gpu_backend() {
+#if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20200402)
+    switch (cl::sycl::detail::pi::getPreferredBE()) {
+        case cl::sycl::detail::pi::SYCL_BE_PI_OPENCL: return backend_t::opencl;
+#ifdef DNNL_WITH_LEVEL_ZERO
+        case cl::sycl::detail::pi::SYCL_BE_PI_LEVEL0: return backend_t::level0;
+#endif
+        default: assert(!"not expected"); return backend_t::unknown;
+    }
+#else
+    return backend_t::opencl;
+#endif
+}
+
+inline backend_t get_sycl_backend(const cl::sycl::device &dev) {
+    if (dev.is_host()) return backend_t::host;
+
+#ifdef DNNL_SYCL_DPCPP
+    auto plat = dev.get_platform();
+    std::string plat_name = plat.get_info<cl::sycl::info::platform::name>();
+    if (plat_name.find("OpenCL") != std::string::npos) return backend_t::opencl;
+
+#ifdef DNNL_WITH_LEVEL_ZERO
+    if (plat_name.find("Level-Zero") != std::string::npos)
+        return backend_t::level0;
+#endif
+
+    assert(!"not expected");
+    return backend_t::unknown;
+#else
+    return backend_t::opencl;
+#endif
+}
+
+inline bool are_equal(
+        const cl::sycl::device &lhs, const cl::sycl::device &rhs) {
+    auto lhs_be = get_sycl_backend(lhs);
+    auto rhs_be = get_sycl_backend(rhs);
+    if (lhs_be != rhs_be) return false;
+
+    // Only one host device exists.
+    if (lhs_be == backend_t::host) return true;
+
+    // Compare cl_device_id for OpenCL backend.
+    if (lhs_be == backend_t::opencl) {
+        // Use wrapper objects to avoid memory leak.
+        auto lhs_ocl_dev = gpu::ocl::make_ocl_wrapper(lhs.get());
+        auto rhs_ocl_dev = gpu::ocl::make_ocl_wrapper(rhs.get());
+        return lhs_ocl_dev == rhs_ocl_dev;
+    }
+
+    // Other backends do not retain the returned handles.
+    auto lhs_handle = lhs.get();
+    auto rhs_handle = rhs.get();
+
+    return lhs_handle == rhs_handle;
 }
 
 } // namespace sycl

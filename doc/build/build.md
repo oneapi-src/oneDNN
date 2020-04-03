@@ -22,6 +22,9 @@ The oneDNN build system is based on CMake. Use
 - `CMAKE_BUILD_TYPE` to select between build type (`Release`, `Debug`,
   `RelWithDebInfo`).
 
+- `CMAKE_PREFIX_PATH` to specify directories to be searched for the
+  dependencies located at non-standard locations.
+
 See @ref dev_guide_build_options for detailed description of build-time
 configuration options.
 

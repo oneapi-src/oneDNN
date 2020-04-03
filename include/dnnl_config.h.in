@@ -104,6 +104,9 @@
 // When defined, ComputeCpp SYCL is used.
 #cmakedefine DNNL_SYCL_COMPUTECPP
 
+// When defined, Level Zero is supported.
+#cmakedefine DNNL_WITH_LEVEL_ZERO
+
 // Use SYCL buffers by default
 #if !defined(DNNL_USE_DPCPP_USM)
 #define DNNL_USE_SYCL_BUFFERS

@@ -31,14 +31,29 @@ find_package(SYCL REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SYCL_FLAGS}")
 
-# XXX: OpenCL in SYCL bundle cannot be found by FindOpenCL due to the specific
-# directory layout. This workaround ensures that local OpenCL SDK doesn't
-# create any conflicts with SYCL headers.
-if(WIN32 AND DNNL_SYCL_DPCPP)
-    include_directories(${SYCL_INCLUDE_DIRS})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter \"${OpenCL_INCLUDE_DIRS}\"")
+if(DNNL_SYCL_DPCPP)
+    if(LevelZero_FOUND)
+        message(STATUS "DPC++ support is enabled (OpenCL and Level Zero)")
+    else()
+        message(STATUS "DPC++ support is enabled (OpenCL)")
+    endif()
+    # XXX: OpenCL in SYCL bundle cannot be found by FindOpenCL due to the specific
+    # directory layout. This workaround ensures that local OpenCL SDK doesn't
+    # create any conflicts with SYCL headers.
+    if(WIN32)
+        include_directories(${SYCL_INCLUDE_DIRS})
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -idirafter \"${OpenCL_INCLUDE_DIRS}\"")
+    else()
+        include_directories(${SYCL_INCLUDE_DIRS})
+        include_directories(${OpenCL_INCLUDE_DIRS})
+        if(LevelZero_FOUND)
+            include_directories(${LevelZero_INCLUDE_DIRS})
+        endif()
+    endif()
 else()
-    include_directories(${SYCL_INCLUDE_DIRS} ${OpenCL_INCLUDE_DIRS})
+    message(STATUS "SYCL support is enabled (OpenCL)")
+    include_directories(${SYCL_INCLUDE_DIRS})
+    include_directories(${OpenCL_INCLUDE_DIRS})
 endif()
 
 list(APPEND EXTRA_SHARED_LIBS SYCL::SYCL)

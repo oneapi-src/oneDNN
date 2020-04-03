@@ -41,6 +41,11 @@ if(sycl_root_hints)
     list(INSERT CMAKE_PREFIX_PATH 0 ${sycl_root_hints})
 endif()
 
+if(DEFINED ENV{SYCLROOT})
+    list(INSERT CMAKE_PREFIX_PATH 0
+        $ENV{SYCLROOT}/include/sycl)
+endif()
+
 # XXX: workaround to use OpenCL from DPC++ package
 set(DPCPP_COMPILER_VERSION 11.0.0)
 
@@ -54,6 +59,7 @@ if(DEFINED ENV{DPCPP_ROOT})
 endif()
 
 find_package(OpenCL REQUIRED)
+find_package(LevelZero)
 
 include(CheckCXXCompilerFlag)
 include(FindPackageHandleStandardArgs)

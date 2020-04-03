@@ -17,6 +17,7 @@
 #include <CL/sycl.hpp>
 
 #include "common/utils.hpp"
+#include "sycl/level_zero_utils.hpp"
 #include "sycl/sycl_ocl_gpu_kernel.hpp"
 #include "sycl/sycl_stream.hpp"
 #include "sycl/sycl_utils.hpp"
@@ -50,6 +51,61 @@ sycl_ocl_gpu_kernel_t::~sycl_ocl_gpu_kernel_t() {
     if (ocl_kernel_) OCL_CHECK_V(clReleaseKernel(ocl_kernel_));
 }
 
+status_t sycl_create_kernel(std::unique_ptr<cl::sycl::kernel> &sycl_kernel,
+        const sycl_gpu_engine_t *sycl_engine, cl_kernel ocl_kernel,
+        void **handle_to_destroy) {
+    cl_program ocl_program;
+    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_PROGRAM,
+            sizeof(ocl_program), &ocl_program, nullptr));
+
+    std::string kernel_name(128, '\0');
+    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_FUNCTION_NAME,
+            kernel_name.size(), &kernel_name[0], nullptr));
+
+    if (sycl_engine->backend() == backend_t::opencl) {
+        cl::sycl::program sycl_program(sycl_engine->context(), ocl_program);
+        sycl_kernel.reset(
+                new cl::sycl::kernel(sycl_program.get_kernel(kernel_name)));
+        return status::success;
+    }
+
+#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_WITH_LEVEL_ZERO)
+    if (sycl_engine->backend() != backend_t::level0)
+        return status::invalid_arguments;
+
+    size_t binary_size = 0;
+    OCL_CHECK(clGetProgramInfo(ocl_program, CL_PROGRAM_BINARY_SIZES,
+            sizeof(size_t), &binary_size, nullptr));
+
+    std::vector<unsigned char> binary(binary_size);
+    auto *binary_ptr = binary.data();
+    OCL_CHECK(clGetProgramInfo(ocl_program, CL_PROGRAM_BINARIES, binary_size,
+            &binary_ptr, nullptr));
+
+    ze_module_desc_t desc {ZE_MODULE_DESC_VERSION_CURRENT};
+    desc.format = ZE_MODULE_FORMAT_NATIVE;
+    desc.inputSize = binary_size;
+    desc.pInputModule = binary_ptr;
+    desc.pBuildFlags = "";
+    desc.pConstants = nullptr;
+
+    auto ze_device = (ze_device_handle_t)sycl_engine->device().get();
+
+    ze_module_handle_t ze_module;
+    CHECK(func_zeModuleCreate(ze_device, &desc, &ze_module, nullptr));
+    *handle_to_destroy = ze_module;
+
+    cl::sycl::program sycl_program(
+            sycl_engine->context(), reinterpret_cast<cl_program>(ze_module));
+    sycl_kernel.reset(
+            new cl::sycl::kernel(sycl_program.get_kernel(kernel_name)));
+
+    return status::success;
+#else
+    return status::invalid_arguments;
+#endif
+}
+
 status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const gpu::compute::nd_range_t &range,
         const gpu::compute::kernel_arg_list_t &arg_list) const {
@@ -59,7 +115,12 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
     auto *sycl_engine
             = utils::downcast<sycl::sycl_gpu_engine_t *>(sycl_stream->engine());
     auto &queue = sycl_stream->queue();
-    cl::sycl::kernel sycl_kernel(ocl_kernel_, sycl_engine->context());
+
+    std::unique_ptr<cl::sycl::kernel> sycl_kernel;
+    void *handle_to_destroy = nullptr;
+    CHECK(sycl_create_kernel(
+            sycl_kernel, sycl_engine, ocl_kernel_, &handle_to_destroy));
+
     auto event = queue.submit([&](cl::sycl::handler &cgh) {
 #ifdef DNNL_SYCL_DPCPP
         cgh.depends_on(sycl_stream->get_deps());
@@ -115,12 +176,23 @@ status_t sycl_ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         }
         if (range.local_range()) {
             auto sycl_nd_range = to_sycl_nd_range(range);
-            cgh.parallel_for(sycl_nd_range, sycl_kernel);
+            cgh.parallel_for(sycl_nd_range, *sycl_kernel);
         } else {
             auto sycl_range = to_sycl_range(range);
-            cgh.parallel_for(sycl_range, sycl_kernel);
+            cgh.parallel_for(sycl_range, *sycl_kernel);
         }
     });
+
+#if defined(DNNL_SYCL_DPCPP) && defined(DNNL_WITH_LEVEL_ZERO)
+    if (sycl_engine->backend() == backend_t::level0) {
+        // L0 module should be destroyed manually.
+        sycl_kernel.reset();
+        auto ze_module
+                = reinterpret_cast<ze_module_handle_t>(handle_to_destroy);
+        CHECK(func_zeModuleDestroy(ze_module));
+    }
+#endif
+
     sycl_stream->set_deps({event});
     return status::success;
 }
