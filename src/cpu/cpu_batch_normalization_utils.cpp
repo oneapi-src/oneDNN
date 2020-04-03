@@ -15,9 +15,10 @@
 *******************************************************************************/
 
 #include "c_types_map.hpp"
+#include "dnnl_thread.hpp"
 #include "utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/platform.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
 
@@ -30,7 +31,7 @@ using namespace dnnl::impl::utils;
 
 void cache_balance(size_t working_set_size, dim_t C_blks, dim_t N, int nthr,
         dim_t &C_blks_per_iter, int64_t &iters) {
-    int l3_size = get_per_core_cache_size(3) * nthr / 2;
+    int l3_size = platform::get_per_core_cache_size(3) * nthr / 2;
     C_blks_per_iter = saturate<dim_t>(1, C_blks, l3_size / working_set_size);
 
     // Align C_blks_per_iter with nthr for better balancing implying a
@@ -153,8 +154,8 @@ bool is_spatial_thr(const batch_normalization_pd_t *bdesc, bool is_nspc,
         S_nthr = nstl::min<dim_t>(SP, nthr / (C_nthr * N_nthr));
     } else {
         size_t data = N * C_PADDED * SP * data_size;
-        size_t l3_size_
-                = get_per_core_cache_size(3) * dnnl_get_max_threads() / 2;
+        size_t l3_size_ = platform::get_per_core_cache_size(3)
+                * dnnl_get_max_threads() / 2;
         bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
         dim_t C_blks_per_iter {1}, iters {1};
 

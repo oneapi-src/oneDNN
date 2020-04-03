@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <math.h>
+
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "memory.hpp"
@@ -21,7 +23,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include <math.h>
+#include "cpu/platform.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
@@ -39,9 +41,9 @@ namespace {
 
 using namespace dnnl::impl::utils;
 
-unsigned L1_cache_size = get_per_core_cache_size(1);
-unsigned L2_cache_size = get_per_core_cache_size(2);
-unsigned LLC_data_size = get_per_core_cache_size(3);
+unsigned L1_cache_size = platform::get_per_core_cache_size(1);
+unsigned L2_cache_size = platform::get_per_core_cache_size(2);
+unsigned LLC_data_size = platform::get_per_core_cache_size(3);
 
 // the test funtion takes jcp, the candidate and the current best.
 // it  returns true if the new candidate is better

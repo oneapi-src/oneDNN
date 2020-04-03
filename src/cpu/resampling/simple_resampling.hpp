@@ -20,14 +20,13 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
+#include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "primitive.hpp"
+#include "cpu/platform.hpp"
 
 #include "cpu_resampling_pd.hpp"
-#include "primitive.hpp"
 #include "resampling_utils.hpp"
 
 namespace dnnl {
@@ -47,7 +46,7 @@ struct simple_resampling_fwd_t : public primitive_t {
             bool ok = is_fwd() && !has_zero_dim_memory()
                     && utils::everyone_is(
                             data_type, src_md()->data_type, dst_md()->data_type)
-                    && IMPLICATION(data_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(data_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
@@ -136,7 +135,7 @@ struct simple_resampling_bwd_t : public primitive_t {
             bool ok = !is_fwd() && !has_zero_dim_memory()
                     && utils::everyone_is(data_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
-                    && IMPLICATION(data_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(data_type)
                     && set_default_params() == status::success
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;

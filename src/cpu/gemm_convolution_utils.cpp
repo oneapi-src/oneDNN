@@ -17,14 +17,14 @@
 #include "dnnl_types.h"
 
 #include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
 #include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "common/bfloat16.hpp"
 #include "gemm_convolution_utils.hpp"
-#include "jit_generator.hpp"
+
+#include "cpu/platform.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -783,17 +783,15 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
             || (is_bwd_w
                     && utils::everyone_is(
                             bf16, src_d.data_type(), dst_d.data_type()));
-    if (is_bf16_conv && !mayiuse(avx512_core)) return status::unimplemented;
+    if (is_bf16_conv && !platform::has_data_type_support(bf16))
+        return status::unimplemented;
 
     bool is_bf16_to_bf16_conv = is_bf16_conv
             && ((is_fwd && bf16 == dst_d.data_type())
                     || (is_bwd_d && bf16 == src_d.data_type())
                     || (is_bwd_w && bf16 == weights_d.data_type()));
 
-    const int vlen = mayiuse(avx512_common)
-            ? cpu_isa_traits<avx512_common>::vlen
-            : mayiuse(avx) ? cpu_isa_traits<avx>::vlen
-                           : mayiuse(sse41) ? cpu_isa_traits<sse41>::vlen : 4;
+    const int vlen = std::max(platform::get_vector_register_size(), 4);
     const int data_size = (is_int8_conv ? 1 : (is_bf16_conv ? 2 : 4));
     const int simd_w = vlen / data_size;
 
@@ -810,7 +808,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
     bool is_depthwise = jcp.ic == 1 && jcp.oc == 1 && jcp.ngroups != 1;
 
     // TODO: maybe mitigate blocking restriction
-    const int L2 = get_per_core_cache_size(2) / data_size;
+    const int L2 = platform::get_per_core_cache_size(2) / data_size;
     const int gemm_thrld = 64 * 1024;
 
     if (is_int8_conv) {

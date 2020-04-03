@@ -24,7 +24,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
 #include "cpu_pooling_pd.hpp"
 
 #include "bfloat16.hpp"
@@ -45,16 +45,15 @@ struct nchw_pooling_fwd_t : public primitive_t {
             const format_tag_t desired_fmt_tag = utils::pick(ndims() - 3,
                     format_tag::ncw, format_tag::nchw, format_tag::ncdhw);
 
-            bool ok = true
-                    && IMPLICATION(
-                            d_type == data_type::bf16, mayiuse(avx512_core))
-                    && set_default_params() == status::success && is_fwd()
+            bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
                             alg_kind::pooling_avg_exclude_padding)
-                    && !has_zero_dim_memory()
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && !has_zero_dim_memory()
+                    && set_default_params() == status::success
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
@@ -107,16 +106,15 @@ struct nchw_pooling_bwd_t : public primitive_t {
 
             using namespace prop_kind;
             using namespace alg_kind;
-            bool ok = true
-                    && IMPLICATION(
-                            d_type == data_type::bf16, mayiuse(avx512_core))
-                    && set_default_params() == status::success && !is_fwd()
+            bool ok = !is_fwd()
                     && utils::one_of(desc()->alg_kind, alg_kind::pooling_max,
                             alg_kind::pooling_avg_include_padding,
                             alg_kind::pooling_avg_exclude_padding)
-                    && !has_zero_dim_memory()
                     && utils::everyone_is(d_type, diff_dst_md()->data_type,
                             diff_src_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && !has_zero_dim_memory()
+                    && set_default_params() == status::success
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);
@@ -169,7 +167,8 @@ struct nchw_pooling_bwd_t : public primitive_t {
             dim_t src_sz_ = ID() * IH() * IW();
             dim_t nthrs = dnnl_get_max_threads();
             dim_t C_per_thr = nstl::min(MB() * C() / nthrs, C());
-            const dim_t max_block_size = get_per_core_cache_size(1) / 2;
+            const dim_t max_block_size
+                    = platform::get_per_core_cache_size(1) / 2;
             dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16
             channel_block_size_ = nstl::max(
                     nstl::min(C_per_thr, max_block_size / data_size_per_ch),

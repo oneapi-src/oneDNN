@@ -23,8 +23,9 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu_batch_normalization_pd.hpp"
-#include "cpu_isa_traits.hpp"
 #include "primitive.hpp"
 
 namespace dnnl {
@@ -43,8 +44,8 @@ struct ref_batch_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = true && is_fwd() && src_md()->data_type == d_type
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_fwd() && src_md()->data_type == d_type
+                    && platform::has_data_type_support(d_type)
                     && IMPLICATION(
                             use_scaleshift(), weights_md()->data_type == f32)
                     && (attr()->has_default_values() || with_relu_post_op());
@@ -85,10 +86,10 @@ struct ref_batch_normalization_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = true && is_bwd() && set_default_formats_common()
+            bool ok = is_bwd() && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(d_type)
                     && IMPLICATION(use_scaleshift(),
                             utils::everyone_is(d_type, weights_md()->data_type,
                                     diff_weights_md()->data_type))

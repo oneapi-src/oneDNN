@@ -21,8 +21,8 @@
 #include "dnnl_thread.hpp" // common
 #include "type_helpers.hpp" // common
 
+#include "cpu/platform.hpp"
 #include "cpu_batch_normalization_utils.hpp" // cpu
-#include "jit_generator.hpp" //cpu
 #include "ncsp_batch_normalization.hpp" // cpu
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
@@ -87,7 +87,7 @@ void ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
     const dim_t C = pd()->C();
 
     int nthr = dnnl_get_max_threads();
-    size_t l3_size_ = get_per_core_cache_size(3) * nthr / 2;
+    size_t l3_size_ = platform::get_per_core_cache_size(3) * nthr / 2;
     size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 
@@ -325,7 +325,7 @@ void ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
     const bool fuse_norm_relu = pd()->fuse_norm_relu();
 
     int nthr = dnnl_get_max_threads();
-    size_t l3_size_ = get_per_core_cache_size(3) * nthr / 2;
+    size_t l3_size_ = platform::get_per_core_cache_size(3) * nthr / 2;
     size_t data_size = N * C * SP * sizeof(data_t);
     bool do_blocking = (data_size >= l3_size_ / 2 && l3_size_ > 0);
 

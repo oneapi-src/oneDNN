@@ -24,7 +24,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
+
 #include "cpu_lrn_pd.hpp"
 
 namespace dnnl {
@@ -42,8 +43,8 @@ struct ref_lrn_fwd_t : public primitive_t {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = true && is_fwd() && src_md()->data_type == d_type
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_fwd() && src_md()->data_type == d_type
+                    && platform::has_data_type_support(d_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -88,10 +89,10 @@ struct ref_lrn_bwd_t : public primitive_t {
             using namespace format_tag;
             using namespace data_type;
 
-            bool ok = true && !is_fwd() && set_default_formats_common()
+            bool ok = !is_fwd() && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(d_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 

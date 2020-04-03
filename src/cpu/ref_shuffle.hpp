@@ -25,9 +25,9 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_shuffle_pd.hpp"
+#include "cpu/platform.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu_shuffle_pd.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,12 +43,9 @@ struct ref_shuffle_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace format_tag;
 
-            bool ok = true
-                    && data_type_size
-                            == types::data_type_size(data_md()->data_type)
-                    && IMPLICATION(this->desc()->data_desc.data_type
-                                    == data_type::bf16,
-                            mayiuse(avx512_core))
+            const data_type_t data_type = data_md()->data_type;
+            bool ok = data_type_size == types::data_type_size(data_type)
+                    && platform::has_data_type_support(data_type)
                     && attr()->has_default_values()
                     && IMPLICATION(!is_fwd(), set_default_formats_common());
             if (!ok) return status::unimplemented;

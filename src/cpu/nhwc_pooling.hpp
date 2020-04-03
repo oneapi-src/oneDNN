@@ -24,7 +24,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
 #include "cpu_pooling_pd.hpp"
 
 #include "bfloat16.hpp"
@@ -53,15 +53,14 @@ struct nhwc_pooling_fwd_t : public primitive_t {
 
             using namespace prop_kind;
             using namespace alg_kind;
-            bool ok = true
-                    && IMPLICATION(
-                            d_type == data_type::bf16, mayiuse(avx512_core))
-                    && set_default_params() == status::success && is_fwd()
+            bool ok = is_fwd()
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
                     && utils::everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && set_default_params() == status::success
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*src_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*dst_md(), desired_fmt_tag);
@@ -190,15 +189,14 @@ struct nhwc_pooling_bwd_t : public primitive_t {
 
             using namespace prop_kind;
             using namespace alg_kind;
-            bool ok = true
-                    && IMPLICATION(
-                            d_type == data_type::bf16, mayiuse(avx512_core))
-                    && set_default_params() == status::success && !is_fwd()
+            bool ok = !is_fwd()
                     && utils::one_of(desc()->alg_kind, pooling_max,
                             pooling_avg_include_padding,
                             pooling_avg_exclude_padding)
                     && utils::everyone_is(d_type, diff_dst_md()->data_type,
                             diff_src_md()->data_type)
+                    && platform::has_data_type_support(d_type)
+                    && set_default_params() == status::success && !is_fwd()
                     && attr()->has_default_values()
                     && memory_desc_matches_tag(*diff_dst_md(), desired_fmt_tag)
                     && memory_desc_matches_tag(*diff_src_md(), desired_fmt_tag);

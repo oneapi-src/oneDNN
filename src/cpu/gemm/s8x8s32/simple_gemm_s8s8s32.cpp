@@ -26,6 +26,8 @@
 #include "nstl.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -50,7 +52,7 @@ void compensation_init(const char *offsetC, int32_t *compensation, dim_t len,
 void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
         const int8_t *a, dim_t lda, int32_t *compensation) {
     if (!transa) {
-        const int L2_cache_size = get_per_core_cache_size(2);
+        const int L2_cache_size = platform::get_per_core_cache_size(2);
         const int blocking_factor = nstl::min(k, L2_cache_size / lda + 1);
         const dim_t npanels = k / blocking_factor;
         const bool has_tile = k % blocking_factor > 0;

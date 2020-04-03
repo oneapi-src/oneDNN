@@ -22,6 +22,8 @@
 #include "memory_tracking.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu_convolution_pd.hpp"
 #include "primitive.hpp"
 #include "primitive_hashing.hpp"
@@ -193,7 +195,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             const auto &src_md = dst_md_;
             const memory_desc_wrapper src_d(src_md);
             const auto nthr = dnnl_get_max_threads();
-            auto l2_cache = get_per_core_cache_size(2) * nthr;
+            auto l2_cache = platform::get_per_core_cache_size(2) * nthr;
 
             // Note: A robust fusion implementation would be to check if both
             // 1x1 conv and dw conv that are considered here for fusion are

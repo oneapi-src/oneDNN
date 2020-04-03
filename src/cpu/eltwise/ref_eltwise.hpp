@@ -19,10 +19,11 @@
 
 #include <assert.h>
 #include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
 #include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu/platform.hpp"
 
 #include "cpu_eltwise_pd.hpp"
 
@@ -69,9 +70,7 @@ struct ref_eltwise_fwd_t : public primitive_t {
             if (has_zero_dim_memory()) use_dense_ = use_nCspBc_padded_ = false;
 
             bool ok = is_fwd() && data_type == desc()->data_desc.data_type
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::bf16,
-                            mayiuse(avx512_core))
+                    && platform::has_data_type_support(data_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
@@ -111,13 +110,10 @@ struct ref_eltwise_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            bool ok = true && !is_fwd()
+            bool ok = !is_fwd()
                     && everyone_is(data_type, desc()->data_desc.data_type,
                             desc()->diff_data_desc.data_type)
-                    /*bf16<->f32 cvt operators don't work on non-avx512_core*/
-                    && IMPLICATION(
-                            desc()->data_desc.data_type == data_type::bf16,
-                            mayiuse(avx512_core))
+                    && platform::has_data_type_support(data_type)
                     && set_default_formats_common()
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;

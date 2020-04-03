@@ -24,7 +24,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
+
 #include "cpu_layer_normalization_pd.hpp"
 
 namespace dnnl {
@@ -43,8 +44,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = true && is_fwd()
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_fwd() && platform::has_data_type_support(d_type)
                     && src_md()->data_type == d_type
                     && stat_md()->data_type == f32
                     && IMPLICATION(
@@ -83,8 +83,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace data_type;
-            bool ok = true && is_bwd()
-                    && IMPLICATION(d_type == bf16, mayiuse(avx512_core))
+            bool ok = is_bwd() && platform::has_data_type_support(d_type)
                     && set_default_formats_common()
                     && utils::everyone_is(d_type, src_md()->data_type,
                             diff_src_md()->data_type)

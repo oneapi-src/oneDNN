@@ -21,6 +21,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "jit_avx512_core_f32_wino_conv_2x3.hpp"
 #include "jit_generator.hpp"
 
@@ -633,9 +635,10 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
             && jcp.l_pad < 2 && jcp.l_pad >= 0;
     if (!ok) return status::unimplemented;
 
-    const int L2_capacity = get_per_core_cache_size(2) / sizeof(float);
+    const int L2_capacity
+            = platform::get_per_core_cache_size(2) / sizeof(float);
     const int L3_capacity
-            = get_per_core_cache_size(3) * jcp.nthr / sizeof(float);
+            = platform::get_per_core_cache_size(3) * jcp.nthr / sizeof(float);
     int a = jcp.alpha;
     int aa = a * a;
     int mb = jcp.mb;
@@ -696,7 +699,8 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
     int nb_oc = jcp.nb_oc;
     int Z = ic + oc;
     int Y = ic * oc;
-    const int L3_cap_per_core = get_per_core_cache_size(3) / sizeof(float);
+    const int L3_cap_per_core
+            = platform::get_per_core_cache_size(3) / sizeof(float);
 
     /* Selecting xb and yb blocking */
     int min_yb = jcp.alpha;
