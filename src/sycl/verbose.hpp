@@ -22,6 +22,7 @@
 
 #include "sycl/sycl_device_info.hpp"
 #include "sycl/sycl_engine.hpp"
+#include "sycl/sycl_utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -35,8 +36,11 @@ void print_verbose_header(
         status_t status = dev_info.init();
         auto &name = dev_info.name();
         auto &ver = dev_info.runtime_version();
-        printf("dnnl_verbose,info,%s,engine,%d,name:%s,driver_version:%s\n",
-                dev_type_str, (int)i, name.c_str(), ver.str().c_str());
+        auto s_backend = to_string(get_sycl_backend(devices[i]));
+        printf("dnnl_verbose,info,%s,engine,%d,backend:%s,name:%s,driver_"
+               "version:%s\n",
+                dev_type_str, (int)i, s_backend.c_str(), name.c_str(),
+                ver.str().c_str());
     }
 }
 

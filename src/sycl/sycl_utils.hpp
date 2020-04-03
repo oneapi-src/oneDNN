@@ -112,6 +112,15 @@ enum class backend_t {
     opencl,
 };
 
+inline std::string to_string(backend_t backend) {
+    switch (backend) {
+        case backend_t::host: return "Host";
+        case backend_t::level0: return "Level Zero";
+        case backend_t::opencl: return "OpenCL";
+        default: return "Unknown";
+    }
+}
+
 inline backend_t get_sycl_gpu_backend() {
 #if defined(DNNL_SYCL_DPCPP) && (__SYCL_COMPILER_VERSION >= 20200402)
     switch (cl::sycl::detail::pi::getPreferredBE()) {
@@ -119,7 +128,8 @@ inline backend_t get_sycl_gpu_backend() {
 #ifdef DNNL_WITH_LEVEL_ZERO
         case cl::sycl::detail::pi::SYCL_BE_PI_LEVEL0: return backend_t::level0;
 #endif
-        default: assert(!"not expected"); return backend_t::unknown;
+        // Ignore preferred backend and use OpenCL in this case.
+        default: return backend_t::opencl;
     }
 #else
     return backend_t::opencl;
@@ -134,12 +144,9 @@ inline backend_t get_sycl_backend(const cl::sycl::device &dev) {
     std::string plat_name = plat.get_info<cl::sycl::info::platform::name>();
     if (plat_name.find("OpenCL") != std::string::npos) return backend_t::opencl;
 
-#ifdef DNNL_WITH_LEVEL_ZERO
     if (plat_name.find("Level-Zero") != std::string::npos)
         return backend_t::level0;
-#endif
 
-    assert(!"not expected");
     return backend_t::unknown;
 #else
     return backend_t::opencl;

@@ -272,9 +272,14 @@ TEST_P(sycl_memory_test, EltwiseWithUserKernel) {
 
     auto sycl_buf = mem.get_sycl_buffer<float>();
 
-    queue q;
+    std::unique_ptr<queue> q;
+    if (eng_kind == engine::kind::cpu) {
+        q.reset(new queue(cpu_selector {}));
+    } else {
+        q.reset(new queue(gpu_selector {}));
+    }
 
-    q.submit([&](handler &cgh) {
+    q->submit([&](handler &cgh) {
         auto a = sycl_buf.get_access<access::mode::write>(cgh);
         cgh.parallel_for<init_kernel>(
                 range<1>(N), [=](id<1> i) { a[i] = i.get(0) - N / 2; });

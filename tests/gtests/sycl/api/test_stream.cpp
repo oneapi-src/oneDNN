@@ -41,6 +41,7 @@ protected:
     std::unique_ptr<context> ctx;
 };
 
+#ifndef DNNL_WITH_LEVEL_ZERO
 TEST_F(sycl_stream_test, Create) {
     SKIP_IF(!eng, "GPU device not found.");
 
@@ -104,5 +105,6 @@ TEST_F(sycl_stream_test, InteropIncompatibleQueue) {
     catch_expected_failures([&] { stream s(*eng, cpu_sycl_queue); }, true,
             dnnl_invalid_arguments);
 }
+#endif
 
 } // namespace dnnl
