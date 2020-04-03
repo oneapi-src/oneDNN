@@ -41,27 +41,34 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     const memory_desc_wrapper dst_d(
             ppd->is_fwd() ? ppd->dst_md() : ppd->diff_dst_md());
 
+    const int ndims = src_d.ndims();
+
     jpp.is_training = pd.prop_kind == prop_kind::forward_training;
     jpp.is_backward = pd.prop_kind == prop_kind::backward_data;
 
-    const int ndims = src_d.ndims();
+    jpp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
+
     using namespace format_tag;
-    auto blocked_fmt_tag = utils::one_of(isa, avx512_common, avx512_core)
+    const auto blocked_fmt_tag = utils::one_of(isa, avx512_common, avx512_core)
             ? utils::pick(ndims - 3, nCw16c, nChw16c, nCdhw16c)
             : utils::pick(ndims - 3, nCw8c, nChw8c, nCdhw8c);
 
     // src_d.data_type() is equal to dst_d.data_type(). This is checked in init
-    auto ncsp_fmt_tag = (jpp.is_backward && isa == avx512_core && ndims < 5
-                                && src_d.data_type() == data_type::bf16)
+    const bool forward_ncsp_allowed = !jpp.is_backward && jpp.oh == 1;
+    const auto ncsp_fmt_tag
+            = ((forward_ncsp_allowed || jpp.is_backward) && isa == avx512_core
+                      && ndims < 5 && src_d.data_type() == data_type::bf16)
             ? utils::pick(ndims - 3, ncw, nchw)
             : format_tag::undef;
 
-    auto nspc_fmt_tag = (ndims <= 5 && src_d.data_type() == data_type::bf16)
+    const auto nspc_fmt_tag
+            = (ndims <= 5 && src_d.data_type() == data_type::bf16)
             ? utils::pick(ndims - 3, nwc, nhwc, ndhwc)
             : format_tag::undef;
 
-    auto fmt_tag = src_d.matches_one_of_tag(
+    const auto fmt_tag = src_d.matches_one_of_tag(
             blocked_fmt_tag, ncsp_fmt_tag, nspc_fmt_tag);
+
     if (!dst_d.matches_tag(fmt_tag)) return status::unimplemented;
 
     if (fmt_tag == ncsp_fmt_tag) {
@@ -81,13 +88,13 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.isa = (jpp.is_bf16 && mayiuse(avx512_core_bf16)) ? avx512_core_bf16
                                                          : isa;
 
-    bool args_ok = true && mayiuse(isa) && (fmt_tag != format_tag::undef)
+    const bool args_ok = true && mayiuse(isa) && (fmt_tag != format_tag::undef)
             && IMPLICATION(jpp.is_bf16, mayiuse(avx512_core))
             && utils::one_of(pd.alg_kind, pooling_max,
                     pooling_avg_include_padding, pooling_avg_exclude_padding);
     if (!args_ok) return status::unimplemented;
 
-    bool is_avx512 = utils::one_of(isa, avx512_common, avx512_core);
+    const bool is_avx512 = utils::one_of(isa, avx512_common, avx512_core);
     const int simd_w = is_avx512 ? 16 : 8;
 
     jpp.ndims = ndims;
@@ -101,7 +108,6 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.ih = (ndims == 3) ? 1 : src_d.dims()[ndims - 2];
     jpp.iw = src_d.dims()[ndims - 1];
     jpp.od = (ndims == 5) ? dst_d.dims()[2] : 1;
-    jpp.oh = (ndims == 3) ? 1 : dst_d.dims()[ndims - 2];
     jpp.ow = dst_d.dims()[ndims - 1];
 
     jpp.stride_d = (ndims == 5) ? pd.strides[0] : 1;
@@ -115,11 +121,11 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
     jpp.t_pad = (ndims == 3) ? 0 : pd.padding[0][ndims - 4];
     jpp.l_pad = pd.padding[0][ndims - 3];
 
-    int back_pad = calculate_end_padding(
+    const int back_pad = calculate_end_padding(
             jpp.f_pad, jpp.od, jpp.id, jpp.stride_d, jpp.kd);
-    int bottom_pad = calculate_end_padding(
+    const int bottom_pad = calculate_end_padding(
             jpp.t_pad, jpp.oh, jpp.ih, jpp.stride_h, jpp.kh);
-    int right_pad = calculate_end_padding(
+    const int right_pad = calculate_end_padding(
             jpp.l_pad, jpp.ow, jpp.iw, jpp.stride_w, jpp.kw);
 
     if (jpp.f_pad >= jpp.kd || jpp.t_pad >= jpp.kh || jpp.l_pad >= jpp.kw
@@ -162,7 +168,7 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
 
     // scratchpad for c_block slice of input and/or output
     using namespace memory_tracking::names;
-    int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
+    const int nscr = nstl::min(dnnl_get_max_threads(), jpp.mb * jpp.nb_c);
     if (jpp.tag_kind == jptg_ncsp) {
         scratchpad.book(key_pool_src_plain2blocked_cvt,
                 jpp.dt_size * jpp.c_block * jpp.id * jpp.ih * jpp.iw * nscr);

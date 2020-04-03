@@ -18,6 +18,7 @@
 #define CPU_JIT_UNI_POOLING_HPP
 
 #include <assert.h>
+#include <memory>
 
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
@@ -33,6 +34,11 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+namespace jit_uni_pooling_utils {
+struct trans_wrapper_t;
+struct trans_context_t;
+} // namespace jit_uni_pooling_utils
+
 template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_pooling_fwd_t : public primitive_t {
     struct pd_t : public cpu_pooling_fwd_pd_t {
@@ -44,14 +50,15 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            bool ok = true && set_default_params() == status::success
+            const bool ok = true && set_default_params() == status::success
                     && is_fwd() && !has_zero_dim_memory()
                     && everyone_is(
                             d_type, src_md()->data_type, dst_md()->data_type)
                     && attr()->has_default_values();
             if (!ok) return status::unimplemented;
 
-            bool is_training = desc_.prop_kind == prop_kind::forward_training;
+            const bool is_training
+                    = desc_.prop_kind == prop_kind::forward_training;
             if (desc()->alg_kind == alg_kind::pooling_max && is_training)
                 init_default_ws();
 
@@ -62,13 +69,12 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         jit_pool_conf_t jpp_;
     };
 
-    jit_uni_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        kernel_ = new jit_uni_pool_kernel<isa>(pd()->jpp_);
-    }
+    explicit jit_uni_pooling_fwd_t(const pd_t *apd);
+    jit_uni_pooling_fwd_t(jit_uni_pooling_fwd_t &&) = default;
+    jit_uni_pooling_fwd_t &operator=(jit_uni_pooling_fwd_t &&) = default;
+    ~jit_uni_pooling_fwd_t();
 
-    ~jit_uni_pooling_fwd_t() { delete kernel_; }
-
-    typedef typename prec_traits<d_type>::type data_t;
+    using data_t = typename prec_traits<d_type>::type;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
@@ -78,22 +84,23 @@ struct jit_uni_pooling_fwd_t : public primitive_t {
         if (pd()->ndims() == 5)
             execute_forward_3d(src, dst, ws);
         else
-            execute_forward(src, dst, ws);
+            execute_forward(src, dst, ws, ctx);
 
         return status::success;
     }
 
 private:
-    void execute_forward(const data_t *src, data_t *dst, char *indices) const;
+    void execute_forward(const data_t *src, data_t *dst, char *indices,
+            const exec_ctx_t &ctx) const;
     void execute_forward_3d(
             const data_t *src, data_t *dst, char *indices) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_uni_pool_kernel<isa> *kernel_;
-};
+    void init_ncsp_trans_ctx();
 
-namespace jit_uni_pooling_utils {
-struct trans_wrapper_t;
-}
+    std::unique_ptr<jit_uni_pool_kernel<isa>> kernel_;
+    std::unique_ptr<jit_uni_pooling_utils::trans_context_t> trans_ctx_;
+    static constexpr data_type_t wsp_dt_ = data_type::f32;
+};
 
 template <cpu_isa_t isa, impl::data_type_t d_type>
 struct jit_uni_pooling_bwd_t : public primitive_t {
@@ -106,7 +113,7 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
         status_t init(engine_t *engine) {
             using namespace utils;
 
-            bool ok = true && set_default_params() == status::success
+            const bool ok = true && set_default_params() == status::success
                     && !is_fwd() && !has_zero_dim_memory()
                     && everyone_is(d_type, diff_src_md()->data_type,
                             diff_dst_md()->data_type)
@@ -124,11 +131,12 @@ struct jit_uni_pooling_bwd_t : public primitive_t {
         jit_pool_conf_t jpp_;
     };
 
-    jit_uni_pooling_bwd_t(const pd_t *apd);
-
+    explicit jit_uni_pooling_bwd_t(const pd_t *apd);
+    jit_uni_pooling_bwd_t(jit_uni_pooling_bwd_t &&) = default;
+    jit_uni_pooling_bwd_t &operator=(jit_uni_pooling_bwd_t &&) = default;
     ~jit_uni_pooling_bwd_t();
 
-    typedef typename prec_traits<d_type>::type data_t;
+    using data_t = typename prec_traits<d_type>::type;
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         auto diff_dst = CTX_IN_MEM(const data_t *, DNNL_ARG_DIFF_DST);
@@ -149,14 +157,10 @@ private:
     void execute_backward_3d(const data_t *diff_dst, const char *indices,
             data_t *diff_src) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    jit_uni_pool_kernel<isa> *kernel_;
+    void init_ncsp_trans_ctx();
 
-    jit_uni_pooling_utils::trans_wrapper_t *diff_dst_trans_;
-    jit_uni_pooling_utils::trans_wrapper_t *diff_dst_tail_trans_;
-    jit_uni_pooling_utils::trans_wrapper_t *ind_trans_;
-    jit_uni_pooling_utils::trans_wrapper_t *ind_tail_trans_;
-    jit_uni_pooling_utils::trans_wrapper_t *diff_src_trans_;
-    jit_uni_pooling_utils::trans_wrapper_t *diff_src_tail_trans_;
+    std::unique_ptr<jit_uni_pool_kernel<isa>> kernel_;
+    std::unique_ptr<jit_uni_pooling_utils::trans_context_t> trans_ctx_;
     static constexpr data_type_t wsp_dt_ = data_type::f32;
 };
 

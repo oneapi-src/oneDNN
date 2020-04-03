@@ -1,6 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2020 Intel Corporation
-*
+*Copyright 2017 - 2020 Intel Corporation *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
 * You may obtain a copy of the License at
@@ -14,6 +13,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <functional>
 #include "dnnl_types.h"
 
 #include "c_types_map.hpp"
@@ -27,107 +27,8 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(
-        const data_t *src, data_t *dst, char *indices) const {
-    const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
-    const memory_desc_wrapper indices_d(pd()->workspace_md());
-    const size_t ind_dt_size
-            = indices ? types::data_type_size(indices_d.data_type()) : 0;
-
-    const auto &jpp = pd()->jpp_;
-
-    auto ker = [&](int n, int b_c, int oh) {
-        auto arg = jit_pool_call_s();
-
-        const int ij = oh * jpp.stride_h;
-        const int i_t_overflow = nstl::max(0, jpp.t_pad - ij);
-        const int i_b_overflow
-                = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
-        const int ih = nstl::max(ij - jpp.t_pad, 0);
-        assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
-        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
-
-        arg.src = (const void *)&src[src_d.blk_off(n, c_off, ih)];
-        arg.dst = (const void *)&dst[dst_d.blk_off(n, c_off, oh)];
-        if (indices) {
-            const size_t ind_off = indices_d.blk_off(n, c_off, oh);
-            arg.indices = (const void *)&indices[ind_off * ind_dt_size];
-        }
-        arg.oh = oh == 0;
-        arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
-        arg.kh_padding_shift = i_t_overflow * jpp.kw;
-        arg.ker_area_h = (float)(jpp.kh
-                - nstl::max(0, oh * jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih)
-                - nstl::max(0, jpp.t_pad - oh * jpp.stride_h));
-        (*kernel_)(&arg);
-    };
-
-    parallel_nd(jpp.mb, jpp.nb_c, jpp.oh,
-            [&](int n, int b_c, int oh) { ker(n, b_c, oh); });
-}
-
-template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(
-        const data_t *src, data_t *dst, char *indices) const {
-    const memory_desc_wrapper src_d(pd()->src_md());
-    const memory_desc_wrapper dst_d(pd()->dst_md());
-    const memory_desc_wrapper indices_d(pd()->workspace_md());
-    const size_t ind_dt_size
-            = indices ? types::data_type_size(indices_d.data_type()) : 0;
-
-    const auto &jpp = pd()->jpp_;
-
-    auto ker = [&](int n, int b_c, int od, int oh, int id, int d_t_overflow,
-                       int d_b_overflow) {
-        auto arg = jit_pool_call_s();
-
-        const int ij = oh * jpp.stride_h;
-        const int i_t_overflow = nstl::max(0, jpp.t_pad - ij);
-        const int i_b_overflow
-                = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
-        const int ih = nstl::max(ij - jpp.t_pad, 0);
-        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
-
-        arg.src = &src[src_d.blk_off(n, c_off, id, ih)];
-        arg.dst = &dst[dst_d.blk_off(n, c_off, od, oh)];
-        if (indices) {
-            const size_t ind_off = indices_d.blk_off(n, c_off, od, oh);
-            arg.indices = &indices[ind_off * ind_dt_size];
-        }
-        arg.oh = (oh + od == 0);
-        arg.kd_padding = jpp.kd - d_t_overflow - d_b_overflow;
-        arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
-        arg.kh_padding_shift
-                = i_t_overflow * jpp.kw + d_t_overflow * jpp.kw * jpp.kh;
-        arg.kd_padding_shift = (i_t_overflow + i_b_overflow) * jpp.kw;
-        arg.ker_area_h = (float)(jpp.kh
-                                 - nstl::max(0,
-                                         oh * jpp.stride_h - jpp.t_pad + jpp.kh
-                                                 - jpp.ih)
-                                 - nstl::max(0, jpp.t_pad - oh * jpp.stride_h))
-                * (jpp.kd
-                        - nstl::max(0,
-                                od * jpp.stride_d - jpp.f_pad + jpp.kd - jpp.id)
-                        - nstl::max(0, jpp.f_pad - od * jpp.stride_d));
-
-        (*kernel_)(&arg);
-    };
-
-    parallel_nd(jpp.mb, jpp.nb_c, jpp.od, [&](int n, int b_c, int od) {
-        const int ik = od * jpp.stride_d;
-        const int d_t_overflow = nstl::max(0, jpp.f_pad - ik);
-        const int d_b_overflow
-                = nstl::max(jpp.id, ik + jpp.kd - jpp.f_pad) - jpp.id;
-        const int id = nstl::max(ik - jpp.f_pad, 0);
-        for (int oh = 0; oh < jpp.oh; ++oh) {
-            ker(n, b_c, od, oh, id, d_t_overflow, d_b_overflow);
-        }
-    });
-}
-
 namespace jit_uni_pooling_utils {
+
 struct trans_wrapper_t {
     trans_wrapper_t(data_type_t inp_dt, dim_t inp_str, data_type_t out_dt,
             dim_t out_str, dim_t ysize, dim_t xsize)
@@ -222,109 +123,598 @@ private:
     const dim_t x_tail_;
     const dim_t y_tail_;
 };
+
+struct trans_context_t {
+    std::unique_ptr<trans_wrapper_t> src_trans_ = nullptr;
+    std::unique_ptr<trans_wrapper_t> src_tail_trans_ = nullptr;
+    std::unique_ptr<trans_wrapper_t> ind_trans_ = nullptr;
+    std::unique_ptr<trans_wrapper_t> ind_tail_trans_ = nullptr;
+    std::unique_ptr<trans_wrapper_t> dst_trans_ = nullptr;
+    std::unique_ptr<trans_wrapper_t> dst_tail_trans_ = nullptr;
+};
+
+static void trans_exec(trans_wrapper_t *trans, trans_wrapper_t *trans_tail,
+        dim_t cs, const void *inp, void *out, dim_t c_block) {
+
+    if (cs == c_block)
+        trans->exec(inp, out);
+    else
+        trans_tail->exec(inp, out);
+};
+
+template <typename src_data_t, typename dst_data_t>
+struct transpose_ncsp_to_block_fmt_t {
+    transpose_ncsp_to_block_fmt_t(trans_wrapper_t *transposer,
+            trans_wrapper_t *transposer_tail, const src_data_t *src_nscp_base,
+            const memory_desc_wrapper &src_nscp_desc,
+            dst_data_t *__restrict dst_blocked_base, dim_t block_size,
+            const jit_pool_conf_t &jpp, std::size_t offset_multiplier = 1u)
+        : transposer_(transposer)
+        , transposer_tail_(transposer_tail)
+        , c_without_padding_(jpp.c_without_padding)
+        , c_block_(jpp.c_block)
+        , src_nscp_base_(src_nscp_base)
+        , src_nscp_desc_(src_nscp_desc)
+        , dst_blocked_base_(dst_blocked_base)
+        , block_size_(block_size)
+        , offset_multiplier_(offset_multiplier) {}
+
+    void operator()(std::size_t ithr, int n, int b_c) const {
+        const dim_t cs
+                = nstl::min(c_without_padding_ - b_c * c_block_, c_block_);
+        const src_data_t *src_nscp = src_nscp_base_
+                + src_nscp_desc_.blk_off(n, b_c * c_block_, 0)
+                        * offset_multiplier_;
+        dst_data_t *dst_blocked
+                = dst_blocked_base_ + ithr * block_size_ * offset_multiplier_;
+        trans_exec(transposer_, transposer_tail_, cs, src_nscp, dst_blocked,
+                c_block_);
+    }
+
+private:
+    trans_wrapper_t *transposer_;
+    trans_wrapper_t *transposer_tail_;
+    const int c_without_padding_;
+    const int c_block_;
+    const src_data_t *src_nscp_base_;
+    const memory_desc_wrapper &src_nscp_desc_;
+    dst_data_t *__restrict dst_blocked_base_;
+    const dim_t block_size_;
+    std::size_t offset_multiplier_;
+};
+
+template <typename src_data_t, typename dst_data_t>
+struct transpose_block_fmt_to_ncsp_t {
+
+    transpose_block_fmt_to_ncsp_t(trans_wrapper_t *transposer,
+            trans_wrapper_t *transposer_tail,
+            const src_data_t *__restrict src_blocked_base, dim_t block_size,
+            dst_data_t *dst_ncsp_base, const memory_desc_wrapper &dst_nscp_desc,
+            const jit_pool_conf_t &jpp, std::size_t offset_multiplier = 1u)
+        : transposer_(transposer)
+        , transposer_tail_(transposer_tail)
+        , c_without_padding_(jpp.c_without_padding)
+        , c_block_(jpp.c_block)
+        , src_blocked_base_(src_blocked_base)
+        , block_size_(block_size)
+        , dst_ncsp_base_(dst_ncsp_base)
+        , dst_nscp_desc_(dst_nscp_desc)
+        , offset_multiplier_(offset_multiplier) {}
+
+    void operator()(std::size_t ithr, int n, int b_c) const {
+        const dim_t cs
+                = nstl::min(c_without_padding_ - b_c * c_block_, c_block_);
+        const src_data_t *src_blocked
+                = src_blocked_base_ + ithr * block_size_ * offset_multiplier_;
+        dst_data_t *dst_ncsp = dst_ncsp_base_
+                + dst_nscp_desc_.blk_off(n, b_c * c_block_, 0)
+                        * offset_multiplier_;
+        trans_exec(transposer_, transposer_tail_, cs, src_blocked, dst_ncsp,
+                c_block_);
+    }
+
+private:
+    trans_wrapper_t *transposer_;
+    trans_wrapper_t *transposer_tail_;
+    const int c_without_padding_;
+    const int c_block_;
+    const src_data_t *__restrict src_blocked_base_;
+    const dim_t block_size_;
+    dst_data_t *dst_ncsp_base_;
+    const memory_desc_wrapper &dst_nscp_desc_;
+    std::size_t offset_multiplier_;
+};
+
+template <typename wsp_data_t, impl::data_type_t d_type>
+class transpose_facade_base_t {
+public:
+    transpose_facade_base_t(const jit_pool_conf_t &jpp,
+            const memory_desc_wrapper &src_d, const memory_desc_wrapper &dst_d,
+            const memory_desc_wrapper &indices_d, const char *indices,
+            const data_type_t wsp_dt, const exec_ctx_t &ctx)
+        : src_sp_(static_cast<dim_t>(jpp.id) * jpp.ih * jpp.iw)
+        , dst_sp_(static_cast<dim_t>(jpp.od) * jpp.oh * jpp.ow)
+        , src_slice_(src_sp_ * jpp.c_block)
+        , dst_slice_(dst_sp_ * jpp.c_block)
+        , transpose_src_(jpp.tag_kind == jptg_ncsp
+                  && (src_sp_ > 1 || jpp.c_without_padding != jpp.c
+                          || d_type != wsp_dt))
+        , transpose_dst_(jpp.tag_kind == jptg_ncsp
+                  && (indices || dst_sp_ > 1 || jpp.c_without_padding != jpp.c
+                          || d_type != wsp_dt))
+        , src_d_(src_d)
+        , dst_d_(dst_d)
+        , indices_d_(indices_d)
+        , ind_dt_size_(
+                  indices ? types::data_type_size(indices_d_.data_type()) : 0)
+        , cvt_slice_src_wsp_(nullptr)
+        , cvt_slice_dst_wsp_(nullptr)
+        , cvt_slice_ind_wsp_(nullptr)
+        , execute_transpose_input_(nullptr)
+        , execute_transpose_output_(nullptr) {
+
+        auto scratchpad = ctx.get_scratchpad_grantor();
+
+        if (transpose_src_)
+            cvt_slice_src_wsp_ = scratchpad.template get<wsp_data_t>(
+                    memory_tracking::names::key_pool_src_plain2blocked_cvt);
+
+        if (transpose_dst_) {
+            cvt_slice_dst_wsp_ = scratchpad.template get<wsp_data_t>(
+                    memory_tracking::names::key_pool_dst_plain2blocked_cvt);
+            cvt_slice_ind_wsp_ = scratchpad.template get<char>(
+                    memory_tracking::names::key_pool_ind_plain2blocked_cvt);
+        }
+    }
+
+    inline bool should_transpose_src() const noexcept { return transpose_src_; }
+    inline bool should_transpose_dst() const noexcept { return transpose_dst_; }
+
+    const void *get_src_addr(
+            std::size_t ithr, int ih, const jit_pool_conf_t &jpp) const {
+        const wsp_data_t *const wsp = cvt_slice_src_wsp_ + ithr * src_slice_;
+        return static_cast<const void *>(&wsp[ih * jpp.iw * jpp.c_block]);
+    }
+
+    const void *get_dst_addr(
+            std::size_t ithr, int oh, const jit_pool_conf_t &jpp) const {
+        const wsp_data_t *const wsp = cvt_slice_dst_wsp_ + ithr * dst_slice_;
+        return static_cast<const void *>(&wsp[oh * jpp.ow * jpp.c_block]);
+    }
+
+    const void *get_indices_addr(
+            std::size_t ithr, int oh, const jit_pool_conf_t &jpp) const {
+        const char *const wsp
+                = cvt_slice_ind_wsp_ + ithr * dst_slice_ * ind_dt_size_;
+        return static_cast<const void *>(
+                &wsp[oh * jpp.ow * jpp.c_block * ind_dt_size_]);
+    }
+
+    void execute_transpose_input(std::size_t ithr, int n, int b_c) const {
+        execute_transpose_input_(ithr, n, b_c);
+    }
+
+    void execute_transpose_output(std::size_t ithr, int n, int b_c) const {
+        execute_transpose_output_(ithr, n, b_c);
+    }
+
+protected:
+    const dim_t src_sp_;
+    const dim_t dst_sp_;
+    const dim_t src_slice_;
+    const dim_t dst_slice_;
+
+    const bool transpose_src_;
+    const bool transpose_dst_;
+
+    const memory_desc_wrapper &src_d_;
+    const memory_desc_wrapper &dst_d_;
+    const memory_desc_wrapper &indices_d_;
+    const size_t ind_dt_size_;
+
+    wsp_data_t *__restrict cvt_slice_src_wsp_;
+    wsp_data_t *__restrict cvt_slice_dst_wsp_;
+    char *__restrict cvt_slice_ind_wsp_;
+
+    std::function<void(std::size_t, int, int)> execute_transpose_input_;
+    std::function<void(std::size_t, int, int)> execute_transpose_output_;
+};
+
+template <typename data_t, typename wsp_data_t, impl::data_type_t d_type>
+class fwd_pooling_transpose_facade_t
+    : public transpose_facade_base_t<wsp_data_t, d_type> {
+public:
+    fwd_pooling_transpose_facade_t(const jit_pool_conf_t &jpp,
+            trans_context_t *trans_ctx, const memory_desc_wrapper &src_d,
+            const memory_desc_wrapper &dst_d,
+            const memory_desc_wrapper &indices_d, const data_type_t wsp_dt,
+            const data_t *src, data_t *dst, char *indices,
+            const exec_ctx_t &ctx)
+        : transpose_facade_base_t<wsp_data_t, d_type>(
+                jpp, src_d, dst_d, indices_d, indices, wsp_dt, ctx) {
+
+        if (this->should_transpose_src()) {
+            this->execute_transpose_input_
+                    = transpose_ncsp_to_block_fmt_t<data_t, wsp_data_t>(
+                            trans_ctx->src_trans_.get(),
+                            trans_ctx->src_tail_trans_.get(), src, this->src_d_,
+                            this->cvt_slice_src_wsp_, this->src_slice_, jpp);
+        }
+
+        if (this->should_transpose_dst()) {
+            using namespace std::placeholders;
+            this->execute_transpose_output_ = std::bind(
+                    [=](const transpose_block_fmt_to_ncsp_t<wsp_data_t, data_t>
+                                    &trans_dst,
+                            transpose_block_fmt_to_ncsp_t<char, char>
+                                    &trans_indices,
+                            std::size_t ithr, int n, int b_c) {
+                        trans_dst(ithr, n, b_c);
+                        if (indices) trans_indices(ithr, n, b_c);
+                    },
+                    transpose_block_fmt_to_ncsp_t<wsp_data_t, data_t>(
+                            trans_ctx->dst_trans_.get(),
+                            trans_ctx->dst_tail_trans_.get(),
+                            this->cvt_slice_dst_wsp_, this->dst_slice_, dst,
+                            this->dst_d_, jpp, 1u),
+                    transpose_block_fmt_to_ncsp_t<char, char>(
+                            trans_ctx->ind_trans_.get(),
+                            trans_ctx->ind_tail_trans_.get(),
+                            this->cvt_slice_ind_wsp_, this->dst_slice_, indices,
+                            this->indices_d_, jpp, this->ind_dt_size_),
+                    _1, _2, _3);
+        }
+    }
+};
+
+template <typename data_t, typename wsp_data_t, impl::data_type_t d_type>
+class bwd_pooling_transpose_facade_t
+    : public transpose_facade_base_t<wsp_data_t, d_type> {
+public:
+    bwd_pooling_transpose_facade_t(const jit_pool_conf_t &jpp,
+            trans_context_t *trans_ctx, const memory_desc_wrapper &src_d,
+            const memory_desc_wrapper &dst_d,
+            const memory_desc_wrapper &indices_d, const data_type_t wsp_dt,
+            data_t *src, const data_t *dst, const char *indices,
+            const exec_ctx_t &ctx)
+        : transpose_facade_base_t<wsp_data_t, d_type>(
+                jpp, src_d, dst_d, indices_d, indices, wsp_dt, ctx)
+        , c_tail_(jpp.c_without_padding % jpp.c_block) {
+
+        if (this->should_transpose_src())
+            this->execute_transpose_output_
+                    = transpose_block_fmt_to_ncsp_t<wsp_data_t, data_t>(
+                            trans_ctx->src_trans_.get(),
+                            trans_ctx->src_tail_trans_.get(),
+                            this->cvt_slice_src_wsp_, this->src_slice_, src,
+                            this->src_d_, jpp, 1u);
+
+        if (this->should_transpose_dst()) {
+            using namespace std::placeholders;
+
+            this->execute_transpose_input_ = std::bind(
+                    [=](const transpose_ncsp_to_block_fmt_t<data_t, wsp_data_t>
+                                    &trans_dst,
+                            transpose_ncsp_to_block_fmt_t<char, char>
+                                    &trans_indices,
+                            std::size_t ithr, int n, int b_c) {
+                        trans_dst(ithr, n, b_c);
+                        if (indices) trans_indices(ithr, n, b_c);
+                    },
+                    transpose_ncsp_to_block_fmt_t<data_t, wsp_data_t>(
+                            trans_ctx->dst_trans_.get(),
+                            trans_ctx->dst_tail_trans_.get(), dst, this->dst_d_,
+                            this->cvt_slice_dst_wsp_, this->dst_slice_, jpp),
+                    transpose_ncsp_to_block_fmt_t<char, char>(
+                            trans_ctx->ind_trans_.get(),
+                            trans_ctx->ind_tail_trans_.get(), indices,
+                            this->indices_d_, this->cvt_slice_ind_wsp_,
+                            this->dst_slice_, jpp, this->ind_dt_size_),
+                    _1, _2, _3);
+        }
+    }
+
+    inline bool should_fill_input_c_tail_with_zeros() const noexcept {
+        return this->should_transpose_dst() && c_tail_ != 0;
+    }
+
+    void fill_output_with_zeros(std::size_t ithr) const {
+        static constexpr wsp_data_t zero_val = 0;
+
+        wsp_data_t *src_diff_base_ptr
+                = this->cvt_slice_src_wsp_ + ithr * this->src_slice_;
+        for (dim_t idx = 0; idx < this->src_slice_; ++idx)
+            src_diff_base_ptr[idx] = zero_val;
+    }
+
+    void fill_input_c_tail_with_zeros(
+            std::size_t ithr, const jit_pool_conf_t &jpp) const {
+
+        wsp_data_t *__restrict wsp_ptr
+                = this->cvt_slice_dst_wsp_ + ithr * this->dst_slice_;
+        for_(dim_t s = 0; s < this->dst_sp_; s++)
+        for (dim_t c = c_tail_; c < jpp.c_block; c++)
+            wsp_ptr[s * jpp.c_block + c] = 0.f;
+
+        char *__restrict ind_ptr = this->cvt_slice_ind_wsp_
+                + ithr * this->dst_slice_ * this->ind_dt_size_;
+        for_(dim_t s = 0; s < this->dst_sp_; s++)
+        for_(dim_t c = c_tail_; c < jpp.c_block; c++)
+        for (size_t i = 0; i < this->ind_dt_size_; i++)
+            ind_ptr[(s * jpp.c_block + c) * this->ind_dt_size_ + i] = 0;
+    }
+
+private:
+    const dim_t c_tail_;
+};
+
 } // namespace jit_uni_pooling_utils
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
+
+template <cpu_isa_t isa, impl::data_type_t d_type>
+jit_uni_pooling_fwd_t<isa, d_type>::jit_uni_pooling_fwd_t(const pd_t *apd)
     : primitive_t(apd)
-    , diff_dst_trans_(nullptr)
-    , diff_dst_tail_trans_(nullptr)
-    , ind_trans_(nullptr)
-    , ind_tail_trans_(nullptr)
-    , diff_src_trans_(nullptr)
-    , diff_src_tail_trans_(nullptr) {
-    kernel_ = new jit_uni_pool_kernel<isa>(pd()->jpp_);
+    , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(pd()->jpp_))
+    , trans_ctx_(nullptr) {
+    if (pd()->jpp_.tag_kind == jptg_ncsp) init_ncsp_trans_ctx();
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_pooling_fwd_t<isa, d_type>::init_ncsp_trans_ctx() {
+    using namespace dnnl::impl;
+    using namespace jit_uni_pooling_utils;
 
     const auto &jpp = pd()->jpp_;
-    if (jpp.tag_kind == jptg_ncsp) {
-        using namespace jit_uni_pooling_utils;
-        auto diff_src_sp = (dim_t)jpp.id * jpp.ih * jpp.iw;
-        auto diff_dst_sp = (dim_t)jpp.od * jpp.oh * jpp.ow;
-        dim_t nb_c = jpp.c_without_padding / jpp.c_block;
-        dim_t c_tail = jpp.c_without_padding % jpp.c_block;
-        const memory_desc_wrapper indices_d(pd()->workspace_md());
-        bool have_indices = indices_d.data_type() != data_type::undef;
+    trans_ctx_ = utils::make_unique<trans_context_t>();
+    const dim_t src_sp = static_cast<dim_t>(jpp.id) * jpp.ih * jpp.iw;
+    const dim_t dst_sp = static_cast<dim_t>(jpp.od) * jpp.oh * jpp.ow;
+    const auto res = std::div(jpp.c_without_padding, jpp.c_block);
+    const dim_t &nb_c = res.quot;
+    const dim_t &c_tail = res.rem;
+    const memory_desc_wrapper indices_d = pd()->workspace_md();
+    const bool have_indices = indices_d.data_type() != data_type::undef;
+    static constexpr auto wsp_dt = wsp_dt_;
 
-        if (nb_c) {
-            diff_dst_trans_ = new trans_wrapper_t(d_type, diff_dst_sp, wsp_dt_,
-                    jpp.c_block, jpp.c_block, diff_dst_sp);
-            diff_src_trans_ = new trans_wrapper_t(wsp_dt_, jpp.c_block, d_type,
-                    diff_src_sp, diff_src_sp, jpp.c_block);
-            if (have_indices)
-                ind_trans_ = new trans_wrapper_t(indices_d.data_type(),
-                        diff_dst_sp, indices_d.data_type(), jpp.c_block,
-                        jpp.c_block, diff_dst_sp);
-        }
-        if (c_tail) {
-            diff_dst_tail_trans_ = new trans_wrapper_t(d_type, diff_dst_sp,
-                    wsp_dt_, jpp.c_block, c_tail, diff_dst_sp);
-            diff_src_tail_trans_ = new trans_wrapper_t(wsp_dt_, jpp.c_block,
-                    d_type, diff_src_sp, diff_src_sp, c_tail);
-            if (have_indices)
-                ind_tail_trans_ = new trans_wrapper_t(indices_d.data_type(),
-                        diff_dst_sp, indices_d.data_type(), jpp.c_block, c_tail,
-                        diff_dst_sp);
-        }
+    if (nb_c) {
+        trans_ctx_->src_trans_ = utils::make_unique<trans_wrapper_t>(
+                d_type, src_sp, wsp_dt, jpp.c_block, jpp.c_block, src_sp);
+        trans_ctx_->dst_trans_ = utils::make_unique<trans_wrapper_t>(
+                wsp_dt, jpp.c_block, d_type, dst_sp, dst_sp, jpp.c_block);
+        if (have_indices)
+            trans_ctx_->ind_trans_ = utils::make_unique<trans_wrapper_t>(
+                    indices_d.data_type(), jpp.c_block, indices_d.data_type(),
+                    dst_sp, dst_sp, jpp.c_block);
+    }
+
+    if (c_tail) {
+        trans_ctx_->src_tail_trans_ = utils::make_unique<trans_wrapper_t>(
+                d_type, src_sp, wsp_dt, jpp.c_block, c_tail, src_sp);
+        trans_ctx_->dst_tail_trans_ = utils::make_unique<trans_wrapper_t>(
+                wsp_dt, jpp.c_block, d_type, dst_sp, dst_sp, c_tail);
+        if (have_indices)
+            trans_ctx_->ind_tail_trans_ = utils::make_unique<trans_wrapper_t>(
+                    indices_d.data_type(), jpp.c_block, indices_d.data_type(),
+                    dst_sp, dst_sp, c_tail);
     }
 }
 
-template <cpu_isa_t isa, data_type_t d_type>
-jit_uni_pooling_bwd_t<isa, d_type>::~jit_uni_pooling_bwd_t() {
-    delete kernel_;
+template <cpu_isa_t isa, impl::data_type_t d_type>
+jit_uni_pooling_fwd_t<isa, d_type>::~jit_uni_pooling_fwd_t() = default;
 
-    delete diff_dst_trans_;
-    delete diff_dst_tail_trans_;
-    delete ind_trans_;
-    delete ind_tail_trans_;
-    delete diff_src_trans_;
-    delete diff_src_tail_trans_;
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward(const data_t *src,
+        data_t *dst, char *indices, const exec_ctx_t &ctx) const {
+
+    const memory_desc_wrapper src_d = pd()->src_md();
+    const memory_desc_wrapper dst_d = pd()->dst_md();
+    const memory_desc_wrapper indices_d = pd()->workspace_md();
+    const auto ind_dt_size
+            = indices ? types::data_type_size(indices_d.data_type()) : 0;
+    const auto &jpp = pd()->jpp_;
+
+    using wsp_data_t = typename prec_traits<wsp_dt_>::type;
+    using namespace jit_uni_pooling_utils;
+
+    const auto transpose_facade
+            = fwd_pooling_transpose_facade_t<data_t, wsp_data_t, d_type>(jpp,
+                    trans_ctx_.get(), src_d, dst_d, indices_d, wsp_dt_, src,
+                    dst, indices, ctx);
+
+    const auto ker = [&](std::size_t ithr, int n, int b_c, int oh) {
+        auto arg = jit_pool_call_s();
+
+        const int ij = oh * jpp.stride_h;
+        const int i_t_overflow = nstl::max(0, jpp.t_pad - ij);
+        const int i_b_overflow
+                = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
+        const int ih = nstl::max(ij - jpp.t_pad, 0);
+        assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
+        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
+
+        if (transpose_facade.should_transpose_src())
+            arg.src = transpose_facade.get_src_addr(ithr, ih, jpp);
+        else
+            arg.src = static_cast<const void *>(
+                    &src[src_d.blk_off(n, c_off, ih)]);
+
+        if (transpose_facade.should_transpose_dst())
+            arg.dst = transpose_facade.get_dst_addr(ithr, oh, jpp);
+        else
+            arg.dst = static_cast<const void *>(
+                    &dst[dst_d.blk_off(n, c_off, oh)]);
+
+        if (indices) {
+            if (transpose_facade.should_transpose_dst())
+                arg.indices = transpose_facade.get_indices_addr(ithr, oh, jpp);
+            else {
+                const size_t ind_off = indices_d.blk_off(n, c_off, oh);
+                arg.indices = static_cast<const void *>(
+                        &indices[ind_off * ind_dt_size]);
+            }
+        }
+        arg.oh = oh == 0;
+        arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
+        arg.kh_padding_shift = i_t_overflow * jpp.kw;
+        arg.ker_area_h = static_cast<float>(jpp.kh
+                - nstl::max(0, oh * jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih)
+                - nstl::max(0, jpp.t_pad - oh * jpp.stride_h));
+        (*kernel_)(&arg);
+    };
+
+    parallel(0, [&](std::size_t ithr, std::size_t nthr) {
+        const std::size_t work_amount
+                = static_cast<std::size_t>(jpp.mb) * jpp.nb_c * jpp.oh;
+        if (ithr >= work_amount) return;
+
+        std::size_t start {0}, end {0};
+        int n {0}, b_c {0}, oh {0};
+
+        balance211(work_amount, nthr, ithr, start, end);
+        utils::nd_iterator_init(start, n, jpp.mb, b_c, jpp.nb_c, oh, jpp.oh);
+
+        for (std::size_t iwork = start; iwork < end; ++iwork) {
+            if (transpose_facade.should_transpose_src())
+                transpose_facade.execute_transpose_input(ithr, n, b_c);
+            ker(ithr, n, b_c, oh);
+            if (transpose_facade.should_transpose_dst())
+                transpose_facade.execute_transpose_output(ithr, n, b_c);
+
+            utils::nd_iterator_step(n, jpp.mb, b_c, jpp.nb_c, oh, jpp.oh);
+        }
+    });
 }
 
 template <cpu_isa_t isa, data_type_t d_type>
-void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
-        const data_t *diff_dst, const char *indices, data_t *diff_src,
-        const exec_ctx_t &ctx) const {
-    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
-    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+void jit_uni_pooling_fwd_t<isa, d_type>::execute_forward_3d(
+        const data_t *src, data_t *dst, char *indices) const {
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
     const memory_desc_wrapper indices_d(pd()->workspace_md());
     const size_t ind_dt_size
             = indices ? types::data_type_size(indices_d.data_type()) : 0;
 
     const auto &jpp = pd()->jpp_;
 
-    auto diff_src_sp = (dim_t)jpp.id * jpp.ih * jpp.iw;
-    auto diff_src_slice = diff_src_sp * jpp.c_block;
-    auto diff_dst_sp = (dim_t)jpp.od * jpp.oh * jpp.ow;
-    auto diff_dst_slice = diff_dst_sp * jpp.c_block;
-    dim_t c_tail = jpp.c_without_padding % jpp.c_block;
+    auto ker = [&](int n, int b_c, int od, int oh, int id, int d_t_overflow,
+                       int d_b_overflow) {
+        auto arg = jit_pool_call_s();
 
-    // scratchpad for c_block slice of src and/or dst
-    typedef typename prec_traits<wsp_dt_>::type wsp_data_t;
+        const int ij = oh * jpp.stride_h;
+        const int i_t_overflow = nstl::max(0, jpp.t_pad - ij);
+        const int i_b_overflow
+                = nstl::max(jpp.ih, ij + jpp.kh - jpp.t_pad) - jpp.ih;
+        const int ih = nstl::max(ij - jpp.t_pad, 0);
+        const int c_off = ((jpp.tag_kind == jptg_nspc) ? jpp.c_block : 1) * b_c;
 
-    wsp_data_t *__restrict cvt_slice_src_wsp {nullptr};
-    wsp_data_t *__restrict cvt_slice_dst_wsp {nullptr};
-    char *__restrict cvt_slice_ind_wsp {nullptr};
-    auto scratchpad = ctx.get_scratchpad_grantor();
+        arg.src = &src[src_d.blk_off(n, c_off, id, ih)];
+        arg.dst = &dst[dst_d.blk_off(n, c_off, od, oh)];
+        if (indices) {
+            const size_t ind_off = indices_d.blk_off(n, c_off, od, oh);
+            arg.indices = &indices[ind_off * ind_dt_size];
+        }
+        arg.oh = (oh + od == 0);
+        arg.kd_padding = jpp.kd - d_t_overflow - d_b_overflow;
+        arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
+        arg.kh_padding_shift
+                = i_t_overflow * jpp.kw + d_t_overflow * jpp.kw * jpp.kh;
+        arg.kd_padding_shift = (i_t_overflow + i_b_overflow) * jpp.kw;
+        arg.ker_area_h = (float)(jpp.kh
+                                 - nstl::max(0,
+                                         oh * jpp.stride_h - jpp.t_pad + jpp.kh
+                                                 - jpp.ih)
+                                 - nstl::max(0, jpp.t_pad - oh * jpp.stride_h))
+                * (jpp.kd
+                        - nstl::max(0,
+                                od * jpp.stride_d - jpp.f_pad + jpp.kd - jpp.id)
+                        - nstl::max(0, jpp.f_pad - od * jpp.stride_d));
 
-    // if spatial size == 1 && jpp.c_without_padding != jpp.c
-    // then we don't need to transpose data
-    bool transpose_diff_src = jpp.tag_kind == jptg_ncsp
-            && (diff_src_sp > 1 || jpp.c_without_padding != jpp.c
-                    || d_type != wsp_dt_);
-    bool transpose_diff_dst = jpp.tag_kind == jptg_ncsp
-            && (indices || diff_dst_sp > 1 || jpp.c_without_padding != jpp.c
-                    || d_type != wsp_dt_);
+        (*kernel_)(&arg);
+    };
 
-    if (transpose_diff_src)
-        cvt_slice_src_wsp = scratchpad.template get<wsp_data_t>(
-                memory_tracking::names::key_pool_src_plain2blocked_cvt);
-    if (transpose_diff_dst) {
-        cvt_slice_dst_wsp = scratchpad.template get<wsp_data_t>(
-                memory_tracking::names::key_pool_dst_plain2blocked_cvt);
-        cvt_slice_ind_wsp = scratchpad.template get<char>(
-                memory_tracking::names::key_pool_ind_plain2blocked_cvt);
+    parallel_nd(jpp.mb, jpp.nb_c, jpp.od, [&](int n, int b_c, int od) {
+        const int ik = od * jpp.stride_d;
+        const int d_t_overflow = nstl::max(0, jpp.f_pad - ik);
+        const int d_b_overflow
+                = nstl::max(jpp.id, ik + jpp.kd - jpp.f_pad) - jpp.id;
+        const int id = nstl::max(ik - jpp.f_pad, 0);
+        for (int oh = 0; oh < jpp.oh; ++oh) {
+            ker(n, b_c, od, oh, id, d_t_overflow, d_b_overflow);
+        }
+    });
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_pooling_bwd_t<isa, d_type>::jit_uni_pooling_bwd_t(const pd_t *apd)
+    : primitive_t(apd)
+    , kernel_(utils::make_unique<jit_uni_pool_kernel<isa>>(pd()->jpp_))
+    , trans_ctx_(nullptr) {
+
+    if (pd()->jpp_.tag_kind == jptg_ncsp) init_ncsp_trans_ctx();
+}
+
+template <cpu_isa_t isa, data_type_t d_type>
+jit_uni_pooling_bwd_t<isa, d_type>::~jit_uni_pooling_bwd_t() = default;
+
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_pooling_bwd_t<isa, d_type>::init_ncsp_trans_ctx() {
+    using namespace dnnl::impl;
+    using namespace jit_uni_pooling_utils;
+
+    const auto &jpp = pd()->jpp_;
+    trans_ctx_ = utils::make_unique<trans_context_t>();
+    const dim_t diff_src_sp = static_cast<dim_t>(jpp.id) * jpp.ih * jpp.iw;
+    const dim_t diff_dst_sp = static_cast<dim_t>(jpp.od) * jpp.oh * jpp.ow;
+    const auto res = std::div(jpp.c_without_padding, jpp.c_block);
+    const dim_t &nb_c = res.quot;
+    const dim_t &c_tail = res.rem;
+    const memory_desc_wrapper indices_d = pd()->workspace_md();
+    const bool have_indices = indices_d.data_type() != data_type::undef;
+    static constexpr auto wsp_dt = wsp_dt_;
+
+    if (nb_c) {
+        trans_ctx_->dst_trans_ = utils::make_unique<trans_wrapper_t>(d_type,
+                diff_dst_sp, wsp_dt, jpp.c_block, jpp.c_block, diff_dst_sp);
+        trans_ctx_->src_trans_ = utils::make_unique<trans_wrapper_t>(wsp_dt,
+                jpp.c_block, d_type, diff_src_sp, diff_src_sp, jpp.c_block);
+        if (have_indices)
+            trans_ctx_->ind_trans_ = utils::make_unique<trans_wrapper_t>(
+                    indices_d.data_type(), diff_dst_sp, indices_d.data_type(),
+                    jpp.c_block, jpp.c_block, diff_dst_sp);
     }
+    if (c_tail) {
+        trans_ctx_->dst_tail_trans_ = utils::make_unique<trans_wrapper_t>(
+                d_type, diff_dst_sp, wsp_dt, jpp.c_block, c_tail, diff_dst_sp);
+        trans_ctx_->src_tail_trans_ = utils::make_unique<trans_wrapper_t>(
+                wsp_dt, jpp.c_block, d_type, diff_src_sp, diff_src_sp, c_tail);
+        if (have_indices)
+            trans_ctx_->ind_tail_trans_ = utils::make_unique<trans_wrapper_t>(
+                    indices_d.data_type(), diff_dst_sp, indices_d.data_type(),
+                    jpp.c_block, c_tail, diff_dst_sp);
+    }
+}
 
-    auto ker = [&](int ithr, int n, int b_c, int oh) {
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
+        const data_t *diff_dst, const char *indices, data_t *diff_src,
+        const exec_ctx_t &ctx) const {
+
+    using namespace jit_uni_pooling_utils;
+    using wsp_data_t = typename prec_traits<wsp_dt_>::type;
+
+    const memory_desc_wrapper diff_src_d(pd()->diff_src_md());
+    const memory_desc_wrapper diff_dst_d(pd()->diff_dst_md());
+    const memory_desc_wrapper indices_d(pd()->workspace_md());
+    const size_t ind_dt_size
+            = indices ? types::data_type_size(indices_d.data_type()) : 0;
+    const auto &jpp = pd()->jpp_;
+    const auto transpose_facade
+            = jit_uni_pooling_utils::bwd_pooling_transpose_facade_t<data_t,
+                    wsp_data_t, d_type>(jpp, trans_ctx_.get(), diff_src_d,
+                    diff_dst_d, indices_d, wsp_dt_, diff_src, diff_dst, indices,
+                    ctx);
+    const dim_t diff_src_sp = static_cast<dim_t>(jpp.id) * jpp.ih * jpp.iw;
+    const dim_t diff_src_slice = diff_src_sp * jpp.c_block;
+
+    const auto ker = [&](int ithr, int n, int b_c, int oh) {
         auto arg = jit_pool_call_s();
 
         const int ij = oh * jpp.stride_h;
@@ -335,26 +725,22 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         assert(IMPLICATION(pd()->ndims() == 3, utils::everyone_is(0, ih, oh)));
         assert(pd()->ndims() != 3 || utils::everyone_is(0, ih, oh));
 
-        auto c_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
-        if (transpose_diff_src) {
-            wsp_data_t *wsp_ = cvt_slice_src_wsp + ithr * diff_src_slice;
-            arg.src = (const void *)&wsp_[ih * jpp.iw * jpp.c_block];
-        } else
+        const auto c_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
+        if (transpose_facade.should_transpose_src())
+            arg.src = transpose_facade.get_src_addr(ithr, ih, jpp);
+        else
             arg.src = &diff_src[diff_src_d.blk_off(n, c_off, ih)];
 
-        if (transpose_diff_dst) {
-            wsp_data_t *wsp_ = cvt_slice_dst_wsp + ithr * diff_dst_slice;
-            arg.dst = (const void *)&wsp_[oh * jpp.ow * jpp.c_block];
-        } else
+        if (transpose_facade.should_transpose_dst())
+            arg.dst = transpose_facade.get_dst_addr(ithr, oh, jpp);
+        else
             arg.dst = &diff_dst[diff_dst_d.blk_off(n, c_off, oh)];
 
         if (indices) {
-            if (transpose_diff_dst) {
-                char *wsp_ = cvt_slice_ind_wsp
-                        + ithr * diff_dst_slice * ind_dt_size;
-                arg.indices = (const void *)&wsp_[oh * jpp.ow * jpp.c_block
-                        * ind_dt_size];
-            } else {
+            if (transpose_facade.should_transpose_dst())
+                arg.indices = transpose_facade.get_indices_addr(ithr, oh, jpp);
+
+            else {
                 const size_t ind_off = indices_d.blk_off(n, c_off, oh);
                 arg.indices = &indices[ind_off * ind_dt_size];
             }
@@ -362,32 +748,19 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
         arg.oh = (oh == 0);
         arg.kh_padding = jpp.kh - i_t_overflow - i_b_overflow;
         arg.kh_padding_shift = i_t_overflow * jpp.kw;
-        arg.ker_area_h = (float)(jpp.kh
+        arg.ker_area_h = static_cast<float>(jpp.kh
                 - nstl::max(0, oh * jpp.stride_h - jpp.t_pad + jpp.kh - jpp.ih)
                 - nstl::max(0, jpp.t_pad - oh * jpp.stride_h));
 
         (*kernel_)(&arg);
     };
 
-    using namespace jit_uni_pooling_utils;
-    auto trans_exec = [&](trans_wrapper_t *trans, trans_wrapper_t *trans_tail,
-                              dim_t cs, const void *inp, void *out) {
-        if (cs == jpp.c_block)
-            trans->exec(inp, out);
-        else
-            trans_tail->exec(inp, out);
-    };
-
     auto process_block = [&](int ithr, int n, int b_c) {
-        if (transpose_diff_src) {
-            const wsp_data_t zero_val = 0;
-            wsp_data_t *src_diff_base_ptr
-                    = cvt_slice_src_wsp + ithr * diff_src_slice;
-            for (dim_t idx = 0; idx < diff_src_slice; ++idx)
-                src_diff_base_ptr[idx] = zero_val;
+        if (transpose_facade.should_transpose_src()) {
+            transpose_facade.fill_output_with_zeros(ithr);
         } else {
             const data_t zero_val = 0;
-            auto ch_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
+            const auto ch_off = jpp.is_plain() ? b_c * jpp.c_block : b_c;
             data_t *src_diff_base_ptr
                     = &diff_src[diff_src_d.blk_off(n, ch_off, 0)];
             if (jpp.tag_kind == jptg_nspc) {
@@ -403,57 +776,25 @@ void jit_uni_pooling_bwd_t<isa, d_type>::execute_backward(
             }
         }
 
-        dim_t cs = nstl::min(
-                jpp.c_without_padding - b_c * jpp.c_block, jpp.c_block);
+        if (transpose_facade.should_transpose_dst())
+            transpose_facade.execute_transpose_input(ithr, n, b_c);
 
-        if (transpose_diff_dst) {
-            wsp_data_t *wsp_ = cvt_slice_dst_wsp + ithr * diff_dst_slice;
-            const data_t *diff_dst_
-                    = diff_dst + diff_dst_d.blk_off(n, b_c * jpp.c_block, 0);
-            const char *indices_ = indices ? indices
-                            + ind_dt_size
-                                    * indices_d.blk_off(n, b_c * jpp.c_block, 0)
-                                           : nullptr;
-            char *indices_wsp_ = indices
-                    ? cvt_slice_ind_wsp + ithr * diff_dst_slice * ind_dt_size
-                    : nullptr;
-            trans_exec(
-                    diff_dst_trans_, diff_dst_tail_trans_, cs, diff_dst_, wsp_);
-            if (indices)
-                trans_exec(ind_trans_, ind_tail_trans_, cs, indices_,
-                        indices_wsp_);
-        }
         for (int oh = 0; oh < jpp.oh; ++oh)
             ker(ithr, n, b_c, oh);
-        if (transpose_diff_src) {
-            wsp_data_t *wsp_ = cvt_slice_src_wsp + ithr * diff_src_slice;
-            data_t *diff_src_
-                    = diff_src + diff_src_d.blk_off(n, b_c * jpp.c_block, 0);
-            trans_exec(
-                    diff_src_trans_, diff_src_tail_trans_, cs, wsp_, diff_src_);
-        }
+
+        if (transpose_facade.should_transpose_src())
+            transpose_facade.execute_transpose_output(ithr, n, b_c);
     };
 
     parallel(0, [&](int ithr, int nthr) {
-        const size_t work_amount = (size_t)jpp.mb * jpp.nb_c;
-        if ((size_t)ithr >= work_amount) return;
+        const std::size_t work_amount
+                = static_cast<std::size_t>(jpp.mb) * jpp.nb_c;
+        if (static_cast<std::size_t>(ithr) >= work_amount) return;
 
-        if (transpose_diff_dst && c_tail != 0) {
-            wsp_data_t *__restrict wsp_ptr
-                    = cvt_slice_dst_wsp + ithr * diff_dst_slice;
-            for_(dim_t s = 0; s < diff_dst_sp; s++)
-            for (dim_t c = c_tail; c < jpp.c_block; c++)
-                wsp_ptr[s * jpp.c_block + c] = 0.f;
+        if (transpose_facade.should_fill_input_c_tail_with_zeros())
+            transpose_facade.fill_input_c_tail_with_zeros(ithr, jpp);
 
-            char *__restrict ind_ptr
-                    = cvt_slice_ind_wsp + ithr * diff_dst_slice * ind_dt_size;
-            for_(dim_t s = 0; s < diff_dst_sp; s++)
-            for_(dim_t c = c_tail; c < jpp.c_block; c++)
-            for (size_t i = 0; i < ind_dt_size; i++)
-                ind_ptr[(s * jpp.c_block + c) * ind_dt_size + i] = 0;
-        }
-
-        size_t start {0}, end {0};
+        std::size_t start {0}, end {0};
         balance211(work_amount, nthr, ithr, start, end);
         int n {0}, b_c {0};
         utils::nd_iterator_init(start, n, jpp.mb, b_c, jpp.nb_c);
