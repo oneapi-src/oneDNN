@@ -14,12 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 #include <float.h>
+
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "memory_tracking.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu/platform.hpp"
 
 #include "jit_avx512_core_bf16_1x1_conv_kernel.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"
@@ -882,8 +885,9 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
 
     jcp.load_grp_count = 1;
 
-    const int L1_capacity = get_per_core_cache_size(1) / jcp.typesize_in;
-    const int L2_size = get_per_core_cache_size(2) / jcp.typesize_in;
+    const int L1_capacity
+            = platform::get_per_core_cache_size(1) / jcp.typesize_in;
+    const int L2_size = platform::get_per_core_cache_size(2) / jcp.typesize_in;
     const int L2_capacity = (L2_size * 3) / 4;
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference,

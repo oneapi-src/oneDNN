@@ -22,6 +22,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "jit_avx512_core_u8s8s32x_wino_convolution.hpp"
 #include "jit_generator.hpp"
 
@@ -761,8 +763,8 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     jcp.alpha = jcp.m + jcp.r - 1;
 
     int aa = jcp.alpha * jcp.alpha;
-    int L1_cap = get_per_core_cache_size(1);
-    int L2_cap = get_per_core_cache_size(2);
+    int L1_cap = platform::get_per_core_cache_size(1);
+    int L2_cap = platform::get_per_core_cache_size(2);
     // need 1 extra reg for bcast, and 2 tmp regs for non-vnni
     int free_regs = jcp.ver == ver_vnni ? 31 : 29;
 
@@ -888,7 +890,7 @@ status_t jit_avx512_core_u8s8s32x_wino_conv_fwd_ker_t::init_conf(
     if (jcp.small_mb) {
         // For small mb harness, set mb_block as large as possible subject to
         // the constraint that winograd activations fit into available L3 cache
-        int L3_cap = get_per_core_cache_size(3);
+        int L3_cap = platform::get_per_core_cache_size(3);
         int M = jcp.xb * jcp.yb / 4;
         int wino_src_size = 16 * M * jcp.ic * jcp.typesize_in;
         int wino_dst_size = 16 * M * jcp.oc * jcp.typesize_acc;

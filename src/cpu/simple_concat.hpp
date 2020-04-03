@@ -18,10 +18,11 @@
 #define SIMPLE_CONCAT_HPP
 
 #include "memory_tracking.hpp"
+#include "primitive.hpp"
+
+#include "cpu/platform.hpp"
 
 #include "cpu_concat_pd.hpp"
-#include "cpu_isa_traits.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -45,9 +46,7 @@ struct simple_concat_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             const memory_desc_wrapper dst_d(dst_md());
-            bool ok = true
-                    && IMPLICATION(
-                            data_type == data_type::bf16, mayiuse(avx512_core))
+            bool ok = platform::has_data_type_support(data_type)
                     && cpu_concat_pd_t::init() == status::success
                     && dst_d.ndims() <= 6;
             if (!ok) return status::unimplemented;

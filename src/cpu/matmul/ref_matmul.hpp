@@ -24,9 +24,10 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu_matmul_pd.hpp"
 
-#include "cpu_isa_traits.hpp"
 #include "eltwise/ref_eltwise.hpp"
 #include "primitive.hpp"
 
@@ -51,7 +52,7 @@ struct ref_matmul_t : public primitive_t {
                     && weights_md()->data_type == weights_type
                     && desc()->accum_data_type == acc_type
                     && dst_md()->data_type == dst_type
-                    && IMPLICATION(src_type == bf16, mayiuse(avx512_core))
+                    && platform::has_data_type_support(src_type)
                     && IMPLICATION(
                             acc_type == s32, attr()->zero_points_.common())
                     && IMPLICATION(acc_type != s32,

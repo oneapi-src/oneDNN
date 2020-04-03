@@ -24,15 +24,14 @@
 #include "dnnl_thread.hpp"
 #include "math_utils.hpp"
 #include "primitive.hpp"
+#include "primitive_attr.hpp"
+#include "tag_traits.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
 #include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
-#include "primitive_attr.hpp"
-#include "tag_traits.hpp"
 
-#include "cpu_isa_traits.hpp"
 #include "simple_q10n.hpp"
 
 namespace dnnl {

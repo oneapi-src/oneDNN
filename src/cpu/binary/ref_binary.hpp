@@ -20,10 +20,11 @@
 #include <assert.h>
 
 #include "c_types_map.hpp"
-#include "cpu_isa_traits.hpp"
 #include "primitive.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
+
+#include "cpu/platform.hpp"
 
 #include "cpu_binary_pd.hpp"
 
@@ -48,9 +49,9 @@ struct ref_binary_t : public primitive_t {
             bool ok = src0_type == src_md(0)->data_type
                     && src1_type == src_md(1)->data_type
                     && dst_type == dst_md()->data_type
-                    && IMPLICATION(utils::everyone_is(bf16, src0_type,
-                                           src1_type, dst_type),
-                            mayiuse(avx512_core))
+                    && platform::has_data_type_support(src0_type)
+                    && platform::has_data_type_support(src1_type)
+                    && platform::has_data_type_support(dst_type)
                     && set_default_params() == status::success
                     && IMPLICATION(utils::one_of(src0_type, f32, bf16),
                             attr()->has_default_values(sm::post_ops))

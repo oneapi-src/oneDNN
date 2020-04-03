@@ -24,7 +24,8 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
+
 #include "cpu_pooling_pd.hpp"
 
 namespace dnnl {
@@ -39,9 +40,7 @@ struct ref_pooling_fwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_pooling_fwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true
-                    && IMPLICATION(
-                            data_type == data_type::bf16, mayiuse(avx512_core))
+            bool ok = platform::has_data_type_support(data_type)
                     && set_default_params() == status::success && is_fwd()
                     && utils::everyone_is(
                             data_type, src_md()->data_type, dst_md()->data_type)
@@ -80,9 +79,7 @@ struct ref_pooling_bwd_t : public primitive_t {
         DECLARE_COMMON_PD_T("ref:any", ref_pooling_bwd_t);
 
         status_t init(engine_t *engine) {
-            bool ok = true
-                    && IMPLICATION(
-                            data_type == data_type::bf16, mayiuse(avx512_core))
+            bool ok = platform::has_data_type_support(data_type)
                     && set_default_params() == status::success && !is_fwd()
                     && utils::everyone_is(data_type, diff_dst_md()->data_type,
                             diff_src_md()->data_type)

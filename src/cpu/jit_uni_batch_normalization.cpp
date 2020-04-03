@@ -24,6 +24,7 @@
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
 #include "cpu_barrier.hpp"
 #include "cpu_batch_normalization_utils.hpp"
 #include "jit_generator.hpp"
@@ -1726,7 +1727,7 @@ struct driver_t : public c_compatible {
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
                 * bdesc_->H() * bdesc_->W();
-        l3_size_ = get_per_core_cache_size(3) * dnnl_get_max_threads()
+        l3_size_ = platform::get_per_core_cache_size(3) * dnnl_get_max_threads()
                 / 2; // XXX
         // TODO: cache balancing for nspc
         do_blocking_ = is_nspc_ ? false

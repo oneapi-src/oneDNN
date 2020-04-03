@@ -24,6 +24,7 @@
 #include "utils.hpp"
 
 #include "cpu/cpu_primitive.hpp"
+#include "cpu/platform.hpp"
 
 #include "gemm_bf16_matmul.hpp"
 
@@ -44,12 +45,11 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
                         && is_bias_1xN());
     };
 
-    auto can_use_gemm = [&]() -> bool { return mayiuse(avx512_core); };
-
     bool ok = src_md()->data_type == src_type
             && weights_md()->data_type == weights_type
             && desc()->accum_data_type == acc_type
-            && dst_md()->data_type == dst_type && can_use_gemm() && check_bias()
+            && dst_md()->data_type == dst_type
+            && platform::has_data_type_support(data_type::bf16) && check_bias()
             && attr()->has_default_values(
                     primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops);

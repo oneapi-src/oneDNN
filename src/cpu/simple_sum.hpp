@@ -20,7 +20,7 @@
 #include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
 #include "cpu_sum_pd.hpp"
 #include "primitive.hpp"
 
@@ -47,10 +47,8 @@ struct simple_sum_t : public primitive_t {
         status_t init(engine_t *engine) {
             const int n = n_inputs();
 
-            bool ok = true
-                    && IMPLICATION(utils::one_of(data_type::bf16, src_data_type,
-                                           dst_data_type),
-                            mayiuse(avx512_core))
+            bool ok = platform::has_data_type_support(src_data_type)
+                    && platform::has_data_type_support(dst_data_type)
                     && cpu_sum_pd_t::init(engine) == status::success
                     && n <= max_num_arrs;
             if (!ok) return status::unimplemented;
