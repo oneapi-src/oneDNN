@@ -76,17 +76,6 @@ struct memory_desc_info_t {
             md_info.strides[d][levels[d]] = blk_stride;
         }
 
-        // Permute inner blocks for O dimension in OIhw4o8i8o4i and
-        // gOIhw4o8i8o4i formats.
-        //
-        // This is specific for GPU and required for the
-        // implementations relying on the subgroup extension.
-        if (mdw.matches_one_of_tag(
-                    format_tag::OIhw4o8i8o4i, format_tag::gOIhw4o8i8o4i)) {
-            int d = (levels[0] == 2) ? 0 : 1;
-            nstl::swap(md_info.blocks[d][2], md_info.blocks[d][1]);
-            nstl::swap(md_info.strides[d][2], md_info.strides[d][1]);
-        }
         return md_info;
     }
 };
