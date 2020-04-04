@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include <math.h>
+#include <random>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -84,6 +85,8 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &epd, res_t *r) {
 // Used in other drivers supporting eltwise post_ops.
 bool check_extreme_values(const float &a, const float &b, alg_t alg) {
     switch (alg) {
+        case alg_t::EXP:
+        case alg_t::EXP_DST:
         case alg_t::LOG:
         case alg_t::POW:
         case alg_t::SQRT:
@@ -102,6 +105,12 @@ static bool check_abs_err(const prb_t *p, const float &s, const float &trh) {
     const float comp_err = approx_machine_eps / trh;
 
     switch (p->alg) {
+        case alg_t::ELU:
+        case alg_t::ELU_DST:
+            // catch catastrophic cancellation when (exp(s) - 1), s < 0 and
+            // s is close to zero.
+            return (p->dir & FLAG_FWD) && std::signbit(s)
+                    && (fabsf(expf(s) - 1.f) <= comp_err);
         case alg_t::GELU_TANH: {
             // catch catastrophic cancellation
             const float sqrt_2_over_pi = 0.797884;
@@ -156,7 +165,7 @@ static int compare(const prb_t *p, const dnn_mem_t &mem_arg_fp,
                 || (is_fwd && p->alg == alg_t::TANH_DST))
             trh = 3e-5;
         else
-            trh = 2e-6;
+            trh = 4e-6;
     }
 
     const auto nelems = mem_dt.nelems();
@@ -270,20 +279,33 @@ static int compare_padded_area_for_zeros(
 int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
         bool is_fwd = true) {
     const auto nelems = mem_fp.nelems();
+    if (nelems == 0) return OK;
 
-    dnnl::impl::parallel_nd(nelems, [&](int64_t i) {
-        const int gen
-                = is_fwd ? ((103 * i) + 107) % 109 : ((101 * i) + 103) % 107;
+    dnnl::impl::parallel(0, [&](int ithr, int nthr) {
+        int64_t chunk_size = (nelems + nthr - 1) / nthr;
+        int64_t idx_start = ithr * chunk_size;
+        int64_t idx_end = MIN2(idx_start + chunk_size, nelems);
+        std::minstd_rand msr;
+        std::uniform_int_distribution<> igen(0, 10);
+        // TODO: 0.09 due to log impl doesn't give good accuracy in 0.99 points
+        std::uniform_real_distribution<> fgen(0.f, 0.09f);
+        msr.discard(idx_start);
 
-        float value = FLT_MAX;
-        switch (i % 4) {
-            case 0: value = (gen % 11); break; // int positive
-            case 1: value = -(gen % 11); break; // int negative
-            case 2: value = gen / 128.; break; // fraction positive
-            case 3: value = -gen / 128.; break; // fraction negative
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            float value = FLT_MAX;
+            switch (idx % 8) {
+                case 0: value = (float)igen(msr); break; // [0-10] pos
+                case 1: value = -(float)igen(msr); break; // [0-10] neg
+                case 2: value = fgen(msr); break; // [0.-0.1) pos
+                case 3: value = -fgen(msr); break; // [0.-0.1) neg
+                case 4: value = 10 * (float)igen(msr); break; // [0-100] pos
+                case 5: value = -10 * (float)igen(msr); break; // [0-100] neg
+                case 6: value = 10.f * fgen(msr); break; // [0.-1.) pos
+                case 7: value = -10.f * fgen(msr); break; // [0.-1.) neg
+            }
+            value = round_to_nearest_representable(p->dt, value);
+            mem_fp.set_elem(idx, maybe_saturate(p->dt, value));
         }
-
-        mem_fp.set_elem(i, maybe_saturate(p->dt, value));
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
