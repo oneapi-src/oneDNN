@@ -49,7 +49,7 @@
 int verbose {0};
 bool canonical {false};
 bool mem_check {true};
-const char *skip_impl = "";
+std::string skip_impl;
 bench_mode_t bench_mode {CORR};
 stat_t benchdnn_stat {0};
 const char *driver_name = "";

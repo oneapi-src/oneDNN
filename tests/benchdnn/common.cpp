@@ -362,27 +362,26 @@ bool match_regex(const char *str, const char *pattern) {
 #endif /* _WIN32 */
 
 bool maybe_skip(const char *impl_str) {
-    if (skip_impl == NULL || *skip_impl == '\0') return false;
+    if (skip_impl.empty()) return false;
 
     const std::string impl(impl_str);
+    size_t start_pos = 0, end_pos = 0;
+    if (skip_impl[0] == '"' || skip_impl[0] == '\'') start_pos++;
 
-    const char *s_start = skip_impl;
-    while (1) {
-        if (*s_start == '"' || *s_start == '\'') ++s_start;
-
-        const char *s_end = strchr(s_start, ':');
-        size_t len = s_end ? s_end - s_start : strlen(s_start);
-
-        if (s_start[len - 1] == '"' || s_start[len - 1] == '\'') --len;
-
-        const std::string what(s_start, s_start + len);
-        if (impl.find(what) != std::string::npos) return true;
-
-        if (s_end == NULL) break;
-
-        s_start = s_end + 1;
-        if (*s_start == '\0') break;
-    }
+    do {
+        const size_t delim_pos = skip_impl.find_first_of(':', start_pos);
+        // rows below to identify quotes at the end and deal with them
+        end_pos = MIN2(skip_impl.size(), delim_pos);
+        size_t len = end_pos - start_pos;
+        if (skip_impl[end_pos - 1] == '"' || skip_impl[end_pos - 1] == '\'')
+            len--;
+        std::string sub_skip_impl = skip_impl.substr(start_pos, len);
+        // even incomplete match leads to skipping
+        if (!sub_skip_impl.empty()
+                && impl.find(sub_skip_impl) != std::string::npos)
+            return true;
+        start_pos = end_pos + 1;
+    } while (end_pos < skip_impl.size());
 
     return false;
 }

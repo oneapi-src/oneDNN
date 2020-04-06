@@ -268,11 +268,9 @@ static bool parse_scratchpad_mode(
 static bool parse_skip_impl(
         const char *str, const std::string &option_name = "skip-impl") {
     const std::string pattern = get_pattern(option_name);
-    if (pattern.find(str, 0, pattern.size()) != eol) {
-        skip_impl = str + pattern.size();
-        return true;
-    }
-    return false;
+    if (pattern.find(str, 0, pattern.size()) == eol) return false;
+    skip_impl = std::string(str + pattern.size());
+    return true;
 }
 
 bool parse_bench_settings(const char *str) {
