@@ -255,6 +255,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--with-projection=" << bool2str(p.with_projection) << " ";
     if (canonical || p.scale_policy != def.scale_policy[0])
         s << "--scaling=" << p.scale_policy << " ";
+    if (canonical || p.trivial_strides != def.trivial_strides[0])
+        s << "--trivial-strides=" << bool2str(p.trivial_strides) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
 
     s << static_cast<const desc_t &>(p);
