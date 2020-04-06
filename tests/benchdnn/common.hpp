@@ -99,7 +99,7 @@ enum { CRIT = 1, WARN = 2 };
 extern int verbose;
 extern bool canonical;
 extern bool mem_check;
-extern const char *skip_impl; /* NULL or "" means skip nothing */
+extern std::string skip_impl; /* empty or "" means skip nothing */
 
 #define BENCHDNN_PRINT(v, fmt, ...) \
     do { \
