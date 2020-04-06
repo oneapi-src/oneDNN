@@ -19,6 +19,8 @@
 
 #if DNNL_WITH_SYCL
 #include <CL/sycl.hpp>
+
+#include "dnnl.hpp"
 #endif
 
 int dnn_mem_t::reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle) {
@@ -81,7 +83,6 @@ static size_t get_cpu_ram_size() {
 #endif
 
 static size_t get_gpu_ram_size() {
-// TODO: consider DPCPP run-time as well.
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_int status = CL_SUCCESS;
     cl_device_id ocl_device = 0;
@@ -92,6 +93,9 @@ static size_t get_gpu_ram_size() {
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
             sizeof(cl_ulong), &ram_size, NULL);
     if (status == CL_SUCCESS) return (size_t)ram_size;
+#elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
+    auto sycl_dev = dnnl::engine(engine_tgt, true).get_sycl_device();
+    return (size_t)sycl_dev.get_info<cl::sycl::info::device::global_mem_size>();
 #endif
     return 0;
 }
@@ -107,6 +111,7 @@ int dnn_mem_t::check_mem_size(const_dnnl_primitive_desc_t const_pd) {
             : MIN2(cpu_device_capacity, gpu_device_capacity);
     // 0.75f is taken randomly. A subject to change in future.
     const double benchdnn_limit = 0.75f * devices_max_capacity;
+    assert(benchdnn_limit > 0);
 
     // get all amount of memories to collect mem_size over all of them
     const int n_memories = dnnl_primitive_desc_query_s32(
