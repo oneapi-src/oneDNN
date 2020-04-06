@@ -408,6 +408,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
                 = pd()->conv_pd_->create_primitive((primitive_t **)&conv_p_);
         if (conv_status != status::success) return conv_status;
 
+        if (!pd()->with_bias()) return conv_status;
         // Initializing values for the deconv bias kernel
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine());
@@ -432,8 +433,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_impl_t {
         gws[2] = 1;
 
         dst_data_type = pd()->diff_dst_md()->data_type;
-        bias_data_type = pd()->with_bias() ? pd()->diff_weights_md(1)->data_type
-                                           : data_type::undef;
+        bias_data_type = pd()->diff_weights_md(1)->data_type;
         accum_data_type = pd()->desc()->accum_data_type;
 
         def_data_type(kernel_ctx, dst_data_type, "DST");
