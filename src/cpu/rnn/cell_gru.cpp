@@ -59,7 +59,7 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // 3. activation zt and rt + elemwise multiplication rt,ht-1
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            nullptr, dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
+            dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
             nullptr, bias_[0], nullptr, nullptr, dst_iter_);
 
@@ -71,10 +71,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // 5. activation h~t + calculate ht
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
-            nullptr, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-            diff_src_layer_, diff_src_iter_, nullptr, diff_dst_layer_,
-            diff_dst_iter_, nullptr, nullptr, bias_[0], nullptr, nullptr,
-            dst_iter_);
+            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
+            diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
+            nullptr, bias_[0], nullptr, nullptr, dst_iter_);
 }
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru);
@@ -122,7 +121,7 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // 1. calculate dG2, dG1, and part of dht-1
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            nullptr, dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
+            dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
             nullptr, nullptr, nullptr, scratch_cell_, dst_iter_);
 
@@ -133,7 +132,7 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
 
     // 3. calculate dG1^ and part of dht-1
     rnn_postgemm_->execute_part2(rnn, cell_position, ws_gates_, scratch_gates_,
-            nullptr, dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
+            dst_layer_, nullptr, src_iter_, nullptr, diff_src_layer_,
             diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
             nullptr, nullptr, nullptr, scratch_cell_, dst_iter_);
 
@@ -150,13 +149,14 @@ void gru_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     gemm_iter_f(rnn.sic, rnn.mb, (rnn.n_gates - 1) * rnn.dhc, w_iter_[0],
             scratch_gates_, 1.0f, diff_src_iter_);
 
-    if (!rnn.merge_gemm_layer) {
-        // dWx += [dG0 dG1 dG2] * [x]
+    // dWx += [dG0 dG1 dG2] * [x]
+    if (rnn.need_gemm_layer(cell_position))
         gemm_weights_layer_f(
                 scratch_gates_, src_layer_, src_layer_ld, diff_w_layer_);
-        // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
+
+    // dx = dG2 * W2x + dG1 * W1x + dG0 * W0x
+    if (!rnn.merge_gemm_layer)
         gemm_layer_f(w_layer_[0], scratch_gates_, diff_src_layer_);
-    }
 
     // 6. calculate diff bias
     gates_reduction(rnn, scratch_gates_, diff_bias_);

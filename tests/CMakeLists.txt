@@ -47,6 +47,10 @@ if(WIN32 AND NOT MINGW)
         # c4244: conversion with possible loss of data
         # c4996: unsafe / deprecated functions
         append(CMAKE_TEST_CCXX_NOWARN_FLAGS "/wd4996 /wd4244")
+        if ("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "THREADPOOL" AND Eigen3_FOUND)
+            # c4267: conversion with possible loss of data
+            append(CMAKE_TEST_CCXX_NOWARN_FLAGS "/wd4267")
+        endif()
     endif()
 endif()
 

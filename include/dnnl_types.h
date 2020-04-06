@@ -95,7 +95,7 @@ typedef enum {
 
 /// Memory format tag specification.
 ///
-/// DNNL formats describe physical data layout. The physical layout
+/// oneDNN formats describe physical data layout. The physical layout
 /// is described as a sequence of the dimensions as they are laid out in the
 /// memory (from the outer-most to the inner-most). Note that this order
 /// doesn't affect the logical order of the dimensions that is kept in the
@@ -138,7 +138,7 @@ typedef enum {
 ///    For example, #dnnl_nc is used to denote 2D CNN activations tensor
 ///    memory format, where channels are the innermost dimension and batch is an
 ///    outermost one. Moreover, #dnnl_nc is just an alias to #dnnl_ab,
-///    since for DNNL CNN primitives the logical dimensions of
+///    since for oneDNN CNN primitives the logical dimensions of
 ///    activations tensors come in order: batch, channels, spatial.
 ///    In other words, batch corresponds to the first logical dimension (`a`),
 ///    channels correspond to the second one (`b`).
@@ -198,6 +198,7 @@ typedef enum {
     dnnl_bcdea, ///< permuted 5D tensor
     dnnl_cba, ///< permuted 3D tensor
     dnnl_cdba, ///< permuted 4D tensor
+    dnnl_dcab, ///< permuted 4D tensor
     dnnl_cdeba, ///< permuted 5D tensor
     dnnl_decab, ///< permuted 5D tensor
     dnnl_defcab, ///< permuted 6D tensor
@@ -428,6 +429,8 @@ typedef enum {
 
     /// 4D CNN weights tensor (incl. groups), an alias to #dnnl_abcd
     dnnl_goiw = dnnl_abcd,
+    /// 4D CNN weights tensor (incl. groups), an alias to #dnnl_dcab
+    dnnl_wigo = dnnl_dcab,
     /// 5D CNN weights tensor (incl. groups), an alias to #dnnl_abcde
     dnnl_goihw = dnnl_abcde,
     /// 5D CNN weights tensor (incl. groups), an alias to #dnnl_decab
@@ -845,8 +848,18 @@ typedef enum {
     dnnl_resampling_linear = 0x2fff1,
 } dnnl_alg_kind_t;
 
-/// Flags for batch normalization primitive.
+/// Flags for normalization primitives.
 typedef enum {
+    /// Use no normalization flags
+    ///
+    /// If specified
+    ///  - on forward training propagation mean and variance are computed and
+    ///    stored as output
+    ///  - on backward propagation compute full derivative wrt data
+    ///  - on backward propagation prop_kind == #dnnl_backward_data has the same
+    ///    behavior as prop_kind == #dnnl_backward
+    dnnl_normalization_flags_none = 0x0U,
+
     /// Use global statistics
     ///
     /// If specified
@@ -855,9 +868,9 @@ typedef enum {
     ///    mean and variance are considered as constants
     ///
     ///  If not specified:
-    ///   - on forward propagation mean and variance are computed and stored in
+    ///   - on forward propagation mean and variance are computed and stored as
     ///     output
-    ///   - on backward propagation compute full derivative wrt to data
+    ///   - on backward propagation compute full derivative wrt data
     dnnl_use_global_stats = 0x1U,
 
     /// Use scale and shift parameters
@@ -866,7 +879,7 @@ typedef enum {
     ///  - on forward propagation use scale and shift (aka scale and bias) for
     ///    the batch normalization results
     ///  - on backward propagation (for prop_kind == #dnnl_backward) compute
-    ///    diff wrt to scale and shift (hence one extra output used)
+    ///    diff wrt scale and shift (hence one extra output used)
     ///
     /// If no specified:
     ///  - on backward propagation prop_kind == #dnnl_backward_data has the
@@ -2072,6 +2085,13 @@ typedef struct dnnl_stream *dnnl_stream_t;
 /// A constant execution stream handle.
 typedef const struct dnnl_stream *const_dnnl_stream_t;
 
+/// An opaque structure to describe execution stream attrbutes.
+struct dnnl_stream_attr;
+/// An execution stream attributes handle.
+typedef struct dnnl_stream_attr *dnnl_stream_attr_t;
+/// A constant execution stream attributes handle.
+typedef const struct dnnl_stream_attr *const_dnnl_stream_attr_t;
+
 /// @} dnnl_api_stream
 
 /// @addtogroup dnnl_api_service
@@ -2088,6 +2108,9 @@ typedef const struct dnnl_stream *const_dnnl_stream_t;
 
 /// TBB runtime (CPU only)
 #define DNNL_RUNTIME_TBB 4u
+
+/// Threadpool runtime (CPU only)
+#define DNNL_RUNTIME_THREADPOOL 8u
 
 /// OpenCL runtime
 #define DNNL_RUNTIME_OCL 256u

@@ -64,6 +64,8 @@ status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx) {
 
     status_t status = success;
 
+    stream->before_exec_hook();
+
     if (get_verbose()) {
         double ms = get_msec();
         status = stream->enqueue_primitive(primitive, ctx);
@@ -74,6 +76,8 @@ status_t primitive_execute(const primitive_t *primitive, exec_ctx_t &ctx) {
     } else {
         status = stream->enqueue_primitive(primitive, ctx);
     }
+
+    stream->after_exec_hook();
 
     if (msan_enabled) unpoison_outputs(ctx.args());
 

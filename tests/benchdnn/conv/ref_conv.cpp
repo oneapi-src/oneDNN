@@ -32,7 +32,7 @@ void exec_conv(get_args_func get_args, const prb_t *p, dnnl_primitive_t c_ref,
             pd_ref, dnnl_query_engine, 0, &engine_ref));
 
     dnnl_stream_t stream_ref;
-    SAFE_V(dnnl_stream_create(
+    SAFE_V(create_dnnl_stream(
             &stream_ref, engine_ref, dnnl_stream_default_flags));
 
     auto src_ref = dnn_mem_t::create_from_host_ptr(

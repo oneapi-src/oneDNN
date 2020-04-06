@@ -35,12 +35,17 @@ status_t stream_t::enqueue_primitive(
 
 /* API */
 
-status_t dnnl_stream_create(
-        stream_t **stream, engine_t *engine, unsigned flags) {
+status_t dnnl_stream_create_v2(stream_t **stream, engine_t *engine,
+        unsigned flags, const stream_attr_t *attr) {
     bool args_ok = !utils::any_null(stream, engine);
     if (!args_ok) return invalid_arguments;
 
-    return engine->create_stream(stream, flags);
+    return engine->create_stream(stream, flags, attr);
+}
+
+status_t dnnl_stream_create(
+        stream_t **stream, engine_t *engine, unsigned flags) {
+    return dnnl_stream_create_v2(stream, engine, flags, nullptr);
 }
 
 status_t dnnl_stream_wait(stream_t *stream) {

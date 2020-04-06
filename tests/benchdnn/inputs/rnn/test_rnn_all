@@ -1,5 +1,6 @@
 --reset
 --allow-unimpl=true
+--trivial-strides=true,false
 
 # f32 tests
 --cfg=f32,bf16
@@ -38,6 +39,7 @@
 
 # int8 (only LSTM)
 --reset
+--trivial-strides=true
 --cfg=u8u8u8u8
 --scaling=common,per_oc
 --prop=FWD_D
@@ -47,6 +49,7 @@
 --batch=rnn_small
 
 --skip-nonlinear=true
+--trivial-strides=true
 --mb=50
 --batch=test_lstm_large
 --mb=1

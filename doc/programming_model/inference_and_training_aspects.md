@@ -4,14 +4,14 @@ Inference and Training Aspects {#dev_guide_inference_and_training_aspects}
 @anchor dev_guide_inference_and_training_prop_kinds
 ## Propagation Kinds
 
-The DNNL library provides performance critical primitives to
+oneDNN provides performance critical primitives to
 accelerate operations used both during **training** deep learning models and
 during the operations performed when the models are used for **inference**.
 
 During inference, the input data is fed into the trained model which in turn
 produces a result (e.g. makes a prediction). This process is usually called
 forward propagation and corresponds to the #dnnl::prop_kind::forward_inference
-propagation kind in DNNL.
+propagation kind in oneDNN.
 
 Training usually consists of the following steps.
 1. Make prediction based on the current state of the model.
@@ -64,7 +64,7 @@ it is possible to use the original source tensor to locate the maximums again,
 but this might be more expensive compared to preserving the positions of
 the maximum values in another tensor, that will be then used during the
 backward propagation.
-DNNL uses the latter approach: for max pooling primitive when
+oneDNN uses the latter approach: for max pooling primitive when
 the propagation kind is set to #dnnl::prop_kind::forward_training
 the library produces one extra output called
 [Workspace](@ref dev_guide_inference_and_training_aspects_workspace)
@@ -82,7 +82,7 @@ which will be covered later in this document.
 ### Different Backward Propagation Kinds
 @anchor dev_guide_inference_and_training_aspects_difference_backward_prop_kinds
 
-As mentioned above, DNNL separates error back-propagation with respect
+As mentioned above, oneDNN separates error back-propagation with respect
 to data and error back-propagation with respect to weights. The former
 corresponds to #dnnl::prop_kind::backward_data, while the latter corresponds
 to #dnnl::prop_kind::backward_weights (for example:
@@ -91,7 +91,7 @@ to #dnnl::prop_kind::backward_weights (for example:
 ## Inference-Specific Aspects
 
 The following list outlines the key specifics of running inference
-with DNNL:
+with oneDNN:
 
 1. As described above, always use #dnnl::prop_kind::forward_inference
    as a propagation kind.
@@ -117,7 +117,7 @@ Most of these techniques are shown in the following examples:
 ## Training-Specific Aspects
 
 The following list outlines the key specifics of running training
-with DNNL:
+with oneDNN:
 
 1. During the forward propagation, use #dnnl::prop_kind::forward_training
    as a propagation kind.
@@ -193,7 +193,7 @@ with DNNL:
    propagation. This is required only for the primitives that produce
    `workspace`, because it might be different for different implementations.
 
-10. When creating your working memory and mkl-dnn memory descriptor, specify
+10. When creating your working memory and memory descriptor, specify
    the type of memory you want to work with. This can be either 16-bit Brain Float
    (bf16) or 32-bit Floating Point (fp32). More details about using bf16 for training
    are detailed in the section @ref dev_guide_training_bf16.
@@ -205,7 +205,7 @@ Most of these techniques are shown in the following examples:
 @anchor dev_guide_inference_and_training_aspects_workspace
 ## Workspace
 
-DNNL uses the notion of `workspace` for some very particular cases.
+oneDNN uses the notion of `workspace` for some very particular cases.
 Specifically, the `workspace` is a tensor that the primitive fills in during
 forward propagation and that will then be used by the corresponding backward
 propagation operation. The example with max pooling was already discussed

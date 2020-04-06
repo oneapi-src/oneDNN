@@ -38,7 +38,7 @@ using namespace Xbyak;
 namespace {
 
 constexpr auto small_spatial = 14;
-unsigned int L1_cache_size = get_cache_size(1, true);
+unsigned int L1_cache_size = get_per_core_cache_size(1);
 
 inline void pick_loop_order(jit_conv_conf_t &jcp) {
     using namespace prop_kind;
@@ -1143,6 +1143,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     int ndims = src_d.ndims();
 
     jcp = zero<decltype(jcp)>();
+    jcp.nthr = jcp.aligned_threads = nthreads;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -1207,7 +1208,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.oc_block = jcp.simd_w;
     jcp.ic_block = jcp.is_1stconv ? jcp.ic : jcp.simd_w;
-    jcp.aligned_threads = 0;
 
     if (ok_to_pad_channels) {
         jcp.oc = rnd_up(jcp.oc, jcp.oc_block);
@@ -1401,7 +1401,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         int work_amount = jcp.mb * jcp.oh * nb_oc_chunks * nb_ow;
         float disbalance = (float)jcp.ow / rnd_up(jcp.ow, ow_block);
         float thr_eff = disbalance * (float)work_amount
-                / rnd_up(work_amount, nthreads);
+                / rnd_up(work_amount, jcp.nthr);
         return thr_eff;
     };
 
@@ -1410,7 +1410,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         eff = get_thr_eff(nb_oc_blocking, res_ow_block);
         if (!is_ow_threading_applicable()) return res_ow_block;
 
-        int L2_part = (get_cache_size(2) * 7 / 8) / typesize;
+        int L2_part = (get_per_core_cache_size(2) * 7 / 8) / typesize;
         if (jcp.ver == ver_4fma) L2_part /= 2;
         int size_src_chunk = jcp.ic_block * ur_w * jcp.kh;
         int size_dst_chunk = jcp.oc_block * nb_oc_blocking * ur_w;
@@ -1510,12 +1510,12 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             if (jcp.loop_order == loop_cgn && oc_chunks > 1 && nthreads > 1
                     && wei_size / inp_size > 24
                     && (not_aligned_max || not_aligned_min) && eligible_case) {
-                // Try to find nthreads > dnnl_get_max_threads() / 2 such
-                // that oc_chunks is a multiple of nthreads, or nthreads is a
+                // Try to find number of threads > nthreads / 2 such that
+                // oc_chunks is a multiple of nthreads, or nthreads is a
                 // multiple of oc_chunks. Otherwise, keep default value.
                 // TODO: implement a task-based alternative without throttling.
-                jcp.aligned_threads = nthreads;
-                for (int i = nthreads; i > nthreads / 2; i--) {
+                jcp.aligned_threads = jcp.nthr;
+                for (int i = jcp.nthr; i > jcp.nthr / 2; i--) {
                     if (oc_chunks % i == 0 || i % oc_chunks == 0) {
                         jcp.aligned_threads = i;
                         break;
@@ -1586,7 +1586,7 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.ow_block = get_ow_block(jcp.nb_oc_blocking, jcp.ur_w, thr_eff);
     jcp.nb_ow = div_up(jcp.ow, jcp.ow_block);
 
-    const int L2_size = get_cache_size(2, true) / typesize;
+    const int L2_size = get_per_core_cache_size(2) / typesize;
     // Source and output data needs to fit in L2,
     // leaving some space for weights and prefetching.
     int h_L2 = int(((0.6f * L2_size) / jcp.simd_w
@@ -2386,6 +2386,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
     int ndims = diff_src_d.ndims();
 
+    jcp.nthr = jcp.aligned_threads = nthreads;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
@@ -2448,6 +2449,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     jcp.simd_w = full_simd_w;
     bool ok_to_try_lower_zmm = true && mayiuse(avx512_core)
             && diff_src_d.data_type() == data_type::f32 && !jcp.is_1stconv
+            && (jcp.oc % jcp.simd_w != 0 || jcp.ic % jcp.simd_w != 0)
             && !ok_to_pad_channels;
 
     if (ok_to_try_lower_zmm) {
@@ -2667,7 +2669,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
             // not apply to higher dimensions.
             // TODO: Implement a more general optimization taking into account
             // the height dimension.
-            int L2_part = (get_cache_size(2) * 7 / 8) / typesize;
+            int L2_part = (get_per_core_cache_size(2) * 7 / 8) / typesize;
             int size_diff_src_chunk = jcp.ic_block * nb_ic_blocking * ur_w;
             int size_diff_dst_chunk = jcp.oc_block * ur_w;
             int size_wei_chunk
@@ -4542,7 +4544,7 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::generate() {
 status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &diff_weights_md,
-        memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md) {
+        memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md, int nthreads) {
     if (!mayiuse(avx512_common)) return status::unimplemented;
 
     const memory_desc_wrapper src_d(&src_md);
@@ -4556,6 +4558,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     jcp = zero<decltype(jcp)>();
 
     jcp.simd_w = cpu_isa_traits<avx512_common>::vlen / typesize;
+    jcp.nthr = jcp.aligned_threads = nthreads;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
 
@@ -4821,7 +4824,7 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
 
     { // balancing
         int nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b;
-        balance(jcp, nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b);
+        balance(jcp, nthr, nthr_mb, nthr_g, nthr_oc_b, nthr_ic_b, jcp.nthr);
         jcp.nthr = nthr;
         jcp.nthr_mb = nthr_mb;
         jcp.nthr_g = nthr_g;
@@ -4876,12 +4879,10 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::init_scratchpad(
 
 void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
         const jit_conv_conf_t &j, int &nthr_, int &nthr_mb_, int &nthr_g_,
-        int &nthr_oc_b_, int &nthr_ic_b_) {
+        int &nthr_oc_b_, int &nthr_ic_b_, int nthreads) {
     nthr_ = nthr_mb_ = nthr_g_ = nthr_oc_b_ = nthr_ic_b_ = 1;
 
-    const int max_threads = dnnl_get_max_threads();
-
-    if (max_threads < j.ngroups) {
+    if (nthreads < j.ngroups) {
         /* simplification... fortunately it doesn't hurt much */
         return;
     }
@@ -4895,14 +4896,14 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
     if (j.ver == ver_4fma && j.is_1stconv) {
         nthr_g_ = 1;
         nthr_oc_b_ = 1;
-        nthr_ic_b_ = nstl::min(j.nb_ic, max_threads);
-        nthr_mb_ = nstl::min(max_threads / nthr_ic_b_, j.mb);
+        nthr_ic_b_ = nstl::min(j.nb_ic, nthreads);
+        nthr_mb_ = nstl::min(nthreads / nthr_ic_b_, j.mb);
         nthr_ = nthr_mb_ * nthr_oc_b_ * nthr_ic_b_ * nthr_g_;
         return;
     }
 
     nthr_g_ = j.ngroups;
-    const int nthr = max_threads / nthr_g_;
+    const int nthr = nthreads / nthr_g_;
 
     const int ih = j.is_hw_transp ? j.tr_ih : j.ih;
     const int oh = j.is_hw_transp ? j.ow : j.oh;
@@ -4999,11 +5000,11 @@ void jit_avx512_common_conv_bwd_weights_kernel_f32::balance(
         }
     }
 
-    if (nthr_mb_ > max_threads / 2 && nthr_mb_ < max_threads)
-        nthr_mb_ = nstl::min(j.mb * j.od * nthr_oh_reduce, max_threads);
+    if (nthr_mb_ > nthreads / 2 && nthr_mb_ < nthreads)
+        nthr_mb_ = nstl::min(j.mb * j.od * nthr_oh_reduce, nthreads);
     nthr_ = nthr_mb_ * nthr_g_ * nthr_oc_b_ * nthr_ic_b_;
 
-    assert(nthr_ <= max_threads);
+    assert(nthr_ <= nthreads);
 }
 
 template struct _jit_avx512_common_conv_fwd_kernel<Zmm>;

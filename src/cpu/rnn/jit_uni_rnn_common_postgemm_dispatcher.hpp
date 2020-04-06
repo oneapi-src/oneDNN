@@ -298,21 +298,20 @@ struct rnn_postgemm_dispatcher {
     rnn_postgemm_sig(execute) {
         if (rnn_postgemm_) {
             rnn_postgemm_->execute(rnn, cell_position, ws_gates_,
-                    scratch_gates_, scratch_ht_, dst_layer_, dst_iter_c_,
-                    src_iter_, src_iter_c_, diff_src_layer_, diff_src_iter_,
+                    scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
                     scratch_cell_, dst_iter_);
-            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, scratch_ht_,
-                    dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-                    diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_);
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
+                    dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_);
         } else
             (this->*postgemm_func)(rnn, cell_position, ws_gates_,
-                    scratch_gates_, scratch_ht_, dst_layer_, dst_iter_c_,
-                    src_iter_, src_iter_c_, diff_src_layer_, diff_src_iter_,
+                    scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
                     scratch_cell_, dst_iter_);
@@ -322,21 +321,20 @@ struct rnn_postgemm_dispatcher {
     rnn_postgemm_sig(execute_part2) {
         if (rnn_postgemm_part2_) {
             rnn_postgemm_part2_->execute(rnn, cell_position, ws_gates_,
-                    scratch_gates_, scratch_ht_, dst_layer_, dst_iter_c_,
-                    src_iter_, src_iter_c_, diff_src_layer_, diff_src_iter_,
+                    scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
                     scratch_cell_, dst_iter_);
-            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, scratch_ht_,
-                    dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-                    diff_src_layer_, diff_src_iter_, diff_src_iter_c_,
-                    diff_dst_layer_, diff_dst_iter_, diff_dst_iter_c_,
-                    weights_peephole_, bias_, ws_grid_, scratch_cell_,
-                    dst_iter_);
+            unpoison(rnn, cell_position, ws_gates_, scratch_gates_, dst_layer_,
+                    dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
+                    diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
+                    diff_dst_iter_, diff_dst_iter_c_, weights_peephole_, bias_,
+                    ws_grid_, scratch_cell_, dst_iter_);
         } else
             (this->*postgemm_part2_func)(rnn, cell_position, ws_gates_,
-                    scratch_gates_, scratch_ht_, dst_layer_, dst_iter_c_,
-                    src_iter_, src_iter_c_, diff_src_layer_, diff_src_iter_,
+                    scratch_gates_, dst_layer_, dst_iter_c_, src_iter_,
+                    src_iter_c_, diff_src_layer_, diff_src_iter_,
                     diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
                     diff_dst_iter_c_, weights_peephole_, bias_, ws_grid_,
                     scratch_cell_, dst_iter_);

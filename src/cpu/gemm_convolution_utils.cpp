@@ -810,7 +810,7 @@ status_t init_conf(jit_gemm_conv_conf_t &jcp,
     bool is_depthwise = jcp.ic == 1 && jcp.oc == 1 && jcp.ngroups != 1;
 
     // TODO: maybe mitigate blocking restriction
-    const int L2 = get_cache_size(2, true) / data_size;
+    const int L2 = get_per_core_cache_size(2) / data_size;
     const int gemm_thrld = 64 * 1024;
 
     if (is_int8_conv) {

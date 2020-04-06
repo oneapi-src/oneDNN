@@ -13,13 +13,11 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
+
 #include "gpu/ocl/ocl_types.h"
 #if WITH_ELTWISE
 #include "gpu/ocl/ocl_post_ops.h"
 #endif
-
-//if USE_IMAGE == 1 then hwigo is required
-//#define USE_IMAGE 1
 
 #if ID > 1
 #define CASE_3D 1
@@ -50,12 +48,7 @@ __attribute__((reqd_work_group_size(LWS_0, LWS_1, LWS_2))) // attr:no-format
 __attribute__((intel_reqd_sub_group_size(SUB_GROUP_SIZE))) // attr:no-format
 #endif
 __kernel void
-gen9_conv_fwd_f32(const __global float *src,
-#if USE_IMAGE == 1
-        __read_only image2d_t wei,
-#else
-        const __global float *wei,
-#endif
+gen9_conv_fwd_f32(const __global float *src, const __global float *wei,
         const __global float *bias, __global float *dst, float eltwise_alpha,
         float eltwise_beta, float eltwise_scale, float sum_scale) {
 
@@ -92,12 +85,7 @@ gen9_conv_fwd_f32(const __global float *src,
             + ih * IW * IC_BLOCK * MB_BLOCK + g * IDHW_SIZE * IC * MB_BLOCK
             + id * IH * IW * IC_BLOCK * MB_BLOCK;
 
-#if USE_IMAGE == 1
-    int2 coordB0 = (int2)((oc * OC_BLOCK) * sizeof(uint), 0);
-    int2 coordB1 = (int2)((oc * OC_BLOCK) * sizeof(uint), 8);
-#else
     wei += g * IC * OC * KDHW_SIZE + goc * KDHW_SIZE * OC_BLOCK * IC_BLOCK;
-#endif
 
 #if WITH_BIAS
     float8 blockC00 = bias[oc * OC_BLOCK + local_id];
@@ -123,10 +111,6 @@ gen9_conv_fwd_f32(const __global float *src,
                             || id + kd * (1 + DD) >= ID) {
 #else
                     ) {
-#endif
-#if USE_IMAGE == 1
-                        coordB0.y += IC;
-                        coordB1.y += IC;
 #endif
                         continue;
                     }
@@ -170,17 +154,10 @@ gen9_conv_fwd_f32(const __global float *src,
         _result = FMA8(_blockB1.s7, TRANSPOSE_8(_blockA, 15), _result); \
     }
 
-#if USE_IMAGE == 1
-                        float8 blockB00 = as_float8(
-                                intel_sub_group_block_read8(wei, coordB0));
-                        float8 blockB01 = as_float8(
-                                intel_sub_group_block_read8(wei, coordB1));
-#else
-        float8 blockB00 = as_float8(
-                intel_sub_group_block_read8((const __global uint *)wei1));
-        float8 blockB01 = as_float8(intel_sub_group_block_read8(
-                (const __global uint *)(wei1 + 8 * IC_BLOCK)));
-#endif
+                        float8 blockB00 = as_float8(intel_sub_group_block_read8(
+                                (const __global uint *)wei1));
+                        float8 blockB01 = as_float8(intel_sub_group_block_read8(
+                                (const __global uint *)(wei1 + 8 * IC_BLOCK)));
                         float8 blockA;
 
                         blockA = as_float8(intel_sub_group_block_read8(
@@ -198,12 +175,7 @@ gen9_conv_fwd_f32(const __global float *src,
 #undef TRANSPOSE_BLOCK_8
 #undef MULTIPLY_BLOCKS_8x8
                         src1 += IC_BLOCK * IDHW_SIZE * MB_BLOCK;
-#if USE_IMAGE == 1
-                        coordB0.y += IC_BLOCK;
-                        coordB1.y += IC_BLOCK;
-#else
-        wei1 += OC * KDHW_SIZE * IC_BLOCK;
-#endif
+                        wei1 += OC * KDHW_SIZE * IC_BLOCK;
                         icb += IC_BLOCK;
                     } while (icb < IC);
 #if KH != 1 || KW != 1 || KD != 1

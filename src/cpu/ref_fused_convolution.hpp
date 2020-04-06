@@ -232,10 +232,13 @@ struct ref_fused_convolution_fwd_t : public primitive_impl_t {
                                     conv_pd->KH(), conv_pd->KW());
                     if (!ok) return status::unimplemented;
 
+                    convolution_desc_t cd_dw;
+                    primitive_attr_t attr_dw;
                     primitive_desc_t *append_conv_pd;
-                    CHECK(get_depthwise_primitive_desc(&append_conv_pd,
-                            *(conv_pd->dst_md()), root_attr, engine(),
-                            po_op_iter));
+                    CHECK(get_depthwise_conv_desc(cd_dw, *(conv_pd->dst_md()),
+                            root_attr, attr_dw, po_op_iter));
+                    CHECK(dnnl_primitive_desc_create(&append_conv_pd,
+                            (op_desc_t *)&cd_dw, &attr_dw, engine_, NULL));
 
                     auto status = append_op(append_conv_pd,
                             inout_sp_offset_begin, inout_sp_offset_end);

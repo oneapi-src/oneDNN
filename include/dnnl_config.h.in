@@ -57,13 +57,13 @@
 
 // clang-format off
 
-// DNNL CPU threading runtime
+// oneDNN CPU threading runtime
 #cmakedefine DNNL_CPU_THREADING_RUNTIME DNNL_RUNTIME_${DNNL_CPU_THREADING_RUNTIME}
 
-// DNNL CPU engine runtime
+// oneDNN CPU engine runtime
 #cmakedefine DNNL_CPU_RUNTIME DNNL_RUNTIME_${DNNL_CPU_RUNTIME}
 
-// DNNL GPU engine runtime
+// oneDNN GPU engine runtime
 #cmakedefine DNNL_GPU_RUNTIME DNNL_RUNTIME_${DNNL_GPU_RUNTIME}
 
 // clang-format on

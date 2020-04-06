@@ -34,12 +34,11 @@ using namespace dnnl::impl::utils;
 using namespace Xbyak;
 
 namespace {
-void pick_loop_order(jit_conv_conf_t &jcp, int nthr) {
-
+void pick_loop_order(jit_conv_conf_t &jcp) {
     jcp.loop_order = loop_cwgn;
     if (jcp.ngroups > 1) {
         jcp.loop_order = loop_ngcw;
-        if (jcp.mb < nthr)
+        if (jcp.mb < jcp.nthr)
             jcp.loop_order = jcp.ndims == 3 ? loop_nwcg : loop_nhwcg;
     }
 }
@@ -905,6 +904,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
+    jcp.nthr = nthreads;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;
@@ -971,7 +971,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
         } else if (jcp.ngroups != 1
                 && ((jcp.ic % jcp.ic_block != 0)
                         || (jcp.oc % jcp.oc_block != 0))) {
-            /* For grouped convolutions, DNNL doesn't support padding.
+            /* For grouped convolutions, oneDNN doesn't support padding.
              * When channels per group is not multiple of 8:
              * - Use Xmm when channels per group is multiple of 4.
              * - Otherwise return unimplemented */
@@ -1135,7 +1135,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     int base_work_amount = jcp.mb * jcp.nb_ch * jcp.oh
             * (jcp.nb_oc / jcp.nb_oc_blocking_thr_chunk);
     float best_thr_eff
-            = (float)base_work_amount / rnd_up(base_work_amount, nthreads);
+            = (float)base_work_amount / rnd_up(base_work_amount, jcp.nthr);
     int max_nb_ow = div_up(jcp.ow, 2 * jcp.ur_w);
     for (int nb_ow = 1; nb_ow <= max_nb_ow; ++nb_ow) {
         int ow_block
@@ -1145,7 +1145,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
             break;
         if (div_up(jcp.ow, ow_block) != nb_ow) continue;
         auto work_amount = base_work_amount * nb_ow;
-        float thr_eff = (float)work_amount / rnd_up(work_amount, nthreads);
+        float thr_eff = (float)work_amount / rnd_up(work_amount, jcp.nthr);
         if (ow_block >= 2 * jcp.ur_w && thr_eff > 1.1f * best_thr_eff) {
             jcp.ow_block = ow_block;
             best_thr_eff = thr_eff;
@@ -1164,7 +1164,7 @@ status_t jit_avx2_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     if (r_pad_no_tail > jcp.ur_w) return status::unimplemented;
 
-    pick_loop_order(jcp, nthreads);
+    pick_loop_order(jcp);
 
     jcp.nb_ic_L2 = jcp.nb_ic;
 
@@ -1188,8 +1188,9 @@ void jit_avx2_x8s8s32x_fwd_kernel::init_scratchpad(
         const primitive_attr_t &attr) {
 
     if (jcp.signed_input) {
-        dim_t count
-                = nstl::max(attr.output_scales_.count_, (dim_t)jcp.ic_block);
+        dim_t count = attr.output_scales_.count_ == 1
+                ? (dim_t)8
+                : attr.output_scales_.count_;
         scratchpad.book(key_conv_adjusted_scales, sizeof(float) * count);
     }
 }

@@ -291,7 +291,7 @@ def usage():
     print('''\
 %s types.xml
 
-Generates DNNL debug header and source files with enum to string mapping.
+Generates oneDNN debug header and source files with enum to string mapping.
 Input types.xml file can be obtained with CastXML[1]:
 $ castxml --castxml-cc-gnu-c clang --castxml-output=1 \\
         include/dnnl_types.h -o types.xml

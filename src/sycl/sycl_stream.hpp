@@ -157,9 +157,9 @@ struct sycl_stream_t : public gpu::compute::compute_stream_t {
 
 private:
     sycl_stream_t(engine_t *engine, unsigned flags)
-        : gpu::compute::compute_stream_t(engine, flags) {}
+        : gpu::compute::compute_stream_t(engine, flags, nullptr) {}
     sycl_stream_t(engine_t *engine, unsigned flags, cl::sycl::queue &queue)
-        : gpu::compute::compute_stream_t(engine, flags)
+        : gpu::compute::compute_stream_t(engine, flags, nullptr)
         , queue_(new cl::sycl::queue(queue)) {}
 
     status_t init();

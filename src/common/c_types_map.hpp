@@ -167,6 +167,7 @@ const format_tag_t bcda = dnnl_bcda;
 const format_tag_t bcdea = dnnl_bcdea;
 const format_tag_t cba = dnnl_cba;
 const format_tag_t cdba = dnnl_cdba;
+const format_tag_t dcab = dnnl_dcab;
 const format_tag_t cdeba = dnnl_cdeba;
 const format_tag_t decab = dnnl_decab;
 const format_tag_t defcab = dnnl_defcab;
@@ -340,6 +341,7 @@ const format_tag_t odhwi = dnnl_odhwi;
 const format_tag_t idhwo = dnnl_idhwo;
 const format_tag_t goiw = dnnl_goiw;
 const format_tag_t goihw = dnnl_goihw;
+const format_tag_t wigo = dnnl_wigo;
 const format_tag_t hwigo = dnnl_hwigo;
 const format_tag_t dhwigo = dnnl_dhwigo;
 const format_tag_t giohw = dnnl_giohw;
@@ -527,6 +529,7 @@ enum runtime_kind_t {
     dnnl_runtime_seq,
     dnnl_runtime_omp,
     dnnl_runtime_tbb,
+    dnnl_runtime_threadpool,
     dnnl_runtime_ocl,
     dnnl_runtime_sycl,
 };
@@ -536,6 +539,7 @@ const runtime_kind_t none = dnnl_runtime_none;
 const runtime_kind_t seq = dnnl_runtime_seq;
 const runtime_kind_t omp = dnnl_runtime_omp;
 const runtime_kind_t tbb = dnnl_runtime_tbb;
+const runtime_kind_t threadpool = dnnl_runtime_threadpool;
 const runtime_kind_t ocl = dnnl_runtime_ocl;
 const runtime_kind_t sycl = dnnl_runtime_sycl;
 } // namespace runtime_kind
@@ -728,6 +732,7 @@ const stream_flags_t out_of_order = dnnl_stream_out_of_order;
 const stream_flags_t default_flags = dnnl_stream_default_flags;
 } // namespace stream_flags
 using stream_t = dnnl_stream;
+using stream_attr_t = dnnl_stream_attr;
 
 struct memory_storage_t;
 

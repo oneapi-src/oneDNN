@@ -17,7 +17,7 @@
 # Provides compatibility with Intel MKL-DNN build options
 #===============================================================================
 
-# Sets if dnnl var is unset, copy the value from mkldnn var
+# Sets if DNNL_* var is unset, copy the value from corresponding MKLDNN_* var
 macro(mkldnn_compat_var dnnl_var mkldnn_var props)
     if (DEFINED ${mkldnn_var} AND NOT DEFINED ${dnnl_var})
         if ("${props}" STREQUAL "CACHE STRING")
@@ -27,7 +27,7 @@ macro(mkldnn_compat_var dnnl_var mkldnn_var props)
         else()
             set(${dnnl_var} "${${mkldnn_var}}")
         endif()
-        message(STATUS "MKL-DNN compat: "
+        message(STATUS "Intel MKL-DNN compat: "
             "set ${dnnl_var} to ${mkldnn_var} with value `${${dnnl_var}}`")
     endif()
 endmacro()

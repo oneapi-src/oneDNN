@@ -57,7 +57,8 @@ public:
         hw_threads_ = eu_count_ * threads_per_eu;
 
         // Integrated GPUs share LLC with CPU which is L3 cache on CPU.
-        size_t cache_size = cpu::get_cache_size(3, false);
+        size_t cache_size
+                = cpu::get_per_core_cache_size(3) * cpu::get_num_cores();
         llc_cache_size_ = (size_t)cache_size;
 
         // Runtime version

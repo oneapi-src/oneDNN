@@ -20,6 +20,11 @@ if(POLICY CMP0022)
     cmake_policy(SET CMP0022 NEW)
 endif()
 
+# Foo::Bar always refers to an IMPORTED target
+if(POLICY CMP0028)
+    cmake_policy(SET CMP0028 NEW)
+endif()
+
 if(POLICY CMP0054)
     cmake_policy(SET CMP0054 NEW)
 endif()
@@ -34,10 +39,17 @@ if(POLICY CMP0065)
     cmake_policy(SET CMP0065 NEW)
 endif()
 
-# Pass all flags to try_compile
+# Pass linker flags to try_compile
 if(POLICY CMP0056)
     cmake_policy(SET CMP0056 NEW)
 endif()
+
+# Always link with full path
+if(POLICY CMP0060)
+    cmake_policy(SET CMP0060 NEW)
+endif()
+
+# Pass compiler flags to try_compile
 if(POLICY CMP0066)
     cmake_policy(SET CMP0066 NEW)
 endif()
@@ -47,15 +59,20 @@ if(POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW)
 endif()
 
+# Install rules order
+if(POLICY CMP0082)
+    cmake_policy(SET CMP0082 NEW)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...")
 endif()
 
-set(PROJECT_NAME "DNNL")
-set(PROJECT_FULL_NAME "Deep Neural Network Library (DNNL)")
-set(PROJECT_VERSION "1.91.0")
+set(PROJECT_NAME "oneDNN")
+set(PROJECT_FULL_NAME "oneAPI Deep Neural Network Library (oneDNN)")
+set(PROJECT_VERSION "1.92.0")
 
 set(LIB_NAME dnnl)
 
@@ -67,7 +84,7 @@ else()
 endif()
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR "DNNL supports 64 bit platforms only")
+    message(FATAL_ERROR "oneDNN supports 64 bit platforms only")
 endif()
 
 # Set the target architecture.
@@ -95,6 +112,7 @@ include("cmake/options.cmake")
 include("cmake/SYCL.cmake")
 include("cmake/OpenMP.cmake")
 include("cmake/TBB.cmake")
+include("cmake/Threadpool.cmake")
 include("cmake/OpenCL.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")

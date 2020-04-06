@@ -234,7 +234,7 @@ protected:
                 = ::testing::TestWithParam<matmul_test_params>::GetParam();
 
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
 
         auto check_matrix_flags = [](unsigned flags, unsigned matrix) {
             if (flags) { ASSERT_EQ(flags & P::MATRIX_MASK, matrix); }

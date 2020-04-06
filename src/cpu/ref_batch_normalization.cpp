@@ -124,7 +124,7 @@ void ref_batch_normalization_fwd_t<d_type>::execute_forward(
     // auto data_offset(const memory_desc_wrapper &, int, int, int, int, int)
     DECLARE_DATA_OFFSET;
 
-    parallel_nd(C, [&](int c) {
+    parallel_nd(C, [&](dim_t c) {
         acc_data_t v_mean = calculate_stats ? 0 : mean[c];
         acc_data_t v_variance = calculate_stats ? 0 : variance[c];
 

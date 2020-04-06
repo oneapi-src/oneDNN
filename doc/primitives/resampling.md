@@ -26,7 +26,7 @@ Let \src and \dst be \f$N \times C \times IH \times IW\f$ and \f$N
 \f$ F_h = \frac{OH}{IH} \f$ and \f$ F_w = \frac{OW}{IW} \f$ define scaling
 factors in each spatial dimension.
 
-The following formulas show how DNNL computes resampling for nearest neighbor
+The following formulas show how oneDNN computes resampling for nearest neighbor
 and bilinear interpolation methods.
 To further simplify the formulas, we assume the following:
 - \f$\src(n, ic, ih, iw) = 0\f$ if \f$ih < 0\f$ or \f$iw < 0\f$,

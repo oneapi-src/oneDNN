@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu_isa_traits.hpp"
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
@@ -253,7 +254,7 @@ TEST_F(attr_test, TestPostOps) {
     ASSERT_FLOAT_EQ(beta, 4.4f);
 }
 
-TEST_F(attr_test, DepthwiseFusion) {
+TEST_F(attr_test, DepthwiseFusionPostop) {
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
 
@@ -294,6 +295,54 @@ TEST_F(attr_test, DepthwiseFusion) {
     ASSERT_EQ(dst_dt, memory::data_type::f32);
     ASSERT_EQ(scales_mask, 1 << 1);
     ASSERT_EQ(scales_in, scales_out);
+}
+
+TEST_F(attr_test, DepthwiseFusion) {
+
+    auto engine_kind = get_test_engine_kind();
+    SKIP_IF(engine_kind != engine::kind::cpu,
+            "Depthwise fusion is only supported on CPU engine");
+
+    engine e {engine_kind, 0};
+
+    std::vector<float> scales {3};
+    std::vector<memory::data_type> test_dts {
+            memory::data_type::f32, memory::data_type::s8};
+
+    if (impl::cpu::mayiuse(impl::cpu::avx512_core))
+        test_dts.push_back(memory::data_type::bf16);
+
+    for (auto dt : test_dts) {
+
+        memory::desc dat_md {
+                {1024, 512, 512, 512}, dt, memory::format_tag::any};
+        memory::desc wht_md {{512, 512, 1, 1}, dt, memory::format_tag::any};
+
+        auto cd_desc = convolution_forward::desc(prop_kind::forward_inference,
+                algorithm::convolution_auto, dat_md, wht_md, dat_md, {1, 1},
+                {0, 0}, {0, 0});
+
+        std::string impl_info_unfused;
+        ASSERT_NO_THROW(
+                auto pd = convolution_forward::primitive_desc(cd_desc, e);
+                impl_info_unfused = pd.impl_info_str(););
+
+        // skip if above unfused impl is not jitted.
+        if (impl_info_unfused.compare(0, 3, "jit") != 0) continue;
+
+        dnnl::primitive_attr attr;
+        dnnl::post_ops ops;
+        ops.append_dw_k3s1p1(dt, dt, dt, 1 << 1, scales);
+        attr.set_post_ops(ops);
+
+        std::string impl_info_fused;
+        ASSERT_NO_THROW(
+                auto pd = convolution_forward::primitive_desc(cd_desc, attr, e);
+                impl_info_fused = pd.impl_info_str(););
+
+        // Make sure ref fused impl is not deployed.
+        ASSERT_EQ(impl_info_fused, impl_info_unfused);
+    }
 }
 
 } // namespace dnnl

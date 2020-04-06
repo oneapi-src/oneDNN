@@ -163,7 +163,7 @@ void simple_net_int8(engine::kind engine_kind) {
     } catch (error &e) {
         if (e.status == dnnl_unimplemented)
             throw example_allows_unimplemented {
-                    "DNNL does not have int8 convolution implementation "
+                    "oneDNN does not have int8 convolution implementation "
                     "that supports this system.\n"
                     "Please refer to the developer guide for details."};
 
@@ -183,7 +183,7 @@ void simple_net_int8(engine::kind engine_kind) {
 
     /// Create a memory for each of the convolution's data input
     /// parameters (source, bias, weights, and destination). Using the convolution
-    /// primitive descriptor as the creation parameter enables DNNL
+    /// primitive descriptor as the creation parameter enables oneDNN
     /// to configure the memory formats for the convolution.
     ///
     /// Scaling parameters are passed to the reorder primitive via the attributes

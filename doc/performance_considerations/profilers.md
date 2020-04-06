@@ -1,10 +1,10 @@
-Profiling DNNL performance {#dev_guide_profilers}
+Profiling oneDNN performance {#dev_guide_profilers}
 =================================================
 
-DNNL uses JIT (just-in-time) code generation based on primitive parameters and
+oneDNN uses JIT (just-in-time) code generation based on primitive parameters and
 instruction set supported by the system. In order to correctly attribute
 performance event information, profilers need to be notified about
-address ranges containing JIT-ed code. DNNL supports two profilers: Intel
+address ranges containing JIT-ed code. oneDNN supports two profilers: Intel
 VTune Amplifier and Linux perf.
 
 At build-time, support for this feature is controlled via cmake option
@@ -31,7 +31,7 @@ individual flags may be OR-ed:
 
 The default setting of the profiling flags is to enable integration with Intel
 VTune Amplifier, therefore it does not require any additional setup and works
-out of the box. Code integrating DNNL may override this behavior.
+out of the box. Code integrating oneDNN may override this behavior.
 
 ## Example: profiling with Intel VTune Amplifier
 
@@ -74,7 +74,7 @@ See more examples in the [Intel VTune Amplifier User Guide](https://software.int
 
 ## Example: profiling with Linux perf
 
-The following command instructs DNNL to enable both jitdump and perfmap
+The following command instructs oneDNN to enable both jitdump and perfmap
 profiling modes and write jitdump files into `.debug` directory in the current
 directory by setting environment variable `JITDUMPDIR` to point to the current
 directory.

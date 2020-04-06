@@ -83,6 +83,8 @@ enum {
                                     pass */
 };
 
+enum jit_pool_tag_kind_t { jptg_blocked, jptg_ncsp, jptg_nspc };
+
 struct jit_conv_conf_t {
     prop_kind_t prop_kind;
     conv_version_t ver;
@@ -553,7 +555,10 @@ struct jit_pool_conf_t {
 
     int dt_size;
     bool is_bf16;
-    bool is_plain;
+    jit_pool_tag_kind_t tag_kind;
+    bool is_plain() const {
+        return (tag_kind == jptg_ncsp || tag_kind == jptg_nspc);
+    }
 
     cpu_isa_t isa;
 };

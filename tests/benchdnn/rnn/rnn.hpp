@@ -95,6 +95,10 @@ enum {
     LBR_GRU_U_PRIME = 3,
 };
 
+// dlc is different at the cell level and the primitive level
+// This enum enable to explicitely query the intended one
+enum dlc_type_t { CELL, PRIMITIVE };
+
 template <typename Telem>
 struct array_offset_calculator {
     array_offset_calculator() = default;
@@ -211,6 +215,7 @@ struct settings_t {
             dnnl_unidirectional_left2right};
     std::vector<activation_t> activation {UNDEF};
     std::vector<bool> skip_nonlinear {false};
+    std::vector<bool> trivial_strides {false};
     std::vector<bool> with_peephole {false};
     std::vector<bool> with_projection {false};
     std::vector<int64_t> mb {0};
@@ -237,7 +242,8 @@ struct prb_t : public desc_t {
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, const attr_t &attr,
             policy_t scale_policy, unsigned int flags, activation_t activation,
-            float alpha, float beta, bool skip_nonlinear, int mb = 0)
+            float alpha, float beta, bool skip_nonlinear, bool trivial_strides,
+            int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop2prop_kind(prop))
@@ -253,6 +259,7 @@ struct prb_t : public desc_t {
         , scale_policy(scale_policy)
         , ops(0.0)
         , skip_nonlinear(skip_nonlinear)
+        , trivial_strides(trivial_strides)
         , linear_cscale(0.0f) {
 
         if (mb) this->mb = mb;
@@ -303,8 +310,13 @@ struct prb_t : public desc_t {
     int64_t n_bias() const {
         return alg == LBR_GRU ? n_gates() + 1 : n_gates();
     }
-    int64_t dlc() const {
-        return (direction == dnnl_bidirectional_concat ? 2 : 1) * dhc;
+
+    int64_t dlc(dlc_type_t type) const {
+        if (type == PRIMITIVE)
+            return (direction == dnnl_bidirectional_concat ? 2 : 1) * dic;
+        if (type == CELL) return dic;
+        assert(!"unsupported dlc type");
+        return 0;
     }
 
     bool is_int8() const { return cfg[SRC_LAYER].dt == dnnl_u8; }
@@ -330,6 +342,7 @@ struct prb_t : public desc_t {
     float *wei_oc_scales;
 
     bool skip_nonlinear;
+    bool trivial_strides;
     float *linear_scales;
     float linear_cscale;
 
@@ -385,7 +398,7 @@ private:
 
 void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
         AOC<float> &ws_src_layer, AOC<float> &ws_src_iter,
-        AOC<float> &ws_src_iter_c, AOC<float> &ws_gates);
+        AOC<float> &ws_src_iter_c, AOC<float> &ws_gates, AOC<float> &ws_ht);
 
 void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
         const float *src_iter_, const float *src_iter_c_,
@@ -394,7 +407,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
         const float *bias_, float *dst_layer_, float *dst_iter_,
         float *dst_iter_c_, const AOC<float> &ws_src_layer,
         const AOC<float> &ws_src_iter, const AOC<float> &ws_src_iter_c,
-        const AOC<float> &ws_gates);
+        const AOC<float> &ws_gates, const AOC<float> &ws_ht);
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,
         dnn_mem_t &src_iter_m, dnn_mem_t &src_iter_c_m,

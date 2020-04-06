@@ -133,6 +133,9 @@ bool parse_inplace(std::vector<bool> &inplace, const char *str,
 bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
         const std::string &option_name = "skip-nonlinear");
 
+bool parse_trivial_strides(std::vector<bool> &skip, const char *str,
+        const std::string &option_name = "trivial-strides");
+
 bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
         const std::string &option_name = "scaling");
 

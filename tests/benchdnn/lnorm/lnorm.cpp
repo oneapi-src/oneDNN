@@ -441,11 +441,11 @@ static int init_pd(const prb_t *p, dnnl_primitive_desc_t &lpd, res_t *r) {
 
     const char *impl_str = query_impl_info(lpd);
     if (maybe_skip(impl_str)) {
-        BENCHDNN_PRINT(2, "SKIPPED: dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(2, "SKIPPED: oneDNN implementation: %s\n", impl_str);
         DNN_SAFE(dnnl_primitive_desc_destroy(lpd), WARN);
         return r->state = SKIPPED, OK;
     } else {
-        BENCHDNN_PRINT(5, "dnnl implementation: %s\n", impl_str);
+        BENCHDNN_PRINT(5, "oneDNN implementation: %s\n", impl_str);
         if (!strstr(impl_str, "jit")) {
             BENCHDNN_PRINT(2, "WARNING: %s",
                     "accuracy of the implementation being tested "

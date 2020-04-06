@@ -41,7 +41,8 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine());
 
-            const auto attr_skip_mask = primitive_attr_t::skip_mask_t::oscale
+            const auto attr_skip_mask
+                    = primitive_attr_t::skip_mask_t::oscale_runtime
                     | primitive_attr_t::skip_mask_t::post_ops;
 
             bool ok = set_default_alg_kind(alg_kind::convolution_direct)
@@ -133,6 +134,10 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
             return with_scales() && attr()->output_scales_.mask_ == (1 << 1);
         }
 
+        bool with_runtime_scales() const {
+            return with_per_oc_scales() && !attr()->output_scales_.defined();
+        }
+
         conv_conf_t conf;
         offsets_t off;
 
@@ -147,7 +152,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
         }
 
         status_t init_scales_md() {
-            if (with_per_oc_scales()) {
+            if (with_per_oc_scales() && !with_runtime_scales()) {
                 scales_md_.data_type = data_type::f32;
                 scales_md_.ndims = 1;
                 scales_md_.dims[0] = attr()->output_scales_.count_;
@@ -161,7 +166,7 @@ struct ref_convolution_fwd_t : public primitive_impl_t {
     };
 
     status_t init() override {
-        if (pd()->with_per_oc_scales()) {
+        if (pd()->with_per_oc_scales() && !pd()->with_runtime_scales()) {
             memory_desc_wrapper scales_mdw(pd()->scales_md());
             scales_mem_.reset(new memory_t(engine(), pd()->scales_md(),
                     memory_flags_t::alloc, nullptr));

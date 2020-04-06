@@ -57,7 +57,8 @@ public:
     virtual status_t create_memory_storage(memory_storage_t **storage,
             unsigned flags, size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
+    virtual status_t create_stream(stream_t **stream, unsigned flags,
+            const stream_attr_t *attr) override;
     status_t create_stream(stream_t **stream, cl_command_queue queue);
 
     virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,

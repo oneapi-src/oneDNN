@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "jit_avx512_core_x8s8s32x_deconvolution.hpp"
+#include "dnnl_thread.hpp"
 
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 
@@ -37,7 +38,7 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         jit_conv_conf_t &jcp, const deconvolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &weights_md, memory_desc_t &dst_md,
         const bool with_bias, memory_desc_t &bias_md,
-        const primitive_attr_t &attr) {
+        const primitive_attr_t &attr, int nthreads) {
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -51,6 +52,7 @@ status_t jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
         return status::unimplemented;
 
     jcp = zero<decltype(jcp)>();
+    jcp.nthr = nthreads;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     jcp.signed_input = src_d.data_type() == data_type::s8;
@@ -944,7 +946,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     int32_t *compensation
             = (jcp.signed_input) ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         int work_amount = jcp.mb * nb_groups * oc_chunks;
         balance211(work_amount, nthr, ithr, start, end);
@@ -1031,7 +1033,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     int32_t *compensation
             = (jcp.signed_input) ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.oh;
         balance211(work_amount, nthr, ithr, start, end);
@@ -1177,7 +1179,7 @@ void _jit_avx512_core_x8s8s32x_deconvolution_fwd_t<src_type,
     int32_t *compensation
             = (jcp.signed_input) ? reinterpret_cast<int32_t *>(&w[offset]) : 0;
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
         int work_amount = jcp.mb * nb_groups * oc_chunks * jcp.od * jcp.oh;
         balance211(work_amount, nthr, ithr, start, end);

@@ -189,6 +189,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
+    auto &oscales = CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
 
     auto eltwise_alpha = pd()->eltwise_alpha();
@@ -212,7 +213,10 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             arg_list.set(8, scales);
         }
         if (pd()->with_per_oc_scales()) {
-            arg_list.set(8, *scales_mem_->memory_storage());
+            if (pd()->with_runtime_scales())
+                arg_list.set(8, oscales);
+            else
+                arg_list.set(8, *scales_mem_->memory_storage());
         }
     }
 

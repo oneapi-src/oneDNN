@@ -194,21 +194,49 @@ extern dnnl_scratchpad_mode_t scratchpad_mode;
 extern dnnl_engine_t engine_cpu;
 extern dnnl_stream_t stream_cpu;
 
-/* for fast-ref-gpu support */
-extern dnnl_engine_t engine_cpu;
-extern dnnl_stream_t stream_cpu;
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "dnnl_threadpool_iface.hpp"
+// XXX: cannot include dnnl_thread.hpp because of conflicting macro
+// definitions
+namespace dnnl {
+namespace impl {
+namespace threadpool_utils {
+threadpool_iface *get_active_threadpool();
+}
+} // namespace impl
+} // namespace dnnl
+#endif
+
+inline int create_dnnl_stream(
+        dnnl_stream_t *stream, dnnl_engine_t engine, unsigned flags) {
+    dnnl_engine_kind_t engine_kind;
+    DNN_SAFE(dnnl_engine_get_kind(engine, &engine_kind), CRIT);
+
+    dnnl_stream_attr_t stream_attr;
+    DNN_SAFE(dnnl_stream_attr_create(&stream_attr, engine_kind), CRIT);
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    if (engine_kind == dnnl_cpu) {
+        SAFE_V(dnnl_stream_attr_set_threadpool(stream_attr,
+                dnnl::impl::threadpool_utils::get_active_threadpool()));
+    }
+#endif
+
+    DNN_SAFE(dnnl_stream_create_v2(stream, engine, flags, stream_attr), CRIT);
+    dnnl_stream_attr_destroy(stream_attr);
+    return OK;
+}
 
 inline int init() {
     if (!engine_tgt) {
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
-        DNN_SAFE(dnnl_stream_create(
-                         &stream_tgt, engine_tgt, dnnl_stream_default_flags),
+        SAFE(create_dnnl_stream(
+                     &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
     }
     if (!engine_cpu) {
         DNN_SAFE(dnnl_engine_create(&engine_cpu, dnnl_cpu, 0), CRIT);
-        DNN_SAFE(dnnl_stream_create(
-                         &stream_cpu, engine_cpu, dnnl_stream_default_flags),
+        SAFE(create_dnnl_stream(
+                     &stream_cpu, engine_cpu, dnnl_stream_default_flags),
                 CRIT);
     }
 

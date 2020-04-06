@@ -637,6 +637,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     int ndims = src_d.ndims();
 
     jcp = zero<decltype(jcp)>();
+    jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
     jcp.ver = ver_vnni;
@@ -810,7 +811,7 @@ status_t jit_avx512_core_bf16_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.ow_block = jcp.ow;
     if (is_ow_threading_available(jcp)) {
-        const int L1_part = get_cache_size(1) * 5 / 8;
+        const int L1_part = get_per_core_cache_size(1) * 5 / 8;
         int size_src_chunk = jcp.typesize_in * jcp.ic_block * jcp.ur_w;
         int size_dst_chunk = jcp.typesize_out * jcp.oc_block
                 * jcp.nb_oc_blocking * jcp.ur_w;
@@ -1228,6 +1229,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
 
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
+    jcp.nthr = nthreads;
     jcp.ver = ver_vnni;
     jcp.ndims = ndims;
     jcp.prop_kind = cd.prop_kind;
@@ -1422,18 +1424,18 @@ status_t jit_avx512_core_bf16_bwd_data_kernel::init_conf(jit_conv_conf_t &jcp,
         int ic_chunks = jcp.nb_ic / jcp.nb_ic_blocking;
         int work_units = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih;
         float no_iw_block_eff
-                = (float)work_units / rnd_up(work_units, nthreads);
+                = (float)work_units / rnd_up(work_units, jcp.nthr);
 
         // current design of generate() requires iw_block >= 2 * ur_w
         const int min_iw_block = jcp.ur_w * 2;
-        int iw_threads = nthreads / math::gcd(work_units, nthreads);
+        int iw_threads = jcp.nthr / math::gcd(work_units, jcp.nthr);
         int iw_block = nstl::max(min_iw_block,
                 rnd_up(jcp.iw, jcp.ur_w * iw_threads) / iw_threads);
         int nb_iw = div_up(jcp.iw, iw_block);
 
         float block_eff = (float)jcp.iw / rnd_up(jcp.iw, iw_block);
         work_units = jcp.ngroups * jcp.mb * ic_chunks * jcp.ih * nb_iw;
-        float work_eff = (float)work_units / rnd_up(work_units, nthreads);
+        float work_eff = (float)work_units / rnd_up(work_units, jcp.nthr);
         float iw_block_eff = block_eff * work_eff;
 
         const int iw_thread_min_size = 16 * 128;
@@ -3445,7 +3447,7 @@ void jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::generate() {
 status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         jit_conv_conf_t &jcp, const convolution_desc_t &cd,
         memory_desc_t &src_md, memory_desc_t &diff_weights_md,
-        memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md) {
+        memory_desc_t &diff_bias_md, memory_desc_t &diff_dst_md, int nthreads) {
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
 
     const memory_desc_wrapper src_d(&src_md);
@@ -3457,6 +3459,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     int ndims = src_d.ndims();
 
     jcp = zero<decltype(jcp)>();
+    jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
     jcp.ver = ver_vnni;
@@ -3581,7 +3584,7 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
     const bool boundaries_ok = true && jcp.l_pad < ext_kw && jcp.r_pad < ext_kw
             && jcp.t_pad <= max_pad_h && jcp.b_pad <= max_pad_h
             && jcp.f_pad < ext_kd && jcp.back_pad < ext_kd
-            && IMPLICATION(jcp.is_1stconv && jcp.ow > max_ur_w,
+            && IMPLICATION(jcp.ow > max_ur_w,
                     jcp.l_pad < max_ur_w && ext_kw <= jcp.ow);
     if (!boundaries_ok) return status::unimplemented;
 
@@ -3608,7 +3611,8 @@ status_t jit_avx512_core_bf16_conv_bwd_weights_kernel_f32::init_conf(
         while (jcp.ic_block % jcp.ic_block_step != 0)
             jcp.ic_block_step--;
     } else {
-        jcp.ic_block_step = jcp.kw <= 3 ? 8 : (jcp.kw < 7 ? 4 : 2);
+        jcp.ic_block_step
+                = jcp.kw <= 3 ? 8 : (jcp.kw < 7 ? 4 : (jcp.kw <= 12 ? 2 : 1));
     }
 
     // jcp.uses_permw_transposition = false shows better performance for

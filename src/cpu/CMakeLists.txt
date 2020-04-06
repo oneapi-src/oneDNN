@@ -26,24 +26,14 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/xbyak
     )
 
-# Exclude sources for JIT profiling when JIT profiling is disabled
-if(NOT DNNL_ENABLE_JIT_PROFILING)
-    set(sources_all "${SOURCES}")
-    set(SOURCES)
-    foreach(src ${sources_all})
-        string(REGEX MATCH ".*jitprofiling.*" match ${src})
-        if(NOT match)
-            list(APPEND SOURCES ${src})
-        endif()
-    endforeach()
-endif()
-
-# FIXME: list(FILTER ...) is not supported by CMake 2.8.
-# Don't build sources from linux_perf direcotry if JIT Profiling isn't enabled.
+# Don't enable support for linux_perf and VTune if JIT Profiling is disabled.
 # NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.
-# if(NOT DNNL_ENABLE_JIT_PROFILING)
-#     list(FILTER SOURCES EXCLUDE REGEX "linux_perf")
-# endif()
+if(NOT DNNL_ENABLE_JIT_PROFILING)
+    list(REMOVE_ITEM SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/jitprofiling/jitprofiling.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
+        )
+endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
@@ -54,6 +44,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     file(GLOB FILES_REQUIRED_PREC_DIV
         ${CMAKE_CURRENT_SOURCE_DIR}/*resampling*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ref_eltwise.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ref_rnn.cpp)
     if(WIN32)
         set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
@@ -86,8 +77,6 @@ else()
         PROPERTIES COMPILE_FLAGS "-O0 -U_FORTIFY_SOURCE")
 endif()
 
-
-# XXX: Compilation with Intel(R) oneAPI DPC++ Compiler takes too long for JIT kernels
 if(DNNL_SYCL_DPCPP)
     set(FILES_WITHNO_OPT)
     foreach(src in ${SOURCES})

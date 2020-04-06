@@ -47,7 +47,8 @@ status_t ocl_gpu_engine_t::init() {
     if (status != status::success) return status;
 
     stream_t *service_stream_ptr;
-    status = create_stream(&service_stream_ptr, stream_flags::default_flags);
+    status = create_stream(
+            &service_stream_ptr, stream_flags::default_flags, nullptr);
     if (status != status::success) return status;
     service_stream_.reset(service_stream_ptr);
     return status::success;
@@ -66,7 +67,9 @@ status_t ocl_gpu_engine_t::create_memory_storage(
     return status::success;
 }
 
-status_t ocl_gpu_engine_t::create_stream(stream_t **stream, unsigned flags) {
+status_t ocl_gpu_engine_t::create_stream(
+        stream_t **stream, unsigned flags, const stream_attr_t *attr) {
+    MAYBE_UNUSED(attr);
     return ocl_stream_t::create_stream(stream, this, flags);
 }
 

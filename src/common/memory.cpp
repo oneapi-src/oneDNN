@@ -25,6 +25,7 @@
 #include "engine.hpp"
 #include "memory.hpp"
 #include "memory_desc_wrapper.hpp"
+#include "stream.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -527,8 +528,16 @@ status_t dnnl_memory_get_data_handle(const memory_t *memory, void **handle) {
 }
 
 status_t dnnl_memory_set_data_handle(memory_t *memory, void *handle) {
+    return dnnl_memory_set_data_handle_v2(memory, handle, nullptr);
+}
+
+status_t dnnl_memory_set_data_handle_v2(
+        memory_t *memory, void *handle, stream_t *stream) {
     if (any_null(memory)) return invalid_arguments;
-    return memory->set_data_handle(handle);
+    if (stream) stream->before_exec_hook();
+    status_t status = memory->set_data_handle(handle);
+    if (stream) stream->after_exec_hook();
+    return status;
 }
 
 status_t dnnl_memory_map_data(const memory_t *memory, void **mapped_ptr) {

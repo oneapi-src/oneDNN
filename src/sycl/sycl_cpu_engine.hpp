@@ -45,8 +45,9 @@ public:
                 storage, flags, size, handle);
     }
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override {
-        return sycl_engine_base_t::create_stream(stream, flags);
+    virtual status_t create_stream(stream_t **stream, unsigned flags,
+            const stream_attr_t *attr) override {
+        return sycl_engine_base_t::create_stream(stream, flags, attr);
     }
 
     virtual const reorder_primitive_desc_create_f *

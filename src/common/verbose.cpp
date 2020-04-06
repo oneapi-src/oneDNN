@@ -54,7 +54,7 @@
 #include "sycl/verbose.hpp"
 #endif
 
-/* DNNL CPU ISA info */
+/* oneDNN CPU ISA info */
 #define ISA_ANY "Intel 64"
 #define SSE41 "Intel SSE4.1"
 #define AVX "Intel AVX"
@@ -77,14 +77,16 @@ static setting_t<int> verbose {0};
 int get_verbose() {
 #if !defined(DISABLE_VERBOSE)
     if (!verbose.initialized()) {
+        // Assumes that all threads see the same environment
         const int len = 2;
         char val[len] = {0};
         if (getenv("MKLDNN_VERBOSE", val, len) == 1) verbose.set(atoi(val));
         if (getenv("DNNL_VERBOSE", val, len) == 1) verbose.set(atoi(val));
+        if (!verbose.initialized()) verbose.set(0);
     }
     static bool version_printed = false;
     if (!version_printed && verbose.get() > 0) {
-        printf("dnnl_verbose,info,DNNL v%d.%d.%d (commit %s)\n",
+        printf("dnnl_verbose,info,oneDNN v%d.%d.%d (commit %s)\n",
                 dnnl_version()->major, dnnl_version()->minor,
                 dnnl_version()->patch, dnnl_version()->hash);
         printf("dnnl_verbose,info,cpu,runtime:%s\n",

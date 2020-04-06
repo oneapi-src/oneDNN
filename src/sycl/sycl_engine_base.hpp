@@ -49,7 +49,7 @@ public:
         CHECK(gpu::compute::compute_engine_t::init());
         stream_t *service_stream_ptr;
         status_t status = create_stream(
-                &service_stream_ptr, stream_flags::default_flags);
+                &service_stream_ptr, stream_flags::default_flags, nullptr);
         if (status != status::success) return status;
         service_stream_.reset(service_stream_ptr);
         return status::success;
@@ -58,7 +58,8 @@ public:
     virtual status_t create_memory_storage(memory_storage_t **storage,
             unsigned flags, size_t size, void *handle) override;
 
-    virtual status_t create_stream(stream_t **stream, unsigned flags) override;
+    virtual status_t create_stream(stream_t **stream, unsigned flags,
+            const stream_attr_t *attr) override;
     status_t create_stream(stream_t **stream, cl::sycl::queue &queue);
 
     virtual status_t create_kernels(

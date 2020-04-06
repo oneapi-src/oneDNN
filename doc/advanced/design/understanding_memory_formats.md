@@ -10,8 +10,7 @@ memory to facilitate performing operations fast and in the most convenient way.
 
 This article is devoted to **data format** -- one form of data representation
 that describes how multidimensional arrays (nD) are stored in linear (1D) memory
-address space and why this is important for
-[Deep Neural Network Library (DNNL)](https://github.com/intel/mkl-dnn/).
+address space and why this is important for oneDNN.
 
 @note For the purpose of this article, data *format* and *layout* are used
 interchangeably.
@@ -116,9 +115,9 @@ in this example.
 
 One can create memory with **NCHW** data layout using
 #dnnl_nchw of the enum type #dnnl_format_tag_t defined in
-[dnnl_types.h](https://github.com/intel/mkl-dnn/blob/master/include/dnnl_types.h)
+[dnnl_types.h](https://github.com/oneapi-src/oneDNN/blob/master/include/dnnl_types.h)
 for the C API, and dnnl::memory::format_tag::nchw defined in
-[dnnl.hpp](https://github.com/intel/mkl-dnn/blob/master/include/dnnl.hpp)
+[dnnl.hpp](https://github.com/oneapi-src/oneDNN/blob/master/include/dnnl.hpp)
 for the C++ API.
 
 
@@ -211,7 +210,7 @@ A user can initialize a memory descriptor with strides:
 ~~~
 
 
-DNNL supports strides via blocking structure. The pseudo-code for
+oneDNN supports strides via blocking structure. The pseudo-code for
 the function above is:
 ~~~cpp
     memory_desc_t md; // memory descriptor object
@@ -227,7 +226,7 @@ the function above is:
     };
 ~~~
 In particular, whenever a user creates memory with the #dnnl_nchw format,
-DNNL computes the strides and fills the structure on behalf of the
+oneDNN computes the strides and fills the structure on behalf of the
 user.
 
 
@@ -238,9 +237,9 @@ why most of the frameworks and applications use either the **NCHW** or **NHWC**
 layout. However, depending on the operation that is performed on data, it might
 turn out that those layouts are sub-optimal from the performance perspective.
 
-In order to achieve better vectorization and cache re-usage DNNL
+In order to achieve better vectorization and cache reuse oneDNN
 introduces blocked layout that splits one or several dimensions into the
-blocks of fixed size. The most popular DNNL data format is
+blocks of fixed size. The most popular oneDNN data format is
 **nChw16c** on AVX512+ systems and **nChw8c** on SSE4.1+ systems. As one might
 guess from the name the only dimension that is blocked is channels and the
 block size is either 16 in the former case or 8 in the later case.
@@ -268,7 +267,7 @@ between the blocks (e.g. 8c) and the remaining co-dimension (**C** = channels
 The reason behind the format choice can be found in
 [this paper](https://arxiv.org/pdf/1602.06709v1.pdf).
 
-DNNL describes this type of memory via blocking structure as well. The
+oneDNN describes this type of memory via blocking structure as well. The
 pseudo-code is:
 ~~~cpp
     memory_desc_t md;
@@ -307,7 +306,7 @@ One of the possible ways to handle that would be to use blocked layout for as
 many channels as possible by rounding them down to a number that is a multiple
 of the block size (in this case `16 = 17 / 8 * 8`) and process the tail somehow.
 However, that would lead to the introduction of very special tail-processing
-code into many DNNL kernels.
+code into many oneDNN kernels.
 
 So we came up with another solution using zero-padding. The idea is to round the
 channels up to make them multiples of the block size and pad the resulting tail
@@ -342,14 +341,14 @@ Some pitfalls of the given approach:
   dnnl::memory::desc::get_size() in C++.
 
 - Element-wise operations that are implemented in the user's code and directly
-  operate on DNNL blocked layout like this:
+  operate on oneDNN blocked layout like this:
   ~~~
       for (int e = 0; e < phys_size; ++e)
           x[e] = eltwise_op(x[e])
   ~~~
   are not safe if the data is padded with zeros and `eltwise_op(0) != 0`.
 
-Relevant DNNL code:
+Relevant oneDNN code:
 ~~~cpp
     const int C = 17;
     const int C_padded = div_up(17, 8) * 8; // 24

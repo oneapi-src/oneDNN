@@ -188,27 +188,27 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
     return isa == avx512_core_bf16;
 }
 
-inline unsigned int get_cache_size(int level, bool per_core = true) {
-    unsigned int l = level - 1;
-    // Currently, if XByak is not able to fetch the cache topology
-    // we default to 32KB of L1, 512KB of L2 and 1MB of L3 per core.
+inline unsigned get_per_core_cache_size(int level) {
     if (cpu.getDataCacheLevels() == 0) {
-        const int L1_cache_per_core = 32000;
-        const int L2_cache_per_core = 512000;
-        const int L3_cache_per_core = 1024000;
-        int num_cores = per_core ? 1 : dnnl_get_max_threads();
-        switch (l) {
-            case (0): return L1_cache_per_core * num_cores;
-            case (1): return L2_cache_per_core * num_cores;
-            case (2): return L3_cache_per_core * num_cores;
+        // If Xbyak is not able to fetch the cache topology, default to 32KB
+        // of L1, 512KB of L2 and 1MB of L3 per core.
+        switch (level) {
+            case (1): return 32U * 1024;
+            case (2): return 512U * 1024;
+            case (3): return 1024U * 1024;
             default: return 0;
         }
     }
-    if (l < cpu.getDataCacheLevels()) {
-        return cpu.getDataCacheSize(l)
-                / (per_core ? cpu.getCoresSharingDataCache(l) : 1);
+
+    if (level > 0 && (unsigned)level <= cpu.getDataCacheLevels()) {
+        unsigned l = level - 1;
+        return cpu.getDataCacheSize(l) / cpu.getCoresSharingDataCache(l);
     } else
         return 0;
+}
+
+inline unsigned get_num_cores() {
+    return cpu.getNumCores(Xbyak::util::CoreLevel);
 }
 
 } // namespace

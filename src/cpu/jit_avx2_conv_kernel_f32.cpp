@@ -425,6 +425,8 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     if (!mayiuse(avx)) return status::unimplemented;
 
+    jcp.nthr = dnnl_get_max_threads();
+
     jcp.prop_kind = cd.prop_kind;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -845,6 +847,8 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &diff_dst_d) {
     if (!mayiuse(avx2)) return status::unimplemented;
+
+    jcp.nthr = dnnl_get_max_threads();
 
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
 

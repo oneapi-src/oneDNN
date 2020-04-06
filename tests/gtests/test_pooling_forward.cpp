@@ -170,7 +170,7 @@ protected:
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_scoring);
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_pool_desc_t pd = p.test_pd;

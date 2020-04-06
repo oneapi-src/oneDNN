@@ -84,7 +84,7 @@ void swap(T &t1, T &t2) {
     t2 = tmp;
 }
 
-// Rationale: DNNL needs numeric limits implementation that does not
+// Rationale: oneDNN needs numeric limits implementation that does not
 // generate dependencies on C++ run-time libraries.
 
 template <typename T>
@@ -161,7 +161,7 @@ struct is_same<T, T> {
     static constexpr bool value = true;
 };
 
-// Rationale: DNNL needs container implementations that do not generate
+// Rationale: oneDNN needs container implementations that do not generate
 // dependencies on C++ run-time libraries.
 //
 // Implementation philosophy: caller is responsible to check if the operation
@@ -170,12 +170,12 @@ struct is_same<T, T> {
 //
 // This means that e.g. an operator [] does not have to check for boundaries.
 // The caller should have checked the boundaries. If it did not we crash and
-// burn: this is a bug in DNNL and throwing an exception would not have been
+// burn: this is a bug in oneDNN and throwing an exception would not have been
 // recoverable.
 //
 // On the other hand, insert() or resize() or a similar operation needs to
 // return a status because the outcome depends on factors external to the
-// caller. The situation is probably also not recoverable also, but DNNL
+// caller. The situation is probably also not recoverable also, but oneDNN
 // needs to be nice and report "out of memory" to the users.
 
 enum nstl_status_t { success = 0, out_of_memory };

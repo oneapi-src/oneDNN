@@ -20,23 +20,23 @@
 
 /// @page performance_profiling_cpp Performance Profiling Example
 /// This example demonstrates the best practices for application performance
-/// optimizations with DNNL.
+/// optimizations with oneDNN.
 ///
 /// > Example code: @ref performance_profiling.cpp
 ///
 /// This example uses [DNNL_VERBOSE](@ref dev_guide_verbose) trace output
-/// to tune DNNL code to align
+/// to tune oneDNN code to align
 /// with the [best practices](@ref dev_guide_inference).
 ///
 /// It will assume knowledge of memory formats and their usage in
-/// DNNL. You can read more about this topic
+/// oneDNN. You can read more about this topic
 /// [here](@ref memory_format_propagation_cpp).
 ///
 /// The example has three different implementations of the mathematical
 /// operation:
 /// 1. *Naive implementation* executes 2D convolution followed by
 /// ReLU on the data in **NCHW** format. This implementation
-/// does not align with DNNL best practices and results in
+/// does not align with oneDNN best practices and results in
 /// suboptimal performance.
 /// 2. *Blocked format implementation* executes the same operations
 /// sequence on the **blocked format** optimized for convolution
@@ -69,9 +69,9 @@
 /// export DNNL_VERBOSE=1
 /// ~~~
 ///
-/// The program starts by creating DNNL memory objects in **NCHW**
+/// The program starts by creating oneDNN memory objects in **NCHW**
 /// format. These are called `user_` because they are meant to represent the
-/// user's source data entering DNNL with the NCHW format.
+/// user's source data entering oneDNN with the NCHW format.
 /// @page performance_profiling_cpp
 /// @snippet performance_profiling.cpp Set dimensions
 /// @note Here the library allocates memory.
@@ -153,7 +153,7 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
     /// First it sets the dimensions and format for convolution memory
     /// descriptors (`_md`) to match `user_` values--one `md` each for source,
     /// destination, and weight data. Then it uses those `md` to create the
-    /// convolution descriptor `conv_d`, which tells DNNL to use
+    /// convolution descriptor `conv_d`, which tells oneDNN to use
     /// plain format (NCHW) for the convolution.
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create mem_desc
@@ -220,7 +220,7 @@ void conv_relu_naive(memory user_src, memory user_wei, memory user_dst,
     /// dnnl_verbose,exec,cpu,eltwise,jit:avx512_common,forward_inference,data_f32::blocked:abcd:f0 diff_undef::undef::f0,,alg:eltwise_relu alpha:0 beta:0,128x96x55x55,2.87695
     /// ~~~
     /// In *Blocked format implementation*, we will incorporate the best
-    /// practice of letting DNNL determine the optimal format
+    /// practice of letting oneDNN determine the optimal format
     /// for convolution primitive.
 }
 
@@ -239,9 +239,9 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     ///
     /// First it creates the md as in **naive implementation**. Next it changes
     /// the dnnl::memory::format_tag for each md to `ANY`. Then it uses those
-    /// md to create the convolution descriptor conv_d, which tells Intel
-    /// DNNL to use whatever format it recommends for the convolution.
-    /// DNNL will choose a friendly blocked format.
+    /// md to create the convolution descriptor conv_d, which tells oneDNN
+    /// to use whatever format it recommends for the convolution.
+    /// oneDNN will choose a friendly blocked format.
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Create mem_desc with tag=any
     // [Create mem_desc with tag=any]
@@ -278,7 +278,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// input data to blocked format if required.
     /// The input data user_src is NCHW, so this conditional will be triggered:
     ///
-    /// @note The reoders are applied using DNNL `reorder` primitive.
+    /// @note The reoders are applied using oneDNN `reorder` primitive.
     /// @page performance_profiling_cpp
     /// @snippet performance_profiling.cpp Conditionally create and execute reorder prims
     // [Conditionally create and execute reorder prims]
@@ -333,7 +333,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     }
     s.wait();
     /// @page performance_profiling_cpp
-    /// Blocked memory format is recommended for DNNL primitive
+    /// Blocked memory format is recommended for oneDNN primitive
     /// execution and provides better performance, as shown in the
     /// DNNL_VERBOSE output by the convolution and relu execution times of
     /// 18.3 and 2.7 milliseconds (down from 38.3 and 2.9 in
@@ -341,7 +341,7 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// In this implementation, there is an additional reorder operation that
     /// executes before and after the the conv + relu. This small cost is worth
     /// the gain from executing in blocked format. If fact, it becomes
-    /// negligible when chaining together multiple DNNL operations in
+    /// negligible when chaining together multiple oneDNN operations in
     /// succession. In these situations, you can do one reorder at the beginning
     /// and one at the end of the chain, and only pay the reorder penalty at
     /// those points in the execution.
@@ -354,10 +354,10 @@ void conv_relu_blocked(memory user_src, memory user_wei, memory user_dst,
     /// dnnl_verbose,exec,cpu,reorder,jit:uni,undef,src_f32::blocked:aBcd16b:f0 dst_f32::blocked:abcd:f0,,,128x96x55x55,4.80396
     /// ~~~
     /// This inference implementation is closer to best practices than
-    /// *naive implementation* because it uses DNNL recommended memory
+    /// *naive implementation* because it uses oneDNN recommended memory
     /// format. *fused implementation* will futher optimize the performance by
-    /// using a fused version of the conv + ReLU primitive emplying the Intel
-    /// DNNL [post-ops attribute](@ref dev_guide_attributes_post_ops)
+    /// fusing convolution with ReLU using oneDNN
+    /// [post-ops](@ref dev_guide_attributes_post_ops).
     // reorder data to the user's format if needed.
 }
 
@@ -456,7 +456,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
     s.wait();
     /// @page performance_profiling_cpp
     /// This implementation complies with best practices for f32 inference by
-    /// using the DNNL recommended blocked format for convolution and
+    /// using the oneDNN recommended blocked format for convolution and
     /// adding ReLU as a post-op to execute a fused version of conv + ReLU.
     /// The consequence to following best practices can be seen in the execution
     /// time of the fused primitive of 18.0 milliseconds.
@@ -481,7 +481,7 @@ void conv_relu_fused(memory user_src, memory user_wei, memory user_dst,
 /// **  **
 /// @page performance_profiling_cpp
 /// @section performance_profiling_cpp_config Configuration Notice
-/// @note This example is meant to demonstrate DNNL best practices.
+/// @note This example is meant to demonstrate oneDNN best practices.
 /// @note It is not meant for benchmarking purposes. The platform is not fully
 /// @note optimized, so the primitive execution times are only relevant in
 /// @note relation to the other times in this example.
@@ -513,7 +513,7 @@ void performance_profiling(engine::kind engine_kind, int argc, char **argv) {
     // [Set dimensions]
 
     // [Create memory objects]
-    // create DNNL memory objects for user's tensors (in nchw and oihw formats)
+    // create oneDNN memory objects for user's tensors (in nchw and oihw formats)
     auto user_src = memory({{BATCH, IC, IH, IW}, memory::data_type::f32,
                                    memory::format_tag::nchw},
             eng);

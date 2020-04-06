@@ -36,7 +36,7 @@ const char *check_alg2str(check_alg_t alg) {
 }
 
 flags_t str2flags(const char *str) {
-    flags_t flags = (flags_t)0;
+    flags_t flags = NONE;
     while (str && *str) {
         if (*str == 'G') flags |= GLOB_STATS;
         if (*str == 'S') flags |= USE_SCALESHIFT;

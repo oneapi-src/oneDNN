@@ -3,7 +3,7 @@ Version 1.0 Transition Guide {#dev_guide_transition_to_v1}
 
 > **NOTE**
 >
-> Starting with version 1.1 Intel(R) MKL-DNN is renamed to DNNL.
+> Starting with version 1.1 Intel MKL-DNN is renamed to DNNL.
 > For consistency, only this guide uses Intel MKL-DNN nomenclature.
 
 ## Introduction
@@ -11,13 +11,13 @@ Version 1.0 Transition Guide {#dev_guide_transition_to_v1}
 This article describes user-visible and some important internal changes to
 Intel MKL-DNN that occurred between v0.20 and v1.0.
 
-The v0.x branch ([mnt-v0](https://github.com/intel/mkl-dnn/tree/mnt-v0)) is
+The v0.x branch ([mnt-v0](https://github.com/oneapi-src/oneDNN/tree/mnt-v0)) is
 deprecated and users are strongly encouraged to migrate to
-[v1.x](https://github.com/intel/mkl-dnn).
+[v1.x](https://github.com/oneapi-src/oneDNN).
 
 @sa
 Discussion on the API changes occurred in PR #384:
-[RFC: API changes for the upcoming v1.0](https://github.com/intel/mkl-dnn/pull/384).
+[RFC: API changes for the upcoming v1.0](https://github.com/oneapi-src/oneDNN/pull/384).
 
 ## Summary of Changes
 
@@ -158,8 +158,8 @@ memory descriptor directly. In order to initialize sub-memory, use
 
 @sa
 For more detail, refer to section
-[4. View rework](https://github.com/intel/mkl-dnn/tree/rfc-api-changes-v1.0/doc/rfc/api-v1.0#4-view-rework)
-of the [RFC for v1.0](https://github.com/intel/mkl-dnn/pull/384).
+[4. View rework](https://github.com/oneapi-src/oneDNN/tree/rfc-api-changes-v1.0/doc/rfc/api-v1.0#4-view-rework)
+of the [RFC for v1.0](https://github.com/oneapi-src/oneDNN/pull/384).
 
 ### 1.8. RNN-specific changes
 
@@ -477,7 +477,7 @@ the user's perspective, the main issues were:
   available.
 - There were multiple ambiguous ways to describe memory. For example, `oihw`
   described memory in the same way as `nchw`, but these formats were different
-  (see [gh#153](https://github.com/intel/mkl-dnn/issues/153)).
+  (see [gh#153](https://github.com/oneapi-src/oneDNN/issues/153)).
 - Support for custom formats was limited.
 - Support for memory views was limited.
 
@@ -524,8 +524,8 @@ in `blocked` format. The API also uses different types for memory format tags
 and kinds to aid correctness.
 
 For more details, refer to the
-[Memory descriptor article](https://github.com/intel/mkl-dnn/blob/rfc-api-changes-v1.0/doc/rfc/api-v1.0/rfc_memory_desc.md)
-of the [RFC for v1.0](https://github.com/intel/mkl-dnn/pull/384).
+[Memory descriptor article](https://github.com/oneapi-src/oneDNN/blob/rfc-api-changes-v1.0/doc/rfc/api-v1.0/rfc_memory_desc.md)
+of the [RFC for v1.0](https://github.com/oneapi-src/oneDNN/pull/384).
 
 ## 5. Changes in the Build System
 

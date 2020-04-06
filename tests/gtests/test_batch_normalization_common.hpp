@@ -90,7 +90,7 @@ protected:
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
 
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
 
         ASSERT_TRUE(isF32(data_type) || isS8(data_type));
 
@@ -143,8 +143,8 @@ protected:
         }
     }
 
-    void Forward(
-            prop_kind pk, normalization_flags flags = (normalization_flags)0u) {
+    void Forward(prop_kind pk,
+            normalization_flags flags = normalization_flags::none) {
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
         bool useGlobalStats
@@ -198,8 +198,8 @@ protected:
                 p, src->get(), mean, variance, weights, dst->get(), flags, pk);
     }
 
-    void Backward(
-            prop_kind pk, normalization_flags flags = (normalization_flags)0u) {
+    void Backward(prop_kind pk,
+            normalization_flags flags = normalization_flags::none) {
         bool useScaleShift
                 = (bool)(flags & normalization_flags::use_scale_shift);
 

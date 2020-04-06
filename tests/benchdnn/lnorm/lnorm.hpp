@@ -37,6 +37,7 @@ namespace lnorm {
 
 using check_alg_t = bnorm::check_alg_t;
 using flags_t = bnorm::flags_t;
+const flags_t NONE = bnorm::NONE;
 const flags_t GLOB_STATS = bnorm::GLOB_STATS;
 const flags_t USE_SCALESHIFT = bnorm::USE_SCALESHIFT;
 const auto flags2str = bnorm::flags2str;
@@ -55,7 +56,7 @@ struct settings_t {
     std::vector<dir_t> dir {FWD_D};
     std::vector<dnnl_data_type_t> dt {dnnl_f32};
     std::vector<std::string> tag {tag::abx}, stat_tag {tag::any};
-    std::vector<flags_t> flags {0};
+    std::vector<flags_t> flags {NONE};
     std::vector<bool> inplace {true};
     check_alg_t check_alg = check_alg_t::ALG_AUTO;
     attr_t attr = {};

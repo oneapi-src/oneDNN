@@ -116,8 +116,9 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     data_t *pbuf;
     size_t row_offset;
     const int nb_buffer = jcp.nb_load_blocking;
-    const int jcp_dw_kh = 3;
+    auto jcp_dw = pd()->jcp_dw_;
     std::vector<data_t *> addrs;
+    void (*dw_jit_ker)(jit_conv_call_s *) = nullptr;
 
     auto step = [](int default_step, int remaining, int tail_step) {
         assert(default_step <= tail_step);
@@ -160,7 +161,7 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
         const int _icb = g * nb_ic + icb;
 
         p.output_data = jcp.with_dw_conv
-                ? pbuf + (ih % jcp_dw_kh) * row_offset
+                ? pbuf + (oh % jcp_dw->kh) * row_offset
                 : &dst[data_blk_off(dst_d, n, _ocb, od, oh, ow)];
         p.bias_data = &bias[_ocb * jcp.oc_block];
 
@@ -213,34 +214,32 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     };
 
     auto ker_dw = [&](int n, int ocb_start, int load_step, int &dw_oh) {
-        auto &jcp_dw = pd()->dw_conv_pd_->jcp_;
+        int oh_1x1 = nstl::max(dw_oh * jcp_dw->stride_h - jcp_dw->t_pad, 0);
 
-        int oh_1x1 = nstl::max(dw_oh * jcp_dw.stride_h - jcp_dw.t_pad, 0);
-
-        for (int i = 0; i < jcp_dw.kh; ++i)
-            addrs[i] = pbuf + ((oh_1x1++) % jcp_dw.kh) * row_offset;
+        for (int i = 0; i < jcp_dw->kh; ++i)
+            addrs[i] = pbuf + ((oh_1x1++) % jcp_dw->kh) * row_offset;
 
         const auto ocb_end = ocb_start + load_step;
         const auto wch_stride
-                = jcp_dw.iw * jcp_dw.nb_ch_blocking * jcp_dw.ch_block;
-        const int dil_h = jcp_dw.dilate_h + 1;
-        const int str_h = jcp_dw.stride_h;
-        const int ch_num = jcp_dw.nb_ch_blocking;
+                = jcp_dw->iw * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
+        const int dil_h = jcp_dw->dilate_h + 1;
+        const int str_h = jcp_dw->stride_h;
+        const int ch_num = jcp_dw->nb_ch_blocking;
         const int ow = 0;
         const int kw = 0;
 
-        for (int ch = ocb_start; ch < ocb_end; ch += jcp_dw.nb_ch_blocking) {
+        for (int ch = ocb_start; ch < ocb_end; ch += jcp_dw->nb_ch_blocking) {
 
             const int i_t_overflow
-                    = nstl::max(0, (int)(jcp_dw.t_pad - dw_oh * str_h));
+                    = nstl::max(0, (int)(jcp_dw->t_pad - dw_oh * str_h));
             const int i_b_overflow
-                    = nstl::max(jcp_dw.ih,
-                              (int)(dw_oh * str_h + (jcp_dw.kh - 1) * dil_h
-                                      - jcp_dw.t_pad + 1))
-                    - jcp_dw.ih;
+                    = nstl::max(jcp_dw->ih,
+                              (int)(dw_oh * str_h + (jcp_dw->kh - 1) * dil_h
+                                      - jcp_dw->t_pad + 1))
+                    - jcp_dw->ih;
 
             const int kh = div_up(i_t_overflow, dil_h);
-            const int kh_padding = jcp_dw.kh - div_up(i_t_overflow, dil_h)
+            const int kh_padding = jcp_dw->kh - div_up(i_t_overflow, dil_h)
                     - div_up(i_b_overflow, dil_h);
 
             jit_conv_call_s par_conv_dw;
@@ -252,15 +251,15 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
             if (bias)
                 par_conv_dw.bias
-                        = &bias_dw[dw_bias_d.blk_off(ch * jcp_dw.ch_block)];
+                        = &bias_dw[dw_bias_d.blk_off(ch * jcp_dw->ch_block)];
 
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
-            par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
+            par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
 
-            kernel_dw_->jit_ker(&par_conv_dw);
+            dw_jit_ker(&par_conv_dw);
 
-            for (int i = 0; i < jcp_dw.kh; ++i)
+            for (int i = 0; i < jcp_dw->kh; ++i)
                 addrs[i] += wch_stride;
         }
     };
@@ -271,16 +270,17 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
                 scratchpad, memory_tracking::names::prefix_fusion);
         auto dw_conv_buffer
                 = dw_scratchpad.get<data_t>(key_fusion_inout_buffer);
-        auto &jcp_dw = pd()->dw_conv_pd_->jcp_;
+        dw_jit_ker = kernel_dw_avx2 ? kernel_dw_avx2->jit_ker
+                                    : kernel_dw_sse41->jit_ker;
 
         const auto dw_conv_buffer_size_
-                = (size_t)jcp_dw.kh * jcp.ow * nb_buffer * jcp.oc_block;
+                = (size_t)jcp_dw->kh * jcp.ow * nb_buffer * jcp.oc_block;
         pbuf = dw_conv_buffer + ithr * dw_conv_buffer_size_;
-        row_offset = dw_conv_buffer_size_ / jcp_dw.kh;
-        addrs.resize(jcp_dw.kh);
+        row_offset = dw_conv_buffer_size_ / jcp_dw->kh;
+        addrs.resize(jcp_dw->kh);
 
-        int bcast_start {0}, bcast_end {0}, ocb_start, ocb_end;
-        balance2D(nthr, ithr, jcp.mb * jcp.ngroups * jcp_dw.oh, bcast_start,
+        int bcast_start {0}, bcast_end {0}, ocb_start {0}, ocb_end {0};
+        balance2D(nthr, ithr, jcp.mb * jcp.ngroups * jcp_dw->oh, bcast_start,
                 bcast_end, nb_oc, ocb_start, ocb_end, 1);
 
         while (ocb_start < ocb_end) {
@@ -292,16 +292,17 @@ void jit_avx2_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
             while (bcast_iter < bcast_end) {
                 int n, g, oh_dw;
                 nd_iterator_init(bcast_iter, n, jcp.mb, g, jcp.ngroups, oh_dw,
-                        jcp_dw.oh);
+                        jcp_dw->oh);
                 if (oh_dw == 0) oh_1x1 = 0; // Reset over mb boundary
-                const int oh_1x1_range = oh_dw * jcp_dw.stride_h - jcp_dw.t_pad;
+                const int oh_1x1_range
+                        = oh_dw * jcp_dw->stride_h - jcp_dw->t_pad;
                 const int oh_1x1_begin = nstl::max(oh_1x1_range, 0);
                 const int oh_1x1_end
-                        = nstl::min(oh_1x1_range + jcp_dw.kh, jcp.oh);
+                        = nstl::min(oh_1x1_range + jcp_dw->kh, jcp.oh);
                 oh_1x1 = nstl::max(
                         oh_1x1_begin, oh_1x1); // Skip rows computed previously
 
-                // dw_spatial to 1x1 spatial conversion. if jcp.oh != jcp_dw.oh
+                // dw_spatial to 1x1 spatial conversion. if jcp.oh != jcp_dw->oh
                 const int bcast_start_1x1
                         = n * jcp.ngroups * jcp.oh + g * jcp.oh + oh_1x1;
                 const int bcast_end_1x1 = bcast_start_1x1 - oh_1x1 + oh_1x1_end;
@@ -437,7 +438,7 @@ void jit_avx2_1x1_convolution_bwd_data_t::execute_backward_data(
         }
     };
 
-    parallel(0, ker);
+    parallel(jcp.nthr, ker);
 }
 
 /* convolution backward wtr weights */
@@ -449,6 +450,9 @@ jit_avx2_1x1_convolution_bwd_weights_t::jit_avx2_1x1_convolution_bwd_weights_t(
     reducer_weights_
             = new cpu_reducer_2d_t<data_type::f32>(pd()->reducer_wei_conf_);
     reducer_bias_ = new cpu_reducer_t<data_type::f32>(pd()->reducer_bia_conf_);
+    if (pd()->with_bias())
+        assert(reducer_weights_->balancer().nthr_
+                == reducer_bias_->balancer().nthr_);
     init_rtus_driver<avx2>(this);
 }
 
@@ -697,29 +701,33 @@ void jit_avx2_1x1_convolution_bwd_weights_t::execute_backward_weights(
             rb->reduce(ithr, diff_bias, reducer_bia_scratchpad);
     };
 
-#if DNNL_THR_SYNC == 1
-    parallel(0, [&](const int ithr, const int nthr) {
-        ker(ithr, nthr);
-        if (pd()->with_bias()) ker_bias(ithr, nthr);
-    });
-#else
-    parallel(0, [&](int ithr, int nthr) { ker(ithr, nthr); });
-    parallel(0, [&](int ithr, int nthr) {
-        assert(nthr == rw->balancer().nthr_);
-        MAYBE_UNUSED(nthr);
-        if (rw->balancer().ithr_njobs(ithr) == 0) return;
-        rw->reduce_nolock(ithr, diff_weights, reducer_wei_scratchpad);
-    });
-    if (pd()->with_bias()) {
-        parallel(0, [&](int ithr, int nthr) { ker_bias(ithr, nthr); });
-        parallel(0, [&](int ithr, int nthr) {
-            assert(nthr == rb->balancer().nthr_);
-            MAYBE_UNUSED(nthr);
-            if (rb->balancer().ithr_njobs(ithr) == 0) return;
-            rb->reduce_nolock(ithr, diff_bias, reducer_bia_scratchpad);
+    if (dnnl_thr_syncable()) {
+        assert(IMPLICATION(pd()->with_bias(),
+                rw->balancer().nthr_ == rb->balancer().nthr_));
+        parallel(rw->balancer().nthr_, [&](const int ithr, const int nthr) {
+            ker(ithr, nthr);
+            if (pd()->with_bias()) ker_bias(ithr, nthr);
         });
+    } else {
+        parallel(rw->balancer().nthr_,
+                [&](int ithr, int nthr) { ker(ithr, nthr); });
+        parallel(rw->balancer().nthr_, [&](int ithr, int nthr) {
+            assert(nthr == rw->balancer().nthr_);
+            MAYBE_UNUSED(nthr);
+            if (rw->balancer().ithr_njobs(ithr) == 0) return;
+            rw->reduce_nolock(ithr, diff_weights, reducer_wei_scratchpad);
+        });
+        if (pd()->with_bias()) {
+            parallel(rb->balancer().nthr_,
+                    [&](int ithr, int nthr) { ker_bias(ithr, nthr); });
+            parallel(rb->balancer().nthr_, [&](int ithr, int nthr) {
+                assert(nthr == rb->balancer().nthr_);
+                MAYBE_UNUSED(nthr);
+                if (rb->balancer().ithr_njobs(ithr) == 0) return;
+                rb->reduce_nolock(ithr, diff_bias, reducer_bia_scratchpad);
+            });
+        }
     }
-#endif
 
     /* TODO: put this in ker_bias */
     if (pd()->wants_padded_bias()) {

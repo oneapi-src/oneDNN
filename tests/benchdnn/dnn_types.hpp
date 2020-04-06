@@ -245,7 +245,7 @@ std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t::kind_t &k);
 std::ostream &operator<<(std::ostream &s, const attr_t::post_ops_t &post_ops);
 std::ostream &operator<<(std::ostream &s, const attr_t &attr);
 
-/* Container for becnhdnn description of attributes and dnnl primitive
+/* Container for becnhdnn description of attributes and oneDNN primitive
  * attributes. Also contains the generated scales and zero-points.
  *
  * Usage model:
@@ -260,7 +260,7 @@ struct attr_bundle_t {
     std::vector<float> oscale;
     std::map<int, std::vector<int>> zero_points; // arg -> arg_zero_points
 
-    // constructor to forward already constructed DNNL primitive attributes
+    // constructor to forward already constructed oneDNN primitive attributes
     attr_bundle_t(const_dnnl_primitive_attr_t dnnl_attr)
         : dnnl_attr_((dnnl_primitive_attr_t)dnnl_attr,
                 [](dnnl_primitive_attr_t) {}) {}

@@ -145,7 +145,7 @@ protected:
         const bool is_lstm_projection
                 = p.fmts.weights_projection_fmt != memory::format_tag::undef;
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         //@todo check algorithm is one of the supported by RNN
         //ASSERT_EQ(p.aalgorithm, algorithm::vanilla_lstm);
 
@@ -155,7 +155,7 @@ protected:
         auto t = dims.t, mb = dims.mb, l = dims.l, d = dims.d;
         auto slc = dims.slc, sic = dims.sic, dhc = dims.dhc, dic = dims.dic;
         auto dlc = (p.direction == rnn_direction::bidirectional_concat ? 2 : 1)
-                * dhc;
+                * dic;
         memory::dim g = getNGates();
         memory::dim bias_extra_gate
                 = std::is_same<T, lbr_gru_forward>::value ? 1 : 0;

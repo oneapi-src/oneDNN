@@ -31,10 +31,13 @@ using namespace dnnl::impl::data_type;
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f impl_list[] = {
         INSTANCE(jit_uni_softmax_fwd_t<avx512_common>),
+        INSTANCE(jit_uni_softmax_bwd_t<avx512_common>),
         INSTANCE(jit_uni_softmax_fwd_t<avx2>),
         INSTANCE(jit_uni_softmax_fwd_t<sse41>),
         INSTANCE(ref_softmax_fwd_t<f32>),
         INSTANCE(ref_softmax_bwd_t<f32>),
+        INSTANCE(ref_softmax_fwd_t<bf16>),
+        INSTANCE(ref_softmax_bwd_t<bf16>),
         /* eol */
         nullptr,
 };

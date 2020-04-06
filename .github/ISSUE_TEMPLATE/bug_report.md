@@ -11,11 +11,11 @@ Provide a short summary of the issue. Sections below provide guidance on what
 factors are considered important to reproduce an issue.
 
 # Version
-Report DNNL version and githash. Version information is printed to stdout
-in [verbose mode](http://intel.github.io/mkl-dnn/dev_guide_verbose.html).
+Report oneDNN version and githash. Version information is printed to stdout
+in [verbose mode](https://oneapi-src.github.io/oneDNN/dev_guide_verbose.html).
 
 # Environment
-DNNL includes hardware-specific optimizations and may behave
+oneDNN includes hardware-specific optimizations and may behave
 differently on depending on the compiler and build environment. Include
 the following information to help reproduce the issue:
 * CPU make and model (try `lscpu`; if your `lscpu` does not list CPU flags,
@@ -30,8 +30,8 @@ the following information to help reproduce the issue:
 Please check that the issue is reproducible with the latest revision on
 master. Include all the steps to reproduce the issue. 
 
-You can use [verbose mode](http://intel.github.io/mkl-dnn/dev_guide_verbose.html)
-and [benchdnn](https://github.com/intel/mkl-dnn/tree/master/tests/benchdnn)
+You can use [verbose mode](https://oneapi-src.github.io/oneDNN/dev_guide_verbose.html)
+and [benchdnn](https://github.com/oneapi-src/oneDNN/tree/master/tests/benchdnn)
 to validate correctness of all primitives the library supports. If this does not
 work a short C/C++ program or modified unit tests demonstrating the issue
 will greatly help with the investigation.
@@ -40,7 +40,7 @@ will greatly help with the investigation.
 Document behavior you observe. For performance defects, like performance
 regressions or a function being slow, provide a log including output generated
 by your application in
-[verbose mode](http://intel.github.io/mkl-dnn/dev_guide_verbose.html). 
+[verbose mode](https://oneapi-src.github.io/oneDNN/dev_guide_verbose.html). 
 
 # Expected behavior
 Document behavior you expect.

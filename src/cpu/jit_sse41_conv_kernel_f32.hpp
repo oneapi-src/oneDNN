@@ -46,7 +46,8 @@ struct jit_sse41_conv_fwd_kernel_f32 : public jit_generator {
     static status_t init_conf(jit_conv_conf_t &jcp,
             const convolution_desc_t &cd, const memory_desc_wrapper &src_d,
             const memory_desc_wrapper &weights_d,
-            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr);
+            const memory_desc_wrapper &dst_d, const primitive_attr_t &attr,
+            int nthreads);
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_sse41_conv_fwd_kernel_f32)
     jit_conv_conf_t jcp;

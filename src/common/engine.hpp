@@ -66,8 +66,8 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
     }
 
     /** create stream */
-    virtual dnnl::impl::status_t create_stream(
-            dnnl::impl::stream_t **stream, unsigned flags)
+    virtual dnnl::impl::status_t create_stream(dnnl::impl::stream_t **stream,
+            unsigned flags, const dnnl::impl::stream_attr_t *attr)
             = 0;
 
     /** implementation section (typedefs) */
@@ -242,6 +242,8 @@ inline runtime_kind_t get_default_runtime(engine_kind_t kind) {
     return runtime_kind::omp;
 #elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_TBB
     return runtime_kind::tbb;
+#elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    return runtime_kind::threadpool;
 #elif DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
     return runtime_kind::sycl;
 #else
@@ -256,14 +258,16 @@ inline runtime_kind_t get_cpu_native_runtime() {
     return runtime_kind::omp;
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_TBB
     return runtime_kind::tbb;
+#elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    return runtime_kind::threadpool;
 #else
     return runtime_kind::none;
 #endif
 }
 
 inline bool is_native_runtime(runtime_kind_t kind) {
-    return utils::one_of(
-            kind, runtime_kind::seq, runtime_kind::omp, runtime_kind::tbb);
+    return utils::one_of(kind, runtime_kind::seq, runtime_kind::omp,
+            runtime_kind::tbb, runtime_kind::threadpool);
 }
 
 struct engine_factory_t : public c_compatible {

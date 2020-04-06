@@ -86,9 +86,9 @@ struct ocl_stream_t : public compute::compute_stream_t {
 
 private:
     ocl_stream_t(engine_t *engine, unsigned flags)
-        : compute_stream_t(engine, flags), queue_(nullptr) {}
+        : compute_stream_t(engine, flags, nullptr), queue_(nullptr) {}
     ocl_stream_t(engine_t *engine, unsigned flags, cl_command_queue queue)
-        : compute_stream_t(engine, flags), queue_(queue) {}
+        : compute_stream_t(engine, flags, nullptr), queue_(queue) {}
     status_t init();
 
     static status_t init_flags(unsigned *flags, unsigned generic_flags) {

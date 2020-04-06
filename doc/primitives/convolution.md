@@ -27,7 +27,7 @@ Furthermore, let the remaining convolution parameters be:
 | Stride                               | \f$SD\f$   | \f$SH\f$   | \f$SW\f$   | Non-strided convolution should have the stride parameters equal `1`                                                    |
 | Dilation                             | \f$DD\f$   | \f$DH\f$   | \f$DW\f$   | Dilation starts with 0, so non-dilated convolution should have the dilation parameters equal `0`                       |
 
-The following formulas show how DNNL computes convolutions. They are
+The following formulas show how oneDNN computes convolutions. They are
 broken down into several types to simplify the exposition, but in reality the
 convolution types can be combined.
 
@@ -52,7 +52,7 @@ Here:
 
 #### Convolution with Groups
 
-In the API, DNNL adds a separate groups dimension to memory objects
+In the API, oneDNN adds a separate groups dimension to memory objects
 representing \weights tensors and represents weights as \f$G \times OC_G \times
 IC_G \times KH \times KW \f$ 5D tensors for 2D convolutions with groups.
 
@@ -95,7 +95,7 @@ Here:
         \right\rfloor + 1,\f$ where \f$DKW = 1 + (KW - 1) \cdot (DW + 1)\f$.
 
 @note
-    In DNNL dilation parameter equals 0 corresponds to non-dilated, i.e.
+    In oneDNN dilation parameter equals 0 corresponds to non-dilated, i.e.
     regular, convolution. Other libraries might use another convention, where
     dilation parameter equals 1 corresponds to regular convolution.
 
@@ -175,7 +175,7 @@ tensors:
 | 3D      | \f$N \times C \times D \times H \times W\f$ | \f$[G \times ] OC \times IC \times KD \times KH \times KW\f$
 
 Physical format of data and weights memory objects is critical for convolution
-primitive performance. In the DNNL programming model, convolution is
+primitive performance. In the oneDNN programming model, convolution is
 one of the few primitives that support the placeholder memory format tag
  #dnnl::memory::format_tag::any (shortened to `any` from now on) and can
 define data and weight memory objects format based on the primitive parameters.
@@ -211,6 +211,13 @@ post-ops are supported:
 | forward     | attribute | [Output scale](@ref dnnl::primitive_attr::set_output_scales) | Scales the result of convolution by given scale factor(s)                     | int8 convolutions only |
 | forward     | post-op   | [eltwise](@ref dnnl::post_ops::append_eltwise)               | Applies an @ref dnnl_api_eltwise operation to the result                      |                        |
 | forward     | post-op   | [sum](@ref dnnl::post_ops::append_sum)                       | Adds the operation result to the destination tensor instead of overwriting it |                        |
+
+To facilitate dynamic quantization, the primitive supports run-time output
+scales. That means a user could configure attributes with output scales set to
+the #DNNL_RUNTIME_F32_VAL wildcard value instead of the actual scales,
+if the scales are not known at the primitive descriptor creation stage.
+In this case, the user must provide the scales as an additional input memory
+object with argument `DNNL_ARG_ATTR_OUTPUT_SCALES` during the execution stage.
 
 @note The library doesn't prevent using post-ops in training, but note that
 not all post-ops are feasible for training usage. For instance, using ReLU
@@ -287,7 +294,7 @@ That would lead to the following:
 
 ## Algorithms
 
-DNNL implements convolution primitives using several different
+oneDNN implements convolution primitives using several different
 algorithms:
 
 - _Direct_. The convolution operation is computed directly using SIMD
@@ -310,7 +317,7 @@ algorithms:
 
 #### Direct Algorithm
 
-DNNL supports the direct convolution algorithm on all supported
+oneDNN supports the direct convolution algorithm on all supported
 platforms for the following conditions:
 
 - Data and weights memory formats are defined by the convolution primitive
@@ -329,7 +336,7 @@ fall back to an explicit GEMM algorithm.
 
 #### Winograd Convolution
 
-DNNL supports the Winograd convolution algorithm on systems with
+oneDNN supports the Winograd convolution algorithm on systems with
 Intel(R) AVX-512 support and above under the following conditions:
 
 - Data and weights memory formats are defined by the convolution primitive
@@ -349,17 +356,17 @@ The Winograd convolution algorithm implementation additionally chooses tile
 size based on the problem shape and
 [propagation kind](@ref dnnl_prop_kind_t):
 
-- For `forward_inference` DNNL supports
+- For `forward_inference` oneDNN supports
   \f$F(2 \times 2, 3 \times 3)\f$ or
   \f$F(4 \times 4, 3 \times 3)\f$
 
-- DNNL supports only \f$F(4 \times 4, 3 \times 3)\f$ Winograd for all
+- oneDNN supports only \f$F(4 \times 4, 3 \times 3)\f$ Winograd for all
   the training propagation kinds.
 
 The following side effects should be weighed against the (potential)
 performance boost achieved from using the Winograd algorithm:
 
-- _Memory consumption_. Winograd implementation in DNNL requires additional
+- _Memory consumption_. Winograd implementation in oneDNN requires additional
   scratchpad memory to store intermediate results. As more convolutions using
   Winograd are added to the topology, the amount of memory required can grow
   significantly. This growth can be controlled if the scratchpad memory can be
@@ -382,7 +389,7 @@ auto conv1_desc = convolution_forward::desc(
 
 #### Automatic Algorithm Selection
 
-DNNL supports `dnnl::algorithm::convolution_auto` algorithm that
+oneDNN supports `dnnl::algorithm::convolution_auto` algorithm that
 instructs the library to automatically select the *best* algorithm based on
 the heuristics that take into account tensor shapes and the number of logical
 processors available.  (For automatic selection to work as intended, use the
@@ -398,6 +405,7 @@ the convolution.)
 2. **CPU**
    - Winograd are implemented only for Intel(R) AVX-512 or
      Intel(R) AVX512-DL Boost instruction sets
+   - Run-time output scales are not supported
 
 3. **GPU**
     - No support for Winograd algorithm

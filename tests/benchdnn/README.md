@@ -1,10 +1,10 @@
 # benchdnn
 
 **benchdnn** is a standalone correctness and performance benchmark for
-[Deep Neural Network Library (DNNL)](https://github.com/intel/mkl-dnn).
+[oneDNN](https://github.com/oneapi-src/oneDNN).
 
 The purpose of the benchmark is extended and robust correctness verification of
-the primitives provided by DNNL.
+the primitives provided by oneDNN.
 **benchdnn** itself is a harness for different primitive-specific drivers.
 So far it supports and uses the following drivers:
 * [binary](doc/driver_binary.md)
@@ -69,7 +69,7 @@ where:
             problem memory requirement fits a device RAM capability. When
             verbose level with value `2` or higher is specified, driver gives a
             correspondent message if problem was skipped by RAM fit criteria.
- - `--scratchpad=SMODE` -- specifies the scratchpad mode to use in DNNL.
+ - `--scratchpad=SMODE` -- specifies the scratchpad mode to use in oneDNN.
             `SMODE` can be `library` [default] or `user`.
  - `--perf-template={def [default], csv, CUSTOM_TEMPLATE}` -- A template to
             provide the output for a performance run. Refer to
@@ -148,22 +148,22 @@ found in dnnl.hpp header file. List of supported meta-tags and special tags:
 
 ## Running Testing
 
-DNNL comes with its own testing infrastructure enabled through CMake. Tests
+oneDNN comes with its own testing infrastructure enabled through CMake. Tests
 can be executed via the command:
 ``` sh
     make test_<test-name>
 ```
 This will order cmake to build a deployable project and run the specific test.
 
-These tests target specific DNNL features and are based out of benchdnn
+These tests target specific oneDNN features and are based out of benchdnn
 configurable executions.
 
-The different tests available can be found in the DNNL directory:
+The different tests available can be found in the oneDNN directory:
 inputs/<primitive_name>/test_<target>.
 
 ## Issues and Contributions
 
-We welcome community contributions to **benchdnn** as well as to DNNL.
+We welcome community contributions to **benchdnn** as well as to oneDNN.
 If you have any ideas or issues, please submit an issue or pull request. For
 clarity, please include ''benchdnn: '' in the title.
 

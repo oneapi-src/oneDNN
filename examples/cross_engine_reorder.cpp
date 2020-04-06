@@ -26,10 +26,10 @@
 ///
 /// @section cross_engine_reorder_cpp_headers Public headers
 ///
-/// To start using DNNL, we must first include the @ref dnnl.hpp
+/// To start using oneDNN, we must first include the @ref dnnl.hpp
 /// header file in the application. We also include @ref dnnl_debug.h, which
 /// contains some debugging facilities such as returning a string representation
-/// for common DNNL C types.
+/// for common oneDNN C types.
 ///
 /// All C++ API types and functions reside in the `dnnl` namespace.
 /// For simplicity of the example we import this namespace.
@@ -77,7 +77,7 @@ void cross_engine_reorder_tutorial() {
     /// @page cross_engine_reorder_cpp
     /// @subsection cross_engine_reorder_cpp_sub1 Engine and stream
     ///
-    /// All DNNL primitives and memory objects are attached to a
+    /// All oneDNN primitives and memory objects are attached to a
     /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device they are attached
@@ -107,7 +107,7 @@ void cross_engine_reorder_tutorial() {
     auto stream_gpu = stream(gpu_engine);
     // [Initialize stream]
 
-    /// @subsection cross_engine_reorder_cpp_sub2 Wrapping data into DNNL GPU memory object
+    /// @subsection cross_engine_reorder_cpp_sub2 Wrapping data into oneDNN GPU memory object
     /// Fill the data in CPU memory first, and then move data from CPU to GPU
     /// memory by reorder.
     /// @snippet cross_engine_reorder.cpp reorder cpu2gpu
@@ -164,7 +164,7 @@ void cross_engine_reorder_tutorial() {
     auto relu = eltwise_forward(relu_pd);
     // [Create a ReLU primitive]
 
-    /// @subsection cross_engine_reorder_cpp_sub4 Getting results from a DNNL GPU memory object
+    /// @subsection cross_engine_reorder_cpp_sub4 Getting results from a oneDNN GPU memory object
     /// After the ReLU operation, users need to get data from GPU to CPU memory
     /// by reorder.
     /// @snippet cross_engine_reorder.cpp reorder gpu2cpu

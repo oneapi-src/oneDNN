@@ -50,7 +50,7 @@ void compensation_init(const char *offsetC, int32_t *compensation, int len,
 void compensation_compute(bool transa, int m, int k, float alpha,
         const int8_t *a, int lda, int32_t *compensation) {
     if (!transa) {
-        const int L2_cache_size = get_cache_size(2, true);
+        const int L2_cache_size = get_per_core_cache_size(2);
         const int blocking_factor = nstl::min(k, L2_cache_size / lda + 1);
         const int npanels = k / blocking_factor;
         const bool has_tile = k % blocking_factor > 0;

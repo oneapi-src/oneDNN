@@ -250,7 +250,7 @@ protected:
         test_pool_bwd_desc_t pd = p.test_pd;
 
         eng = get_test_engine();
-        strm = stream(eng);
+        strm = make_stream(eng);
         data_type = data_traits<data_t>::data_type;
         ASSERT_EQ(data_type, dnnl::memory::data_type::f32);
 

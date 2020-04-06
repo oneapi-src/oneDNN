@@ -444,50 +444,60 @@ void _jit_avx512_core_f32_wino_conv_4x3_t<is_fwd>::_execute_data_W_SGD(
                 });
     }
 
-    parallel_nd(jcp.tile_block, [&](int tile_block) {
-        int ithr = dnnl_get_thread_num();
+    parallel_nd_ext(
+            jcp.nthr, jcp.tile_block, [&](int ithr, int nthr, int tile_block) {
+                assert(nthr <= jcp.nthr);
+                MAYBE_UNUSED(nthr);
 
-        for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
-            for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
+                for (int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++) {
+                    for (int K_blk2 = 0; K_blk2 < jcp.dimK_block; K_blk2++) {
 
-                input_transform_tileblock_data(tile_block, jcp,
-                        &(input(0, K_blk1 * jcp.dimK_block + K_blk2, 0, 0, 0)),
-                        &(V(ithr, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
-            }
-        }
+                        input_transform_tileblock_data(tile_block, jcp,
+                                &(input(0, K_blk1 * jcp.dimK_block + K_blk2, 0,
+                                        0, 0)),
+                                &(V(ithr, 0, 0, 0, K_blk1, K_blk2, 0, 0)));
+                    }
+                }
 
-        for (int oj = 0; oj < alpha; oj++) {
-            for (int oi = 0; oi < alpha; oi++) {
-                for_(int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++)
-                for_(int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block; K_blk1++)
-                for (int N_blk = 0; N_blk < jcp.dimN_block; N_blk++)
-                    kernel_->gemm_loop_ker(
-                            (float *)&(M(ithr, M_blk1, oj, oi, N_blk, 0, 0, 0)),
-                            (const float *)&(
-                                    U(M_blk1, oj, oi, K_blk1, 0, 0, 0, 0)),
-                            (const float *)&(
-                                    V(ithr, oj, oi, N_blk, K_blk1, 0, 0, 0)),
-                            K_blk1);
-            }
-        }
+                for (int oj = 0; oj < alpha; oj++) {
+                    for (int oi = 0; oi < alpha; oi++) {
+                        for_(int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block;
+                                M_blk1++)
+                        for_(int K_blk1 = 0; K_blk1 < jcp.dimK_nb_block;
+                                K_blk1++)
+                        for (int N_blk = 0; N_blk < jcp.dimN_block; N_blk++)
+                            kernel_->gemm_loop_ker(
+                                    (float *)&(M(ithr, M_blk1, oj, oi, N_blk, 0,
+                                            0, 0)),
+                                    (const float *)&(U(M_blk1, oj, oi, K_blk1,
+                                            0, 0, 0, 0)),
+                                    (const float *)&(V(ithr, oj, oi, N_blk,
+                                            K_blk1, 0, 0, 0)),
+                                    K_blk1);
+                    }
+                }
 
-        for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++) {
-            for (int M_blk2 = 0; M_blk2 < jcp.dimM_block * jcp.dimM_reg_block;
-                    M_blk2++) {
-                const int M_blk
-                        = M_blk1 * jcp.dimM_block * jcp.dimM_reg_block + M_blk2;
+                for (int M_blk1 = 0; M_blk1 < jcp.dimM_nb_block; M_blk1++) {
+                    for (int M_blk2 = 0;
+                            M_blk2 < jcp.dimM_block * jcp.dimM_reg_block;
+                            M_blk2++) {
+                        const int M_blk
+                                = M_blk1 * jcp.dimM_block * jcp.dimM_reg_block
+                                + M_blk2;
 
-                float *bias_ptr = wants_padded_bias
-                                && M_blk == jcp.dimM / jcp.dimM_simd_block - 1
-                        ? last_slice_bias
-                        : &bias(M_blk, 0);
+                        float *bias_ptr = wants_padded_bias
+                                        && M_blk
+                                                == jcp.dimM / jcp.dimM_simd_block
+                                                        - 1
+                                ? last_slice_bias
+                                : &bias(M_blk, 0);
 
-                output_transform_tileblock_data(tile_block, jcp, p_ops,
-                        &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
-                        &(output(0, M_blk, 0, 0, 0)), bias_ptr);
-            }
-        }
-    });
+                        output_transform_tileblock_data(tile_block, jcp, p_ops,
+                                &(M(ithr, M_blk1, 0, 0, 0, M_blk2, 0, 0)),
+                                &(output(0, M_blk, 0, 0, 0)), bias_ptr);
+                    }
+                }
+            });
 }
 
 template struct _jit_avx512_core_f32_wino_conv_4x3_t<true>;
@@ -504,8 +514,8 @@ void subarray_sum(size_t num_arrs, float *output, size_t nelems,
 
     PRAGMA_OMP(parallel)
     {
-        const int ithr = dnnl_get_thread_num();
-        const int nthr = dnnl_get_num_threads();
+        const int ithr = OMP_GET_THREAD_NUM();
+        const int nthr = OMP_GET_NUM_THREADS();
         size_t start {0}, end {0};
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -586,8 +596,8 @@ void array_sum(size_t num_arrs, float *output, size_t nelems,
 
     PRAGMA_OMP(parallel)
     {
-        const size_t ithr = dnnl_get_thread_num();
-        const size_t nthr = dnnl_get_num_threads();
+        const size_t ithr = OMP_GET_THREAD_NUM();
+        const size_t nthr = OMP_GET_NUM_THREADS();
         size_t start {0}, end {0};
         balance211(blocks_number, nthr, ithr, start, end);
 
@@ -687,7 +697,7 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
                     });
         }
 
-        int ithr = dnnl_get_thread_num();
+        int ithr = OMP_GET_THREAD_NUM();
         for (int ifm1 = 0; ifm1 < jcp.nb_ic; ++ifm1) {
             int first_tblk = 0;
             PRAGMA_OMP(for)
@@ -864,7 +874,7 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
                     kernel_->src_transform(&trans_ker_p);
                 });
 
-        int ithr = dnnl_get_thread_num();
+        int ithr = OMP_GET_THREAD_NUM();
         trans_ker_p.G = G_W_3x3_4x4;
         parallel_nd_in_omp(jcp.nb_oc, jcp.oc_block, jcp.mb,
                 [&](int ofm1, int ofm2, int img) {

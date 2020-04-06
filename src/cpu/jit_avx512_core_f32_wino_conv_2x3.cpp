@@ -633,8 +633,9 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
             && jcp.l_pad < 2 && jcp.l_pad >= 0;
     if (!ok) return status::unimplemented;
 
-    const int L2_cap = get_cache_size(2, true) / sizeof(float);
-    const int L3_capacity = get_cache_size(3, false) / sizeof(float);
+    const int L2_capacity = get_per_core_cache_size(2) / sizeof(float);
+    const int L3_capacity
+            = get_per_core_cache_size(3) * jcp.nthr / sizeof(float);
     int a = jcp.alpha;
     int aa = a * a;
     int mb = jcp.mb;
@@ -654,8 +655,8 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
     if (mb > nstl::min(jcp.nthr, 28)
             || (!jcp.small_mb
-                    && (wei_sz >= 0.9f * L2_cap
-                            || inp_sz > L2_cap * jcp.nthr + L3_capacity))
+                    && (wei_sz >= 0.9f * L2_capacity
+                            || inp_sz > L2_capacity * jcp.nthr + L3_capacity))
             || (jcp.small_mb && sp_sz > 196))
         return status::unimplemented;
 
@@ -695,7 +696,7 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
     int nb_oc = jcp.nb_oc;
     int Z = ic + oc;
     int Y = ic * oc;
-    const int L3_cap_per_core = get_cache_size(3, true) / sizeof(float);
+    const int L3_cap_per_core = get_per_core_cache_size(3) / sizeof(float);
 
     /* Selecting xb and yb blocking */
     int min_yb = jcp.alpha;
@@ -722,8 +723,8 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
 
             mem_eff = 1.f;
             req_mem = (((float)ix + 2) * (iy + 2) + aa * M) * Z + aa * Y;
-            if (req_mem > L2_cap / 2) {
-                if (req_mem > ((L2_cap + L3_cap_per_core) * 4) / 7)
+            if (req_mem > L2_capacity / 2) {
+                if (req_mem > ((L2_capacity + L3_cap_per_core) * 4) / 7)
                     mem_eff /= (n2_b + 1) / 2.f;
                 else
                     mem_eff /= (n2_b + 1) / 3.f;
@@ -739,12 +740,12 @@ status_t jit_avx512_core_f32_wino_conv_2x3_fwd_ker_t ::init_conf(
             thr_eff = ((float)Z * bsz / bsz_r + Y * gemmw / gemmw_r) / (Z + Y);
 
             req_mem = (float)ix * iy * (ic + simdw * n2_b) + simdw * n2_b * ic;
-            mem_eff = nstl::min(1.f, L2_cap / req_mem);
+            mem_eff = nstl::min(1.f, L2_capacity / req_mem);
             int M_per_thr = nstl::max(2, div_up(aa, jcp.nthr));
             int oc_per_thr
                     = nstl::min(oc, div_up(aa * (nb_oc / n2_b), jcp.nthr));
             req_mem = (float)aa * oc_per_thr * ic + M_per_thr * M * Z;
-            if (req_mem > L2_cap) mem_eff = 0.1f;
+            if (req_mem > L2_capacity) mem_eff = 0.1f;
             par_eff = 1 / (2.f * nblocks);
 
             float inner_eff = thr_eff + work_eff + mem_eff + par_eff;
@@ -855,12 +856,15 @@ void jit_avx512_core_f32_wino_conv_2x3_fwd_t::execute_forward_mbN(
     auto ptr_V = scratchpad.get<float>(key_wino_V);
     auto ptr_M = scratchpad.get<float>(key_wino_M);
 
-    parallel_nd(jcp.mb, div_up(jcp.oh, jcp.yb), div_up(jcp.ow, jcp.xb),
-            [&](int mb, int tile_y_b, int tile_x_b) {
+    parallel_nd_ext(jcp.nthr, jcp.mb, div_up(jcp.oh, jcp.yb),
+            div_up(jcp.ow, jcp.xb),
+            [&](int ithr, int nthr, int mb, int tile_y_b, int tile_x_b) {
+                assert(nthr <= jcp.nthr);
+                MAYBE_UNUSED(nthr);
+
                 int tile_y = tile_y_b * jcp.yb;
                 int tile_x = tile_x_b * jcp.xb;
 
-                int ithr = dnnl_get_thread_num();
                 auto wino_src = ptr_V + size_wino_src * ithr;
                 auto wino_dst = ptr_M + size_wino_dst * ithr;
 

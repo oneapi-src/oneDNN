@@ -60,7 +60,7 @@ struct jit_avx512_core_x8s8s32x_deconv_fwd_kernel : public jit_generator {
             const deconvolution_desc_t &cd, memory_desc_t &src_md,
             memory_desc_t &weights_md, memory_desc_t &dst_md,
             const bool with_bias, memory_desc_t &bias_md,
-            const primitive_attr_t &attr);
+            const primitive_attr_t &attr, int nthreads);
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const jit_conv_conf_t &jcp, const primitive_attr_t &attr);
@@ -187,7 +187,8 @@ struct _jit_avx512_core_x8s8s32x_deconvolution_fwd_t : public primitive_impl_t {
             status_t status
                     = jit_avx512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
                             jcp_, *desc(), src_md_, weights_md_, dst_md_,
-                            with_bias(), bias_md_, *attr());
+                            with_bias(), bias_md_, *attr(),
+                            dnnl_get_max_threads());
 
             if (status != status::success) return status;
 

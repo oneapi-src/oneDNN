@@ -30,15 +30,14 @@ using namespace dnnl::impl::utils;
 
 void cache_balance(size_t working_set_size, dim_t C_blks, dim_t N, int nthr,
         dim_t &C_blks_per_iter, int64_t &iters) {
-    int nthrs = dnnl_get_max_threads();
-    int l3_size = get_cache_size(3, true) * nthrs / 2;
+    int l3_size = get_per_core_cache_size(3) * nthr / 2;
     C_blks_per_iter = saturate<dim_t>(1, C_blks, l3_size / working_set_size);
 
-    // Align C_blks_per_iter with nthr for better balancing
-    // implying a threading approach realized in thread_balance function below
-    // TODO: update batchnorm blocking:
-    // all blocking stuff should be in one place and
-    // should be called at the batchnorm initialization stage not at execution
+    // Align C_blks_per_iter with nthr for better balancing implying a
+    // threading approach realized in thread_balance function below.
+    //
+    // TODO: update batchnorm blocking: all blocking stuff should be in one
+    // place
     int C_nthr = nthr;
     if (C_blks_per_iter < nthr) {
         const int N_nthr = (int)nstl::min<dim_t>(N, nthr);
@@ -118,7 +117,7 @@ bool is_spatial_thr(
 
     dim_t N = bdesc->MB();
     size_t data = N * C_PADDED * SP * data_size;
-    size_t l3_size_ = get_cache_size(3, true) * nthr / 2;
+    size_t l3_size_ = get_per_core_cache_size(3) * nthr / 2;
     bool do_blocking = (data >= l3_size_ / 2 && l3_size_ > 0);
     dim_t C_blks_per_iter {1}, iters {1};
     dim_t C_blks = C_PADDED / simd_w;

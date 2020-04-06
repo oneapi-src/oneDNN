@@ -447,6 +447,8 @@ status_t jit_avx2_1x1_conv_kernel_f32::init_conf(jit_1x1_conv_conf_t &jcp,
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const int ndims = src_d.ndims();
 
+    jcp.nthr = dnnl_get_max_threads();
+
     jcp.prop_kind = cd.prop_kind;
 
     jcp.ngroups = with_groups ? weights_d.dims()[0] : 1;

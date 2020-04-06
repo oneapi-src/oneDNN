@@ -19,7 +19,6 @@
 #include "dnnl.h"
 
 #include "c_types_map.hpp"
-#include "cpu/gemm/os_blas.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -188,7 +187,7 @@ status_t check_dim_consistency(const rnn_desc_t &r) {
     bool args_ok = IMPLICATION(utils::one_of(r.cell_kind, alg_kind::vanilla_gru,
                                        alg_kind::lbr_gru),
                            SIC == DHC)
-            && dlc_multiplier * DHC == DLC
+            && dlc_multiplier * DIC == DLC
             && IMPLICATION(L > 1, dlc_multiplier * SLC == DLC)
             && IMPLICATION(T > 1, SIC == DIC);
     if (!args_ok) return invalid_arguments;

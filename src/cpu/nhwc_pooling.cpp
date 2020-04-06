@@ -248,97 +248,103 @@ void nhwc_pooling_fwd_t<data_type::bf16>::execute_forward(
         return (index > offset) ? index - offset : 0;
     };
 
-    parallel_nd(MB, OD, OH, OW, [&](int mb, int od, int oh, int ow) {
-        size_t dst_offset_init = strided_offset(mb, dst_n_stride, od,
-                dst_d_stride, oh, dst_h_stride, ow, dst_w_stride);
-        if (alg == alg_kind::pooling_max) {
-            size_t ws_offset_init = 0;
-            if (ws) {
-                DECLARE_READ_STRIDES(ws);
-                ws_offset_init = strided_offset(mb, ws_n_stride, od,
-                        ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
-            }
-            size_t ithr = dnnl_get_thread_num();
-            float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
-            float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
+    parallel_nd_ext(0, MB, OD, OH, OW,
+            [&](int ithr, int, int mb, int od, int oh, int ow) {
+                size_t dst_offset_init = strided_offset(mb, dst_n_stride, od,
+                        dst_d_stride, oh, dst_h_stride, ow, dst_w_stride);
+                if (alg == alg_kind::pooling_max) {
+                    size_t ws_offset_init = 0;
+                    if (ws) {
+                        DECLARE_READ_STRIDES(ws);
+                        ws_offset_init = strided_offset(mb, ws_n_stride, od,
+                                ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
+                    }
+                    float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
+                    float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
 
-            // Note: GCC 4.8.5 won't vectorize below
-            // simple loops unless they are singled out
-            // into separate helper routines:
-            //    array_nhwc_initialize, array_nhwc_max
-            if (!ws)
-                array_nhwc_initialize<false>(
-                        OC, dst_f32, ws, ws_offset_init, ws_dt);
-            else
-                array_nhwc_initialize<true>(
-                        OC, dst_f32, ws, ws_offset_init, ws_dt);
+                    // Note: GCC 4.8.5 won't vectorize below
+                    // simple loops unless they are singled out
+                    // into separate helper routines:
+                    //    array_nhwc_initialize, array_nhwc_max
+                    if (!ws)
+                        array_nhwc_initialize<false>(
+                                OC, dst_f32, ws, ws_offset_init, ws_dt);
+                    else
+                        array_nhwc_initialize<true>(
+                                OC, dst_f32, ws, ws_offset_init, ws_dt);
 
-            for_(int kd = 0; kd < KD; ++kd)
-            for_(int kh = 0; kh < KH; ++kh)
-            for (int kw = 0; kw < KW; ++kw) {
-                const int id = od * SD - padF + kd;
-                const int ih = oh * SH - padT + kh;
-                const int iw = ow * SW - padL + kw;
+                    for_(int kd = 0; kd < KD; ++kd)
+                    for_(int kh = 0; kh < KH; ++kh)
+                    for (int kw = 0; kw < KW; ++kw) {
+                        const int id = od * SD - padF + kd;
+                        const int ih = oh * SH - padT + kh;
+                        const int iw = ow * SW - padL + kw;
 
-                if (id < 0 || id >= ID) continue;
-                if (ih < 0 || ih >= IH) continue;
-                if (iw < 0 || iw >= IW) continue;
+                        if (id < 0 || id >= ID) continue;
+                        if (ih < 0 || ih >= IH) continue;
+                        if (iw < 0 || iw >= IW) continue;
 
-                size_t src_offset_init = strided_offset(mb, src_n_stride, id,
-                        src_d_stride, ih, src_h_stride, iw, src_w_stride);
+                        size_t src_offset_init = strided_offset(mb,
+                                src_n_stride, id, src_d_stride, ih,
+                                src_h_stride, iw, src_w_stride);
 
-                cvt_bfloat16_to_float(src_f32, &src[src_offset_init], OC);
+                        cvt_bfloat16_to_float(
+                                src_f32, &src[src_offset_init], OC);
 
-                if (!ws)
-                    array_nhwc_max<false>(OC, dst_f32, src_f32, ws,
-                            ws_offset_init, ws_dt, kd * KH * KW + kh * KW + kw);
-                else
-                    array_nhwc_max<true>(OC, dst_f32, src_f32, ws,
-                            ws_offset_init, ws_dt, kd * KH * KW + kh * KW + kw);
-            }
-            cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
-        } else {
-            // pooling_avg
-            size_t ithr = dnnl_get_thread_num();
-            float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
-            float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
+                        if (!ws)
+                            array_nhwc_max<false>(OC, dst_f32, src_f32, ws,
+                                    ws_offset_init, ws_dt,
+                                    kd * KH * KW + kh * KW + kw);
+                        else
+                            array_nhwc_max<true>(OC, dst_f32, src_f32, ws,
+                                    ws_offset_init, ws_dt,
+                                    kd * KH * KW + kh * KW + kw);
+                    }
+                    cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
+                } else {
+                    // pooling_avg
+                    float *dst_f32 = &bf16cvt_dst_wsp[ithr * OC];
+                    float *src_f32 = &bf16cvt_src_wsp[ithr * OC];
 
-            utils::array_set(dst_f32, 0, OC);
+                    utils::array_set(dst_f32, 0, OC);
 
-            auto id_start = apply_offset(od * SD, padF);
-            auto ih_start = apply_offset(oh * SH, padT);
-            auto iw_start = apply_offset(ow * SW, padL);
-            auto id_end = min(od * SD - padF + KD, ID);
-            auto ih_end = min(oh * SH - padT + KH, IH);
-            auto iw_end = min(ow * SW - padL + KW, IW);
+                    auto id_start = apply_offset(od * SD, padF);
+                    auto ih_start = apply_offset(oh * SH, padT);
+                    auto iw_start = apply_offset(ow * SW, padL);
+                    auto id_end = min(od * SD - padF + KD, ID);
+                    auto ih_end = min(oh * SH - padT + KH, IH);
+                    auto iw_end = min(ow * SW - padL + KW, IW);
 
-            // it is cheaper to actually count this in a loop
-            // as the typical kernel is small
-            size_t num_summands = 0;
+                    // it is cheaper to actually count this in a loop
+                    // as the typical kernel is small
+                    size_t num_summands = 0;
 
-            for_(int id = id_start; id < id_end; ++id)
-            for_(int ih = ih_start; ih < ih_end; ++ih)
-            for (int iw = iw_start; iw < iw_end; ++iw) {
-                size_t src_offset_init = strided_offset(mb, src_n_stride, id,
-                        src_d_stride, ih, src_h_stride, iw, src_w_stride);
-                cvt_bfloat16_to_float(src_f32, &src[src_offset_init], OC);
+                    for_(int id = id_start; id < id_end; ++id)
+                    for_(int ih = ih_start; ih < ih_end; ++ih)
+                    for (int iw = iw_start; iw < iw_end; ++iw) {
+                        size_t src_offset_init = strided_offset(mb,
+                                src_n_stride, id, src_d_stride, ih,
+                                src_h_stride, iw, src_w_stride);
+                        cvt_bfloat16_to_float(
+                                src_f32, &src[src_offset_init], OC);
 
-                // need to move the loop to separate function
-                // for GCC 4.8.5 to vectorize
-                array_add(OC, src_f32, dst_f32);
-                num_summands++;
-            }
+                        // need to move the loop to separate function
+                        // for GCC 4.8.5 to vectorize
+                        array_add(OC, src_f32, dst_f32);
+                        num_summands++;
+                    }
 
-            num_summands = (alg == alg_kind::pooling_avg_include_padding)
-                    ? KW * KH * KD
-                    : num_summands;
+                    num_summands
+                            = (alg == alg_kind::pooling_avg_include_padding)
+                            ? KW * KH * KD
+                            : num_summands;
 
-            // need to move the loop to separate function
-            // for GCC 4.8.5 to vectorize
-            array_div_by_const(OC, dst_f32, num_summands, dst_f32);
-            cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
-        }
-    });
+                    // need to move the loop to separate function
+                    // for GCC 4.8.5 to vectorize
+                    array_div_by_const(OC, dst_f32, num_summands, dst_f32);
+                    cvt_float_to_bfloat16(dst + dst_offset_init, dst_f32, OC);
+                }
+            });
 }
 
 template <data_type_t d_type>
@@ -523,105 +529,112 @@ void nhwc_pooling_bwd_t<data_type::bf16>::execute_backward(
         return (index > offset) ? index - offset : 0;
     };
 
-    parallel_nd(MB, ID, IH, IW, [&](int mb, int id, int ih, int iw) {
-        size_t src_offset_init
-                = strided_offset(mb, diff_src_n_stride, id, diff_src_d_stride,
-                        ih, diff_src_h_stride, iw, diff_src_w_stride);
+    parallel_nd_ext(0, MB, ID, IH, IW,
+            [&](int ithr, int, int mb, int id, int ih, int iw) {
+                size_t src_offset_init = strided_offset(mb, diff_src_n_stride,
+                        id, diff_src_d_stride, ih, diff_src_h_stride, iw,
+                        diff_src_w_stride);
 
-        float *diff_dst_fp32 = &bf16cvt_ddst[dnnl_get_thread_num() * OC];
-        float *diff_src_fp32 = &bf16cvt_dsrc[dnnl_get_thread_num() * OC];
+                float *diff_dst_fp32 = &bf16cvt_ddst[ithr * OC];
+                float *diff_src_fp32 = &bf16cvt_dsrc[ithr * OC];
 
-        for (int oc = 0; oc < OC; ++oc) {
-            diff_src_fp32[oc] = 0.f;
-            diff_src[src_offset_init + oc] = (bfloat16_t)0.f;
-        }
-
-        // Find out which output cells may correspond to current
-        // input position. Current input postition divided by
-        // stride, with integer divide rounding down, is the
-        // right-most output.
-        // Left-most output may be computed if we decrement input
-        // by (kernel_size - 1) and then do the same division by
-        // stride.
-        int od_left = max((id + padF - KD + 1) / SD, 0);
-        int oh_left = max((ih + padT - KH + 1) / SH, 0);
-        int ow_left = max((iw + padL - KW + 1) / SW, 0);
-        // Notice +1 here to preserve the C loop "less than"
-        // condition for continuing the for loop.
-        int od_right = min((id + padF) / SD + 1, OD);
-        int oh_right = min((ih + padT) / SH + 1, OH);
-        int ow_right = min((iw + padL) / SW + 1, OW);
-
-        for_(int od = od_left; od < od_right; ++od)
-        for_(int oh = oh_left; oh < oh_right; ++oh)
-        for (int ow = ow_left; ow < ow_right; ++ow) {
-            const int kd = id - od * SD + padF;
-            const int kh = ih - oh * SH + padT;
-            const int kw = iw - ow * SW + padL;
-
-            if (kd < 0 || kd >= KD) continue;
-            if (kh < 0 || kh >= KH) continue;
-            if (kw < 0 || kw >= KW) continue;
-
-            size_t dst_offset_init = strided_offset(mb, diff_dst_n_stride, od,
-                    diff_dst_d_stride, oh, diff_dst_h_stride, ow,
-                    diff_dst_w_stride);
-            cvt_bfloat16_to_float(
-                    diff_dst_fp32, &diff_dst[dst_offset_init], OC);
-
-            if (alg == alg_kind::pooling_max) {
-                DECLARE_READ_STRIDES(ws);
-                size_t ws_offset_init = strided_offset(mb, ws_n_stride, od,
-                        ws_d_stride, oh, ws_h_stride, ow, ws_w_stride);
-                const int index = kd * KH * KW + kh * KW + kw;
-                const unsigned char *ws_ = ws + ws_offset_init;
-                const int *intws_ = (int *)ws + ws_offset_init;
-                const bool ws_is_u8 = MEM_D(ws).data_type() == data_type::u8;
-
-                PRAGMA_OMP_SIMD()
                 for (int oc = 0; oc < OC; ++oc) {
-                    const int index_from_ws = ws_is_u8 ? ws_[oc] : intws_[oc];
-
-                    // Check if kernel windows are disjoint, in this case
-                    // there's no update needed and we just write there once
-                    // otherwise we add value to the contents.
-                    float value = (index_from_ws == index) ? diff_dst_fp32[oc]
-                                                           : 0.0f;
-                    if (!(KD == SD && KH == SH && KW == SW))
-                        diff_src_fp32[oc] += value;
-                    else
-                        diff_src_fp32[oc] = value;
+                    diff_src_fp32[oc] = 0.f;
+                    diff_src[src_offset_init + oc] = (bfloat16_t)0.f;
                 }
-            } else {
-                // pooling_avg
-                auto id_start = apply_offset(od * SD, padF);
-                auto ih_start = apply_offset(oh * SH, padT);
-                auto iw_start = apply_offset(ow * SW, padL);
-                auto id_end = min(od * SD - padF + KD, ID);
-                auto ih_end = min(oh * SH - padT + KH, IH);
-                auto iw_end = min(ow * SW - padL + KW, IW);
 
-                auto num_summands
-                        = (alg == alg_kind::pooling_avg_include_padding)
-                        ? KW * KH * KD
-                        : (ih_end - ih_start) * (iw_end - iw_start)
-                                * (id_end - id_start);
+                // Find out which output cells may correspond to current
+                // input position. Current input postition divided by
+                // stride, with integer divide rounding down, is the
+                // right-most output.
+                // Left-most output may be computed if we decrement input
+                // by (kernel_size - 1) and then do the same division by
+                // stride.
+                int od_left = max((id + padF - KD + 1) / SD, 0);
+                int oh_left = max((ih + padT - KH + 1) / SH, 0);
+                int ow_left = max((iw + padL - KW + 1) / SW, 0);
+                // Notice +1 here to preserve the C loop "less than"
+                // condition for continuing the for loop.
+                int od_right = min((id + padF) / SD + 1, OD);
+                int oh_right = min((ih + padT) / SH + 1, OH);
+                int ow_right = min((iw + padL) / SW + 1, OW);
 
-                PRAGMA_OMP_SIMD()
-                for (int oc = 0; oc < OC; ++oc) {
-                    // Check if kernel windows are disjoint, in this case
-                    // there's no update needed and we just write there once
-                    // otherwise we add value to the contents.
-                    if (!(KD == SD && KH == SH && KW == SW))
-                        diff_src_fp32[oc] += diff_dst_fp32[oc] / num_summands;
-                    else
-                        diff_src_fp32[oc] = diff_dst_fp32[oc] / num_summands;
+                for_(int od = od_left; od < od_right; ++od)
+                for_(int oh = oh_left; oh < oh_right; ++oh)
+                for (int ow = ow_left; ow < ow_right; ++ow) {
+                    const int kd = id - od * SD + padF;
+                    const int kh = ih - oh * SH + padT;
+                    const int kw = iw - ow * SW + padL;
+
+                    if (kd < 0 || kd >= KD) continue;
+                    if (kh < 0 || kh >= KH) continue;
+                    if (kw < 0 || kw >= KW) continue;
+
+                    size_t dst_offset_init = strided_offset(mb,
+                            diff_dst_n_stride, od, diff_dst_d_stride, oh,
+                            diff_dst_h_stride, ow, diff_dst_w_stride);
+                    cvt_bfloat16_to_float(
+                            diff_dst_fp32, &diff_dst[dst_offset_init], OC);
+
+                    if (alg == alg_kind::pooling_max) {
+                        DECLARE_READ_STRIDES(ws);
+                        size_t ws_offset_init = strided_offset(mb, ws_n_stride,
+                                od, ws_d_stride, oh, ws_h_stride, ow,
+                                ws_w_stride);
+                        const int index = kd * KH * KW + kh * KW + kw;
+                        const unsigned char *ws_ = ws + ws_offset_init;
+                        const int *intws_ = (int *)ws + ws_offset_init;
+                        const bool ws_is_u8
+                                = MEM_D(ws).data_type() == data_type::u8;
+
+                        PRAGMA_OMP_SIMD()
+                        for (int oc = 0; oc < OC; ++oc) {
+                            const int index_from_ws
+                                    = ws_is_u8 ? ws_[oc] : intws_[oc];
+
+                            // Check if kernel windows are disjoint, in this case
+                            // there's no update needed and we just write there once
+                            // otherwise we add value to the contents.
+                            float value = (index_from_ws == index)
+                                    ? diff_dst_fp32[oc]
+                                    : 0.0f;
+                            if (!(KD == SD && KH == SH && KW == SW))
+                                diff_src_fp32[oc] += value;
+                            else
+                                diff_src_fp32[oc] = value;
+                        }
+                    } else {
+                        // pooling_avg
+                        auto id_start = apply_offset(od * SD, padF);
+                        auto ih_start = apply_offset(oh * SH, padT);
+                        auto iw_start = apply_offset(ow * SW, padL);
+                        auto id_end = min(od * SD - padF + KD, ID);
+                        auto ih_end = min(oh * SH - padT + KH, IH);
+                        auto iw_end = min(ow * SW - padL + KW, IW);
+
+                        auto num_summands
+                                = (alg == alg_kind::pooling_avg_include_padding)
+                                ? KW * KH * KD
+                                : (ih_end - ih_start) * (iw_end - iw_start)
+                                        * (id_end - id_start);
+
+                        PRAGMA_OMP_SIMD()
+                        for (int oc = 0; oc < OC; ++oc) {
+                            // Check if kernel windows are disjoint, in this case
+                            // there's no update needed and we just write there once
+                            // otherwise we add value to the contents.
+                            if (!(KD == SD && KH == SH && KW == SW))
+                                diff_src_fp32[oc]
+                                        += diff_dst_fp32[oc] / num_summands;
+                            else
+                                diff_src_fp32[oc]
+                                        = diff_dst_fp32[oc] / num_summands;
+                        }
+                    }
+                    cvt_float_to_bfloat16(
+                            &diff_src[src_offset_init], diff_src_fp32, OC);
                 }
-            }
-            cvt_float_to_bfloat16(
-                    &diff_src[src_offset_init], diff_src_fp32, OC);
-        }
-    });
+            });
 }
 
 template struct nhwc_pooling_fwd_t<data_type::f32>;

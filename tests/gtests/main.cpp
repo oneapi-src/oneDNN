@@ -24,6 +24,10 @@
 
 #include "gtest/gtest.h"
 
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "../testing_threadpool.hpp"
+#endif
+
 using namespace testing;
 
 static std::atomic<bool> g_is_current_test_failed(false);
@@ -57,7 +61,7 @@ int main(int argc, char *argv[]) {
     {
         ::testing::InitGoogleTest(&argc, argv);
 
-        // Parse DNNL command line arguments
+        // Parse oneDNN command line arguments
         test_init(argc, argv);
 
         TestEventListeners &listeners = UnitTest::GetInstance()->listeners();

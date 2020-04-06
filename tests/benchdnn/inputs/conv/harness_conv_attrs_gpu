@@ -15,6 +15,10 @@
 --dir=FWD_B
 --cfg=u8s8s8  --batch=shapes_resnet_50
 
+--attr=oscale=per_oc:1.25*;post_ops='sum:0.5;relu:2.5'
+--dir=FWD_B
+--cfg=u8s8s8  --batch=shapes_resnet_50
+
 --attr=post_ops='relu:0.5'
 --cfg=u8s8s8 --batch=shapes_resnet_50
 

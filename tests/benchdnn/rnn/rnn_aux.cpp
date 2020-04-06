@@ -407,7 +407,8 @@ float one_m_square(float x) {
 namespace {
 void inv_tnc_off_f(const prb_t &p, data_kind_t kind, size_t off, int64_t &t,
         int64_t &n, int64_t &c) {
-    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? p.slc : p.dlc();
+    auto C = (kind == SRC_LAYER || kind == DIFF_SRC_LAYER) ? p.slc
+                                                           : p.dlc(PRIMITIVE);
     c = off % C;
     off /= C;
     n = off % p.mb;
@@ -647,9 +648,9 @@ int compare_dat(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     diff_norm.done();
 
     if (!check_norm0) {
-        if ((diff_norm.rel_diff(norm_t::L1) > rel_eps)
-                || (diff_norm.rel_diff(norm_t::L2) > rel_eps)
-                || (diff_norm.rel_diff(norm_t::L8) > rel_eps))
+        if (!((diff_norm.rel_diff(norm_t::L1) < rel_eps)
+                    && (diff_norm.rel_diff(norm_t::L2) < rel_eps)
+                    && (diff_norm.rel_diff(norm_t::L8) < rel_eps)))
             errors++;
     }
 

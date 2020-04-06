@@ -154,6 +154,7 @@ status_t memory_desc_wrapper::compute_blocking(
         C(bcdea, {1, 2, 3, 4, 0}, {}, {});
         C(cba, {2, 1, 0}, {}, {});
         C(cdba, {2, 3, 1, 0}, {}, {});
+        C(dcab, {3, 2, 0, 1}, {}, {});
         C(cdeba, {2, 3, 4, 1, 0}, {}, {});
         C(decab, {3, 4, 2, 0, 1}, {}, {});
         C(defcab, {3, 4, 5, 2, 0, 1}, {}, {});

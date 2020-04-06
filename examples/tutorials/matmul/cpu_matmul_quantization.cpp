@@ -158,7 +158,7 @@ void compute_q10n_params(const char *message, const std::vector<float> &v,
 
 #ifndef OMIT_WORKAROUND_FOR_SKX
     // Read more in CPU / Section 1 here:
-    // https://intel.github.io/mkl-dnn/dev_guide_int8_computations.html
+    // https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html
     if (std::is_same<T, uint8_t>::value) max_int /= 2;
 #endif
 
@@ -209,7 +209,7 @@ int compare_vectors(const std::vector<float> &v1,
 
 engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
 
-// Quantize float data into X_int_m DNNL memory using the q10n parameters
+// Quantize float data into X_int_m oneDNN memory using the q10n parameters
 //
 // Inputs:
 // - X_f32 -- source f32 matrix
@@ -217,7 +217,7 @@ engine eng(engine::kind::cpu, 0); // We create a global engine for simplicity
 // - q10n_scheme -- dynamic or static, to mimic real-world applications wrt to
 //                  how the q10n parameters are passed to reorders
 // Outputs:
-// - X_int_m -- prepared DNNL memory that would hold quantized values
+// - X_int_m -- prepared oneDNN memory that would hold quantized values
 void quantize(q10n_scheme_t q10n_scheme, const std::vector<float> &X_f32,
         float scale_X, int32_t zp_X, memory &X_int_m) {
     using dt = memory::data_type;
@@ -272,7 +272,7 @@ void f32_matmul_compute(int64_t M, int64_t N, int64_t K,
     memory::desc b_md({K, N}, memory::data_type::f32, {N, 1});
     memory::desc c_md({M, N}, memory::data_type::f32, {N, 1});
 
-    // Wrap raw pointers into DNNL memory objects
+    // Wrap raw pointers into oneDNN memory objects
     memory A_f32_m(a_md, eng, (void *)A_f32.data());
     memory B_f32_m(b_md, eng, (void *)B_f32.data());
     memory C_f32_m(c_md, eng, (void *)C_f32.data());

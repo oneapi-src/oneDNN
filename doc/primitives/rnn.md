@@ -183,16 +183,14 @@ LSTM without peephole is shown):
 
 \f[
 \begin{align}
-    i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot r_{t-1,l} + B_i) \\
-    f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot r_{t-1,l} + B_f) \\
+    i_t &= \sigma(W_i \cdot h_{t,l-1} + U_i \cdot h_{t-1,l} + B_i) \\
+    f_t &= \sigma(W_f \cdot h_{t,l-1} + U_f \cdot h_{t-1,l} + B_f) \\
     & \\
-    \tilde{c}_t &= \tanh(W_{\tilde{c}} \cdot h_{t,l-1} + U_{\tilde{c}} \cdot r_{t-1,l} + B_{\tilde{c}}) \\
+    \tilde{c}_t &= \tanh(W_{\tilde{c}} \cdot h_{t,l-1} + U_{\tilde{c}} \cdot h_{t-1,l} + B_{\tilde{c}}) \\
     c_t &= f_t * c_{t-1} + i_t * \tilde{c}_t \\
     & \\
-    o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot r_{t-1,l} + B_o) \\
-    h_t &= \tanh(c_t) * o_t \\
-    & \\
-    r_t &= R \cdot h_t
+    o_t &= \sigma(W_o \cdot h_{t,l-1} + U_o \cdot h_{t-1,l} + B_o) \\
+    h_t &= R \cdot (\tanh(c_t) * o_t)
 \end{align}
 \f]
 
@@ -338,7 +336,7 @@ primitive for each input and output memory object.
 
 ## Data Representation
 
-In the DNNL programming model, the RNN primitive is one of a few that support
+In the oneDNN programming model, the RNN primitive is one of a few that support
 the placeholder memory format #dnnl::memory::format_tag::any (shortened to `any`
 from now on) and can define data and weight memory objects format based on the
 primitive parameters.

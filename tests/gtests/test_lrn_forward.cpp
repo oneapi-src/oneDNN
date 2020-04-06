@@ -138,7 +138,7 @@ protected:
         ASSERT_TRUE(p.aprop_kind == prop_kind::forward_training
                 || p.aprop_kind == prop_kind::forward_scoring);
         auto eng = get_test_engine();
-        auto strm = stream(eng);
+        auto strm = make_stream(eng);
         memory::data_type data_type = data_traits<data_t>::data_type;
 
         test_lrn_desc_t ld = p.test_ld;
@@ -406,7 +406,7 @@ static auto RCNNForwardBlocked_cases = []() {
                     {2, 256, 27, 27, 5, 1.0e-4f, 0.75f, 1.0f}});
 };
 
-// This tests compatibility with MKL-DNN 0.14
+// This tests compatibility with Intel MKL-DNN v0.14
 static auto RegressionWeightFormat_cases = []() {
     return ::testing::Values(lrn_params {fwd_training, across, fmt::oihw,
             fmt::oihw, {2, 64, 56, 56, 5, 1.0e-4f, 0.75f, 1.0f}});
@@ -463,7 +463,7 @@ INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c, lrn_f32,
         GoogleNetV1Forward_nChw16c_cases());
 INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNForwardBlocked, lrn_f32, RCNNForwardBlocked_cases());
-// This tests compatibility with MKL-DNN 0.14
+// This tests compatibility with Intel MKL-DNN v0.14
 INSTANTIATE_TEST_SUITE_P(
         TestLRNRegressionWeightFormat, lrn_f32, RegressionWeightFormat_cases());
 INSTANTIATE_TEST_SUITE_P(
@@ -528,7 +528,7 @@ GPU_INSTANTIATE_TEST_SUITE_P(TestLRNGoogleNetV1Forward_nChw16c, lrn_fp16,
         GoogleNetV1Forward_nChw16c_cases());
 GPU_INSTANTIATE_TEST_SUITE_P(
         TestLRNRCNNForwardBlocked, lrn_fp16, RCNNForwardBlocked_cases());
-// This tests compatibility with MKL-DNN 0.14
+// This tests compatibility with Intel MKL-DNN v0.14
 GPU_INSTANTIATE_TEST_SUITE_P(TestLRNRegressionWeightFormat, lrn_fp16,
         RegressionWeightFormat_cases());
 GPU_INSTANTIATE_TEST_SUITE_P(

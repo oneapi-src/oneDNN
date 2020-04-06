@@ -1,7 +1,7 @@
 Primitive Attributes: Post-ops {#dev_guide_attributes_post_ops}
 ===============================================================
 
-DNNL implements some basic capabilities of operation fusion using the
+oneDNN implements some basic capabilities of operation fusion using the
 **post-ops attributes** API. The operation fusion typically reduces the memory
 bandwidth pressure hence leading to higher performance.
 

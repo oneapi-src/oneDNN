@@ -24,22 +24,22 @@ l1t3_mb10_sic64slc128dhc128dic64
 l1t3_mb10_sic64slc128dhc32dic64
 
 # L=2 T=1
-l2t1_mb10_sic64slc64dhc64dic128
-l2t1_mb10_sic128slc64dhc64dic128
-l2t1_mb10_sic64slc128dhc128dic64
-l2t1_mb10_sic128slc128dhc128dic64
+l2t1_mb10_sic64slc128dhc64dic128
+l2t1_mb10_sic128slc128dhc64dic128
+l2t1_mb10_sic64slc64dhc128dic64
+l2t1_mb10_sic128slc64dhc128dic64
 
 # L=3 T=1
-l3t1_mb10_sic64slc64dhc64dic128
-l3t1_mb10_sic128slc64dhc64dic128
-l3t1_mb10_sic64slc128dhc128dic64
-l3t1_mb10_sic128slc128dhc128dic64
+l3t1_mb10_sic64slc128dhc64dic128
+l3t1_mb10_sic128slc128dhc64dic128
+l3t1_mb10_sic64slc64dhc128dic64
+l3t1_mb10_sic128slc64dhc128dic64
 
 # L=2 T=2
-l2t2_mb10_sic128slc64dhc64dic128
-l2t2_mb10_sic64slc128dhc128dic64
+l2t2_mb10_sic128slc128dhc64dic128
+l2t2_mb10_sic64slc64dhc128dic64
 
 # L=3 T=3
-l3t3_mb10_sic128slc64dhc64dic128
-l3t3_mb10_sic64slc128dhc128dic64
+l3t3_mb10_sic128slc128dhc64dic128
+l3t3_mb10_sic64slc64dhc128dic64
 

@@ -50,10 +50,9 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             scratch_cell_, rnn.ws_gates_ld);
 
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            nullptr, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,
-            diff_src_layer_, diff_src_iter_, diff_src_iter_c_, diff_dst_layer_,
-            diff_dst_iter_, nullptr, nullptr, bias_[0], ws_grid_, scratch_cell_,
-            dst_iter_);
+            dst_layer_, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
+            diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
+            nullptr, nullptr, bias_[0], ws_grid_, scratch_cell_, dst_iter_);
 }
 
 template rnn_cell_execution_sig(ref_rnn_fwd_f32_t::cell_execution_gru_lbr);
@@ -83,17 +82,19 @@ void common_bwd_cell_exec_template(T1 gemm_layer_f, T2 gemm_iter_f,
     ws_gates_aoc<scratch_data_t> scratch_gates_r(rnn, scratch_cell_);
 
     rnn_postgemm->execute(rnn, cell_position, ws_gates_, scratch_gates_,
-            nullptr, dst_layer_, nullptr, src_iter_, nullptr, nullptr,
-            diff_src_iter_, nullptr, diff_dst_layer_, diff_dst_iter_, nullptr,
-            nullptr, bias_[0], ws_grid_, scratch_cell_, dst_iter_);
+            dst_layer_, nullptr, src_iter_, nullptr, nullptr, diff_src_iter_,
+            nullptr, diff_dst_layer_, diff_dst_iter_, nullptr, nullptr,
+            bias_[0], ws_grid_, scratch_cell_, dst_iter_);
 
-    if (!rnn.merge_gemm_layer) {
-        //  dx = dG * Wx^t
-        gemm_layer_f(w_layer_[0], scratch_gates_, diff_src_layer_);
-        // dWx +=  dG^t * x
+    // dWx +=  dG^t * x
+    if (rnn.need_gemm_layer(cell_position))
         gemm_weights_layer_f(
                 scratch_gates_, src_layer_, src_layer_ld, diff_w_layer_);
-    }
+
+    //  dx = dG * Wx^t
+    if (!rnn.merge_gemm_layer)
+        gemm_layer_f(w_layer_[0], scratch_gates_, diff_src_layer_);
+
     // dh +=  dGr * Wh^t
     gemm_iter_f(w_iter_[0], scratch_cell_, diff_src_iter_);
 

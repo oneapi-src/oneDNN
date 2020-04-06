@@ -95,6 +95,11 @@ bool parse_skip_nonlinear(std::vector<bool> &skip, const char *str,
     return parse_vector_option(skip, str2bool, str, option_name);
 }
 
+bool parse_trivial_strides(std::vector<bool> &ts, const char *str,
+        const std::string &option_name /* = "trivial-strides"*/) {
+    return parse_vector_option(ts, str2bool, str, option_name);
+}
+
 bool parse_scale_policy(std::vector<policy_t> &policy, const char *str,
         const std::string &option_name /*= "scaling"*/) {
     return parse_vector_option(
@@ -236,8 +241,8 @@ static bool parse_engine_kind(
         DNN_SAFE(dnnl_engine_destroy(engine_tgt), CRIT);
 
         DNN_SAFE(dnnl_engine_create(&engine_tgt, engine_tgt_kind, 0), CRIT);
-        DNN_SAFE(dnnl_stream_create(
-                         &stream_tgt, engine_tgt, dnnl_stream_default_flags),
+        SAFE(create_dnnl_stream(
+                     &stream_tgt, engine_tgt, dnnl_stream_default_flags),
                 CRIT);
         return true;
     }

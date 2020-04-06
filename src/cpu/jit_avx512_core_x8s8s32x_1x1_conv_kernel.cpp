@@ -556,6 +556,8 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
                     data_type::s8, data_type::u8))
         return status::unimplemented;
 
+    jcp.nthr = nthreads;
+
     jcp.ver = ver_avx512_core;
     if (mayiuse(avx512_core_vnni)) jcp.ver = ver_vnni;
 
@@ -696,7 +698,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     jcp.load_grp_count = 1;
     jcp.use_vmovntps = false;
 
-    const int L2_size = get_cache_size(2, true) / sizeof(jcp.typesize_in);
+    const int L2_size = get_per_core_cache_size(2) / sizeof(jcp.typesize_in);
     const int L2_capacity = (L2_size * 3) / 4;
 
     int size_treshold = 28;
@@ -785,21 +787,21 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     if (cmp_reduce) jcp.loop_order = reduce_src ? loop_rbl : loop_rlb;
     load_blocking = jcp.load_dim;
 
-    jcp.load_grp_count = div_up(nthreads, jcp.mb * jcp.ngroups * nb_bcast);
+    jcp.load_grp_count = div_up(jcp.nthr, jcp.mb * jcp.ngroups * nb_bcast);
     jcp.load_grp_count = best_divider(
-            nthreads, jcp.load_grp_count, 2 * jcp.load_grp_count, false);
+            jcp.nthr, jcp.load_grp_count, 2 * jcp.load_grp_count, false);
 
     if (jcp.bcast_dim <= SMALL_SPATIAL
             && jcp.load_dim * jcp.reduce_dim >= L2_size) {
         jcp.load_grp_count = nstl::max(jcp.load_grp_count, 4);
-    } else if (jcp.bcast_dim <= SMALL_SPATIAL && jcp.mb <= nthreads
+    } else if (jcp.bcast_dim <= SMALL_SPATIAL && jcp.mb <= jcp.nthr
             && jcp.load_dim > 512 && jcp.load_dim / jcp.reduce_dim >= 4) {
         jcp.load_grp_count = nstl::max(jcp.load_grp_count, 2); //
         load_blocking = jcp.load_block;
     }
 
     bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
-                             div_up(nthreads, jcp.load_grp_count))
+                             div_up(jcp.nthr, jcp.load_grp_count))
             * jcp.bcast_block;
     bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
     bcast_blocking = rnd_up(bcast_blocking, jcp.bcast_block);
@@ -855,7 +857,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     int ncores_per_socket = (int)cpu.getNumCores(
             Xbyak::util::IntelCpuTopologyLevel::CoreLevel);
     if (jcp.mb == 1 && jcp.nb_load % 4 == 0 && jcp.ic / jcp.oc >= 4
-            && jcp.ic * jcp.oc <= L2_size && nthreads <= ncores_per_socket) {
+            && jcp.ic * jcp.oc <= L2_size && jcp.nthr <= ncores_per_socket) {
         jcp.nb_load_chunk = 4;
         jcp.load_grp_count = nstl::max(jcp.nb_load / 4, jcp.load_grp_count);
     }

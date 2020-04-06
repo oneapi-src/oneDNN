@@ -13,7 +13,7 @@ The transformation happens in a temporary buffer that is then used as an
 input for GEMM.
 
 In both of these examples, the temporary buffer is no longer required
-once the primitive computation is completed. DNNL refers to such a
+once the primitive computation is completed. oneDNN refers to such a
 memory buffer as a **scratchpad**.
 
 @warning
@@ -42,7 +42,7 @@ temporary space only to store the pointers to data for each and every input
 array (that is, the size of the scratchpad is `n * sizeof(void *)`, where `n` is
 the number of summands).
 
-DNNL supports two modes for handling scratchpads:
+oneDNN supports two modes for handling scratchpads:
 1. #dnnl::scratchpad_mode::library.
    The library allocates memory for each primitive during its creation. This
    is the **default** behavior which enables user to not worry about the

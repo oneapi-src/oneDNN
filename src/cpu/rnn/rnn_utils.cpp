@@ -79,56 +79,42 @@ int rnn_utils::get_good_ld(int dim, int sizeof_dt) {
 }
 
 void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
-        size_t &ws_states_layer_offset, size_t &ws_states_iter_offset,
-        size_t &ws_states_iter_c_offset, size_t &ws_diff_states_layer_offset,
-        size_t &ws_diff_states_iter_offset,
+        size_t &ws_ht_offset, size_t &ws_states_layer_offset,
+        size_t &ws_states_iter_offset, size_t &ws_states_iter_c_offset,
+        size_t &ws_diff_states_layer_offset, size_t &ws_diff_states_iter_offset,
         size_t &ws_diff_states_iter_c_offset, size_t &ws_grid_comp_offset,
         size_t &ws_bias_offset, size_t &scratch_gates_offset,
-        size_t &scratch_ht_offset, size_t &scratch_cell_offset,
-        size_t &scratchpad_size, size_t &workspace_size) {
+        size_t &scratch_ht_offset, size_t &scratch_diff_ht_offset,
+        size_t &scratch_cell_offset, size_t &scratchpad_size,
+        size_t &workspace_size) {
 
     const size_t page_size = 4096; // 2097152;
     size_t current_offset;
     /* Mandatory workspaces: go to workspace if use_workspace, scratchpad
      * otherwise */
     current_offset = 0; // assumes the workspace base pointer is page aligned
-    ws_gates_offset = current_offset;
-    current_offset += rnn.ws_gates_size;
 
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_states_layer_offset = current_offset;
-    current_offset += rnn.ws_states_layer_size;
+#define register_space(a) \
+    current_offset = utils::rnd_up(current_offset, page_size); \
+    CONCAT2(a, _offset) = current_offset; \
+    current_offset += rnn.CONCAT2(a, _size)
 
-    if (rnn.is_lstm_projection) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_states_iter_offset = current_offset;
-        current_offset += rnn.ws_states_iter_size;
-    } else {
-        // In this case, ws_iter should not be used at all unless
-        // there is a recurrent projection
-        assert(rnn.ws_states_layer_size == rnn.ws_states_iter_size);
-        ws_states_iter_offset = ws_states_layer_offset;
-    }
+    register_space(ws_gates);
+    register_space(ws_ht);
+    register_space(ws_states_layer);
+    register_space(ws_states_iter);
+    register_space(ws_states_iter);
 
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_states_iter_c_offset = current_offset;
-    current_offset += rnn.ws_states_iter_c_size;
+    // For all currently supported cells, ws_iter should not be used
+    // at all since dst_iter == dst_layer
+    assert(rnn.ws_states_layer_size == rnn.ws_states_iter_size);
+    ws_states_iter_offset = ws_states_layer_offset;
 
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_layer_offset = current_offset;
-    current_offset += rnn.ws_diff_states_layer_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_iter_offset = current_offset;
-    current_offset += rnn.ws_diff_states_iter_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_diff_states_iter_c_offset = current_offset;
-    current_offset += rnn.ws_diff_states_iter_c_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    ws_grid_comp_offset = current_offset;
-    current_offset += rnn.ws_grid_comp_size;
+    register_space(ws_states_iter_c);
+    register_space(ws_diff_states_layer);
+    register_space(ws_diff_states_iter);
+    register_space(ws_diff_states_iter_c);
+    register_space(ws_grid_comp);
 
     workspace_size = rnn.use_workspace ? current_offset : 0;
 
@@ -138,40 +124,30 @@ void rnn_utils::set_offsets(const rnn_conf_t &rnn, size_t &ws_gates_offset,
     // otherwise, all goes to scratchpad and continue incrementing offset
     current_offset = rnn.use_workspace ? 0 : current_offset;
 
-    current_offset = utils::rnd_up(current_offset, page_size);
-    scratch_gates_offset = current_offset;
-    current_offset += rnn.scratch_gates_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    scratch_ht_offset = current_offset;
-    current_offset += rnn.scratch_ht_size;
-
-    current_offset = utils::rnd_up(current_offset, page_size);
-    scratch_cell_offset = current_offset;
-    current_offset += rnn.scratch_cell_size;
-
-    if (rnn.copy_bias) {
-        current_offset = utils::rnd_up(current_offset, page_size);
-        ws_bias_offset = current_offset;
-        current_offset += rnn.ws_bias_size;
-    }
+    register_space(scratch_gates);
+    register_space(scratch_ht);
+    register_space(scratch_diff_ht);
+    register_space(scratch_cell);
+    if (rnn.copy_bias) register_space(ws_bias);
 
     scratchpad_size = current_offset;
+#undef register_space
 }
 
 void rnn_utils::get_scratchpad_and_workspace_sizes(const rnn_conf_t &rnn,
         size_t &scratchpad_size, size_t &workspace_size) {
-    size_t ws_gates_offset, ws_states_layer_offset, ws_states_iter_offset,
-            ws_states_iter_c_offset, ws_diff_states_layer_offset,
-            ws_diff_states_iter_offset, ws_diff_states_iter_c_offset,
-            ws_grid_comp_offset, scratch_gates_offset, scratch_ht_offset,
+    size_t ws_gates_offset, ws_ht_offset, ws_states_layer_offset,
+            ws_states_iter_offset, ws_states_iter_c_offset,
+            ws_diff_states_layer_offset, ws_diff_states_iter_offset,
+            ws_diff_states_iter_c_offset, ws_grid_comp_offset,
+            scratch_gates_offset, scratch_ht_offset, scratch_diff_ht_offset,
             scratch_cell_offset, ws_bias_offset;
-    set_offsets(rnn, ws_gates_offset, ws_states_layer_offset,
+    set_offsets(rnn, ws_gates_offset, ws_ht_offset, ws_states_layer_offset,
             ws_states_iter_offset, ws_states_iter_c_offset,
             ws_diff_states_layer_offset, ws_diff_states_iter_offset,
             ws_diff_states_iter_c_offset, ws_grid_comp_offset, ws_bias_offset,
-            scratch_gates_offset, scratch_ht_offset, scratch_cell_offset,
-            scratchpad_size, workspace_size);
+            scratch_gates_offset, scratch_ht_offset, scratch_diff_ht_offset,
+            scratch_cell_offset, scratchpad_size, workspace_size);
 }
 
 status_t rnn_utils::set_good_strides(

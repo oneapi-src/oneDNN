@@ -18,6 +18,7 @@
 
 #include "c_types_map.hpp"
 #include "dnnl_debug.h"
+#include "dnnl_thread.hpp"
 #include "memory_desc_wrapper.hpp"
 #include "nstl.hpp"
 #include "type_helpers.hpp"

@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 // Mangle mkldnn entities to dnnl ones to preserve source-code level backwards
-// compatibility. The compatibility will be dropped at DNNL 2.0.
+// compatibility. The compatibility will be dropped in oneDNN v2.0.
 // Please switch to the new names as soon as possible.
 
 #ifndef MKLDNN_DNNL_MANGLING_H

@@ -1280,7 +1280,7 @@ public:
         C_ = bdesc_->C();
         C_blks_ = get_c_padded(bdesc_) / simd_w;
 
-        const size_t l3_size = get_cache_size(3, true) * nthr_ / 2;
+        const size_t l3_size = get_per_core_cache_size(3) * nthr_ / 2;
         int num_tensors = bdesc_->is_fwd() ? 1 : 2;
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         const size_t working_set_size
@@ -1356,7 +1356,8 @@ public:
 
         // find local mean
         acc_data_t *r_mean = need_reduction ? rbuf : mean;
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1381,7 +1382,8 @@ public:
 
         // find local var
         acc_data_t *r_var = need_reduction ? rbuf : var;
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1412,7 +1414,8 @@ public:
             const acc_data_t *var, uint8_t *ws, bool blk_has_tail) {
         const size_t stride_C = (size_t)S_ * simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1518,7 +1521,8 @@ public:
             }
         };
 
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);
@@ -1557,7 +1561,8 @@ public:
         const size_t stride_C = (size_t)S_ * simd_w;
         const size_t stride_N = (size_t)C_blks_ * stride_C;
 
-        parallel(nthr.glob, [&](int ithr_glob, int) {
+        parallel(nthr.glob, [&](int ithr_glob, int nthr_glob) {
+            assert(nthr_glob == nthr.glob);
             const auto ithr = map_thread(ithr_glob, nthr);
             bnorm_dims_t start, stop;
             work_distribution(C_blks, ithr, nthr, start, stop);

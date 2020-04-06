@@ -87,25 +87,25 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward(
     }
 
     float *bias_dw = nullptr;
-    auto &jcp_dw = pd()->jcp_dw_;
     if (pd()->arg_md(DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS)->data_type
             == data_type::bf16) {
+        auto jcp_dw = pd()->jcp_dw_;
         memory_tracking::grantor_t dw_scratchpad(
                 scratchpad, memory_tracking::names::prefix_fusion);
         auto bias_in = CTX_IN_MEM(
                 const src_data_t *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
         bias_dw = dw_scratchpad.template get<float>(
                 key_conv_bias_bf16_convert_wsp);
-        cvt_bfloat16_to_float(bias_dw, bias_in, jcp_dw.oc_without_padding);
-        utils::array_set(bias_dw + jcp_dw.oc_without_padding, 0.f,
-                jcp_dw.oc - jcp_dw.oc_without_padding);
+        cvt_bfloat16_to_float(bias_dw, bias_in, jcp_dw->oc_without_padding);
+        utils::array_set(bias_dw + jcp_dw->oc_without_padding, 0.f,
+                jcp_dw->oc - jcp_dw->oc_without_padding);
     } else {
         auto bias_in = CTX_IN_MEM(
                 const float *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
         bias_dw = const_cast<float *>(bias_in);
     }
 
-    parallel(0, [&](const int ithr, const int nthr) {
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_forward_thr(ithr, nthr, src, weights, bias, weights_dw, bias_dw,
                 dst, scratchpad);
     });
@@ -158,9 +158,9 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             : jcp.nb_load_blocking_max;
 
     // Begin: declare Variables needed for dw conv.
-    auto &jcp_dw = pd()->jcp_dw_;
     dst_data_t *pbuf; //bf16->bf16 fusion
     size_t row_offset;
+    const auto jcp_dw = pd()->jcp_dw_;
     const int nb_buffer = jcp.nb_load_blocking;
     std::vector<decltype(pbuf)> addrs;
 
@@ -215,7 +215,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         const int _ocb = g * nb_oc + ocb;
 
         void *output_data = jcp.with_dw_conv
-                ? (void *)(pbuf + (ih % jcp_dw.kh) * row_offset)
+                ? (void *)(pbuf + (oh % jcp_dw->kh) * row_offset)
                 : (void *)(&dst[data_blk_off(dst_d, n, _ocb, od, oh, ow)
                         * dst_d.data_type_size()]);
         p.output_data = output_data;
@@ -250,6 +250,7 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
 
     auto conv_1x1 = [&](int bcast_start, int bcast_end, int ocb_start,
                             int ocb_end) {
+        if (bcast_start >= bcast_end || ocb_start >= ocb_end) return;
         if (jcp.loop_order == loop_lbr) {
             int ocb = ocb_start;
             while (ocb < ocb_end) {
@@ -257,7 +258,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 init_load(ocb, ocb_end, load_step);
                 int iwork = bcast_start;
                 while (iwork < bcast_end) {
-                    int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                    int n {0}, g {0}, bcast_step {0}, od {0}, oh {0}, ow {0},
+                            id {0}, ih {0}, iw {0};
                     init_bcast(iwork, bcast_end, n, g, bcast_step, od, oh, ow,
                             id, ih, iw);
                     for (int icb = 0; icb < nb_ic; icb += nb_ic_blocking) {
@@ -272,7 +274,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
         } else if (jcp.loop_order == loop_blr) {
             int iwork = bcast_start;
             while (iwork < bcast_end) {
-                int n, g, bcast_step, od, oh, ow, id, ih, iw;
+                int n {0}, g {0}, bcast_step {0}, od {0}, oh {0}, ow {0},
+                        id {0}, ih {0}, iw {0};
                 init_bcast(iwork, bcast_end, n, g, bcast_step, od, oh, ow, id,
                         ih, iw);
                 int ocb = ocb_start;
@@ -294,31 +297,31 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
     };
 
     auto ker_dw = [&](int n, int ocb_start, int load_step, int &dw_oh) {
-        int oh_1x1 = nstl::max(dw_oh * jcp_dw.stride_h - jcp_dw.t_pad, 0);
+        int oh_1x1 = nstl::max(dw_oh * jcp_dw->stride_h - jcp_dw->t_pad, 0);
 
-        for (int i = 0; i < jcp_dw.kh; ++i)
-            addrs[i] = pbuf + ((oh_1x1++) % jcp_dw.kh) * row_offset;
+        for (int i = 0; i < jcp_dw->kh; ++i)
+            addrs[i] = pbuf + ((oh_1x1++) % jcp_dw->kh) * row_offset;
 
         const auto ocb_end = ocb_start + load_step;
         const auto wch_stride
-                = jcp_dw.iw * jcp_dw.nb_ch_blocking * jcp_dw.ch_block;
+                = jcp_dw->iw * jcp_dw->nb_ch_blocking * jcp_dw->ch_block;
 
-        const int dil_h = jcp_dw.dilate_h + 1;
-        const int str_h = jcp_dw.stride_h;
-        const int ch_num = jcp_dw.nb_ch_blocking;
+        const int dil_h = jcp_dw->dilate_h + 1;
+        const int str_h = jcp_dw->stride_h;
+        const int ch_num = jcp_dw->nb_ch_blocking;
 
-        for (int ch = ocb_start; ch < ocb_end; ch += jcp_dw.nb_ch_blocking) {
+        for (int ch = ocb_start; ch < ocb_end; ch += jcp_dw->nb_ch_blocking) {
 
             const int i_t_overflow
-                    = nstl::max(0, (int)(jcp_dw.t_pad - dw_oh * str_h));
+                    = nstl::max(0, (int)(jcp_dw->t_pad - dw_oh * str_h));
             const int i_b_overflow
-                    = nstl::max(jcp_dw.ih,
-                              (int)(dw_oh * str_h + (jcp_dw.kh - 1) * dil_h
-                                      - jcp_dw.t_pad + 1))
-                    - jcp_dw.ih;
+                    = nstl::max(jcp_dw->ih,
+                              (int)(dw_oh * str_h + (jcp_dw->kh - 1) * dil_h
+                                      - jcp_dw->t_pad + 1))
+                    - jcp_dw->ih;
 
             const int kh = div_up(i_t_overflow, dil_h);
-            const int kh_padding = jcp_dw.kh - div_up(i_t_overflow, dil_h)
+            const int kh_padding = jcp_dw->kh - div_up(i_t_overflow, dil_h)
                     - div_up(i_b_overflow, dil_h);
 
             const int ow = 0;
@@ -333,15 +336,15 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                     = &weights_dw[dw_weights_d.blk_off(ch, 0, 0, kh, kw)];
             if (bias)
                 par_conv_dw.bias
-                        = &bias_dw[dw_bias_d.blk_off(ch * jcp_dw.ch_block)];
+                        = &bias_dw[dw_bias_d.blk_off(ch * jcp_dw->ch_block)];
 
             par_conv_dw.kh_padding = (size_t)nstl::max(0, kh_padding);
 
-            par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw.nb_ch) - ch;
+            par_conv_dw.ch_blocks = nstl::min(ch + ch_num, jcp_dw->nb_ch) - ch;
 
             kernel_dw_->jit_ker(&par_conv_dw);
 
-            for (int i = 0; i < jcp_dw.kh; ++i)
+            for (int i = 0; i < jcp_dw->kh; ++i)
                 addrs[i] += wch_stride;
         }
     };
@@ -354,13 +357,13 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 = dw_scratchpad.get<dst_data_t>(key_fusion_inout_buffer);
 
         const auto dw_conv_buffer_size_
-                = jcp_dw.kh * jcp.ow * nb_buffer * jcp.oc_block;
+                = jcp_dw->kh * jcp.ow * nb_buffer * jcp.oc_block;
         pbuf = dw_conv_buffer + ithr * dw_conv_buffer_size_;
-        row_offset = dw_conv_buffer_size_ / jcp_dw.kh;
-        addrs.resize(jcp_dw.kh);
+        row_offset = dw_conv_buffer_size_ / jcp_dw->kh;
+        addrs.resize(jcp_dw->kh);
 
         int bcast_start {0}, bcast_end {0}, ocb_start, ocb_end;
-        balance2D(nthr, ithr, jcp.mb * jcp.ngroups * jcp_dw.oh, bcast_start,
+        balance2D(nthr, ithr, jcp.mb * jcp.ngroups * jcp_dw->oh, bcast_start,
                 bcast_end, nb_oc, ocb_start, ocb_end, jcp.load_grp_count);
 
         while (ocb_start < ocb_end) {
@@ -370,18 +373,19 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
             int oh_1x1 = 0;
             auto bcast_iter = bcast_start;
             while (bcast_iter < bcast_end) {
-                int n, g, oh_dw;
+                int n {0}, g {0}, oh_dw {0};
                 nd_iterator_init(bcast_iter, n, jcp.mb, g, jcp.ngroups, oh_dw,
-                        jcp_dw.oh);
+                        jcp_dw->oh);
                 if (oh_dw == 0) oh_1x1 = 0; // Reset over mb boundary
-                const int oh_1x1_range = oh_dw * jcp_dw.stride_h - jcp_dw.t_pad;
+                const int oh_1x1_range
+                        = oh_dw * jcp_dw->stride_h - jcp_dw->t_pad;
                 const int oh_1x1_begin = nstl::max(oh_1x1_range, 0);
                 const int oh_1x1_end
-                        = nstl::min(oh_1x1_range + jcp_dw.kh, jcp.oh);
+                        = nstl::min(oh_1x1_range + jcp_dw->kh, jcp.oh);
                 oh_1x1 = nstl::max(
                         oh_1x1_begin, oh_1x1); // Skip rows computed previously
 
-                // dw_spatial to 1x1 spatial conversion. if jcp.oh != jcp_dw.oh
+                // dw_spatial to 1x1 spatial conversion. if jcp.oh != jcp_dw->oh
                 const int bcast_start_1x1
                         = n * jcp.ngroups * jcp.oh + g * jcp.oh + oh_1x1;
                 const int bcast_end_1x1 = bcast_start_1x1 - oh_1x1 + oh_1x1_end;
@@ -392,8 +396,8 @@ void jit_avx512_core_bf16_1x1_convolution_fwd_t<dst_type>::execute_forward_thr(
                 ker_dw(n, g * nb_oc + ocb_start, load_step, oh_dw);
 
                 bcast_iter += nb_bcast_blocking;
-                ocb_start += load_step;
             }
+            ocb_start += load_step;
         }
     };
 
@@ -419,7 +423,9 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_data_t<
     auto weights = CTX_IN_MEM(const wei_data_t *, DNNL_ARG_WEIGHTS);
     auto diff_src = CTX_OUT_MEM(diff_src_data_t *, DNNL_ARG_DIFF_SRC);
     auto scratchpad = ctx.get_scratchpad_grantor();
-    parallel(0, [&](const int ithr, const int nthr) {
+    const auto &jcp = kernel_->jcp;
+    parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+        assert(nthr == jcp.nthr);
         execute_backward_data_thr(
                 ithr, nthr, diff_dst, weights, diff_src, scratchpad);
     });
@@ -775,7 +781,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
                             p.bcast_data = local_src + sp * jcp.ic_block;
                         if (!jcp.uses_permw_transposition) {
                             bf16_support::jit_call_t ptr;
-                            ptr.size = p.reduce_dim;
+                            ptr.nelems = p.reduce_dim;
                             int thr_src_block_size = rnd_up(jcp.reduce_dim, 2)
                                     * jcp.ic_block * jcp.nb_bcast_blocking_max;
                             src_data_t *tr_src
@@ -962,6 +968,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
     };
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+        assert(nthr == jcp.nthr);
         ker(ithr, jcp.nthr);
         if (dnnl_thr_syncable())
             ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
@@ -970,6 +977,7 @@ void jit_avx512_core_bf16_1x1_convolution_bwd_weights_t<diff_weights_type>::
 
     if (!dnnl_thr_syncable()) {
         parallel(jcp.nthr, [&](const int ithr, const int nthr) {
+            assert(nthr == jcp.nthr);
             ker_reduce_and_convert_diff_wei(ithr, jcp.nthr);
             if (pd()->with_bias()) {
                 auto rb = this->reducer_bias_;

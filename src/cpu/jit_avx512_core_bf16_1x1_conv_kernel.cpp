@@ -146,8 +146,9 @@ void jit_avx512_core_bf16_1x1_conv_kernel::reduce_loop(
         if (one_of(jcp.prop_kind, forward_training, forward_inference,
                     backward_data))
             return EVEX_compress_addr(aux_reg_output_data,
-                    (i_load * jcp.bcast_dim + i_ur) * jcp.load_block
-                            * jcp.typesize_out * scale);
+                    (i_load * (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim)
+                            + i_ur)
+                            * jcp.load_block * jcp.typesize_out * scale);
         else
             return ptr[aux_reg_output_data
                     + (i_load ? reg_output_stride * i_load
@@ -719,11 +720,19 @@ bool jit_avx512_core_bf16_1x1_conv_kernel::post_ops_ok(
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(); };
     auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(); };
+    auto is_convolution
+            = [&](int idx) { return p.entry_[idx].is_convolution(); };
 
-    switch (p.len_) {
+    int dw_idx = p.find(primitive_kind::convolution);
+    int len = dw_idx != -1 ? dw_idx + 1 : p.len_;
+
+    switch (len) {
         case 0: return true; // no post_ops
-        case 1: return is_eltwise(0) || is_sum(0); // sum OR eltwise
-        case 2: return is_sum(0) && is_eltwise(1); // sum -> eltwise
+        case 1: // eltwise OR sum OR Convolution
+            return is_eltwise(0) || is_sum(0) || is_convolution(0);
+        case 2: // sum -> eltwise OR eltwise -> convolution
+            return (is_sum(0) && is_eltwise(1))
+                    || (is_eltwise(0) && is_convolution(1));
         default: return false;
     }
 
@@ -739,6 +748,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
 
+    jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
     jcp.prop_kind = cd.prop_kind;
@@ -794,8 +804,12 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     if (!post_ops_ok(jcp, attr)) return status::unimplemented;
 
     const auto &p = attr.post_ops_;
-    jcp.with_sum = p.find(primitive_kind::sum) != -1;
-    const int eltwise_ind = p.find(primitive_kind::eltwise);
+    const int dw_conv_ind = p.find(primitive_kind::convolution);
+    jcp.with_dw_conv = dw_conv_ind != -1;
+    // Using dw_conv_ind as upper-bound below, as post-ops after it will be
+    // handled in depthwise convolution.
+    jcp.with_sum = p.find(primitive_kind::sum, 0, dw_conv_ind) != -1;
+    const int eltwise_ind = p.find(primitive_kind::eltwise, 0, dw_conv_ind);
     jcp.with_eltwise = eltwise_ind != -1;
     if (jcp.with_eltwise) {
         jcp.eltwise = p.entry_[eltwise_ind].eltwise;
@@ -868,14 +882,15 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
 
     jcp.load_grp_count = 1;
 
-    const int L1_capacity = get_cache_size(1, true) / jcp.typesize_in;
-    const int L2_size = get_cache_size(2, true) / jcp.typesize_in;
+    const int L1_capacity = get_per_core_cache_size(1) / jcp.typesize_in;
+    const int L2_size = get_per_core_cache_size(2) / jcp.typesize_in;
     const int L2_capacity = (L2_size * 3) / 4;
 
     if (one_of(jcp.prop_kind, forward_training, forward_inference,
                 backward_data)) {
         jcp.nthr = nthreads;
         if (one_of(jcp.prop_kind, forward_inference, forward_training)) {
+            if (jcp.with_dw_conv) jcp.ur = nstl::min(jcp.ow, jcp.ur);
             jcp.reduce_dim = jcp.ic;
             jcp.reduce_block = jcp.ic_block;
 
@@ -906,7 +921,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                 = (one_of(jcp.prop_kind, forward_training, forward_inference))
                 ? jcp.od * jcp.oh
                 : jcp.id * jcp.ih;
-        if ((8 * jcp.mb) / nthreads >= 1) {
+        if ((8 * jcp.mb) / jcp.nthr >= 1) {
             max_regs = 9;
             min_regs = 6;
             size_treshold = 14;
@@ -1025,11 +1040,11 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         auto bcast_size
                 = (dim_t)jcp.mb * jcp.ngroups * jcp.bcast_dim * jcp.reduce_dim;
 
-        if (nthreads <= 28 && jcp.mb < nthreads
-                && nb_load * nb_bcast > nthreads) {
+        if (jcp.nthr <= 28 && jcp.mb < jcp.nthr
+                && nb_load * nb_bcast > jcp.nthr) {
             // Some heuristic here
             float calc_koef = 0.01, best_cost = FLT_MAX;
-            int n_lgc = nthreads;
+            int n_lgc = jcp.nthr;
             float ratio = (float)load_size / (float)bcast_size;
             int best_lgc = ratio > 1 ? n_lgc : 1;
             auto calc_job_cost = [&](int lb, int tg, float mem_k) {
@@ -1044,12 +1059,12 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                 lgc = ratio > 1 ? n_lgc - ilgc : ilgc + 1;
                 int min_lb = nb_load / lgc;
                 int max_lb = div_up(nb_load, lgc);
-                int min_tg = nthreads / lgc;
-                int max_tg = div_up(nthreads, lgc);
+                int min_tg = jcp.nthr / lgc;
+                int max_tg = div_up(jcp.nthr, lgc);
                 // Some heuristic here
                 float mem_koef = (max_tg == 1) ? 1.f : 1.3f;
                 float job_cost = 0.;
-                if (nthreads % lgc < nb_load % lgc) {
+                if (jcp.nthr % lgc < nb_load % lgc) {
                     job_cost = calc_job_cost(max_lb, min_tg, mem_koef);
                 } else {
                     auto job_cost1 = calc_job_cost(max_lb, max_tg, mem_koef);
@@ -1067,21 +1082,21 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
                     = div_up(nb_load, jcp.load_grp_count) * jcp.load_block;
         } else {
             jcp.load_grp_count
-                    = div_up(nthreads, jcp.mb * jcp.ngroups * nb_bcast);
-            jcp.load_grp_count = best_divider(nthreads, jcp.load_grp_count,
+                    = div_up(jcp.nthr, jcp.mb * jcp.ngroups * nb_bcast);
+            jcp.load_grp_count = best_divider(jcp.nthr, jcp.load_grp_count,
                     2 * jcp.load_grp_count, false);
         }
 
         if (jcp.expl_bcast && jcp.bcast_dim <= 64 && load_size >= L2_size) {
             jcp.load_grp_count = nstl::max(jcp.load_grp_count, 4);
-        } else if (jcp.bcast_dim <= 49 && jcp.mb <= nthreads
+        } else if (jcp.bcast_dim <= 49 && jcp.mb <= jcp.nthr
                 && jcp.load_dim > 512 && jcp.load_dim / jcp.reduce_dim >= 4) {
             jcp.load_grp_count = nstl::max(jcp.load_grp_count, 2);
             load_blocking = jcp.load_block;
         }
 
         bcast_blocking = div_up(jcp.mb * jcp.ngroups * nb_bcast,
-                                 div_up(nthreads, jcp.load_grp_count))
+                                 div_up(jcp.nthr, jcp.load_grp_count))
                 * jcp.bcast_block;
         bcast_blocking = nstl::min(jcp.bcast_dim, bcast_blocking);
         bcast_blocking = rnd_up(bcast_blocking, jcp.bcast_block);
@@ -1150,7 +1165,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
         jcp.load_loop_iter_step = jcp.oc_block;
 
         /* --- */
-        balance(jcp, nthreads);
+        balance(jcp, jcp.nthr);
 
         load_blocking = div_up(jcp.load_dim, jcp.load_block);
         load_blocking = best_divider(load_blocking, 16, load_blocking, false);
@@ -1200,7 +1215,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     assert(IMPLICATION(jcp.uses_permw_transposition,
             jcp.reduce_dim % jcp.reduce_block == 0));
 
-    jcp.ur_tail = jcp.bcast_dim % jcp.ur;
+    jcp.ur_tail = (jcp.with_dw_conv ? jcp.ow : jcp.bcast_dim) % jcp.ur;
 
     jcp.nb_bcast_blocking = bcast_blocking / jcp.bcast_block;
     jcp.nb_bcast_blocking_max = bcast_blocking_max / jcp.bcast_block;

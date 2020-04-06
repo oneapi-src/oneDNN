@@ -1130,13 +1130,13 @@ template <cpu_isa_t isa>
 struct driver_t : public c_compatible {
     driver_t(const batch_normalization_pd_t *bdesc)
         : bdesc_(bdesc), ker_(bdesc_) {
-        const int nthrs = dnnl_get_max_threads();
         const dim_t C_PADDED = get_c_padded(bdesc_);
 
         dt_size_ = types::data_type_size(bdesc_->desc()->data_desc.data_type);
         size_t data_size = dt_size_ * bdesc_->MB() * C_PADDED * bdesc_->D()
                 * bdesc_->H() * bdesc_->W();
-        l3_size_ = get_cache_size(3, true) * nthrs / 2;
+        l3_size_ = get_per_core_cache_size(3) * dnnl_get_max_threads()
+                / 2; // XXX
         do_blocking_ = (data_size >= l3_size_ / 2 && l3_size_ > 0);
     }
 
@@ -1144,12 +1144,12 @@ struct driver_t : public c_compatible {
 
     static void init_scratchpad(memory_tracking::registrar_t &scratchpad,
             const batch_normalization_pd_t *bdesc) {
-        int nthrs = dnnl_get_max_threads();
         dim_t C_PADDED = get_c_padded(bdesc);
 
         int sbuf_sz = use_tmp_stats(bdesc) * 2 * C_PADDED;
         int pbuf_sz = use_tmp_diff_scale_shift(bdesc) * 2 * C_PADDED;
-        int rbuf_sz = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * nthrs;
+        int rbuf_sz
+                = (bdesc->is_fwd() ? 1 : 2) * C_PADDED * dnnl_get_max_threads();
 
         scratchpad.book(key_bnorm_tmp_stats, sizeof(acc_data_t) * sbuf_sz);
         scratchpad.book(key_bnorm_tmp_diff_ss, sizeof(acc_data_t) * pbuf_sz);
