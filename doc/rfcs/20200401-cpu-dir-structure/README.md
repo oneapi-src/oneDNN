@@ -55,8 +55,8 @@ Some observations:
   supported. This should be abstracted out by a specialized function
   `platform::has_bf16()` or `engine->has_bf16()`.
 - Functions to check the cache size should also be abstract. For x64 the
-  implementation may use Xbyak, but in general there should be explicit
-  dependency.
+  implementation may use Xbyak, but such kind of dependencies should be
+  guarded, so that the library can be built on non x64 platforms.
 - Semi-jitted implementations, like `gemm_inner_product_utils.cpp`, currently
   hide some unsupported case by providing the fallback C-based implementation.
   Typically, within the same class.
@@ -120,7 +120,7 @@ Notes:
 ### Refactoring
 
 - Introduce nested namespaces mapping to directory structure
-    - Ex: `dnnl::cpu::x64` for x64-specific files
+    - Ex: `dnnl::impl::cpu::x64` for x64-specific files
 - Macros:
     ``` cpp
     // src/cpu/platform.hpp (preferable) or src/common/utils.hpp (currently)
