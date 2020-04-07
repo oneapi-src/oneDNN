@@ -118,6 +118,22 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
             case primitive_kind::sum:
                 seed = hash_combine(seed, entry.sum.scale);
                 break;
+            case primitive_kind::convolution:
+                seed = hash_combine(
+                        seed, static_cast<size_t>(entry.depthwise_conv.stride));
+                seed = hash_combine(
+                        seed, static_cast<size_t>(entry.depthwise_conv.wei_dt));
+                seed = hash_combine(seed,
+                        static_cast<size_t>(entry.depthwise_conv.bias_dt));
+                seed = hash_combine(
+                        seed, static_cast<size_t>(entry.depthwise_conv.dst_dt));
+                if (entry.depthwise_conv.scales) {
+                    seed = hash_combine(seed, entry.depthwise_conv.mask);
+                    seed = hash_combine(seed, entry.depthwise_conv.count);
+                    seed = get_array_hash(seed, entry.depthwise_conv.scales,
+                            entry.depthwise_conv.count);
+                }
+                break;
             default: assert(!"unknown post_op");
         }
     }
