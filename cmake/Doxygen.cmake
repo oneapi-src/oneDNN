@@ -60,7 +60,7 @@ if(DOXYGEN_FOUND)
         COMMAND ${CMAKE_COMMAND} -E touch ${DOXYGEN_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
-    add_custom_target(doc DEPENDS ${DOXYGEN_STAMP_FILE})
+    add_custom_target(oneDNNdoc DEPENDS ${DOXYGEN_STAMP_FILE})
 
     if(NOT DNNL_INSTALL_MODE STREQUAL "BUNDLE")
         install(
