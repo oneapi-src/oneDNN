@@ -67,7 +67,7 @@ endif()
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
-        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel ...")
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel RelWithAssert ...")
 endif()
 
 set(PROJECT_NAME "oneDNN")
@@ -119,6 +119,7 @@ include("cmake/MKL.cmake")
 include("cmake/Doxygen.cmake")
 include("cmake/version.cmake")
 include("cmake/coverage.cmake")
+include("cmake/build_types.cmake")
 
 # Handle cases when OpenMP runtime is requested but not found: override CPU
 # runtime to be sequential
