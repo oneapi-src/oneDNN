@@ -148,13 +148,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
                 pd, this->dnnl_get_max_threads());
 
         // lock cache
-        recursive_mutex_.lock();
+        lock_cache();
         dnnl::impl::primitive_t *p = nullptr;
         auto primitive_impl = primitive_cache_->get(key);
         if (primitive_impl) {
             // cache hit
             // unlock cache because it's safe to create a wrapper in parallel
-            recursive_mutex_.unlock();
+            unlock_cache();
             // create a wrapper for primitive_impl
             auto status
                     = dnnl::impl::safe_ptr_assign<dnnl::impl::primitive_t>(p,
@@ -177,13 +177,13 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
                         primitive_impl, use_global_scratchpad));
 
         if (status != dnnl::impl::status::success) {
-            recursive_mutex_.unlock();
+            unlock_cache();
             return status;
         }
 
         status = p->init();
         if (status != dnnl::impl::status::success) {
-            recursive_mutex_.unlock();
+            unlock_cache();
             p->release();
             return status;
         }
@@ -193,27 +193,12 @@ struct dnnl_engine : public dnnl::impl::c_compatible {
         key.attr_ = p->pd()->attr();
 
         primitive_cache_->add(key, p->get_primitive_impl());
-        recursive_mutex_.unlock();
+        unlock_cache();
 
         ms = dnnl::impl::get_msec() - ms;
         print_verbose(dnnl::impl::get_verbose(), false, p, ms);
         (*primitive) = p;
         return status;
-    }
-
-    size_t get_primitive_cache_capacity() const {
-        // Default capacity is 0 - primitive cache is disabled by default
-        // Use call_once to avoid performance impact due to multiple getenv
-        // calls
-        static size_t primitive_cache_capacity = 0;
-#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
-        static std::once_flag initialized;
-        std::call_once(initialized, [&] {
-            primitive_cache_capacity = dnnl::impl::getenv_int(
-                    "DNNL_PRIMITIVE_CACHE_CAPACITY", 200);
-        });
-#endif
-        return primitive_cache_capacity;
     }
 
     int dnnl_get_max_threads();
@@ -225,6 +210,53 @@ protected:
     // As a primitive can be created inside another one a recursive_mutex is
     // required
     std::recursive_mutex recursive_mutex_;
+
+private:
+    size_t get_primitive_cache_capacity() const {
+        // Use call_once to initialize capacity only once
+#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+        static size_t primitive_cache_capacity = 0;
+        static std::once_flag initialized;
+        std::call_once(initialized, [&] {
+            primitive_cache_capacity = dnnl::impl::getenv_int(
+                    "DNNL_PRIMITIVE_CACHE_CAPACITY", 200);
+        });
+        return primitive_cache_capacity;
+#else
+        return 0;
+#endif
+    }
+
+    // There are two cases when the cache can be left unlocked during
+    // primitive creation:
+    //
+    // 1. When the cache is disabled in the build system.
+    // In that case, capacity is always 0 and cannot be changed as there is no
+    // an API for that, therefore accessing the cache by multiple threads
+    // is safe (`get` and `add` functions have no effect if capacity is 0).
+    //
+    // 2. When the cache is enabled in the build system, but an environment
+    // variable `DNNL_PRIMITIVE_CACHE_CAPACITY` is set to 0.
+    // In this case, `get_primitive_cache_capacity` function initializes
+    // the capacity only once, with either a value provided with
+    // `DNNL_PRIMITIVE_CACHE_CAPACITY` or the default one and cannot be changed
+    // further as there is no an API for that. Therefore, accessing the cache
+    // by multiple threads is safe in this case too.
+    //
+    // Rationale: we should allow to create primitives in parallel without a
+    // lock if there is no need in it to avoid an unnecessary bottleneck.
+
+    void lock_cache() {
+#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+        if (get_primitive_cache_capacity() > 0) recursive_mutex_.lock();
+#endif
+    }
+
+    void unlock_cache() {
+#ifdef DNNL_ENABLE_PRIMITIVE_CACHE
+        if (get_primitive_cache_capacity() > 0) recursive_mutex_.unlock();
+#endif
+    }
 };
 
 namespace dnnl {
