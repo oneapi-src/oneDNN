@@ -36,42 +36,38 @@ __kernel void ref_resampling_fwd(
         dst[dst_index] = src[src_index];
     }
 #else
-    const uint id0 = max((uint)floor(id - .5), (uint)0);
-    const uint id1 = min((uint)ceil(id - .5), (uint)ID - 1);
-    const uint ih0 = max((uint)floor(ih - .5), (uint)0);
-    const uint ih1 = min((uint)ceil(ih - .5), (uint)IH - 1);
-    const uint iw0 = max((uint)floor(iw - .5), (uint)0);
-    const uint iw1 = min((uint)ceil(iw - .5), (uint)IW - 1);
-    float Wid = 1.0 - fabs(id - .5 - id0);
-    float Wih = 1.0 - fabs(ih - .5 - ih0);
-    float Wiw = 1.0 - fabs(iw - .5 - iw0);
+    const uint id0 = max((uint)floor(id - .5f), (uint)0);
+    const uint id1 = min((uint)ceil(id - .5f), (uint)ID - 1);
+    const uint ih0 = max((uint)floor(ih - .5f), (uint)0);
+    const uint ih1 = min((uint)ceil(ih - .5f), (uint)IH - 1);
+    const uint iw0 = max((uint)floor(iw - .5f), (uint)0);
+    const uint iw1 = min((uint)ceil(iw - .5f), (uint)IW - 1);
+    float Wid = 1.0f - fabs(id - .5f - id0);
+    float Wih = 1.0f - fabs(ih - .5f - ih0);
+    float Wiw = 1.0f - fabs(iw - .5f - iw0);
     for (int c = ch; c < min((uint)C, ch + (uint)C_BLOCK); c++) {
-        float dst_val = (((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)])
-                                          * Wih
-                                  + CONVERT_FLOAT_T(
-                                            src[SRC_OFF(mb, c, id0, ih1, iw0)])
-                                          * (1.0 - Wih))
-                                         * Wiw
-                                 + (CONVERT_FLOAT_T(
-                                            src[SRC_OFF(mb, c, id0, ih0, iw1)])
-                                                   * Wih
-                                           + CONVERT_FLOAT_T(src[SRC_OFF(
-                                                     mb, c, id0, ih1, iw1)])
-                                                   * (1.0 - Wih))
-                                         * (1.0 - Wiw))
+        dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(
+                ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw0)]) * Wih
+                         * Wiw)
+                        + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw0)])
+                                * (1.f - Wih) * Wiw)
+                        + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih0, iw1)])
+                                * Wih * (1 - Wiw))
+                        + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id0, ih1, iw1)])
+                                * (1.f - Wih) * (1.f - Wiw)))
                         * Wid
                 + ((CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw0)]) * Wih
-                           + CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih1, iw0)])
-                                   * (1.0 - Wih))
-                                  * Wiw
-                          + (CONVERT_FLOAT_T(src[SRC_OFF(mb, c, id1, ih0, iw1)])
-                                            * Wih
-                                    + CONVERT_FLOAT_T(src[SRC_OFF(
-                                              mb, c, id1, ih1, iw1)])
-                                            * (1.0 - Wih))
-                                  * (1.0 - Wiw))
-                        * (1.0 - Wid));
-        dst[DST_OFF(mb, c, od, oh, ow)] = CONVERT_DATA_T(dst_val);
+                           * Wiw)
+                          + (CONVERT_FLOAT_T(
+                                     src[SRC_OFF(mb, c, id1, ih1, iw0)])
+                                  * (1.f - Wih) * Wiw)
+                          + (CONVERT_FLOAT_T(
+                                     src[SRC_OFF(mb, c, id1, ih0, iw1)])
+                                  * Wih * (1 - Wiw))
+                          + (CONVERT_FLOAT_T(
+                                     src[SRC_OFF(mb, c, id1, ih1, iw1)])
+                                  * (1.f - Wih) * (1.f - Wiw)))
+                        * (1.f - Wid));
     }
 #endif
 }
