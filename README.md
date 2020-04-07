@@ -13,7 +13,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 > * Repository moved from `intel/mkl-dnn` to `oneapi-src/oneDNN`. Existing 
 > links to the code and documentation will continue to work.
 >
-> There are no changes to API, environment variable or build options
+> There are no changes to the API, environment variables, or build options
 > planned at this point.
 
 oneAPI Deep Neural Network Library (oneDNN) is an
