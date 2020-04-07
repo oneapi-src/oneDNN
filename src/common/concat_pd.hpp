@@ -193,9 +193,10 @@ protected:
         if (status != status::success) {
             for (int i = 0; i < n_; ++i) {
                 const memory_desc_wrapper src_d(src_mds_[i]);
-                if (src_d.is_blocking_desc() && src_d.is_plain()) {
+                if (src_d.is_blocking_desc() && src_d.is_plain()
+                        && src_d.nelems() > 0) {
                     status = memory_desc_init_by_blocking_desc(dst_md_,
-                            memory_desc_wrapper(src_mds_[0]).blocking_desc());
+                            memory_desc_wrapper(src_mds_[i]).blocking_desc());
                     if (status == status::success) return status;
                 }
             }

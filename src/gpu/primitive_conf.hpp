@@ -387,6 +387,18 @@ struct reorder_conf_t {
     memory_desc_info_t dst_md_info;
 };
 
+// Concat
+struct concat_conf_t {
+    data_type_t data_type;
+    dim_t dst_extern_dim_size;
+    dim_t src_extern_dim_sizes[16];
+    dim_t offset[16];
+    dim_t inner_axis;
+    int block;
+    int n;
+    size_t gws_d[3], lws_d[3];
+};
+
 // Elementwise
 struct eltwise_conf_t {
     int ndims;
