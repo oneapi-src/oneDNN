@@ -10,3 +10,4 @@
 --cfg=s8s8u8  --batch=shapes_resnet_50
 --cfg=s8s8f32 --batch=shapes_googlenet_v3
 --cfg=s8s8s32 --batch=shapes_vgg_19
+--cfg=u8s8u8 --stag=axb --dtag=axb --batch=shapes_1x1   # nhwc in rtus
