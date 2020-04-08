@@ -46,6 +46,8 @@ struct jit_uni_rnn_postgemm : public jit_generator {
         , dshift_off_addr(0)
         , ymm_perm_mask_addr(0)
         , zmm_perm_mask_addr(0)
+        , zero_addr(0)
+        , u8_saturation_addr(0)
         , weights_scales_reg(r13)
         , qtable(r14)
         , qd_reg_idx(15)
@@ -286,11 +288,13 @@ protected:
                 mov(qtable, qlabel);
                 mov(weights_scales_reg, size_t(weights_scales));
 
-                dscale_off_addr = ptr[qtable];
-                dshift_off_addr = ptr[qtable + vlen];
-                ymm_perm_mask_addr = ptr[qtable + 2 * vlen];
+                zero_addr = ptr[qtable];
+                u8_saturation_addr = ptr[qtable + vlen];
+                dscale_off_addr = ptr[qtable + 2 * vlen];
+                dshift_off_addr = ptr[qtable + 3 * vlen];
+                ymm_perm_mask_addr = ptr[qtable + 4 * vlen];
                 zmm_perm_mask_addr
-                        = ptr[qtable + 2 * vlen + cpu_isa_traits<avx>::vlen];
+                        = ptr[qtable + 4 * vlen + cpu_isa_traits<avx>::vlen];
                 break;
             }
             case data_type::f32: {
@@ -309,6 +313,10 @@ protected:
 
         L(qlabel);
         {
+            for (size_t i = 0; i < vlen / sizeof(float); i++)
+                dd(float2int(0.0f));
+            for (size_t i = 0; i < vlen / sizeof(float); i++)
+                dd(float2int(255.0f));
             for (size_t i = 0; i < vlen / sizeof(float); i++)
                 dd(float2int(data_scale));
             for (size_t i = 0; i < vlen / sizeof(float); i++)
@@ -373,6 +381,9 @@ protected:
             uni_vpxor(qd_vmm, qd_vmm, qd_vmm);
             uni_vmulps(src, src, dscale_off_addr); // apply scale
             uni_vaddps(src, src, dshift_off_addr); // apply shift
+            // To saturate properly, we use min/max on the float value
+            uni_vmaxps(src, src, zero_addr);
+            uni_vminps(src, src, u8_saturation_addr);
             uni_vcvtps2dq(src, src); // convert to int32
             uni_vpackssdw(src, src, qd_vmm); // convert from s32 to s16
             // convert from s16 to u8 with saturation
@@ -524,6 +535,8 @@ protected:
     Xbyak::Address dshift_off_addr;
     Xbyak::Address ymm_perm_mask_addr;
     Xbyak::Address zmm_perm_mask_addr;
+    Xbyak::Address zero_addr;
+    Xbyak::Address u8_saturation_addr;
     Xbyak::Reg64 weights_scales_reg;
     Xbyak::Reg64 qtable;
     Xbyak::Label qlabel;

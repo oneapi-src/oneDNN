@@ -175,6 +175,8 @@ rnn_postgemm_sig(rnn_postgemm_fwd_u8_t::lstm_postgemm) {
 
     auto quantize_f32_u8 = [&](float f) {
         float qf = f * data_scale + data_shift;
+        qf = nstl::min(qf, 255.0f);
+        qf = nstl::max(qf, 0.0f);
         return qz_a1b0<float, dst_layer_t>()(qf);
     };
 
