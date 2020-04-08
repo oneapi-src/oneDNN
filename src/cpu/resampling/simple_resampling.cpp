@@ -158,13 +158,23 @@ template <impl::data_type_t data_type>
 void simple_resampling_bwd_t<data_type>::linear(float *diff_src,
         const float *diff_dst, dim_t stride_d, dim_t stride_h, dim_t stride_w,
         dim_t id, dim_t ih, dim_t iw) const {
-    bwd_linear_coeffs_t w = bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw];
+
+    // It's wrapped in lambdas to workaround an issue that appears in the
+    // following case: Intel Compiler 19.0 + PRAGMA_OMP_SIMD +
+    // generation multiple code paths (ax option) + SNB
+    const auto idx_s = [&](int k) {
+        return bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw].start[k];
+    };
+
+    const auto idx_e = [&](int k) {
+        return bwd_linear_coeffs_[pd()->ID() + pd()->IH() + iw].end[k];
+    };
 
     PRAGMA_OMP_SIMD()
     for (dim_t nsp1 = 0; nsp1 < nsp_inner_; nsp1++) {
         diff_src[nsp1] = 0;
         for_(int k = 0; k < 2; k++)
-        for (dim_t ow = w.start[k]; ow < w.end[k]; ow++) {
+        for (dim_t ow = idx_s(k); ow < idx_e(k); ow++) {
             diff_src[nsp1] += diff_dst[ow * stride_w + nsp1]
                     * bwd_linear_weights_[2 * (pd()->OD() + pd()->OH() + ow)
                             + k];
