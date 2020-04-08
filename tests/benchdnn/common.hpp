@@ -27,6 +27,7 @@
 
 #include <cinttypes>
 #include <functional>
+#include <string>
 #include <vector>
 
 #include "src/common/z_magic.hpp"
