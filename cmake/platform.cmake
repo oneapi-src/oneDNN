@@ -161,7 +161,17 @@ elseif(UNIX OR MINGW)
     endif()
 endif()
 
-if(UNIX OR MINGW)
+if(MSVC)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        # There's no opportunity for icl to link its libraries statically
+        # into the library. That's why removing them when searching symbols.
+        # libm symbols will be taken from ucrt.lib, otherwise, linker will
+        # complain about duplicated symbols being linked to the library.
+        append(NO_DYNAMIC_LIBS "/NODEFAULTLIB:libmmd.lib")
+        append(NO_DYNAMIC_LIBS "/NODEFAULTLIB:svml_dispmd.lib svml_dispmt.lib")
+        append(CMAKE_SHARED_LINKER_FLAGS "${NO_DYNAMIC_LIBS}")
+    endif()
+elseif(UNIX OR MINGW)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
         # Link Intel libraries statically (except for iomp5)
         if ("${DNNL_CPU_THREADING_RUNTIME}" STREQUAL "OMP")
