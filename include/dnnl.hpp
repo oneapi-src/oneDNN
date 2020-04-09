@@ -2973,6 +2973,41 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set RNN weights quantization parameters primitive "
                 "attribute");
     }
+
+    /// Sets quantization scaling factors for RNN projection weights tensors.
+    //  The low-precision configuration of the RNN primitives expect input
+    //  weights to use the signed 8-bit integer data type. The scaling factors
+    //  are used to quantize floating-point data to signed integer and must be
+    /// passed to RNN primitives using attributes.
+    ///
+    /// @note
+    ///     The dimension order is always native and does not depend on the
+    ///     actual layout used. For example, five-dimensional weights always
+    ///     have (l, d, i, g, o) logical dimension ordering.
+    ///
+    /// @note
+    ///     Quantization scales are common for weights_layer and
+    ///     weights_iteration
+    ///
+    /// @param mask Scaling factors correspondence mask that defines the
+    ///     correspondence between the output tensor dimensions and the @p
+    ///     scales vector. The set i-th bit indicates that a dedicated scaling
+    ///     factor should be used each index along that dimension. Set the
+    ///     mask to 0 to use a common scaling factor for the whole output
+    ///     tensor.
+    /// @param scales Constant vector of output scaling factors. The following
+    ///     equality must hold:
+    ///     \f$scales.size() = \prod\limits_{d \in mask} weights.dims[d].\f$
+    ///     Violations can only be detected when the attributes are used to
+    ///     create a primitive descriptor.
+    void set_rnn_weights_projection_qparams(
+            int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+                        get(), (int)scales.size(), mask, scales.data()),
+                "could not set primitive RNN weights projection quantization "
+                "parameters attributes");
+    }
 };
 
 /// @} dnnl_api_attributes

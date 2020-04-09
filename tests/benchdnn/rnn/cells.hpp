@@ -36,7 +36,8 @@ void lstm_fwd(const prb_t &prb, float *dst_layer_, float *dst_iter_,
         float *dst_iter_c_, float *gates_, float *ht_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *weights_projection_,
-        const float *bias_, const float *src_layer_, const float *src_iter_,
+        const float *weights_projection_compensation, const float *bias_,
+        const float *src_layer_, const float *src_iter_,
         const float *src_iter_c_);
 
 void lstm_bwd(const prb_t &prb, float *diff_src_layer_, float *diff_src_iter_,

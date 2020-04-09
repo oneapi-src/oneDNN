@@ -21,6 +21,7 @@
 #include "common/bfloat16.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -52,37 +53,76 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
             scratch_cell_, dst_iter_);
 
     if (rnn.is_lstm_projection) {
-        // Here, because the accumulation type is likely different
-        // than dst_iter, we have to use scratch to hold temporary
+        auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
+
+        // Here, because the accumulation type is different
+        // than dst_layer, we have to use scratch to hold temporary
         // accumulators
-        // TODO: for projection, directly use a type(dst_iter) for output
-        auto dst_layer_ld = rnn.dst_layer_ld(cell_position);
-        auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
+        assert(rnn.scratch_gates_ld >= rnn.dlc);
+        gemm_acc_t *dst_proj = rnn.dt_conf == all_f32 ? (gemm_acc_t *)dst_layer_
+                                                      : scratch_gates_;
+        int dst_proj_ld
+                = rnn.dt_conf == all_f32 ? dst_layer_ld : rnn.scratch_gates_ld;
 
-        if (rnn.dt_conf == all_f32) {
-            CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb,
-                    rnn.dhc, 1.0f, w_projection_[0], rnn.weights_projection_ld,
-                    dst_postgemm, rnn.proj_ht_ld, 0.0f,
-                    (gemm_acc_t *)dst_layer_,
-                    rnn.dst_layer_ld(cell_position, true)));
-        } else {
-            CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb,
-                    rnn.dhc, 1.0f, w_projection_[0], rnn.weights_projection_ld,
-                    dst_postgemm, rnn.proj_ht_ld, 0.0f, scratch_gates_,
-                    rnn.scratch_gates_ld));
+        CHECK((this->*gemm_projection_func)('N', 'N', rnn.dic, rnn.mb, rnn.dhc,
+                1.0f, w_projection_[0], rnn.weights_projection_ld, dst_postgemm,
+                rnn.proj_ht_ld, 0.0f, dst_proj, dst_proj_ld));
 
-            for (int i = 0; i < rnn.mb; i++)
-                cvt_float_to_bfloat16(
-                        (bfloat16_t *)dst_layer_ + i * dst_layer_ld,
-                        (float *)scratch_gates_ + i * rnn.scratch_gates_ld,
-                        rnn.dlc);
+        // If not f32, we have to downconvert the output to dst_layer_t
+        if (rnn.dt_conf != all_f32) {
+            if (rnn.dt_conf == all_bf16) {
+                for (int i = 0; i < rnn.mb; i++)
+                    cvt_float_to_bfloat16(
+                            (bfloat16_t *)dst_layer_ + i * dst_layer_ld,
+                            (float *)scratch_gates_ + i * rnn.scratch_gates_ld,
+                            rnn.dlc);
+            } else if (rnn.is_int8()) {
+                float *weights_projection_scales
+                        = pd_->attr()->rnn_weights_projection_qparams_.scales_;
+                float data_shift = pd_->attr()->rnn_data_qparams_.shift_;
+                float data_scale = pd_->attr()->rnn_data_qparams_.scale_;
+
+                auto quantize_f32_u8 = [&](float f) {
+                    float qf = f * data_scale + data_shift;
+                    return qz_a1b0<float, dst_layer_t>()(qf);
+                };
+
+                auto dequantize_s32_f32 = [&](gemm_acc_t s, int j) {
+                    float wscale
+                            = pd_->attr()->rnn_weights_projection_qparams_.mask_
+                                    == 0
+                            ? weights_projection_scales[0]
+                            : weights_projection_scales[j];
+                    float wcomp = w_proj_comp[j] * data_shift;
+
+                    return (saturate<float>(s) - wcomp) / (wscale * data_scale);
+                };
+
+                parallel_nd(rnn.mb, [&](int i) {
+                    PRAGMA_OMP_SIMD()
+                    for (int j = 0; j < rnn.dlc; j++) {
+                        int scratch_off = i * rnn.scratch_gates_ld + j;
+                        int dst_off = i * dst_layer_ld + j;
+                        float tmp = dequantize_s32_f32(
+                                scratch_gates_[scratch_off], j);
+                        dst_layer_[dst_off] = quantize_f32_u8(tmp);
+                    }
+                });
+            } else {
+                assert(!"unimplemented");
+            }
         }
+
         // If dst_iter is not nullptr, we need to copy the state to dst_iter
-        if (dst_iter_ != nullptr)
+        assert(rnn.dic == rnn.dlc);
+        assert(sizeof(dst_layer_t) == sizeof(dst_iter_t));
+        if (dst_iter_ != nullptr) {
+            auto dst_iter_ld = rnn.dst_iter_ld(cell_position);
             for (int i = 0; i < rnn.mb; i++)
                 std::memcpy(dst_iter_ + i * dst_iter_ld,
                         dst_layer_ + i * dst_layer_ld,
                         rnn.dlc * sizeof(dst_layer_t));
+        }
     }
 
     return dnnl_success;

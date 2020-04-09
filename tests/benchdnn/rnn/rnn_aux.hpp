@@ -80,6 +80,10 @@ void init_buffer(float *buf, int64_t size, float value);
 float maybe_q(const prb_t &prb, float h);
 float maybe_deq(const prb_t &prb, const float in);
 float maybe_deq(const prb_t &prb, const float in, int64_t oc);
+float maybe_deq(
+        const prb_t &prb, const float in, float scale, float compensation);
+float maybe_deq_proj(
+        const prb_t &prb, const float in, float compensation, int64_t oc);
 
 float logistic(float x);
 float dlogistic(float x);

@@ -150,6 +150,7 @@ namespace rnn_packed_format {
 const rnn_packed_format_t undef = dnnl_packed_format_undef;
 const rnn_packed_format_t ldigo_p = dnnl_ldigo_p;
 const rnn_packed_format_t ldgoi_p = dnnl_ldgoi_p;
+const rnn_packed_format_t ldio_p = dnnl_ldio_p;
 } // namespace rnn_packed_format
 
 using format_kind_t = dnnl_format_kind_t;

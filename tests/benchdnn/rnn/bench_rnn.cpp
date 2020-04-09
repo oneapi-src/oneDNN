@@ -37,6 +37,7 @@ void check_correctness(const settings_t &s) {
     for_(auto i_with_peephole : s.with_peephole)
     for_(auto i_with_projection : s.with_projection)
     for_(const auto &i_scale_policy : s.scale_policy)
+    for_(const auto &i_scale_proj_policy : s.scale_proj_policy)
     for_(const auto &i_direction : s.direction)
     for_(const auto &i_activation : s.activation)
     for_(auto i_skip_nonlinear : s.skip_nonlinear)
@@ -66,8 +67,9 @@ void check_correctness(const settings_t &s) {
 
         const prb_t prb(s.desc, dt_conf_t::create(i_cfg), i_prop, i_alg,
                 i_with_peephole, i_with_projection, i_direction, i_scale_policy,
-                s.flags, i_activation, attr, s.alpha, s.beta, i_skip_nonlinear,
-                i_trivial_strides, i_n_layer, i_n_iter, i_mb);
+                i_scale_proj_policy, s.flags, i_activation, attr, s.alpha,
+                s.beta, i_skip_nonlinear, i_trivial_strides, i_n_layer,
+                i_n_iter, i_mb);
         std::stringstream ss;
         ss << prb;
         const std::string cpp_pstr = ss.str();
@@ -106,6 +108,8 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(s.activation, def.activation,
                         str2activation, argv[0], "activation")
                 || parse_scale_policy(s.scale_policy, def.scale_policy, argv[0])
+                || parse_scale_policy(s.scale_proj_policy,
+                        def.scale_proj_policy, argv[0], "scaling-proj")
                 || parse_mb(s.mb, def.mb, argv[0])
                 || parse_vector_option(
                         s.n_layer, def.n_layer, atoi, argv[0], "l")

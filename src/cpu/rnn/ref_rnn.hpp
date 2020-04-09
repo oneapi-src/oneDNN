@@ -146,7 +146,9 @@ struct _ref_rnn_common_t : public primitive_t {
             if (weights_layer_dt == data_type::s8)
                 attr_mask = attr_mask
                         | primitive_attr_t::skip_mask_t::rnn_data_qparams
-                        | primitive_attr_t::skip_mask_t::rnn_weights_qparams;
+                        | primitive_attr_t::skip_mask_t::rnn_weights_qparams
+                        | primitive_attr_t::skip_mask_t::
+                                rnn_weights_projection_qparams;
             ok = ok && this->attr()->has_default_values(attr_mask);
             if (!ok) return status::unimplemented;
 

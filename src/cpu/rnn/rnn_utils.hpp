@@ -50,26 +50,26 @@
             gemm_acc_t *diff_src_iter_, gemm_acc_t *diff_src_iter_c_, \
             weights_t **w_layer_, weights_t **w_iter_, \
             weights_t **w_projection_, const float *weights_peephole_, \
-            float **bias_, const src_layer_t *src_layer_, \
-            const src_iter_t *src_iter_, const float *src_iter_c_, \
-            gemm_acc_t *diff_dst_layer_, gemm_acc_t *diff_dst_iter_, \
-            gemm_acc_t *diff_dst_iter_c_, gemm_acc_t *diff_w_layer_, \
-            gemm_acc_t *diff_w_iter_, float *diff_weights_projection_, \
-            float *diff_weights_peephole_, float *diff_bias_, \
-            gates_t *ws_gates_, scratch_t *scratch_gates_, ht_t *proj_ht_, \
-            gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
+            const float *w_proj_comp, float **bias_, \
+            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            const float *src_iter_c_, gemm_acc_t *diff_dst_layer_, \
+            gemm_acc_t *diff_dst_iter_, gemm_acc_t *diff_dst_iter_c_, \
+            gemm_acc_t *diff_w_layer_, gemm_acc_t *diff_w_iter_, \
+            float *diff_weights_projection_, float *diff_weights_peephole_, \
+            float *diff_bias_, gates_t *ws_gates_, scratch_t *scratch_gates_, \
+            ht_t *proj_ht_, gemm_acc_t *scratch_diff_ht_, gates_t *ws_grid_, \
             scratch_t *scratch_cell_, dst_iter_t *dst_iter_) const
 
 #define rnn_grid_execution_sig(f) \
     dnnl_status_t f(const rnn_utils::rnn_conf_t &rnn, \
             weights_t **weights_layer_, weights_t **weights_iter_, \
             weights_t **weights_projection_, const float *weights_peephole_, \
-            float **bias_, const src_layer_t *src_layer_, \
-            const src_iter_t *src_iter_, const float *src_iter_c_, \
-            dst_layer_t *dst_layer_, dst_iter_t *dst_iter_, \
-            float *dst_iter_c_, src_layer_t *ws_states_layer_, \
-            src_iter_t *ws_states_iter_, float *ws_states_iter_c_, \
-            gemm_acc_t *ws_diff_states_layer_, \
+            const float *w_proj_comp, float **bias_, \
+            const src_layer_t *src_layer_, const src_iter_t *src_iter_, \
+            const float *src_iter_c_, dst_layer_t *dst_layer_, \
+            dst_iter_t *dst_iter_, float *dst_iter_c_, \
+            src_layer_t *ws_states_layer_, src_iter_t *ws_states_iter_, \
+            float *ws_states_iter_c_, gemm_acc_t *ws_diff_states_layer_, \
             gemm_acc_t *ws_diff_states_iter_, \
             gemm_acc_t *ws_diff_states_iter_c_, gates_t *ws_gates_, \
             ht_t *ws_ht_, gates_t *ws_grid_, scratch_t *scratch_gates_, \
@@ -450,9 +450,13 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     rnn.ws_diff_states_iter_c_ld = rnn.dhc;
 
     // set scratch (not)leading dimensions
+    // scratch gates is used to store intermediate gates before postgemm operation
+    // temporary: we also use it in lstmp as temporary scratchpad
+    // between projection and downconversion, hence the max with dlc
     rnn.scratch_gates_nld = rnn.mb;
     rnn.scratch_gates_ld
-            = get_good_ld(rnn.n_gates * rnn.dhc, sizeof(typename T::scratch_t));
+            = get_good_ld(nstl::max(rnn.dlc, rnn.n_gates * rnn.dhc),
+                    sizeof(typename T::scratch_t));
     rnn.scratch_ht_nld = rnn.proj_ht_nld;
     rnn.scratch_ht_ld = rnn.proj_ht_ld;
 
@@ -535,20 +539,25 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             && is_inference
             && ((is_f32 && pack_sgemm_supported() && rnn.mb >= 16)
                     || rnn.is_int8() || is_bf16);
-    rnn.use_projection_packed_gemm = false;
+    rnn.use_projection_packed_gemm
+            = utils::one_of(weights_projection_d.format_kind(),
+                      format_kind::any, format_kind::rnn_packed)
+            && is_inference
+            && ((is_f32 && pack_sgemm_supported() && rnn.n_iter == 1)
+                    || rnn.is_int8() || is_bf16);
 
     /* Set packed gemm sizes */
     /* TODO: investigate the benefit of mixing packed and non-packed weights parts */
     auto set_pack_sizes
             = [&](bool merge, bool &do_pack, size_t &weights_pack_size,
                       int &n_parts, int *parts, size_t *parts_pack_size,
-                      size_t &comp_offset, int feature_size, dim_t weights_oc,
+                      size_t &comp_offset, int ic, int oc, int weights_oc,
                       dim_t data_ld) -> bool {
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
-            dim_t m_p = rnn.is_fwd ? (parts[p] * rnn.dhc) : feature_size;
-            dim_t k_p = rnn.is_fwd ? feature_size : (parts[p] * rnn.dhc);
+            dim_t m_p = rnn.is_fwd ? (parts[p] * oc) : ic;
+            dim_t k_p = rnn.is_fwd ? ic : (parts[p] * oc);
             dim_t n_p = merge ? rnn.mb * rnn.n_iter : rnn.mb;
             bool pack_part = true;
 
@@ -594,7 +603,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                 rnn.use_layer_packed_gemm, rnn.weights_layer_pack_size,
                 rnn.n_parts_weights_layer, rnn.parts_weights_layer,
                 rnn.part_weights_layer_pack_size, rnn.weights_layer_comp_offset,
-                rnn.slc, rnn.n_gates * rnn.dhc, rnn.ws_states_layer_ld);
+                rnn.slc, rnn.dhc, rnn.n_gates * rnn.dhc,
+                rnn.ws_states_layer_ld);
         if (!ok) return false;
     }
 
@@ -602,8 +612,18 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         bool ok = set_pack_sizes(rnn.merge_gemm_iter, rnn.use_iter_packed_gemm,
                 rnn.weights_iter_pack_size, rnn.n_parts_weights_iter,
                 rnn.parts_weights_iter, rnn.part_weights_iter_pack_size,
-                rnn.weights_iter_comp_offset, rnn.sic, rnn.n_gates * rnn.dhc,
-                rnn.ws_states_iter_ld);
+                rnn.weights_iter_comp_offset, rnn.sic, rnn.dhc,
+                rnn.n_gates * rnn.dhc, rnn.ws_states_iter_ld);
+        if (!ok) return false;
+    }
+
+    if (rnn.use_projection_packed_gemm) {
+        bool ok = set_pack_sizes(false, rnn.use_projection_packed_gemm,
+                rnn.weights_projection_pack_size,
+                rnn.n_parts_weights_projection, rnn.parts_weights_projection,
+                rnn.part_weights_projection_pack_size,
+                rnn.weights_projection_comp_offset, rnn.dhc, rnn.dic, rnn.dic,
+                rnn.scratch_ht_ld);
         if (!ok) return false;
     }
 

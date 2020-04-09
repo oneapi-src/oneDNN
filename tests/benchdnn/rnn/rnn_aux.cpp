@@ -241,6 +241,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &prb) {
         s << "--with-projection=" << bool2str(prb.with_projection) << " ";
     if (canonical || prb.wei_scales_policy != def.scale_policy[0])
         s << "--scaling=" << prb.wei_scales_policy << " ";
+    if (canonical || prb.wei_proj_scales_policy != def.scale_proj_policy[0])
+        s << "--scaling-proj=" << prb.wei_proj_scales_policy << " ";
     if (canonical || prb.trivial_strides != def.trivial_strides[0])
         s << "--trivial-strides=" << bool2str(prb.trivial_strides) << " ";
 
@@ -378,6 +380,20 @@ float maybe_deq(const prb_t &prb, const float in, int64_t oc) {
     if (!prb.cfg.is_int8()) return in;
     float scale = prb.get_wei_scale(oc);
     return in * (1.0f / (scale * prb.data_scale));
+}
+
+// If needed, dequantize s32 accumulators to f32 via data, weights scales
+// and compensation.
+float maybe_deq(
+        const prb_t &prb, const float in, float scale, float compensation) {
+    if (!prb.cfg.is_int8()) return in;
+    return (in - compensation * prb.data_shift)
+                * (1.0f / (scale * prb.data_scale));
+}
+
+float maybe_deq_proj(
+        const prb_t &prb, const float in, float compensation, int64_t oc) {
+    return maybe_deq(prb, in, prb.get_wei_proj_scale(oc), compensation);
 }
 
 float maybe_q(const prb_t &prb, float h) {
@@ -732,6 +748,7 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     };
 
     set_wei_scales(wei_scales, wei_nscales);
+    if (with_projection) set_wei_scales(wei_proj_scales, wei_proj_nscales);
 }
 
 void prb_t::set_tparams(float fp_min, float fp_max) {

@@ -117,44 +117,51 @@ status_t zero_points_t::set(
 
 bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
         dnnl::impl::data_type_t dst_dt) const {
+    using smask_t = skip_mask_t;
     // prepare mask for runtime-parameters check
-    skip_mask_t defined_mask {};
-    if ((mask & skip_mask_t::oscale_runtime) == skip_mask_t::oscale_runtime)
-        defined_mask |= skip_mask_t::oscale;
-    if ((mask & skip_mask_t::zero_points_runtime)
-            == skip_mask_t::zero_points_runtime)
-        defined_mask |= skip_mask_t::zero_points;
+    smask_t defined_mask {};
+    if ((mask & smask_t::oscale_runtime) == smask_t::oscale_runtime)
+        defined_mask |= smask_t::oscale;
+    if ((mask & smask_t::zero_points_runtime) == smask_t::zero_points_runtime)
+        defined_mask |= smask_t::zero_points;
+    bool ok = true;
 
-    return true
-            && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
-                    output_scales_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::scales),
-                    scales_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
-                    zero_points_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
-                    post_ops_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
-                    rnn_data_qparams_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
-                    rnn_weights_qparams_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::sum_dt),
-                    post_ops_.sum_with_default_dt(dst_dt))
-            && this->defined(defined_mask);
+#define CHECK_ARG(x) ok = ok && (x)
+#define CHECK_MASK(mask_name, mask_field) \
+    CHECK_ARG(IMPLICATION( \
+            (bool)(~mask & (mask_name)), (mask_field).has_default_values()))
+    CHECK_MASK(smask_t::oscale, output_scales_);
+    CHECK_MASK(smask_t::scales, scales_);
+    CHECK_MASK(smask_t::zero_points, zero_points_);
+    CHECK_MASK(smask_t::post_ops, post_ops_);
+    CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
+    CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
+    CHECK_MASK(smask_t::rnn_weights_projection_qparams,
+            rnn_weights_projection_qparams_);
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::sum_dt),
+            post_ops_.sum_with_default_dt(dst_dt)));
+    CHECK_ARG(this->defined(defined_mask));
+    return ok;
+#undef CHECK_MASK
+#undef CHECK_ARG
 }
 
 bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
-    return true
-            && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
-                    output_scales_.defined())
-            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
-                    zero_points_.defined())
-            && IMPLICATION(
-                    (bool)(~mask & skip_mask_t::post_ops), post_ops_.defined())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
-                    rnn_data_qparams_.defined())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
-                    rnn_weights_qparams_.defined());
+    using smask_t = skip_mask_t;
+    bool ok = true;
+#define CHECK_ARG(x) ok = ok && (x)
+#define CHECK_MASK(mask_name, mask_field) \
+    CHECK_ARG(IMPLICATION((bool)(~mask & (mask_name)), (mask_field).defined()))
+    CHECK_MASK(smask_t::oscale, output_scales_);
+    CHECK_MASK(smask_t::zero_points, zero_points_);
+    CHECK_MASK(smask_t::post_ops, post_ops_);
+    CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
+    CHECK_MASK(smask_t::rnn_weights_qparams, rnn_weights_qparams_);
+    CHECK_MASK(smask_t::rnn_weights_projection_qparams,
+            rnn_weights_projection_qparams_);
+    return ok;
+#undef CHECK_MASK
+#undef CHECK_ARG
 }
 
 status_t post_ops_t::append_sum(float scale, data_type_t dt) {
@@ -591,6 +598,14 @@ status_t dnnl_primitive_attr_set_rnn_weights_qparams(
     if (!ok) return invalid_arguments;
 
     return attr->rnn_weights_qparams_.set(count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+        primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
+    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
+    if (!ok) return invalid_arguments;
+
+    return attr->rnn_weights_projection_qparams_.set(count, mask, scales);
 }
 
 status_t DNNL_API dnnl_primitive_attr_set_rnn_tparams(

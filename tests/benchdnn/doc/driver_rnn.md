@@ -15,6 +15,8 @@ where *rnn-knobs* are:
  - `--direction={left2right [default], right2left, concat, sum}` -- TBA.
  - `--activation={RELU [default], LOGISTIC, TANH}` -- TBA.
  - `--scaling="scale_str"` -- RNN scaling policy, default `""` (no scaling).
+ - `--scaling-proj="scale_str"` -- RNN scaling policy for the
+            projection weights, default `""` (no scaling).
             Refer to [attributes](knobs_attr.md) for details.
  - `--skip-nonlinear={true, false [default]}` -- specify if transcendental
             activations will be treated as linear. This allows to test longer

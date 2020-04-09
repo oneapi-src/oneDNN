@@ -322,8 +322,10 @@ rnn_grid_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
                         &(weights_layer(lay, dir, 0)),
                         &(weights_iter(lay, dir, 0)),
                         &(weights_projection(lay, dir)),
-                        &(weights_peephole(lay, dir, 0)), &(bias(lay, dir, 0)),
-                        cell_src_layer, cell_src_iter, cell_src_iter_c,
+                        &(weights_peephole(lay, dir, 0)),
+                        w_proj_comp + (j * rnn.n_dir + dir) * rnn.dic,
+                        &(bias(lay, dir, 0)), cell_src_layer, cell_src_iter,
+                        cell_src_iter_c,
                         &(ws_diff_states_layer(lay + 1, dir, iter, 0)),
                         &(ws_diff_states_iter(lay, dir, iter + 1, 0)),
                         &(ws_diff_states_iter_c(lay, dir, iter + 1, 0)),
@@ -1080,8 +1082,8 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
             layer_weights_n_comp + rnn.weights_layer_comp_offset);
     auto w_iter_comp = reinterpret_cast<const float *>(
             iter_weights_n_comp + rnn.weights_iter_comp_offset);
-    // auto w_projection_comp = reinterpret_cast<const float *>(
-    //         projection_weights_n_comp + rnn.weights_projection_comp_offset);
+    auto w_projection_comp = reinterpret_cast<const float *>(
+            projection_weights_n_comp + rnn.weights_projection_comp_offset);
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
@@ -1202,12 +1204,13 @@ void _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute_(
 
     // run the execution on the grid
     (this->*grid_computation)(rnn, ptr_wei_layer, ptr_wei_iter,
-            ptr_wei_projection, weights_peephole, ptr_bias, src_layer,
-            (const src_iter_t *)src_iter, src_iter_c, (dst_layer_t *)dst_layer,
-            (dst_iter_t *)dst_iter, dst_iter_c, ws_states_layer, ws_states_iter,
-            ws_states_iter_c, ws_diff_states_layer, ws_diff_states_iter,
-            ws_diff_states_iter_c, ws_gates, ws_ht, ws_grid, scratch_gates,
-            scratch_ht, scratch_diff_ht, scratch_cell, diff_weights_layer,
+            ptr_wei_projection, weights_peephole, w_projection_comp, ptr_bias,
+            src_layer, (const src_iter_t *)src_iter, src_iter_c,
+            (dst_layer_t *)dst_layer, (dst_iter_t *)dst_iter, dst_iter_c,
+            ws_states_layer, ws_states_iter, ws_states_iter_c,
+            ws_diff_states_layer, ws_diff_states_iter, ws_diff_states_iter_c,
+            ws_gates, ws_ht, ws_grid, scratch_gates, scratch_ht,
+            scratch_diff_ht, scratch_cell, diff_weights_layer,
             diff_weights_iter, diff_weights_projection, diff_weights_peephole,
             diff_bias);
 

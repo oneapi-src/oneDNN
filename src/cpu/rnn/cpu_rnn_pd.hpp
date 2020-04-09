@@ -50,9 +50,6 @@ protected:
         if (is_lstm_peephole()
                 && weights_peephole_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(weights_peephole_md_, ldgo));
-        if (is_lstm_projection()
-                && weights_projection_md_.format_kind == format_kind::any)
-            CHECK(memory_desc_init_by_tag(weights_projection_md_, ldio));
         if (with_bias() && bias_md_.format_kind == format_kind::any)
             CHECK(memory_desc_init_by_tag(bias_md_, ldgo));
         if (with_dst_iter() && dst_iter_md_.format_kind == format_kind::any)
@@ -106,9 +103,15 @@ protected:
                 && IMPLICATION(!is_zero_md(&weights_peephole_md_),
                         memory_desc_matches_tag(weights_peephole_md_, ldgo));
 
-        ok = ok
-                && IMPLICATION(!is_zero_md(&weights_projection_md_),
-                        memory_desc_matches_tag(weights_projection_md_, ldio));
+        if (!is_zero_md(&weights_projection_md_)) {
+            if (weights_projection_md_.format_kind == format_kind::rnn_packed)
+                ok = ok
+                        && (weights_projection_md_.format_desc.rnn_packed_desc
+                                        .format
+                                == dnnl_ldio_p);
+            else
+                ok = ok && rnn_utils::is_ldio(&weights_projection_md_);
+        }
 
         ok = ok
                 && IMPLICATION(!is_zero_md(&bias_md_),
