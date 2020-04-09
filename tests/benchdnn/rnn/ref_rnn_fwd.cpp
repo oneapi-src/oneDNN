@@ -84,12 +84,8 @@ void prepare_bias(const prb_t &p, float *bias_with_compensation_,
                         weights_compensation
                                 += weights_layer(layer, dir, slc, gate, dhc);
 
-                    float scale = p.data_scale;
-                    if (p.scale_policy == policy_t::PER_OC)
-                        scale *= p.wei_oc_scales[gate * p.dhc + dhc];
-                    else if (p.scale_policy == policy_t::COMMON)
-                        scale *= p.wei_scale;
-
+                    float scale = p.data_scale
+                            * p.get_wei_scale(gate * p.dhc + dhc);
                     bias_with_compensation(layer, dir, gate, dhc)
                             = bias(layer, dir, gate, dhc)
                             - weights_compensation * p.data_shift / scale;
