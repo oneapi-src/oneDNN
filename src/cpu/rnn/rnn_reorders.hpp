@@ -77,21 +77,77 @@ private:
     typedef typename prec_traits<type_i>::type in_data_t;
     typedef typename prec_traits<type_o>::type out_data_t;
 
-    virtual status_t execute(const exec_ctx_t &ctx) const override {
-        auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
-        auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
+    bool is_dense() const {
+        const memory_desc_wrapper &input_d = pd()->src_md();
+        const memory_desc_wrapper &output_d = pd()->dst_md();
+        return utils::everyone_is(1,
+                input_d.blocking_desc().strides[input_d.ndims() - 1],
+                output_d.blocking_desc().strides[output_d.ndims() - 1]);
+    }
+
+    /* This function assumes that only the innermost dimension (C) is
+       dense (that is to say, stride is 1).  This is enough to have
+       good performance and allow non trivial strides on other
+       dimensions (to allow an "optimized" path for views for
+       example).
+     */
+    status_t execute_dense(out_data_t *output, const in_data_t *input,
+            const float scale, const float shift) const {
+        assert(type_i == data_type::f32);
+        assert(type_o == data_type::u8);
+
+        const memory_desc_wrapper &input_d = pd()->src_md();
+        const memory_desc_wrapper &output_d = pd()->dst_md();
+        const dim_t outer_dim
+                = utils::array_product(input_d.dims(), input_d.ndims() - 1);
+        const dim_t inner_dim = input_d.dims()[input_d.ndims() - 1];
+
+        parallel(0, [&](const int ithr, const int nthr) {
+            dim_t start, end;
+            balance211(outer_dim, nthr, ithr, start, end);
+            for (int i = start; i < end; ++i) {
+                const dim_t off_in = input_d.off_l(i * inner_dim);
+                const dim_t off_out = output_d.off_l(i * inner_dim);
+                const in_data_t *__restrict i_ = input + off_in;
+                out_data_t *__restrict o_ = output + off_out;
+                PRAGMA_OMP_SIMD()
+                for (int j = 0; j < inner_dim; ++j) {
+                    const float in = (float)i_[j] * scale + shift;
+                    const float out_l = nstl::max(in, 0.0f);
+                    const float out = nstl::min(out_l, 255.0f);
+                    o_[j] = (out_data_t)(nearbyintf(out));
+                }
+            }
+        });
+        return status::success;
+    }
+
+    status_t execute_generic(out_data_t *output, const in_data_t *input,
+            float scale, float shift) const {
+        assert(type_i == data_type::f32);
+        assert(type_o == data_type::u8);
+
         const memory_desc_wrapper &input_d = pd()->src_md();
         const memory_desc_wrapper &output_d = pd()->dst_md();
         const size_t nelems = input_d.nelems();
+        parallel_nd(nelems, [&](size_t i) {
+            float in = (float)input[input_d.off_l(i)] * scale + shift;
+            float out = nstl::max(nstl::min(in, 255.0f), 0.0f);
+            output[output_d.off_l(i)] = (out_data_t)(nearbyintf(out));
+        });
+        return status::success;
+    }
+
+    virtual status_t execute(const exec_ctx_t &ctx) const override {
+        auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
+        auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const float scale = pd()->attr()->rnn_data_qparams_.scale_;
         const float shift = pd()->attr()->rnn_data_qparams_.shift_;
 
-        parallel_nd(nelems, [&](size_t i) {
-            float in = (float)input[input_d.off_l(i)] * scale + shift;
-            output[output_d.off_l(i)] = qz_a1b0<float, out_data_t>()(in);
-        });
-
-        return status::success;
+        if (is_dense())
+            return execute_dense(output, input, scale, shift);
+        else
+            return execute_generic(output, input, scale, shift);
     }
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
