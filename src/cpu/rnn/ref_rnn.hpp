@@ -118,22 +118,23 @@ struct _ref_rnn_common_t : public primitive_impl_t {
             data_type_t weights_layer_dt
                     = this->desc()->weights_layer_desc.data_type;
 
-            bool ok = true
-                    && one_of(cell_kind, alg_kind::vanilla_rnn,
-                            alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
-                            alg_kind::lbr_gru)
-                    && IMPLICATION(aprop == prop_kind::forward,
-                            one_of(this->desc()->prop_kind, forward_training,
-                                    forward_inference))
-                    && IMPLICATION(aprop == backward,
-                            one_of(this->desc()->prop_kind, backward))
-                    && src_layer_dt == src_type
-                    && everyone_is(
-                            weights_type, weights_iter_dt, weights_layer_dt)
-                    && this->set_default_params() == status::success
-                    && this->with_bias();
+            bool ok = true;
+#define PD_CHECK(x) ok = ok && (x)
+            PD_CHECK(one_of(cell_kind, alg_kind::vanilla_rnn,
+                    alg_kind::vanilla_lstm, alg_kind::vanilla_gru,
+                    alg_kind::lbr_gru));
+            PD_CHECK(IMPLICATION(aprop == prop_kind::forward,
+                    one_of(this->desc()->prop_kind, forward_training,
+                            forward_inference)));
+            PD_CHECK(IMPLICATION(aprop == backward,
+                    one_of(this->desc()->prop_kind, backward)));
+            PD_CHECK(src_layer_dt == src_type);
+            PD_CHECK(everyone_is(
+                    weights_type, weights_iter_dt, weights_layer_dt));
+            PD_CHECK(this->set_default_params() == status::success);
+            PD_CHECK(this->with_bias());
             if (!ok) return status::unimplemented;
-
+#undef PD_CHECK
             ok = init_conf<class_name>(rnn_, *this->desc(), this->src_md(0),
                     this->src_md(1), this->src_md(2), this->weights_md(0),
                     this->weights_md(1),
