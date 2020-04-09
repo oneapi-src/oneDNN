@@ -95,7 +95,7 @@ void lstm_fwd_postgemm_template(T1 func1, T2 func2, T3 to_src_dt, T4 to_float,
 
             float gate_o = func1(scales + 3, gate_o_arg);
 
-            float ht = to_src_dt(gate_o * func2(cscale, c_state));
+            src_data_t ht = to_src_dt(gate_o * func2(cscale, c_state));
             if (dst_layer_ != nullptr) dst_layer(i, j) = ht;
             if (dst_iter_ != nullptr) dst_iter(i, j) = ht;
 
