@@ -77,7 +77,7 @@ status_t dnnl_primitive_desc_clone(
         return invalid_arguments;
 
     return safe_ptr_assign<primitive_desc_iface_t>(*primitive_desc_iface,
-            new dnnl::impl::primitive_desc_iface_t(
+            new primitive_desc_iface_t(
                     existing_primitive_desc_iface->impl()->clone(),
                     existing_primitive_desc_iface->engine()));
 }

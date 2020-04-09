@@ -34,6 +34,7 @@ namespace dnnl {
 namespace impl {
 
 struct primitive_t;
+// Primitive descriptor implementation
 struct primitive_desc_t : public c_compatible {
     primitive_desc_t(const primitive_attr_t *attr, primitive_kind_t kind)
         : attr_(*attr), kind_(kind) {}
@@ -229,6 +230,13 @@ protected:
 } // namespace impl
 } // namespace dnnl
 
+// dnnl_primitive_desc is a user facing entity that has an alias
+// primitive_desc_iface_t for internal use.
+// The primitive_desc_iface_t is responsible for holding:
+// 1. impl::primitive_desc_t - a primitive descriptor implementation that
+// can be stored in the primitive cache as part of the primitive implementation
+// to which it belongs
+// 2. engine_t - a dnnl engine
 struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
     // This ctor is used to create a standalone pd
     dnnl_primitive_desc(
@@ -252,7 +260,7 @@ struct dnnl_primitive_desc : public dnnl::impl::c_compatible {
             dnnl::impl::query_t what, int idx, void *result) const;
 
     dnnl::impl::status_t create_primitive_iface(
-            dnnl::impl::primitive_iface_t **primitive_iface) const;
+            primitive_iface_t **primitive_iface) const;
 
     const std::shared_ptr<dnnl::impl::primitive_desc_t> &impl() const;
 

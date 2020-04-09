@@ -35,6 +35,7 @@ namespace dnnl {
 namespace impl {
 
 struct resource_mapper_t;
+// Primitive implementation
 struct primitive_t : public c_compatible {
     primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
     virtual ~primitive_t() = default;
@@ -218,20 +219,35 @@ private:
 #define CTX_OUT_MEM(type, arg) \
     static_cast<ARG_TYPE(type) *>(CTX_OUT_STORAGE(arg).data_handle())
 
+// dnnl_primitive is a user facing entity that has an alias primitive_iface_t
+// for internal use.
+// The primitive_iface_t is responsible for holding:
+// 1. impl::primitive_t - a primitive implementation that can be
+// stored in the primitive cache. Other data members are NOT stored in
+// the cache
+// 2. scratchpad_t - a memory for scratchpad
+// 3. primitive_desc_iface_t - an alias for dnnl_primitive_desc and is
+// a user facing primitive descriptor (the one a user should create prior
+// creating a primitive)
+// 4. resource_mapper_t - a resource mapper that provides a mapping between
+// impl::primitive_t and its resource
+//
+// Note: primitive_desc_iface_t and impl::primitive_t share the same
+// impl::primitive_desc_t
 struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
             dnnl::impl::engine_t *engine);
 
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
-    const dnnl::impl::primitive_desc_iface_t *pd() const;
+    const primitive_desc_iface_t *pd() const;
     const std::shared_ptr<dnnl::impl::primitive_t> &get_primitive() const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
 private:
     std::shared_ptr<dnnl::impl::primitive_t> primitive_;
     std::unique_ptr<dnnl::impl::scratchpad_t> scratchpad_;
-    std::unique_ptr<dnnl::impl::primitive_desc_iface_t> pd_;
+    std::unique_ptr<primitive_desc_iface_t> pd_;
     dnnl::impl::resource_mapper_t resource_mapper_;
 
     dnnl_primitive() = delete;

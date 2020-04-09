@@ -30,7 +30,7 @@ namespace dnnl {
 namespace impl {
 
 struct reorder_primitive_desc_iface_t : public dnnl_primitive_desc {
-    reorder_primitive_desc_iface_t(dnnl::impl::primitive_desc_t *pd,
+    reorder_primitive_desc_iface_t(primitive_desc_t *pd,
             dnnl::impl::engine_t *engine, dnnl::impl::engine_t *src_engine,
             dnnl::impl::engine_t *dst_engine)
         : dnnl_primitive_desc(pd, engine)
