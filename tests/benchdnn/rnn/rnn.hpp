@@ -256,8 +256,8 @@ struct prb_t : public desc_t {
         , alpha(alpha)
         , beta(beta)
         , attr(attr)
-        , scale_policy(scale_policy)
         , ops(0.0)
+        , wei_scales_policy(scale_policy)
         , skip_nonlinear(skip_nonlinear)
         , trivial_strides(trivial_strides)
         , linear_cscale(0.0f) {
@@ -266,7 +266,7 @@ struct prb_t : public desc_t {
         count_ops();
         wc = MAX2(MAX2(sic, slc), MAX2(dic, dhc));
 
-        wei_oc_scales = nullptr;
+        wei_scales = nullptr;
         linear_scales = nullptr;
 
         // We always allocate linear scales. Even if they are not
@@ -275,14 +275,29 @@ struct prb_t : public desc_t {
         // Here we use the range of SRC_LAYER to set the scales
         set_tparams(cfg[SRC_LAYER].f_min, cfg[SRC_LAYER].f_max);
 
-        if (scale_policy == policy_t::PER_OC)
-            wei_oc_scales
-                    = (float *)zmalloc(sizeof(float) * dhc * n_gates(), 64);
+        switch (wei_scales_policy) {
+            case policy_t::PER_OC:
+                wei_scales_mask = 0x18;
+                wei_nscales = dhc * n_gates();
+                break;
+            case policy_t::COMMON:
+            case policy_t::NONE:
+                wei_scales_mask = 0x0;
+                wei_nscales = 1;
+                break;
+            default: assert(!"unsupported scaling policy");
+        }
+
+        wei_scales = (float *)zmalloc(sizeof(float) * wei_nscales, 64);
         set_qparams(-1., 1.);
     }
     ~prb_t() {
-        if (wei_oc_scales) zfree(wei_oc_scales);
+        if (wei_scales) zfree(wei_scales);
         if (linear_scales) zfree(linear_scales);
+    }
+
+    float get_wei_scale(int idx) const {
+        return wei_scales[MIN2(idx, wei_nscales - 1)];
     }
 
     void count_ops() {
@@ -333,13 +348,15 @@ struct prb_t : public desc_t {
     float alpha;
     float beta;
     attr_t attr;
-    policy_t scale_policy;
-
     double ops;
 
     float data_scale, data_shift;
-    float wei_scale;
-    float *wei_oc_scales;
+
+    policy_t wei_scales_policy;
+    float *wei_scales;
+    int wei_nscales;
+    int wei_scales_mask;
+
 
     bool skip_nonlinear;
     bool trivial_strides;
