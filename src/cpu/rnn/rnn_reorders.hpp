@@ -354,7 +354,7 @@ private:
                     PRAGMA_OMP_SIMD()
                     for (int go = GO_s; go < GO_e; go++)
                         compensation[ld * G * O + go] = math::saturate<float>(
-                                scratch_quantized[go + I * (ld)]);
+                                scratch_quantized[ld * I * G * O + go]);
                 } else {
                     // We split the loop on I in three to avoid conditionals or zeroing compensation
                     int i = 0;
