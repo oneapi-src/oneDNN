@@ -532,8 +532,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
     auto set_pack_sizes
             = [&](bool merge, bool &do_pack, size_t &weights_pack_size,
                       int &n_parts, int *parts, size_t *parts_pack_size,
-                      size_t &comp_offset, int feature_size,
-                      dim_t weights_ld) -> bool {
+                      size_t &comp_offset, int feature_size, dim_t weights_oc,
+                      dim_t data_ld) -> bool {
         bool pack = true;
         weights_pack_size = 0;
         for (int p = 0; p < n_parts; p++) {
@@ -546,19 +546,19 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             switch (rnn.dt_conf) {
                 case all_f32:
                     st = sgemm_pack_get_size("A", "N", "N", &m_p, &n_p, &k_p,
-                            &m_p, &weights_ld, &parts_pack_size[p], &pack_part);
+                            &m_p, &data_ld, &parts_pack_size[p], &pack_part);
                     break;
                 case u8u8u8f32:
                 case f32u8f32f32:
                 case u8u8u8u8:
                 case f32u8f32u8:
                     st = gemm_s8u8s32_pack_get_size("A", "N", "N", &m_p, &n_p,
-                            &k_p, &m_p, &weights_ld, &parts_pack_size[p],
+                            &k_p, &m_p, &data_ld, &parts_pack_size[p],
                             &pack_part);
                     break;
                 case all_bf16:
                     st = gemm_bf16bf16f32_pack_get_size("A", "N", "N", &m_p,
-                            &n_p, &k_p, &m_p, &weights_ld, &parts_pack_size[p],
+                            &n_p, &k_p, &m_p, &data_ld, &parts_pack_size[p],
                             &pack_part);
                     break;
                 default: assert(!"Unsupported configuration");
@@ -574,17 +574,17 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         comp_offset = weights_pack_size;
         const bool need_compensation = rnn.is_int8();
         weights_pack_size += (need_compensation ? rnn.n_layer * rnn.n_dir : 0)
-                * rnn.n_gates * rnn.dlc * sizeof(float);
+                * weights_oc * sizeof(float);
 
         return true;
     };
-
+    // TODO: the activation leading dimension can vary for first layer/iteration
     if (rnn.use_layer_packed_gemm) {
         bool ok = set_pack_sizes(rnn.merge_gemm_layer,
                 rnn.use_layer_packed_gemm, rnn.weights_layer_pack_size,
                 rnn.n_parts_weights_layer, rnn.parts_weights_layer,
                 rnn.part_weights_layer_pack_size, rnn.weights_layer_comp_offset,
-                rnn.slc, rnn.ws_states_layer_ld);
+                rnn.slc, rnn.n_gates * rnn.dhc, rnn.ws_states_layer_ld);
         if (!ok) return false;
     }
 
@@ -592,7 +592,8 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         bool ok = set_pack_sizes(rnn.merge_gemm_iter, rnn.use_iter_packed_gemm,
                 rnn.weights_iter_pack_size, rnn.n_parts_weights_iter,
                 rnn.parts_weights_iter, rnn.part_weights_iter_pack_size,
-                rnn.weights_iter_comp_offset, rnn.sic, rnn.ws_states_iter_ld);
+                rnn.weights_iter_comp_offset, rnn.sic, rnn.n_gates * rnn.dhc,
+                rnn.ws_states_iter_ld);
         if (!ok) return false;
     }
 
