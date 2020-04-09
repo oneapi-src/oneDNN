@@ -4,12 +4,12 @@ DPC++ Unified Shared Memory Support {#dev_guide_dpcpp_usm}
 Unified Shared Memory (USM) is a DPC++ capability that provides the ability
 to allocate and use memory in a uniform way on host and DPC++ devices.
 
-DNNL enables you to use two sets of interfaces with memory: SYCL buffers-based
+oneDNN enables you to use two sets of interfaces with memory: SYCL buffers-based
 and USM-based. This is controlled by the special macros: `DNNL_USE_SYCL_BUFFERS`
 for SYCL buffers (which is the default) and `DNNL_USE_DPCPP_USM` for USM. The
 corresponding macro must be defined to enable SYCL buffers or USM interfaces.
 
-For example, to enable USM interfaces in DNNL, the user must pass the
+For example, to enable USM interfaces in oneDNN, the user must pass the
 `DNNL_USE_DPCPP_USM` macro:
 
 ~~~sh
@@ -18,14 +18,14 @@ ${CXX} application.cpp -DDNNL_USE_DPCPP_USM ...
 
 @note SYCL buffers and USM interfaces cannot be used together in a single
 application. With the `DNNL_USE_SYCL_BUFFERS` macro defined, the library
-provides interfaces working with SYCL buffers only and DNNL memory objects are
+provides interfaces working with SYCL buffers only and oneDNN memory objects are
 always constructed with SYCL buffers. With the `DNNL_USE_DPCPP_USM` macro
-defined, the library provides interfaces working with USM only and DNNL memory
+defined, the library provides interfaces working with USM only and oneDNN memory
 objects are always constructed with USM memory.
 
 ## API
 
-DNNL provides the following interfaces to work with USM memory:
+oneDNN provides the following interfaces to work with USM memory:
 
 - `memory mem(md, eng);`
 
@@ -56,7 +56,7 @@ tasks. The runtime tracks dependencies based on accessors created for SYCL
 buffers. USM pointers cannot be used to create accessors and users must handle
 dependencies on their own using SYCL events.
 
-DNNL provides two mechanisms to handle dependencies when USM memory is used:
+oneDNN provides two mechanisms to handle dependencies when USM memory is used:
 
 1. `primitive::execute_sycl()` interface
 
@@ -64,19 +64,19 @@ DNNL provides two mechanisms to handle dependencies when USM memory is used:
     SYCL events. In this case, the user is responsible for passing proper
     dependencies for every primitive execution.
 
-2. In-order DNNL stream
+2. In-order oneDNN stream
 
-    DNNL enables you to create in-order streams when submitted primitives are
+    oneDNN enables you to create in-order streams when submitted primitives are
     executed in the order they were submitted. Using in-order streams prevents
     possible read-before-write or concurrent read/write issues.
 
-    @note Performance with in-order DNNL streams with the DPC++ runtime may be
+    @note Performance with in-order oneDNN streams with the DPC++ runtime may be
     suboptimal due to the lack of in-order queue support in the SYCL 1.2.1
     specification.
 
 ## SYCL Buffers and DPC++ USM Interfaces
 
-The tables below summarize the behavior of the DNNL interfaces for working with
+The tables below summarize the behavior of the oneDNN interfaces for working with
 memory.
 
 ### For constructors:

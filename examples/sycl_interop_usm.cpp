@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     try {
         sycl_usm_tutorial(engine_kind);
     } catch (dnnl::error &e) {
-        std::cout << "DNNL error caught: " << std::endl
+        std::cout << "oneDNN error caught: " << std::endl
                   << "\tStatus: " << dnnl_status2str(e.status) << std::endl
                   << "\tMessage: " << e.what() << std::endl;
         exit_code = 1;

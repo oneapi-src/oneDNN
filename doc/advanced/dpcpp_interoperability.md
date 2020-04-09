@@ -1,24 +1,24 @@
 DPC++ Interoperability {#dev_guide_dpcpp_interoperability}
 ===============================================================
 
-DNNL may use the DPC++ runtime for CPU and GPU engines to interact with the
-hardware. Users may need to use DNNL with other code that uses DPC++. For that
+oneDNN may use the DPC++ runtime for CPU and GPU engines to interact with the
+hardware. Users may need to use oneDNN with other code that uses DPC++. For that
 purpose, the library provides API extensions to interoperate with underlying
 SYCL objects.
 
 One of the possible scenarios is executing a SYCL kernel for a custom
-operation not provided by DNNL. In this case, the library provides
+operation not provided by oneDNN. In this case, the library provides
 all necessary API to "seamlessly" submit a kernel, sharing the execution
-context with DNNL: using the same device and queue.
+context with oneDNN: using the same device and queue.
 
 The interoperability API is provided for two scenarios:
-- Construction of DNNL objects based on existing SYCL objects
-- Accessing SYCL objects for existing DNNL objects
+- Construction of oneDNN objects based on existing SYCL objects
+- Accessing SYCL objects for existing oneDNN objects
 
-The mapping between DNNL and SYCL objects is provided in the
+The mapping between oneDNN and SYCL objects is provided in the
 following table:
 
-| DNNL object          | SYCL object(s)                             |
+| oneDNN object        | SYCL object(s)                             |
 | :------------------- | :----------------------------------------- |
 | Engine               | `cl::sycl::device` and `cl::sycl::context` |
 | Stream               | `cl::sycl::queue`                          |
@@ -31,9 +31,9 @@ type `cl::sycl::buffer<uint8_t, 1>`.
 
 ## C++ API Extensions for Interoperability with DPC++
 
-### API to Construct DNNL Objects
+### API to Construct oneDNN Objects
 
-| DNNL object          | API to construct DNNL object                                          |
+| oneDNN object        | API to construct oneDNN object                                        |
 | :------------------- | :-------------------------------------------------------------------- |
 | Engine               | [dnnl::engine(kind, sycl_dev, sycl_ctx)](@ref dnnl::engine)           |
 | Stream               | [dnnl::stream(engine, sycl_queue)](@ref dnnl::stream)                 |
@@ -41,7 +41,7 @@ type `cl::sycl::buffer<uint8_t, 1>`.
 
 ### API to Access SYCL Objects
 
-| DNNL object          | API to access SYCL object(s)                                             |
+| oneDNN object        | API to access SYCL object(s)                                             |
 | :------------------- | :----------------------------------------------------------------------- |
 | Engine               | dnnl::engine::get_sycl_device() and dnnl::engine::get_sycl_context()     |
 | Stream               | dnnl::stream::get_sycl_queue()                                           |

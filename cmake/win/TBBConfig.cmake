@@ -61,7 +61,7 @@ set(_tbb_msvc_1700_subdir vc11)
 set(_tbb_msvc_1800_subdir vc12)
 set(_tbb_msvc_1900_subdir vc14)
 
-# DNNL changes: if the project is not with MSVC, try to use MSVC 1900
+# oneDNN changes: if the project is not with MSVC, try to use MSVC 1900
 set(_tbb_msvc_ver 1900)
 if (MSVC)
     set(_tbb_msvc_ver ${MSVC_VERSION})

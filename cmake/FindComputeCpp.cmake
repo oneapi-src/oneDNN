@@ -307,7 +307,7 @@ function(__build_ir)
   get_target_property(target_libraries ${SDK_BUILD_IR_TARGET} LINK_LIBRARIES)
   if(target_libraries)
     foreach(library ${target_libraries})
-      # DNNL change: skip link flags
+      # oneDNN change: skip link flags
       if(NOT ${library} MATCHES "^-.*")
         list(APPEND ir_dependencies ${library})
       endif()
