@@ -217,6 +217,7 @@ if(DNNL_WITH_SYCL)
         "../cmake/FindSYCL.cmake"
         "../cmake/FindDPCPP.cmake"
         "../cmake/FindComputeCpp.cmake"
+        "../cmake/FindLevelZero.cmake"
         DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
