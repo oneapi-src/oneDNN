@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2019 Intel Corporation
+* Copyright 2016-2020 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -828,12 +828,16 @@ typename utils::enable_if<true
     }
 };
 
-#define PLAIN_TO_BLOCKED_IS_APPLICABLE() \
+#define PLAIN_TO_BLOCKED_NO_COMPENSATION_IS_APPLICABLE()          \
     static bool is_applicable(const memory_desc_wrapper &input_d, \
-        const memory_desc_wrapper &output_d, const primitive_attr_t *attr) { \
-        return simple_attr_check(attr, false) && (order_keep \
-                ? output_d.format() == fmt_o && input_d.is_plain() \
-                : input_d.format() == fmt_o && output_d.is_plain()); \
+            const memory_desc_wrapper &output_d,                  \
+            const primitive_attr_t *attr) {                       \
+        return simple_attr_check(attr, false)                     \
+                && (order_keep ? output_d.format() == fmt_o       \
+                                        && input_d.is_plain()     \
+                               : input_d.format() == fmt_o        \
+                                        && output_d.is_plain())   \
+                && !output_d.is_additional_buffer();              \
     }
 
 template <SIMPLE_REORDER_TEMPL_DECL>
@@ -843,7 +847,7 @@ typename utils::enable_if<fmt_i == any && (false
     || format_traits<fmt_o>::blk_fmt == bf::_8c
     || format_traits<fmt_o>::blk_fmt == bf::_16c)>::type>
 {
-    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+    PLAIN_TO_BLOCKED_NO_COMPENSATION_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
@@ -928,7 +932,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
 typename utils::enable_if<fmt_i == any
 && block_format_traits<format_traits<fmt_o>::blk_fmt>::blk_ndims == 2>::type>
 {
-    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+    PLAIN_TO_BLOCKED_NO_COMPENSATION_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
@@ -1021,7 +1025,7 @@ typename utils::enable_if<fmt_i == any && (false
     || format_traits<fmt_o>::blk_fmt == bf::_8o
     || format_traits<fmt_o>::blk_fmt == bf::_16o)>::type>
 {
-    PLAIN_TO_BLOCKED_IS_APPLICABLE();
+    PLAIN_TO_BLOCKED_NO_COMPENSATION_IS_APPLICABLE();
 
     GET_SCRATCHPAD_SIZE_ZERO();
 
@@ -1344,9 +1348,7 @@ struct simple_reorder_impl<SIMPLE_REORDER_TEMPL_CALL,
     }
 };
 
-
 /* high level class declaration */
-
 template <SIMPLE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_reorder_t: public cpu_primitive_t {
     struct pd_t: public cpu_reorder_pd_t {
