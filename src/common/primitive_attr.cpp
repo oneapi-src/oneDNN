@@ -125,35 +125,38 @@ bool primitive_attr_t::has_default_values(
     if ((mask & skip_mask_t::zero_points_runtime)
             == skip_mask_t::zero_points_runtime)
         defined_mask |= skip_mask_t::zero_points;
+    bool ok = true;
 
-    return true
-            && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
-                    output_scales_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::scales),
-                    scales_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
-                    zero_points_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::post_ops),
-                    post_ops_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
-                    rnn_data_qparams_.has_default_values())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
-                    rnn_weights_qparams_.has_default_values())
-            && this->defined(defined_mask);
+#define CHECK_ARG(x) ok = ok && x
+#define CHECK_MASK(mask_name, mask_field) \
+    CHECK_ARG(IMPLICATION((bool)(~mask & skip_mask_t::mask_name), \
+            mask_field.has_default_values()))
+    CHECK_MASK(oscale, output_scales_);
+    CHECK_MASK(scales, scales_);
+    CHECK_MASK(zero_points, zero_points_);
+    CHECK_MASK(post_ops, post_ops_);
+    CHECK_MASK(rnn_data_qparams, rnn_data_qparams_);
+    CHECK_MASK(rnn_weights_qparams, rnn_weights_qparams_);
+    CHECK_ARG(this->defined(defined_mask));
+    return ok;
+#undef CHECK_MASK
+#undef CHECK_ARG
 }
 
 bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
-    return true
-            && IMPLICATION((bool)(~mask & skip_mask_t::oscale),
-                    output_scales_.defined())
-            && IMPLICATION((bool)(~mask & skip_mask_t::zero_points),
-                    zero_points_.defined())
-            && IMPLICATION(
-                    (bool)(~mask & skip_mask_t::post_ops), post_ops_.defined())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_data_qparams),
-                    rnn_data_qparams_.defined())
-            && IMPLICATION((bool)(~mask & skip_mask_t::rnn_weights_qparams),
-                    rnn_weights_qparams_.defined());
+    bool ok = true;
+#define CHECK_ARG(x) ok = ok && x
+#define CHECK_MASK(mask_name, mask_field) \
+    CHECK_ARG(IMPLICATION( \
+            (bool)(~mask & skip_mask_t::mask_name), mask_field.defined()))
+    CHECK_MASK(oscale, output_scales_);
+    CHECK_MASK(zero_points, zero_points_);
+    CHECK_MASK(post_ops, post_ops_);
+    CHECK_MASK(rnn_data_qparams, rnn_data_qparams_);
+    CHECK_MASK(rnn_weights_qparams, rnn_weights_qparams_);
+    return ok;
+#undef CHECK_MASK
+#undef CHECK_ARG
 }
 
 status_t post_ops_t::append_sum(float scale) {
