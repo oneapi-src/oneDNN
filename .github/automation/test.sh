@@ -63,7 +63,5 @@ CTEST_OPTS="${CTEST_OPTS} --output-on-failure"
 echo "CTest options: ${CTEST_OPTS}"
 cd "${BUILD_DIR}"
 ctest ${CTEST_OPTS}
-result=$?
 
 echo "DONE"
-exit $result
