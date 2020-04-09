@@ -473,7 +473,7 @@ status_t jit_uni_i8i8_binary_t<src0_type, src1_type>::execute(
         const dim_t C = dims[1];
         const dim_t D = ndims >= 5 ? dims[ndims - 3] : 1;
         const dim_t H = ndims >= 4 ? dims[ndims - 2] : 1;
-        const dim_t W = dims[ndims - 1];
+        const dim_t W = ndims >= 3 ? dims[ndims - 1] : 1;
         const dim_t SP = D * H * W;
 
         const auto &bcast_dims = pd()->broadcast_dims();
