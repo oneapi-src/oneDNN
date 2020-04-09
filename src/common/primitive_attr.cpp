@@ -137,6 +137,7 @@ bool primitive_attr_t::has_default_values(
     CHECK_MASK(post_ops, post_ops_);
     CHECK_MASK(rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(rnn_weights_qparams, rnn_weights_qparams_);
+    CHECK_MASK(rnn_weights_projection_qparams, rnn_weights_projection_qparams_);
     CHECK_ARG(this->defined(defined_mask));
     return ok;
 #undef CHECK_MASK
@@ -154,6 +155,7 @@ bool primitive_attr_t::defined(dnnl_primitive_attr::skip_mask_t mask) const {
     CHECK_MASK(post_ops, post_ops_);
     CHECK_MASK(rnn_data_qparams, rnn_data_qparams_);
     CHECK_MASK(rnn_weights_qparams, rnn_weights_qparams_);
+    CHECK_MASK(rnn_weights_projection_qparams, rnn_weights_projection_qparams_);
     return ok;
 #undef CHECK_MASK
 #undef CHECK_ARG
@@ -532,6 +534,14 @@ status_t dnnl_primitive_attr_set_rnn_weights_qparams(
     if (!ok) return invalid_arguments;
 
     return attr->rnn_weights_qparams_.set(count, mask, scales);
+}
+
+status_t dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+        primitive_attr_t *attr, dim_t count, int mask, const float *scales) {
+    bool ok = !any_null(attr, scales) && count > 0 && mask >= 0;
+    if (!ok) return invalid_arguments;
+
+    return attr->rnn_weights_projection_qparams_.set(count, mask, scales);
 }
 
 status_t DNNL_API dnnl_primitive_attr_set_rnn_tparams(

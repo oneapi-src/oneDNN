@@ -2785,6 +2785,15 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
                 "could not set RNN weights quantization parameters primitive "
                 "attributes");
     }
+
+    void set_rnn_weights_projection_qparams(
+            int mask, const std::vector<float> &scales) {
+        error::wrap_c_api(
+                dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+                        get(), (int)scales.size(), mask, scales.data()),
+                "could not set primitive RNN weights projection quantization "
+                "parameters attributes");
+    }
 };
 
 /// @} dnnl_api_attributes

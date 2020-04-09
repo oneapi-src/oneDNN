@@ -37,6 +37,7 @@ void check_correctness(const settings_t &s) {
     for_(auto i_with_peephole : s.with_peephole)
     for_(auto i_with_projection : s.with_projection)
     for_(const auto &i_scale_policy : s.scale_policy)
+    for_(const auto &i_scale_proj_policy : s.scale_proj_policy)
     for_(const auto &i_direction : s.direction)
     for_(const auto &i_activation : s.activation)
     for_(auto i_skip_nonlinear : s.skip_nonlinear)
@@ -48,9 +49,9 @@ void check_correctness(const settings_t &s) {
         check_case_validity(cfg, i_scale_policy);
 
         const prb_t p(s.desc, cfg, i_prop, i_alg, i_with_peephole,
-                i_with_projection, i_direction, s.attr, i_scale_policy, s.flags,
-                i_activation, s.alpha, s.beta, i_skip_nonlinear,
-                i_trivial_strides, i_mb);
+                i_with_projection, i_direction, s.attr, i_scale_policy,
+                i_scale_proj_policy, s.flags, i_activation, s.alpha, s.beta,
+                i_skip_nonlinear, i_trivial_strides, i_mb);
         std::stringstream ss;
         ss << p;
         const std::string cpp_pstr = ss.str();
@@ -88,6 +89,8 @@ int bench(int argc, char **argv) {
                 || parse_vector_option(
                         s.activation, str2activation, argv[0], "activation")
                 || parse_scale_policy(s.scale_policy, argv[0])
+                || parse_scale_policy(
+                        s.scale_proj_policy, argv[0], "scaling-proj")
                 || parse_mb(s.mb, argv[0])
                 || parse_skip_nonlinear(s.skip_nonlinear, argv[0])
                 || parse_trivial_strides(s.trivial_strides, argv[0])

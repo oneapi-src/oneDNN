@@ -199,9 +199,9 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     if (use_packed_gemm) {
         weights_md.format_kind = format_kind::rnn_packed;
         rnn_packed_desc_t &rnn_pdata = weights_md.format_desc.rnn_packed_desc;
-        rnn_pdata.format = rnn.is_fwd ? dnnl_ldigo_p : dnnl_ldgoi_p;
         switch (weights_type) {
             case weights_type_t::iter:
+                rnn_pdata.format = rnn.is_fwd ? dnnl_ldigo_p : dnnl_ldgoi_p;
                 rnn_pdata.ldb = rnn.ws_states_iter_ld;
                 rnn_pdata.n = rnn.mb;
                 rnn_pdata.n_parts = rnn.n_parts_weights_iter;
@@ -213,6 +213,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 rnn_pdata.size = rnn.weights_iter_pack_size;
                 break;
             case weights_type_t::layer:
+                rnn_pdata.format = rnn.is_fwd ? dnnl_ldigo_p : dnnl_ldgoi_p;
                 rnn_pdata.ldb = rnn.ws_states_layer_ld;
                 rnn_pdata.n
                         = rnn.merge_gemm_layer ? rnn.n_iter * rnn.mb : rnn.mb;
@@ -224,7 +225,21 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
                 rnn_pdata.offset_compensation = rnn.weights_layer_comp_offset;
                 rnn_pdata.size = rnn.weights_layer_pack_size;
                 break;
-            case weights_type_t::projection: assert(!"unimplemented"); break;
+            case weights_type_t::projection:
+                // TODO: add ldoi_p for bwd?
+                rnn_pdata.format = dnnl_ldio_p;
+                rnn_pdata.ldb = rnn.proj_ht_ld;
+                rnn_pdata.n = rnn.mb;
+                rnn_pdata.n_parts = rnn.n_parts_weights_projection;
+                array_copy(rnn_pdata.parts, rnn.parts_weights_projection,
+                        DNNL_RNN_MAX_N_PARTS);
+                array_copy(rnn_pdata.part_pack_size,
+                        rnn.part_weights_projection_pack_size,
+                        DNNL_RNN_MAX_N_PARTS);
+                rnn_pdata.offset_compensation
+                        = rnn.weights_projection_comp_offset;
+                rnn_pdata.size = rnn.weights_projection_pack_size;
+                break;
             default: assert(!"unsupported weights type");
         }
     } else {

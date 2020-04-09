@@ -994,7 +994,8 @@ typedef struct {
 typedef enum {
     dnnl_packed_format_undef = 0,
     dnnl_ldigo_p,
-    dnnl_ldgoi_p
+    dnnl_ldgoi_p,
+    dnnl_ldio_p
 } dnnl_rnn_packed_memory_format_t;
 
 /// Maximum number of parts of RNN weights tensor that require separate

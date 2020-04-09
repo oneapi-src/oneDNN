@@ -474,7 +474,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
         post_ops = 1u << 5,
         rnn_data_qparams = 1u << 6,
         rnn_weights_qparams = 1u << 7,
-        rnn_tparams = 1u << 8,
+        rnn_weights_projection_qparams = 1u << 8,
+        rnn_tparams = 1u << 9,
     };
 
     /** Returns true if the attributes have default values.
@@ -492,6 +493,8 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
                 && post_ops_ == rhs.post_ops_
                 && rnn_data_qparams_ == rhs.rnn_data_qparams_
                 && rnn_weights_qparams_ == rhs.rnn_weights_qparams_
+                && rnn_weights_projection_qparams_
+                        == rhs.rnn_weights_projection_qparams_
                 && rnn_tparams_ == rhs.rnn_tparams_;
         return ret;
     }
@@ -508,6 +511,7 @@ struct dnnl_primitive_attr : public dnnl::impl::c_compatible {
     dnnl::impl::post_ops_t post_ops_;
     dnnl::impl::rnn_data_qparams_t rnn_data_qparams_;
     dnnl::impl::scales_t rnn_weights_qparams_;
+    dnnl::impl::scales_t rnn_weights_projection_qparams_;
     dnnl::impl::rnn_tparams_t rnn_tparams_;
 };
 

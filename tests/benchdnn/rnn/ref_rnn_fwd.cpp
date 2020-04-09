@@ -60,6 +60,25 @@ void prepare_ws_fwd(const prb_t &p, std::vector<float> &ws_fwd_buffer,
 /******************************************************************************/
 /******************************* Copy Routines ********************************/
 /******************************************************************************/
+void prepare_projection_compensation(const prb_t &p,
+        float *weights_projection_compensation_,
+        const float *weights_projection_) {
+    AOC<float> weights_projection_compensation(
+            weights_projection_compensation_, p.n_layer, p.n_dir(), p.dic);
+    AOC<const float> weights_projection(
+            weights_projection_, p.n_layer, p.n_dir(), p.dhc, p.dic);
+    for (int layer = 0; layer < p.n_layer; ++layer)
+        for (int dir = 0; dir < p.n_dir(); ++dir)
+            for (int dic = 0; dic < p.dic; ++dic) {
+                float weights_compensation = 0;
+                for (int dhc = 0; dhc < p.dhc; ++dhc)
+                    weights_compensation
+                            += weights_projection(layer, dir, dhc, dic);
+                weights_projection_compensation(layer, dir, dic)
+                        = weights_compensation;
+            }
+}
+
 void prepare_bias(const prb_t &p, float *bias_with_compensation_,
         const float *bias_, const float *weights_layer_,
         const float *weights_iter_) {
@@ -193,7 +212,8 @@ void copy_res_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
 void rnn_cell_fwd(const prb_t &p, float *dst_layer, float *dst_iter,
         float *dst_iter_c, float *gates, float *ht, const float *weights_layer,
         const float *weights_iter, const float *weights_peephole,
-        const float *weights_projection, const float *bias,
+        const float *weights_projection,
+        const float *weights_projection_compensation, const float *bias,
         const float *src_layer, const float *src_iter, const float *src_iter_c,
         float *cell_scratchpad_) {
     if (p.alg != VANILLA_LSTM) assert(dst_layer == dst_iter);
@@ -210,7 +230,8 @@ void rnn_cell_fwd(const prb_t &p, float *dst_layer, float *dst_iter,
         case VANILLA_LSTM:
             lstm_fwd(p, dst_layer, dst_iter, dst_iter_c, gates, ht,
                     weights_layer, weights_iter, weights_peephole,
-                    weights_projection, bias, src_layer, src_iter, src_iter_c);
+                    weights_projection, weights_projection_compensation, bias,
+                    src_layer, src_iter, src_iter_c);
             break;
         case VANILLA_RNN:
             rnn_fwd(p, dst_layer, gates, weights_layer, weights_iter, bias,
@@ -231,18 +252,27 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
     bool is_lbr = p.alg == LBR_GRU;
 
     float *bias_with_compensation = nullptr;
+    float *weights_projection_compensation_ = nullptr;
     if (p.is_int8()) {
         bias_with_compensation = new float[p.n_layer * p.n_dir()
                 * (p.n_gates() + is_lbr) * p.dhc];
         prepare_bias(p, bias_with_compensation, bias_, weights_layer_,
                 weights_iter_);
         bias_ = bias_with_compensation;
+        if (p.is_lstm_projection()) {
+            weights_projection_compensation_
+                    = new float[p.n_layer * p.n_dir() * p.dic];
+            prepare_projection_compensation(
+                    p, weights_projection_compensation_, weights_projection_);
+        }
     }
 
     AOC<const float> weights_peephole(
             weights_peephole_, p.n_layer, p.n_dir(), 3 * p.dhc);
     AOC<const float> weights_projection(
             weights_projection_, p.n_layer, p.n_dir(), p.dhc * p.dic);
+    AOC<const float> weights_projection_compensation(
+            weights_projection_compensation_, p.n_layer, p.n_dir(), p.dic);
     AOC<const float> bias(
             bias_, p.n_layer, p.n_dir(), (p.n_gates() + is_lbr) * p.dhc);
     AOC<const float> weights_layer(
@@ -282,6 +312,7 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
                         &weights_iter(lay - 1, dir_val, 0, 0),
                         &weights_peephole(lay - 1, dir_val, 0),
                         &weights_projection(lay - 1, dir_val, 0),
+                        &weights_projection_compensation(lay - 1, dir_val, 0),
                         &bias(lay - 1, dir_val, 0),
                         &ws_src_layer(lay - 1, dir_val, iter, 0, 0),
                         &ws_src_iter(lay, dir_val, prev_iter, 0, 0),
@@ -315,6 +346,8 @@ void rnn_linear_fwd(const prb_t &p, const float *src_layer_,
 
     delete[] cell_scratchpad_;
     if (bias_with_compensation) delete[] bias_with_compensation;
+    if (weights_projection_compensation_)
+        delete[] weights_projection_compensation_;
 }
 
 void compute_ref_fwd(const prb_t &p, dnn_mem_t &src_layer_m,

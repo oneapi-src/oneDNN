@@ -35,6 +35,11 @@ float maybe_deq_h(const prb_t &p, const float in, int64_t oc) {
     return maybe_deq(p, in, p.get_wei_scale(oc), 0.0f);
 }
 
+float maybe_deq_proj(
+        const prb_t &p, const float in, float compensation, int64_t oc) {
+    return maybe_deq(p, in, p.get_wei_proj_scale(oc), compensation);
+}
+
 float maybe_q(const prb_t &p, float h) {
     if (!p.cfg.is_int8()) return h;
     float fp = p.data_scale * h + p.data_shift;
@@ -121,7 +126,8 @@ void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
         float *dst_iter_c_, float *gates_, float *ht_,
         const float *weights_layer_, const float *weights_iter_,
         const float *weights_peephole_, const float *weights_projection_,
-        const float *bias_, const float *src_layer_, const float *src_iter_,
+        const float *weights_projection_compensation, const float *bias_,
+        const float *src_layer_, const float *src_iter_,
         const float *src_iter_c_) {
 
     gemm("C", "N", "N", p.mb, p.n_gates() * p.dhc, p.slc, 1.0, src_layer_, p.wc,
@@ -140,6 +146,18 @@ void lstm_fwd(const prb_t &p, float *dst_layer_, float *dst_iter_,
     if (p.is_lstm_projection()) {
         gemm("C", "N", "N", p.mb, p.dic, p.dhc, 1.0, dst_postgemm, p.wc,
                 weights_projection_, p.dic, 0.0, dst_layer_, p.wc);
+
+        if (p.cfg.is_int8()) {
+            // Here we simulate int8 usage by dequantizing and requantizing the buffer
+            dnnl::impl::parallel_nd(p.mb, [&](int64_t i) {
+                for (int j = 0; j < p.dic; j++) {
+                    int64_t addr = i * p.wc + j;
+                    float d_tmp = maybe_deq_proj(p, dst_layer_[addr],
+                            weights_projection_compensation[j], j);
+                    dst_layer_[addr] = maybe_q(p, d_tmp);
+                }
+            });
+        }
     } else {
         assert(p.dic == p.dhc);
     }

@@ -220,6 +220,7 @@ struct settings_t {
     std::vector<bool> with_projection {false};
     std::vector<int64_t> mb {0};
     std::vector<policy_t> scale_policy {policy_t::NONE};
+    std::vector<policy_t> scale_proj_policy {policy_t::NONE};
     attr_t attr = {};
     bool allow_unimpl = false;
     unsigned int flags = 0x0;
@@ -241,9 +242,9 @@ struct prb_t : public desc_t {
     prb_t(const desc_t &desc, const dt_conf_t &cfg, dir_t prop, alg_t alg,
             bool with_peephole, bool with_projection,
             dnnl_rnn_direction_t direction, const attr_t &attr,
-            policy_t scale_policy, unsigned int flags, activation_t activation,
-            float alpha, float beta, bool skip_nonlinear, bool trivial_strides,
-            int mb = 0)
+            policy_t scale_policy, policy_t scale_proj_policy,
+            unsigned int flags, activation_t activation, float alpha,
+            float beta, bool skip_nonlinear, bool trivial_strides, int mb = 0)
         : desc_t(desc)
         , cfg(cfg)
         , prop(prop2prop_kind(prop))
@@ -258,6 +259,7 @@ struct prb_t : public desc_t {
         , attr(attr)
         , ops(0.0)
         , wei_scales_policy(scale_policy)
+        , wei_proj_scales_policy(scale_proj_policy)
         , skip_nonlinear(skip_nonlinear)
         , trivial_strides(trivial_strides)
         , linear_cscale(0.0f) {
@@ -267,6 +269,7 @@ struct prb_t : public desc_t {
         wc = MAX2(MAX2(sic, slc), MAX2(dic, dhc));
 
         wei_scales = nullptr;
+        wei_proj_scales = nullptr;
         linear_scales = nullptr;
 
         // We always allocate linear scales. Even if they are not
@@ -287,17 +290,36 @@ struct prb_t : public desc_t {
                 break;
             default: assert(!"unsupported scaling policy");
         }
+        if (with_projection) switch (wei_proj_scales_policy) {
+                case policy_t::PER_OC:
+                    wei_proj_scales_mask = 0x8;
+                    wei_proj_nscales = dic;
+                    break;
+                case policy_t::COMMON:
+                case policy_t::NONE:
+                    wei_proj_scales_mask = 0x0;
+                    wei_proj_nscales = 1;
+                    break;
+                default: assert(!"unsupported scaling policy");
+            }
 
         wei_scales = (float *)zmalloc(sizeof(float) * wei_nscales, 64);
+        wei_proj_scales
+                = (float *)zmalloc(sizeof(float) * wei_proj_nscales, 64);
         set_qparams(-1., 1.);
     }
     ~prb_t() {
         if (wei_scales) zfree(wei_scales);
+        if (wei_proj_scales) zfree(wei_proj_scales);
         if (linear_scales) zfree(linear_scales);
     }
 
     inline float get_wei_scale(int idx) const {
         return wei_scales[MIN2(idx, wei_nscales - 1)];
+    }
+
+    inline float get_wei_proj_scale(int idx) const {
+        return wei_proj_scales[MIN2(idx, wei_proj_nscales - 1)];
     }
 
     void count_ops() {
@@ -357,6 +379,10 @@ struct prb_t : public desc_t {
     int wei_nscales;
     int wei_scales_mask;
 
+    policy_t wei_proj_scales_policy;
+    float *wei_proj_scales;
+    int wei_proj_nscales;
+    int wei_proj_scales_mask;
 
     bool skip_nonlinear;
     bool trivial_strides;

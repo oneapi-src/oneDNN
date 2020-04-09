@@ -255,6 +255,8 @@ std::ostream &operator<<(std::ostream &s, const prb_t &p) {
         s << "--with-projection=" << bool2str(p.with_projection) << " ";
     if (canonical || p.wei_scales_policy != def.scale_policy[0])
         s << "--scaling=" << p.wei_scales_policy << " ";
+    if (canonical || p.wei_proj_scales_policy != def.scale_proj_policy[0])
+        s << "--scaling-proj=" << p.wei_proj_scales_policy << " ";
     if (canonical || p.trivial_strides != def.trivial_strides[0])
         s << "--trivial-strides=" << bool2str(p.trivial_strides) << " ";
     if (canonical || !p.attr.is_def()) s << "--attr=\"" << p.attr << "\" ";
@@ -713,6 +715,7 @@ void prb_t::set_qparams(float fp_min, float fp_max) {
     };
 
     set_wei_scales(wei_scales, wei_nscales);
+    if (with_projection) set_wei_scales(wei_proj_scales, wei_proj_nscales);
 }
 
 void prb_t::set_tparams(float fp_min, float fp_max) {

@@ -2410,6 +2410,10 @@ dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_weights_qparams(
         dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
         const float *scales);
 
+dnnl_status_t DNNL_API dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+        dnnl_primitive_attr_t attr, dnnl_dim_t count, int mask,
+        const float *scales);
+
 /// @} dnnl_api_attributes
 
 /// @addtogroup dnnl_api_rnn

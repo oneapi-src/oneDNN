@@ -55,6 +55,10 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_qparams(
                 *dnnl_attr, p.wei_nscales, p.wei_scales_mask, p.wei_scales));
 
+    if (p.is_lstm_projection() && p.wei_proj_scales_policy != policy_t::NONE)
+        DNN_SAFE_V(dnnl_primitive_attr_set_rnn_weights_projection_qparams(
+                *dnnl_attr, p.wei_proj_nscales, p.wei_proj_scales_mask,
+                p.wei_proj_scales));
 
     if (p.data_scale != 1.0 || p.data_shift != 0.0)
         DNN_SAFE_V(dnnl_primitive_attr_set_rnn_data_qparams(
@@ -64,7 +68,8 @@ void create_dnnl_rnn_attr(const prb_t &p, dnnl_primitive_attr_t *dnnl_attr) {
             *dnnl_attr, scratchpad_mode));
 }
 
-int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
+int check_s8s8_reorder(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
+        dnn_mem_t &mem_fp) {
     // TODO: enable for all cpu_kind when supported
     if (engine_tgt_kind != dnnl_cpu) return OK;
 
@@ -103,9 +108,20 @@ int check_s8s8_reorder(const prb_t &p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp) {
             mem_s8_src.set_elem(idx, val_s8);
         }
     };
+    switch (kind) {
+        case WEIGHTS_LAYER:
+        case WEIGHTS_ITER:
             dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
                 quantize(p.wei_scales, p.wei_nscales, idx);
             });
+            break;
+        case WEIGHTS_PROJECTION:
+            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                quantize(p.wei_proj_scales, p.wei_proj_nscales, idx);
+            });
+            break;
+        default: assert(!"unsupported kind");
+    }
 
     /* 2. compute s8_plain_quantized --reorder--> s8_packed_quantized */
     mem_s8_dst.reorder(mem_s8_src);
@@ -181,6 +197,11 @@ int fill_memory(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
         }
     };
     switch (kind) {
+        case WEIGHTS_PROJECTION:
+            dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                fill_chunk(p.wei_proj_scales, p.wei_proj_nscales, 0.0f, idx);
+            });
+            break;
         case WEIGHTS_LAYER:
         case WEIGHTS_ITER:
             dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
@@ -202,7 +223,7 @@ int fill_memory(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
     // 3. We reorder the data for the DNNL RNN primitive
     mem_dt.reorder(mem_fp, {reorder_attr});
     if ((reorder_attr != nullptr) && (dt == dnnl_s8))
-        if (check_s8s8_reorder(p, mem_dt, mem_fp) != OK) return FAIL;
+        if (check_s8s8_reorder(p, kind, mem_dt, mem_fp) != OK) return FAIL;
 
     // Bullet 4.a holds: quantize weights for int8 benchdnn reference RNN
     if (p.is_int8()) {
@@ -222,6 +243,11 @@ int fill_memory(const prb_t &p, data_kind_t kind, dnn_mem_t &mem_dt,
             case WEIGHTS_ITER:
                 dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
                     quantize_chunk(p.wei_scales, p.wei_nscales, idx);
+                });
+                break;
+            case WEIGHTS_PROJECTION:
+                dnnl::impl::parallel_nd(n_chunks, [&](int idx) {
+                    quantize_chunk(p.wei_proj_scales, p.wei_proj_nscales, idx);
                 });
                 break;
             default: // Nothing to do
@@ -703,7 +729,7 @@ int doit(const prb_t &p, res_t *r) {
                  p, WEIGHTS_PEEPHOLE, weights_peephole_dt, weights_peephole_fp),
             WARN);
     SAFE(fill_weights(p, WEIGHTS_PROJECTION, weights_projection_dt,
-                 weights_projection_fp),
+                 weights_projection_fp, rnn_attr),
             WARN);
     SAFE(fill_memory(p, BIAS, bias_dt, bias_fp), WARN);
     SAFE(fill_activation(p, DST_LAYER, dst_layer_dt, dst_layer_fp), WARN);
