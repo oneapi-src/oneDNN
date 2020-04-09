@@ -2749,7 +2749,7 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rnn_data_qparams(float scale, float shift) {
         error::wrap_c_api(
                 dnnl_primitive_attr_set_rnn_data_qparams(get(), scale, shift),
-                "could not get RNN data quantization parameters primitive "
+                "could not set RNN data quantization parameters primitive "
                 "attribute");
     }
 
@@ -2782,8 +2782,8 @@ struct primitive_attr : public handle<dnnl_primitive_attr_t> {
     void set_rnn_weights_qparams(int mask, const std::vector<float> &scales) {
         error::wrap_c_api(dnnl_primitive_attr_set_rnn_weights_qparams(get(),
                                   (int)scales.size(), mask, scales.data()),
-                "could not get RNN weights quantization parameters primitive "
-                "attribute");
+                "could not set RNN weights quantization parameters primitive "
+                "attributes");
     }
 };
 
