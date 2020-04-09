@@ -21,7 +21,7 @@
 /// Full example text: @ref sycl_interop.cpp
 ///
 /// This C++ API example demonstrates programming for Intel(R) Processor
-/// Graphics with SYCL extensions API in DNNL.
+/// Graphics with SYCL extensions API in oneDNN.
 /// The workflow includes following steps:
 ///   - Create a GPU or CPU engine. It uses DPC++ as the runtime in this sample.
 ///   - Create a memory descriptor/object.
@@ -37,11 +37,11 @@
 
 /// @section sycl_interop_cpp_headers Public headers
 ///
-/// To start using DNNL, we must first include the @ref dnnl.hpp
+/// To start using oneDNN, we must first include the @ref dnnl.hpp
 /// header file in the application. We also include CL/sycl.hpp from DPC++ for
 /// using SYCL APIs and @ref dnnl_debug.h, which  contains some debugging
 /// facilities such as returning a string representation
-/// for common DNNL C types.
+/// for common oneDNN C types.
 /// All C++ API types and functions reside in the `dnnl` namespace, and
 /// SYCL API types and functions reside in the `cl::sycl` namespace.
 /// For simplicity of the example we import both namespaces.
@@ -72,7 +72,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     /// @page sycl_interop_cpp
     /// @subsection sycl_interop_cpp_sub1 Engine and stream
     ///
-    /// All DNNL primitives and memory objects are attached to a
+    /// All oneDNN primitives and memory objects are attached to a
     /// particular @ref dnnl::engine, which is an abstraction of a
     /// computational device (see also @ref dev_guide_basic_concepts). The
     /// primitives are created and optimized for the device to which they are
@@ -106,7 +106,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     dnnl::stream strm(eng);
     // [Initialize stream]
 
-    /// @subsection  sycl_interop_cpp_sub2 Wrapping data into DNNL memory object
+    /// @subsection  sycl_interop_cpp_sub2 Wrapping data into oneDNN memory object
     ///
     /// Next, we create a memory object. We need to specify dimensions of our
     /// memory by passing a memory::dims object. Then we create a memory
@@ -153,7 +153,7 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
     // [sycl kernel exec]
 
     /// @subsection sycl_interop_cpp_sub4 Create and execute a primitive
-    /// There are three steps to create an operation primitive in DNNL:
+    /// There are three steps to create an operation primitive in oneDNN:
     /// 1. Create an operation descriptor.
     /// 2. Create a primitive descriptor.
     /// 3. Create a primitive.
@@ -212,8 +212,8 @@ void sycl_interop_tutorial(engine::kind engine_kind) {
 ///
 /// We now just call everything we prepared earlier.
 ///
-/// Because we are using the DNNL C++ API, we use exceptions to handle
-/// errors (see @ref dev_guide_c_and_cpp_apis). The DNNL C++ API throws
+/// Because we are using the oneDNN C++ API, we use exceptions to handle
+/// errors (see @ref dev_guide_c_and_cpp_apis). The oneDNN C++ API throws
 /// exceptions of type @ref dnnl::error, which contains the error status
 /// (of type @ref dnnl_status_t) and a human-readable error message accessible
 /// through the regular `what()` method.
@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
     try {
         sycl_interop_tutorial(engine_kind);
     } catch (dnnl::error &e) {
-        std::cout << "DNNL error caught: " << std::endl
+        std::cout << "oneDNN error caught: " << std::endl
                   << "\tStatus: " << dnnl_status2str(e.status) << std::endl
                   << "\tMessage: " << e.what() << std::endl;
         exit_code = 1;

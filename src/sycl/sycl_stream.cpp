@@ -41,7 +41,7 @@ status_t sycl_stream_t::init() {
         // FIXME: workaround for Intel(R) oneAPI DPC++ Compiler
         // Intel(R) oneAPI DPC++ Compiler does not work with multiple queues so
         // try to reuse the service stream from the engine.
-        // That way all DNNL streams constructed without interop API are
+        // That way all oneDNN streams constructed without interop API are
         // mapped to the same SYCL queue.
         // If service stream is NULL then the current stream will be service
         // so construct it from scratch.
