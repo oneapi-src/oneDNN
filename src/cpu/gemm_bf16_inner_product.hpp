@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <memory>
+
 #include "c_types_map.hpp"
 #include "cpu_engine.hpp"
 #include "gemm/gemm.hpp"
@@ -91,8 +93,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
         }
     };
 
-    gemm_bf16_inner_product_fwd_t(const pd_t *apd)
-        : primitive_t(apd), pp_kernel_(nullptr) {
+    gemm_bf16_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
         bool has_bias = pd()->with_bias(),
              has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0,
@@ -101,16 +102,13 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
                 || !pd()->dst_is_acc_ /* includes has_sum_as_postops */
                 || has_bias || has_eltwise;
         if (postops_in_ip_)
-            pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::f32,
-                    dst_data_type>(pd(), !has_sum_as_postops);
+            pp_kernel_.reset(pp_kernel_t::create(pd(), !has_sum_as_postops));
 
         auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
         beta_ = sum_idx >= 0 && !has_sum_as_postops
                 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
                 : 0.0;
     }
-
-    ~gemm_bf16_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<dst_data_type>::type dst_data_t;
     typedef typename prec_traits<data_type::f32>::type acc_data_t;
@@ -123,7 +121,9 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
     }
 
 private:
-    inner_product_utils::pp_kernel_t<data_type::f32, dst_data_type> *pp_kernel_;
+    using pp_kernel_t
+            = inner_product_utils::pp_kernel_t<data_type::f32, dst_data_type>;
+    std::unique_ptr<pp_kernel_t> pp_kernel_;
     bool postops_in_ip_;
     float beta_;
 

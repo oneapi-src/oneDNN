@@ -217,7 +217,7 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
                             = params.get_post_processing_scales(scales);
 
                     (*pp_kernel_)(curr_dst, curr_acc, bias, pp_scales, 0, M * N,
-                            (size_t)N);
+                            (size_t)N, nullptr);
                 }
             }
         });
@@ -232,7 +232,8 @@ status_t gemm_bf16_matmul_t<dst_type>::execute_ref(
             parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
                 size_t start {}, end {};
                 balance211((size_t)(M * N), nthr, ithr, start, end);
-                (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N);
+                (*pp_kernel_)(dst, acc, bias, pp_scales, start, end, (size_t)N,
+                        nullptr);
             });
         }
     }

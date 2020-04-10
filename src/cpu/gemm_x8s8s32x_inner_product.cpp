@@ -68,7 +68,7 @@ void gemm_x8s8s32x_inner_product_fwd_t<src_type, dst_type>::execute_forward(
         parallel(force_sequential ? 1 : 0, [&](int ithr, int nthr) {
             size_t start, end;
             balance211((size_t)(OC * MB), nthr, ithr, start, end);
-            (*pp_kernel_)(dst, acc, bias, scales, start, end);
+            (*pp_kernel_)(dst, acc, bias, scales, start, end, 0, nullptr);
         });
     }
 }

@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <memory>
+
 #include "c_types_map.hpp"
 #include "type_helpers.hpp"
 
@@ -51,7 +53,7 @@ struct gemm_x8s8s32x_matmul_t : public primitive_t {
 
     gemm_x8s8s32x_matmul_t(const pd_t *apd) : primitive_t(apd) {
         if (pd()->params().has_pp_kernel_)
-            pp_kernel_.reset(new pp_kernel_t(pd()->N(), pd()->M(),
+            pp_kernel_.reset(pp_kernel_t::create(pd()->N(), pd()->M(),
                     &pd()->params().pp_attr_, pd()->desc()->bias_desc.data_type,
                     false));
     }

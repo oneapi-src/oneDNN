@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <memory>
+
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 #include "type_helpers.hpp"
@@ -26,7 +28,6 @@
 
 #include "gemm/gemm.hpp"
 #include "gemm_inner_product_utils.hpp"
-#include "jit_generator.hpp"
 #include "primitive.hpp"
 
 #include "cpu_inner_product_pd.hpp"
@@ -105,10 +106,8 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
     };
 
     gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {
-        pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type::s32,
-                dst_type>(pd(), false);
+        pp_kernel_.reset(pp_kernel_t::create(pd(), false));
     }
-    ~gemm_x8s8s32x_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<dst_type>::type data_t;
 
@@ -126,7 +125,9 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    inner_product_utils::pp_kernel_t<data_type::s32, dst_type> *pp_kernel_;
+    using pp_kernel_t
+            = inner_product_utils::pp_kernel_t<data_type::s32, dst_type>;
+    std::unique_ptr<pp_kernel_t> pp_kernel_;
 };
 
 } // namespace cpu

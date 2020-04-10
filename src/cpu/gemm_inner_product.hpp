@@ -19,6 +19,8 @@
 
 #include <assert.h>
 
+#include <memory>
+
 #include "c_types_map.hpp"
 #include "primitive.hpp"
 #include "type_helpers.hpp"
@@ -72,20 +74,18 @@ struct gemm_inner_product_fwd_t : public primitive_t {
     };
 
     gemm_inner_product_fwd_t(const pd_t *apd)
-        : primitive_t(apd), pp_kernel_(nullptr), postops_in_ip_(false) {
+        : primitive_t(apd), postops_in_ip_(false) {
         bool has_bias = pd()->with_bias(),
              has_eltwise
                 = pd()->attr()->post_ops_.find(primitive_kind::eltwise) >= 0;
         postops_in_ip_ = has_bias || has_eltwise;
 
-        pp_kernel_ = new inner_product_utils::pp_kernel_t<data_type, data_type>(
-                pd(), true);
+        pp_kernel_.reset(pp_kernel_t::create(pd(), true));
 
         auto sum_idx = pd()->attr()->post_ops_.find(primitive_kind::sum);
         beta_ = sum_idx >= 0 ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
                              : 0.0;
     }
-    ~gemm_inner_product_fwd_t() { delete pp_kernel_; }
 
     typedef typename prec_traits<data_type>::type data_t;
 
@@ -98,7 +98,8 @@ private:
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    inner_product_utils::pp_kernel_t<data_type, data_type> *pp_kernel_;
+    using pp_kernel_t = inner_product_utils::pp_kernel_t<data_type, data_type>;
+    std::unique_ptr<pp_kernel_t> pp_kernel_;
     bool postops_in_ip_;
     float beta_;
 };
