@@ -91,18 +91,6 @@ private:
 
     reg64_t reg_tmp = rbp;
 
-    reg64_t reg_ic_loop = rdx;
-    reg64_t reg_inp_loop = rsi;
-
-    reg64_t reg_init_flag = r13;
-    reg64_t reg_bias_ptr = param;
-
-    reg64_t aux_reg_ic = r12;
-    reg64_t reg_binp = rax;
-    reg64_t reg_bout = r11;
-    reg64_t aux1_reg_inp = rbx;
-    reg64_t aux_reg_out = abi_not_param1;
-
     reg64_t reg_long_offt = r11;
     reg64_t reg_out_long_offt = r14;
 
@@ -416,7 +404,6 @@ private:
     reg64_t reg_kh = r9;
     reg64_t reg_ur_w_trips = r10;
     reg64_t reg_oj = r15;
-    reg64_t reg_ih_count = rbx;
     reg64_t reg_tmp = r14;
     reg64_t reg_long_offt = r14;
 
