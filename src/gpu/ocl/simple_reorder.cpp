@@ -222,12 +222,12 @@ status_t simple_reorder_t::pd_t::init_kernel_ctx(
     return status::success;
 }
 
-status_t simple_reorder_t::pd_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad) const {
-    if (conf.scales_num > 0)
+void simple_reorder_t::pd_t::init_scratchpad() {
+    if (conf.scales_num > 0) {
+        auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(memory_tracking::names::key_reorder_scales,
                 sizeof(float) * conf.scales_num);
-    return status::success;
+    }
 }
 
 status_t simple_reorder_t::execute(const exec_ctx_t &ctx) const {

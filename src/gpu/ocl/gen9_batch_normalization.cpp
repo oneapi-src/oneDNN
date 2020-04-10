@@ -184,16 +184,14 @@ status_t gen9_batch_normalization_fwd_t::pd_t::init_kernel_ctx(
     return init_kernel_ctx_common(kernel_ctx, conf, off);
 }
 
-status_t gen9_batch_normalization_fwd_t::pd_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad) const {
+void gen9_batch_normalization_fwd_t::pd_t::init_scratchpad() {
     if (conf.calculate_stats) {
         size_t size = 2 * conf.reduce_stat_nblocks * conf.ic
                 * types::data_type_size(data_type::f32);
 
+        auto scratchpad = scratchpad_registry().registrar();
         scratchpad.book(key_bnorm_reduction, size);
     }
-
-    return status::success;
 }
 
 status_t gen9_batch_normalization_fwd_t::execute_forward(

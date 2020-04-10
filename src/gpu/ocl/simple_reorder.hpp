@@ -86,14 +86,13 @@ struct simple_reorder_t : public primitive_t {
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
+            init_scratchpad();
 
-            auto scratchpad = scratchpad_registry().registrar();
-            return init_scratchpad(scratchpad);
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
-        status_t init_scratchpad(
-                memory_tracking::registrar_t &scratchpad) const;
+        void init_scratchpad();
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
 
         reorder_conf_t conf;

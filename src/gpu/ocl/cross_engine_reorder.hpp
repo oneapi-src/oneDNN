@@ -70,8 +70,7 @@ struct cross_engine_reorder_t : public primitive_t {
         bool do_reorder_ = true;
 
     private:
-        status_t init_scratchpad(
-                memory_tracking::registrar_t &scratchpad) const;
+        void init_scratchpad();
     };
 
     status_t init(engine_t *engine) override {

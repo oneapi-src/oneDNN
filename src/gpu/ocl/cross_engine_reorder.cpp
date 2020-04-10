@@ -25,16 +25,17 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-status_t cross_engine_reorder_t::pd_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad) const {
+void cross_engine_reorder_t::pd_t::init_scratchpad() {
     using namespace memory_tracking::names;
+    if (!do_reorder_) return;
+
     const memory_desc_wrapper wspace_md(
             desc()->src_engine_kind == reorder_engine_kind_ ? dst_md()
                                                             : src_md());
+    auto scratchpad = scratchpad_registry().registrar();
     scratchpad.book(
             memory_tracking::names::key_reorder_cross_space, wspace_md.size());
     scratchpad.book(key_nested, reorder_pd_->scratchpad_registry().size());
-    return status::success;
 }
 
 status_t cross_engine_reorder_t::pd_t::init(
@@ -69,10 +70,7 @@ status_t cross_engine_reorder_t::pd_t::init(
     }
 
     if (!reorder_pd_) return status::unimplemented;
-    if (do_reorder_) {
-        auto scratchpad = scratchpad_registry().registrar();
-        init_scratchpad(scratchpad);
-    }
+    init_scratchpad();
 
     return status::success;
 }

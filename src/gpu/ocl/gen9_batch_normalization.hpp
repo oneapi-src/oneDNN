@@ -61,15 +61,14 @@ struct gen9_batch_normalization_fwd_t : public primitive_t {
 
             status_t status = init_conf(engine);
             if (status != status::success) return status;
+            init_scratchpad();
 
-            auto scratchpad = scratchpad_registry().registrar();
-            return init_scratchpad(scratchpad);
+            return status::success;
         }
 
         status_t init_conf(engine_t *engine);
         status_t init_kernel_ctx(compute::kernel_ctx_t &kernel_ctx) const;
-        status_t init_scratchpad(
-                memory_tracking::registrar_t &scratchpad) const;
+        void init_scratchpad();
 
         bnorm_conf_t conf;
         offsets_t off;
