@@ -332,6 +332,34 @@ private:
 
         return ur_w - res;
     }
+
+    inline size_t get_diff_src_offset(int iw, int icb) {
+        const bool is_nxc_layout = is_dsrc_layout_nxc();
+        size_t iw_str = is_nxc_layout ? jcp.ngroups * jcp.ic : jcp.ic_block;
+        size_t icb_str = is_nxc_layout
+                ? jcp.ic_block
+                : (size_t)jcp.id * jcp.ih * jcp.iw * jcp.ic_block;
+
+        return typesize * (icb * icb_str + iw * iw_str);
+    }
+
+    inline ptrdiff_t get_dst_offset(int iw, int oc, int kw) {
+        ptrdiff_t ow
+                = (iw + jcp.l_pad - kw * (jcp.dilate_w + 1)) / jcp.stride_w;
+        ptrdiff_t ow_str
+                = is_ddst_layout_nxc() ? jcp.ngroups * jcp.oc : jcp.oc_block;
+
+        return typesize * (ow * ow_str + oc);
+    };
+
+    inline bool is_dsrc_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
 };
 
 struct jit_avx512_common_conv_bwd_data_kernel_f32 {
