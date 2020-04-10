@@ -141,7 +141,7 @@ status_t dnnl_primitive::init() {
             return out_of_memory;
         }
         scratchpad_.reset(scratchpad_ptr);
-        if (scratchpad_ptr->size() != scratchpad_size) return out_of_memory;
+        if (scratchpad_ptr->size() < scratchpad_size) return out_of_memory;
     }
     return primitive_->create_resource(pd()->engine(), resource_mapper_);
 }
