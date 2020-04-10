@@ -378,6 +378,7 @@ struct jit_conv_call_s {
     size_t f_overflow;
     size_t back_overflow;
     int flags;
+    int flags_prf;
 };
 
 struct jit_deconv_call_s {

@@ -127,18 +127,25 @@ private:
     void generate();
 
     inline size_t get_output_offset(int oi, int n_oc_block) {
-        return (size_t)jcp.typesize_out
-                * ((size_t)n_oc_block * jcp.oh * jcp.ow * jcp.od + oi)
-                * jcp.oc_block;
+        const bool is_nxc_layout = is_dst_layout_nxc();
+        size_t ow_str = is_nxc_layout ? jcp.ngroups * jcp.oc : jcp.oc_block;
+        size_t ocb_str = is_nxc_layout
+                ? jcp.oc_block
+                : (size_t)jcp.od * jcp.oh * jcp.ow * jcp.oc_block;
+
+        return jcp.typesize_out * (n_oc_block * ocb_str + oi * ow_str);
     }
 
     inline size_t get_input_offset(int ki, int ic, int oi, int pad_l) {
-        size_t iw_str = !jcp.is_1stconv ? jcp.ic_block : 1;
-        size_t ic_str = !jcp.is_1stconv ? 1 : (size_t)jcp.iw * jcp.ih * jcp.id;
-        return (size_t)jcp.typesize_in
-                * ((size_t)(ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l)
-                                * iw_str
-                        + ic * ic_str);
+        const bool is_nxc_layout = is_src_layout_nxc();
+        size_t iw_str = is_nxc_layout ? jcp.ngroups * jcp.ic
+                                      : (!jcp.is_1stconv ? jcp.ic_block : 1);
+        size_t ic_str = !jcp.is_1stconv || is_nxc_layout
+                ? 1
+                : (size_t)jcp.iw * jcp.ih * jcp.id;
+        size_t iw_idx = ki * (jcp.dilate_w + 1) + oi * jcp.stride_w - pad_l;
+
+        return jcp.typesize_in * (iw_idx * iw_str + ic * ic_str);
     }
 
     inline int get_kernel_offset(
@@ -160,6 +167,14 @@ private:
                         utils::div_up(
                                 pad_r - (jcp.kw - 1 - ki) * (jcp.dilate_w + 1),
                                 jcp.stride_w));
+    }
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_dst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
     }
 };
 
