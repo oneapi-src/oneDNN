@@ -102,10 +102,17 @@ inline void jit_conv_3d_ker_pipeline_ow_thr(jit_conv_ker_t ker,
             kd_padding, ch_blocks);
 }
 
+inline void jit_conv_ker_pipeline_bwd_w(jit_conv_ker_t ker, jit_conv_call_s &p,
+        const void *src, const void *dst, const void *filt, const void *bias,
+        int channel, int kh_padding, size_t ch_blocks) {
+    PIPELINE(ch_blocks);
+    jit_conv_ker_pipeline(ker, p, src, dst, filt, bias, channel, kh_padding);
+}
+
 void jit_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
         int channel, int os_index_begin, int os_index_end,
-        int kh_padding /* kh_work_size */, size_t kh_offset) {
+        int kh_padding /* kh_work_size */, size_t kh_offset, size_t ch_blocks) {
     PIPELINE(src);
     PIPELINE(dst);
     PIPELINE(filt);
@@ -117,6 +124,7 @@ void jit_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
     // skip kw loop computation and initialize output by zeroes
     PIPELINE(kh_padding);
     PIPELINE(kh_offset);
+    PIPELINE(ch_blocks);
 
     if (p.src) ker(&p);
 }
@@ -124,7 +132,7 @@ void jit_conv_2d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
 void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
         const void *src, const void *dst, const void *filt, const void *bias,
         int channel, int os_index_begin, int os_index_end,
-        int kd_padding /* kd_work_size */, size_t kd_offset) {
+        int kd_padding /* kd_work_size */, size_t kd_offset, size_t ch_blocks) {
     PIPELINE(src);
     PIPELINE(dst);
     PIPELINE(filt);
@@ -136,6 +144,7 @@ void jit_conv_3d_ker_bwd_w_pipeline(jit_conv_ker_t ker, jit_conv_call_s &p,
     // skip kh loop computation and initialize output by zeroes
     PIPELINE(kd_padding);
     PIPELINE(kd_offset);
+    PIPELINE(ch_blocks);
 
     if (p.src) ker(&p);
 }
@@ -1114,8 +1123,11 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             : ti->wei_bia_reduction + (nthr_mb_ - 1) * wei_size
                     + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
 
+    const bool is_src_layout_nxc = utils::one_of(
+            jcp.src_tag, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
     // TODO: use memory descriptor with the same fmt as src (or use a macro :))
     auto tr_src_off = [&](int ithr_mb, int ic, int ij) {
+        assert(!is_src_layout_nxc);
         const size_t tr_row_size = jcp.tr_iw * jcp.ic_block;
         const size_t tr_chn_size = tr_row_size * jcp.ih;
         const size_t tr_img_size = tr_chn_size * jcp.nb_ic * jcp.ngroups;
@@ -1124,6 +1136,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     };
 
     auto uker_trans = [&](int img) {
+        assert(!is_src_layout_nxc);
         const int work_amount = ti->g_work * ti->ic_b_work * jcp.ih;
 
         int start {0}, end {0};
@@ -1196,6 +1209,7 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     };
 
     if (jcp.is_1stconv && jcp.ver == ver_4fma) {
+        assert(!is_src_layout_nxc);
         /* prepare contexts */
         auto tr_ctx = jit_trans_src_t::ctx_t();
         tr_ctx.tr_src = ti->tr_src
@@ -1251,6 +1265,11 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             }
         }
     } else {
+        int ic_b_step = jcp.nb_ic_blocking_max;
+        int icb_work = ti->ic_b_end - ti->ic_b_start;
+        if (ic_b_step > 1 && icb_work > ic_b_step && icb_work < 2 * ic_b_step)
+            ic_b_step = utils::div_up(icb_work, 2);
+
         for (int img = ti->img_start; img < ti->img_end; ++img) {
             auto p = jit_conv_call_s();
 
@@ -1264,37 +1283,49 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
                     barrier(&ti->tr_src_bctx[ti->ithr_but_oc], nthr_oc_b_);
             }
 
+            const bool is_ddst_layout_nxc = utils::one_of(jcp.dst_tag,
+                    format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
             for_(int g = ti->g_start; g < ti->g_end; ++g)
             for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
-            for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
+            for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
+                    ic_b += ic_b_step) {
                 const int _oc = g * jcp.nb_oc + oc_b;
                 const int _ic = g * jcp.nb_ic + ic_b;
+                const int ic_blocks_to_compute
+                        = nstl::min(ic_b_step, ti->ic_b_end - ic_b);
 
-                jit_conv_ker_pipeline(kernel_->jit_ker, p,
+                const int ic_off_idx
+                        = (is_src_layout_nxc ? jcp.ic_block : 1) * _ic;
+                const int oc_off_idx
+                        = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
+                jit_conv_ker_pipeline_bwd_w(kernel_->jit_ker, p,
                         jcp.ver == ver_4fma
                                 ? &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, 0)]
-                                : &ti->src[src_d.blk_off(img, _ic)],
-                        &ti->diff_dst[diff_dst_d.blk_off(img, _oc)],
+                                : &ti->src[src_d.blk_off(img, ic_off_idx)],
+                        &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)],
                         diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
-                        0, (img == ti->img_start), 0);
+                        0, (img == ti->img_start), 0, ic_blocks_to_compute);
             }
 
             const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
             const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
+            const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _ic;
+            const int oc_off_idx
+                    = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
             // This call is required only to finalize pipeline with paramaters
             // set on the last iteration of loop above. Only valid pointers make
             // sense here as call parameters to avoid execution of prefetch
             // instructions with nullptr, other parameters are not used in real
             // jit call here
-            jit_conv_ker_pipeline(kernel_->jit_ker, p,
+            jit_conv_ker_pipeline_bwd_w(kernel_->jit_ker, p,
                     jcp.ver == ver_4fma
                             ? &ti->tr_src[tr_src_off(ti->ithr_mb, _ic, 0)]
-                            : &ti->src[src_d.blk_off(img + 1, _ic)],
-                    &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
+                            : &ti->src[src_d.blk_off(img + 1, ic_off_idx)],
+                    &ti->diff_dst[diff_dst_d.blk_off(img + 1, oc_off_idx)],
                     diff_wei
                             + wht_blk_off(diff_weights_d, ti->g_start,
                                     ti->oc_b_start, ti->ic_b_start),
-                    0, 0, 0);
+                    0, 0, 0, 0);
         }
     }
 }
@@ -1324,6 +1355,10 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
     nd_iterator_init(img_start, img, jcp.mb, oh_s, jcp.oh);
     const int img_first = img;
 
+    int ic_b_step = jcp.nb_ic_blocking_max;
+    int icb_work = ti->ic_b_end - ti->ic_b_start;
+    if (ic_b_step > 1 && icb_work > ic_b_step && icb_work < 2 * ic_b_step)
+        ic_b_step = utils::div_up(icb_work, 2);
     while (img_start < img_end) {
         auto p = jit_conv_call_s();
 
@@ -1338,36 +1373,45 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         auto src_h = ti->src + src_d.blk_off(img, 0, ih_s + kh_top_overflow);
         auto diff_dst_h = ti->diff_dst + diff_dst_d.blk_off(img, 0, oh_s);
 
+        const bool is_src_layout_nxc = jcp.src_tag == format_tag::nhwc;
+        const bool is_ddst_layout_nxc = jcp.dst_tag == format_tag::nhwc;
         for_(int g = ti->g_start; g < ti->g_end; ++g)
         for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
-        for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
+        for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
+                ic_b += ic_b_step) {
             const int _oc = g * jcp.nb_oc + oc_b;
             const int _ic = g * jcp.nb_ic + ic_b;
-
-            auto src = src_h + src_d.blk_off(0, _ic);
-            auto diff_dst = diff_dst_h + diff_dst_d.blk_off(0, _oc);
+            const int ic_blocks_to_compute
+                    = nstl::min(ic_b_step, ti->ic_b_end - ic_b);
+            const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _ic;
+            auto src = src_h + src_d.blk_off(0, ic_off_idx);
+            const int oc_off_idx
+                    = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
+            auto diff_dst = diff_dst_h + diff_dst_d.blk_off(0, oc_off_idx);
 
             jit_conv_2d_ker_bwd_w_pipeline(kernel_->jit_ker, p, src, diff_dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                     diff_bia + _oc * jcp.oc_block, (img == img_first), oh_s,
-                    oh_e, kh_padding, kh_padding_offset);
+                    oh_e, kh_padding, kh_padding_offset, ic_blocks_to_compute);
 
             p.flags = ic_b == 0 ? 0 : 1;
         }
 
         const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
         const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
+        const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _ic;
+        const int oc_off_idx = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
         // This call is required only to finalize pipeline with paramaters set
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
         jit_conv_2d_ker_bwd_w_pipeline(kernel_->jit_ker, p,
-                ti->src + src_d.blk_off(img + 1, _ic),
-                ti->diff_dst + diff_dst_d.blk_off(img + 1, _oc),
+                ti->src + src_d.blk_off(img + 1, ic_off_idx),
+                ti->diff_dst + diff_dst_d.blk_off(img + 1, oc_off_idx),
                 diff_wei
                         + wht_blk_off(diff_weights_d, ti->g_start,
                                 ti->oc_b_start, ti->ic_b_start),
-                diff_bia + _oc * jcp.oc_block, 0, 0, 0, 0, 0);
+                diff_bia + _oc * jcp.oc_block, 0, 0, 0, 0, 0, 0);
         nd_iterator_jump(img_start, img_end, img, jcp.mb, oh_s, jcp.oh);
     }
 }
@@ -1393,13 +1437,23 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
             : ti->wei_bia_reduction + (nthr_mb_ - 1) * wei_size
                     + (ti->ithr_mb - 1) * jcp.ngroups * jcp.oc;
 
-    const int inp_mult = jcp.is_1stconv ? 1 : jcp.ic_block;
+    const bool is_src_layout_nxc = jcp.src_tag == format_tag::ndhwc;
+    const int inp_mult = is_src_layout_nxc
+            ? jcp.ngroups * jcp.ic
+            : (jcp.is_1stconv ? 1 : jcp.ic_block);
     const int input_step = jcp.ih * jcp.iw * inp_mult;
-    const int output_step = jcp.ow * jcp.oh * jcp.oc_block;
+    const bool is_ddst_layout_nxc = jcp.dst_tag == format_tag::ndhwc;
+    const int output_step = jcp.ow * jcp.oh
+            * (is_ddst_layout_nxc ? jcp.ngroups * jcp.oc : jcp.oc_block);
     int img {0}, od_s {0};
     int img_start = ti->img_start, img_end = ti->img_end;
     nd_iterator_init(img_start, img, jcp.mb, od_s, jcp.od);
     const int img_first = img;
+
+    int ic_b_step = jcp.nb_ic_blocking_max;
+    int icb_work = ti->ic_b_end - ti->ic_b_start;
+    if (ic_b_step > 1 && icb_work > ic_b_step && icb_work < 2 * ic_b_step)
+        ic_b_step = utils::div_up(icb_work, 2);
 
     while (img_start < img_end) {
         auto p = jit_conv_call_s();
@@ -1416,36 +1470,44 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
 
         for_(int g = ti->g_start; g < ti->g_end; ++g)
         for_(int oc_b = ti->oc_b_start; oc_b < ti->oc_b_end; ++oc_b)
-        for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end; ++ic_b) {
+        for (int ic_b = ti->ic_b_start; ic_b < ti->ic_b_end;
+                ic_b += ic_b_step) {
             const int _oc = g * jcp.nb_oc + oc_b;
             const int _ic = g * jcp.nb_ic + ic_b;
-
-            auto src = &ti->src[src_d.blk_off(img, _ic)
+            const int ic_blocks_to_compute
+                    = nstl::min(ic_b_step, ti->ic_b_end - ic_b);
+            const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _ic;
+            auto src = &ti->src[src_d.blk_off(img, ic_off_idx)
                     + ik_overlap * input_step];
-            auto dst = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)
+            const int oc_off_idx
+                    = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
+            auto dst = &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)
                     + od_s * output_step];
 
             jit_conv_3d_ker_bwd_w_pipeline(kernel_->jit_ker, p, src, dst,
                     diff_wei + wht_blk_off(diff_weights_d, g, oc_b, ic_b),
                     diff_bia + _oc * 16, (img == img_first), od_s, od_e,
-                    jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off);
+                    jcp.kd - kd_front_pad - kd_back_pad, kd_pad_off,
+                    ic_blocks_to_compute);
 
             p.flags = ic_b == 0 ? 0 : 1;
         }
 
         const int _oc = ti->g_start * jcp.nb_oc + ti->oc_b_start;
         const int _ic = ti->g_start * jcp.nb_ic + ti->ic_b_start;
+        const int ic_off_idx = (is_src_layout_nxc ? jcp.ic_block : 1) * _ic;
+        const int oc_off_idx = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
         // This call is required only to finalize pipeline with paramaters set
         // on the last iteration of loop above. Only valid pointers make sense
         // here as call parameters to avoid execution of prefetch instructions
         // with nullptr, other parameters are not used in real jit call here
         jit_conv_3d_ker_bwd_w_pipeline(kernel_->jit_ker, p,
-                &ti->src[src_d.blk_off(img + 1, _ic)],
-                &ti->diff_dst[diff_dst_d.blk_off(img + 1, _oc)],
+                &ti->src[src_d.blk_off(img + 1, ic_off_idx)],
+                &ti->diff_dst[diff_dst_d.blk_off(img + 1, oc_off_idx)],
                 diff_wei
                         + wht_blk_off(diff_weights_d, ti->g_start,
                                 ti->oc_b_start, ti->ic_b_start),
-                diff_bia, 0, 0, 0, 0, 0);
+                diff_bia, 0, 0, 0, 0, 0, 0);
         nd_iterator_jump(img_start, img_end, img, jcp.mb, od_s, jcp.od);
     }
 }
@@ -1594,21 +1656,26 @@ void jit_avx512_common_convolution_bwd_weights_t<src_type, diff_dst_type,
         for (int b_job_loc = 0; b_job_loc < b_njobs; ++b_job_loc) {
             const size_t _oc = g * jcp.nb_oc + ocb;
 
+            const bool is_ddst_layout_nxc = utils::one_of(jcp.dst_tag,
+                    format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);
+            const int oc_off_idx
+                    = (is_ddst_layout_nxc ? jcp.oc_block : 1) * _oc;
             const diff_dst_data_t *d_dst
-                    = &ti->diff_dst[diff_dst_d.blk_off(img, _oc)];
+                    = &ti->diff_dst[diff_dst_d.blk_off(img, oc_off_idx)];
             diff_weights_data_t *d_bias
                     = rb->get_local_ptr(
                               ti->ithr, ti->diff_bias, reducer_bia_scratchpad)
                     + b_job_loc * rb->balancer().job_size_;
 
             if (img == img_start)
-                for (int o = 0; o < 16; ++o)
+                for (int o = 0; o < jcp.oc_block; ++o)
                     d_bias[o] = 0;
             for (int hw = 0; hw < jcp.oh * jcp.ow * jcp.od; ++hw) {
                 PRAGMA_OMP_SIMD()
-                for (int o = 0; o < 16; ++o)
+                for (int o = 0; o < jcp.oc_block; ++o)
                     d_bias[o] += d_dst[o];
-                d_dst += 16;
+                d_dst += is_ddst_layout_nxc ? jcp.ngroups * jcp.oc
+                                            : jcp.oc_block;
             }
 
             nd_iterator_step(g, jcp.ngroups, ocb, jcp.nb_oc);

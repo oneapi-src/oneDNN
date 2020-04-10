@@ -449,6 +449,7 @@ private:
     reg64_t reg_oj = r15;
     reg64_t reg_tmp = r14;
     reg64_t reg_long_offt = r14;
+    reg64_t reg_icb = rbx;
 
     reg64_t ki = r11;
     reg64_t reg_kd_count = r12;
@@ -474,6 +475,9 @@ private:
     inline void compute_ic_block_step_fma(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool input_wraparound);
+    inline void compute_ic_block_step_fma_expl(int ur_w, int pad_l, int pad_r,
+            int ic_block_step, int input_offset, int kernel_offset,
+            int output_offset, bool input_wraparound);
     inline void compute_ic_block_step_4fma(int ur_w, int pad_l, int pad_r,
             int ic_block_step, int input_offset, int kernel_offset,
             int output_offset, bool input_wraparound);
@@ -487,6 +491,36 @@ private:
     inline bool flat_4ops_compute();
 
     inline void compute_loop();
+    inline bool is_src_layout_nxc() {
+        return utils::one_of(jcp.src_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+    inline bool is_ddst_layout_nxc() {
+        return utils::one_of(jcp.dst_tag, format_tag::ndhwc, format_tag::nhwc,
+                format_tag::nwc);
+    }
+
+    inline ptrdiff_t get_full_src_offset(
+            int i_iw, int i_ic, ptrdiff_t input_offset) {
+        const bool is_nxc_layout = is_src_layout_nxc();
+        const size_t w_shift_st
+                = (jcp.is_hw_transp ? jcp.iw : 1) * jcp.ic_block;
+        ptrdiff_t w_shift = is_nxc_layout
+                ? jcp.ngroups * jcp.ic
+                : (jcp.ver == ver_4fma || jcp.is_1stconv ? 1 : w_shift_st);
+        ptrdiff_t ic_shift = jcp.ver == ver_4fma
+                ? jcp.tr_iw
+                : (jcp.is_1stconv && !is_nxc_layout
+                                ? (ptrdiff_t)jcp.ih * jcp.iw * jcp.id
+                                : 1);
+
+        ptrdiff_t local_input_offset = i_iw * w_shift + i_ic * ic_shift;
+        return input_offset + typesize * local_input_offset;
+    };
+
+    inline int get_iw_idx(int ow, int kw, int l_pad) {
+        return ow * jcp.stride_w + kw * (jcp.dilate_w + 1) - l_pad;
+    }
 
     void generate();
 

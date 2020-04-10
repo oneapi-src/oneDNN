@@ -373,6 +373,7 @@ struct jit_conv_call_s {
     size_t ur_w;
     size_t ur_str_w;
     size_t ch_blocks;
+    size_t ch_blocks_prf;
     size_t t_overflow;
     size_t b_overflow;
     size_t f_overflow;
