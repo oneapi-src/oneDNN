@@ -97,19 +97,17 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
     if (!attr->output_scales_.has_default_values()) {
         // output_scales: mask
         seed = hash_combine(seed, attr->output_scales_.mask_);
+        // output_scales: count
+        seed = hash_combine(seed, attr->output_scales_.count_);
         // output_scales: scales[:]
-        if (attr->output_scales_.scales_) {
-            for (int i = 0; i < attr->output_scales_.count_; i++) {
-                seed = hash_combine(seed, attr->output_scales_.scales_[i]);
-            }
-        }
+        seed = get_array_hash(seed, attr->output_scales_.scales_,
+                attr->output_scales_.count_);
     } else if (!attr->scales_.has_default_values()) {
         // go through scales for all arguments
         for (const auto &p : attr->scales_.scales_) {
             seed = hash_combine(seed, p.second.mask_);
-            for (int i = 0; i < p.second.count_; i++) {
-                seed = hash_combine(seed, p.second.scales_[i]);
-            }
+            seed = hash_combine(seed, p.second.count_);
+            seed = get_array_hash(seed, p.second.scales_, p.second.count_);
         }
     }
     // zero_points
@@ -140,6 +138,7 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
                         seed, static_cast<size_t>(entry.depthwise_conv.dst_dt));
                 if (entry.depthwise_conv.scales) {
                     seed = hash_combine(seed, entry.depthwise_conv.mask);
+                    seed = hash_combine(seed, entry.depthwise_conv.count);
                     seed = get_array_hash(seed, entry.depthwise_conv.scales,
                             entry.depthwise_conv.count);
                 }
@@ -150,13 +149,14 @@ static inline size_t get_attr_hash(const primitive_attr_t *attr) {
     // rnn_data_qparams: scale, shift
     seed = hash_combine(seed, attr->rnn_data_qparams_.scale_);
     seed = hash_combine(seed, attr->rnn_data_qparams_.shift_);
-    // rnn_weights_qparams: mask
-    seed = hash_combine(seed, attr->rnn_weights_qparams_.mask_);
-    // rnn_weights_qparams_: scales[:]
-    if (attr->rnn_weights_qparams_.scales_) {
-        for (int i = 0; i < attr->rnn_weights_qparams_.count_; i++) {
-            seed = hash_combine(seed, attr->rnn_weights_qparams_.scales_[i]);
-        }
+    if (!attr->rnn_weights_qparams_.has_default_values()) {
+        // rnn_weights_qparams: mask
+        seed = hash_combine(seed, attr->rnn_weights_qparams_.mask_);
+        // rnn_weights_qparams: count
+        seed = hash_combine(seed, attr->rnn_weights_qparams_.count_);
+        // rnn_weights_qparams: scales[:]
+        seed = get_array_hash(seed, attr->rnn_weights_qparams_.scales_,
+                attr->rnn_weights_qparams_.count_);
     }
     // Combined hash for attributes
     return seed;
