@@ -53,7 +53,7 @@ struct concurrent_scratchpad_t : public scratchpad_t {
         return mem_storage_.get();
     }
 
-    virtual const size_t size() const override { return size_; }
+    virtual size_t size() const override { return size_; }
 
 private:
     std::unique_ptr<memory_storage_t> mem_storage_;
@@ -97,7 +97,7 @@ struct global_scratchpad_t : public scratchpad_t {
         return mem_storage_;
     }
 
-    virtual const size_t size() const override { return size_; }
+    virtual size_t size() const override { return size_; }
 
 private:
     thread_local static memory_storage_t *mem_storage_;
