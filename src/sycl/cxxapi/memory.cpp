@@ -32,9 +32,18 @@ memory::memory(with_sycl_tag, const desc &md, const engine &eng, void *handle,
     engine_t *eng_c = eng.get();
     const memory_desc_t *md_c = &md.data;
 
-    if (!eng_c || eng_c->runtime_kind() != runtime_kind::sycl)
+    if (!eng_c)
         error::wrap_c_api(dnnl::impl::status::invalid_arguments,
                 "could not create a memory");
+
+    if (eng_c->runtime_kind() != runtime_kind::sycl) {
+        dnnl_memory_t result;
+        error::wrap_c_api(
+                dnnl_memory_create(&result, &md.data, eng.get(), handle),
+                "could not create a memory object");
+        reset(result);
+        return;
+    }
 
     const auto mdw = memory_desc_wrapper(&md.data);
     if (mdw.format_any() || mdw.has_runtime_dims_or_strides())
