@@ -91,8 +91,8 @@ TEST(primitive_cache_test, TestSizeGreaterCapacity) {
     set_primitive_cache_capacity(0);
     set_primitive_cache_capacity(15);
     fill_primitive_cache(12);
-    set_primitive_cache_capacity(17);
-    ASSERT_EQ(get_primitive_cache_size(), 12);
+    set_primitive_cache_capacity(10);
+    ASSERT_EQ(get_primitive_cache_size(), 10);
 }
 
 TEST(primitive_cache_test, TestCacheHit) {
