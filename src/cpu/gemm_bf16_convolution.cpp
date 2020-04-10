@@ -290,7 +290,7 @@ void gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward(
                     key_conv_int_dat_in_acc_dt)
             : nullptr;
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     float *bias = nullptr;
     if (jcp.with_bias) {
@@ -402,7 +402,7 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
                     key_conv_int_dat_in_acc_dt)
             : nullptr;
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const dim_t M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -471,7 +471,7 @@ void gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
 template <data_type_t diff_wei_data_type>
 void gemm_bf16_convolution_bwd_weights_t<
         diff_wei_data_type>::bf16_bwd_weights_reduction_par(int ithr_mb,
-        int nthr_mb, const jit_gemm_conv_conf_t &jcp,
+        int nthr_mb, const conv_gemm_conf_t &jcp,
         const acc_data_t *weights_reduce_base,
         diff_wei_data_t *weights_base) const {
     assert(nthr_mb > 1); // no reduction for nthr_mb == 1
@@ -521,7 +521,7 @@ void gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
     auto wei_reduction = ctx.get_scratchpad_grantor().template get<acc_data_t>(
             key_conv_wei_reduction);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     acc_data_t *acc_base = diff_wei_data_type == data_type::bf16
             ? ctx.get_scratchpad_grantor().template get<acc_data_t>(

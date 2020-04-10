@@ -38,7 +38,7 @@ using namespace data_type;
 namespace jit_gemm_convolution_utils {
 
 template <typename data_type_t>
-void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
+void im2col_3d(const conv_gemm_conf_t &jcp, const data_type_t *im,
         data_type_t *col, int od) {
     const size_t OHW = jcp.oh * jcp.ow;
     const size_t im_step = jcp.ih * jcp.iw * jcp.id;
@@ -122,14 +122,14 @@ void im2col_3d(const jit_gemm_conv_conf_t &jcp, const data_type_t *im,
 }
 
 template void im2col_3d(
-        const jit_gemm_conv_conf_t &jcp, const float *im, float *col, int od);
+        const conv_gemm_conf_t &jcp, const float *im, float *col, int od);
 
-template void im2col_3d(const jit_gemm_conv_conf_t &jcp, const bfloat16_t *im,
+template void im2col_3d(const conv_gemm_conf_t &jcp, const bfloat16_t *im,
         bfloat16_t *col, int od);
 
 /* imtr[ic][od][oh][ow] <-- im[id][ih][iw][ic]*/
 template <typename T>
-void transpose_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
+void transpose_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
         T *__restrict imtr) {
     uint8_t shift = jcp.signed_input ? 128 : 0;
     const int ic_stride = jcp.id * jcp.ih * jcp.iw;
@@ -159,14 +159,14 @@ void transpose_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
     });
 }
 
-template void transpose_u8(const jit_gemm_conv_conf_t &jcp,
+template void transpose_u8(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, int8_t *__restrict imtr);
-template void transpose_u8(const jit_gemm_conv_conf_t &jcp,
+template void transpose_u8(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr);
 
 /* col[kd][kh][kw][g][ic][od][oh][ow] <-- im2col_u8_3d(im[id][ih][iw][g][ic]) */
 template <typename T>
-void im2col_u8_3d(const jit_gemm_conv_conf_t &jcp, const T *__restrict imtr,
+void im2col_u8_3d(const conv_gemm_conf_t &jcp, const T *__restrict imtr,
         uint8_t *__restrict col, int od) {
     uint8_t shift = jcp.signed_input ? 128 : 0;
     const int dd = 1 + jcp.dilate_d;
@@ -277,15 +277,15 @@ void im2col_u8_3d(const jit_gemm_conv_conf_t &jcp, const T *__restrict imtr,
                 });
 }
 
-template void im2col_u8_3d<int8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8_3d<int8_t>(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, uint8_t *__restrict col, int od);
 
-template void im2col_u8_3d<uint8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8_3d<uint8_t>(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict col, int od);
 
 /* col[ic][kh][kw][oh][ow] <-- im2col(im[ic][ih][iw]) */
 template <typename data_type_t>
-void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
+void im2col(const conv_gemm_conf_t &jcp, const data_type_t *__restrict im,
         data_type_t *__restrict col, int ss, int sb, int cs, int cb) {
     const size_t im_step = jcp.is;
     const size_t col_step = jcp.ks * sb;
@@ -433,17 +433,16 @@ void im2col(const jit_gemm_conv_conf_t &jcp, const data_type_t *__restrict im,
     }
 }
 
-template void im2col(const jit_gemm_conv_conf_t &jcp,
-        const float *__restrict im, float *__restrict col, int hs, int hb,
-        int ws, int wb);
+template void im2col(const conv_gemm_conf_t &jcp, const float *__restrict im,
+        float *__restrict col, int hs, int hb, int ws, int wb);
 
-template void im2col(const jit_gemm_conv_conf_t &jcp,
+template void im2col(const conv_gemm_conf_t &jcp,
         const bfloat16_t *__restrict im, bfloat16_t *__restrict col, int hs,
         int hb, int ws, int wb);
 
 /* col[kh][kw][ic][oh][ow] <-- im2col_u8(im[ih][iw][ic]) */
 template <typename T>
-void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
+void im2col_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
         T *__restrict imtr, uint8_t *__restrict col, int hs, int hb, int ws,
         int wb) {
     uint8_t shift = jcp.signed_input ? 128 : 0;
@@ -559,15 +558,15 @@ void im2col_u8(const jit_gemm_conv_conf_t &jcp, const T *__restrict im,
     }
 }
 
-template void im2col_u8<int8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8<int8_t>(const conv_gemm_conf_t &jcp,
         const int8_t *__restrict im, int8_t *__restrict imtr,
         uint8_t *__restrict col, int hs, int hb, int ws, int wb);
-template void im2col_u8<uint8_t>(const jit_gemm_conv_conf_t &jcp,
+template void im2col_u8<uint8_t>(const conv_gemm_conf_t &jcp,
         const uint8_t *__restrict im, uint8_t *__restrict imtr,
         uint8_t *__restrict col, int hs, int hb, int ws, int wb);
 
 /* im[id][ih][iw][ic] <-- col2im_s32_3d(col[od][oh][ow][kd][kh][kw][ic]) */
-void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
+void col2im_s32(const conv_gemm_conf_t &jcp, const int32_t *__restrict col,
         int32_t *__restrict im) {
     parallel(0, [&](const int ithr, const int nthr) {
         int d_nthr = nstl::min(jcp.id, nthr);
@@ -642,7 +641,7 @@ void col2im_s32(const jit_gemm_conv_conf_t &jcp, const int32_t *__restrict col,
 }
 
 void col2im_3d(
-        const jit_gemm_conv_conf_t &jcp, const float *col, float *im, int od) {
+        const conv_gemm_conf_t &jcp, const float *col, float *im, int od) {
     parallel_nd(jcp.ic, [&](int ic) {
         const float *__restrict col_ = col + (size_t)ic * jcp.ks * jcp.os;
         float *__restrict im_ic = im + (size_t)ic * jcp.ih * jcp.iw * jcp.id;
@@ -682,7 +681,7 @@ void col2im_3d(
     });
 }
 
-void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
+void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im) {
     const size_t col_step = jcp.ks * jcp.os;
     const size_t im_step = jcp.ih * jcp.iw;
     const int iS = jcp.ih * jcp.iw;
@@ -715,7 +714,7 @@ void col2im(const jit_gemm_conv_conf_t &jcp, const float *col, float *im) {
     });
 }
 
-status_t init_conf(jit_gemm_conv_conf_t &jcp,
+status_t init_conf(conv_gemm_conf_t &jcp,
         memory_tracking::registrar_t &scratchpad, const convolution_desc_t &cd,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
         const memory_desc_wrapper &dst_d, int max_threads) {
@@ -1308,9 +1307,8 @@ void bwd_weights_balance(int ithr, int nthr, int ngroups, int mb, int &ithr_g,
     }
 }
 
-void bwd_weights_reduction_par(int ithr, int nthr,
-        const jit_gemm_conv_conf_t &jcp, const float *weights_reduce_ws,
-        float *weights) {
+void bwd_weights_reduction_par(int ithr, int nthr, const conv_gemm_conf_t &jcp,
+        const float *weights_reduce_ws, float *weights) {
     const size_t weights_g_size = jcp.ic * jcp.oc * jcp.ks;
 
     size_t weights_start {0}, weights_end {0};

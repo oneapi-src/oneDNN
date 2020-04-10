@@ -62,7 +62,7 @@ struct gemm_convolution_fwd_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -151,7 +151,7 @@ struct gemm_convolution_bwd_data_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -210,7 +210,7 @@ struct gemm_convolution_bwd_weights_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {

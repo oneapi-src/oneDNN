@@ -51,7 +51,7 @@ void gemm_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
     const size_t weights_oc_size = jcp.ic * jcp.ks;
@@ -208,7 +208,7 @@ void gemm_convolution_bwd_data_t::execute_backward_data(
 
     auto col = ctx.get_scratchpad_grantor().get<data_t>(key_conv_gemm_col);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const dim_t M = jcp.os * jcp.od;
     const size_t src_step = (size_t)jcp.ic * jcp.ih * jcp.iw * jcp.id;
@@ -275,7 +275,7 @@ void gemm_convolution_bwd_weights_t::execute_backward_weights(
     auto wei_reduction
             = ctx.get_scratchpad_grantor().get<data_t>(key_conv_wei_reduction);
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const dim_t K = jcp.os * jcp.od;
     const size_t src_step = jcp.ic * jcp.ih * jcp.iw * jcp.id;
