@@ -22,6 +22,10 @@ if(Doxygen_cmake_included)
 endif()
 set(Doxygen_cmake_included true)
 
+if(NOT DNNL_IS_MAIN_PROJECT)
+    return()
+endif()
+
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
     set(DOXYGEN_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/reference)
