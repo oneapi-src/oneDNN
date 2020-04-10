@@ -73,7 +73,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -187,7 +187,7 @@ private:
         };
         void (*ker_)(const ker_args *args);
 
-        const jit_gemm_conv_conf_t &jcp_;
+        const conv_gemm_conf_t &jcp_;
         size_t OC_;
         size_t OS_;
         data_type_t bias_data_type_;
@@ -252,7 +252,7 @@ struct _gemm_u8s8s32x_convolution_bwd_data_t : public primitive_t {
 
         virtual bool support_bias() const override { return true; }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {

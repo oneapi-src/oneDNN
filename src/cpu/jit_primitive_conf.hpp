@@ -52,7 +52,6 @@ enum conv_1x1_loop_order_t {
     loop_blr,
     loop_brl
 };
-enum conv_gemm_loop_order_t { gemm_loop_rlb, gemm_loop_lrb };
 
 enum conv_kernel_kind_t { embd_bcast, expl_bcast };
 enum conv_harness_t {
@@ -482,33 +481,6 @@ struct jit_1x1_conv_conf_t {
 
     cpu_isa_t isa;
     bool uses_permw_transposition;
-};
-
-struct jit_gemm_conv_conf_t {
-    prop_kind_t prop_kind;
-
-    int mb;
-    int ngroups, ic, oc;
-    int iw, ih, id, ow, oh, od;
-    int l_pad, t_pad, f_pad;
-    int kh, kw, kd;
-    int stride_h, stride_w, stride_d;
-    int dilate_h, dilate_w, dilate_d;
-    bool with_bias;
-
-    int is, os, ks;
-    int ic_block, oc_block;
-
-    int nthr;
-    ptrdiff_t im2col_sz;
-    bool need_wei_reduction;
-    bool signed_input;
-    int oh_block;
-    int ow_block;
-    int os_block;
-    bool outer_threading;
-    conv_gemm_loop_order_t loop_order;
-    int nthr_oc;
 };
 
 struct jit_1x1_conv_call_s {

@@ -43,7 +43,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     assert(IMPLICATION(jcp.ow_block != jcp.ow, jcp.oh_block == 1));
 
@@ -509,7 +509,7 @@ void _gemm_x8s8s32x_convolution_fwd_t<src_type, dst_type>::execute_forward_thr(
         const int ithr, const int nthr, const src_data_t *src_base,
         const wei_data_t *wei_base, const char *bia_base, dst_data_t *dst_base,
         const memory_tracking::grantor_t &scratchpad) const {
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto src_md = memory_desc_wrapper(pd()->src_md());
     const size_t src_mb_stride = src_md.blk_off(1);
@@ -634,7 +634,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data(
 
     auto scratchpad = ctx.get_scratchpad_grantor();
 
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     parallel(jcp.nthr, [&](const int ithr, const int nthr) {
         execute_backward_data_thr(ithr, nthr, diff_dst_base, wei_base, bia_base,
@@ -648,7 +648,7 @@ void _gemm_u8s8s32x_convolution_bwd_data_t<dst_type>::execute_backward_data_thr(
         const wei_data_t *wei_base, const char *bia_base,
         diff_src_data_t *diff_src_base,
         const memory_tracking::grantor_t &scratchpad) const {
-    const jit_gemm_conv_conf_t &jcp = this->pd()->jcp_;
+    const conv_gemm_conf_t &jcp = this->pd()->jcp_;
 
     const auto diff_dst_md = memory_desc_wrapper(pd()->diff_dst_md());
     const size_t diff_dst_mb_stride = diff_dst_md.blk_off(1);

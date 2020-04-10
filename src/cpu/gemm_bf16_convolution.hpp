@@ -80,7 +80,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
                     || is_pp_for_post_ops_required;
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -196,7 +196,7 @@ private:
         Xbyak::Zmm bf16_emu_reserv_6 = Xbyak::Zmm(31);
 
         void (*ker_)(const ker_args *args);
-        const jit_gemm_conv_conf_t &jcp_;
+        const conv_gemm_conf_t &jcp_;
         size_t OC_;
         bool do_bias_;
         bool do_eltwise_;
@@ -271,7 +271,7 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -336,7 +336,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
                     dnnl_get_max_threads());
         }
 
-        jit_gemm_conv_conf_t jcp_;
+        conv_gemm_conf_t jcp_;
 
     protected:
         format_tag_t dat_tag() const {
@@ -370,8 +370,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
 
 private:
     void bf16_bwd_weights_reduction_par(int ithr_mb, int nthr_mb,
-            const jit_gemm_conv_conf_t &jcp,
-            const acc_data_t *weights_reduce_base,
+            const conv_gemm_conf_t &jcp, const acc_data_t *weights_reduce_base,
             diff_wei_data_t *weights_base) const;
 
     void execute_backward_weights(const exec_ctx_t &ctx) const;
