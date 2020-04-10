@@ -316,7 +316,10 @@ int fill_data_fwd(const prb_t *p, dnn_mem_t &mem_dt, dnn_mem_t &mem_fp,
                 case 6: value = 10.f * fgen(msr); break; // [0.-1.) pos
                 case 7: value = -10.f * fgen(msr); break; // [0.-1.) neg
             }
-            value = round_to_nearest_representable(p->dt, value);
+            // Hack: adding 0.f works around an issue when value = -0 is used
+            // and may lead to different sign in the answer since input passes
+            // through simple reorder which converts -0 into +0.
+            value = round_to_nearest_representable(p->dt, value) + 0.f;
             mem_fp.set_elem(idx, maybe_saturate(p->dt, value));
         }
     });
