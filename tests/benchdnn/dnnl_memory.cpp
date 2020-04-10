@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "dnnl.hpp"
+
 #include "dnnl_memory.hpp"
 #include "dnnl_reorder.hpp"
 
 #if DNNL_WITH_SYCL
 #include <CL/sycl.hpp>
-
-#include "dnnl.hpp"
 #endif
 
 int dnn_mem_t::reorder(const dnn_mem_t &rhs, const attr_bundle_t *attr_bundle) {
