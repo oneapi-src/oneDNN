@@ -38,14 +38,14 @@ const offsetc_t row = dnnl_row;
 } // namespace offsetc
 
 /** A descriptor for a matrix multiplication (gemm) operation */
-typedef struct {
+struct dnnl_gemm_desc_t {
     /** The kind of primitive. Used for self identifying the primitive
      * descriptor. Must be #dnnl_gemm. */
-    dnnl_primitive_kind_t primitive_kind;
+    dnnl_primitive_kind_t primitive_kind = dnnl_gemm;
     /** Flag for transposing matrix A. */
-    transpose_t transa;
+    transpose_t transa = dnnl_notrans;
     /** Flag for transposing matrix B. */
-    transpose_t transb;
+    transpose_t transb = dnnl_notrans;
     /** Number of C matrices. */
     dnnl_dim_t batch = 0;
     /** Number of rows of C. */
@@ -79,7 +79,7 @@ typedef struct {
     dnnl_data_type_t acc_type = dnnl_data_type_undef;
     /** Type of bias. */
     dnnl_data_type_t bias_type = dnnl_data_type_undef;
-} dnnl_gemm_desc_t;
+};
 
 } // namespace impl
 } // namespace dnnl
