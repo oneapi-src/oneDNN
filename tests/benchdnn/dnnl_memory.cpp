@@ -83,18 +83,20 @@ static size_t get_cpu_ram_size() {
 #endif
 
 static size_t get_gpu_ram_size() {
+    dnnl::engine eng(engine_tgt, true);
+    if (eng.get_kind() != dnnl::engine::kind::gpu) return 0;
+
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_int status = CL_SUCCESS;
-    cl_device_id ocl_device = 0;
     // Get single device attached to the engine.
-    dnnl_engine_get_ocl_device(engine_tgt, &ocl_device);
+    cl_device_id ocl_device = eng.get_ocl_device();
 
     cl_ulong ram_size = 0;
     status = clGetDeviceInfo(ocl_device, CL_DEVICE_GLOBAL_MEM_SIZE,
             sizeof(cl_ulong), &ram_size, NULL);
     if (status == CL_SUCCESS) return (size_t)ram_size;
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_DPCPP
-    auto sycl_dev = dnnl::engine(engine_tgt, true).get_sycl_device();
+    auto sycl_dev = eng.get_sycl_device();
     return (size_t)sycl_dev.get_info<cl::sycl::info::device::global_mem_size>();
 #endif
     return 0;
