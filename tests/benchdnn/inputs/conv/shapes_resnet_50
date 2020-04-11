@@ -4,13 +4,13 @@ g1mb50ic3ih224iw224oc64oh112ow112kh7kw7sh2sw2ph3pw3n"resnet_50:conv1"
 mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch1*4"
 mb50ic64ih56oc64oh56kh1ph0n"resnet_50:res2a_branch2a"
 mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2a_branch2b*3"
-# mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch2c"        # conv1
+# mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2a_branch2c"        # res2a_branch1
 mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2b_branch2a*2"
 # mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2b_branch2b"         # res2a_branch2b
-# mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2b_branch2c"        # conv1
+# mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2b_branch2c"        # res2a_branch1
 # mb50ic256ih56oc64oh56kh1ph0n"resnet_50:res2c_branch2a"        # res2b_branch2a
 # mb50ic64ih56oc64oh56kh3ph1n"resnet_50:res2c_branch2b"         # res2a_branch2b
-# mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2c_branch2c"        # conv1
+# mb50ic64ih56oc256oh56kh1ph0n"resnet_50:res2c_branch2c"        # res2a_branch1
 g1mb50ic256ih56iw56oc512oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch1"
 g1mb50ic256ih56iw56oc128oh28ow28kh1kw1sh2sw2ph0pw0n"resnet_50:res3a_branch2a"
 mb50ic128ih28oc128oh28kh3ph1n"resnet_50:res3a_branch2b*4"
