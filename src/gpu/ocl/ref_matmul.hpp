@@ -193,8 +193,6 @@ struct ref_matmul_t : public gpu_primitive_t {
     ref_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
@@ -212,7 +210,7 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, pd()->dst_dt_, "DST");
         def_data_type(kernel_ctx, pd()->bia_dt_, "BIA");
         def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "ACC");
-        compute_engine->create_binary(&binary_, "ref_matmul", kernel_ctx);
+        create_binary(engine, &binary_, "ref_matmul", kernel_ctx);
         if (!binary_) return status::runtime_error;
         return status::success;
     }

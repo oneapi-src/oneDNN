@@ -141,8 +141,6 @@ struct ref_gemm_t : public gpu_gemm_t {
     ref_gemm_t(const pd_t *apd) : gpu_gemm_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         kernel_ctx.define_int("WITH_BIAS", pd()->with_bias());
@@ -165,7 +163,7 @@ struct ref_gemm_t : public gpu_gemm_t {
         def_data_type(kernel_ctx, d->c_type, "C");
         def_data_type(kernel_ctx, d->acc_type, "ACC");
         def_data_type(kernel_ctx, bias_type, "BIAS");
-        compute_engine->create_binary(&binary_, "ref_gemm", kernel_ctx);
+        create_binary(engine, &binary_, "ref_gemm", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

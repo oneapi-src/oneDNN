@@ -277,8 +277,6 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
 
         // Prepare post process kernel
         if (pd()->with_post_process()) {
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
             compute::kernel_ctx_t kernel_ctx;
 
             kernel_ctx.define_int("MB", mb);
@@ -312,7 +310,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             }
             kernel_ctx.define_int("WITH_SUM", pd()->with_sum());
 
-            compute_engine->create_binary(&post_process_binary_,
+            create_binary(engine, &post_process_binary_,
                     "gemm_x8s8s32x_inner_product_post_process", kernel_ctx);
             if (!post_process_binary_) return status::runtime_error;
         }

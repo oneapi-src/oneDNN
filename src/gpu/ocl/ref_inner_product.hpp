@@ -148,14 +148,11 @@ struct ref_inner_product_fwd_t : public gpu_primitive_t {
     ref_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(
-                &binary_, "ref_inner_product_fwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_inner_product_fwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -221,14 +218,12 @@ struct ref_inner_product_bwd_data_t : public gpu_primitive_t {
     ref_inner_product_bwd_data_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(
-                &binary_, "ref_inner_product_bwd_data", kernel_ctx);
+        create_binary(
+                engine, &binary_, "ref_inner_product_bwd_data", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -290,14 +285,12 @@ struct ref_inner_product_bwd_weights_t : public gpu_primitive_t {
     ref_inner_product_bwd_weights_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(
-                &binary_, "ref_inner_product_bwd_weights", kernel_ctx);
+        create_binary(
+                engine, &binary_, "ref_inner_product_bwd_weights", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

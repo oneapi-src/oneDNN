@@ -64,10 +64,8 @@ struct simple_sum_t : public gpu_primitive_t {
     simple_sum_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
-        compute_engine->create_binary(&binary_, "simple_sum", kernel_ctx);
+        create_binary(engine, &binary_, "simple_sum", kernel_ctx);
         if (!binary_) return status::runtime_error;
         return status::success;
     }

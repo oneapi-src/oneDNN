@@ -685,7 +685,6 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
-    auto *compute_engine = utils::downcast<compute::compute_engine_t *>(engine);
     compute::kernel_ctx_t kernel_ctx;
 
     status_t status = init_kernel_ctx(kernel_ctx, pd()->conf, pd()->off);
@@ -708,8 +707,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
               };
 
     std::vector<compute::binary_t> binaries;
-    status = compute_engine->create_binaries(
-            &binaries, kernel_names, kernel_ctx);
+    status = create_binaries(engine, &binaries, kernel_names, kernel_ctx);
     CHECK(status);
 
     bias_prepare_binary_ = binaries[0];

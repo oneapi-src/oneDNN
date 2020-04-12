@@ -86,8 +86,6 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
     ref_batch_normalization_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -103,8 +101,7 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
         }
 
         std::vector<compute::binary_t> binaries;
-        status = compute_engine->create_binaries(
-                &binaries, kernel_names, kernel_ctx);
+        status = create_binaries(engine, &binaries, kernel_names, kernel_ctx);
         CHECK(status);
 
         binary_ = binaries[0];
@@ -187,8 +184,6 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
     ref_batch_normalization_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
@@ -198,8 +193,7 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
                 = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
 
         std::vector<compute::binary_t> binaries;
-        status = compute_engine->create_binaries(
-                &binaries, kernel_names, kernel_ctx);
+        status = create_binaries(engine, &binaries, kernel_names, kernel_ctx);
         CHECK(status);
 
         binary_ = binaries[0];

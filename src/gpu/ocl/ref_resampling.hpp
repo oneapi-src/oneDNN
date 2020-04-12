@@ -77,8 +77,6 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         using namespace alg_kind;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
@@ -118,8 +116,7 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        compute_engine->create_binary(
-                &binary_, "ref_resampling_fwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_resampling_fwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -187,8 +184,6 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
     status_t init(engine_t *engine) override {
         using namespace alg_kind;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = status::success;
@@ -230,8 +225,7 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        compute_engine->create_binary(
-                &binary_, "ref_resampling_bwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_resampling_bwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

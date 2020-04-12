@@ -108,8 +108,6 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
     ref_softmax_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -129,8 +127,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        compute_engine->create_binary(
-                &binary_, "ref_softmax_fwd_generic", kernel_ctx);
+        create_binary(engine, &binary_, "ref_softmax_fwd_generic", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -199,8 +196,6 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
     ref_softmax_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         const auto *desc = pd()->desc();
@@ -217,8 +212,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        compute_engine->create_binary(
-                &binary_, "ref_softmax_bwd_generic", kernel_ctx);
+        create_binary(engine, &binary_, "ref_softmax_bwd_generic", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

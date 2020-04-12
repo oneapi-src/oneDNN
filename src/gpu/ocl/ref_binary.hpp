@@ -131,14 +131,12 @@ struct ref_binary_t : public gpu_primitive_t {
     ref_binary_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(&binary_, "ref_binary", kernel_ctx);
+        create_binary(engine, &binary_, "ref_binary", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

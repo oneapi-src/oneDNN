@@ -86,14 +86,12 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
     ref_eltwise_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(&binary_, "ref_eltwise_fwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_eltwise_fwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -166,14 +164,12 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
     ref_eltwise_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(&binary_, "ref_eltwise_bwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_eltwise_bwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

@@ -87,14 +87,11 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(&binary_, "gen9_pooling_fwd", kernel_ctx);
+        create_binary(engine, &binary_, "gen9_pooling_fwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -164,14 +161,11 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
     };
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-
         compute::kernel_ctx_t kernel_ctx;
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(&binary_, "gen9_pooling_bwd", kernel_ctx);
+        create_binary(engine, &binary_, "gen9_pooling_bwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;

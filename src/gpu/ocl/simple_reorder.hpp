@@ -102,8 +102,6 @@ struct simple_reorder_t : public gpu_primitive_t {
     simple_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = pd()->init_kernel_ctx(kernel_ctx);
@@ -112,7 +110,7 @@ struct simple_reorder_t : public gpu_primitive_t {
         const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
 
-        compute_engine->create_binary(&binary_, "simple_reorder", kernel_ctx);
+        create_binary(engine, &binary_, "simple_reorder", kernel_ctx);
         if (!binary_) return status::runtime_error;
         return status::success;
     }

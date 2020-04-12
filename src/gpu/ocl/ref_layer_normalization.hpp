@@ -69,14 +69,12 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
     ref_layer_normalization_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(&binary_, "ref_lnorm_fwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_lnorm_fwd", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
         return status::success;
@@ -142,16 +140,14 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
     ref_layer_normalization_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        compute_engine->create_binary(&binary_, "ref_lnorm_bwd", kernel_ctx);
+        create_binary(engine, &binary_, "ref_lnorm_bwd", kernel_ctx);
         if (pd()->conf.use_scaleshift) {
-            compute_engine->create_binary(&binary_scaleshift_,
+            create_binary(engine, &binary_scaleshift_,
                     "ref_lnorm_bwd_scaleshift", kernel_ctx);
             if (!binary_scaleshift_) return status::runtime_error;
         }

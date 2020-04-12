@@ -403,8 +403,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
         if (!pd()->with_bias()) return conv_status;
         // Initializing values for the deconv bias kernel
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         memory_desc_wrapper diff_dst_mdw(pd()->diff_dst_md());
@@ -433,8 +431,8 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, bias_data_type, "BIA");
         def_data_type(kernel_ctx, accum_data_type, "ACC");
 
-        compute_engine->create_binary(
-                &bias_binary_, "ref_deconv_backward_bias", kernel_ctx);
+        create_binary(
+                engine, &bias_binary_, "ref_deconv_backward_bias", kernel_ctx);
         if (!bias_binary_) return status::runtime_error;
 
         return status::success;

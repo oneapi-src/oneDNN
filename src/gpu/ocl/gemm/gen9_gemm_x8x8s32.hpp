@@ -189,8 +189,6 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
             default: return status::unimplemented;
         }
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         int cmask = 0;
@@ -206,8 +204,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(
-                &compute_x8x8s32_binary_, kernel_name, kernel_ctx);
+        create_binary(
+                engine, &compute_x8x8s32_binary_, kernel_name, kernel_ctx);
         if (!compute_x8x8s32_binary_) return status::runtime_error;
 
         //scale kernel
@@ -219,8 +217,7 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(
-                &scale_x8x8s32_binary_, kernel_name, kernel_ctx);
+        create_binary(engine, &scale_x8x8s32_binary_, kernel_name, kernel_ctx);
         if (!scale_x8x8s32_binary_) return status::runtime_error;
 
         return status::success;

@@ -384,9 +384,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
     }
 
     status_t init_copy_based(engine_t *engine) {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-
         for (bool beta0 : {false, true}) {
             if (beta0 && pd()->beta() != 0) continue;
 
@@ -397,8 +394,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                     pd()->desc()->c_type);
             if (status != status::success) return status;
 
-            compute_engine->create_binary(
-                    &compute_binary_[beta0], "gen9_gemm_compute", kernel_ctx);
+            create_binary(engine, &compute_binary_[beta0], "gen9_gemm_compute",
+                    kernel_ctx);
             if (!compute_binary_[beta0]) return status::runtime_error;
         }
 
@@ -414,8 +411,8 @@ struct gen9_gemm_t : public gpu_gemm_t {
                             pd()->desc()->acc_type);
             if (status != status::success) return status;
 
-            compute_engine->create_binary(
-                    &copy_binary_[outer][trans], "gen9_gemm_copy", kernel_ctx);
+            create_binary(engine, &copy_binary_[outer][trans], "gen9_gemm_copy",
+                    kernel_ctx);
             if (!copy_binary_[outer][trans]) return status::runtime_error;
         }
 
@@ -424,8 +421,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 kernel_ctx, pd()->desc()->c_type, pd()->desc()->acc_type);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(
-                &beta_binary_, "gen9_gemm_beta", kernel_ctx);
+        create_binary(engine, &beta_binary_, "gen9_gemm_beta", kernel_ctx);
         if (!beta_binary_) return status::runtime_error;
 
         return status::success;
@@ -449,8 +445,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
 
         bool with_k_unroll = pd()->use_nocopy_k_unroll();
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen9_gemm_nocopy_kernel_t::init_kernel_ctx(kernel_ctx,
@@ -459,7 +453,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(&nocopy_binary_, kernel_name, kernel_ctx);
+        create_binary(engine, &nocopy_binary_, kernel_name, kernel_ctx);
         if (!nocopy_binary_) return status::runtime_error;
 
         return status::success;
@@ -469,8 +463,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
         if (pd()->desc()->c_type != data_type::f32 || pd()->desc()->transa)
             return status::unimplemented;
 
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
         compute::kernel_ctx_t kernel_ctx;
 
         auto status = gen9_gemm_nocopy_superkernel_t::init_kernel_ctx(
@@ -479,7 +471,7 @@ struct gen9_gemm_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        compute_engine->create_binary(&nocopy_superbinary_,
+        create_binary(engine, &nocopy_superbinary_,
                 "gen9_gemm_nocopy_superkernel_f32", kernel_ctx);
         if (!nocopy_superbinary_) return status::runtime_error;
 

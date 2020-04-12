@@ -151,15 +151,13 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
             compute::kernel_ctx_t kernel_ctx;
 
             kernel_ctx.set_data_type(pd()->src_md()->data_type);
             kernel_ctx.define_int("MB", pd()->MB());
             kernel_ctx.define_int("OC", pd()->OC());
 
-            compute_engine->create_binary(&bias_binary_,
+            create_binary(engine, &bias_binary_,
                     "gemm_inner_product_forward_bias", kernel_ctx);
             if (!bias_binary_) return status::runtime_error;
         }
@@ -364,15 +362,13 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         if (gemm_status != status::success) return gemm_status;
 
         if (pd()->with_bias()) {
-            auto *compute_engine
-                    = utils::downcast<compute::compute_engine_t *>(engine);
             compute::kernel_ctx_t kernel_ctx;
 
             kernel_ctx.set_data_type(pd()->src_md()->data_type);
             kernel_ctx.define_int("MB", pd()->MB());
             kernel_ctx.define_int("OC", pd()->OC());
 
-            compute_engine->create_binary(&bias_binary_,
+            create_binary(engine, &bias_binary_,
                     "gemm_inner_product_backward_weights_bias", kernel_ctx);
             if (!bias_binary_) return status::runtime_error;
         }
