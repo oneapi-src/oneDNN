@@ -248,6 +248,13 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
         return execute_(ctx);
     }
 
+protected:
+    primitive_list_t nested_primitives() const override {
+        return {gemm_layer_fwd_.get(), gemm_iter_fwd_.get(),
+                gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
+                gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
+    }
+
 private:
     status_t execute_(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

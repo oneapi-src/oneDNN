@@ -49,6 +49,9 @@ struct gpu_primitive_t : public primitive_t {
         return status;
     }
 
+protected:
+    virtual primitive_list_t nested_primitives() const { return {}; }
+
 private:
     void register_binaries(const std::vector<compute::binary_t> &binaries) {
         for (const auto &b : binaries) {

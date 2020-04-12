@@ -37,6 +37,8 @@ namespace impl {
 struct resource_mapper_t;
 // Primitive implementation
 struct primitive_t : public c_compatible {
+    using primitive_list_t = std::vector<const primitive_t *>;
+
     primitive_t(const primitive_desc_t *pd) : pd_(pd->clone()) {}
     virtual ~primitive_t() = default;
 

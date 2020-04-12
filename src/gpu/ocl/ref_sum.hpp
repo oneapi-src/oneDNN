@@ -126,6 +126,15 @@ struct ref_sum_t : public gpu_primitive_t {
         return status::success;
     }
 
+protected:
+    primitive_list_t nested_primitives() const override {
+        std::vector<const primitive_t *> _reorders;
+        _reorders.reserve(reorders_.size());
+        for (const auto &r : reorders_)
+            _reorders.push_back(r.get());
+        return _reorders;
+    }
+
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::vector<std::shared_ptr<primitive_t>> reorders_;
