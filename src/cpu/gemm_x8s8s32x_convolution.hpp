@@ -17,16 +17,15 @@
 #ifndef GEMM_X8S8S32X_CONVOLUTION_HPP
 #define GEMM_X8S8S32X_CONVOLUTION_HPP
 
+#include <memory>
+
 #include "c_types_map.hpp"
 #include "memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "eltwise/ref_eltwise.hpp"
 #include "gemm_convolution_utils.hpp"
-#include "jit_generator.hpp"
-#include "jit_primitive_conf.hpp"
+#include "gemm_x8s8s32x_convolution_utils.hpp"
 #include "primitive.hpp"
 
 #include "gemm/gemm.hpp"
@@ -134,11 +133,9 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
         }
     };
 
-    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd)
-        : primitive_t(apd), pp_ker_(nullptr) {
-        pp_ker_ = new pp_ker_t(pd());
+    _gemm_x8s8s32x_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {
+        pp_ker_.reset(pp_ker_t::create(pd(), pd()->jcp_));
     }
-    ~_gemm_x8s8s32x_convolution_fwd_t() { delete pp_ker_; }
 
     typedef typename prec_traits<src_type>::type src_data_t;
     typedef typename prec_traits<data_type::s8>::type wei_data_t;
@@ -151,57 +148,6 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
     }
 
 private:
-    // XXX: this is throwaway code that will become unnecessary when we have a
-    // sufficiently advanced igemm jit generator that supports quantization,
-    // relu, and whatnot
-    class pp_ker_t : jit_generator {
-    public:
-        DECLARE_CPU_JIT_AUX_FUNCTIONS(
-                _gemm_x8s8s32x_convolution_fwd_t::pp_kernel);
-        pp_ker_t(const pd_t *pd);
-        ~pp_ker_t() {
-            if (eltwise_injector_) delete eltwise_injector_;
-            if (eltwise_) delete eltwise_;
-        }
-
-        void operator()(dst_data_t *dst, const acc_data_t *acc,
-                const char *bias, const float *scales, float nslope,
-                float sum_scale, float signed_scale, int g, size_t start,
-                size_t end);
-
-        size_t dst_os_stride_;
-
-    private:
-        void generate();
-
-        struct ker_args {
-            dst_data_t *dst;
-            const acc_data_t *acc;
-            const char *bias;
-            const float *scales;
-            float nslope;
-            float sum_scale;
-            float signed_scale;
-            size_t len;
-            size_t oc_offset;
-        };
-        void (*ker_)(const ker_args *args);
-
-        const conv_gemm_conf_t &jcp_;
-        size_t OC_;
-        size_t OS_;
-        data_type_t bias_data_type_;
-        size_t bias_data_type_size_;
-        size_t scale_idx_mult_;
-        bool do_bias_;
-        bool do_eltwise_;
-        bool do_sum_;
-        bool do_signed_scaling_;
-        size_t vlen_;
-        jit_uni_eltwise_injector_f32<avx512_common> *eltwise_injector_;
-        ref_eltwise_scalar_fwd_t *eltwise_;
-    };
-
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     void execute_forward(const exec_ctx_t &ctx) const;
     void execute_forward_thr(const int ithr, const int nthr,
@@ -210,7 +156,9 @@ private:
             const memory_tracking::grantor_t &scratchpad) const;
 
     int nthr_ = 0;
-    pp_ker_t *pp_ker_;
+
+    using pp_ker_t = gemm_x8s8s32x_convolution_utils::pp_ker_t;
+    std::unique_ptr<pp_ker_t> pp_ker_;
 };
 
 template <data_type_t dst_type>
