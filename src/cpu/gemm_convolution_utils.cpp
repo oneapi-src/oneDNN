@@ -1069,15 +1069,15 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                         return 0.f;
 
                     int sp_start {0}, sp_end {0}, oc_start {0}, oc_end {0};
-                    size_t max_thr_size {0},
-                            min_thr_size {(size_t)spatial * jcp.oc + 1},
-                            max_y {0}, max_oc {0};
+                    int max_y {0}, max_oc {0};
+                    size_t max_thr_size {0};
+                    size_t min_thr_size {(size_t)spatial * jcp.oc + 1};
 
                     for (int i = 0; i < max_threads; i++) {
                         balance2D(max_threads, i, spatial, sp_start, sp_end,
                                 jcp.oc, oc_start, oc_end, nthr_oc);
-                        const size_t thr_size
-                                = (sp_end - sp_start) * (oc_end - oc_start);
+                        const size_t thr_size = (size_t)(sp_end - sp_start)
+                                * (oc_end - oc_start);
                         if (thr_size > max_thr_size) {
                             max_y = (sp_end - sp_start);
                             max_oc = (oc_end - oc_start);
