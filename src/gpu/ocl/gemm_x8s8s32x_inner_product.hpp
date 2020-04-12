@@ -27,6 +27,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -72,7 +73,7 @@ inline status_t create_gemm_x8s8s32x_pd(
 }
 } // namespace
 
-struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
+struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_inner_product_fwd_pd_t {
         pd_t(const inner_product_desc_t *adesc, const primitive_attr_t *attr,
                 const inner_product_fwd_pd_t *hint_fwd_pd)
@@ -265,7 +266,7 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public primitive_t {
         }
     };
 
-    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    gemm_x8s8s32x_inner_product_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);

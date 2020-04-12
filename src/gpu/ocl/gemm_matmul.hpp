@@ -21,6 +21,7 @@
 #include "common/primitive_iterator.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -67,7 +68,7 @@ status_t create_gemm_pd(std::unique_ptr<primitive_desc_t> &gemm_pd_,
 }
 } // namespace
 
-struct gemm_matmul_t : public primitive_t {
+struct gemm_matmul_t : public gpu_primitive_t {
     struct pd_t : public gpu_matmul_pd_t {
         pd_t(const matmul_desc_t *adesc, const primitive_attr_t *attr,
                 const matmul_pd_t *hint_pd)
@@ -197,7 +198,7 @@ struct gemm_matmul_t : public primitive_t {
         }
     };
 
-    gemm_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+    gemm_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);

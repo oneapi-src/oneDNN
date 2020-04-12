@@ -22,6 +22,7 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -32,7 +33,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct rnn_weights_reorder_t : public primitive_t {
+struct rnn_weights_reorder_t : public gpu_primitive_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
@@ -91,7 +92,7 @@ struct rnn_weights_reorder_t : public primitive_t {
         }
     };
 
-    rnn_weights_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    rnn_weights_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

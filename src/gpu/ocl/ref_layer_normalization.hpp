@@ -23,6 +23,7 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_layer_normalization_fwd_t : public primitive_t {
+struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_layer_normalization_fwd_pd_t {
         using gpu_layer_normalization_fwd_pd_t::
                 gpu_layer_normalization_fwd_pd_t;
@@ -65,7 +66,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
         lnorm_conf_t conf;
     };
 
-    ref_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_layer_normalization_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine
@@ -102,7 +103,7 @@ private:
     compute::binary_t binary_;
 };
 
-struct ref_layer_normalization_bwd_t : public primitive_t {
+struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_layer_normalization_bwd_pd_t {
         using gpu_layer_normalization_bwd_pd_t::
                 gpu_layer_normalization_bwd_pd_t;
@@ -138,7 +139,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
         lnorm_conf_t conf;
     };
 
-    ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_layer_normalization_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

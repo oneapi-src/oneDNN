@@ -20,6 +20,7 @@
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
 #include "gpu/gpu_concat_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -28,7 +29,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct simple_concat_t : public primitive_t {
+struct simple_concat_t : public gpu_primitive_t {
     struct pd_t : public gpu_concat_pd_t {
         using gpu_concat_pd_t::gpu_concat_pd_t;
 
@@ -48,7 +49,7 @@ struct simple_concat_t : public primitive_t {
         concat_conf_t conf;
     };
 
-    simple_concat_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_concat_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

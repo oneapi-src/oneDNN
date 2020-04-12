@@ -21,6 +21,7 @@
 #include "common/memory.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 
@@ -38,7 +39,7 @@ namespace ocl {
 // For GPU -> CPU reorder, it includes 2 steps:
 // 1. GPU reorder
 // 2. GPU -> CPU copying
-struct cross_engine_reorder_t : public primitive_t {
+struct cross_engine_reorder_t : public gpu_primitive_t {
     struct pd_t : public reorder_pd_t {
         using reorder_pd_t::reorder_pd_t;
 
@@ -79,7 +80,7 @@ struct cross_engine_reorder_t : public primitive_t {
         return status;
     }
 
-    cross_engine_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    cross_engine_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {

@@ -21,6 +21,7 @@
 #include "common/memory.hpp"
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct simple_reorder_t : public primitive_t {
+struct simple_reorder_t : public gpu_primitive_t {
     struct pd_t : public gpu_reorder_pd_t {
         using gpu_reorder_pd_t::gpu_reorder_pd_t;
 
@@ -98,7 +99,7 @@ struct simple_reorder_t : public primitive_t {
         reorder_conf_t conf;
     };
 
-    simple_reorder_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

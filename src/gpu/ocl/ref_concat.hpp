@@ -22,13 +22,14 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_concat_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_concat_t : public primitive_t {
+struct ref_concat_t : public gpu_primitive_t {
     struct pd_t : public gpu_concat_pd_t {
         pd_t(const primitive_attr_t *attr, const memory_desc_t *dst_md, int n,
                 int concat_dim, const memory_desc_t *src_mds)
@@ -133,7 +134,7 @@ struct ref_concat_t : public primitive_t {
         }
     };
 
-    ref_concat_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_concat_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         const size_t n = pd()->reorder_pds_.size();

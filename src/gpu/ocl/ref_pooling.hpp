@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_pooling_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_pooling_fwd_t : public primitive_t {
+struct ref_pooling_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_pooling_fwd_pd_t {
         pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
@@ -81,7 +82,7 @@ struct ref_pooling_fwd_t : public primitive_t {
         offsets_t off;
     };
 
-    ref_pooling_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_pooling_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine
@@ -117,7 +118,7 @@ private:
     compute::binary_t binary_;
 };
 
-struct ref_pooling_bwd_t : public primitive_t {
+struct ref_pooling_bwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_pooling_bwd_pd_t {
         pd_t(const pooling_desc_t *adesc, const primitive_attr_t *attr,
                 const pooling_fwd_pd_t *hint_fwd_pd)
@@ -158,7 +159,7 @@ struct ref_pooling_bwd_t : public primitive_t {
         offsets_t off;
     };
 
-    ref_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_pooling_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

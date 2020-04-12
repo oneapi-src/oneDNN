@@ -20,6 +20,7 @@
 #include "common/primitive.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_sum_pd.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 
@@ -28,7 +29,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_sum_t : public primitive_t {
+struct ref_sum_t : public gpu_primitive_t {
     struct pd_t : public gpu_sum_pd_t {
         using gpu_sum_pd_t::gpu_sum_pd_t;
         pd_t(const pd_t &rhs) : gpu_sum_pd_t(rhs) { clone_reorder_pds(rhs); }
@@ -89,7 +90,7 @@ struct ref_sum_t : public primitive_t {
         }
     };
 
-    ref_sum_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_sum_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         const int n = pd()->n_inputs();

@@ -23,6 +23,7 @@
 #include "common/type_helpers.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_lrn_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -33,7 +34,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_lrn_fwd_t : public primitive_t {
+struct ref_lrn_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_lrn_fwd_pd_t {
         pd_t(const lrn_desc_t *adesc, const primitive_attr_t *attr,
                 const lrn_fwd_pd_t *hint_fwd_pd)
@@ -82,7 +83,7 @@ struct ref_lrn_fwd_t : public primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_lrn_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_lrn_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         using namespace alg_kind;
@@ -173,7 +174,7 @@ private:
     compute::binary_t binary_;
 };
 
-struct ref_lrn_bwd_t : public primitive_t {
+struct ref_lrn_bwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_lrn_bwd_pd_t {
         pd_t(const lrn_desc_t *adesc, const primitive_attr_t *attr,
                 const lrn_fwd_pd_t *hint_fwd_pd)
@@ -221,7 +222,7 @@ struct ref_lrn_bwd_t : public primitive_t {
         compute::dispatch_t dispatch;
     };
 
-    ref_lrn_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_lrn_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         using namespace alg_kind;

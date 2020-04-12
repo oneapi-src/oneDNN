@@ -19,6 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "gpu/gpu_primitive.hpp"
 
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_convolution_fwd_t : public primitive_t {
+struct ref_convolution_fwd_t : public gpu_primitive_t {
     struct pd_t : public gpu_convolution_fwd_pd_t {
         using gpu_convolution_fwd_pd_t::gpu_convolution_fwd_pd_t;
 
@@ -167,7 +168,7 @@ struct ref_convolution_fwd_t : public primitive_t {
         memory_desc_t scales_md_;
     };
 
-    ref_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine
@@ -221,7 +222,7 @@ private:
     enum { SCALES_ = 0 };
 };
 
-struct ref_convolution_bwd_data_t : public primitive_t {
+struct ref_convolution_bwd_data_t : public gpu_primitive_t {
     struct pd_t : public gpu_convolution_bwd_data_pd_t {
         using gpu_convolution_bwd_data_pd_t::gpu_convolution_bwd_data_pd_t;
 
@@ -255,7 +256,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
         }
     };
 
-    ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_bwd_data_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine
@@ -292,7 +293,7 @@ private:
     compute::binary_t binary_;
 };
 
-struct ref_convolution_bwd_weights_t : public primitive_t {
+struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
     struct pd_t : public gpu_convolution_bwd_weights_pd_t {
         using gpu_convolution_bwd_weights_pd_t::
                 gpu_convolution_bwd_weights_pd_t;
@@ -327,7 +328,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
         }
     };
 
-    ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_convolution_bwd_weights_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

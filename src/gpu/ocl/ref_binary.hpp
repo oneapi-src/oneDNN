@@ -21,6 +21,7 @@
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_binary_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_binary_t : public primitive_t {
+struct ref_binary_t : public gpu_primitive_t {
     struct pd_t : public gpu_binary_pd_t {
         using gpu_binary_pd_t::gpu_binary_pd_t;
 
@@ -127,7 +128,7 @@ struct ref_binary_t : public primitive_t {
         binary_conf_t conf;
     };
 
-    ref_binary_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_binary_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

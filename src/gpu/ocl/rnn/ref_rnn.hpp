@@ -27,6 +27,7 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
@@ -56,7 +57,7 @@ enum gemm_kind_t {
 };
 
 template <prop_kind_t aprop>
-struct _ref_rnn_common_t : public primitive_t {
+struct _ref_rnn_common_t : public gpu_primitive_t {
 
     using class_name = _ref_rnn_common_t<aprop>;
 
@@ -175,7 +176,7 @@ struct _ref_rnn_common_t : public primitive_t {
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override;
 
-    _ref_rnn_common_t(const pd_t *apd) : primitive_t(apd) {
+    _ref_rnn_common_t(const pd_t *apd) : gpu_primitive_t(apd) {
         using namespace rnn_utils;
         /// @todo set max_feature_size assuming that we limit the number of
         /// iterations and layer to one if slc != dhc and sic != dhc

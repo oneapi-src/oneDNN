@@ -20,6 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_shuffle_pd.hpp"
 #include "gpu/ocl/ocl_engine.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
@@ -31,7 +32,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_shuffle_t : public primitive_t {
+struct ref_shuffle_t : public gpu_primitive_t {
     struct pd_t : public gpu_shuffle_pd_t {
         using gpu_shuffle_pd_t::gpu_shuffle_pd_t;
 
@@ -64,7 +65,7 @@ struct ref_shuffle_t : public primitive_t {
         offsets_t off;
     };
 
-    ref_shuffle_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_shuffle_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine

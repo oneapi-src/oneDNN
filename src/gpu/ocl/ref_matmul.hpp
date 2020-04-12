@@ -24,6 +24,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
+#include "gpu/gpu_primitive.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
@@ -33,7 +34,7 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-struct ref_matmul_t : public primitive_t {
+struct ref_matmul_t : public gpu_primitive_t {
     struct pd_t : public gpu_matmul_pd_t {
         using gpu_matmul_pd_t::gpu_matmul_pd_t;
 
@@ -189,7 +190,7 @@ struct ref_matmul_t : public primitive_t {
         int eltwise_idx_ = -1;
     };
 
-    ref_matmul_t(const pd_t *apd) : primitive_t(apd) {}
+    ref_matmul_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
     status_t init(engine_t *engine) override {
         auto *compute_engine
