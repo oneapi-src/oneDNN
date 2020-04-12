@@ -16,8 +16,8 @@
 
 #include "cpu_engine.hpp"
 
-#include "cpu/jit_uni_layer_normalization.hpp"
 #include "cpu/ref_layer_normalization.hpp"
+#include "cpu/simple_layer_normalization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,8 +30,8 @@ using namespace dnnl::impl::data_type;
 
 #define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
 static const pd_create_f impl_list[] = {
-        INSTANCE(jit_uni_layer_normalization_fwd_t),
-        INSTANCE(jit_uni_layer_normalization_bwd_t),
+        INSTANCE(simple_layer_normalization_fwd_t),
+        INSTANCE(simple_layer_normalization_bwd_t),
         INSTANCE(ref_layer_normalization_fwd_t<f32>),
         INSTANCE(ref_layer_normalization_bwd_t<f32>),
         INSTANCE(ref_layer_normalization_fwd_t<bf16>),
