@@ -24,7 +24,7 @@
 #include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
-#include "jit_uni_layer_normalization.hpp"
+#include "simple_layer_normalization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,7 +32,7 @@ namespace cpu {
 
 using namespace memory_tracking::names;
 
-void jit_uni_layer_normalization_fwd_t::execute_forward(
+void simple_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
@@ -80,7 +80,7 @@ void jit_uni_layer_normalization_fwd_t::execute_forward(
     });
 }
 
-void jit_uni_layer_normalization_bwd_t::execute_backward(
+void simple_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
     auto scratchpad = ctx.get_scratchpad_grantor();
     auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);

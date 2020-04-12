@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_LAYER_NORMALIZATION_HPP
-#define CPU_JIT_UNI_LAYER_NORMALIZATION_HPP
+#ifndef CPU_SIMPLE_LAYER_NORMALIZATION_HPP
+#define CPU_SIMPLE_LAYER_NORMALIZATION_HPP
 
 #include "cpu_layer_normalization_pd.hpp"
 #include "dnnl_thread.hpp"
@@ -57,7 +57,7 @@ static status_t create_reorder_pd(engine_t *engine,
     return status::success;
 }
 
-struct jit_uni_layer_normalization_fwd_t : public primitive_t {
+struct simple_layer_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         pd_t(const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -78,8 +78,8 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
         }
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T("jit_uni_layer_normalization:any",
-                jit_uni_layer_normalization_fwd_t);
+        DECLARE_COMMON_PD_T("simple_layer_normalization:any",
+                simple_layer_normalization_fwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -147,9 +147,9 @@ struct jit_uni_layer_normalization_fwd_t : public primitive_t {
         return status::success;
     }
 
-    jit_uni_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    ~jit_uni_layer_normalization_fwd_t() {
+    ~simple_layer_normalization_fwd_t() {
         delete stat_kernel_;
         delete data_kernel_;
     }
@@ -210,7 +210,7 @@ private:
     std::shared_ptr<primitive_t> reorder_;
 };
 
-struct jit_uni_layer_normalization_bwd_t : public primitive_t {
+struct simple_layer_normalization_bwd_t : public primitive_t {
     struct pd_t : public cpu_layer_normalization_bwd_pd_t {
         pd_t(const layer_normalization_desc_t *adesc,
                 const primitive_attr_t *attr,
@@ -229,8 +229,8 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
         }
         ~pd_t() = default;
 
-        DECLARE_COMMON_PD_T("jit_uni_layer_normalization:any",
-                jit_uni_layer_normalization_bwd_t);
+        DECLARE_COMMON_PD_T("simple_layer_normalization:any",
+                simple_layer_normalization_bwd_t);
 
         status_t init(engine_t *engine) {
             using namespace data_type;
@@ -301,9 +301,9 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
         return status::success;
     }
 
-    jit_uni_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
+    simple_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    ~jit_uni_layer_normalization_bwd_t() {
+    ~simple_layer_normalization_bwd_t() {
         delete diff_ss_kernel_;
         delete diff_data_kernel_;
     }
