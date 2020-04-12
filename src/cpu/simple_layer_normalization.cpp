@@ -17,13 +17,13 @@
 #include <assert.h>
 #include <math.h>
 
-#include "cpu_engine.hpp"
-
 #include "c_types_map.hpp"
 #include "dnnl_thread.hpp"
 #include "type_helpers.hpp"
 
 #include "cpu_batch_normalization_utils.hpp"
+#include "cpu_engine.hpp"
+
 #include "simple_layer_normalization.hpp"
 
 namespace dnnl {
@@ -31,6 +31,64 @@ namespace impl {
 namespace cpu {
 
 using namespace memory_tracking::names;
+
+namespace {
+/* Stats and src here are compatible if
+ * stat_strides[:] == data_strides[:] / last_data_dimension
+ * i.e. abcd & abc, bacd & bac - compatible */
+status_t fill_compatible_stats_md(
+        const memory_desc_t &src_md, memory_desc_t &stat_md) {
+    stat_md = src_md;
+    stat_md.ndims -= 1;
+    return memory_desc_init_by_blocking_desc(
+            stat_md, src_md.format_desc.blocking);
+}
+
+status_t create_reorder_pd(engine_t *engine, const memory_desc_t *from_md,
+        const memory_desc_t *to_md,
+        std::unique_ptr<primitive_desc_t> &reorder_pd) {
+    auto r_impls = engine->get_reorder_implementation_list(from_md, to_md);
+    for (auto r = r_impls; *r; ++r) {
+        primitive_attr_t r_attr;
+        r_attr.set_scratchpad_mode(scratchpad_mode::user);
+        reorder_pd_t *r_pd = nullptr;
+        if ((*r)(&r_pd, engine, &r_attr, engine, from_md, engine, to_md)
+                == status::success) {
+            reorder_pd.reset(r_pd);
+            break;
+        }
+    }
+    return status::success;
+}
+} // namespace
+
+status_t simple_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
+    using namespace data_type;
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper stat_d(stat_md());
+
+    bool ok = is_fwd() && !has_zero_dim_memory()
+            && utils::everyone_is(f32, src_md()->data_type,
+                    stat_md()->data_type, dst_md()->data_type)
+            && IMPLICATION(use_scaleshift(), weights_md()->data_type == f32)
+            && src_d.is_blocking_desc()
+            && src_d.blocking_desc().strides[ndims() - 1]
+                    == 1 // plain format, last logical dim is last physical
+            && attr()->has_default_values() && set_default_formats_common();
+    if (!ok) return status::unimplemented;
+
+    CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
+
+    if (reordered_stat_md_ != *stat_md() && !stats_are_tmp()) {
+        CHECK(create_reorder_pd(engine,
+                stats_are_src() ? stat_md() : &reordered_stat_md_,
+                stats_are_src() ? &reordered_stat_md_ : stat_md(),
+                reorder_pd_));
+    }
+
+    init_scratchpad();
+    return status::success;
+}
 
 void simple_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
@@ -78,6 +136,34 @@ void simple_layer_normalization_fwd_t::execute_forward(
             }
         }
     });
+}
+
+status_t simple_layer_normalization_bwd_t::pd_t::init(engine_t *engine) {
+    using namespace data_type;
+    const memory_desc_wrapper src_d(src_md());
+    const memory_desc_wrapper stat_d(stat_md());
+
+    bool ok = is_bwd() && !has_zero_dim_memory() && set_default_formats_common()
+            && utils::everyone_is(f32, src_md()->data_type,
+                    diff_src_md()->data_type, stat_md()->data_type)
+            && IMPLICATION(use_scaleshift(),
+                    utils::everyone_is(f32, weights_md()->data_type,
+                            diff_weights_md()->data_type))
+            && src_d.is_blocking_desc()
+            && src_d.blocking_desc().strides[ndims() - 1]
+                    == 1 //plain format, last logical dim is last physical
+            && attr()->has_default_values();
+    if (!ok) return status::unimplemented;
+
+    CHECK(fill_compatible_stats_md(*src_md(), reordered_stat_md_));
+
+    if (reordered_stat_md_ != *stat_md()) {
+        CHECK(create_reorder_pd(
+                engine, stat_md(), &reordered_stat_md_, reorder_pd_));
+    }
+
+    init_scratchpad();
+    return status::success;
 }
 
 void simple_layer_normalization_bwd_t::execute_backward(
