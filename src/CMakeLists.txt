@@ -50,12 +50,7 @@ if(DNNL_ENABLE_PRIMITIVE_CACHE)
     add_definitions(-DDNNL_ENABLE_PRIMITIVE_CACHE)
 endif()
 
-if(NOT DNNL_ENABLE_JIT_PROFILING)
-    # XXX: the profiling interface will still be built and present in the
-    # library
-    message(STATUS "Intel(R) VTune(TM) Amplifier JIT profiling disabled")
-    add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
-elseif(UNIX AND NOT APPLE)
+if(DNNL_ENABLE_JIT_PROFILING AND UNIX AND NOT APPLE)
     # Not every compiler adds -ldl automatically
     list(APPEND EXTRA_SHARED_LIBS "${CMAKE_DL_LIBS}")
 endif()
