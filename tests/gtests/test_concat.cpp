@@ -148,7 +148,7 @@ protected:
 
         ASSERT_TRUE(concat_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == concat_pd.dst_desc());
-        for (size_t i = 0; i < srcs.size(); i++)
+        for (int i = 0; i < (int)srcs.size(); i++)
             ASSERT_TRUE(concat_pd.query_md(
                                 query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
                     == concat_pd.src_desc(i));
