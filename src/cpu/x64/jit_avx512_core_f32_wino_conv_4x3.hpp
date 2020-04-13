@@ -22,6 +22,7 @@
 #include "common/primitive.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/platform.hpp"
 
 #include "cpu/x64/jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
 

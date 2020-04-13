@@ -22,6 +22,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
