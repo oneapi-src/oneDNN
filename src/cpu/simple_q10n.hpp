@@ -27,7 +27,7 @@
 
 #include "cpu/platform.hpp"
 
-#if defined(DNNL_X86_64)
+#if DNNL_X64
 #include "immintrin.h"
 #endif
 
@@ -37,7 +37,7 @@ namespace cpu {
 
 /** rounds @p f to an integer according to the mxcsr register */
 inline int mxcsr_round(float f) ATTR_NO_MSAN {
-#if defined(DNNL_X86_64)
+#if DNNL_X64
     return _mm_cvtss_si32(_mm_load_ss(&f));
 #else
     return (int)nearbyintf(f); // optimism

@@ -21,8 +21,36 @@
 
 #include "common/c_types_map.hpp"
 
+// Possible architectures:
+// - DNNL_X64
+// - DNNL_AARCH64
+// - DNNL_ARCH_GENERIC
+// All macros are defined to either 0 or 1. Only one macro is defined as 1,
+// and indicates the target architecture. By default the architecture is
+// auto-detected, but user can override it by passing `-DDNNL_${ARCH}=1`.
+
+#if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_ARCH_GENERIC) == 0
 #if defined(__x86_64__) || defined(_M_X64)
-#define DNNL_X86_64
+#define DNNL_X64 1
+#elif defined(__aarch64__)
+#define DNNL_AARCH64 1
+#else
+#define DNNL_ARCH_GENERIC 1
+#endif
+#endif // defined(DNNL_X64) + ... == 0
+
+#if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_ARCH_GENERIC) != 1
+#error One and only one architecture should be defined at a time
+#endif
+
+#if !defined(DNNL_X64)
+#define DNNL_X64 0
+#endif
+#if !defined(DNNL_AARCH64)
+#define DNNL_AARCH64 0
+#endif
+#if !defined(DNNL_ARCH_GENERIC)
+#define DNNL_ARCH_GENERIC 0
 #endif
 
 namespace dnnl {
