@@ -17,7 +17,7 @@
 #ifndef JIT_SSE41_GEMV_T_F32_KERN_HPP
 #define JIT_SSE41_GEMV_T_F32_KERN_HPP
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

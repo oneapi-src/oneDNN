@@ -19,7 +19,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm/gemm_driver.hpp"

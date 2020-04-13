@@ -16,11 +16,11 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/jit_uni_i8i8_pooling.hpp"
-#include "cpu/jit_uni_pooling.hpp"
 #include "cpu/nchw_pooling.hpp"
 #include "cpu/nhwc_pooling.hpp"
 #include "cpu/ref_pooling.hpp"
+#include "cpu/x64/jit_uni_i8i8_pooling.hpp"
+#include "cpu/x64/jit_uni_pooling.hpp"
 
 namespace dnnl {
 namespace impl {

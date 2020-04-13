@@ -16,9 +16,9 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/jit_avx512_core_x8s8s32x_1x1_deconvolution.hpp"
-#include "cpu/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 #include "cpu/ref_deconvolution.hpp"
+#include "cpu/x64/jit_avx512_core_x8s8s32x_1x1_deconvolution.hpp"
+#include "cpu/x64/jit_avx512_core_x8s8s32x_deconvolution.hpp"
 
 namespace dnnl {
 namespace impl {

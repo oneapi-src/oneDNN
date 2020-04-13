@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/cpu_isa_traits.hpp"
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/s8x8s32/jit_avx2_gemm_s8u8s32_kern.hpp"
 

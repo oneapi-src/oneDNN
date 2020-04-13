@@ -26,7 +26,7 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/gemm.hpp"
 #include "cpu/gemm/os_blas.hpp"

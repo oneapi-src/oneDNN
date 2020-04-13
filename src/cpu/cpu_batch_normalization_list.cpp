@@ -16,12 +16,12 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/jit_uni_batch_normalization.hpp"
-#include "cpu/jit_uni_batch_normalization_s8.hpp"
-#include "cpu/jit_uni_tbb_batch_normalization.hpp"
 #include "cpu/ncsp_batch_normalization.hpp"
 #include "cpu/nspc_batch_normalization.hpp"
 #include "cpu/ref_batch_normalization.hpp"
+#include "cpu/x64/jit_uni_batch_normalization.hpp"
+#include "cpu/x64/jit_uni_batch_normalization_s8.hpp"
+#include "cpu/x64/jit_uni_tbb_batch_normalization.hpp"
 
 namespace dnnl {
 namespace impl {

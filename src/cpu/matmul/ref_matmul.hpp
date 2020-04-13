@@ -27,7 +27,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu/eltwise/ref_eltwise.hpp"
+#include "cpu/ref_eltwise.hpp"
 
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 

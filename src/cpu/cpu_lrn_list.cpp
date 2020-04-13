@@ -16,9 +16,9 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/jit_avx512_common_lrn.hpp"
-#include "cpu/jit_uni_lrn.hpp"
 #include "cpu/ref_lrn.hpp"
+#include "cpu/x64/jit_avx512_common_lrn.hpp"
+#include "cpu/x64/jit_uni_lrn.hpp"
 
 namespace dnnl {
 namespace impl {

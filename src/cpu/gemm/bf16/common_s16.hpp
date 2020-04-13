@@ -17,7 +17,7 @@
 #ifndef COMMON_S16_HPP
 #define COMMON_S16_HPP
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #define S16_COPY_KERNEL_CODE_SIZE (4096L * 8)
 

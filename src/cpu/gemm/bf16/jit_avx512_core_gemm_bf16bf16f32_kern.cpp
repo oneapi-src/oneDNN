@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/cpu_isa_traits.hpp"
-#include "cpu/jit_avx512_core_bf16cvt.hpp"
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 

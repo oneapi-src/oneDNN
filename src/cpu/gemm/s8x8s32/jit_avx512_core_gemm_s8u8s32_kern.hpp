@@ -17,7 +17,7 @@
 #ifndef JIT_AVX512_CORE_GEMM_S8U8S32_KERN_HPP
 #define JIT_AVX512_CORE_GEMM_S8U8S32_KERN_HPP
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

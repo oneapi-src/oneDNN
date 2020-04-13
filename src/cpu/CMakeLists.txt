@@ -23,7 +23,6 @@ file(GLOB_RECURSE SOURCES
 
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/xbyak
     )
 
 # Don't enable support for linux_perf and VTune Amplifier if JIT Profiling
@@ -31,8 +30,8 @@ include_directories(
 # NOTE: On AArch64 builds. DNNL_ENABLE_JIT_PROFILING=OFF by default.
 if(NOT DNNL_ENABLE_JIT_PROFILING)
     list(REMOVE_ITEM SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/jitprofiling/jitprofiling.c"
-        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/x64/jit_utils/jitprofiling/jitprofiling.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/x64/jit_utils/linux_perf/linux_perf.cpp"
         )
 endif()
 
@@ -41,11 +40,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # with the reference one use precise division and square root
     # by default
     file(GLOB FILES_REQUIRED_PREC_SQRT
-        ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/x64/*normalization*.cpp)
     file(GLOB FILES_REQUIRED_PREC_DIV
         ${CMAKE_CURRENT_SOURCE_DIR}/*resampling*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/eltwise/ref_eltwise.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/x64/*normalization*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ref_eltwise.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ref_rnn.cpp)
     if(WIN32)
         set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}

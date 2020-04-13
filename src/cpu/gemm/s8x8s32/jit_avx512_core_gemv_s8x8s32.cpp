@@ -20,7 +20,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/gemm_info.hpp"
 #include "cpu/gemm/gemm_utils.hpp"

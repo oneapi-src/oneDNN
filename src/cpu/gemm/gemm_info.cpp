@@ -22,8 +22,8 @@
 #include "common/bfloat16.hpp"
 #include "common/dnnl_traits.hpp"
 
-#include "cpu/cpu_isa_traits.hpp"
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/gemm_info.hpp"
 

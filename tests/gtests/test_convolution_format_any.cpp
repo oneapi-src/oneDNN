@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl_test_common.hpp"
+#include "src/cpu/x64/cpu_isa_traits.hpp"
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
