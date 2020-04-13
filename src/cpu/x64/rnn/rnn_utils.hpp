@@ -23,7 +23,7 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/gemm/gemm_pack.hpp"
+#include "cpu/x64/gemm/gemm_pack.hpp"
 
 #define rnn_postgemm_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, \

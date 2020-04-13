@@ -70,7 +70,7 @@ if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STRE
 endif()
 # remove optimizations of files that don't need them for faster build times.
 file(GLOB FILES_WITHOUT_OPT
-    ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*/*_kern_autogen.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/x64/gemm/*/*_kern_autogen.cpp)
 if(WIN32 AND NOT MINGW)
     set_source_files_properties(${FILES_WITHOUT_OPT}
         PROPERTIES COMPILE_FLAGS "/Od")

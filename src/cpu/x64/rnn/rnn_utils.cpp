@@ -22,7 +22,7 @@
 #include "common/rnn.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu/gemm/gemm_pack.hpp"
+#include "cpu/x64/gemm/gemm_pack.hpp"
 
 #include "cpu/x64/rnn/ref_rnn.hpp"
 #include "cpu/x64/rnn/rnn_utils.hpp"
