@@ -45,7 +45,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     file(GLOB FILES_REQUIRED_PREC_DIV
         ${CMAKE_CURRENT_SOURCE_DIR}/*resampling*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ref_eltwise.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/eltwise/ref_eltwise.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ref_rnn.cpp)
     if(WIN32)
         set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}

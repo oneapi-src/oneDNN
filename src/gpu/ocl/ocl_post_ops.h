@@ -78,7 +78,7 @@ POST_OP_DATA_T soft_relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 }
 
 POST_OP_DATA_T logistic_fwd(POST_OP_DATA_T s) {
-    return 1 / (1 + exp(-s));
+    return 1.0f / (1.0f + exp(-s));
 }
 POST_OP_DATA_T logistic_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     POST_OP_DATA_T v = logistic_fwd(s);
@@ -162,7 +162,8 @@ POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
 }
 
 POST_OP_DATA_T swish_fwd(POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
-    return s / (1.0f + exp(-alpha * s));
+    float w = -alpha * s;
+    return s / (1.0f + exp(w));
 }
 POST_OP_DATA_T swish_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, POST_OP_DATA_T alpha) {
