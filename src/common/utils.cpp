@@ -36,6 +36,7 @@
 #include <string>
 
 #include "dnnl.h"
+#include "memory_debug.hpp"
 #include "utils.hpp"
 
 namespace dnnl {
@@ -105,6 +106,8 @@ int getpagesize() {
 
 void *malloc(size_t size, int alignment) {
     void *ptr;
+    if (memory_debug::is_mem_debug())
+        return memory_debug::malloc(size, alignment);
 
 #ifdef _WIN32
     ptr = _aligned_malloc(size, alignment);
@@ -117,6 +120,9 @@ void *malloc(size_t size, int alignment) {
 }
 
 void free(void *p) {
+
+    if (memory_debug::is_mem_debug()) return memory_debug::free(p);
+
 #ifdef _WIN32
     _aligned_free(p);
 #else

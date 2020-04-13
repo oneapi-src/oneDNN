@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <unordered_map>
 
+#include "memory_debug.hpp"
 #include "memory_storage.hpp"
 #include "nstl.hpp"
 #include "utils.hpp"
@@ -270,8 +271,15 @@ struct grantor_t;
 
 enum { default_alignment = 128 };
 inline size_t get_alignment(size_t alignment) {
-    size_t minimal_alignment = default_alignment;
+    size_t minimal_alignment
+            = memory_debug::is_mem_debug() ? getpagesize() : default_alignment;
     return nstl::max<size_t>(alignment, minimal_alignment);
+}
+
+inline size_t buffer_protect_size() {
+    return memory_debug::is_mem_debug()
+            ? memory_debug::protect_size() + getpagesize()
+            : 0;
 }
 
 struct registry_t {
@@ -282,10 +290,16 @@ struct registry_t {
             size_t perf_align = default_alignment) {
         if (size == 0) return;
         assert(offset_map_.count(key) == 0);
-        size_t alignment = nstl::max(data_align, perf_align);
+        size_t alignment = memory_debug::is_mem_debug()
+                ? data_align
+                : nstl::max(data_align, perf_align);
+
+        if (memory_debug::is_mem_debug() && size_ == 0)
+            size_ += get_alignment(alignment) + buffer_protect_size();
 
         assert(alignment > 0 && (alignment & (alignment - 1)) == 0);
-        size_t capacity = size + get_alignment(alignment);
+        size_t capacity
+                = size + get_alignment(alignment) + buffer_protect_size();
         offset_map_[key] = entry_t {size_, size, capacity, alignment};
 
         size_ += capacity;
@@ -322,8 +336,6 @@ struct registry_t {
     registrar_t registrar();
     grantor_t grantor(const memory_storage_t *mem_storage) const;
 
-protected:
-    enum { minimal_alignment = 128 };
     struct entry_t {
         size_t offset, size, capacity, alignment;
     };
@@ -376,7 +388,17 @@ protected:
         const char *ptr = reinterpret_cast<const char *>(base_ptr) + e.offset;
         const char *aligned_ptr
                 = utils::align_ptr<const char>(ptr, get_alignment(e.alignment));
-        assert(aligned_ptr + e.size <= ptr + e.capacity);
+        if (memory_debug::is_mem_debug_overflow()
+                && e.size % getpagesize() != 0) {
+            // Align to end of page
+            size_t page_end_offset
+                    = utils::rnd_up(e.size, e.alignment) % getpagesize();
+            aligned_ptr += getpagesize() - page_end_offset;
+            if (aligned_ptr - getpagesize() > ptr) aligned_ptr -= getpagesize();
+            assert((size_t)aligned_ptr % e.alignment == 0);
+        }
+        assert(aligned_ptr + e.size
+                <= ptr + e.capacity - buffer_protect_size());
         return aligned_ptr;
     }
     static void *get(const entry_t &e, void *base_ptr) {
@@ -441,6 +463,11 @@ struct grantor_t {
         return registry_.get_memory_storage(
                 make_key(prefix_, key), base_mem_storage_);
     }
+
+    const memory_storage_t *get_base_storage() const {
+        return base_mem_storage_;
+    }
+    const registry_t &get_registry() const { return registry_; }
 
 protected:
     const registry_t &registry_;

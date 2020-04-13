@@ -141,6 +141,8 @@ struct nested_scratchpad_t {
             const std::shared_ptr<primitive_t> &nested_p);
     const memory_tracking::grantor_t *grantor() const { return grantor_.get(); }
 
+    ~nested_scratchpad_t();
+
     DNNL_DISALLOW_COPY_AND_ASSIGN(nested_scratchpad_t);
 
 private:
@@ -239,6 +241,7 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl_primitive(const std::shared_ptr<dnnl::impl::primitive_t> &primitive,
             dnnl::impl::engine_t *engine);
 
+    ~dnnl_primitive();
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
     const primitive_desc_iface_t *pd() const;

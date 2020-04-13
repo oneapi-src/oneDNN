@@ -20,6 +20,7 @@
 #include "engine.hpp"
 #include "primitive.hpp"
 #include "primitive_desc.hpp"
+#include "scratchpad_debug.hpp"
 #include "stream.hpp"
 #include "utils.hpp"
 
@@ -54,6 +55,21 @@ nested_scratchpad_t::nested_scratchpad_t(const exec_ctx_t &master_ctx, int key,
     grantor_ = utils::make_unique<memory_tracking::grantor_t>(
             nested_p->pd()->scratchpad_registry().grantor(
                     scratchpad_mem_storage_.get()));
+#ifdef DNNL_ENABLE_MEM_DEBUG
+    if (scratchpad_debug::is_protect_scratchpad()) {
+        scratchpad_debug::protect_scratchpad_buffer(
+                grantor_->get_base_storage(), grantor_->get_registry());
+    }
+#endif
+}
+
+nested_scratchpad_t::~nested_scratchpad_t() {
+#ifdef DNNL_ENABLE_MEM_DEBUG
+    if (scratchpad_debug::is_protect_scratchpad()) {
+        scratchpad_debug::unprotect_scratchpad_buffer(
+                grantor_->get_base_storage(), grantor_->get_registry());
+    }
+#endif
 }
 
 } // namespace impl
@@ -128,17 +144,37 @@ dnnl_primitive::dnnl_primitive(
     , pd_(utils::make_unique<primitive_desc_iface_t>(
               primitive_->pd(), engine)) {}
 
+dnnl_primitive::~dnnl_primitive() {
+    if (scratchpad_debug::is_protect_scratchpad() && scratchpad_ != nullptr
+            && scratchpad_->get_memory_storage() != nullptr) {
+        const memory_tracking::registry_t &registry
+                = primitive_->pd()->scratchpad_registry();
+        scratchpad_debug::unprotect_scratchpad_buffer(
+                scratchpad_->get_memory_storage(), registry);
+    }
+}
+
 status_t dnnl_primitive::init() {
     const size_t scratchpad_size
             = primitive_->pd()->scratchpad_size(scratchpad_mode::library);
 
     if (scratchpad_size) {
-        auto *scratchpad_ptr = create_scratchpad(pd_->engine(), scratchpad_size,
-                primitive_->use_global_scratchpad());
+        const memory_tracking::registry_t &registry
+                = primitive_->pd()->scratchpad_registry();
+        bool use_global_scratchpad = scratchpad_debug::is_protect_scratchpad()
+                ? false
+                : primitive_->use_global_scratchpad();
+        auto *scratchpad_ptr = create_scratchpad(
+                pd_->engine(), scratchpad_size, use_global_scratchpad);
         if (scratchpad_ptr == nullptr) return out_of_memory;
         if (scratchpad_ptr->get_memory_storage() == nullptr) {
             delete scratchpad_ptr;
             return out_of_memory;
+        }
+
+        if (scratchpad_debug::is_protect_scratchpad()) {
+            scratchpad_debug::protect_scratchpad_buffer(
+                    scratchpad_ptr->get_memory_storage(), registry);
         }
         scratchpad_.reset(scratchpad_ptr);
         if (scratchpad_ptr->size() < scratchpad_size) return out_of_memory;
