@@ -20,8 +20,8 @@
 
 #include "common/memory.hpp"
 #include "common/type_helpers.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_reorder_pd.hpp"
+#include "cpu/cpu_engine.hpp"
+#include "cpu/cpu_reorder_pd.hpp"
 
 #include "cpu/jit_uni_reorder.hpp"
 #include "cpu/rnn/rnn_reorders.hpp"

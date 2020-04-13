@@ -17,10 +17,11 @@
 #ifndef GEMM_THREADING_HPP
 #define GEMM_THREADING_HPP
 
-#include "common/c_types_map.hpp"
-#include "gemm_partition.hpp"
-
 #include <cstdint>
+
+#include "common/c_types_map.hpp"
+
+#include "cpu/gemm/gemm_partition.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -20,10 +20,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "gemm/gemm.hpp"
-#include "gemm_x8s8s32x_convolution.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_x8s8s32x_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

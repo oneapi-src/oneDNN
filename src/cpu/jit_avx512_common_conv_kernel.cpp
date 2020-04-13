@@ -19,10 +19,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_barrier.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_barrier.hpp"
 
-#include "jit_avx512_common_conv_kernel.hpp"
+#include "cpu/jit_avx512_common_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 #define KNx_L2_EFFECTIVE_CAPACITY ((512 - 64) * 1024)

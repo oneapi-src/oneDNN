@@ -20,11 +20,11 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "eltwise/jit_uni_eltwise.hpp"
-#include "eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/eltwise/jit_uni_eltwise.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
 
 #define GET_OFF(field) offsetof(jit_args, field)
 

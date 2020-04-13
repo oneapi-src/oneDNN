@@ -22,7 +22,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_concat_pd.hpp"
+#include "cpu/cpu_concat_pd.hpp"
 
 namespace dnnl {
 namespace impl {

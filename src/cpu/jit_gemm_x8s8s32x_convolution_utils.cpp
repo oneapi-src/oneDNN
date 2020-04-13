@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "jit_generator.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_gemm_x8s8s32x_convolution_utils.hpp"
+#include "cpu/jit_gemm_x8s8s32x_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {

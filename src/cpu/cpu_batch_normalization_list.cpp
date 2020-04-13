@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/jit_uni_batch_normalization.hpp"
 #include "cpu/jit_uni_batch_normalization_s8.hpp"

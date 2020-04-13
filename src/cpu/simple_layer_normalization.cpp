@@ -21,10 +21,10 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu_batch_normalization_utils.hpp"
-#include "cpu_engine.hpp"
+#include "cpu/cpu_batch_normalization_utils.hpp"
+#include "cpu/cpu_engine.hpp"
 
-#include "simple_layer_normalization.hpp"
+#include "cpu/simple_layer_normalization.hpp"
 
 namespace dnnl {
 namespace impl {

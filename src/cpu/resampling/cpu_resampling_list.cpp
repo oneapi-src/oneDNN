@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/resampling/ref_resampling.hpp"
 #include "cpu/resampling/simple_resampling.hpp"

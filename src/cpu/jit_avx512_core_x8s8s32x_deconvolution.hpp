@@ -25,10 +25,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_deconvolution_pd.hpp"
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "jit_generator.hpp"
-#include "jit_primitive_conf.hpp"
+#include "cpu/cpu_deconvolution_pd.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/jit_generator.hpp"
+#include "cpu/jit_primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

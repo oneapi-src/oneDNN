@@ -26,8 +26,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_pooling_pd.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_pooling_pd.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -21,13 +21,13 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_reducer.hpp"
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "gemm/gemm.hpp"
-#include "gemm_convolution_utils.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_engine.hpp"
+#include "cpu/cpu_reducer.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {

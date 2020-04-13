@@ -24,9 +24,11 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "cpu_reorder_pd.hpp"
-#include "gemm/gemm_pack.hpp"
-#include "simple_q10n.hpp"
+
+#include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/gemm/gemm_pack.hpp"
 
 namespace dnnl {
 namespace impl {

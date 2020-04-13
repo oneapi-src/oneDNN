@@ -22,7 +22,7 @@
 #include "common/stream.hpp"
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-#include "dnnl_threadpool_iface.hpp"
+#include "cpu/dnnl_threadpool_iface.hpp"
 #endif
 
 namespace dnnl {

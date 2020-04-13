@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common_s16.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
+
+#include "cpu/gemm/bf16/common_s16.hpp"
 
 namespace dnnl {
 namespace impl {

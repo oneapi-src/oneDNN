@@ -19,12 +19,13 @@
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
-
 #include "common/rnn.hpp"
 #include "common/type_helpers.hpp"
-#include "gemm/gemm_pack.hpp"
-#include "ref_rnn.hpp"
-#include "rnn_utils.hpp"
+
+#include "cpu/gemm/gemm_pack.hpp"
+
+#include "cpu/rnn/ref_rnn.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {

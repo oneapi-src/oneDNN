@@ -27,9 +27,9 @@
 #endif
 
 #if DNNL_ENABLE_JIT_PROFILING
-#include "jitprofiling/jitprofiling.h"
+#include "cpu/jit_utils/jitprofiling/jitprofiling.h"
 #ifdef __linux__
-#include "linux_perf/linux_perf.hpp"
+#include "cpu/jit_utils/linux_perf/linux_perf.hpp"
 #endif
 #endif
 

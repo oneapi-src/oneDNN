@@ -21,8 +21,8 @@
 #include "common/primitive.hpp"
 #include "common/primitive_desc.hpp"
 
-#include "cpu_reorder_pd.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -18,13 +18,13 @@
 
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_generator.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_gemm_inner_product_utils.hpp"
+#include "cpu/jit_gemm_inner_product_utils.hpp"
 
 namespace dnnl {
 namespace impl {

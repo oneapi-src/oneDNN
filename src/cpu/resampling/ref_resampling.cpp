@@ -23,8 +23,9 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ref_resampling.hpp"
-#include "resampling_utils.hpp"
+#include "cpu/resampling/resampling_utils.hpp"
+
+#include "cpu/resampling/ref_resampling.hpp"
 
 namespace dnnl {
 namespace impl {

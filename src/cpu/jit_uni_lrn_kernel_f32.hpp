@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

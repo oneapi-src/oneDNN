@@ -16,15 +16,17 @@
 
 #include <type_traits>
 
-#include "jit_avx512_core_gemv_s8x8s32.hpp"
-
-#include "../gemm_info.hpp"
-#include "../gemm_utils.hpp"
 #include "common/bfloat16.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
-#include "common_u8.hpp"
-#include "jit_generator.hpp"
+
+#include "cpu/jit_generator.hpp"
+
+#include "cpu/gemm/gemm_info.hpp"
+#include "cpu/gemm/gemm_utils.hpp"
+
+#include "cpu/gemm/s8x8s32/common_u8.hpp"
+#include "cpu/gemm/s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
 
 namespace dnnl {
 namespace impl {

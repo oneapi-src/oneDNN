@@ -18,8 +18,8 @@
 #include <memory>
 #include "common/bfloat16.hpp"
 #include "common/bit_cast.hpp"
-#include "cpu_isa_traits.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -21,8 +21,9 @@
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 
-#include "../simple_q10n.hpp"
-#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/rnn/jit_uni_rnn_common_postgemm_dispatcher.hpp"
 
 namespace dnnl {
 namespace impl {

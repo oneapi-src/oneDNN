@@ -36,8 +36,8 @@
  * FIXME: replace size_t parameters with the appropriate ones */
 #pragma warning(disable : 4267)
 #endif
-#include "xbyak/xbyak.h"
-#include "xbyak/xbyak_util.h"
+#include "cpu/xbyak/xbyak.h"
+#include "cpu/xbyak/xbyak_util.h"
 
 namespace dnnl {
 namespace impl {

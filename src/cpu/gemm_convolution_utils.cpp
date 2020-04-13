@@ -22,7 +22,7 @@
 #include "common/utils.hpp"
 
 #include "common/bfloat16.hpp"
-#include "gemm_convolution_utils.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
 
 #include "cpu/platform.hpp"
 

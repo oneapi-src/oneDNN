@@ -18,9 +18,11 @@
 #define GEMM_PACK_STORAGE_HPP
 
 #include <cstdint>
+
 #include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
-#include "gemm_threading.hpp"
+
+#include "cpu/gemm/gemm_threading.hpp"
 
 namespace dnnl {
 namespace impl {

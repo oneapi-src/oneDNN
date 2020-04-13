@@ -26,9 +26,9 @@
 #include "common/stream.hpp"
 #include "common/utils.hpp"
 
-#include "simple_layer_normalization_kernels.hpp"
+#include "cpu/simple_layer_normalization_kernels.hpp"
 
-#include "cpu_layer_normalization_pd.hpp"
+#include "cpu/cpu_layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {

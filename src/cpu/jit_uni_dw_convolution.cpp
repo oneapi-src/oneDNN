@@ -20,7 +20,7 @@
 
 #include "common/bfloat16.hpp"
 
-#include "jit_uni_dw_convolution.hpp"
+#include "cpu/jit_uni_dw_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

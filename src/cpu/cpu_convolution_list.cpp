@@ -20,7 +20,7 @@
 #include "common/c_types_map.hpp"
 #include "common/convolution_pd.hpp"
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/gemm_bf16_convolution.hpp"
 #include "cpu/gemm_convolution.hpp"

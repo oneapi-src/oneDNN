@@ -25,7 +25,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_avx512_core_f32_wino_conv_4x3.hpp"
+#include "cpu/jit_avx512_core_f32_wino_conv_4x3.hpp"
 
 #ifndef _MSC_VER
 #define pragma_unroll _Pragma("unroll")

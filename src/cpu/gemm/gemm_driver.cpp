@@ -19,23 +19,27 @@
 #include <malloc.h>
 #endif
 
-#include "gemm_driver.hpp"
+#include "dnnl_types.h"
 
 #include "common/bfloat16.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
-#include "dnnl_types.h"
-#include "f32/gemm_utils_f32.hpp"
-#include "f32/jit_avx512_common_gemm_f32.hpp"
-#include "f32/jit_avx_gemm_f32.hpp"
-#include "gemm_info.hpp"
-#include "gemm_partition.hpp"
-#include "gemm_threading.hpp"
-#include "gemm_utils.hpp"
-#include "gemv_driver.hpp"
-#include "jit_generator.hpp"
-#include "s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
+
+#include "cpu/jit_generator.hpp"
+
+#include "cpu/gemm/gemm_driver.hpp"
+#include "cpu/gemm/gemm_info.hpp"
+#include "cpu/gemm/gemm_partition.hpp"
+#include "cpu/gemm/gemm_threading.hpp"
+#include "cpu/gemm/gemm_utils.hpp"
+#include "cpu/gemm/gemv_driver.hpp"
+
+#include "cpu/gemm/f32/gemm_utils_f32.hpp"
+#include "cpu/gemm/f32/jit_avx512_common_gemm_f32.hpp"
+#include "cpu/gemm/f32/jit_avx_gemm_f32.hpp"
+
+#include "cpu/gemm/s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
 
 namespace dnnl {
 namespace impl {

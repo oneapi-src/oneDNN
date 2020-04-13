@@ -18,7 +18,8 @@
 #define GEMV_DRIVER_HPP
 
 #include "dnnl_types.h"
-#include "gemm_info.hpp"
+
+#include "cpu/gemm/gemm_info.hpp"
 
 namespace dnnl {
 namespace impl {

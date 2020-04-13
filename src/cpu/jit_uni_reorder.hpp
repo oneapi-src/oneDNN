@@ -22,7 +22,7 @@
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu_reorder_pd.hpp"
+#include "cpu/cpu_reorder_pd.hpp"
 
 namespace dnnl {
 namespace impl {

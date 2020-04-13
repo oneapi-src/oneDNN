@@ -20,9 +20,9 @@
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "cpu_lrn_pd.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/cpu_lrn_pd.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {

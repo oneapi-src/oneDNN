@@ -17,13 +17,13 @@
 #include <memory>
 
 #include "common/math_utils.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "eltwise/ref_eltwise.hpp"
+#include "cpu/eltwise/ref_eltwise.hpp"
 
-#include "jit_gemm_inner_product_utils.hpp"
+#include "cpu/jit_gemm_inner_product_utils.hpp"
 
-#include "gemm_inner_product_utils.hpp"
+#include "cpu/gemm_inner_product_utils.hpp"
 
 namespace dnnl {
 namespace impl {

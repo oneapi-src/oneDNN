@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/rnn/ref_rnn.hpp"
 

@@ -18,7 +18,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
-#include "jit_sse41_convolution.hpp"
+#include "cpu/jit_sse41_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

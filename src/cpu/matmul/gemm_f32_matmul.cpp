@@ -25,9 +25,9 @@
 
 #include "cpu/cpu_primitive.hpp"
 
-#include "gemm_f32_matmul.hpp"
+#include "cpu/gemm/gemm.hpp"
 
-#include "gemm/gemm.hpp"
+#include "cpu/matmul/gemm_f32_matmul.hpp"
 
 namespace dnnl {
 namespace impl {

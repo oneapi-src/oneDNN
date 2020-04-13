@@ -24,12 +24,12 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu_primitive.hpp"
-#include "cpu_reorder_pd.hpp"
-#include "jit_uni_reorder.hpp"
+#include "cpu/cpu_primitive.hpp"
+#include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/jit_uni_reorder.hpp"
 
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_generator.hpp"
 
 // #define TR_DEBUG
 #if defined(TR_DEBUG)

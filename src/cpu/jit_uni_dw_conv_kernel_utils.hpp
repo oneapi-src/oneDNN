@@ -24,12 +24,12 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "jit_generator.hpp"
-#include "jit_primitive_conf.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/jit_generator.hpp"
+#include "cpu/jit_primitive_conf.hpp"
 
-#include "jit_avx512_core_bf16_dw_conv_kernel.hpp"
-#include "jit_uni_dw_conv_kernel_f32.hpp"
+#include "cpu/jit_avx512_core_bf16_dw_conv_kernel.hpp"
+#include "cpu/jit_uni_dw_conv_kernel_f32.hpp"
 
 namespace dnnl {
 namespace impl {

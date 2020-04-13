@@ -24,11 +24,11 @@
 #include "common/primitive_hashing.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/jit_sse41_1x1_conv_kernel_f32.hpp"
+#include "cpu/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/jit_uni_dw_convolution.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "jit_sse41_1x1_conv_kernel_f32.hpp"
-#include "jit_uni_1x1_conv_utils.hpp"
-#include "jit_uni_dw_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

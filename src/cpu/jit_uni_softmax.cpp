@@ -23,10 +23,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "jit_uni_softmax.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/jit_uni_softmax.hpp"
 
 #if __INTEL_COMPILER && __INTEL_COMPILER < 1900
 // Intel Compilers 17.x and 18.x do not like that diff_src_ptr() is only used

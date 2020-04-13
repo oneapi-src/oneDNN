@@ -24,7 +24,7 @@
 #include "common/utils.hpp"
 #include "dnnl_debug.h"
 
-#include "jit_uni_reorder.hpp"
+#include "cpu/jit_uni_reorder.hpp"
 
 using namespace dnnl::impl::types;
 using namespace dnnl::impl::status;

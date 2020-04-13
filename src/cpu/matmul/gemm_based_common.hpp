@@ -25,7 +25,7 @@
 
 #include "cpu/cpu_isa_traits.hpp"
 
-#include "cpu_matmul_pd.hpp"
+#include "cpu/matmul/cpu_matmul_pd.hpp"
 
 namespace dnnl {
 namespace impl {

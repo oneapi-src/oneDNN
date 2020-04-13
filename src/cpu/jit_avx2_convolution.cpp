@@ -19,7 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_avx2_convolution.hpp"
+#include "cpu/jit_avx2_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

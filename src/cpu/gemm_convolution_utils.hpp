@@ -21,8 +21,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -24,9 +24,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_batch_normalization_pd.hpp"
-#include "cpu_isa_traits.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "cpu/cpu_batch_normalization_pd.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {

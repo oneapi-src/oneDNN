@@ -17,7 +17,7 @@
 #ifndef CPU_JIT_UNI_GRU_LBR_CELL_POSTGEMM_BWD_HPP
 #define CPU_JIT_UNI_GRU_LBR_CELL_POSTGEMM_BWD_HPP
 
-#include "jit_uni_rnn_common_postgemm.hpp"
+#include "cpu/rnn/jit_uni_rnn_common_postgemm.hpp"
 
 namespace dnnl {
 namespace impl {

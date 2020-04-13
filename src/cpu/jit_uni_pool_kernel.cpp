@@ -18,9 +18,9 @@
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
-#include "cpu_pooling_pd.hpp"
+#include "cpu/cpu_pooling_pd.hpp"
 
-#include "jit_uni_pool_kernel.hpp"
+#include "cpu/jit_uni_pool_kernel.hpp"
 
 namespace dnnl {
 namespace impl {

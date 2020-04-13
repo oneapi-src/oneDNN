@@ -22,8 +22,9 @@
 #include "common/bit_cast.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "jit_utils/jit_utils.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+
+#include "cpu/jit_utils/jit_utils.hpp"
 
 #if defined(_WIN32) && !defined(__GNUC__)
 #define STRUCT_ALIGN(al, ...) __declspec(align(al)) __VA_ARGS__

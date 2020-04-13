@@ -21,11 +21,11 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
-#include "cpu_barrier.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_reducer.hpp"
+#include "cpu/cpu_barrier.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_reducer.hpp"
 
-#include "jit_uni_dw_conv_kernel_utils.hpp"
+#include "cpu/jit_uni_dw_conv_kernel_utils.hpp"
 
 namespace dnnl {
 namespace impl {

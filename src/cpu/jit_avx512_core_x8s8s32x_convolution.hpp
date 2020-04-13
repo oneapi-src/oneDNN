@@ -23,9 +23,9 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_convolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
 
-#include "jit_avx512_core_x8s8s32x_conv_kernel.hpp"
+#include "cpu/jit_avx512_core_x8s8s32x_conv_kernel.hpp"
 
 namespace dnnl {
 namespace impl {

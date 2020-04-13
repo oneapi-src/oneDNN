@@ -25,12 +25,11 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu_matmul_pd.hpp"
-
-#include "gemm_based_common.hpp"
-
 #include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
+
+#include "cpu/matmul/cpu_matmul_pd.hpp"
+#include "cpu/matmul/gemm_based_common.hpp"
 
 namespace dnnl {
 namespace impl {

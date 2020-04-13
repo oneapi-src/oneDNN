@@ -26,10 +26,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "gemm/gemm.hpp"
-#include "gemm_inner_product_utils.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_inner_product_utils.hpp"
 
-#include "cpu_inner_product_pd.hpp"
+#include "cpu/cpu_inner_product_pd.hpp"
 
 namespace dnnl {
 namespace impl {

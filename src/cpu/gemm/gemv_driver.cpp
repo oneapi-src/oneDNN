@@ -16,16 +16,18 @@
 
 #include <cstdint>
 
-#include "gemv_driver.hpp"
+#include "dnnl_types.h"
 
 #include "common/bfloat16.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/nstl.hpp"
-#include "cpu_isa_traits.hpp"
-#include "dnnl_types.h"
-#include "gemm_info.hpp"
-#include "gemm_utils.hpp"
-#include "jit_generator.hpp"
+
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_generator.hpp"
+
+#include "cpu/gemm/gemm_info.hpp"
+#include "cpu/gemm/gemm_utils.hpp"
+#include "cpu/gemm/gemv_driver.hpp"
 
 namespace dnnl {
 namespace impl {

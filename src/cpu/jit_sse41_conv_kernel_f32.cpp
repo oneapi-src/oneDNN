@@ -19,7 +19,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 
-#include "jit_sse41_conv_kernel_f32.hpp"
+#include "cpu/jit_sse41_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 

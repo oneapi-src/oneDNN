@@ -20,7 +20,7 @@
 #include <assert.h>
 
 #include "common/utils.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

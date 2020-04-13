@@ -19,26 +19,25 @@
 #include "dnnl_threadpool_iface.hpp"
 #endif
 
+#include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "gemm.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/os_blas.hpp"
 
-#include "f32/jit_avx512_common_gemm_f32.hpp"
-#include "f32/jit_avx_gemm_f32.hpp"
-#include "f32/ref_gemm_f32.hpp"
+#include "cpu/gemm/f32/jit_avx512_common_gemm_f32.hpp"
+#include "cpu/gemm/f32/jit_avx_gemm_f32.hpp"
+#include "cpu/gemm/f32/ref_gemm_f32.hpp"
 
-#include "gemm_driver.hpp"
-#include "s8x8s32/ref_gemm_s8x8s32.hpp"
-#include "s8x8s32/simple_gemm_s8s8s32.hpp"
-
-#include "common/bfloat16.hpp"
-#include "os_blas.hpp"
+#include "cpu/gemm/gemm_driver.hpp"
+#include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
+#include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
 
 namespace dnnl {
 namespace impl {

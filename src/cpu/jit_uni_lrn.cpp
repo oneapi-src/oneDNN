@@ -19,8 +19,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_uni_lrn.hpp"
-#include "jit_uni_lrn_kernel_f32.hpp"
+#include "cpu/jit_uni_lrn.hpp"
+#include "cpu/jit_uni_lrn_kernel_f32.hpp"
 
 namespace dnnl {
 namespace impl {

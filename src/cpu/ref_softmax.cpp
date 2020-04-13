@@ -22,7 +22,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ref_softmax.hpp"
+#include "cpu/ref_softmax.hpp"
 
 namespace dnnl {
 namespace impl {

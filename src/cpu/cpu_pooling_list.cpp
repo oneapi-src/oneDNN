@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/jit_uni_i8i8_pooling.hpp"
 #include "cpu/jit_uni_pooling.hpp"

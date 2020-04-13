@@ -27,7 +27,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_shuffle_pd.hpp"
+#include "cpu/cpu_shuffle_pd.hpp"
 
 namespace dnnl {
 namespace impl {

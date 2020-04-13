@@ -21,10 +21,10 @@
 #include "common/primitive.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu_pooling_pd.hpp"
+#include "cpu/cpu_pooling_pd.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "jit_primitive_conf.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

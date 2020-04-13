@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/gemm_bf16_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"

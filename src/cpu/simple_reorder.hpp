@@ -29,10 +29,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_primitive.hpp"
-#include "cpu_reorder_pd.hpp"
+#include "cpu/cpu_primitive.hpp"
+#include "cpu/cpu_reorder_pd.hpp"
 
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
 namespace dnnl {
 namespace impl {

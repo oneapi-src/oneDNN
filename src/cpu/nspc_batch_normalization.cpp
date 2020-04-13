@@ -23,9 +23,9 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_batch_normalization_utils.hpp"
+#include "cpu/cpu_batch_normalization_utils.hpp"
 
-#include "nspc_batch_normalization.hpp"
+#include "cpu/nspc_batch_normalization.hpp"
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)

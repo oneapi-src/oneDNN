@@ -19,9 +19,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_avx512_common_lrn.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_avx512_common_lrn.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_generator.hpp"
 
 typedef float acc_data_t;
 

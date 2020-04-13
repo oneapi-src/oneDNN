@@ -27,9 +27,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_engine.hpp"
-#include "gemm/gemm.hpp"
-#include "gemm_inner_product_utils.hpp"
+#include "cpu/cpu_engine.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_inner_product_utils.hpp"
 
 namespace dnnl {
 namespace impl {

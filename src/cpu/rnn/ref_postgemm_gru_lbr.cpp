@@ -21,7 +21,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 
-#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "cpu/rnn/jit_uni_rnn_common_postgemm_dispatcher.hpp"
 
 namespace dnnl {
 namespace impl {

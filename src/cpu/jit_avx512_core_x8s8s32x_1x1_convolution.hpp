@@ -26,11 +26,11 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_convolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
 
-#include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
-#include "jit_avx512_core_x8s8s32x_convolution.hpp"
-#include "jit_uni_1x1_conv_utils.hpp"
+#include "cpu/jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
+#include "cpu/jit_avx512_core_x8s8s32x_convolution.hpp"
+#include "cpu/jit_uni_1x1_conv_utils.hpp"
 
 namespace dnnl {
 namespace impl {

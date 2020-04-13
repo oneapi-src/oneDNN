@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/eltwise/jit_uni_eltwise.hpp"
 #include "cpu/eltwise/jit_uni_eltwise_int.hpp"

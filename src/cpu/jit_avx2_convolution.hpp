@@ -23,10 +23,10 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_convolution_pd.hpp"
-#include "cpu_reducer.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_reducer.hpp"
 
-#include "jit_avx2_conv_kernel_f32.hpp"
+#include "cpu/jit_avx2_conv_kernel_f32.hpp"
 
 namespace dnnl {
 namespace impl {

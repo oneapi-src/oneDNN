@@ -23,11 +23,11 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_generator.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_uni_binary.hpp"
+#include "cpu/binary/jit_uni_binary.hpp"
 
 namespace dnnl {
 namespace impl {

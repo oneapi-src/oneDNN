@@ -19,9 +19,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_avx512_common_1x1_convolution.hpp"
+#include "cpu/jit_avx512_common_1x1_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

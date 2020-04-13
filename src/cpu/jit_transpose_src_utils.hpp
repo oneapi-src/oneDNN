@@ -17,8 +17,8 @@
 #ifndef CPU_JIT_TRANSPOSE_SRC_UTILS_HPP
 #define CPU_JIT_TRANSPOSE_SRC_UTILS_HPP
 
-#include "cpu_barrier.hpp"
-#include "jit_primitive_conf.hpp"
+#include "cpu/cpu_barrier.hpp"
+#include "cpu/jit_primitive_conf.hpp"
 
 namespace dnnl {
 namespace impl {

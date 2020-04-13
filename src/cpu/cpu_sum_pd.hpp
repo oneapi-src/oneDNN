@@ -21,7 +21,7 @@
 #include "common/sum_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

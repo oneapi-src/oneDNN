@@ -20,7 +20,7 @@
 #include "common/utils.hpp"
 
 #include "common/bfloat16.hpp"
-#include "jit_avx512_core_bf16_convolution.hpp"
+#include "cpu/jit_avx512_core_bf16_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

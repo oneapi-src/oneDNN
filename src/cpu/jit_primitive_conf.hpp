@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #include "common/primitive_attr.hpp"
-#include "cpu_isa_traits.hpp"
+#include "cpu/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {

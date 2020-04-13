@@ -25,8 +25,8 @@
 
 #include "cpu/platform.hpp"
 
-#include "jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
-#include "jit_uni_1x1_conv_utils.hpp"
+#include "cpu/jit_avx512_core_x8s8s32x_1x1_conv_kernel.hpp"
+#include "cpu/jit_uni_1x1_conv_utils.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 

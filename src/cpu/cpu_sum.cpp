@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
+#include "cpu/jit_avx512_core_bf16_sum.hpp"
 #include "cpu/ref_sum.hpp"
 #include "cpu/simple_sum.hpp"
-#include "jit_avx512_core_bf16_sum.hpp"
 
 namespace dnnl {
 namespace impl {

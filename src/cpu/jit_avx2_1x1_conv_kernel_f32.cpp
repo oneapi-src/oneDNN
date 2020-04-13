@@ -24,7 +24,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_avx2_1x1_conv_kernel_f32.hpp"
+#include "cpu/jit_avx2_1x1_conv_kernel_f32.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 

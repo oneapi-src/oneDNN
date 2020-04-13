@@ -23,7 +23,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
-#include "simple_resampling.hpp"
+#include "cpu/resampling/simple_resampling.hpp"
 
 namespace dnnl {
 namespace impl {

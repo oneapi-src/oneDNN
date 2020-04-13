@@ -18,7 +18,8 @@
 #define JIT_AVX_GEMM_F32_HPP
 
 #include "dnnl_types.h"
-#include "gemm_utils_f32.hpp"
+
+#include "cpu/gemm/f32/gemm_utils_f32.hpp"
 
 namespace dnnl {
 namespace impl {

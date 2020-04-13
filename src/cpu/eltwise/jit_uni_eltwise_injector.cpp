@@ -19,7 +19,7 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "eltwise/jit_uni_eltwise_injector.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_injector.hpp"
 
 namespace dnnl {
 namespace impl {

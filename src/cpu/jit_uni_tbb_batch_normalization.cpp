@@ -24,12 +24,12 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_batch_normalization_utils.hpp"
+#include "cpu/jit_generator.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_batch_normalization_utils.hpp"
-#include "jit_generator.hpp"
 
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_uni_tbb_batch_normalization.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_uni_tbb_batch_normalization.hpp"
 
 namespace dnnl {
 namespace impl {

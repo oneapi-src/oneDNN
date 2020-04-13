@@ -19,10 +19,10 @@
 
 #include "common/c_types_map.hpp"
 
-#include "jit_generator.hpp"
-#include "jit_primitive_conf.hpp"
+#include "cpu/jit_generator.hpp"
+#include "cpu/jit_primitive_conf.hpp"
 
-#include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
+#include "cpu/jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
 namespace dnnl {
 namespace impl {

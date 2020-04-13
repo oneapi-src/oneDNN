@@ -25,7 +25,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_softmax_pd.hpp"
+#include "cpu/cpu_softmax_pd.hpp"
 
 namespace dnnl {
 namespace impl {

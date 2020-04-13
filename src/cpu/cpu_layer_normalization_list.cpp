@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/ref_layer_normalization.hpp"
 #include "cpu/simple_layer_normalization.hpp"

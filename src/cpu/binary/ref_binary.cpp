@@ -23,9 +23,9 @@
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "ref_binary.hpp"
+#include "cpu/binary/ref_binary.hpp"
 
 namespace dnnl {
 namespace impl {

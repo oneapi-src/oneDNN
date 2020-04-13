@@ -20,7 +20,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ref_deconvolution.hpp"
+#include "cpu/ref_deconvolution.hpp"
 
 namespace dnnl {
 namespace impl {
