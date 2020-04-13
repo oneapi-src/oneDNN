@@ -21,7 +21,9 @@
 
 #include "cpu/ref_eltwise.hpp"
 
+#if DNNL_X64
 #include "cpu/x64/jit_gemm_inner_product_utils.hpp"
+#endif
 
 #include "cpu/gemm_inner_product_utils.hpp"
 
@@ -105,11 +107,11 @@ template <data_type_t acc_type, data_type_t dst_type>
 pp_kernel_t<acc_type, dst_type> *pp_kernel_t<acc_type, dst_type>::create(
         size_t OC, size_t MB, const primitive_attr_t *attr, data_type_t bias_dt,
         bool skip_sum) {
-    pp_kernel_t<acc_type, dst_type> *res = nullptr;
-
-    res = jit_pp_kernel_create<acc_type, dst_type>(
+#if DNNL_X64
+    auto *res = jit_pp_kernel_create<acc_type, dst_type>(
             OC, MB, attr, bias_dt, skip_sum);
     if (res) return res;
+#endif
 
     return new ref_pp_kernel_t<acc_type, dst_type>(
             OC, MB, attr, bias_dt, skip_sum);

@@ -78,29 +78,24 @@ file(GLOB PRIM_TEST_CASES_SRC
                               test_gemm_s8s8s32.cpp
                               test_gemm_s8u8s32.cpp
                               test_gemm_u8u8s32.cpp
-                              test_rnn_forward.cpp
                               test_layer_normalization.cpp
                               test_binary.cpp
                               test_logsoftmax.cpp
                               test_matmul.cpp
                               test_resampling.cpp
-                              test_isa_mask.cpp
-                              test_isa_iface.cpp
                               test_global_scratchpad.cpp
                               test_alloc_scratchpad.cpp
                               )
 
-# Some tests will fail on AArch64 and need to be skipped.
-# For example, any tests wich check for ISAs not present on AArch64.
-# AARCH64_SKIP_TESTS is a list of tests to be removed from PRIM_TEST_CASES_SRC.
-if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
-    file(GLOB AARCH64_SKIP_TESTS
-                                  test_isa_iface.cpp
-                                  )
-
-# Remove AARCH64_SKIP_TESTS entries from PRIM_TEST_CASES_SRC.
-    foreach(TEST_FILE ${AARCH64_SKIP_TESTS})
-        list(REMOVE_ITEM PRIM_TEST_CASES_SRC "${TEST_FILE}")
+# Add X64-specific tests
+if(DNNL_TARGET_ARCH STREQUAL "X64")
+    file(GLOB X64_PRIM_TEST_CASES_SRC
+        test_rnn_forward.cpp
+        test_isa_mask.cpp
+        test_isa_iface.cpp
+        )
+    foreach(TEST_FILE ${X64_PRIM_TEST_CASES_SRC})
+        list(APPEND PRIM_TEST_CASES_SRC "${TEST_FILE}")
     endforeach()
 endif()
 

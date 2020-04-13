@@ -113,77 +113,7 @@ dnnl_status_t dnnl_gemm_bf16bf16f32(char transa, char transb, dnnl_dim_t M,
 }
 
 // Declare packed GEMM interfaces for testing
-namespace dnnl {
-namespace impl {
-namespace cpu {
-
-// Get pack-size functions.
-extern dnnl_status_t sgemm_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
-        bool *pack = nullptr);
-
-extern dnnl_status_t gemm_bf16bf16f32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
-        bool *pack = nullptr);
-
-extern dnnl_status_t gemm_s8u8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
-        bool *pack = nullptr);
-
-extern dnnl_status_t gemm_s8s8s32_pack_get_size(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb, size_t *size,
-        bool *pack = nullptr);
-
-// Pack functions.
-extern dnnl_status_t sgemm_pack(const char *identifier, const char *transa,
-        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
-        const dim_t *lda, const dim_t *ldb, const float *src, float *dst);
-
-extern dnnl_status_t gemm_bf16bf16f32_pack(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb,
-        const bfloat16_t *src, bfloat16_t *dst);
-
-extern dnnl_status_t gemm_s8u8s32_pack(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb, const void *src,
-        void *dst);
-
-extern dnnl_status_t gemm_s8s8s32_pack(const char *identifier,
-        const char *transa, const char *transb, const dim_t *M, const dim_t *N,
-        const dim_t *K, const dim_t *lda, const dim_t *ldb, const void *src,
-        void *dst);
-
-// Compute functions.
-extern dnnl_status_t sgemm_compute(const char *transa, const char *transb,
-        const dim_t *M, const dim_t *N, const dim_t *K, const float *A,
-        const dim_t *lda, const float *B, const dim_t *ldb, const float *beta,
-        float *C, const dim_t *ldc);
-
-extern dnnl_status_t gemm_bf16bf16f32_compute(const char *transa,
-        const char *transb, const dim_t *M, const dim_t *N, const dim_t *K,
-        const bfloat16_t *A, const dim_t *lda, const bfloat16_t *B,
-        const dim_t *ldb, const float *beta, float *C, const dim_t *ldc);
-
-extern dnnl_status_t gemm_s8u8s32_compute(const char *transa,
-        const char *transb, const char *offsetc, const dim_t *M, const dim_t *N,
-        const dim_t *K, const int8_t *A, const dim_t *lda, const uint8_t *B,
-        const dim_t *ldb, const float *beta, int32_t *C, const dim_t *ldc,
-        const int32_t *co);
-
-extern dnnl_status_t gemm_s8s8s32_compute(const char *transa,
-        const char *transb, const char *offsetc, const dim_t *M, const dim_t *N,
-        const dim_t *K, const int8_t *A, const dim_t *lda, const int8_t *B,
-        const dim_t *ldb, const float *beta, int32_t *C, const dim_t *ldc,
-        const int32_t *co);
-
-} // namespace cpu
-} // namespace impl
-} // namespace dnnl
+#include "src/cpu/gemm/gemm_pack.hpp"
 
 namespace dnnl {
 

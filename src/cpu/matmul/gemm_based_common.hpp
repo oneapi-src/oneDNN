@@ -23,8 +23,6 @@
 #include "common/primitive_attr.hpp"
 #include "common/type_helpers.hpp"
 
-#include "cpu/x64/cpu_isa_traits.hpp"
-
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 
 namespace dnnl {

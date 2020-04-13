@@ -26,40 +26,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-namespace x64 {
-
-const char *get_isa_info() {
-    /* oneDNN CPU ISA info */
-    const char *ISA_ANY = "Intel 64";
-    const char *SSE41 = "Intel SSE4.1";
-    const char *AVX = "Intel AVX";
-    const char *AVX2 = "Intel AVX2";
-    const char *AVX512_COMMON = "Intel AVX-512";
-    const char *AVX512_CORE
-            = "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions";
-    const char *AVX512_CORE_VNNI = "Intel AVX-512 with Intel DL Boost";
-    const char *AVX512_MIC
-            = "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF extensions";
-    const char *AVX512_MIC_4OPS
-            = "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions";
-    const char *AVX512_CORE_BF16
-            = "Intel AVX-512 with Intel DL Boost and bfloat16 support";
-
-    if (mayiuse(avx512_core_bf16)) return AVX512_CORE_BF16;
-    if (mayiuse(avx512_mic_4ops)) return AVX512_MIC_4OPS;
-    if (mayiuse(avx512_mic)) return AVX512_MIC;
-    if (mayiuse(avx512_core_vnni)) return AVX512_CORE_VNNI;
-    if (mayiuse(avx512_core)) return AVX512_CORE;
-    if (mayiuse(avx512_common)) return AVX512_COMMON;
-    if (mayiuse(avx2)) return AVX2;
-    if (mayiuse(avx)) return AVX;
-    if (mayiuse(sse41)) return SSE41;
-
-    return ISA_ANY;
-}
-
-} // namespace x64
-
+namespace {
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
 
 // A setting (basically a value) that can be set() multiple times until the
@@ -144,8 +111,41 @@ bool init_max_cpu_isa() {
     return max_cpu_isa().set(max_cpu_isa_val);
 }
 #endif
+} // namespace
 
-cpu_isa_t get_max_cpu_isa(bool soft) {
+namespace x64 {
+
+const char *get_isa_info() {
+    /* oneDNN CPU ISA info */
+    const char *ISA_ANY = "Intel 64";
+    const char *SSE41 = "Intel SSE4.1";
+    const char *AVX = "Intel AVX";
+    const char *AVX2 = "Intel AVX2";
+    const char *AVX512_COMMON = "Intel AVX-512";
+    const char *AVX512_CORE
+            = "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions";
+    const char *AVX512_CORE_VNNI = "Intel AVX-512 with Intel DL Boost";
+    const char *AVX512_MIC
+            = "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF extensions";
+    const char *AVX512_MIC_4OPS
+            = "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions";
+    const char *AVX512_CORE_BF16
+            = "Intel AVX-512 with Intel DL Boost and bfloat16 support";
+
+    if (mayiuse(avx512_core_bf16)) return AVX512_CORE_BF16;
+    if (mayiuse(avx512_mic_4ops)) return AVX512_MIC_4OPS;
+    if (mayiuse(avx512_mic)) return AVX512_MIC;
+    if (mayiuse(avx512_core_vnni)) return AVX512_CORE_VNNI;
+    if (mayiuse(avx512_core)) return AVX512_CORE;
+    if (mayiuse(avx512_common)) return AVX512_COMMON;
+    if (mayiuse(avx2)) return AVX2;
+    if (mayiuse(avx)) return AVX;
+    if (mayiuse(sse41)) return SSE41;
+
+    return ISA_ANY;
+}
+
+cpu::cpu_isa_t get_max_cpu_isa(bool soft) {
     MAYBE_UNUSED(soft);
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
     init_max_cpu_isa();
@@ -155,11 +155,7 @@ cpu_isa_t get_max_cpu_isa(bool soft) {
 #endif
 }
 
-} // namespace cpu
-} // namespace impl
-} // namespace dnnl
-
-dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
+status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     using namespace dnnl::impl::status;
 #ifdef DNNL_ENABLE_MAX_CPU_ISA
     using namespace dnnl::impl;
@@ -191,3 +187,8 @@ dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
     return unimplemented;
 #endif
 }
+} // namespace x64
+
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl

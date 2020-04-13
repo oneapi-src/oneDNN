@@ -26,9 +26,10 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_reorder_pd.hpp"
+#include "cpu/platform.hpp"
 #include "cpu/simple_q10n.hpp"
 
-#include "cpu/x64/gemm/gemm_pack.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -485,12 +486,10 @@ struct rnn_weights_reorder_t : public primitive_t {
             using namespace status;
 
             const memory_desc_wrapper id(src_md), od(dst_md);
-            bool args_ok = true
-                    && IMPLICATION(type_o == data_type::bf16
-                                    || type_i == data_type::bf16,
-                            mayiuse(avx512_core))
-                    && id.data_type() == type_i && od.data_type() == type_o
+            bool args_ok = id.data_type() == type_i && od.data_type() == type_o
                     && od.format_kind() == format_kind::rnn_packed
+                    && platform::has_data_type_support(type_i)
+                    && platform::has_data_type_support(type_o)
                     && utils::one_of(od.rnn_packed_desc().format, dnnl_ldigo_p,
                             dnnl_ldgoi_p)
                     && attr->has_default_values();

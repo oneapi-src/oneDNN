@@ -14,7 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include "cpu/platform.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/jit_simple_layer_normalization_kernels.hpp"
+#endif
 
 #include "cpu/simple_layer_normalization_kernels.hpp"
 
@@ -97,38 +101,38 @@ void diff_data_kernel_t::operator()(const float *src, const float *diff_dst,
 
 statistics_kernel_t *statistics_kernel_t::create(
         const layer_normalization_pd_t *pd) {
-    statistics_kernel_t *res = nullptr;
-
-    res = jit_statistics_kernel_create(pd);
+#if DNNL_X64
+    statistics_kernel_t *res = jit_statistics_kernel_create(pd);
     if (res) return res;
+#endif
 
     return new statistics_kernel_t(pd);
 }
 
 data_kernel_t *data_kernel_t::create(const layer_normalization_pd_t *pd) {
-    data_kernel_t *res = nullptr;
-
-    res = jit_data_kernel_create(pd);
+#if DNNL_X64
+    data_kernel_t *res = jit_data_kernel_create(pd);
     if (res) return res;
+#endif
 
     return new data_kernel_t(pd);
 }
 
 diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
-    diff_ss_kernel_t *res = nullptr;
-
-    res = jit_diff_ss_kernel_create(pd);
+#if DNNL_X64
+    diff_ss_kernel_t *res = jit_diff_ss_kernel_create(pd);
     if (res) return res;
+#endif
 
     return new diff_ss_kernel_t(pd);
 }
 
 diff_data_kernel_t *diff_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
-    diff_data_kernel_t *res = nullptr;
-
-    res = jit_diff_data_kernel_create(pd);
+#if DNNL_X64
+    diff_data_kernel_t *res = jit_diff_data_kernel_create(pd);
     if (res) return res;
+#endif
 
     return new diff_data_kernel_t(pd);
 }

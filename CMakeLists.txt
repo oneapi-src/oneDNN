@@ -88,10 +88,12 @@ if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif()
 
 # Set the target architecture.
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
-    set(DNNL_TARGET_ARCH "AARCH64")
-else()
-    set(DNNL_TARGET_ARCH "X64")
+if(NOT DNNL_TARGET_ARCH)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
+        set(DNNL_TARGET_ARCH "AARCH64")
+    else()
+        set(DNNL_TARGET_ARCH "X64")
+    endif()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")

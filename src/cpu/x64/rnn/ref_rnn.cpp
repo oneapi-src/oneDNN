@@ -34,7 +34,7 @@
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/gemm/gemm.hpp"
-#include "cpu/x64/gemm/gemm_pack.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
 
 #include "cpu/x64/rnn/ref_rnn.hpp"
 

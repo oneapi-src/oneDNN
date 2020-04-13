@@ -37,6 +37,15 @@ set_if(UNIX LIBM m)
 
 file(GLOB_RECURSE sources *.cpp *.c)
 
+# no RNN support on non-x64 architectures
+if (NOT DNNL_TARGET_ARCH STREQUAL "X64")
+    foreach(src ${sources})
+        if(${src} MATCHES "(rnn|lstm)")
+            list(REMOVE_ITEM sources "${src}")
+        endif()
+    endforeach()
+endif()
+
 foreach(src ${sources})
     file(RELATIVE_PATH src_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${src})
     string(REGEX REPLACE "[/_\\.]" "-" example_name ${src_rel_path})

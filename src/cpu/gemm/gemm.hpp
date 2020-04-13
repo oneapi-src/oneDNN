@@ -21,8 +21,13 @@
 
 #include "common/bfloat16.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu/gemm/os_blas.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -46,21 +51,26 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
         const bfloat16_t *A, const dim_t *lda, const bfloat16_t *B,
         const dim_t *ldb, const float *beta, float *C, const dim_t *ldc);
 
-#ifdef USE_CBLAS
+#if defined(USE_CBLAS)
 #define GEMM_IMPL_STR "gemm:blas"
-#else
+#elif DNNL_X64
 #define GEMM_IMPL_STR "gemm:jit"
+#else
+#define GEMM_IMPL_STR "gemm:ref"
 #endif
 
 #if USE_MKL_IGEMM
 #define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:blas"
 #define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:blas"
-#else
+#elif DNNL_X64
 #define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:jit"
 #define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:jit"
+#else
+#define IGEMM_S8U8S32_IMPL_STR "igemm_s8u8s32:ref"
+#define IGEMM_S8S8S32_IMPL_STR "igemm_s8s8s32:ref"
 #endif
 
-#ifndef USE_MKL_IGEMM
+#if !defined(USE_MKL_IGEMM) && defined(DNNL_X64)
 #define IGEMM_S8U8S32_ISA_STR \
     JIT_IMPL_NAME_HELPER(IGEMM_S8U8S32_IMPL_STR ":", \
             mayiuse(avx512_core_vnni) \

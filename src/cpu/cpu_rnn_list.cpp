@@ -16,7 +16,9 @@
 
 #include "cpu/cpu_engine.hpp"
 
+#if DNNL_X64
 #include "cpu/x64/rnn/ref_rnn.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -27,17 +29,17 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+// clang-format off
 static const pd_create_f impl_list[] = {
-        INSTANCE(ref_rnn_fwd_f32_t),
-        INSTANCE(ref_rnn_fwd_bf16_t),
-        INSTANCE(ref_rnn_fwd_u8s8_t),
-        INSTANCE(ref_rnn_bwd_f32_t),
-        INSTANCE(ref_rnn_bwd_bf16_t),
+        CPU_INSTANCE_X64(ref_rnn_fwd_f32_t)
+        CPU_INSTANCE_X64(ref_rnn_fwd_bf16_t)
+        CPU_INSTANCE_X64(ref_rnn_fwd_u8s8_t)
+        CPU_INSTANCE_X64(ref_rnn_bwd_f32_t)
+        CPU_INSTANCE_X64(ref_rnn_bwd_bf16_t)
         /* eol */
         nullptr,
 };
-#undef INSTANCE
+// clang-format on
 } // namespace
 
 const pd_create_f *get_rnn_impl_list(const rnn_desc_t *desc) {
