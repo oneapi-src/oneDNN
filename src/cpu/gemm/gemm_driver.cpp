@@ -26,6 +26,8 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/gemm_driver.hpp"

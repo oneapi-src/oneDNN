@@ -17,6 +17,8 @@
 #ifndef COMMON_U8_HPP
 #define COMMON_U8_HPP
 
+#include "cpu/platform.hpp"
+
 #include "cpu/x64/jit_generator.hpp"
 
 #define U8_COPY_KERNEL_CODE_SIZE (4096L * 4)

@@ -48,11 +48,6 @@ namespace cpu {
 namespace {
 
 typedef enum {
-    PAGE_4K = 4096,
-    PAGE_2M = 2097152,
-} cpu_page_size_t;
-
-typedef enum {
     MAX_CODE_SIZE = 256 * 1024,
 } max_code_size_t;
 

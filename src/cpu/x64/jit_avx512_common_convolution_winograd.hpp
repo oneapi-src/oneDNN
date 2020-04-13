@@ -23,6 +23,7 @@
 #include "common/primitive.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/platform.hpp"
 
 #include "cpu/x64/jit_avx512_common_conv_winograd_kernel_f32.hpp"
 

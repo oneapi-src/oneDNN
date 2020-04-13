@@ -34,6 +34,13 @@ unsigned get_num_cores();
 int get_vector_register_size();
 
 } // namespace platform
+
+// XXX: find a better place for these values?
+enum {
+    PAGE_4K = 4096,
+    PAGE_2M = 2097152,
+};
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

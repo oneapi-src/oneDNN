@@ -26,6 +26,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/platform.hpp"
 
 #include "cpu/x64/jit_generator.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"
