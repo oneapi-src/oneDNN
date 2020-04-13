@@ -25,9 +25,10 @@
 
 #include "cpu/cpu_convolution_pd.hpp"
 #include "cpu/cpu_engine.hpp"
+#include "cpu/dw_convolution_utils.hpp"
 #include "cpu/platform.hpp"
-#include "cpu/x64/cpu_reducer.hpp"
 
+#include "cpu/x64/cpu_reducer.hpp"
 #include "cpu/x64/jit_avx512_core_bf16_1x1_conv_kernel.hpp"
 #include "cpu/x64/jit_transpose_src_utils.hpp"
 #include "cpu/x64/jit_uni_1x1_conv_utils.hpp"

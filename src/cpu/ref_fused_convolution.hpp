@@ -21,7 +21,8 @@
 #include "common/primitive_iterator.hpp"
 #include "common/stream.hpp"
 
-#include "cpu/x64/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/dw_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {
