@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #ifndef _WIN32
 #include <sys/time.h>
+#else
+#include <windows.h>
 #endif
 
 #include "dnnl.h"
@@ -45,27 +47,11 @@
 #include "softmax_pd.hpp"
 #include "sum_pd.hpp"
 
-#include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/platform.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "gpu/ocl/verbose.hpp"
 #endif
-
-/* oneDNN CPU ISA info */
-#define ISA_ANY "Intel 64"
-#define SSE41 "Intel SSE4.1"
-#define AVX "Intel AVX"
-#define AVX2 "Intel AVX2"
-#define AVX512_COMMON "Intel AVX-512"
-#define AVX512_CORE \
-    "Intel AVX-512 with AVX512BW, AVX512VL, and AVX512DQ extensions"
-#define AVX512_CORE_VNNI "Intel AVX-512 with Intel DL Boost"
-#define AVX512_MIC \
-    "Intel AVX-512 with AVX512CD, AVX512ER, and AVX512PF extensions"
-#define AVX512_MIC_4OPS \
-    "Intel AVX-512 with AVX512_4FMAPS and AVX512_4VNNIW extensions"
-#define AVX512_CORE_BF16 \
-    "Intel AVX-512 with Intel DL Boost and bfloat16 support"
 
 namespace dnnl {
 namespace impl {
@@ -88,7 +74,7 @@ int get_verbose() {
                 dnnl_version()->patch, dnnl_version()->hash);
         printf("dnnl_verbose,info,cpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->cpu_runtime));
-        printf("dnnl_verbose,info,cpu,isa:%s\n", get_isa_info());
+        printf("dnnl_verbose,info,cpu,isa:%s\n", cpu::platform::get_isa_info());
         printf("dnnl_verbose,info,gpu,runtime:%s\n",
                 dnnl_runtime2str(dnnl_version()->gpu_runtime));
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -112,20 +98,6 @@ double get_msec() {
     gettimeofday(&time, NULL);
     return 1e+3 * time.tv_sec + 1e-3 * time.tv_usec;
 #endif
-}
-
-const char *get_isa_info() {
-    using namespace dnnl::impl::cpu;
-    if (mayiuse(avx512_core_bf16)) return AVX512_CORE_BF16;
-    if (mayiuse(avx512_mic_4ops)) return AVX512_MIC_4OPS;
-    if (mayiuse(avx512_mic)) return AVX512_MIC;
-    if (mayiuse(avx512_core_vnni)) return AVX512_CORE_VNNI;
-    if (mayiuse(avx512_core)) return AVX512_CORE;
-    if (mayiuse(avx512_common)) return AVX512_COMMON;
-    if (mayiuse(avx2)) return AVX2;
-    if (mayiuse(avx)) return AVX;
-    if (mayiuse(sse41)) return SSE41;
-    return ISA_ANY;
 }
 
 #if defined(DISABLE_VERBOSE)
