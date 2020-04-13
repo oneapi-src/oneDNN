@@ -135,6 +135,7 @@ struct conv_conf_t {
     int od_block, oh_block, ow_block;
     int id_block, ih_block, iw_block;
     int oc_block, ic_block, nchunk;
+    int omb;
     int odb, ohb, owb;
     int icb;
     int ocb;
@@ -156,7 +157,6 @@ struct conv_conf_t {
     bool is_nhwc;
     float relu_negative_slope;
     float sum_scale;
-    int scale_idx_mult, rmode;
     int ver;
     format_tag_t src_tag, dst_tag, wei_tag;
     bool is_src_nchw, is_src_nhwc;
@@ -538,10 +538,10 @@ inline void set_default_conf(conv_conf_t &conf, const convolution_desc_t &cd,
     if (conf.eltwise_alg_relu) conf.relu_negative_slope = conf.eltwise.alpha;
 
     conf.with_scales = !attr.output_scales_.has_default_values();
-    conf.scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
+    bool scale_idx_mult = attr.output_scales_.mask_ == (1 << 1);
     conf.with_common_scales
             = conf.with_scales && attr.output_scales_.mask_ == 0;
-    conf.with_per_oc_scales = conf.with_scales && conf.scale_idx_mult;
+    conf.with_per_oc_scales = conf.with_scales && scale_idx_mult;
 }
 
 inline void set_offsets(compute::kernel_ctx_t &kernel_ctx,

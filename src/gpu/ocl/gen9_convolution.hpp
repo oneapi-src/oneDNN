@@ -96,10 +96,9 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
             kernel_name = "gen9_conv_nhwc_fwd_f32";
         } else if (pd()->conf.is_depthwise) {
             kernel_name = "gen9_conv_dw_fwd";
-        } else if (pd()->desc()->src_desc.data_type == data_type::f16) {
-            kernel_name = "gen9_conv_fwd_f16";
-        } else if (pd()->desc()->src_desc.data_type == data_type::f32) {
-            kernel_name = "gen9_conv_fwd_f32";
+        } else if (utils::one_of(pd()->desc()->src_desc.data_type,
+                           data_type::f16, data_type::f32)) {
+            kernel_name = "gen9_conv_fwd";
         } else {
             assert(!"not expected");
         }

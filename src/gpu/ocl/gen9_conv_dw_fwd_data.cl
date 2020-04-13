@@ -38,7 +38,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
         const __global DATA_T *bias, __global DATA_T *dst, float eltwise_alpha,
         float eltwise_beta, float eltwise_scale, float sum_scale) {
 
-#ifdef VER_8OW16C
+#if VER_8OW16C
     const int osp = get_global_id(1);
     const int od = osp / (OWB * OH);
     const int ohw = osp % (OWB * OH);
@@ -148,7 +148,7 @@ gen9_conv_dw_fwd(const __global DATA_T *src, const __global DATA_T *wei,
 
 #endif
 
-#ifdef VER_16MB16C
+#if VER_16MB16C
     const int osp = get_global_id(1);
     const int od = osp / (OWB * OH);
     const int ohw = osp % (OWB * OH);
