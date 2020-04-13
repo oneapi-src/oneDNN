@@ -89,9 +89,9 @@ endif()
 
 # Set the target architecture.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)")
-    set(TARGET_ARCH "AARCH64")
+    set(DNNL_TARGET_ARCH "AARCH64")
 else()
-    set(TARGET_ARCH "X86_64")
+    set(DNNL_TARGET_ARCH "X64")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")

@@ -139,7 +139,7 @@ elseif(UNIX OR MINGW)
             append(CMAKE_CCXX_SANITIZER_FLAGS "-g -fno-omit-frame-pointer")
         endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-        if(TARGET_ARCH STREQUAL "AARCH64")
+        if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
              set(DEF_ARCH_OPT_FLAGS "-O3 -mcpu=native")
              # Avoid error on overaligned type in jit_avx512_common_convolution_winograd.cpp
              append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Wno-error=attributes")
