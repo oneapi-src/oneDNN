@@ -16,49 +16,58 @@
 
 #include <array>
 #include <memory>
+
 #include "common/bfloat16.hpp"
 #include "common/bit_cast.hpp"
+#include "common/dnnl_thread.hpp"
+
+#include "cpu/platform.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
 
-using namespace cpu::bf16_support;
-
 bfloat16_t &bfloat16_t::operator=(float f) {
+#if DNNL_X64
     if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        jit_call_t p;
+        cpu::bf16_support::jit_call_t p;
         p.inp = (void *)&f;
         p.out = (void *)this;
         static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_one_ps_to_bf16(
                 1);
         cvt_one_ps_to_bf16.jit_ker(&p);
-    } else {
-        auto iraw = utils::bit_cast<std::array<uint16_t, 2>>(f);
-        switch (std::fpclassify(f)) {
-            case FP_SUBNORMAL:
-            case FP_ZERO:
-                // sign preserving zero (denormal go to zero)
-                raw_bits_ = iraw[1];
-                raw_bits_ &= 0x8000;
-                break;
-            case FP_INFINITE: raw_bits_ = iraw[1]; break;
-            case FP_NAN:
-                // truncate and set MSB of the mantissa force QNAN
-                raw_bits_ = iraw[1];
-                raw_bits_ |= 1 << 6;
-                break;
-            case FP_NORMAL:
-                // round to nearest even and truncate
-                const uint32_t rounding_bias = 0x00007FFF + (iraw[1] & 0x1);
-                const uint32_t int_raw
-                        = utils::bit_cast<uint32_t>(f) + rounding_bias;
-                iraw = utils::bit_cast<std::array<uint16_t, 2>>(int_raw);
-                raw_bits_ = iraw[1];
-                break;
-        }
+        return *this;
     }
+#endif
+
+    auto iraw = utils::bit_cast<std::array<uint16_t, 2>>(f);
+    switch (std::fpclassify(f)) {
+        case FP_SUBNORMAL:
+        case FP_ZERO:
+            // sign preserving zero (denormal go to zero)
+            raw_bits_ = iraw[1];
+            raw_bits_ &= 0x8000;
+            break;
+        case FP_INFINITE: raw_bits_ = iraw[1]; break;
+        case FP_NAN:
+            // truncate and set MSB of the mantissa force QNAN
+            raw_bits_ = iraw[1];
+            raw_bits_ |= 1 << 6;
+            break;
+        case FP_NORMAL:
+            // round to nearest even and truncate
+            const uint32_t rounding_bias = 0x00007FFF + (iraw[1] & 0x1);
+            const uint32_t int_raw
+                    = utils::bit_cast<uint32_t>(f) + rounding_bias;
+            iraw = utils::bit_cast<std::array<uint16_t, 2>>(int_raw);
+            raw_bits_ = iraw[1];
+            break;
+    }
+
     return *this;
 }
 
@@ -68,39 +77,46 @@ bfloat16_t::operator float() const {
 }
 
 void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
+#if DNNL_X64
     if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        jit_call_t p_;
+        cpu::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.nelems = nelems;
         static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_ps_to_bf16;
         cvt_ps_to_bf16.jit_ker(&p_);
-    } else {
-        PRAGMA_OMP_SIMD()
-        for (size_t i = 0; i < nelems; ++i)
-            out[i] = inp[i];
+        return;
     }
+#endif
+
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = inp[i];
 }
 
 void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
+#if DNNL_X64
     if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        jit_call_t p_;
+        cpu::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.nelems = nelems;
         static const cpu::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_to_ps;
         cvt_bf16_to_ps.jit_ker(&p_);
-    } else {
-        PRAGMA_OMP_SIMD()
-        for (size_t i = 0; i < nelems; ++i)
-            out[i] = inp[i];
+        return;
     }
+#endif
+
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = inp[i];
 }
 
 void cvt_bfloat16_and_add_to_float(
         float *out, const bfloat16_t *inp, const float *add, size_t nelems) {
+#if DNNL_X64
     if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        jit_call_t p_;
+        cpu::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.add = (void *)add;
@@ -108,17 +124,20 @@ void cvt_bfloat16_and_add_to_float(
         static const cpu::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_add_to_ps {
                 0, true};
         cvt_bf16_add_to_ps.jit_ker(&p_);
-    } else {
-        PRAGMA_OMP_SIMD()
-        for (size_t i = 0; i < nelems; ++i)
-            out[i] = (float)inp[i] + add[i];
+        return;
     }
+#endif
+
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = (float)inp[i] + add[i];
 }
 
 void add_floats_and_cvt_to_bfloat16(
         bfloat16_t *out, const float *inp0, const float *inp1, size_t nelems) {
+#if DNNL_X64
     if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        jit_call_t p_;
+        cpu::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp0;
         p_.add = (void *)inp1;
         p_.out = (void *)out;
@@ -126,11 +145,13 @@ void add_floats_and_cvt_to_bfloat16(
         static const cpu::jit_avx512_core_add_cvt_ps_to_bf16_t
                 add_cvt_ps_to_bf16;
         add_cvt_ps_to_bf16.jit_ker(&p_);
-    } else {
-        PRAGMA_OMP_SIMD()
-        for (size_t i = 0; i < nelems; ++i)
-            out[i] = inp0[i] + inp1[i];
+        return;
     }
+#endif
+
+    PRAGMA_OMP_SIMD()
+    for (size_t i = 0; i < nelems; ++i)
+        out[i] = inp0[i] + inp1[i];
 }
 
 } // namespace impl

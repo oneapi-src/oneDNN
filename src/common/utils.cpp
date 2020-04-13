@@ -34,6 +34,8 @@
 #include "dnnl.h"
 #include "utils.hpp"
 
+#include "cpu/platform.hpp"
+
 namespace dnnl {
 namespace impl {
 
@@ -193,6 +195,10 @@ dnnl_status_t dnnl_set_jit_profiling_flags(unsigned flags) {
 
 dnnl_status_t dnnl_set_jit_profiling_jitdumpdir(const char *dir) {
     return dnnl::impl::init_jit_profiling_jitdumpdir(dir, true);
+}
+
+dnnl_status_t dnnl_set_max_cpu_isa(dnnl_cpu_isa_t isa) {
+    return dnnl::impl::cpu::platform::set_max_cpu_isa(isa);
 }
 
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL

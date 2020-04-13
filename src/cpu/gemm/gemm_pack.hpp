@@ -14,33 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_PACK_HPP
-#define GEMM_PACK_HPP
+#ifndef CPU_GEMM_PACK_HPP
+#define CPU_GEMM_PACK_HPP
 
 #include "dnnl_config.h"
 #include "dnnl_types.h"
 
-#include "cpu/x64/cpu_isa_traits.hpp"
-
-#include "cpu/gemm/os_blas.hpp"
+#include "common/bfloat16.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-#if USE_MKL_PACKED_GEMM
-static inline bool pack_sgemm_supported() {
-    return true;
-}
-#else
-static inline bool pack_sgemm_supported() {
-    return mayiuse(sse41);
-}
-#endif
-
-static inline bool pack_gemm_bf16bf16f32_supported() {
-    return mayiuse(avx512_core);
-}
+bool pack_sgemm_supported();
+bool pack_gemm_bf16bf16f32_supported();
 
 dnnl_status_t DNNL_API sgemm_pack_get_size(const char *identifier,
         const char *transa, const char *transb, const dim_t *M, const dim_t *N,
@@ -107,4 +94,4 @@ dnnl_status_t DNNL_API gemm_s8s8s32_compute(const char *transa,
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMM_PACK_HPP
+#endif // CPU_GEMM_PACK_HPP

@@ -19,9 +19,12 @@
 #include "cpu/ncsp_batch_normalization.hpp"
 #include "cpu/nspc_batch_normalization.hpp"
 #include "cpu/ref_batch_normalization.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/jit_uni_batch_normalization.hpp"
 #include "cpu/x64/jit_uni_batch_normalization_s8.hpp"
 #include "cpu/x64/jit_uni_tbb_batch_normalization.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -32,41 +35,41 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+// clang-format off
 static const pd_create_f impl_list[] = {
         /* fp */
-        INSTANCE(jit_uni_batch_normalization_fwd_t<avx512_common>),
-        INSTANCE(jit_uni_batch_normalization_bwd_t<avx512_common>),
-        INSTANCE(jit_uni_batch_normalization_fwd_t<avx2>),
-        INSTANCE(jit_uni_batch_normalization_bwd_t<avx2>),
-        INSTANCE(jit_uni_batch_normalization_fwd_t<sse41>),
-        INSTANCE(jit_uni_batch_normalization_bwd_t<sse41>),
-        INSTANCE(jit_uni_tbb_batch_normalization_fwd_t<avx512_common>),
-        INSTANCE(jit_uni_tbb_batch_normalization_bwd_t<avx512_common>),
-        INSTANCE(jit_uni_tbb_batch_normalization_fwd_t<avx2>),
-        INSTANCE(jit_uni_tbb_batch_normalization_bwd_t<avx2>),
-        INSTANCE(jit_uni_tbb_batch_normalization_fwd_t<sse41>),
-        INSTANCE(jit_uni_tbb_batch_normalization_bwd_t<sse41>),
-        INSTANCE(ncsp_batch_normalization_fwd_t<f32>),
-        INSTANCE(ncsp_batch_normalization_bwd_t<f32>),
-        INSTANCE(ncsp_batch_normalization_fwd_t<bf16>),
-        INSTANCE(ncsp_batch_normalization_bwd_t<bf16>),
-        INSTANCE(nspc_batch_normalization_fwd_t<f32>),
-        INSTANCE(nspc_batch_normalization_bwd_t<f32>),
-        INSTANCE(nspc_batch_normalization_fwd_t<bf16>),
-        INSTANCE(nspc_batch_normalization_bwd_t<bf16>),
-        INSTANCE(ref_batch_normalization_fwd_t<f32>),
-        INSTANCE(ref_batch_normalization_bwd_t<f32>),
-        INSTANCE(ref_batch_normalization_fwd_t<bf16>),
-        INSTANCE(ref_batch_normalization_bwd_t<bf16>),
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<avx512_common>)
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<avx512_common>)
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_fwd_t<sse41>)
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_bwd_t<sse41>)
+        CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<avx512_common>)
+        CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx512_common>)
+        CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<avx2>)
+        CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_fwd_t<sse41>)
+        CPU_INSTANCE_X64(jit_uni_tbb_batch_normalization_bwd_t<sse41>)
+        CPU_INSTANCE(ncsp_batch_normalization_fwd_t<f32>)
+        CPU_INSTANCE(ncsp_batch_normalization_bwd_t<f32>)
+        CPU_INSTANCE(ncsp_batch_normalization_fwd_t<bf16>)
+        CPU_INSTANCE(ncsp_batch_normalization_bwd_t<bf16>)
+        CPU_INSTANCE(nspc_batch_normalization_fwd_t<f32>)
+        CPU_INSTANCE(nspc_batch_normalization_bwd_t<f32>)
+        CPU_INSTANCE(nspc_batch_normalization_fwd_t<bf16>)
+        CPU_INSTANCE(nspc_batch_normalization_bwd_t<bf16>)
+        CPU_INSTANCE(ref_batch_normalization_fwd_t<f32>)
+        CPU_INSTANCE(ref_batch_normalization_bwd_t<f32>)
+        CPU_INSTANCE(ref_batch_normalization_fwd_t<bf16>)
+        CPU_INSTANCE(ref_batch_normalization_bwd_t<bf16>)
         /* int */
-        INSTANCE(jit_uni_batch_normalization_s8_fwd_t<avx512_core>),
-        INSTANCE(jit_uni_batch_normalization_s8_fwd_t<avx2>),
-        INSTANCE(ref_batch_normalization_fwd_t<s8>),
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_s8_fwd_t<avx512_core>)
+        CPU_INSTANCE_X64(jit_uni_batch_normalization_s8_fwd_t<avx2>)
+        CPU_INSTANCE(ref_batch_normalization_fwd_t<s8>)
         /* eol */
         nullptr,
 };
-#undef INSTANCE
+// clang-format on
 } // namespace
 
 const pd_create_f *get_batch_normalization_impl_list(

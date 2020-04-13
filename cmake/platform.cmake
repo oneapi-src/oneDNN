@@ -28,6 +28,9 @@ if (DNNL_LIBRARY_TYPE STREQUAL "SHARED")
     add_definitions(-DDNNL_DLL)
 endif()
 
+# Specify the target architecture
+add_definitions(-DDNNL_${DNNL_TARGET_ARCH}=1)
+
 # UNIT8_MAX-like macros are a part of the C99 standard and not a part of the
 # C++ standard (see C99 standard 7.18.2 and 7.18.4)
 add_definitions(-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS)
@@ -141,11 +144,7 @@ elseif(UNIX OR MINGW)
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
         if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
              set(DEF_ARCH_OPT_FLAGS "-O3 -mcpu=native")
-             # Avoid error on overaligned type in jit_avx512_common_convolution_winograd.cpp
-             append_if(DNNL_WERROR CMAKE_CCXX_FLAGS "-Wno-error=attributes")
-             set(DNNL_ENABLE_JIT_PROFILING CACHE BOOL "OFF" FORCE)
-             message(WARNING "AArch64 build, DNNL_ENABLE_JIT_PROFILING is OFF")
-        else()
+        elseif(DNNL_TARGET_ARCH STREQUAL "X64")
              set(DEF_ARCH_OPT_FLAGS "-msse4.1")
         endif()
         # suppress warning on assumptions made regarding overflow (#146)

@@ -20,7 +20,10 @@
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_eltwise.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/jit_gemm_x8s8s32x_convolution_utils.hpp"
+#endif
 
 #include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
 
@@ -107,10 +110,10 @@ pp_ker_t::pp_ker_t(const convolution_pd_t *pd, const conv_gemm_conf_t &jcp)
 
 pp_ker_t *pp_ker_t::create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp) {
-    pp_ker_t *res = nullptr;
-
-    res = jit_pp_ker_create(pd, jcp);
+#if DNNL_X64
+    pp_ker_t *res = jit_pp_ker_create(pd, jcp);
     if (res) return res;
+#endif
 
     switch (pd->dst_md()->data_type) {
         case data_type::f32: return new ref_pp_ker_t<float>(pd, jcp);

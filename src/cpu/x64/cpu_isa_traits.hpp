@@ -43,10 +43,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-namespace x64 {
-const char *get_isa_info();
-} // namespace x64
-
 enum cpu_isa_bit_t : unsigned {
     sse41_bit = 1u << 0,
     avx_bit = 1u << 1,
@@ -72,6 +68,13 @@ enum cpu_isa_t : unsigned {
     avx512_core_bf16 = avx512_core_bf16_bit | avx512_core_vnni,
     isa_all = ~0u,
 };
+
+namespace x64 {
+const char *get_isa_info();
+
+cpu::cpu_isa_t DNNL_API get_max_cpu_isa(bool soft = false);
+status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
+} // namespace x64
 
 template <cpu_isa_t>
 struct cpu_isa_traits {}; /* ::vlen -> 32 (for avx2) */
@@ -149,16 +152,13 @@ struct cpu_isa_traits<avx512_core_bf16> : public cpu_isa_traits<avx512_core> {
     static constexpr const char *user_option_env = "AVX512_CORE_BF16";
 };
 
-cpu_isa_t DNNL_API get_max_cpu_isa(bool soft = false);
-dnnl::impl::status_t DNNL_API set_max_cpu_isa(dnnl_cpu_isa_t isa, bool force);
-
 namespace {
 
 static Xbyak::util::Cpu cpu;
 static inline bool mayiuse(const cpu_isa_t cpu_isa, bool soft = false) {
     using namespace Xbyak::util;
 
-    unsigned cpu_isa_mask = get_max_cpu_isa(soft);
+    unsigned cpu_isa_mask = x64::get_max_cpu_isa(soft);
     if ((cpu_isa_mask & cpu_isa) != cpu_isa) return false;
 
     switch (cpu_isa) {

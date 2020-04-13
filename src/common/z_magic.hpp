@@ -43,6 +43,10 @@
 #define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
 
+#define Z_DO_IF_0(...)
+#define Z_DO_IF_1(...) __VA_ARGS__
+#define Z_CONDITIONAL_DO(cond, ...) CONCAT2(Z_DO_IF_, cond)(__VA_ARGS__)
+
 #endif
 
 // vim: et ts=4 sw=4 cindent cino+=l0,\:4,N-s

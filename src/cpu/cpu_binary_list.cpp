@@ -17,8 +17,11 @@
 #include "cpu/cpu_engine.hpp"
 
 #include "cpu/ref_binary.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/jit_uni_binary.hpp"
 #include "cpu/x64/jit_uni_i8i8_binary.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -29,26 +32,26 @@ using pd_create_f = engine_t::primitive_desc_create_f;
 namespace {
 using namespace dnnl::impl::data_type;
 
-#define INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>
+// clang-format off
 static const pd_create_f impl_list[] = {
         /* fp */
-        INSTANCE(jit_uni_binary_t<f32>),
-        INSTANCE(jit_uni_binary_t<bf16>),
-        INSTANCE(ref_binary_t<f32>),
-        INSTANCE(ref_binary_t<bf16>),
+        CPU_INSTANCE_X64(jit_uni_binary_t<f32>)
+        CPU_INSTANCE_X64(jit_uni_binary_t<bf16>)
+        CPU_INSTANCE(ref_binary_t<f32>)
+        CPU_INSTANCE(ref_binary_t<bf16>)
         /* int */
-        INSTANCE(jit_uni_i8i8_binary_t<u8, u8>),
-        INSTANCE(jit_uni_i8i8_binary_t<u8, s8>),
-        INSTANCE(jit_uni_i8i8_binary_t<s8, s8>),
-        INSTANCE(jit_uni_i8i8_binary_t<s8, u8>),
-        INSTANCE(ref_binary_t<s8, u8, s8>),
-        INSTANCE(ref_binary_t<s8, s8, s8>),
-        INSTANCE(ref_binary_t<u8, s8, u8>),
-        INSTANCE(ref_binary_t<u8, u8, u8>),
+        CPU_INSTANCE_X64(jit_uni_i8i8_binary_t<u8, u8>)
+        CPU_INSTANCE_X64(jit_uni_i8i8_binary_t<u8, s8>)
+        CPU_INSTANCE_X64(jit_uni_i8i8_binary_t<s8, s8>)
+        CPU_INSTANCE_X64(jit_uni_i8i8_binary_t<s8, u8>)
+        CPU_INSTANCE(ref_binary_t<s8, u8, s8>)
+        CPU_INSTANCE(ref_binary_t<s8, s8, s8>)
+        CPU_INSTANCE(ref_binary_t<u8, s8, u8>)
+        CPU_INSTANCE(ref_binary_t<u8, u8, u8>)
         /* eol */
         nullptr,
 };
-#undef INSTANCE
+// clang-format on
 } // namespace
 
 const pd_create_f *get_binary_impl_list(const binary_desc_t *desc) {

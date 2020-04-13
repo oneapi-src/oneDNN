@@ -20,14 +20,13 @@
 #include "dnnl_config.h"
 
 #include "common/c_types_map.hpp"
+#include "common/z_magic.hpp"
 
 // Possible architectures:
 // - DNNL_X64
 // - DNNL_AARCH64
 // - DNNL_ARCH_GENERIC
-// All macros are defined to either 0 or 1. Only one macro is defined as 1,
-// and indicates the target architecture. By default the architecture is
-// auto-detected, but user can override it by passing `-DDNNL_${ARCH}=1`.
+// Target architecture macro is set to 1, others to 0. All macros are defined.
 
 #if defined(DNNL_X64) + defined(DNNL_AARCH64) + defined(DNNL_ARCH_GENERIC) == 0
 #if defined(__x86_64__) || defined(_M_X64)
@@ -53,12 +52,18 @@
 #define DNNL_ARCH_GENERIC 0
 #endif
 
+// Helper macros: expand the parameters only on the corresponding architecture.
+// Equivalent to: #if DNNL_$ARCH ... #endif
+#define DNNL_X64_ONLY(...) Z_CONDITIONAL_DO(DNNL_X64, __VA_ARGS__)
+#define DNNL_AARCH64_ONLY(...) Z_CONDITIONAL_DO(DNNL_AARCH64_ONLY, __VA_ARGS__)
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace platform {
 
 const char *get_isa_info();
+status_t set_max_cpu_isa(dnnl_cpu_isa_t isa);
 
 bool DNNL_API has_data_type_support(data_type_t data_type);
 

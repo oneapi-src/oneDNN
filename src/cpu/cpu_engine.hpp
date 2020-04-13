@@ -24,6 +24,11 @@
 #include "common/c_types_map.hpp"
 #include "common/engine.hpp"
 
+#include "cpu/platform.hpp"
+
+#define CPU_INSTANCE(...) &primitive_desc_t::create<__VA_ARGS__::pd_t>,
+#define CPU_INSTANCE_X64(...) DNNL_X64_ONLY(CPU_INSTANCE(__VA_ARGS__))
+
 namespace dnnl {
 namespace impl {
 namespace cpu {

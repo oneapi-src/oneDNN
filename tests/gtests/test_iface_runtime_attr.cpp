@@ -19,6 +19,8 @@
 
 #include "dnnl.hpp"
 
+#include "src/cpu/platform.hpp"
+
 namespace dnnl {
 
 // short names for brevity
@@ -204,6 +206,10 @@ CPU_TEST_F(runtime_attr_test, TestReorder) {
 }
 
 TEST_F(runtime_attr_test, TestRNN) {
+#if !DNNL_X64
+    return;
+#endif
+
     memory::dim n = 1, t = 1, l = 10, c = 8, g = 4, d = 1;
     memory::desc src_layer_md {{t, n, c}, data_type::u8, tag::tnc};
     memory::desc src_iter_md {{l, d, n, c}, data_type::u8, tag::ldnc};

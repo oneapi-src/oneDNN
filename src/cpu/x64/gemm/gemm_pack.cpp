@@ -19,17 +19,30 @@
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
+#include "cpu/gemm/os_blas.hpp"
+
 #include "cpu/x64/cpu_isa_traits.hpp"
 
-#include "cpu/gemm/gemm.hpp"
-#include "cpu/gemm/os_blas.hpp"
 #include "cpu/x64/gemm/gemm_driver.hpp"
-#include "cpu/x64/gemm/gemm_pack.hpp"
 #include "cpu/x64/gemm/gemm_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
+
+bool pack_sgemm_supported() {
+#if USE_MKL_PACKED_GEMM
+    return true;
+#else
+    return mayiuse(sse41);
+#endif
+}
+
+bool pack_gemm_bf16bf16f32_supported() {
+    return mayiuse(avx512_core);
+}
 
 #if USE_MKL_PACKED_GEMM
 static inline CBLAS_IDENTIFIER cblas_identifier(const char *identifier) {

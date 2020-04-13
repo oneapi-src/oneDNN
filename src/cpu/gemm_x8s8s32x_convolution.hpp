@@ -23,12 +23,18 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu/cpu_convolution_pd.hpp"
 
 #include "cpu/gemm_convolution_utils.hpp"
 #include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
 
 #include "cpu/gemm/gemm.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -98,8 +104,11 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                         | memory_extra_flags::scale_adjust;
                 want_wei_md.extra.compensation_mask
                         = (1 << 0) + (with_groups() ? (1 << 1) : 0);
-                want_wei_md.extra.scale_adjust
-                        = mayiuse(avx512_core_vnni) ? 1.f : 0.5f;
+                want_wei_md.extra.scale_adjust = 1.f;
+#if DNNL_X64
+                if (!mayiuse(avx512_core_vnni))
+                    want_wei_md.extra.scale_adjust = 0.5f;
+#endif
             }
 
             if (weights_md_.format_kind == format_kind::any) {

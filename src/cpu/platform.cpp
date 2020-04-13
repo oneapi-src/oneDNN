@@ -14,9 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/x64/cpu_isa_traits.hpp"
-
 #include "cpu/platform.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -24,44 +26,71 @@ namespace cpu {
 namespace platform {
 
 const char *get_isa_info() {
+#if DNNL_X64
     return x64::get_isa_info();
+#else
+    return "Generic";
+#endif
+}
+
+status_t set_max_cpu_isa(dnnl_cpu_isa_t isa) {
+#if DNNL_X64
+    return x64::set_max_cpu_isa(isa);
+#else
+    return status::unimplemented;
+#endif
 }
 
 bool has_data_type_support(data_type_t data_type) {
     switch (data_type) {
-        case data_type::bf16: return mayiuse(avx512_core);
+        case data_type::bf16:
+#if DNNL_X64
+            return mayiuse(avx512_core);
+#else
+            return false;
+#endif
         case data_type::f16: return false;
         default: return true;
     }
 }
 
 unsigned get_per_core_cache_size(int level) {
-    if (cpu.getDataCacheLevels() == 0) {
-        // If Xbyak is not able to fetch the cache topology, default to 32KB
-        // of L1, 512KB of L2 and 1MB of L3 per core.
+    auto guess = [](int level) {
         switch (level) {
-            case (1): return 32U * 1024;
-            case (2): return 512U * 1024;
-            case (3): return 1024U * 1024;
-            default: return 0;
+            case 1: return 32U * 1024;
+            case 2: return 512U * 1024;
+            case 3: return 1024U * 1024;
+            default: return 0U;
         }
-    }
+    };
+
+#if DNNL_X64
+    if (cpu.getDataCacheLevels() == 0) return guess(level);
 
     if (level > 0 && (unsigned)level <= cpu.getDataCacheLevels()) {
         unsigned l = level - 1;
         return cpu.getDataCacheSize(l) / cpu.getCoresSharingDataCache(l);
     } else
         return 0;
+#else
+    return guess(level);
+#endif
 }
 
 unsigned get_num_cores() {
+#if DNNL_X64
     return cpu.getNumCores(Xbyak::util::CoreLevel);
+#else
+    return 1;
+#endif
 }
 
 int get_vector_register_size() {
+#if DNNL_X64
     if (mayiuse(avx512_common)) return cpu_isa_traits<avx512_common>::vlen;
     if (mayiuse(avx)) return cpu_isa_traits<avx>::vlen;
     if (mayiuse(sse41)) return cpu_isa_traits<sse41>::vlen;
+#endif
     return 0;
 }
 

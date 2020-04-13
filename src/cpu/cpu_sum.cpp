@@ -18,7 +18,10 @@
 
 #include "cpu/ref_sum.hpp"
 #include "cpu/simple_sum.hpp"
+
+#if DNNL_X64
 #include "cpu/x64/jit_avx512_core_bf16_sum.hpp"
+#endif
 
 namespace dnnl {
 namespace impl {
@@ -27,17 +30,21 @@ namespace cpu {
 using spd_create_f = dnnl::impl::engine_t::sum_primitive_desc_create_f;
 
 namespace {
-#define INSTANCE(...) __VA_ARGS__::pd_t::create
+// clang-format off
+#define INSTANCE(...) __VA_ARGS__::pd_t::create,
+#define INSTANCE_X64(...) DNNL_X64_ONLY(INSTANCE(__VA_ARGS__))
 static const spd_create_f cpu_sum_impl_list[] = {
-        INSTANCE(jit_bf16_sum_t<data_type::bf16, data_type::bf16>),
-        INSTANCE(jit_bf16_sum_t<data_type::bf16, data_type::f32>),
-        INSTANCE(simple_sum_t<data_type::bf16>),
-        INSTANCE(simple_sum_t<data_type::bf16, data_type::f32>),
-        INSTANCE(simple_sum_t<data_type::f32>),
-        INSTANCE(ref_sum_t),
+        INSTANCE_X64(jit_bf16_sum_t<data_type::bf16, data_type::bf16>)
+        INSTANCE_X64(jit_bf16_sum_t<data_type::bf16, data_type::f32>)
+        INSTANCE(simple_sum_t<data_type::bf16>)
+        INSTANCE(simple_sum_t<data_type::bf16, data_type::f32>)
+        INSTANCE(simple_sum_t<data_type::f32>)
+        INSTANCE(ref_sum_t)
         nullptr,
 };
+#undef INSTANCE_X64
 #undef INSTANCE
+// clang-format on
 } // namespace
 
 const spd_create_f *cpu_engine_t::get_sum_implementation_list() const {

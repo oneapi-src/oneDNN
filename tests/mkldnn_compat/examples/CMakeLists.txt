@@ -32,6 +32,15 @@ set_if(UNIX LIBM m)
 
 file(GLOB sources *.cpp *.c)
 
+# no RNN support on non-x64 architectures
+if (NOT DNNL_TARGET_ARCH STREQUAL "X64")
+    foreach(src ${sources})
+        if(${src} MATCHES "rnn")
+            list(REMOVE_ITEM sources "${src}")
+        endif()
+    endforeach()
+endif()
+
 foreach(src ${sources})
     get_filename_component(src_name ${src} NAME)
     string(REGEX REPLACE "[_\\.]" "-" example_name ${src_name})
