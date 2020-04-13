@@ -192,7 +192,7 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
 
     auto nd_range = conf.dispatch.nd_range();
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+    const compute::kernel_t &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;

@@ -33,6 +33,7 @@ class kernel_impl_t;
 
 class kernel_t {
 public:
+    using id_t = intptr_t;
     kernel_t(kernel_impl_t *impl) : impl_(impl) {}
 
     kernel_t() = default;
@@ -42,9 +43,12 @@ public:
     virtual ~kernel_t() = default;
 
     operator bool() const { return bool(impl_); }
+    id_t get_id() const;
 
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const;
+
+    status_t realize(kernel_t *kernel, engine_t *engine) const;
 
 private:
     std::shared_ptr<kernel_impl_t> impl_;
@@ -60,60 +64,19 @@ public:
 
     virtual status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const = 0;
+
+    virtual status_t realize(kernel_t *kernel, engine_t *engine) const = 0;
 };
 
+inline kernel_t::id_t kernel_t::get_id() const {
+    return reinterpret_cast<id_t>(impl_.get());
+}
 inline status_t kernel_t::parallel_for(stream_t &stream,
         const nd_range_t &range, const kernel_arg_list_t &arg_list) const {
     return impl_->parallel_for(stream, range, arg_list);
 }
-
-class binary_impl_t;
-
-class binary_t {
-public:
-    using id_t = intptr_t;
-    binary_t(binary_impl_t *impl) : impl_(impl) {}
-
-    binary_t() = default;
-    binary_t(binary_t &&other) = default;
-    binary_t(const binary_t &other) = default;
-    binary_t &operator=(const binary_t &other) = default;
-    virtual ~binary_t() = default;
-
-    operator bool() const { return bool(impl_); }
-    size_t size() const;
-    const char *name() const;
-    const unsigned char *data() const;
-    id_t get_id() const;
-
-private:
-    std::shared_ptr<binary_impl_t> impl_;
-};
-
-class binary_impl_t {
-public:
-    binary_impl_t() = default;
-
-    binary_impl_t(const binary_impl_t &) = delete;
-    binary_impl_t &operator=(const binary_impl_t &) = delete;
-    virtual ~binary_impl_t() = default;
-
-    virtual size_t size() const = 0;
-    virtual const char *name() const = 0;
-    virtual const unsigned char *data() const = 0;
-};
-
-inline binary_t::id_t binary_t::get_id() const {
-    return reinterpret_cast<id_t>(impl_.get());
-}
-inline size_t binary_t::size() const {
-    return impl_->size();
-}
-inline const char *binary_t::name() const {
-    return impl_->name();
-}
-inline const unsigned char *binary_t::data() const {
-    return impl_->data();
+inline status_t kernel_t::realize(kernel_t *kernel, engine_t *engine) const {
+    return impl_->realize(kernel, engine);
 }
 
 } // namespace compute

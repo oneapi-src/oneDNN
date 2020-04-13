@@ -135,7 +135,7 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
 
     auto nd_range_kernel = conf.dispatch.nd_range();
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status
             = compute_stream->parallel_for(nd_range_kernel, kernel, arg_list);
@@ -179,7 +179,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
 
         auto nd_range = conf.dispatch_scaleshift.nd_range();
         const auto &kernel_scaleshift
-                = pr->get_kernel(binary_scaleshift_.get_id());
+                = pr->get_kernel(kernel_scaleshift_.get_id());
         assert(kernel_scaleshift);
 
         status_t status = compute_stream->parallel_for(
@@ -197,7 +197,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     arg_list.set(6, conf.eps);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status
             = compute_stream->parallel_for(nd_range_kernel, kernel, arg_list);

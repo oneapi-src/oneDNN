@@ -113,7 +113,7 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     const auto nd_range = compute::nd_range_t(gws);
     compute::compute_stream_t *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 

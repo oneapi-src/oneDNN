@@ -108,8 +108,8 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, kernel_name, kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -121,7 +121,7 @@ struct gen9_convolution_fwd_t : public gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
@@ -192,8 +192,8 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, kernel_name, kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -205,7 +205,7 @@ struct gen9_convolution_bwd_data_t : public gpu_primitive_t {
 private:
     status_t execute_backward_data(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
@@ -263,8 +263,8 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, kernel_name, kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, kernel_name, kernel_ctx);
+        if (!kernel_) return status::runtime_error;
         return status::success;
     }
 
@@ -275,7 +275,7 @@ struct gen9_convolution_bwd_weights_t : public gpu_primitive_t {
 private:
     status_t execute_backward_weights(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

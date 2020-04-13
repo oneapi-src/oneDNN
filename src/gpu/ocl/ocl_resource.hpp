@@ -29,7 +29,7 @@ namespace gpu {
 namespace ocl {
 
 struct ocl_resource_t : public resource_t {
-    using key_kernel_t = compute::binary_t::id_t;
+    using key_kernel_t = compute::kernel_t::id_t;
     using mapped_kernel_t = compute::kernel_t;
 
     using key_memory_t = int;
@@ -37,30 +37,17 @@ struct ocl_resource_t : public resource_t {
 
     ocl_resource_t() = default;
 
-    status_t create_kernels_and_add(
-            engine_t *engine, const std::vector<compute::binary_t> &binaries) {
-        auto *compute_engine
-                = utils::downcast<compute::compute_engine_t *>(engine);
-        std::vector<compute::kernel_t> kernels;
-        CHECK(compute_engine->create_kernels(&kernels, binaries));
-        for (size_t i = 0; i < binaries.size(); i++) {
-            if (!binaries[i]) continue;
-            assert(binary_id_to_kernel_.count(binaries[i].get_id()) == 0);
-            binary_id_to_kernel_.emplace(binaries[i].get_id(), kernels[i]);
-        }
+    status_t add_kernel(compute::kernel_t::id_t kernel_id,
+            const compute::kernel_t &kernel) {
+        if (!kernel) return status::success;
+        assert(kernel_id_to_kernel_.count(kernel_id) == 0);
+        kernel_id_to_kernel_.emplace(kernel_id, kernel);
         return status::success;
     }
 
-    status_t create_kernel_and_add(
-            engine_t *engine, const compute::binary_t &binary) {
-        if (!binary) return status::success;
-        assert(binary_id_to_kernel_.count(binary.get_id()) == 0);
-        return create_kernels_and_add(engine, {binary});
-    }
-
     const compute::kernel_t &get_kernel(key_kernel_t id) const {
-        assert(binary_id_to_kernel_.count(id));
-        const auto &kernel = binary_id_to_kernel_.at(id);
+        assert(kernel_id_to_kernel_.count(id));
+        const auto &kernel = kernel_id_to_kernel_.at(id);
         assert(kernel);
         return kernel;
     }
@@ -77,7 +64,7 @@ struct ocl_resource_t : public resource_t {
     }
 
 private:
-    std::unordered_map<key_kernel_t, mapped_kernel_t> binary_id_to_kernel_;
+    std::unordered_map<key_kernel_t, mapped_kernel_t> kernel_id_to_kernel_;
     std::unordered_map<key_memory_t, mapped_memory_t> idx_to_memory_storage_;
 };
 

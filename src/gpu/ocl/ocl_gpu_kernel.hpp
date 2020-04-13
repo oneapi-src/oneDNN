@@ -31,33 +31,40 @@ namespace ocl {
 
 class ocl_gpu_kernel_t : public compute::kernel_impl_t {
 public:
-    ocl_gpu_kernel_t(cl_kernel ocl_kernel) : ocl_kernel_(ocl_kernel) {}
-    virtual ~ocl_gpu_kernel_t() override;
+    ocl_gpu_kernel_t(cl_kernel ocl_kernel)
+        : state_(state_t::kernel), ocl_kernel_(ocl_kernel) {}
+    ocl_gpu_kernel_t(const std::vector<unsigned char> &binary,
+            const std::string &binary_name)
+        : state_(state_t::binary)
+        , ocl_kernel_(nullptr)
+        , binary_(binary)
+        , binary_name_(binary_name) {
+        MAYBE_UNUSED(state_);
+    }
 
-    cl_kernel ocl_kernel() const { return ocl_kernel_; }
+    ~ocl_gpu_kernel_t() override;
+
+    cl_kernel ocl_kernel() const {
+        assert(state_ == state_t::kernel);
+        return ocl_kernel_;
+    }
 
     status_t parallel_for(stream_t &stream, const compute::nd_range_t &range,
             const compute::kernel_arg_list_t &arg_list) const override;
 
+    status_t realize(
+            compute::kernel_t *kernel, engine_t *engine) const override;
+
+    const char *name() const {
+        assert(state_ == state_t::binary);
+        return binary_name_.c_str();
+    }
+
+    enum class state_t { binary, kernel };
+
 private:
+    state_t state_;
     cl_kernel ocl_kernel_;
-};
-
-class ocl_gpu_binary_t : public compute::binary_impl_t {
-public:
-    ocl_gpu_binary_t() = default;
-    ocl_gpu_binary_t(const std::vector<unsigned char> &binary,
-            const std::string &binary_name)
-        : binary_(binary), binary_name_(binary_name) {}
-
-    virtual ~ocl_gpu_binary_t() = default;
-
-    const unsigned char *data() const override { return binary_.data(); }
-
-    size_t size() const override { return binary_.size(); }
-    const char *name() const override { return binary_name_.c_str(); }
-
-private:
     std::vector<unsigned char> binary_;
     std::string binary_name_;
 };

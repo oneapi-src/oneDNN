@@ -204,9 +204,9 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        create_binary(
-                engine, &compute_x8x8s32_binary_, kernel_name, kernel_ctx);
-        if (!compute_x8x8s32_binary_) return status::runtime_error;
+        create_kernel(
+                engine, &compute_x8x8s32_kernel_, kernel_name, kernel_ctx);
+        if (!compute_x8x8s32_kernel_) return status::runtime_error;
 
         //scale kernel
         kernel_name = "gen9_gemm_scale_x8x8s32";
@@ -217,8 +217,8 @@ struct gen9_gemm_x8x8s32_t : public gpu_gemm_t {
                 pd()->desc()->c_type);
         if (status != status::success) return status;
 
-        create_binary(engine, &scale_x8x8s32_binary_, kernel_name, kernel_ctx);
-        if (!scale_x8x8s32_binary_) return status::runtime_error;
+        create_kernel(engine, &scale_x8x8s32_kernel_, kernel_name, kernel_ctx);
+        if (!scale_x8x8s32_kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -252,8 +252,8 @@ private:
 
     virtual status_t execute_standard(const gemm_exec_ctx_t &ctx) const;
 
-    compute::binary_t compute_x8x8s32_binary_;
-    compute::binary_t scale_x8x8s32_binary_;
+    compute::kernel_t compute_x8x8s32_kernel_;
+    compute::kernel_t scale_x8x8s32_kernel_;
 
     type gemm_type_ = type::no_copy;
     int hw_threads_ = 0;

@@ -65,8 +65,8 @@ struct simple_sum_t : public gpu_primitive_t {
 
     status_t init(engine_t *engine) override {
         compute::kernel_ctx_t kernel_ctx;
-        create_binary(engine, &binary_, "simple_sum", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "simple_sum", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
         return status::success;
     }
 
@@ -77,7 +77,7 @@ struct simple_sum_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

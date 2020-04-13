@@ -100,8 +100,8 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, "wei_reorder", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "wei_reorder", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
         return status::success;
     }
 
@@ -125,7 +125,10 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
             CHECK(tmp_mem_storage->unmap_data(scales_ptr));
             r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
         }
-        CHECK(r->create_kernel_and_add(engine, binary_));
+        compute::kernel_t realized_kernel;
+        CHECK(kernel_.realize(&realized_kernel, engine));
+        r->add_kernel(kernel_.get_id(), realized_kernel);
+
         mapper.add(this, std::move(r));
         return status::success;
     }
@@ -134,7 +137,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
     enum { SCALES_ = 0 };
 };
 

@@ -284,7 +284,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
         auto nd_range_calc_mean = conf.dispatch_calc_stat.nd_range();
 
         const auto &calculate_mean_kernel
-                = pr->get_kernel(calculate_mean_binary_.get_id());
+                = pr->get_kernel(calculate_mean_kernel_.get_id());
 
         status = compute_stream->parallel_for(
                 nd_range_calc_mean, calculate_mean_kernel, calc_mean_arg_list);
@@ -296,7 +296,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 
         auto nd_range_reduce_mean = conf.dispatch_reduce_stat.nd_range();
         const auto &reduce_mean_kernel
-                = pr->get_kernel(reduce_mean_binary_.get_id());
+                = pr->get_kernel(reduce_mean_kernel_.get_id());
 
         status = compute_stream->parallel_for(
                 nd_range_reduce_mean, reduce_mean_kernel, reduce_mean_arg_list);
@@ -309,7 +309,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 
         auto nd_range_calc_var = conf.dispatch_calc_stat.nd_range();
         const auto &calculate_variance_kernel
-                = pr->get_kernel(calculate_variance_binary_.get_id());
+                = pr->get_kernel(calculate_variance_kernel_.get_id());
 
         status = compute_stream->parallel_for(nd_range_calc_var,
                 calculate_variance_kernel, calc_var_arg_list);
@@ -321,7 +321,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
 
         auto nd_range_reduce_var = conf.dispatch_reduce_stat.nd_range();
         const auto &reduce_variance_kernel
-                = pr->get_kernel(reduce_variance_binary_.get_id());
+                = pr->get_kernel(reduce_variance_kernel_.get_id());
 
         status = compute_stream->parallel_for(nd_range_reduce_var,
                 reduce_variance_kernel, reduce_var_arg_list);
@@ -338,7 +338,7 @@ status_t ref_batch_normalization_fwd_t::execute_forward(
     arg_list.set(6, conf.eps);
 
     auto nd_range = conf.dispatch.nd_range();
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
@@ -405,7 +405,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
 
     auto nd_range = conf.dispatch_calc_stat.nd_range();
     const auto &calculate_stats_kernel
-            = pr->get_kernel(calculate_stats_binary_.get_id());
+            = pr->get_kernel(calculate_stats_kernel_.get_id());
     status = compute_stream->parallel_for(
             nd_range, calculate_stats_kernel, calc_stats_arg_list);
     if (status != status::success) return status;
@@ -418,7 +418,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
 
     auto nd_range_reduce_stat = conf.dispatch_reduce_stat.nd_range();
     const auto &reduce_stats_kernel
-            = pr->get_kernel(reduce_stats_binary_.get_id());
+            = pr->get_kernel(reduce_stats_kernel_.get_id());
     status = compute_stream->parallel_for(
             nd_range_reduce_stat, reduce_stats_kernel, reduce_stats_arg_list);
     if (status != status::success) return status;
@@ -435,7 +435,7 @@ status_t ref_batch_normalization_bwd_t::execute_backward(
     arg_list.set(8, conf.eps);
 
     nd_range = conf.dispatch.nd_range();
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
     status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
     return status;

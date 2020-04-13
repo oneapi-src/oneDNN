@@ -310,9 +310,9 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
             }
             kernel_ctx.define_int("WITH_SUM", pd()->with_sum());
 
-            create_binary(engine, &post_process_binary_,
+            create_kernel(engine, &post_process_kernel_,
                     "gemm_x8s8s32x_inner_product_post_process", kernel_ctx);
-            if (!post_process_binary_) return status::runtime_error;
+            if (!post_process_kernel_) return status::runtime_error;
         }
 
         return status::success;
@@ -323,7 +323,10 @@ struct gemm_x8s8s32x_inner_product_fwd_t : public gpu_primitive_t {
         if (mapper.has_resource(this)) return status::success;
         auto r = utils::make_unique<ocl_resource_t>();
         if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, post_process_binary_));
+        compute::kernel_t realized_kernel;
+        CHECK(post_process_kernel_.realize(&realized_kernel, engine));
+        r->add_kernel(post_process_kernel_.get_id(), realized_kernel);
+
         if (pd()->with_scales()) {
             memory_desc_wrapper scales_mdw(pd()->scales_md());
             memory_storage_t *tmp_mem_storage_ptr;
@@ -358,7 +361,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::shared_ptr<primitive_t> gemm_;
-    compute::binary_t post_process_binary_;
+    compute::kernel_t post_process_kernel_;
     enum { SCALES_ = 0 };
 };
 

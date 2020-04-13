@@ -116,8 +116,8 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        create_binary(engine, &binary_, "ref_resampling_fwd", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_resampling_fwd", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -129,7 +129,7 @@ struct ref_resampling_fwd_t : public gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 struct ref_resampling_bwd_t : public gpu_primitive_t {
@@ -215,8 +215,8 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
 
         def_dispatch(kernel_ctx, pd()->dispatch);
 
-        create_binary(engine, &binary_, "ref_resampling_bwd", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_resampling_bwd", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -228,7 +228,7 @@ struct ref_resampling_bwd_t : public gpu_primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

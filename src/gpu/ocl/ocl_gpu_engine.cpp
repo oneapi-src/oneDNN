@@ -90,33 +90,6 @@ cl_uint count_lines(const char *code[]) {
 
 status_t ocl_gpu_engine_t::create_kernels(
         std::vector<compute::kernel_t> *kernels,
-        const std::vector<compute::binary_t> &binaries) const {
-    *kernels = std::vector<compute::kernel_t>(binaries.size());
-
-    for (size_t i = 0; i < binaries.size(); i++) {
-        if (!binaries[i]) continue;
-        cl_int err;
-        cl_device_id dev = device();
-        const unsigned char *binary_buffer = binaries[i].data();
-        size_t binary_size = binaries[i].size();
-        assert(binary_size > 0);
-
-        auto program = clCreateProgramWithBinary(context(), sizeof(size_t),
-                &dev, &binary_size, &binary_buffer, nullptr, &err);
-        OCL_CHECK(err);
-        err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
-        OCL_CHECK(err);
-        cl_kernel ocl_kernel
-                = clCreateKernel(program, binaries[i].name(), &err);
-        OCL_CHECK(err);
-        (*kernels)[i] = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel));
-        OCL_CHECK(clReleaseProgram(program));
-    }
-    return status::success;
-}
-
-status_t ocl_gpu_engine_t::create_binaries(
-        std::vector<compute::binary_t> *binaries,
         const std::vector<const char *> &kernel_names,
         const compute::kernel_ctx_t &kernel_ctx) const {
     const std::string &options = kernel_ctx.options();
@@ -128,9 +101,9 @@ status_t ocl_gpu_engine_t::create_binaries(
         code_strings.push_back(code);
     }
 
-    *binaries = std::vector<compute::binary_t>(kernel_names.size());
+    *kernels = std::vector<compute::kernel_t>(kernel_names.size());
     for (size_t i = 0; i < kernel_names.size(); ++i) {
-        if (!kernel_names[i] || (*binaries)[i]) continue;
+        if (!kernel_names[i] || (*kernels)[i]) continue;
 
         const char **code = code_strings[i];
 
@@ -177,8 +150,8 @@ status_t ocl_gpu_engine_t::create_binaries(
 
         for (size_t j = i; j < kernel_names.size(); j++) {
             if (code_strings[j] == code_strings[i]) {
-                (*binaries)[j] = compute::binary_t(
-                        new ocl_gpu_binary_t(binary, kernel_names[j]));
+                (*kernels)[j] = compute::kernel_t(
+                        new ocl_gpu_kernel_t(binary, kernel_names[j]));
             }
         }
         OCL_CHECK(clReleaseProgram(program));

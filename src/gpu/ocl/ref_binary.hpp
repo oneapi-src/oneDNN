@@ -136,8 +136,8 @@ struct ref_binary_t : public gpu_primitive_t {
         auto status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, "ref_binary", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_binary", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -149,7 +149,7 @@ struct ref_binary_t : public gpu_primitive_t {
 private:
     status_t execute_ref(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

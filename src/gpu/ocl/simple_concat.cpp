@@ -161,7 +161,7 @@ status_t simple_concat_t::execute_concat(const exec_ctx_t &ctx) const {
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const compute::kernel_t &kernel = pr->get_kernel(binary_.get_id());
+    const compute::kernel_t &kernel = pr->get_kernel(kernel_.get_id());
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
     return status;
 }

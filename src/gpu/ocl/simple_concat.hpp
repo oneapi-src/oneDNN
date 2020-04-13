@@ -57,8 +57,8 @@ struct simple_concat_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_binary(engine, &binary_, "simple_concat", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "simple_concat", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -71,7 +71,7 @@ private:
     status_t execute_concat(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

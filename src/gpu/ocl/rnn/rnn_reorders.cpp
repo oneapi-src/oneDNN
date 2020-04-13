@@ -135,7 +135,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
         arg_list.set(2, out_storage);
 
         auto nd_range = conf.dispatch.nd_range();
-        const auto &kernel = pr->get_kernel(binary_.get_id());
+        const auto &kernel = pr->get_kernel(kernel_.get_id());
 
         return compute_stream->parallel_for(nd_range, kernel, arg_list);
     };

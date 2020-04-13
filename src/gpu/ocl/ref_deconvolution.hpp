@@ -431,9 +431,9 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, bias_data_type, "BIA");
         def_data_type(kernel_ctx, accum_data_type, "ACC");
 
-        create_binary(
-                engine, &bias_binary_, "ref_deconv_backward_bias", kernel_ctx);
-        if (!bias_binary_) return status::runtime_error;
+        create_kernel(
+                engine, &bias_kernel_, "ref_deconv_backward_bias", kernel_ctx);
+        if (!bias_kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -472,7 +472,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
             const auto &pr
                     = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
             const compute::kernel_t &bias_kernel
-                    = pr->get_kernel(bias_binary_.get_id());
+                    = pr->get_kernel(bias_kernel_.get_id());
             status = compute_stream->parallel_for(
                     nd_range, bias_kernel, arg_list);
         }
@@ -487,7 +487,7 @@ protected:
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::shared_ptr<primitive_t> conv_p_;
-    compute::binary_t bias_binary_;
+    compute::kernel_t bias_kernel_;
     size_t gws[3];
     data_type_t dst_data_type = data_type::undef;
     data_type_t bias_data_type = data_type::undef;

@@ -110,8 +110,8 @@ struct simple_reorder_t : public gpu_primitive_t {
         const auto &conf = pd()->conf;
         if (conf.nelems == 0) return status::success;
 
-        create_binary(engine, &binary_, "simple_reorder", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "simple_reorder", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
         return status::success;
     }
 
@@ -119,7 +119,7 @@ struct simple_reorder_t : public gpu_primitive_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

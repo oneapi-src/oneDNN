@@ -54,7 +54,7 @@ status_t gen9_gemm_t::launch_beta(const gemm_exec_ctx_t &ctx,
         int64_t lda) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &beta_kernel = pr->get_kernel(beta_binary_.get_id());
+    const auto &beta_kernel = pr->get_kernel(beta_kernel_.get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, m);
@@ -78,7 +78,7 @@ status_t gen9_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
         bool trans) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(copy_binary_[outer][trans].get_id());
+    const auto &kernel = pr->get_kernel(copy_kernel_[outer][trans].get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, x);
@@ -111,7 +111,7 @@ status_t gen9_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         float eltwise_scale, bool beta0) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(compute_binary_[beta0].get_id());
+    const auto &kernel = pr->get_kernel(compute_kernel_[beta0].get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, m);
@@ -155,7 +155,7 @@ status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         float eltwise_scale, memory_storage_t &flag) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(nocopy_binary_.get_id());
+    const auto &kernel = pr->get_kernel(nocopy_kernel_.get_id());
 
     int64_t offset_f = 0;
 
@@ -227,7 +227,7 @@ status_t gen9_gemm_t::launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(nocopy_superbinary_.get_id());
+    const auto &kernel = pr->get_kernel(nocopy_superkernel_.get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, plan);

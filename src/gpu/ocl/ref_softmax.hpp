@@ -127,8 +127,8 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        create_binary(engine, &binary_, "ref_softmax_fwd_generic", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_softmax_fwd_generic", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -140,7 +140,7 @@ struct ref_softmax_fwd_t : public gpu_primitive_t {
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 struct ref_softmax_bwd_t : public gpu_primitive_t {
@@ -202,8 +202,8 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
         for (int i = 0; i < 3; i++)
             kernel_ctx.define_int(utils::format("BLOCK_%d", i), pd()->block[i]);
 
-        create_binary(engine, &binary_, "ref_softmax_bwd_generic", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_softmax_bwd_generic", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -215,7 +215,7 @@ struct ref_softmax_bwd_t : public gpu_primitive_t {
 protected:
     status_t execute_generic(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

@@ -37,6 +37,7 @@ ocl_gpu_kernel_t::~ocl_gpu_kernel_t() {
 status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
         const compute::nd_range_t &range,
         const compute::kernel_arg_list_t &arg_list) const {
+    assert(state_ == state_t::kernel);
 
     auto *ocl_stream = utils::downcast<ocl_stream_t *>(&stream);
     cl_command_queue queue = ocl_stream->queue();
@@ -77,6 +78,31 @@ status_t ocl_gpu_kernel_t::parallel_for(stream_t &stream,
             range.global_range(), range.local_range(), 0, nullptr, nullptr);
     status_t status = convert_to_dnnl(err);
     return status;
+}
+
+status_t ocl_gpu_kernel_t::realize(
+        compute::kernel_t *kernel, engine_t *engine) const {
+    assert(state_ == state_t::binary);
+    if (binary_.size() == 0) return status::success;
+    auto *compute_engine = utils::downcast<ocl_gpu_engine_t *>(engine);
+
+    cl_int err;
+    cl_device_id dev = compute_engine->device();
+    const unsigned char *binary_buffer = binary_.data();
+    size_t binary_size = binary_.size();
+    assert(binary_size > 0);
+
+    auto program = clCreateProgramWithBinary(compute_engine->context(),
+            sizeof(size_t), &dev, &binary_size, &binary_buffer, nullptr, &err);
+    OCL_CHECK(err);
+    err = clBuildProgram(program, 1, &dev, nullptr, nullptr, nullptr);
+    OCL_CHECK(err);
+    cl_kernel ocl_kernel = clCreateKernel(program, name(), &err);
+    OCL_CHECK(err);
+    (*kernel) = compute::kernel_t(new ocl_gpu_kernel_t(ocl_kernel));
+    OCL_CHECK(clReleaseProgram(program));
+
+    return status::success;
 }
 
 } // namespace ocl

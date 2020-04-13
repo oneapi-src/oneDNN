@@ -210,8 +210,8 @@ struct ref_matmul_t : public gpu_primitive_t {
         def_data_type(kernel_ctx, pd()->dst_dt_, "DST");
         def_data_type(kernel_ctx, pd()->bia_dt_, "BIA");
         def_data_type(kernel_ctx, pd()->desc()->accum_data_type, "ACC");
-        create_binary(engine, &binary_, "ref_matmul", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_matmul", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
         return status::success;
     }
 
@@ -220,7 +220,10 @@ struct ref_matmul_t : public gpu_primitive_t {
         if (mapper.has_resource(this)) return status::success;
         auto r = utils::make_unique<ocl_resource_t>();
         if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, binary_));
+        compute::kernel_t realized_kernel;
+        CHECK(kernel_.realize(&realized_kernel, engine));
+        r->add_kernel(kernel_.get_id(), realized_kernel);
+
         std::unique_ptr<memory_storage_t> tmp_mem_storage;
         for (const auto &idx : {A0_, B0_, C0_}) {
             CHECK(handle_runtime_value(
@@ -292,7 +295,7 @@ struct ref_matmul_t : public gpu_primitive_t {
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_ref(const exec_ctx_t &ctx) const;
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
     enum { SCALES_ = 0, A0_ = 1, B0_ = 2, C0_ = 3 };
 };
 

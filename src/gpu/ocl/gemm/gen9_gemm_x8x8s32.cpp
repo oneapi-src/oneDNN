@@ -45,7 +45,7 @@ status_t gen9_gemm_x8x8s32_t::launch_x8x8s32(const gemm_exec_ctx_t &ctx,
         float eltwise_beta, float eltwise_scale) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(compute_x8x8s32_binary_.get_id());
+    const auto &kernel = pr->get_kernel(compute_x8x8s32_kernel_.get_id());
 
     int unroll_m, unroll_n, block_m, block_n;
     gen9_gemm_x8x8s32_kernel_t::get_unrolls(unroll_m, unroll_n);
@@ -112,7 +112,7 @@ status_t gen9_gemm_x8x8s32_t::launch_scale_x8x8s32(const gemm_exec_ctx_t &ctx,
         float eltwise_beta, float eltwise_scale) const {
 
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(scale_x8x8s32_binary_.get_id());
+    const auto &kernel = pr->get_kernel(scale_x8x8s32_kernel_.get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, c_temp);

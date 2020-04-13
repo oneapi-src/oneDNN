@@ -43,28 +43,16 @@ public:
 
     const device_info_t *device_info() const { return device_info_.get(); }
 
-    status_t create_kernel(kernel_t *kernel, const binary_t &binary) const {
-
-        std::vector<kernel_t> kernels(1);
-        auto status = create_kernels(&kernels, {binary});
-        if (status == status::success) *kernel = kernels[0];
-
-        return status;
-    }
-
-    status_t create_binary(binary_t *binary, const char *kernel_name,
+    status_t create_kernel(kernel_t *kernel, const char *kernel_name,
             const kernel_ctx_t &kernel_ctx) const {
 
-        std::vector<binary_t> binaries(1);
-        auto status = create_binaries(&binaries, {kernel_name}, kernel_ctx);
-        if (status == status::success) *binary = binaries[0];
+        std::vector<kernel_t> kernels(1);
+        auto status = create_kernels(&kernels, {kernel_name}, kernel_ctx);
+        if (status == status::success) *kernel = kernels[0];
         return status;
     }
 
-    virtual status_t create_kernels(std::vector<kernel_t> *kernels,
-            const std::vector<binary_t> &binaries) const = 0;
-
-    virtual status_t create_binaries(std::vector<compute::binary_t> *binaries,
+    virtual status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) const = 0;
 

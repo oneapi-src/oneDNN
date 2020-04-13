@@ -321,16 +321,16 @@ private:
     compute::kernel_t ws_print_kernel_;
 #endif
 
-    compute::binary_t bias_prepare_binary_;
-    compute::binary_t copy_init_layer_binary_;
-    compute::binary_t copy_init_iter_binary_;
-    compute::binary_t copy_res_layer_binary_;
-    compute::binary_t copy_res_iter_binary_;
+    compute::kernel_t bias_prepare_kernel_;
+    compute::kernel_t copy_init_layer_kernel_;
+    compute::kernel_t copy_init_iter_kernel_;
+    compute::kernel_t copy_res_layer_kernel_;
+    compute::kernel_t copy_res_iter_kernel_;
 
-    compute::binary_t ws_set_binary_;
-    compute::binary_t elemwise_fwd_binary_;
-    compute::binary_t elemwise_bwd_binary_;
-    compute::binary_t gates_reduction_binary_;
+    compute::kernel_t ws_set_kernel_;
+    compute::kernel_t elemwise_fwd_kernel_;
+    compute::kernel_t elemwise_bwd_kernel_;
+    compute::kernel_t gates_reduction_kernel_;
 
     // GEMM primitives.
     std::shared_ptr<primitive_t> gemm_layer_fwd_;

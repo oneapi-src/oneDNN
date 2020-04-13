@@ -163,8 +163,8 @@ struct ref_gemm_t : public gpu_gemm_t {
         def_data_type(kernel_ctx, d->c_type, "C");
         def_data_type(kernel_ctx, d->acc_type, "ACC");
         def_data_type(kernel_ctx, bias_type, "BIAS");
-        create_binary(engine, &binary_, "ref_gemm", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_gemm", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -184,7 +184,10 @@ struct ref_gemm_t : public gpu_gemm_t {
 
         CHECK(prepare_scales(attr, engine, tmp_mem_storage));
         r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        CHECK(r->create_kernel_and_add(engine, binary_));
+
+        compute::kernel_t realized_kernel;
+        CHECK(kernel_.realize(&realized_kernel, engine));
+        r->add_kernel(kernel_.get_id(), realized_kernel);
         mapper.add(this, std::move(r));
         return status::success;
     }
@@ -193,7 +196,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
     enum {
         A0_ = DNNL_ARG_A,
         B0_ = DNNL_ARG_B,

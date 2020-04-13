@@ -108,7 +108,7 @@ status_t ref_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 
@@ -139,7 +139,7 @@ status_t ref_pooling_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
 
     auto nd_range = pd()->conf.dispatch.nd_range();
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(binary_.get_id());
+    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
     status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
 

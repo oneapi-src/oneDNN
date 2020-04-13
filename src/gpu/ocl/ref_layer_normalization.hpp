@@ -74,8 +74,8 @@ struct ref_layer_normalization_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_binary(engine, &binary_, "ref_lnorm_fwd", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_lnorm_fwd", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -88,7 +88,7 @@ private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
@@ -135,13 +135,13 @@ struct ref_layer_normalization_bwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         CHECK(status);
 
-        create_binary(engine, &binary_, "ref_lnorm_bwd", kernel_ctx);
+        create_kernel(engine, &kernel_, "ref_lnorm_bwd", kernel_ctx);
         if (pd()->conf.use_scaleshift) {
-            create_binary(engine, &binary_scaleshift_,
+            create_kernel(engine, &kernel_scaleshift_,
                     "ref_lnorm_bwd_scaleshift", kernel_ctx);
-            if (!binary_scaleshift_) return status::runtime_error;
+            if (!kernel_scaleshift_) return status::runtime_error;
         }
-        if (!binary_) return status::runtime_error;
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -154,8 +154,8 @@ private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    compute::binary_t binary_scaleshift_;
-    compute::binary_t binary_;
+    compute::kernel_t kernel_scaleshift_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl

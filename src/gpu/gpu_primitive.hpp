@@ -34,8 +34,11 @@ struct gpu_primitive_t : public primitive_t {
         if (mapper.has_resource(this)) return status::success;
         auto r = utils::make_unique<ocl::ocl_resource_t>();
         if (!r) return status::out_of_memory;
-        for (const auto &rb : registered_binaries_) {
-            CHECK(r->create_kernel_and_add(engine, rb));
+        for (const auto &rk : registered_kernels_) {
+            if (!rk) continue;
+            compute::kernel_t realized_kernel;
+            CHECK(rk.realize(&realized_kernel, engine));
+            r->add_kernel(rk.get_id(), realized_kernel);
         }
         mapper.add(this, std::move(r));
 
@@ -46,25 +49,25 @@ struct gpu_primitive_t : public primitive_t {
         return status::success;
     }
 
-    status_t create_binaries(engine_t *engine,
-            std::vector<compute::binary_t> *binaries,
+    status_t create_kernels(engine_t *engine,
+            std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
             const compute::kernel_ctx_t &kernel_ctx) {
         auto *compute_engine
                 = utils::downcast<compute::compute_engine_t *>(engine);
-        CHECK(compute_engine->create_binaries(
-                binaries, kernel_names, kernel_ctx));
-        register_binaries(*binaries);
+        CHECK(compute_engine->create_kernels(
+                kernels, kernel_names, kernel_ctx));
+        register_kernels(*kernels);
         return status::success;
     }
 
-    status_t create_binary(engine_t *engine, compute::binary_t *binary,
+    status_t create_kernel(engine_t *engine, compute::kernel_t *kernel,
             const char *kernel_name, const compute::kernel_ctx_t &kernel_ctx) {
 
-        std::vector<compute::binary_t> binaries(1);
+        std::vector<compute::kernel_t> kernels(1);
         auto status
-                = create_binaries(engine, &binaries, {kernel_name}, kernel_ctx);
-        if (status == status::success) *binary = binaries[0];
+                = create_kernels(engine, &kernels, {kernel_name}, kernel_ctx);
+        if (status == status::success) *kernel = kernels[0];
         return status;
     }
 
@@ -72,14 +75,13 @@ protected:
     virtual primitive_list_t nested_primitives() const { return {}; }
 
 private:
-    void register_binaries(const std::vector<compute::binary_t> &binaries) {
-        for (const auto &b : binaries) {
-            registered_binaries_.push_back(b);
+    void register_kernels(const std::vector<compute::kernel_t> &kernels) {
+        for (const auto &k : kernels) {
+            registered_kernels_.push_back(k);
         }
     }
 
-    // TODO: introduce compute::kernel_t with a binary state instead
-    std::vector<compute::binary_t> registered_binaries_;
+    std::vector<compute::kernel_t> registered_kernels_;
 };
 
 } // namespace gpu

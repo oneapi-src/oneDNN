@@ -55,7 +55,7 @@ status_t gemm_inner_product_fwd_t::execute_forward(
 
         auto nd_range = compute::nd_range_t({pd()->MB() * pd()->OC()});
         const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-        const auto &bias_kernel = pr->get_kernel(bias_binary_.get_id());
+        const auto &bias_kernel = pr->get_kernel(bias_kernel_.get_id());
 
         status_t bias_status
                 = compute_stream->parallel_for(nd_range, bias_kernel, arg_list);
@@ -122,7 +122,7 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
 
         auto nd_range = compute::nd_range_t({pd()->OC()});
         const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-        const auto &bias_kernel = pr->get_kernel(bias_binary_.get_id());
+        const auto &bias_kernel = pr->get_kernel(bias_kernel_.get_id());
 
         status_t bias_status
                 = compute_stream->parallel_for(nd_range, bias_kernel, arg_list);

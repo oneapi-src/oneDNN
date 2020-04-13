@@ -706,21 +706,21 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 #endif
               };
 
-    std::vector<compute::binary_t> binaries;
-    status = create_binaries(engine, &binaries, kernel_names, kernel_ctx);
+    std::vector<compute::kernel_t> kernels;
+    status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
     CHECK(status);
 
-    bias_prepare_binary_ = binaries[0];
-    copy_init_layer_binary_ = binaries[1];
-    copy_init_iter_binary_ = binaries[2];
-    copy_res_layer_binary_ = binaries[3];
-    copy_res_iter_binary_ = binaries[4];
-    ws_set_binary_ = binaries[5];
-    elemwise_fwd_binary_ = binaries[6];
-    elemwise_bwd_binary_ = binaries[7];
-    gates_reduction_binary_ = binaries[8];
+    bias_prepare_kernel_ = kernels[0];
+    copy_init_layer_kernel_ = kernels[1];
+    copy_init_iter_kernel_ = kernels[2];
+    copy_res_layer_kernel_ = kernels[3];
+    copy_res_iter_kernel_ = kernels[4];
+    ws_set_kernel_ = kernels[5];
+    elemwise_fwd_kernel_ = kernels[6];
+    elemwise_bwd_kernel_ = kernels[7];
+    gates_reduction_kernel_ = kernels[8];
 #if DEBUGPRINT
-    ws_print_binary_ = binaries[9];
+    ws_print_kernel_ = kernels[9];
 #endif
 
     bool gemm_ok = true;
@@ -796,17 +796,23 @@ status_t _ref_rnn_common_t<aprop>::create_resource(
         r->add_memory_storage(TM_SCALES_, std::move(tmp_mem_storage));
     }
 
-    auto status = r->create_kernels_and_add(engine, {
-        bias_prepare_binary_, copy_init_layer_binary_, copy_init_iter_binary_,
-                copy_res_layer_binary_, copy_res_iter_binary_, ws_set_binary_,
-                elemwise_fwd_binary_, elemwise_bwd_binary_,
-                gates_reduction_binary_
+    for (const auto &k : {
+             bias_prepare_kernel_, copy_init_layer_kernel_,
+                     copy_init_iter_kernel_, copy_res_layer_kernel_,
+                     copy_res_iter_kernel_, ws_set_kernel_,
+                     elemwise_fwd_kernel_, elemwise_bwd_kernel_,
+                     gates_reduction_kernel_
 #if DEBUGPRINT
-                ,
-                ws_print_binary_
+                     ,
+                     ws_print_kernel_
 #endif
-    });
-    if (status != status::success) return status;
+         }) {
+        compute::kernel_t realized_kernel;
+        auto status = k.realize(&realized_kernel, engine);
+        r->add_kernel(k.get_id(), realized_kernel);
+        if (status != status::success) return status;
+    }
+
     mapper.add(this, std::move(r));
 
     const std::vector<const primitive_t *> gemms = {gemm_layer_fwd_.get(),
@@ -979,7 +985,7 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     auto nd_range = compute::nd_range_t({n_gates, dhc});
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const auto &gates_reduction_kernel
-            = pr->get_kernel(gates_reduction_binary_.get_id());
+            = pr->get_kernel(gates_reduction_kernel_.get_id());
 
     compute_stream->parallel_for(nd_range, gates_reduction_kernel, arg_list);
 }
@@ -1096,7 +1102,7 @@ void _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.set(6, data_scale);
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const auto &bias_prepare_kernel
-            = pr->get_kernel(bias_prepare_binary_.get_id());
+            = pr->get_kernel(bias_prepare_kernel_.get_id());
 
     compute_stream->parallel_for(
             compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
@@ -1111,7 +1117,7 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         const memory_storage_t &diff_dst_layer) const {
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const auto &copy_init_layer_kernel
-            = pr->get_kernel(copy_init_layer_binary_.get_id());
+            = pr->get_kernel(copy_init_layer_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1145,7 +1151,7 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         const float scale, const bool quantize) const {
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const auto &copy_init_iter_kernel
-            = pr->get_kernel(copy_init_iter_binary_.get_id());
+            = pr->get_kernel(copy_init_iter_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1177,7 +1183,7 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         const float shift, const float scale, const bool dequantize) const {
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const auto &copy_res_layer_kernel
-            = pr->get_kernel(copy_res_layer_binary_.get_id());
+            = pr->get_kernel(copy_res_layer_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1211,7 +1217,7 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         const float shift, const float scale, const bool dequantize) const {
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     const auto &copy_res_iter_kernel
-            = pr->get_kernel(copy_res_iter_binary_.get_id());
+            = pr->get_kernel(copy_res_iter_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1247,7 +1253,7 @@ void _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
     arg_list.set(3, ws_part);
     auto nd_range = compute::nd_range_t({size});
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &ws_set_kernel = pr->get_kernel(ws_set_binary_.get_id());
+    const auto &ws_set_kernel = pr->get_kernel(ws_set_kernel_.get_id());
 
     compute_stream->parallel_for(nd_range, ws_set_kernel, arg_list);
 }
@@ -1261,7 +1267,7 @@ void _ref_rnn_common_t<aprop>::ws_print(
     arg_list.set(0, workspace_);
     auto nd_range = compute::nd_range_t({1});
     const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &ws_print_kernel = pr->get_kernel(ws_print_binary_.get_id());
+    const auto &ws_print_kernel = pr->get_kernel(ws_print_kernel_.get_id());
 
     compute_stream->parallel_for(nd_range, ws_print_kernel, arg_list);
 }

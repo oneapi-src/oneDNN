@@ -100,15 +100,15 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
             kernel_names[4] = "reduce_variance";
         }
 
-        std::vector<compute::binary_t> binaries;
-        status = create_binaries(engine, &binaries, kernel_names, kernel_ctx);
+        std::vector<compute::kernel_t> kernels;
+        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
-        binary_ = binaries[0];
-        calculate_mean_binary_ = binaries[1];
-        calculate_variance_binary_ = binaries[2];
-        reduce_mean_binary_ = binaries[3];
-        reduce_variance_binary_ = binaries[4];
+        kernel_ = kernels[0];
+        calculate_mean_kernel_ = kernels[1];
+        calculate_variance_kernel_ = kernels[2];
+        reduce_mean_kernel_ = kernels[3];
+        reduce_variance_kernel_ = kernels[4];
 
         return status::success;
     }
@@ -120,11 +120,11 @@ struct ref_batch_normalization_fwd_t : public gpu_primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
-    compute::binary_t calculate_mean_binary_;
-    compute::binary_t reduce_mean_binary_;
-    compute::binary_t calculate_variance_binary_;
-    compute::binary_t reduce_variance_binary_;
+    compute::kernel_t kernel_;
+    compute::kernel_t calculate_mean_kernel_;
+    compute::kernel_t reduce_mean_kernel_;
+    compute::kernel_t calculate_variance_kernel_;
+    compute::kernel_t reduce_variance_kernel_;
 };
 
 struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
@@ -180,13 +180,13 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
         std::vector<const char *> kernel_names
                 = {"ref_bnorm_bwd", "calculate_stats", "reduce_stats"};
 
-        std::vector<compute::binary_t> binaries;
-        status = create_binaries(engine, &binaries, kernel_names, kernel_ctx);
+        std::vector<compute::kernel_t> kernels;
+        status = create_kernels(engine, &kernels, kernel_names, kernel_ctx);
         CHECK(status);
 
-        binary_ = binaries[0];
-        calculate_stats_binary_ = binaries[1];
-        reduce_stats_binary_ = binaries[2];
+        kernel_ = kernels[0];
+        calculate_stats_kernel_ = kernels[1];
+        reduce_stats_kernel_ = kernels[2];
 
         return status::success;
     }
@@ -198,9 +198,9 @@ struct ref_batch_normalization_bwd_t : public gpu_primitive_t {
 private:
     status_t execute_backward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
-    compute::binary_t calculate_stats_binary_;
-    compute::binary_t reduce_stats_binary_;
+    compute::kernel_t kernel_;
+    compute::kernel_t calculate_stats_kernel_;
+    compute::kernel_t reduce_stats_kernel_;
 };
 
 } // namespace ocl

@@ -91,8 +91,8 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, "ref_eltwise_fwd", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_eltwise_fwd", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -104,7 +104,7 @@ struct ref_eltwise_fwd_t : public gpu_primitive_t {
 private:
     status_t execute_forward_dense(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 struct ref_eltwise_bwd_t : public gpu_primitive_t {
@@ -159,8 +159,8 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
         status_t status = pd()->init_kernel_ctx(kernel_ctx);
         if (status != status::success) return status;
 
-        create_binary(engine, &binary_, "ref_eltwise_bwd", kernel_ctx);
-        if (!binary_) return status::runtime_error;
+        create_kernel(engine, &kernel_, "ref_eltwise_bwd", kernel_ctx);
+        if (!kernel_) return status::runtime_error;
 
         return status::success;
     }
@@ -172,7 +172,7 @@ struct ref_eltwise_bwd_t : public gpu_primitive_t {
 private:
     status_t execute_backward_dense(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    compute::binary_t binary_;
+    compute::kernel_t kernel_;
 };
 
 } // namespace ocl
