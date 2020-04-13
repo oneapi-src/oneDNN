@@ -93,7 +93,7 @@ file(GLOB PRIM_TEST_CASES_SRC
 # Some tests will fail on AArch64 and need to be skipped.
 # For example, any tests wich check for ISAs not present on AArch64.
 # AARCH64_SKIP_TESTS is a list of tests to be removed from PRIM_TEST_CASES_SRC.
-if(TARGET_ARCH STREQUAL "AARCH64")
+if(DNNL_TARGET_ARCH STREQUAL "AARCH64")
     file(GLOB AARCH64_SKIP_TESTS
                                   test_isa_iface.cpp
                                   )
