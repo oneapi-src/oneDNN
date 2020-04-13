@@ -30,7 +30,6 @@
  */
 
 #include "common/dnnl_thread.hpp"
-#include "common/math_utils.hpp"
 
 #include "cpu/simple_q10n.hpp"
 
@@ -719,7 +718,7 @@ void copy_res_layer_fwd_template(const rnn_conf_t &rnn, const rnn_pd_t *pd,
         } else if (rnn_u8u8_case) { // instead of checking for rnn.is_int8()
             PRAGMA_OMP_SIMD()
             for (int s = 0; s < rnn.dlc; s++)
-                dd[s] = math::saturate<dst_layer_dt, int16_t>(
+                dd[s] = saturate<dst_layer_dt, int16_t>(
                         (int16_t)dd[s] + (int16_t)ss[s]);
         } else {
             PRAGMA_OMP_SIMD()

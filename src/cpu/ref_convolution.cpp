@@ -19,6 +19,7 @@
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
+
 #include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_convolution.hpp"
@@ -28,7 +29,6 @@ namespace impl {
 namespace cpu {
 
 using math::get_bias;
-using math::saturate;
 
 template <data_type_t src_type, data_type_t wei_type, data_type_t dst_type,
         data_type_t acc_type>

@@ -19,11 +19,11 @@
 #include "dnnl_types.h"
 
 #include "common/dnnl_thread.hpp"
-#include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/simple_q10n.hpp"
 
 #include "cpu/gemm/gemm.hpp"
 
@@ -64,8 +64,8 @@ void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
                 val += a[(i + j * blocking_factor * lda) + jb * lda];
             }
             if (alpha != 1.0f) {
-                val = math::out_round<int32_t>(
-                        math::saturate<int32_t>((double)val * alpha * -128.0));
+                val = out_round<int32_t>(
+                        saturate<int32_t>((double)val * alpha * -128.0));
             } else {
                 val *= -128;
             }
@@ -79,8 +79,8 @@ void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
                     val += a[i + j * lda];
                 }
                 if (alpha != 1.0f) {
-                    val = math::out_round<int32_t>(math::saturate<int32_t>(
-                            (double)val * alpha * -128.0));
+                    val = out_round<int32_t>(
+                            saturate<int32_t>((double)val * alpha * -128.0));
                 } else {
                     val *= -128;
                 }
@@ -94,8 +94,8 @@ void compensation_compute(bool transa, dim_t m, dim_t k, float alpha,
                 val += a[j + i * lda];
             }
             if (alpha != 1.0f) {
-                val = math::out_round<int32_t>(
-                        math::saturate<int32_t>((double)val * alpha * -128.0));
+                val = out_round<int32_t>(
+                        saturate<int32_t>((double)val * alpha * -128.0));
             } else {
                 val *= -128;
             }

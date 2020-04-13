@@ -25,13 +25,85 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
+
+#if defined(DNNL_X86_64)
+#include "immintrin.h"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
+/** rounds @p f to an integer according to the mxcsr register */
+inline int mxcsr_round(float f) ATTR_NO_MSAN {
+#if defined(DNNL_X86_64)
+    return _mm_cvtss_si32(_mm_load_ss(&f));
+#else
+    return (int)nearbyintf(f); // optimism
+#endif
+}
+
+template <typename data_t, typename acc_t>
+inline typename utils::enable_if<!nstl::is_integral<data_t>::value,
+        typename utils::remove_reference<data_t>::type>::type
+saturate(const acc_t &x) {
+    return (typename utils::remove_reference<data_t>::type)x;
+}
+
+template <typename data_t, typename acc_t>
+inline typename utils::enable_if<nstl::is_integral<data_t>::value,
+        typename utils::remove_reference<data_t>::type>::type
+saturate(const acc_t &x) {
+    acc_t v = x;
+    if (v < (acc_t)nstl::numeric_limits<data_t>::lowest())
+        v = (acc_t)nstl::numeric_limits<data_t>::lowest();
+    if (v > (acc_t)nstl::numeric_limits<data_t>::max())
+        v = (acc_t)nstl::numeric_limits<data_t>::max();
+    return (typename utils::remove_reference<data_t>::type)v;
+}
+
+template <typename data_t>
+double saturate(const double &x) {
+    double v = x;
+    if (v < (double)nstl::numeric_limits<data_t>::lowest())
+        v = (double)nstl::numeric_limits<data_t>::lowest();
+    if (v > (double)nstl::numeric_limits<data_t>::max())
+        v = (double)nstl::numeric_limits<data_t>::max();
+    return v;
+}
+
+template <>
+inline int8_t saturate<int8_t, uint8_t>(const uint8_t &x) {
+    return x <= 127u ? x : 127;
+}
+
+template <>
+inline uint8_t saturate<uint8_t, int8_t>(const int8_t &x) {
+    return x >= 0 ? x : 0;
+}
+
+template <typename out_t>
+typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
+out_round(float v) {
+    return (out_t)mxcsr_round(v);
+}
+
+template <typename out_t>
+typename utils::enable_if<nstl::is_integral<out_t>::value, out_t>::type
+out_round(double v) {
+    return (out_t)mxcsr_round((float)v);
+}
+
+template <typename out_t>
+typename utils::enable_if<!nstl::is_integral<out_t>::value, out_t>::type
+out_round(float v) {
+    return v;
+}
+
 template <typename out_t>
 inline out_t round_and_saturate(float f) {
-    return math::saturate<out_t>(math::out_round<int>(f));
+    return saturate<out_t>(out_round<int>(f));
 }
 
 /* Quantization with alpha == 1 and beta == 0 */
@@ -44,7 +116,7 @@ template <typename in_t, typename out_t>
 struct qz_a1b0<in_t, out_t,
         typename utils::enable_if<true && nstl::is_integral<in_t>::value
                 && !is_subset<in_t, out_t>::value>::type> {
-    out_t operator()(in_t in) { return math::saturate<out_t>(in); }
+    out_t operator()(in_t in) { return saturate<out_t>(in); }
 };
 
 template <typename in_t, typename out_t>

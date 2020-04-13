@@ -318,8 +318,7 @@ private:
                 compensation_s32
                         += scratch_quantized[ld * I * G * O + i * G * O + go];
             }
-            compensation[ld * G * O + go]
-                    = math::saturate<float>(compensation_s32);
+            compensation[ld * G * O + go] = saturate<float>(compensation_s32);
         });
     }
 
@@ -355,7 +354,7 @@ private:
                 if (I == 1) {
                     PRAGMA_OMP_SIMD()
                     for (int go = GO_s; go < GO_e; go++)
-                        compensation[ld * G * O + go] = math::saturate<float>(
+                        compensation[ld * G * O + go] = saturate<float>(
                                 scratch_quantized[go + I * (ld)]);
                 } else {
                     // We split the loop on I in three to avoid conditionals or zeroing compensation
@@ -375,7 +374,7 @@ private:
                     PRAGMA_OMP_SIMD()
                     for (int go = GO_s; go < GO_e; go++)
                         compensation[ld * G * O + go]
-                                = math::saturate<float>(compensation_s32[go]
+                                = saturate<float>(compensation_s32[go]
                                         + scratch_quantized[go
                                                 + G * O * (i + I * (ld))]);
                 }

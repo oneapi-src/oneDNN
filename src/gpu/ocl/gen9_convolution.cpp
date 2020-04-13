@@ -30,8 +30,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-using math::saturate;
-
 status_t gen9_convolution_fwd_t::pd_t::init_conf() {
     using namespace dnnl::impl::format_tag;
     using namespace data_type;
