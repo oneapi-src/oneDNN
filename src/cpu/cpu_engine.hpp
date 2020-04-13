@@ -21,8 +21,8 @@
 
 #include "dnnl.h"
 
-#include "../common/engine.hpp"
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/engine.hpp"
 
 namespace dnnl {
 namespace impl {

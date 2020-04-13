@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 #include "simple_q10n.hpp"
 
 #include "gemm/gemm.hpp"

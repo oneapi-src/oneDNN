@@ -17,10 +17,11 @@
 #ifndef CPU_REF_FUSED_CONVOLUTION_HPP
 #define CPU_REF_FUSED_CONVOLUTION_HPP
 
+#include "common/primitive.hpp"
 #include "common/primitive_iterator.hpp"
+#include "common/stream.hpp"
+
 #include "jit_uni_1x1_conv_utils.hpp"
-#include "primitive.hpp"
-#include "stream.hpp"
 
 namespace dnnl {
 namespace impl {

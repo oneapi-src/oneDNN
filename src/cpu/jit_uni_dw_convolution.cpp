@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
 
-#include "bfloat16.hpp"
+#include "common/bfloat16.hpp"
 
 #include "jit_uni_dw_convolution.hpp"
 

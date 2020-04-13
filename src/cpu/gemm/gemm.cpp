@@ -19,11 +19,11 @@
 #include "dnnl_threadpool_iface.hpp"
 #endif
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "dnnl_traits.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/dnnl_traits.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 
 #include "jit_generator.hpp"
 

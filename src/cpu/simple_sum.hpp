@@ -17,12 +17,12 @@
 #ifndef SIMPLE_SUM_HPP
 #define SIMPLE_SUM_HPP
 
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu/platform.hpp"
 #include "cpu_sum_pd.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

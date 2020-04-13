@@ -17,7 +17,7 @@
 /*
  * Common for RNN and LSTM cell execution
  */
-#include "bfloat16.hpp"
+#include "common/bfloat16.hpp"
 #include "ref_rnn.hpp"
 
 namespace dnnl {

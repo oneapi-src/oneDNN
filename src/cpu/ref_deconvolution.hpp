@@ -20,12 +20,12 @@
 #include <assert.h>
 #include <string.h>
 
-#include "c_types_map.hpp"
-#include "primitive.hpp"
-#include "primitive_iterator.hpp"
-#include "stream.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_iterator.hpp"
+#include "common/stream.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"

@@ -17,12 +17,12 @@
 #ifndef REF_CONCAT_HPP
 #define REF_CONCAT_HPP
 
-#include "engine.hpp"
-#include "reorder_pd.hpp"
-#include "stream.hpp"
+#include "common/engine.hpp"
+#include "common/primitive.hpp"
+#include "common/reorder_pd.hpp"
+#include "common/stream.hpp"
 
 #include "cpu_concat_pd.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

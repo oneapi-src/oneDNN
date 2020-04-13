@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 
 #include "jit_uni_lrn_kernel_f32.hpp"
 

@@ -19,8 +19,8 @@
 
 #include <assert.h>
 
+#include "common/utils.hpp"
 #include "jit_generator.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

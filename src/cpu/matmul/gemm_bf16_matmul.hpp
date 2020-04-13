@@ -19,16 +19,16 @@
 
 #include <assert.h>
 
-#include "bfloat16.hpp"
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu_matmul_pd.hpp"
 
 #include "gemm_based_common.hpp"
 
 #include "cpu/gemm_inner_product_utils.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

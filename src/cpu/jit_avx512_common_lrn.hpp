@@ -17,12 +17,12 @@
 #ifndef CPU_JIT_AVX512_COMMON_LRN_HPP
 #define CPU_JIT_AVX512_COMMON_LRN_HPP
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_lrn_pd.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -17,10 +17,10 @@
 #ifndef REF_SUM_HPP
 #define REF_SUM_HPP
 
-#include "engine.hpp"
-#include "memory_tracking.hpp"
-#include "primitive.hpp"
-#include "reorder_pd.hpp"
+#include "common/engine.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
+#include "common/reorder_pd.hpp"
 
 #include "cpu_sum_pd.hpp"
 

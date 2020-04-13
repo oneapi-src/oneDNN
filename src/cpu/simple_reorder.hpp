@@ -19,15 +19,15 @@
 
 #include <assert.h>
 
-#include "bfloat16.hpp"
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
-#include "primitive.hpp"
-#include "primitive_attr.hpp"
-#include "tag_traits.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_attr.hpp"
+#include "common/tag_traits.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"

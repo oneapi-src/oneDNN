@@ -19,13 +19,13 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "dnnl_types.h"
-#include "memory_tracking.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 #include "cpu_barrier.hpp"
 

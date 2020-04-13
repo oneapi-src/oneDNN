@@ -17,7 +17,7 @@
 #ifndef CPU_MATMUL_PD_HPP
 #define CPU_MATMUL_PD_HPP
 
-#include "matmul_pd.hpp"
+#include "common/matmul_pd.hpp"
 
 #include "cpu_engine.hpp"
 

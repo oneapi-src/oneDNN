@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "bfloat16.hpp"
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"

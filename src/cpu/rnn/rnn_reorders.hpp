@@ -19,14 +19,14 @@
 
 #include <assert.h>
 
-#include "bfloat16.hpp"
+#include "common/bfloat16.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "cpu_reorder_pd.hpp"
-#include "dnnl_thread.hpp"
 #include "gemm/gemm_pack.hpp"
-#include "primitive.hpp"
 #include "simple_q10n.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

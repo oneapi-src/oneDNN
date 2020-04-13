@@ -16,10 +16,10 @@
 
 #include <assert.h>
 
-#include "dnnl_thread.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 #include "dnnl_types.h"
-#include "nstl.hpp"
-#include "utils.hpp"
 
 #include "cpu_reducer.hpp"
 

@@ -16,8 +16,8 @@
 
 #include <memory>
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 #include "simple_q10n.hpp"
 
 #include "eltwise/jit_uni_eltwise_injector.hpp"

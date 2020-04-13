@@ -17,13 +17,13 @@
 #ifndef CPU_JIT_UNI_LRN_HPP
 #define CPU_JIT_UNI_LRN_HPP
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "cpu_lrn_pd.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

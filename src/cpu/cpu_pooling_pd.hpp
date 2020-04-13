@@ -17,8 +17,8 @@
 #ifndef CPU_POOLING_PD_HPP
 #define CPU_POOLING_PD_HPP
 
+#include "common/pooling_pd.hpp"
 #include "cpu_engine.hpp"
-#include "pooling_pd.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
 #include "cpu_barrier.hpp"

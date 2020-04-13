@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_thread.hpp"
-#include "dnnl_traits.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/dnnl_traits.hpp"
 #include "dnnl_types.h"
 
 #include "gemm_pack.hpp"

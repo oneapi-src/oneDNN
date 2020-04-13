@@ -19,8 +19,8 @@
 
 #include <limits.h>
 
-#include "bit_cast.hpp"
-#include "utils.hpp"
+#include "common/bit_cast.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "jit_utils/jit_utils.hpp"

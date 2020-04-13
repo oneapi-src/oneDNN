@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
 

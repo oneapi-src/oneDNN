@@ -17,8 +17,8 @@
 #ifndef SIMPLE_CONCAT_HPP
 #define SIMPLE_CONCAT_HPP
 
-#include "memory_tracking.hpp"
-#include "primitive.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
 #include "cpu/platform.hpp"
 

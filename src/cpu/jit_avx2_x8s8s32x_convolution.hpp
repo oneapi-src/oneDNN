@@ -17,13 +17,13 @@
 #ifndef CPU_JIT_AVX2_X8S8S32X_CONVOLUTION_HPP
 #define CPU_JIT_AVX2_X8S8S32X_CONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "primitive.hpp"
 
 #include "jit_avx2_x8s8s32x_conv_kernel.hpp"
 

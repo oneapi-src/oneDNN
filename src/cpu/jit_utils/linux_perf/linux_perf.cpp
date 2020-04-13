@@ -42,9 +42,9 @@
 
 #include <string>
 
+#include "common/utils.hpp"
+#include "common/verbose.hpp"
 #include "linux_perf.hpp"
-#include "utils.hpp"
-#include "verbose.hpp"
 
 namespace dnnl {
 namespace impl {

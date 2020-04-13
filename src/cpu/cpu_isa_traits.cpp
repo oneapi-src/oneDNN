@@ -18,7 +18,7 @@
 #include <cstring>
 #include <mutex>
 
-#include "utils.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_isa_traits.hpp"
 

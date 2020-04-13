@@ -21,8 +21,8 @@
 
 #include "dnnl_types.h"
 
-#include "dnnl_thread.hpp"
-#include "utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/utils.hpp"
 
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
@@ -191,7 +191,7 @@ inline bool isa_has_bf16(cpu_isa_t isa) {
 } // namespace
 
 /* whatever is required to generate string literals... */
-#include "z_magic.hpp"
+#include "common/z_magic.hpp"
 /* clang-format off */
 #define JIT_IMPL_NAME_HELPER(prefix, isa, suffix_if_any) \
     ((isa) == isa_any ? prefix STRINGIFY(any) : \

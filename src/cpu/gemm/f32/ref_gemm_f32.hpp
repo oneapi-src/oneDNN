@@ -17,8 +17,9 @@
 #ifndef REF_GEMM_F32_HPP
 #define REF_GEMM_F32_HPP
 
-#include "c_types_map.hpp"
 #include "dnnl_types.h"
+
+#include "common/c_types_map.hpp"
 
 namespace dnnl {
 namespace impl {

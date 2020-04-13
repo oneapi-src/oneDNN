@@ -17,14 +17,14 @@
 #ifndef CPU_JIT_UNI_I8I8_POOLING_HPP
 #define CPU_JIT_UNI_I8I8_POOLING_HPP
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu_pooling_pd.hpp"
 
 #include "cpu_isa_traits.hpp"
 #include "jit_primitive_conf.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

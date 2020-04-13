@@ -18,8 +18,8 @@
 
 #include <math.h>
 
-#include "dnnl_thread.hpp"
-#include "utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/utils.hpp"
 
 #include "jit_generator.hpp"
 

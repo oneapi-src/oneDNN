@@ -17,13 +17,13 @@
 #ifndef CPU_JIT_AVX512_CORE_F32_WINO_CONV_4X3_HPP
 #define CPU_JIT_AVX512_CORE_F32_WINO_CONV_4X3_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
 #include "jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

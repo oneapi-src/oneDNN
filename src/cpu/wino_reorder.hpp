@@ -17,11 +17,11 @@
 #ifndef CPU_WINO_REORDER_HPP
 #define CPU_WINO_REORDER_HPP
 
-#include "dnnl_thread.hpp"
-#include "primitive_desc.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_desc.hpp"
 
 #include "cpu_reorder_pd.hpp"
-#include "primitive.hpp"
 #include "simple_q10n.hpp"
 
 namespace dnnl {

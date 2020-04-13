@@ -17,7 +17,7 @@
 #ifndef JIT_AVX512_CORE_F32_WINO_CONV_4X3_KERNEL_HPP
 #define JIT_AVX512_CORE_F32_WINO_CONV_4X3_KERNEL_HPP
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"

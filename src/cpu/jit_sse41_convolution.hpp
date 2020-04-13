@@ -17,15 +17,15 @@
 #ifndef CPU_JIT_SSE41_CONVOLUTION_HPP
 #define CPU_JIT_SSE41_CONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
 #include "jit_primitive_conf.hpp"
 #include "jit_sse41_conv_kernel_f32.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

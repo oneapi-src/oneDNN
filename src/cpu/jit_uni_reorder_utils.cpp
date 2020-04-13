@@ -16,13 +16,13 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_desc_wrapper.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "dnnl_debug.h"
-#include "dnnl_thread.hpp"
-#include "memory_desc_wrapper.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 #include "jit_uni_reorder.hpp"
 

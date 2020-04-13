@@ -17,8 +17,10 @@
 #ifndef GEMM_DRIVER_HPP
 #define GEMM_DRIVER_HPP
 
-#include "c_types_map.hpp"
 #include "dnnl_types.h"
+
+#include "common/c_types_map.hpp"
+
 #include "gemm_info.hpp"
 #include "gemm_pack_storage.hpp"
 

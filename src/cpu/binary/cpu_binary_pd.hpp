@@ -17,11 +17,11 @@
 #ifndef CPU_BINARY_PD_HPP
 #define CPU_BINARY_PD_HPP
 
-#include "binary_pd.hpp"
-#include "c_types_map.hpp"
+#include "common/binary_pd.hpp"
+#include "common/c_types_map.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "cpu_engine.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

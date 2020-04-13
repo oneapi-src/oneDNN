@@ -17,8 +17,8 @@
 #ifndef JIT_AVX512_COMMON_CONV_WINOGRAD_KERNEL_F32_HPP
 #define JIT_AVX512_COMMON_CONV_WINOGRAD_KERNEL_F32_HPP
 
-#include "c_types_map.hpp"
-#include "memory.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"

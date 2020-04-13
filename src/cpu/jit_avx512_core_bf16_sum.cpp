@@ -15,9 +15,9 @@
 *******************************************************************************/
 #include <float.h>
 
-#include "dnnl_thread.hpp" // common
+#include "common/dnnl_thread.hpp" // common
+#include "common/utils.hpp" // common
 #include "jit_avx512_core_bf16_sum.hpp" // cpu
-#include "utils.hpp" // common
 
 #define GET_OFF(field) offsetof(jit_sum_call_s, field)
 

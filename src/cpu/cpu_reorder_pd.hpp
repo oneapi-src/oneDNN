@@ -19,10 +19,10 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/reorder_pd.hpp"
+#include "common/utils.hpp"
 #include "cpu_engine.hpp"
-#include "reorder_pd.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

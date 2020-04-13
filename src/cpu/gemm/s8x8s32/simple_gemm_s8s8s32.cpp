@@ -19,12 +19,12 @@
 #include "simple_gemm_s8s8s32.hpp"
 
 #include "../gemm.hpp"
-#include "dnnl_thread.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 #include "dnnl_types.h"
 #include "jit_generator.hpp"
-#include "math_utils.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
 
 #include "cpu/platform.hpp"
 

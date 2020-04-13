@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
-#include "bfloat16.hpp"
+#include "common/bfloat16.hpp"
 #include "jit_avx512_core_bf16_convolution.hpp"
 
 namespace dnnl {

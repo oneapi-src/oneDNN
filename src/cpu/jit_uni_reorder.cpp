@@ -16,11 +16,13 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
 #include "dnnl_debug.h"
-#include "memory_desc_wrapper.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
+
+#include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
+#include "common/nstl.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu_primitive.hpp"
 #include "cpu_reorder_pd.hpp"
@@ -28,7 +30,6 @@
 
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_generator.hpp"
-#include "primitive.hpp"
 
 // #define TR_DEBUG
 #if defined(TR_DEBUG)

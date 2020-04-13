@@ -17,8 +17,8 @@
 #ifndef JIT_AVX512_CORE_BF16_CONV_KERNEL_HPP
 #define JIT_AVX512_CORE_BF16_CONV_KERNEL_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
 
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"

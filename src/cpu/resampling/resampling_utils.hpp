@@ -17,7 +17,7 @@
 #ifndef CPU_RESAMPLING_UTILS_HPP
 #define CPU_RESAMPLING_UTILS_HPP
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
 
 namespace dnnl {
 namespace impl {

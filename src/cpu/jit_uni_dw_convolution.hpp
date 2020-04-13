@@ -17,15 +17,15 @@
 #ifndef CPU_JIT_UNI_DW_CONVOLUTION_HPP
 #define CPU_JIT_UNI_DW_CONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
 #include "cpu_barrier.hpp"
 #include "cpu_convolution_pd.hpp"
 #include "cpu_reducer.hpp"
 
 #include "jit_uni_dw_conv_kernel_utils.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

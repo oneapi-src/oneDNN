@@ -19,8 +19,9 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu_matmul_pd.hpp"
 
@@ -28,7 +29,6 @@
 
 #include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm_inner_product_utils.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

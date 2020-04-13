@@ -17,7 +17,7 @@
 #ifndef GEMM_THREADING_HPP
 #define GEMM_THREADING_HPP
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
 #include "gemm_partition.hpp"
 
 #include <cstdint>
