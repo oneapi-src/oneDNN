@@ -28,7 +28,7 @@
 #include "cpu/cpu_reorder_pd.hpp"
 #include "cpu/simple_q10n.hpp"
 
-#include "cpu/gemm/gemm_pack.hpp"
+#include "cpu/x64/gemm/gemm_pack.hpp"
 
 namespace dnnl {
 namespace impl {

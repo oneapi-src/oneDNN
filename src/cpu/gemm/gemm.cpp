@@ -26,18 +26,20 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/x64/jit_generator.hpp"
-
 #include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/gemm_msan_unpoison.hpp"
 #include "cpu/gemm/os_blas.hpp"
 
-#include "cpu/gemm/f32/jit_avx512_common_gemm_f32.hpp"
-#include "cpu/gemm/f32/jit_avx_gemm_f32.hpp"
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
-
-#include "cpu/gemm/gemm_driver.hpp"
 #include "cpu/gemm/s8x8s32/ref_gemm_s8x8s32.hpp"
 #include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
+
+#include "cpu/x64/cpu_isa_traits.hpp"
+
+#include "cpu/x64/gemm/f32/jit_avx512_common_gemm_f32.hpp"
+#include "cpu/x64/gemm/f32/jit_avx_gemm_f32.hpp"
+
+#include "cpu/x64/gemm/gemm_driver.hpp"
 
 namespace dnnl {
 namespace impl {
