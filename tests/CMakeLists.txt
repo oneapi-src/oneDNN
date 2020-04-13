@@ -36,8 +36,11 @@ append(CMAKE_C_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 append(CMAKE_CXX_FLAGS "${CMAKE_CCXX_SANITIZER_FLAGS}")
 
 # allow tests to include internal header files with, e.g.
-# include "src/common/dnnl_thread.hpp"
+# include "src/common/dnnl_thread.hpp" ...
 include_directories(${PROJECT_SOURCE_DIR})
+# ... and allow the included files transitively include other headers files
+# e.g. include "common/dnnl_thread_parallel_nd.hpp" from "dnnl_thread.hpp"
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
 if(WIN32 AND NOT MINGW)
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
