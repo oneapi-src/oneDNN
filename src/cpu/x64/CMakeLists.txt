@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2020 Intel Corporation
+# Copyright 2020 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +14,20 @@
 # limitations under the License.
 #===============================================================================
 
-file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
-file(GLOB_RECURSE SOURCES_EXTRA
-    ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp
-    ${CMAKE_CURRENT_SOURCE_DIR}/matmul/*.[ch]pp
+file(GLOB_RECURSE SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]
+    ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp
     )
-foreach(SOURCE_FILE ${SOURCES_EXTRA})
-    list(APPEND SOURCES "${SOURCE_FILE}")
-endforeach()
+
+if(NOT DNNL_ENABLE_JIT_PROFILING)
+    # XXX: the profiling interface will still be built and present
+    add_definitions(-DDNNL_ENABLE_JIT_PROFILING=0)
+    # Don't enable support for linux_perf and VTune Amplifier
+    list(REMOVE_ITEM SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/jitprofiling/jitprofiling.c"
+        "${CMAKE_CURRENT_SOURCE_DIR}/jit_utils/linux_perf/linux_perf.cpp"
+        )
+endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
@@ -33,7 +39,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     file(GLOB FILES_REQUIRED_PREC_DIV
         ${CMAKE_CURRENT_SOURCE_DIR}/*resampling*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/*normalization*.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/ref_eltwise.cpp
         )
     if(WIN32)
         set_source_files_properties(${FILES_REQUIRED_PREC_SQRT}
@@ -48,17 +53,18 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     endif()
 endif()
 
-if(MSVC AND (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
-    file(GLOB FILES_REQUIRED_BIGOBJ
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_engine.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/cpu_reorder.cpp)
-    set_source_files_properties(${FILES_REQUIRED_BIGOBJ}
-        PROPERTIES COMPILE_FLAGS "/bigobj")
+# remove optimizations of files that don't need them for faster build times.
+file(GLOB FILES_WITHOUT_OPT
+    ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*/*_kern_autogen.cpp)
+if(WIN32 AND NOT MINGW)
+    set_source_files_properties(${FILES_WITHOUT_OPT}
+        PROPERTIES COMPILE_FLAGS "/Od")
+else()
+    set_source_files_properties(${FILES_WITHOUT_OPT}
+        PROPERTIES COMPILE_FLAGS "-O0 -U_FORTIFY_SOURCE")
 endif()
 
-set(OBJ_LIB ${LIB_NAME}_cpu)
+set(OBJ_LIB ${LIB_NAME}_cpu_x64)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
-
-add_subdirectory(x64)
