@@ -483,18 +483,12 @@ public:
 						if (EDX & (1U << 3)) type_ |= tAVX512_4FMAPS;
 						if (EDX & (1U << 8)) type_ |= tAVX512_VP2INTERSECT;
 					}
-					// EAX=07H, ECX=1
-					getCpuidEx(7, 1, data);
-					if (type_ & tAVX512F) {
-						if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
-					}
 				}
-				getCpuidEx(7, 1, data);
-				if (EAX & (1U << 4)) type_ |= tAVX_VNNI;
 			}
 		}
 		if (maxNum >= 7) {
 			getCpuidEx(7, 0, data);
+			const unsigned int maxNumSubLeaves = EAX;
 			if (type_ & tAVX && (EBX & (1U << 5))) type_ |= tAVX2;
 			if (EBX & (1U << 3)) type_ |= tBMI1;
 			if (EBX & (1U << 8)) type_ |= tBMI2;
@@ -510,6 +504,13 @@ public:
 			if (EDX & (1U << 24)) type_ |= tAMX_TILE;
 			if (EDX & (1U << 25)) type_ |= tAMX_INT8;
 			if (EDX & (1U << 22)) type_ |= tAMX_BF16;
+			if (maxNumSubLeaves >= 1) {
+				getCpuidEx(7, 1, data);
+				if (EAX & (1U << 4)) type_ |= tAVX_VNNI;
+				if (type_ & tAVX512F) {
+					if (EAX & (1U << 5)) type_ |= tAVX512_BF16;
+				}
+			}
 		}
 		setFamily();
 		setNumCores();
