@@ -19,8 +19,8 @@
 
 #include <assert.h>
 
+#include "common/lrn_pd.hpp"
 #include "cpu_engine.hpp"
-#include "lrn_pd.hpp"
 
 namespace dnnl {
 namespace impl {

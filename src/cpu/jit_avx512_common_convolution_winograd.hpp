@@ -17,12 +17,12 @@
 #ifndef CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
 #define CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
 #include "cpu_convolution_pd.hpp"
-#include "primitive.hpp"
 
 #include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
 

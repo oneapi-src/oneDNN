@@ -17,11 +17,11 @@
 #ifndef JIT_AVX512_CORE_BF16_SUM_HPP
 #define JIT_AVX512_CORE_BF16_SUM_HPP
 
-#include "c_types_map.hpp" // common
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
 
-#include "cpu_sum_pd.hpp" // cpu
+#include "cpu_sum_pd.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

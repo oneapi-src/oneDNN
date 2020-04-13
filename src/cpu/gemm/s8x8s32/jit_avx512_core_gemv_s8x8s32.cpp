@@ -21,10 +21,10 @@
 #include "../gemm_info.hpp"
 #include "../gemm_utils.hpp"
 #include "common/bfloat16.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
 #include "common_u8.hpp"
-#include "dnnl_thread.hpp"
 #include "jit_generator.hpp"
-#include "nstl.hpp"
 
 namespace dnnl {
 namespace impl {

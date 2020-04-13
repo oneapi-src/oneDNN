@@ -18,8 +18,8 @@
  * Cell execution GRU
  */
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 
 #include "ref_rnn.hpp"
 

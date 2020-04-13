@@ -17,16 +17,16 @@
 #ifndef CPU_JIT_UNI_RNN_COMMON_POSTGEMM_HPP
 #define CPU_JIT_UNI_RNN_COMMON_POSTGEMM_HPP
 
-#include "dnnl_thread.hpp"
+#include "common/dnnl_thread.hpp"
 
-#include "c_types_map.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/utils.hpp"
 
 #include "../jit_avx512_core_bf16cvt.hpp"
 #include "../jit_generator.hpp"
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 
-#include "rnn_pd.hpp"
+#include "common/rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
 namespace dnnl {

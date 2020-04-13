@@ -16,7 +16,7 @@
 
 #include <mutex>
 
-#include "utils.hpp"
+#include "common/utils.hpp"
 
 #ifndef DNNL_ENABLE_JIT_PROFILING
 #define DNNL_ENABLE_JIT_PROFILING 1

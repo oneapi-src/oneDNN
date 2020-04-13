@@ -17,13 +17,13 @@
 #ifndef CPU_RNN_PD_HPP
 #define CPU_RNN_PD_HPP
 
-#include "c_types_map.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
+#include "common/rnn_pd.hpp"
 #include "cpu_engine.hpp"
-#include "rnn_pd.hpp"
 #include "rnn_utils.hpp"
 
 namespace dnnl {

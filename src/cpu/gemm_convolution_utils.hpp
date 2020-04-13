@@ -17,9 +17,9 @@
 #ifndef CPU_GEMM_CONVOLUTION_UTILS_HPP
 #define CPU_GEMM_CONVOLUTION_UTILS_HPP
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"

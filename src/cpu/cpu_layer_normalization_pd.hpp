@@ -17,8 +17,8 @@
 #ifndef CPU_LAYER_NORMALIZATION_PD_HPP
 #define CPU_LAYER_NORMALIZATION_PD_HPP
 
+#include "common/layer_normalization_pd.hpp"
 #include "cpu_engine.hpp"
-#include "layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {

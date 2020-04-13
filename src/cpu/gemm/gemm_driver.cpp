@@ -22,7 +22,9 @@
 #include "gemm_driver.hpp"
 
 #include "common/bfloat16.hpp"
-#include "dnnl_traits.hpp"
+#include "common/dnnl_traits.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 #include "dnnl_types.h"
 #include "f32/gemm_utils_f32.hpp"
 #include "f32/jit_avx512_common_gemm_f32.hpp"
@@ -33,9 +35,7 @@
 #include "gemm_utils.hpp"
 #include "gemv_driver.hpp"
 #include "jit_generator.hpp"
-#include "nstl.hpp"
 #include "s8x8s32/jit_avx512_core_gemv_s8x8s32.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

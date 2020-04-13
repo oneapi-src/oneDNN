@@ -20,10 +20,10 @@
 
 #include <cfloat>
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "jit_generator.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 #include "jit_avx512_core_bf16cvt.hpp"
 #include "jit_primitive_conf.hpp"

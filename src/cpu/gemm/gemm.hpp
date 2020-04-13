@@ -17,7 +17,7 @@
 #ifndef GEMM_HPP
 #define GEMM_HPP
 
-#include "bfloat16.hpp"
+#include "common/bfloat16.hpp"
 #include "cpu_isa_traits.hpp"
 #include "dnnl_types.h"
 #include "os_blas.hpp"

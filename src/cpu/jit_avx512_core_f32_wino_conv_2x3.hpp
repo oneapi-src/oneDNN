@@ -19,16 +19,16 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

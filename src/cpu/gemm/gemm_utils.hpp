@@ -17,10 +17,10 @@
 #ifndef GEMM_UTILS_HPP
 #define GEMM_UTILS_HPP
 
-#include "dnnl_thread.hpp"
-#include "dnnl_traits.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/dnnl_traits.hpp"
+#include "common/utils.hpp"
 #include "gemm_pack_storage.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

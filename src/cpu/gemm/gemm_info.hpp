@@ -19,7 +19,7 @@
 
 #include <cstdint>
 #include <memory>
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
 #include "gemm_pack_storage.hpp"
 #include "gemm_threading.hpp"
 

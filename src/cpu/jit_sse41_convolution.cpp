@@ -16,8 +16,8 @@
 
 #include "dnnl_types.h"
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "jit_sse41_convolution.hpp"
 
 namespace dnnl {

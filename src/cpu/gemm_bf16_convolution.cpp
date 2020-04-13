@@ -16,12 +16,12 @@
 
 #include "dnnl_types.h"
 
-#include "c_types_map.hpp"
 #include "common/bfloat16.hpp"
-#include "dnnl_thread.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "gemm_bf16_convolution.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 namespace dnnl {
 namespace impl {

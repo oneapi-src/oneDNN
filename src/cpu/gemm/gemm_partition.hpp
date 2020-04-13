@@ -21,8 +21,8 @@
 #include <cstdint>
 #include <tuple>
 
-#include "nstl.hpp"
-#include "utils.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {

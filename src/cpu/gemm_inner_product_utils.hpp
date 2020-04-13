@@ -17,9 +17,9 @@
 #ifndef CPU_GEMM_INNER_PRODUCT_UTILS_HPP
 #define CPU_GEMM_INNER_PRODUCT_UTILS_HPP
 
-#include "c_types_map.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_inner_product_pd.hpp"
 

@@ -21,10 +21,10 @@
 
 #include <memory>
 
-#include "c_types_map.hpp"
-#include "primitive.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "gemm/gemm.hpp"
 #include "gemm_inner_product_utils.hpp"

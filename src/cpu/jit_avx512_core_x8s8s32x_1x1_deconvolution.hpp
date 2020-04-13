@@ -17,15 +17,15 @@
 #ifndef CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
 #define CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "primitive_iterator.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/primitive_iterator.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_deconvolution_pd.hpp"
-#include "primitive.hpp"
 
 #include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
 #include "jit_uni_1x1_conv_utils.hpp"

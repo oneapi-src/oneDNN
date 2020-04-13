@@ -29,8 +29,8 @@
 
  */
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 
 #include "../gemm/gemm.hpp"
 #include "../simple_q10n.hpp"

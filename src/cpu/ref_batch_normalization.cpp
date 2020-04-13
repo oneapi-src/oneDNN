@@ -17,13 +17,13 @@
 #include <assert.h>
 #include <math.h>
 
-#include "bfloat16.hpp"
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
+#include "common/bfloat16.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/type_helpers.hpp"
 #include "ref_batch_normalization.hpp"
 #include "simple_q10n.hpp"
-#include "type_helpers.hpp"
 
 #define DECLARE_DATA_OFFSET \
     auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c, \

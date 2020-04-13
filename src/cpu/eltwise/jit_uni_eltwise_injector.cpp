@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 

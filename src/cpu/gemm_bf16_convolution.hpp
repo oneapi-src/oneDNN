@@ -17,8 +17,9 @@
 #ifndef CPU_GEMM_BF16_CONVOLUTION_HPP
 #define CPU_GEMM_BF16_CONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
 #include "cpu_convolution_pd.hpp"
 #include "cpu_engine.hpp"
@@ -27,7 +28,6 @@
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

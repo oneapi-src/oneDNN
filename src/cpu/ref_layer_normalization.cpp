@@ -17,10 +17,10 @@
 #include <assert.h>
 #include <math.h>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
 #include "ref_layer_normalization.hpp"
-#include "type_helpers.hpp"
 
 namespace dnnl {
 namespace impl {

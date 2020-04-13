@@ -17,7 +17,7 @@
 #ifndef CPU_RESAMPLING_PD_HPP
 #define CPU_RESAMPLING_PD_HPP
 
-#include "resampling_pd.hpp"
+#include "common/resampling_pd.hpp"
 
 #include "cpu_engine.hpp"
 

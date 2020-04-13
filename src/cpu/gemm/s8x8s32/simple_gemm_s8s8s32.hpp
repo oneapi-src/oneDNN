@@ -19,8 +19,9 @@
 
 #include <cstdint>
 
-#include "c_types_map.hpp"
 #include "dnnl_types.h"
+
+#include "common/c_types_map.hpp"
 
 namespace dnnl {
 namespace impl {

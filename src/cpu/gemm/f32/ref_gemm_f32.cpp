@@ -16,9 +16,9 @@
 
 #include "dnnl_types.h"
 
-#include "dnnl_thread.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 
 #include "jit_generator.hpp"
 

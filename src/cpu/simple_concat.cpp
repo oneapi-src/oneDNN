@@ -16,7 +16,7 @@
 
 #include <cstring>
 
-#include "dnnl_thread.hpp"
+#include "common/dnnl_thread.hpp"
 
 #include "simple_concat.hpp"
 

@@ -17,8 +17,8 @@
 #include <map>
 #include <vector>
 
-#include "c_types_map.hpp"
-#include "convolution_pd.hpp"
+#include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 
 #include "cpu_engine.hpp"
 

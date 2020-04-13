@@ -19,9 +19,9 @@
 
 #include <algorithm>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu/platform.hpp"
 

@@ -17,8 +17,8 @@
 #ifndef CPU_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
 #define CPU_JIT_AVX512_CORE_X8S8S32X_CONV_KERNEL_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
 
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"

@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "jit_avx512_core_x8s8s32x_deconvolution.hpp"
-#include "dnnl_thread.hpp"
+#include "common/dnnl_thread.hpp"
 
 #define GET_OFF(field) offsetof(jit_deconv_call_s, field)
 

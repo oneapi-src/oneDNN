@@ -18,8 +18,8 @@
  * Cell execution LSTM
  */
 
-#include "dnnl_thread.hpp"
-#include "math_utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/math_utils.hpp"
 
 #include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
 

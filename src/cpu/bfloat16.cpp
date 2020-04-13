@@ -16,8 +16,8 @@
 
 #include <array>
 #include <memory>
-#include "bfloat16.hpp"
-#include "bit_cast.hpp"
+#include "common/bfloat16.hpp"
+#include "common/bit_cast.hpp"
 #include "cpu_isa_traits.hpp"
 #include "jit_avx512_core_bf16cvt.hpp"
 

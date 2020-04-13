@@ -19,9 +19,9 @@
 
 #include <assert.h>
 
-#include "c_types_map.hpp"
-#include "primitive_attr.hpp"
-#include "type_helpers.hpp"
+#include "common/c_types_map.hpp"
+#include "common/primitive_attr.hpp"
+#include "common/type_helpers.hpp"
 
 #include "cpu/cpu_isa_traits.hpp"
 

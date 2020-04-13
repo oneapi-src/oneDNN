@@ -17,13 +17,13 @@
 #ifndef CPU_GEMM_CONVOLUTION_HPP
 #define CPU_GEMM_CONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
 
 #include "eltwise/ref_eltwise.hpp"
 #include "gemm/gemm.hpp"
 #include "gemm_convolution_utils.hpp"
-#include "primitive.hpp"
 
 #include "cpu_convolution_pd.hpp"
 

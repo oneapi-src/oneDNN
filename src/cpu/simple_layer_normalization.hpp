@@ -19,12 +19,12 @@
 
 #include <memory>
 
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
-#include "primitive.hpp"
-#include "reorder_pd.hpp"
-#include "stream.hpp"
-#include "utils.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/primitive.hpp"
+#include "common/reorder_pd.hpp"
+#include "common/stream.hpp"
+#include "common/utils.hpp"
 
 #include "simple_layer_normalization_kernels.hpp"
 

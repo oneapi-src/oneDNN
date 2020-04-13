@@ -16,11 +16,11 @@
 
 #include "dnnl_types.h"
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 #include "jit_avx512_core_bf16_1x1_convolution.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
 
 #include "jit_generator.hpp"
 
@@ -39,7 +39,7 @@ using namespace dnnl::impl::prop_kind;
                                   : (f).blk_off(n, c, d, h, w)))
 
 namespace {
-/*TODO: investigate why common balance2D defined in dnnl_thread.hpp
+/*TODO: investigate why common balance2D defined in common/dnnl_thread.hpp
  * not used here ?*/
 template <typename T, typename U>
 void balance2D(U nthr, U ithr, T ny, T &ny_start, T &ny_end, T nx, T &nx_start,

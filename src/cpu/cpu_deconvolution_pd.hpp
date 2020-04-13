@@ -19,8 +19,8 @@
 
 #include <assert.h>
 
+#include "common/deconvolution_pd.hpp"
 #include "cpu_engine.hpp"
-#include "deconvolution_pd.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -20,15 +20,15 @@
 #include <assert.h>
 #include <memory>
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_pooling_pd.hpp"
 #include "jit_uni_pool_kernel.hpp"
 #include "jit_uni_reorder.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

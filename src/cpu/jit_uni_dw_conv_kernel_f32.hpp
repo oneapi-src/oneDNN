@@ -17,8 +17,8 @@
 #ifndef JIT_UNI_DW_CONV_KERNEL_F32_HPP
 #define JIT_UNI_DW_CONV_KERNEL_F32_HPP
 
-#include "c_types_map.hpp"
-#include "memory_tracking.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory_tracking.hpp"
 
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"

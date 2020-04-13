@@ -17,13 +17,13 @@
 #ifndef CPU_STREAM_HPP
 #define CPU_STREAM_HPP
 
-#include "common/c_types_map.hpp"
-#include "common/dnnl_thread.hpp"
-#include "common/stream.hpp"
-
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "dnnl_threadpool_iface.hpp"
 #endif
+
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/stream.hpp"
 
 namespace dnnl {
 namespace impl {

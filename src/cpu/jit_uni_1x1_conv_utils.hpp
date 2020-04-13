@@ -17,13 +17,13 @@
 #ifndef JIT_UNI_1X1_CONV_UTILS_HPP
 #define JIT_UNI_1X1_CONV_UTILS_HPP
 
-#include "convolution_pd.hpp"
-#include "dnnl_thread.hpp"
-#include "memory_tracking.hpp"
-#include "nstl.hpp"
-#include "primitive_iterator.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/convolution_pd.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/nstl.hpp"
+#include "common/primitive_iterator.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "jit_generator.hpp"
 

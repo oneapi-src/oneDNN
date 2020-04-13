@@ -14,12 +14,12 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
-#include "memory.hpp"
-#include "memory_tracking.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/memory.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/nstl.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "jit_avx2_x8s8s32x_conv_kernel.hpp"
 

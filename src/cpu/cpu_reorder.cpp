@@ -18,10 +18,10 @@
 #include <map>
 #include <vector>
 
+#include "common/memory.hpp"
+#include "common/type_helpers.hpp"
 #include "cpu_engine.hpp"
 #include "cpu_reorder_pd.hpp"
-#include "memory.hpp"
-#include "type_helpers.hpp"
 
 #include "cpu/jit_uni_reorder.hpp"
 #include "cpu/rnn/rnn_reorders.hpp"

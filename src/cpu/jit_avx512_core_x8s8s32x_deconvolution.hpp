@@ -17,18 +17,18 @@
 #ifndef CPU_JIT_AVX512_CORE_X8S8S32X_DECONVOLUTION_HPP
 #define CPU_JIT_AVX512_CORE_X8S8S32X_DECONVOLUTION_HPP
 
-#include "c_types_map.hpp"
-#include "dnnl_thread.hpp"
-#include "memory.hpp"
-#include "nstl.hpp"
-#include "type_helpers.hpp"
-#include "utils.hpp"
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/memory.hpp"
+#include "common/nstl.hpp"
+#include "common/primitive.hpp"
+#include "common/type_helpers.hpp"
+#include "common/utils.hpp"
 
 #include "cpu_deconvolution_pd.hpp"
 #include "eltwise/jit_uni_eltwise_injector.hpp"
 #include "jit_generator.hpp"
 #include "jit_primitive_conf.hpp"
-#include "primitive.hpp"
 
 namespace dnnl {
 namespace impl {

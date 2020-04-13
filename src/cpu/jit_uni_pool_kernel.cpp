@@ -15,10 +15,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "c_types_map.hpp"
+#include "common/c_types_map.hpp"
+#include "common/nstl.hpp"
+#include "common/utils.hpp"
 #include "cpu_pooling_pd.hpp"
-#include "nstl.hpp"
-#include "utils.hpp"
 
 #include "jit_uni_pool_kernel.hpp"
 

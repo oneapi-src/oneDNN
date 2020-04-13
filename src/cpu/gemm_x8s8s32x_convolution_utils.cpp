@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include "math_utils.hpp"
+#include "common/math_utils.hpp"
 #include "simple_q10n.hpp"
 
 #include "eltwise/ref_eltwise.hpp"

@@ -17,7 +17,7 @@
 #ifndef CPU_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
 #define CPU_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
 
-#include "layer_normalization_pd.hpp"
+#include "common/layer_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {
