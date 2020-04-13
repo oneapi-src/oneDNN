@@ -1223,9 +1223,8 @@ protected:
         bool pack = (p.pack_params.pack_a || p.pack_params.pack_b);
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu && pack,
                 "GPU does not support packed GEMM.");
-#ifndef DNNL_X86_64
-        SKIP_IF(pack, "Packed GEMM does not support non-x86 CPUs.");
-#endif
+        SKIP_IF(!DNNL_X64 && pack,
+                "Packed GEMM does not support non-x64 CPUs.");
         SKIP_IF((p.alpha != 1.f || p.igemm_params.oa() != 0
                         || p.igemm_params.ob() != 0)
                         && pack,
