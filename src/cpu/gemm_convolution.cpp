@@ -20,8 +20,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "cpu/eltwise/ref_eltwise.hpp"
 #include "cpu/gemm_convolution.hpp"
+#include "cpu/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {

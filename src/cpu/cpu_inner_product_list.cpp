@@ -16,10 +16,10 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/gemm_bf16_inner_product.hpp"
 #include "cpu/gemm_inner_product.hpp"
 #include "cpu/gemm_x8s8s32x_inner_product.hpp"
 #include "cpu/ref_inner_product.hpp"
+#include "cpu/x64/gemm_bf16_inner_product.hpp"
 
 namespace dnnl {
 namespace impl {

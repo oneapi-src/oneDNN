@@ -20,7 +20,7 @@
 #include "dnnl_config.h"
 #include "dnnl_types.h"
 
-#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 #include "cpu/gemm/os_blas.hpp"
 

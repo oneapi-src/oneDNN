@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/s8x8s32/common_u8.hpp"
 

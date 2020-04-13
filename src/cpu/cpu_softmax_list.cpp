@@ -16,8 +16,8 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/jit_uni_softmax.hpp"
 #include "cpu/ref_softmax.hpp"
+#include "cpu/x64/jit_uni_softmax.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -21,8 +21,8 @@
 
 #include "common/bfloat16.hpp"
 
-#include "cpu/cpu_isa_traits.hpp"
 #include "cpu/gemm/os_blas.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {

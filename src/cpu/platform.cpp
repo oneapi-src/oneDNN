@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 #include "cpu/platform.hpp"
 

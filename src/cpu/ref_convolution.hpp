@@ -25,7 +25,7 @@
 #include "common/utils.hpp"
 
 #include "cpu/cpu_convolution_pd.hpp"
-#include "cpu/eltwise/ref_eltwise.hpp"
+#include "cpu/ref_eltwise.hpp"
 
 namespace dnnl {
 namespace impl {

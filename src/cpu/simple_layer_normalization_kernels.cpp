@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/jit_simple_layer_normalization_kernels.hpp"
+#include "cpu/x64/jit_simple_layer_normalization_kernels.hpp"
 
 #include "cpu/simple_layer_normalization_kernels.hpp"
 

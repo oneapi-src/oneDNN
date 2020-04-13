@@ -20,7 +20,7 @@
 #include "gtest/gtest.h"
 
 #include "dnnl.hpp"
-#include "src/cpu/cpu_isa_traits.hpp"
+#include "src/cpu/x64/cpu_isa_traits.hpp"
 
 namespace dnnl {
 

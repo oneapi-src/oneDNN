@@ -19,9 +19,9 @@
 #include "common/math_utils.hpp"
 #include "cpu/simple_q10n.hpp"
 
-#include "cpu/eltwise/ref_eltwise.hpp"
+#include "cpu/ref_eltwise.hpp"
 
-#include "cpu/jit_gemm_inner_product_utils.hpp"
+#include "cpu/x64/jit_gemm_inner_product_utils.hpp"
 
 #include "cpu/gemm_inner_product_utils.hpp"
 

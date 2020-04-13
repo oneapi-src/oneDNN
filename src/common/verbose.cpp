@@ -24,7 +24,6 @@
 #include "dnnl_version.h"
 
 #include "c_types_map.hpp"
-#include "cpu/cpu_isa_traits.hpp"
 #include "verbose.hpp"
 
 #include "batch_normalization_pd.hpp"
@@ -45,6 +44,8 @@
 #include "shuffle_pd.hpp"
 #include "softmax_pd.hpp"
 #include "sum_pd.hpp"
+
+#include "cpu/x64/cpu_isa_traits.hpp"
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "gpu/ocl/verbose.hpp"

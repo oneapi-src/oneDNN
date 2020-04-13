@@ -20,7 +20,7 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 #include "cpu/gemm/f32/gemm_utils_f32.hpp"
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"

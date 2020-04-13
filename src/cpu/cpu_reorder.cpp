@@ -23,10 +23,10 @@
 #include "cpu/cpu_engine.hpp"
 #include "cpu/cpu_reorder_pd.hpp"
 
-#include "cpu/jit_uni_reorder.hpp"
-#include "cpu/rnn/rnn_reorders.hpp"
 #include "cpu/simple_reorder.hpp"
-#include "cpu/wino_reorder.hpp"
+#include "cpu/x64/jit_uni_reorder.hpp"
+#include "cpu/x64/rnn/rnn_reorders.hpp"
+#include "cpu/x64/wino_reorder.hpp"
 
 namespace dnnl {
 namespace impl {

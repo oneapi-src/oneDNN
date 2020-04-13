@@ -17,8 +17,8 @@
 #ifndef JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
 #define JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
 
-#include "cpu/jit_avx512_core_bf16cvt.hpp"
-#include "cpu/jit_generator.hpp"
+#include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {
