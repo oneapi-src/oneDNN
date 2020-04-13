@@ -21,6 +21,10 @@
 
 #include "common/c_types_map.hpp"
 
+#if defined(__x86_64__) || defined(_M_X64)
+#define DNNL_X86_64
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace cpu {

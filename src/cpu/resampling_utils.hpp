@@ -19,6 +19,8 @@
 
 #include "common/c_types_map.hpp"
 
+#include "cpu/simple_q10n.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -48,7 +50,7 @@ struct linear_coeffs_t {
         float s = linear_map(y, 1.f / f);
         idx[0] = left(s);
         idx[1] = right(s, x_max);
-        wei[1] = nstl::abs(s - math::saturate<float>(idx[0]));
+        wei[1] = nstl::abs(s - saturate<float>(idx[0]));
         wei[0] = 1.f - wei[1];
     }
     // left and right index of source image used for interpolation

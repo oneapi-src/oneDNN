@@ -19,9 +19,10 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
-#include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
+
+#include "cpu/simple_q10n.hpp"
 
 #include "cpu/nchw_pooling.hpp"
 
@@ -125,7 +126,7 @@ void nchw_pooling_fwd_t<d_type>::execute_forward(const exec_ctx_t &ctx) const {
             d[0] += src[src_offset];
         }
 
-        d[0] = math::out_round<data_t>((float)d[0] / num_summands);
+        d[0] = out_round<data_t>((float)d[0] / num_summands);
     };
 
     if (alg == alg_kind::pooling_max) {
@@ -258,7 +259,7 @@ void nchw_pooling_fwd_t<data_type::bf16>::execute_forward(
             d[0] += bf16cvt_wsp[src_offset];
         }
 
-        d[0] = math::out_round<float>((float)d[0] / num_summands);
+        d[0] = out_round<float>((float)d[0] / num_summands);
     };
     parallel_nd(blocked_size, [&](size_t i) {
         cvt_bfloat16_to_float(

@@ -146,7 +146,6 @@ template <data_type_t src_type, data_type_t weights_type, data_type_t dst_type>
 status_t gemm_x8s8s32x_matmul_t<src_type, weights_type, dst_type>::execute_ref(
         const exec_ctx_t &ctx) const {
     using math::get_bias;
-    using math::saturate;
 
     const auto src = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
     const auto weights = CTX_IN_MEM(const weights_data_t *, DNNL_ARG_WEIGHTS);

@@ -19,10 +19,10 @@
 #include "dnnl_types.h"
 
 #include "common/dnnl_thread.hpp"
-#include "common/math_utils.hpp"
 #include "common/utils.hpp"
 
 #include "cpu/platform.hpp"
+#include "cpu/simple_q10n.hpp"
 
 #include "cpu/gemm/f32/ref_gemm_f32.hpp"
 
@@ -98,7 +98,7 @@ dnnl_status_t ref_gemm_s8x8s32(const char *transa, const char *transb,
         double coffset = OCisR ? i2d(co[j]) : OCisC ? i2d(co[i]) : i2d(co[0]);
         double val = ((*beta == 0.0f) ? 0.0 : f2d(*beta) * i2d(C[i + j * ldc]))
                 + f2d(*alpha) * dC[i + j * ldc] + coffset;
-        C[i + j * ldc] = math::out_round<int32_t>(math::saturate<int32_t>(val));
+        C[i + j * ldc] = out_round<int32_t>(saturate<int32_t>(val));
     });
 
     free(dA);

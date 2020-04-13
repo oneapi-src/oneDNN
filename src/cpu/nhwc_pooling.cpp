@@ -23,6 +23,8 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 
+#include "cpu/simple_q10n.hpp"
+
 #include "cpu/nhwc_pooling.hpp"
 
 namespace dnnl {
@@ -54,7 +56,7 @@ void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
     for (int i = 0; i < n; ++i) {
         float ftmp = (float)src[i];
         ftmp = ftmp / num;
-        dst[i] = math::out_round<ker_data_t>(ftmp);
+        dst[i] = out_round<ker_data_t>(ftmp);
     }
 }
 

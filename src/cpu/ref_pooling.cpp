@@ -19,9 +19,10 @@
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
-#include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
+
+#include "cpu/simple_q10n.hpp"
 
 #include "cpu/ref_pooling.hpp"
 
@@ -128,7 +129,7 @@ void ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
             dst += src[off];
         }
 
-        d[0] = math::out_round<data_t>((float)dst / num_summands);
+        d[0] = out_round<data_t>((float)dst / num_summands);
     };
 
     const int MB = pd()->MB();

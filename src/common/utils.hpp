@@ -27,10 +27,6 @@
 #include <memory>
 #include <string>
 
-#if defined(__x86_64__) || defined(_M_X64)
-#define DNNL_X86_64
-#endif
-
 #define MSAN_ENABLED 0
 #define ATTR_NO_MSAN
 #if defined(__has_feature)

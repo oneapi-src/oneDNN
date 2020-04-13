@@ -30,8 +30,6 @@ namespace impl {
 namespace gpu {
 namespace ocl {
 
-using math::saturate;
-
 using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::format_tag;
 
