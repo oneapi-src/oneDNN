@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common_u8.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
+
+#include "cpu/gemm/s8x8s32/common_u8.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -21,7 +21,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ref_shuffle.hpp"
+#include "cpu/ref_shuffle.hpp"
 
 namespace dnnl {
 namespace impl {

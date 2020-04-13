@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_avx512_core_kernel_gemv_s8x8s32_kern.hpp"
+#include "cpu/gemm/s8x8s32/jit_avx512_core_kernel_gemv_s8x8s32_kern.hpp"
 
 #ifdef _WIN32
 #define is_windows 1

@@ -27,8 +27,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_convolution_pd.hpp"
-#include "cpu_deconvolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_deconvolution_pd.hpp"
 
 namespace dnnl {
 namespace impl {

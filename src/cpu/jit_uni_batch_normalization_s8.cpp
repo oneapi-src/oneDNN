@@ -23,9 +23,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_uni_batch_normalization_s8.hpp"
+#include "cpu/jit_uni_batch_normalization_s8.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -20,7 +20,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "jit_sse41_1x1_convolution.hpp"
+#include "cpu/jit_sse41_1x1_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

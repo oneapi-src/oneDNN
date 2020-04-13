@@ -24,8 +24,8 @@
 
 #include "cpu/platform.hpp"
 
-#include "jit_avx512_core_u8s8s32x_wino_convolution.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_avx512_core_u8s8s32x_wino_convolution.hpp"
+#include "cpu/jit_generator.hpp"
 
 #include <string.h>
 

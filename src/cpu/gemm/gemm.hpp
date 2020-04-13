@@ -17,10 +17,12 @@
 #ifndef GEMM_HPP
 #define GEMM_HPP
 
-#include "common/bfloat16.hpp"
-#include "cpu_isa_traits.hpp"
 #include "dnnl_types.h"
-#include "os_blas.hpp"
+
+#include "common/bfloat16.hpp"
+
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/gemm/os_blas.hpp"
 
 namespace dnnl {
 namespace impl {

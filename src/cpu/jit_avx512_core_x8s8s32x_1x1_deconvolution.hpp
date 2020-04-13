@@ -24,11 +24,11 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_convolution_pd.hpp"
-#include "cpu_deconvolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_deconvolution_pd.hpp"
 
-#include "jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
-#include "jit_uni_1x1_conv_utils.hpp"
+#include "cpu/jit_avx512_core_x8s8s32x_1x1_convolution.hpp"
+#include "cpu/jit_uni_1x1_conv_utils.hpp"
 
 namespace dnnl {
 namespace impl {

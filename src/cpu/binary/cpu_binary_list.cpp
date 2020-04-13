@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/binary/jit_uni_binary.hpp"
 #include "cpu/binary/jit_uni_i8i8_binary.hpp"

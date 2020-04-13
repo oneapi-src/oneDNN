@@ -21,9 +21,9 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
-#include "cpu_convolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
 
-#include "jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
+#include "cpu/jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
 
 namespace dnnl {
 namespace impl {

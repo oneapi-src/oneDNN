@@ -26,7 +26,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_resampling_pd.hpp"
+#include "cpu/resampling/cpu_resampling_pd.hpp"
 
 namespace dnnl {
 namespace impl {

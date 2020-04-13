@@ -20,7 +20,7 @@
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ref_inner_product.hpp"
+#include "cpu/ref_inner_product.hpp"
 
 namespace dnnl {
 namespace impl {

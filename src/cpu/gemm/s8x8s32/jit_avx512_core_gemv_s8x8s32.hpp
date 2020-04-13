@@ -19,7 +19,7 @@
 
 #include <cstdint>
 
-#include "../gemm_info.hpp"
+#include "cpu/gemm/gemm_info.hpp"
 
 namespace dnnl {
 namespace impl {

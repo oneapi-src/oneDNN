@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_sse41_gemv_t_f32_kern.hpp"
+#include "cpu/gemm/f32/jit_sse41_gemv_t_f32_kern.hpp"
 
 #ifdef _WIN32
 static const bool is_windows = true;

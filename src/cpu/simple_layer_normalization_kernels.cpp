@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_simple_layer_normalization_kernels.hpp"
+#include "cpu/jit_simple_layer_normalization_kernels.hpp"
 
-#include "simple_layer_normalization_kernels.hpp"
+#include "cpu/simple_layer_normalization_kernels.hpp"
 
 namespace dnnl {
 namespace impl {

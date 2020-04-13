@@ -32,10 +32,12 @@
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 
-#include "../gemm/gemm.hpp"
-#include "../simple_q10n.hpp"
-#include "gemm/gemm_pack.hpp"
-#include "ref_rnn.hpp"
+#include "cpu/simple_q10n.hpp"
+
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
+
+#include "cpu/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {

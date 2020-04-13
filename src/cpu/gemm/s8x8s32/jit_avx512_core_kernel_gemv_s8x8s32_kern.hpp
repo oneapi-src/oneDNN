@@ -20,10 +20,11 @@
 #include <cstdint>
 
 #include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "../gemm_info.hpp"
-#include "common_u8.hpp"
-#include "jit_generator.hpp"
+#include "cpu/gemm/gemm_info.hpp"
+
+#include "cpu/gemm/s8x8s32/common_u8.hpp"
 
 namespace dnnl {
 namespace impl {

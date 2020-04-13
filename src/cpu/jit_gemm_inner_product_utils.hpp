@@ -17,7 +17,7 @@
 #ifndef CPU_JIT_GEMM_INNER_PRODUCT_UTILS_HPP
 #define CPU_JIT_GEMM_INNER_PRODUCT_UTILS_HPP
 
-#include "gemm_inner_product_utils.hpp"
+#include "cpu/gemm_inner_product_utils.hpp"
 
 namespace dnnl {
 namespace impl {

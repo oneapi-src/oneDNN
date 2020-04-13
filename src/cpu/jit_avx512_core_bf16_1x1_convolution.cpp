@@ -20,9 +20,9 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "jit_avx512_core_bf16_1x1_convolution.hpp"
+#include "cpu/jit_avx512_core_bf16_1x1_convolution.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -20,9 +20,9 @@
 #include "dnnl_config.h"
 #include "dnnl_types.h"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/cpu_isa_traits.hpp"
 
-#include "os_blas.hpp"
+#include "cpu/gemm/os_blas.hpp"
 
 namespace dnnl {
 namespace impl {

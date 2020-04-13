@@ -21,7 +21,7 @@
 #include "common/utils.hpp"
 #include "dnnl_types.h"
 
-#include "cpu_reducer.hpp"
+#include "cpu/cpu_reducer.hpp"
 
 namespace dnnl {
 namespace impl {

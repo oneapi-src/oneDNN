@@ -26,7 +26,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_eltwise_pd.hpp"
+#include "cpu/eltwise/cpu_eltwise_pd.hpp"
 
 namespace dnnl {
 namespace impl {

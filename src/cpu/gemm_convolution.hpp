@@ -21,11 +21,11 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
-#include "eltwise/ref_eltwise.hpp"
-#include "gemm/gemm.hpp"
-#include "gemm_convolution_utils.hpp"
+#include "cpu/eltwise/ref_eltwise.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
 
-#include "cpu_convolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
 
 namespace dnnl {
 namespace impl {

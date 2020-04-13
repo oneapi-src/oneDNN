@@ -14,11 +14,11 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
-#include "jit_generator.hpp"
+#include "cpu/gemm/bf16/jit_avx512_core_gemm_bf16bf16f32_kern.hpp"
 
 #ifdef _WIN32
 static const bool is_windows = true;

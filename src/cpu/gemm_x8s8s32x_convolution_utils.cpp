@@ -17,12 +17,12 @@
 #include <memory>
 
 #include "common/math_utils.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "eltwise/ref_eltwise.hpp"
-#include "jit_gemm_x8s8s32x_convolution_utils.hpp"
+#include "cpu/eltwise/ref_eltwise.hpp"
+#include "cpu/jit_gemm_x8s8s32x_convolution_utils.hpp"
 
-#include "gemm_x8s8s32x_convolution_utils.hpp"
+#include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {

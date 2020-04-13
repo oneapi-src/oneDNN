@@ -20,7 +20,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
 #include "common/utils.hpp"
-#include "gemm_pack_storage.hpp"
+
+#include "cpu/gemm/gemm_pack_storage.hpp"
 
 namespace dnnl {
 namespace impl {

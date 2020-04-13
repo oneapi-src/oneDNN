@@ -17,7 +17,7 @@
 #ifndef COMMON_F32_HPP
 #define COMMON_F32_HPP
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
 #define F32_COPY_KERNEL_CODE_SIZE (4096L * 5)
 #define F32_COMPUTE_KERNEL_CODE_SIZE (4096L * 32)

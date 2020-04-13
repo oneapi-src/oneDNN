@@ -21,7 +21,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 
-#include "jit_uni_pooling.hpp"
+#include "cpu/jit_uni_pooling.hpp"
 
 namespace dnnl {
 namespace impl {

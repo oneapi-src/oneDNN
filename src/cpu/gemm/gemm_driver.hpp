@@ -21,8 +21,8 @@
 
 #include "common/c_types_map.hpp"
 
-#include "gemm_info.hpp"
-#include "gemm_pack_storage.hpp"
+#include "cpu/gemm/gemm_info.hpp"
+#include "cpu/gemm/gemm_pack_storage.hpp"
 
 namespace dnnl {
 namespace impl {

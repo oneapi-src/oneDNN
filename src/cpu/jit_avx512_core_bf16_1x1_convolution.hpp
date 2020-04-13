@@ -23,15 +23,15 @@
 #include "common/primitive_hashing.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_convolution_pd.hpp"
+#include "cpu/cpu_engine.hpp"
+#include "cpu/cpu_reducer.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_convolution_pd.hpp"
-#include "cpu_engine.hpp"
-#include "cpu_reducer.hpp"
 
-#include "jit_avx512_core_bf16_1x1_conv_kernel.hpp"
-#include "jit_transpose_src_utils.hpp"
-#include "jit_uni_1x1_conv_utils.hpp"
-#include "jit_uni_dw_convolution.hpp"
+#include "cpu/jit_avx512_core_bf16_1x1_conv_kernel.hpp"
+#include "cpu/jit_transpose_src_utils.hpp"
+#include "cpu/jit_uni_1x1_conv_utils.hpp"
+#include "cpu/jit_uni_dw_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -22,7 +22,7 @@
 #include "common/primitive.hpp"
 #include "common/reorder_pd.hpp"
 
-#include "cpu_sum_pd.hpp"
+#include "cpu/cpu_sum_pd.hpp"
 
 namespace dnnl {
 namespace impl {

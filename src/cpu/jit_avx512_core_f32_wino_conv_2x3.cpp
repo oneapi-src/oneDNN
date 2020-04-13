@@ -23,8 +23,8 @@
 
 #include "cpu/platform.hpp"
 
-#include "jit_avx512_core_f32_wino_conv_2x3.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_avx512_core_f32_wino_conv_2x3.hpp"
+#include "cpu/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -19,12 +19,13 @@
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
+#include "common/rnn_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "common/rnn_pd.hpp"
-#include "cpu_engine.hpp"
-#include "rnn_utils.hpp"
+#include "cpu/cpu_engine.hpp"
+
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {

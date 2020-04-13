@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/matmul/gemm_bf16_matmul.hpp"
 #include "cpu/matmul/gemm_f32_matmul.hpp"

@@ -26,7 +26,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "cpu_lrn_pd.hpp"
+#include "cpu/cpu_lrn_pd.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -17,20 +17,20 @@
 #ifndef CPU_JIT_UNI_RNN_COMMON_POSTGEMM_DISPATCHER_HPP
 #define CPU_JIT_UNI_RNN_COMMON_POSTGEMM_DISPATCHER_HPP
 
-#include "cpu_rnn_pd.hpp"
-#include "rnn_utils.hpp"
+#include "cpu/rnn/cpu_rnn_pd.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
-#include "jit_uni_gru_cell_postgemm_1_bwd.hpp"
-#include "jit_uni_gru_cell_postgemm_1_fwd.hpp"
-#include "jit_uni_gru_cell_postgemm_2_bwd.hpp"
-#include "jit_uni_gru_cell_postgemm_2_fwd.hpp"
-#include "jit_uni_gru_lbr_cell_postgemm_bwd.hpp"
-#include "jit_uni_gru_lbr_cell_postgemm_fwd.hpp"
-#include "jit_uni_lstm_cell_postgemm_bwd.hpp"
-#include "jit_uni_lstm_cell_postgemm_fwd.hpp"
-#include "jit_uni_rnn_cell_postgemm_bwd.hpp"
-#include "jit_uni_rnn_cell_postgemm_fwd.hpp"
-#include "jit_uni_rnn_common_postgemm.hpp"
+#include "cpu/rnn/jit_uni_gru_cell_postgemm_1_bwd.hpp"
+#include "cpu/rnn/jit_uni_gru_cell_postgemm_1_fwd.hpp"
+#include "cpu/rnn/jit_uni_gru_cell_postgemm_2_bwd.hpp"
+#include "cpu/rnn/jit_uni_gru_cell_postgemm_2_fwd.hpp"
+#include "cpu/rnn/jit_uni_gru_lbr_cell_postgemm_bwd.hpp"
+#include "cpu/rnn/jit_uni_gru_lbr_cell_postgemm_fwd.hpp"
+#include "cpu/rnn/jit_uni_lstm_cell_postgemm_bwd.hpp"
+#include "cpu/rnn/jit_uni_lstm_cell_postgemm_fwd.hpp"
+#include "cpu/rnn/jit_uni_rnn_cell_postgemm_bwd.hpp"
+#include "cpu/rnn/jit_uni_rnn_cell_postgemm_fwd.hpp"
+#include "cpu/rnn/jit_uni_rnn_common_postgemm.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -24,7 +24,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
+#include "cpu/jit_avx512_core_f32_wino_conv_4x3_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_wino_transform_call_s, field)
 

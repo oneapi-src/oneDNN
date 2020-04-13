@@ -25,13 +25,14 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "../cpu_isa_traits.hpp"
-#include "../gemm/gemm.hpp"
-#include "../gemm/os_blas.hpp"
+#include "cpu/cpu_isa_traits.hpp"
 
-#include "cpu_rnn_pd.hpp"
-#include "jit_uni_rnn_common_postgemm_dispatcher.hpp"
-#include "rnn_utils.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/os_blas.hpp"
+
+#include "cpu/rnn/cpu_rnn_pd.hpp"
+#include "cpu/rnn/jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {

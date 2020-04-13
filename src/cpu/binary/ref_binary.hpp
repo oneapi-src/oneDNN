@@ -24,11 +24,10 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/eltwise/ref_eltwise.hpp"
 #include "cpu/platform.hpp"
 
-#include "cpu_binary_pd.hpp"
-
-#include "eltwise/ref_eltwise.hpp"
+#include "cpu/binary/cpu_binary_pd.hpp"
 
 namespace dnnl {
 namespace impl {

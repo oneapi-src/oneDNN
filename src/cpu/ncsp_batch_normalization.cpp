@@ -17,13 +17,14 @@
 #include <assert.h>
 #include <math.h>
 
-#include "common/c_types_map.hpp" // common
-#include "common/dnnl_thread.hpp" // common
-#include "common/type_helpers.hpp" // common
+#include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/type_helpers.hpp"
 
+#include "cpu/cpu_batch_normalization_utils.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_batch_normalization_utils.hpp" // cpu
-#include "ncsp_batch_normalization.hpp" // cpu
+
+#include "cpu/ncsp_batch_normalization.hpp"
 
 // clang 6 and 7 generate incorrect code with OMP_SIMD in some particular cases
 #if (defined __clang_major__) && (__clang_major__ >= 6)

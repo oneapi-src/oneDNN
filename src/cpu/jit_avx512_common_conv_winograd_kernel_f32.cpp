@@ -25,7 +25,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "jit_avx512_common_conv_winograd_kernel_f32.hpp"
+#include "cpu/jit_avx512_common_conv_winograd_kernel_f32.hpp"
 
 #ifndef KERNEL_SIZE_THRESHOLD
 #define KERNEL_SIZE_THRESHOLD 16

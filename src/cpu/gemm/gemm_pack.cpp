@@ -14,18 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/dnnl_thread.hpp"
-#include "common/dnnl_traits.hpp"
 #include "dnnl_types.h"
 
-#include "gemm_pack.hpp"
+#include "common/dnnl_thread.hpp"
+#include "common/dnnl_traits.hpp"
 
 #include "cpu_isa_traits.hpp"
 
-#include "gemm.hpp"
-#include "gemm_driver.hpp"
-#include "gemm_utils.hpp"
-#include "os_blas.hpp"
+#include "cpu/gemm/gemm.hpp"
+#include "cpu/gemm/gemm_driver.hpp"
+#include "cpu/gemm/gemm_pack.hpp"
+#include "cpu/gemm/gemm_utils.hpp"
+#include "cpu/gemm/os_blas.hpp"
 
 namespace dnnl {
 namespace impl {

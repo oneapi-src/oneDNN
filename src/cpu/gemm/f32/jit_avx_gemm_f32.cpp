@@ -20,12 +20,13 @@
 #include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
 
-#include "../gemm_driver.hpp"
-#include "gemm_utils_f32.hpp"
-#include "jit_avx_gemm_f32.hpp"
-#include "ref_gemm_f32.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/gemm/gemm_driver.hpp"
+
+#include "cpu/gemm/f32/gemm_utils_f32.hpp"
+#include "cpu/gemm/f32/jit_avx_gemm_f32.hpp"
+#include "cpu/gemm/f32/ref_gemm_f32.hpp"
 
 namespace dnnl {
 namespace impl {

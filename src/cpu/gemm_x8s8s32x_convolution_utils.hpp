@@ -17,7 +17,7 @@
 #ifndef CPU_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
 #define CPU_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
 
-#include "gemm_convolution_utils.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
 
 namespace dnnl {
 namespace impl {

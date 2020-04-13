@@ -19,9 +19,11 @@
 
 #include <cstdint>
 #include <memory>
+
 #include "common/c_types_map.hpp"
-#include "gemm_pack_storage.hpp"
-#include "gemm_threading.hpp"
+
+#include "cpu/gemm/gemm_pack_storage.hpp"
+#include "cpu/gemm/gemm_threading.hpp"
 
 namespace dnnl {
 namespace impl {

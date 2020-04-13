@@ -19,7 +19,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "jit_avx512_core_bf16_dw_conv_kernel.hpp"
+#include "cpu/jit_avx512_core_bf16_dw_conv_kernel.hpp"
 
 #define GET_OFF(field) offsetof(jit_conv_call_s, field)
 

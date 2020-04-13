@@ -16,17 +16,18 @@
 
 #include <cstdint>
 
-#include "simple_gemm_s8s8s32.hpp"
+#include "dnnl_types.h"
 
-#include "../gemm.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
-#include "dnnl_types.h"
-#include "jit_generator.hpp"
 
 #include "cpu/platform.hpp"
+
+#include "cpu/gemm/gemm.hpp"
+
+#include "cpu/gemm/s8x8s32/simple_gemm_s8s8s32.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -27,7 +27,7 @@
 #include "common/utils.hpp"
 #include "dnnl_types.h"
 
-#include "cpu_barrier.hpp"
+#include "cpu/cpu_barrier.hpp"
 
 namespace dnnl {
 namespace impl {

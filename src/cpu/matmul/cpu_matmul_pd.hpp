@@ -19,7 +19,7 @@
 
 #include "common/matmul_pd.hpp"
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

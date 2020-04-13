@@ -23,12 +23,12 @@
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"
 
-#include "cpu_convolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
 
-#include "gemm_convolution_utils.hpp"
-#include "gemm_x8s8s32x_convolution_utils.hpp"
+#include "cpu/gemm_convolution_utils.hpp"
+#include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
 
-#include "gemm/gemm.hpp"
+#include "cpu/gemm/gemm.hpp"
 
 namespace dnnl {
 namespace impl {

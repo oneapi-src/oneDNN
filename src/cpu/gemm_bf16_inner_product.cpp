@@ -19,8 +19,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
-#include "gemm_bf16_inner_product.hpp"
-#include "jit_avx512_core_bf16cvt.hpp"
+#include "cpu/gemm_bf16_inner_product.hpp"
+#include "cpu/jit_avx512_core_bf16cvt.hpp"
 
 namespace dnnl {
 namespace impl {

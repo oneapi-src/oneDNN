@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_uni_i8i8_pooling.hpp"
+#include "cpu/jit_uni_i8i8_pooling.hpp"
 
 #include <math.h>
 
 #include "common/dnnl_thread.hpp"
 #include "common/utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

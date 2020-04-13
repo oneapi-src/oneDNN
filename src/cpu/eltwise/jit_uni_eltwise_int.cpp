@@ -19,9 +19,9 @@
 #include "common/nstl.hpp"
 #include "common/utils.hpp"
 
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "eltwise/jit_uni_eltwise_int.hpp"
+#include "cpu/eltwise/jit_uni_eltwise_int.hpp"
 
 namespace dnnl {
 namespace impl {

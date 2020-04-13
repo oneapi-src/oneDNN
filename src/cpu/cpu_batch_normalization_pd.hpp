@@ -18,7 +18,7 @@
 #define CPU_BATCH_NORMALIZATION_PD_HPP
 
 #include "common/batch_normalization_pd.hpp"
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

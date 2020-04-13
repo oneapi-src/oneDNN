@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_avx2_kernel_sgemm_kern.hpp"
+#include "cpu/gemm/f32/jit_avx2_kernel_sgemm_kern.hpp"
 
 #ifdef _WIN32
 static const bool is_windows = true;

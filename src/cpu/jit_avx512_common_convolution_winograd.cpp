@@ -29,7 +29,7 @@
 
 #include "cpu/platform.hpp"
 
-#include "jit_avx512_common_convolution_winograd.hpp"
+#include "cpu/jit_avx512_common_convolution_winograd.hpp"
 
 #define _64byte_align ((1 << 6) - 1)
 #define IS_ALIGNED(byte_blk, byte_align) ((byte_blk & byte_align) == 0)

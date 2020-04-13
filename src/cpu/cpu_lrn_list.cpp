@@ -14,7 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 #include "cpu/jit_avx512_common_lrn.hpp"
 #include "cpu/jit_uni_lrn.hpp"

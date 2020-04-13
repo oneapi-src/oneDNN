@@ -22,10 +22,10 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_convolution_pd.hpp"
+#include "cpu/cpu_convolution_pd.hpp"
 
-#include "jit_primitive_conf.hpp"
-#include "jit_sse41_conv_kernel_f32.hpp"
+#include "cpu/jit_primitive_conf.hpp"
+#include "cpu/jit_sse41_conv_kernel_f32.hpp"
 
 namespace dnnl {
 namespace impl {

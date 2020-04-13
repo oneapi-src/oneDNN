@@ -18,10 +18,10 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "cpu_barrier.hpp"
-#include "jit_generator.hpp"
+#include "cpu/cpu_barrier.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "jit_transpose_src_utils.hpp"
+#include "cpu/jit_transpose_src_utils.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -19,9 +19,9 @@
 #include "common/dnnl_traits.hpp"
 #include "common/math_utils.hpp"
 #include "common/type_helpers.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/simple_q10n.hpp"
 
-#include "ref_convolution.hpp"
+#include "cpu/ref_convolution.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -17,8 +17,10 @@
 /*
  * Common for RNN and LSTM cell execution
  */
+
 #include "common/bfloat16.hpp"
-#include "ref_rnn.hpp"
+
+#include "cpu/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {

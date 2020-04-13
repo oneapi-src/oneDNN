@@ -23,7 +23,7 @@
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
 
-#include "nchw_pooling.hpp"
+#include "cpu/nchw_pooling.hpp"
 
 namespace dnnl {
 namespace impl {

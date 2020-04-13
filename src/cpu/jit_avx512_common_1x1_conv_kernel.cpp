@@ -25,11 +25,11 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_barrier.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_barrier.hpp"
 
-#include "jit_avx512_common_1x1_conv_kernel.hpp"
-#include "jit_uni_1x1_conv_utils.hpp"
+#include "cpu/jit_avx512_common_1x1_conv_kernel.hpp"
+#include "cpu/jit_uni_1x1_conv_utils.hpp"
 
 #define GET_OFF(field) offsetof(jit_1x1_conv_call_s, field)
 

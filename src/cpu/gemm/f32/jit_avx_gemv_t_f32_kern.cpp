@@ -14,10 +14,10 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "jit_avx_gemv_t_f32_kern.hpp"
+#include "cpu/cpu_isa_traits.hpp"
+#include "cpu/jit_generator.hpp"
 
-#include "cpu_isa_traits.hpp"
-#include "jit_generator.hpp"
+#include "cpu/gemm/f32/jit_avx_gemv_t_f32_kern.hpp"
 
 #ifdef _WIN32
 static const bool is_windows = true;

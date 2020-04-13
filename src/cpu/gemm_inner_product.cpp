@@ -18,7 +18,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
-#include "gemm_inner_product.hpp"
+#include "cpu/gemm_inner_product.hpp"
 
 namespace dnnl {
 namespace impl {

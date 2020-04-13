@@ -21,7 +21,7 @@
 #include "common/dnnl_thread.hpp"
 #include "common/type_helpers.hpp"
 
-#include "ref_lrn.hpp"
+#include "cpu/ref_lrn.hpp"
 
 namespace dnnl {
 namespace impl {

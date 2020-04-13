@@ -14,8 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common_f32.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
+
+#include "cpu/gemm/f32/common_f32.hpp"
 
 namespace dnnl {
 namespace impl {

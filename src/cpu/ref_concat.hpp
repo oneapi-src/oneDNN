@@ -22,7 +22,7 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 
-#include "cpu_concat_pd.hpp"
+#include "cpu/cpu_concat_pd.hpp"
 
 namespace dnnl {
 namespace impl {

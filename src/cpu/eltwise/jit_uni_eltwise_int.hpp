@@ -24,9 +24,9 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu_eltwise_pd.hpp"
+#include "cpu/eltwise/cpu_eltwise_pd.hpp"
 
-#include "cpu_isa_traits.hpp"
+#include "cpu/cpu_isa_traits.hpp"
 
 namespace dnnl {
 namespace impl {

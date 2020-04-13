@@ -22,11 +22,11 @@
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
-#include "cpu_isa_traits.hpp"
+#include "cpu/cpu_isa_traits.hpp"
 #include "dnnl_debug.h"
 
 #include "common/bfloat16.hpp"
-#include "jit_generator.hpp"
+#include "cpu/jit_generator.hpp"
 
 namespace dnnl {
 namespace impl {

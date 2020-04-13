@@ -24,7 +24,7 @@
 
 #include "cpu/cpu_primitive.hpp"
 
-#include "ref_matmul.hpp"
+#include "cpu/matmul/ref_matmul.hpp"
 
 namespace dnnl {
 namespace impl {

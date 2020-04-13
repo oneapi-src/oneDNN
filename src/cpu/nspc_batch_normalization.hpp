@@ -26,8 +26,8 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/cpu_batch_normalization_pd.hpp"
 #include "cpu/platform.hpp"
-#include "cpu_batch_normalization_pd.hpp"
 
 namespace dnnl {
 namespace impl {

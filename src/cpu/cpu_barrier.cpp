@@ -16,7 +16,7 @@
 
 #include <assert.h>
 
-#include "cpu_barrier.hpp"
+#include "cpu/cpu_barrier.hpp"
 
 namespace dnnl {
 namespace impl {

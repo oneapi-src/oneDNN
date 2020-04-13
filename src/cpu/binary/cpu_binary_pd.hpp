@@ -21,7 +21,7 @@
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
-#include "cpu_engine.hpp"
+#include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
 namespace impl {

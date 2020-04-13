@@ -22,8 +22,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/type_helpers.hpp"
-#include "ref_batch_normalization.hpp"
-#include "simple_q10n.hpp"
+#include "cpu/ref_batch_normalization.hpp"
+#include "cpu/simple_q10n.hpp"
 
 #define DECLARE_DATA_OFFSET \
     auto data_offset = [&](const memory_desc_wrapper &data_d, int n, int c, \
