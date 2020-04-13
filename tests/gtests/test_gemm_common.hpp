@@ -21,7 +21,6 @@
 #include "dnnl_thread.hpp"
 #include "gtest/gtest.h"
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl.h"
 #include "dnnl_types.h"
 
@@ -1218,18 +1217,8 @@ protected:
         SKIP_IF(!zero_off && get_test_engine_kind() == engine::kind::cpu,
                 "CPU does not support non-zero offsets.");
 
-        bool is_f16 = (data_traits<a_dt>::data_type == memory::data_type::f16);
-        SKIP_IF(is_f16 && get_test_engine_kind() == engine::kind::cpu,
-                "CPU does not support f16 data type.");
-
-        bool is_bf16bf16f32 = true
-                && data_traits<a_dt>::data_type == memory::data_type::bf16
-                && data_traits<b_dt>::data_type == memory::data_type::bf16
-                && data_traits<c_dt>::data_type == memory::data_type::f32;
-
-        SKIP_IF(is_bf16bf16f32 && get_test_engine_kind() == engine::kind::cpu
-                        && !impl::cpu::mayiuse(impl::cpu::avx512_core),
-                "Skip test for systems that do not support avx512_core.");
+        SKIP_IF(unsupported_data_type(data_traits<a_dt>::data_type),
+                "Engine does not support this data type.");
 
         bool pack = (p.pack_params.pack_a || p.pack_params.pack_b);
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu && pack,

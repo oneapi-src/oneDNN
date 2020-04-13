@@ -17,7 +17,6 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl.hpp"
 
 namespace dnnl {
@@ -48,13 +47,8 @@ protected:
 
         p = ::testing::TestWithParam<binary_test_params>::GetParam();
 
-        SKIP_IF(src0_dt == memory::data_type::f16
-                        && get_test_engine_kind() == engine::kind::cpu,
-                "F16 not supported with CPU engine");
-        SKIP_IF(src0_dt == memory::data_type::bf16
-                        && !impl::cpu::mayiuse(impl::cpu::avx512_core)
-                        && get_test_engine_kind() == engine::kind::cpu,
-                "current ISA doesn't support bfloat16 data type");
+        SKIP_IF(unsupported_data_type(src0_dt),
+                "Engine does not support this data type.");
 
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);

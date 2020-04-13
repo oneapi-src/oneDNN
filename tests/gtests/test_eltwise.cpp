@@ -17,7 +17,6 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl.hpp"
 
 namespace dnnl {
@@ -340,13 +339,8 @@ private:
 protected:
     virtual void SetUp() {
         data_type = data_traits<data_t>::data_type;
-        SKIP_IF(data_type == memory::data_type::f16
-                        && get_test_engine_kind() == engine::kind::cpu,
-                "CPU does not support f16 data type.");
-        SKIP_IF(data_type == memory::data_type::bf16
-                        && get_test_engine_kind() == engine::kind::cpu
-                        && !impl::cpu::mayiuse(impl::cpu::avx512_core),
-                "ISA does not support bf16 data type.");
+        SKIP_IF(unsupported_data_type(data_type),
+                "Engine does not support this data type.");
         p = ::testing::TestWithParam<decltype(p)>::GetParam();
         SKIP_IF((p.alg_kind != algorithm::eltwise_relu
                         || (p.alg_kind == algorithm::eltwise_relu

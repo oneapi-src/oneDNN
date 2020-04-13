@@ -46,6 +46,8 @@
 #include "src/common/memory_desc_wrapper.hpp"
 #include "src/common/nstl.hpp"
 
+#include "src/cpu/platform.hpp"
+
 #define for_ for
 
 using dnnl::impl::bfloat16_t;
@@ -64,6 +66,23 @@ bool is_current_test_failed();
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
 dnnl::engine::kind get_test_engine_kind();
 dnnl::engine get_test_engine();
+#endif
+
+inline bool unsupported_data_type(memory::data_type dt, dnnl::engine eng) {
+    dnnl::engine::kind kind = eng.get_kind();
+
+    bool supported = true; // optimism
+    if (kind == dnnl::engine::kind::cpu)
+        supported = dnnl::impl::cpu::platform::has_data_type_support(
+                memory::convert_to_c(dt));
+
+    return !supported;
+}
+
+#ifdef DNNL_TEST_WITH_ENGINE_PARAM
+inline bool unsupported_data_type(memory::data_type dt) {
+    return unsupported_data_type(dt, get_test_engine());
+}
 #endif
 
 template <typename data_t>

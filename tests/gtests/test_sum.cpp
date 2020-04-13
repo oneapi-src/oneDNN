@@ -17,7 +17,6 @@
 #include "dnnl_test_common.hpp"
 #include "gtest/gtest.h"
 
-#include "cpu_isa_traits.hpp"
 #include "dnnl.hpp"
 
 namespace dnnl {
@@ -140,9 +139,8 @@ protected:
         SKIP_IF(get_test_engine_kind() == engine::kind::gpu
                         && src_data_type == memory::data_type::bf16,
                 "GPU does not support bfloat16 data type.");
-        SKIP_IF(src_data_type == memory::data_type::bf16
-                        && !impl::cpu::mayiuse(impl::cpu::avx512_core),
-                "current ISA doesn't support bfloat16 data type");
+        SKIP_IF(unsupported_data_type(src_data_type),
+                "Engine does not support this data type.");
         catch_expected_failures(
                 [=]() { Test(); }, p.expect_to_fail, p.expected_status);
     }
