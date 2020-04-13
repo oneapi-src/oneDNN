@@ -205,11 +205,6 @@ struct gemm_matmul_t : public gpu_primitive_t {
         return gemm_status;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        return gemm_->create_resource(engine, mapper);
-    }
-
     status_t execute(const exec_ctx_t &ctx) const override;
 
 protected:

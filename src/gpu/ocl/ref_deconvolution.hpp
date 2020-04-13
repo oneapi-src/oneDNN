@@ -179,11 +179,6 @@ struct ref_deconvolution_fwd_t : public gpu_primitive_t {
         return conv_status;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        return conv_p_->create_resource(engine, mapper);
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto &args = ctx.args();
@@ -292,11 +287,6 @@ struct ref_deconvolution_bwd_data_t : public gpu_primitive_t {
         status_t conv_status
                 = pd()->conv_pd_->create_primitive(conv_p_, engine);
         return conv_status;
-    }
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        return conv_p_->create_resource(engine, mapper);
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -446,16 +436,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
         if (!bias_binary_) return status::runtime_error;
 
         return status::success;
-    }
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, bias_binary_));
-        mapper.add(this, std::move(r));
-        return conv_p_->create_resource(engine, mapper);
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

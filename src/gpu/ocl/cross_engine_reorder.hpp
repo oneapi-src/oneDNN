@@ -82,12 +82,6 @@ struct cross_engine_reorder_t : public gpu_primitive_t {
 
     cross_engine_reorder_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (reorder_) CHECK(reorder_->create_resource(engine, mapper));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 protected:

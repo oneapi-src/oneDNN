@@ -102,13 +102,6 @@ struct ref_sum_t : public gpu_primitive_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        for (const auto &reorder : reorders_)
-            CHECK(reorder->create_resource(engine, mapper));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         const auto n = pd()->n_inputs();

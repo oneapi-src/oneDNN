@@ -267,16 +267,6 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, binary_));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
@@ -334,16 +324,6 @@ struct ref_convolution_bwd_weights_t : public gpu_primitive_t {
                 engine, &binary_, "ref_convolution_bwd_weights", kernel_ctx);
         if (!binary_) return status::runtime_error;
 
-        return status::success;
-    }
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, binary_));
-        mapper.add(this, std::move(r));
         return status::success;
     }
 

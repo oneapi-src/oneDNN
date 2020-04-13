@@ -18,7 +18,9 @@
 #define GPU_GPU_PRIMITIVE_HPP
 
 #include "common/primitive.hpp"
+#include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/ocl/ocl_resource.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -26,6 +28,23 @@ namespace gpu {
 
 struct gpu_primitive_t : public primitive_t {
     using primitive_t::primitive_t;
+
+    status_t create_resource(
+            engine_t *engine, resource_mapper_t &mapper) const override {
+        if (mapper.has_resource(this)) return status::success;
+        auto r = utils::make_unique<ocl::ocl_resource_t>();
+        if (!r) return status::out_of_memory;
+        for (const auto &rb : registered_binaries_) {
+            CHECK(r->create_kernel_and_add(engine, rb));
+        }
+        mapper.add(this, std::move(r));
+
+        for (auto const &np : nested_primitives()) {
+            // some nested primitives are created on demand
+            if (np) CHECK(np->create_resource(engine, mapper));
+        }
+        return status::success;
+    }
 
     status_t create_binaries(engine_t *engine,
             std::vector<compute::binary_t> *binaries,

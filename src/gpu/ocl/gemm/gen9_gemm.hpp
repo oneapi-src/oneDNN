@@ -362,27 +362,6 @@ struct gen9_gemm_t : public gpu_gemm_t {
         return status::invalid_arguments;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        for (bool beta0 : {false, true})
-            CHECK(r->create_kernel_and_add(engine, compute_binary_[beta0]));
-
-        for (bool outer : {false, true}) {
-            for (bool trans : {false, true}) {
-                CHECK(r->create_kernel_and_add(
-                        engine, copy_binary_[outer][trans]));
-            }
-        }
-
-        CHECK(r->create_kernels_and_add(
-                engine, {beta_binary_, nocopy_binary_, nocopy_superbinary_}));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
     status_t init_copy_based(engine_t *engine) {
         for (bool beta0 : {false, true}) {
             if (beta0 && pd()->beta() != 0) continue;

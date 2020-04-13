@@ -99,16 +99,6 @@ struct gen9_pooling_fwd_t : public gpu_primitive_t {
 
     gen9_pooling_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, binary_));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -172,16 +162,6 @@ struct gen9_pooling_bwd_t : public gpu_primitive_t {
     }
 
     gen9_pooling_bwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, binary_));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_backward(ctx);

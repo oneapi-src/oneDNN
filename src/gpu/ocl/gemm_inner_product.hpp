@@ -165,16 +165,6 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, bias_binary_));
-        mapper.add(this, std::move(r));
-        return gemm_->create_resource(engine, mapper);
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
@@ -264,11 +254,6 @@ struct gemm_inner_product_bwd_data_t : public gpu_primitive_t {
         status_t gemm_status = pd()->gemm_pd_->create_primitive(gemm_, engine);
         return gemm_status;
         return status::success;
-    }
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        return gemm_->create_resource(engine, mapper);
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
@@ -384,16 +369,6 @@ struct gemm_inner_product_bwd_weights_t : public gpu_primitive_t {
         }
 
         return status::success;
-    }
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernel_and_add(engine, bias_binary_));
-        mapper.add(this, std::move(r));
-        return gemm_->create_resource(engine, mapper);
     }
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {

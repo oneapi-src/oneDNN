@@ -105,18 +105,6 @@ struct gen9_batch_normalization_fwd_t : public gpu_primitive_t {
 
     gen9_batch_normalization_fwd_t(const pd_t *apd) : gpu_primitive_t(apd) {}
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        CHECK(r->create_kernels_and_add(engine,
-                {binary_, calculate_mean_binary_, calculate_variance_binary_,
-                        reduce_mean_binary_, reduce_variance_binary_}));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
