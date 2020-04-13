@@ -202,7 +202,7 @@ protected:
 
         ASSERT_TRUE(sum_pd.query_md(query::exec_arg_md, DNNL_ARG_DST)
                 == sum_pd.dst_desc());
-        for (size_t i = 0; i < srcs.size(); i++)
+        for (int i = 0; i < (int)srcs.size(); i++)
             ASSERT_TRUE(sum_pd.query_md(
                                 query::exec_arg_md, DNNL_ARG_MULTIPLE_SRC + i)
                     == sum_pd.src_desc(i));
