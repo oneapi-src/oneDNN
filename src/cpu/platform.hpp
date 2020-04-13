@@ -26,6 +26,8 @@ namespace impl {
 namespace cpu {
 namespace platform {
 
+const char *get_isa_info();
+
 bool DNNL_API has_data_type_support(data_type_t data_type);
 
 unsigned get_per_core_cache_size(int level);

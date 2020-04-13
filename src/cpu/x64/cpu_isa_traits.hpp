@@ -43,6 +43,10 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+namespace x64 {
+const char *get_isa_info();
+} // namespace x64
+
 enum cpu_isa_bit_t : unsigned {
     sse41_bit = 1u << 0,
     avx_bit = 1u << 1,

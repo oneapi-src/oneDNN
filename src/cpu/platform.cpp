@@ -23,6 +23,10 @@ namespace impl {
 namespace cpu {
 namespace platform {
 
+const char *get_isa_info() {
+    return x64::get_isa_info();
+}
+
 bool has_data_type_support(data_type_t data_type) {
     switch (data_type) {
         case data_type::bf16: return mayiuse(avx512_core);

@@ -35,7 +35,6 @@ struct verbose_t {
 
 int get_verbose();
 double get_msec();
-const char *get_isa_info();
 
 #if !defined(DISABLE_VERBOSE)
 #define DNNL_VERBOSE_BUF_LEN 1024
