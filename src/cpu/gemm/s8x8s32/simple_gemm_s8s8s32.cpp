@@ -157,9 +157,11 @@ dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
     bool transb = (*transB == 'T' || *transB == 't');
     dim_t ld = transb ? N : K;
 
-    uint8_t *b_u8 = (uint8_t *)malloc(sizeof(uint8_t) * K * N, 64);
+    uint8_t *b_u8 = (uint8_t *)malloc(
+            sizeof(uint8_t) * K * N, platform::get_cache_line_size());
     uint8_t ob_u8 = 0;
-    int32_t *compensation = (int32_t *)malloc(sizeof(int32_t) * M, 64);
+    int32_t *compensation = (int32_t *)malloc(
+            sizeof(int32_t) * M, platform::get_cache_line_size());
 
     if (utils::any_null(b_u8, compensation)) {
         free(b_u8);

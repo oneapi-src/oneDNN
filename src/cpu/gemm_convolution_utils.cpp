@@ -135,7 +135,7 @@ void transpose_u8(const conv_gemm_conf_t &jcp, const T *__restrict im,
     const int ic_stride = jcp.id * jcp.ih * jcp.iw;
     const int IC = jcp.ngroups * jcp.ic;
     const int IHW = jcp.ih * jcp.iw;
-    constexpr int ic_block = 64;
+    constexpr int ic_block = platform::get_cache_line_size();
     const int nb_ic = jcp.ic / ic_block;
     const int ic_blocked = nb_ic * ic_block;
     parallel_nd(jcp.id, jcp.ih, [&](int id, int ih) {
