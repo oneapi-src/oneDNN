@@ -24,6 +24,8 @@
 #include "common/memory_storage.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -53,7 +55,7 @@ public:
 
 protected:
     virtual status_t init_allocate(size_t size) override {
-        void *ptr = malloc(size, 64);
+        void *ptr = malloc(size, platform::get_cache_line_size());
         if (!ptr) return status::out_of_memory;
         data_ = decltype(data_)(ptr, destroy);
         return status::success;

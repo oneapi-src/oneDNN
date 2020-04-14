@@ -72,7 +72,8 @@ struct ref_shuffle_t : public primitive_t {
                 = pd()->is_fwd() ? group_size : axis_size / group_size;
         const int transpose_col
                 = pd()->is_fwd() ? axis_size / group_size : group_size;
-        rev_transposed_ = (int *)malloc(axis_size * sizeof(int), 64);
+        rev_transposed_ = (int *)malloc(
+                axis_size * sizeof(int), platform::get_cache_line_size());
         parallel_nd(transpose_col, transpose_row, [&](int i, int j) {
             rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
         });

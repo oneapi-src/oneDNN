@@ -70,6 +70,10 @@ bool DNNL_API has_data_type_support(data_type_t data_type);
 unsigned get_per_core_cache_size(int level);
 unsigned get_num_cores();
 
+constexpr int get_cache_line_size() {
+    return 64;
+}
+
 int get_vector_register_size();
 
 } // namespace platform

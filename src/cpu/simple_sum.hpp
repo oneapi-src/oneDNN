@@ -74,14 +74,11 @@ struct simple_sum_t : public primitive_t {
         dim_t block_size_ = 0, nelems_ = 0, blocks_number_ = 0, tail_ = 0;
 
     private:
-        const dim_t cacheline_size_ = 64; // bytes
-        const dim_t half_L1_size_ = 16 * 1024; // bytes
-
         void compute_blocking() {
-            block_size_
-                    = (src_data_type == data_type::bf16 ? 16 * cacheline_size_
-                                                        : half_L1_size_)
-                    / sizeof(src_data_type);
+            const int block_size_bytes = src_data_type == data_type::bf16
+                    ? 16 * platform::get_cache_line_size()
+                    : platform::get_per_core_cache_size(1) / 2;
+            block_size_ = block_size_bytes / (int)sizeof(src_data_type);
             const memory_desc_wrapper o_d(dst_md());
             nelems_ = o_d.nelems();
             blocks_number_ = nelems_ / block_size_;
@@ -92,7 +89,8 @@ struct simple_sum_t : public primitive_t {
             if (src_data_type == data_type::bf16) {
                 bool is_dst_bf16_ = dst_data_type == data_type::bf16;
                 bf16_p_.ws_cvt_elements_per_thread_
-                        = cacheline_size_ / sizeof(acc_data_t);
+                        = platform::get_cache_line_size()
+                        / (int)sizeof(acc_data_t);
 
                 bf16_p_.ws_acc_elements_per_thread_ = is_dst_bf16_
                         ? bf16_p_.ws_cvt_elements_per_thread_
