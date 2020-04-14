@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_THREADING_HPP
-#define GEMM_THREADING_HPP
+#ifndef CPU_X64_GEMM_GEMM_THREADING_HPP
+#define CPU_X64_GEMM_GEMM_THREADING_HPP
 
 #include <cstdint>
 

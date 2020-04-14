@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef RNN_UTILS_HPP
-#define RNN_UTILS_HPP
+#ifndef CPU_X64_RNN_RNN_UTILS_HPP
+#define CPU_X64_RNN_RNN_UTILS_HPP
 
 #include <type_traits>
 

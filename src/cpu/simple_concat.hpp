@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SIMPLE_CONCAT_HPP
-#define SIMPLE_CONCAT_HPP
+#ifndef CPU_SIMPLE_CONCAT_HPP
+#define CPU_SIMPLE_CONCAT_HPP
 
 #include "common/memory_tracking.hpp"
 #include "common/primitive.hpp"

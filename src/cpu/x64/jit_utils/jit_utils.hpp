@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UTILS_HPP
-#define JIT_UTILS_HPP
+#ifndef CPU_X64_JIT_UTILS_JIT_UTILS_HPP
+#define CPU_X64_JIT_UTILS_JIT_UTILS_HPP
 
 #include <cstdlib>
 

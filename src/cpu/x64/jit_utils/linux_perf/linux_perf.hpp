@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef LINUX_PERF_HPP
-#define LINUX_PERF_HPP
+#ifndef CPU_X64_JIT_UTILS_LINUX_PERF_LINUX_PERF_HPP
+#define CPU_X64_JIT_UTILS_LINUX_PERF_LINUX_PERF_HPP
 
 #ifdef __linux__
 #include <cstddef>

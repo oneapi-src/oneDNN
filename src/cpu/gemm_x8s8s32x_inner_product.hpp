@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_X8S8S32X_INNER_PRODUCT_HPP
-#define GEMM_X8S8S32X_INNER_PRODUCT_HPP
+#ifndef CPU_GEMM_X8S8S32X_INNER_PRODUCT_HPP
+#define CPU_GEMM_X8S8S32X_INNER_PRODUCT_HPP
 
 #include <assert.h>
 

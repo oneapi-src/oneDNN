@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_ISA_TRAITS_HPP
-#define CPU_ISA_TRAITS_HPP
+#ifndef CPU_X64_CPU_ISA_TRAITS_HPP
+#define CPU_X64_CPU_ISA_TRAITS_HPP
 
 #include <type_traits>
 

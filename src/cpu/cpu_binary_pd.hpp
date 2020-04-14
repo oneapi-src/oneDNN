@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_BINARY_PD_HPP
-#define CPU_BINARY_PD_HPP
+#ifndef CPU_CPU_BINARY_PD_HPP
+#define CPU_CPU_BINARY_PD_HPP
 
 #include "common/binary_pd.hpp"
 #include "common/c_types_map.hpp"

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_STREAM_HPP
-#define CPU_STREAM_HPP
+#ifndef CPU_CPU_STREAM_HPP
+#define CPU_CPU_STREAM_HPP
 
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
 #include "dnnl_threadpool_iface.hpp"

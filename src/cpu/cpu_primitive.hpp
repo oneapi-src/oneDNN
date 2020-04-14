@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_PRIMITIVE_HPP
-#define CPU_PRIMITIVE_HPP
+#ifndef CPU_CPU_PRIMITIVE_HPP
+#define CPU_CPU_PRIMITIVE_HPP
 
 #include <assert.h>
 
@@ -75,4 +75,4 @@
     } \
     MAYBE_UNUSED(zero_point);
 
-#endif // CPU_PRIMITIVE_HPP
+#endif // CPU_CPU_PRIMITIVE_HPP

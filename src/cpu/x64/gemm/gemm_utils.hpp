@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_UTILS_HPP
-#define GEMM_UTILS_HPP
+#ifndef CPU_X64_GEMM_GEMM_UTILS_HPP
+#define CPU_X64_GEMM_GEMM_UTILS_HPP
 
 #include "common/dnnl_thread.hpp"
 #include "common/dnnl_traits.hpp"
@@ -108,4 +108,4 @@ dnnl_status_t pack_no_copy(const T *src, dim_t ld_src, dim_t nrows, dim_t ncols,
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMM_UTILS_HPP
+#endif // CPU_X64_GEMM_GEMM_UTILS_HPP

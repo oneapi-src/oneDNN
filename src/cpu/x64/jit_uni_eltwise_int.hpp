@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_ELTWISE_INT_HPP
-#define CPU_JIT_UNI_ELTWISE_INT_HPP
+#ifndef CPU_X64_JIT_UNI_ELTWISE_INT_HPP
+#define CPU_X64_JIT_UNI_ELTWISE_INT_HPP
 
 #include <assert.h>
 

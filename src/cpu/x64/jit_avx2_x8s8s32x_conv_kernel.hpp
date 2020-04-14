@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX2_X8S8S32X_CONV_KERNEL_HPP
-#define CPU_JIT_AVX2_X8S8S32X_CONV_KERNEL_HPP
+#ifndef CPU_X64_JIT_AVX2_X8S8S32X_CONV_KERNEL_HPP
+#define CPU_X64_JIT_AVX2_X8S8S32X_CONV_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"

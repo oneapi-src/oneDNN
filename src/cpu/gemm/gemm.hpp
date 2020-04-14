@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_HPP
-#define GEMM_HPP
+#ifndef CPU_GEMM_GEMM_HPP
+#define CPU_GEMM_GEMM_HPP
 
 #include "dnnl_types.h"
 
@@ -85,4 +85,4 @@ dnnl_status_t gemm_bf16bf16f32(const char *transa, const char *transb,
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMM_HPP
+#endif // CPU_GEMM_GEMM_HPP

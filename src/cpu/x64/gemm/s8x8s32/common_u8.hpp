@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_U8_HPP
-#define COMMON_U8_HPP
+#ifndef CPU_X64_GEMM_S8X8S32_COMMON_U8_HPP
+#define CPU_X64_GEMM_S8X8S32_COMMON_U8_HPP
 
 #include "cpu/platform.hpp"
 
@@ -371,4 +371,4 @@ public:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-#endif // COMMON_U8_HPP
+#endif // CPU_X64_GEMM_S8X8S32_COMMON_U8_HPP

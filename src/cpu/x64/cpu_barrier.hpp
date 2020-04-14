@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_BARRIER_HPP
-#define CPU_BARRIER_HPP
+#ifndef CPU_X64_CPU_BARRIER_HPP
+#define CPU_X64_CPU_BARRIER_HPP
 
 #include <assert.h>
 

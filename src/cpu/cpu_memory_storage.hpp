@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_MEMORY_STORAGE_HPP
-#define CPU_MEMORY_STORAGE_HPP
+#ifndef CPU_CPU_MEMORY_STORAGE_HPP
+#define CPU_CPU_MEMORY_STORAGE_HPP
 
 #include <memory>
 

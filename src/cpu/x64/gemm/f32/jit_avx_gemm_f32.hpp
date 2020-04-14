@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX_GEMM_F32_HPP
-#define JIT_AVX_GEMM_F32_HPP
+#ifndef CPU_X64_GEMM_F32_JIT_AVX_GEMM_F32_HPP
+#define CPU_X64_GEMM_F32_JIT_AVX_GEMM_F32_HPP
 
 #include "dnnl_types.h"
 
@@ -43,4 +43,4 @@ void sgemm_nocopy_driver(const char *transa, const char *transb, dim_t m,
 } // namespace impl
 } // namespace dnnl
 
-#endif // JIT_AVX_GEMM_F32_HPP
+#endif // CPU_X64_GEMM_F32_JIT_AVX_GEMM_F32_HPP

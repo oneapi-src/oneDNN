@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_LRN_KERNEL_F32_HPP
-#define CPU_JIT_UNI_LRN_KERNEL_F32_HPP
+#ifndef CPU_X64_JIT_UNI_LRN_KERNEL_F32_HPP
+#define CPU_X64_JIT_UNI_LRN_KERNEL_F32_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/type_helpers.hpp"

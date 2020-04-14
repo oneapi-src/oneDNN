@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_RESAMPLING_PD_HPP
-#define CPU_RESAMPLING_PD_HPP
+#ifndef CPU_CPU_RESAMPLING_PD_HPP
+#define CPU_CPU_RESAMPLING_PD_HPP
 
 #include "common/resampling_pd.hpp"
 

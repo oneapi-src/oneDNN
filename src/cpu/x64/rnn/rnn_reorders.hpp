@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_RNN_REORDERS_HPP
-#define CPU_RNN_REORDERS_HPP
+#ifndef CPU_X64_RNN_RNN_REORDERS_HPP
+#define CPU_X64_RNN_RNN_REORDERS_HPP
 
 #include <assert.h>
 

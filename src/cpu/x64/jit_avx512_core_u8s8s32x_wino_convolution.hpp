@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_U8S8S32X_WINO_CONVOLUTION_HPP
-#define CPU_JIT_AVX512_CORE_U8S8S32X_WINO_CONVOLUTION_HPP
+#ifndef CPU_X64_JIT_AVX512_CORE_U8S8S32X_WINO_CONVOLUTION_HPP
+#define CPU_X64_JIT_AVX512_CORE_U8S8S32X_WINO_CONVOLUTION_HPP
 
 #include <assert.h>
 

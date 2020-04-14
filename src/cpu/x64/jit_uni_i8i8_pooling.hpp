@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_I8I8_POOLING_HPP
-#define CPU_JIT_UNI_I8I8_POOLING_HPP
+#ifndef CPU_X64_JIT_UNI_I8I8_POOLING_HPP
+#define CPU_X64_JIT_UNI_I8I8_POOLING_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"

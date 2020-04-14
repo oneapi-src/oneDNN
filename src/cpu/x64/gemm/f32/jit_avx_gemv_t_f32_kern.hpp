@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX_GEMV_T_F32_KERN_HPP
-#define JIT_AVX_GEMV_T_F32_KERN_HPP
+#ifndef CPU_X64_GEMM_F32_JIT_AVX_GEMV_T_F32_KERN_HPP
+#define CPU_X64_GEMM_F32_JIT_AVX_GEMV_T_F32_KERN_HPP
 
 #include "cpu/x64/jit_generator.hpp"
 
@@ -65,4 +65,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // JIT_AVX_GEMV_T_F32_KERN_HPP
+#endif // CPU_X64_GEMM_F32_JIT_AVX_GEMV_T_F32_KERN_HPP

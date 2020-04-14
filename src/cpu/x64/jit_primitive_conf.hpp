@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_PRIMITIVE_CONF_HPP
-#define JIT_PRIMITIVE_CONF_HPP
+#ifndef CPU_X64_JIT_PRIMITIVE_CONF_HPP
+#define CPU_X64_JIT_PRIMITIVE_CONF_HPP
 
 #include <stdint.h>
 

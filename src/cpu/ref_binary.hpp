@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REF_BINARY_HPP
-#define REF_BINARY_HPP
+#ifndef CPU_REF_BINARY_HPP
+#define CPU_REF_BINARY_HPP
 
 #include <assert.h>
 

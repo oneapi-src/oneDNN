@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_DW_CONVOLUTION_HPP
-#define CPU_JIT_UNI_DW_CONVOLUTION_HPP
+#ifndef CPU_X64_JIT_UNI_DW_CONVOLUTION_HPP
+#define CPU_X64_JIT_UNI_DW_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"

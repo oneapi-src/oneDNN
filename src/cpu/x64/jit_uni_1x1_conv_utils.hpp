@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UNI_1X1_CONV_UTILS_HPP
-#define JIT_UNI_1X1_CONV_UTILS_HPP
+#ifndef CPU_X64_JIT_UNI_1X1_CONV_UTILS_HPP
+#define CPU_X64_JIT_UNI_1X1_CONV_UTILS_HPP
 
 #include "common/convolution_pd.hpp"
 #include "common/dnnl_thread.hpp"

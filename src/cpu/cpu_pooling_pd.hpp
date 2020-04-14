@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_POOLING_PD_HPP
-#define CPU_POOLING_PD_HPP
+#ifndef CPU_CPU_POOLING_PD_HPP
+#define CPU_CPU_POOLING_PD_HPP
 
 #include "common/pooling_pd.hpp"
 #include "cpu/cpu_engine.hpp"

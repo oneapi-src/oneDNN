@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REDUCER_HPP
-#define CPU_REDUCER_HPP
+#ifndef CPU_X64_CPU_REDUCER_HPP
+#define CPU_X64_CPU_REDUCER_HPP
 
 #include <assert.h>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
-#define CPU_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
+#ifndef CPU_X64_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
+#define CPU_X64_JIT_GEMM_X8S8S32X_CONVOLUTION_UTILS_HPP
 
 #include "cpu/gemm_x8s8s32x_convolution_utils.hpp"
 

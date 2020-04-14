@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_BF16CVT_HPP
-#define JIT_AVX512_CORE_BF16CVT_HPP
+#ifndef CPU_X64_JIT_AVX512_CORE_BF16CVT_HPP
+#define CPU_X64_JIT_AVX512_CORE_BF16CVT_HPP
 
 #include <assert.h>
 

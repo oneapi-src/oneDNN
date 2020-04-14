@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REF_CONCAT_HPP
-#define REF_CONCAT_HPP
+#ifndef CPU_REF_CONCAT_HPP
+#define CPU_REF_CONCAT_HPP
 
 #include "common/engine.hpp"
 #include "common/primitive.hpp"
