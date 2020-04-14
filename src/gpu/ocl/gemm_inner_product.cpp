@@ -29,9 +29,6 @@ status_t gemm_inner_product_fwd_t::execute_forward(
     using namespace memory_tracking::names;
     using namespace gemm_utils;
 
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-
     gemm_exec_args_t gemm_args;
     gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
     gemm_args.b = &CTX_IN_STORAGE(DNNL_ARG_SRC);
@@ -54,11 +51,9 @@ status_t gemm_inner_product_fwd_t::execute_forward(
         arg_list.set(1, dst);
 
         auto nd_range = compute::nd_range_t({pd()->MB() * pd()->OC()});
-        const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-        const auto &bias_kernel = pr->get_kernel(bias_kernel_.get_id());
 
         status_t bias_status
-                = compute_stream->parallel_for(nd_range, bias_kernel, arg_list);
+                = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         if (bias_status != status::success) return bias_status;
     }
 
@@ -91,9 +86,6 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
     using namespace memory_tracking::names;
     using namespace gemm_utils;
 
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-
     gemm_exec_args_t gemm_args;
     if (pd()->wei_tr()) {
         gemm_args.a = &CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
@@ -121,11 +113,9 @@ status_t gemm_inner_product_bwd_weights_t::execute_backward_weights(
         arg_list.set(1, diff_bias);
 
         auto nd_range = compute::nd_range_t({pd()->OC()});
-        const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-        const auto &bias_kernel = pr->get_kernel(bias_kernel_.get_id());
 
         status_t bias_status
-                = compute_stream->parallel_for(nd_range, bias_kernel, arg_list);
+                = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         if (bias_status != status::success) return bias_status;
     }
 

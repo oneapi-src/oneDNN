@@ -972,8 +972,6 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
         int lay, int iter, int n_gates, int dhc, int batch,
         const memory_storage_t &scratch_gates,
         const memory_storage_t &diff_bias) const {
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, dir);
@@ -983,11 +981,8 @@ void _ref_rnn_common_t<aprop>::gates_reduction(const exec_ctx_t &ctx, int dir,
     arg_list.set(4, scratch_gates);
 
     auto nd_range = compute::nd_range_t({n_gates, dhc});
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &gates_reduction_kernel
-            = pr->get_kernel(gates_reduction_kernel_.get_id());
 
-    compute_stream->parallel_for(nd_range, gates_reduction_kernel, arg_list);
+    parallel_for(ctx, nd_range, gates_reduction_kernel_, arg_list);
 }
 
 //*************** Grid computations strategy: linear ***************//
@@ -1100,13 +1095,9 @@ void _ref_rnn_common_t<aprop>::bias_prepare(const exec_ctx_t &ctx,
     arg_list.set(4, bias);
     arg_list.set(5, data_shift);
     arg_list.set(6, data_scale);
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &bias_prepare_kernel
-            = pr->get_kernel(bias_prepare_kernel_.get_id());
 
-    compute_stream->parallel_for(
-            compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
-            bias_prepare_kernel, arg_list);
+    parallel_for(ctx, compute::nd_range_t({dhc, n_bias, n_layer * n_dir}),
+            bias_prepare_kernel_, arg_list);
 }
 
 template <prop_kind_t aprop>
@@ -1115,9 +1106,6 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         int batch, int slc, const memory_storage_t &ws,
         const memory_storage_t &input,
         const memory_storage_t &diff_dst_layer) const {
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &copy_init_layer_kernel
-            = pr->get_kernel(copy_init_layer_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1126,8 +1114,8 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.set(2, (cl_int)lr);
         arg_list.set(3, (cl_int)rl);
 
-        compute_stream->parallel_for(compute::nd_range_t({slc, batch, n_iter}),
-                copy_init_layer_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({slc, batch, n_iter}),
+                copy_init_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
@@ -1135,8 +1123,8 @@ void _ref_rnn_common_t<aprop>::copy_init_layer(const exec_ctx_t &ctx,
         arg_list.set(2, (cl_int)0);
         arg_list.set(3, (cl_int)0);
 
-        compute_stream->parallel_for(compute::nd_range_t({batch, n_iter}),
-                copy_init_layer_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({batch, n_iter}),
+                copy_init_layer_kernel_, arg_list);
     }
 }
 
@@ -1149,9 +1137,6 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         const memory_storage_t &diff_dst_iter,
         const memory_storage_t &diff_dst_iter_c, const float shift,
         const float scale, const bool quantize) const {
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &copy_init_iter_kernel
-            = pr->get_kernel(copy_init_iter_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1161,17 +1146,15 @@ void _ref_rnn_common_t<aprop>::copy_init_iter(const exec_ctx_t &ctx,
         arg_list.set(3, shift);
         arg_list.set(4, scale);
         arg_list.set(5, (int)quantize);
-        compute_stream->parallel_for(
-                compute::nd_range_t({sic, batch, n_layer * n_dir}),
-                copy_init_iter_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({sic, batch, n_layer * n_dir}),
+                copy_init_iter_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_dst_iter);
         arg_list.set(2, diff_dst_iter_c);
-        compute_stream->parallel_for(
-                compute::nd_range_t({dhc, batch, n_layer * n_dir}),
-                copy_init_iter_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({dhc, batch, n_layer * n_dir}),
+                copy_init_iter_kernel_, arg_list);
     }
 }
 
@@ -1181,9 +1164,6 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         int batch, int slc, int dhc, const memory_storage_t &dst_last_layer,
         const memory_storage_t &diff_src_layer, const memory_storage_t &ws,
         const float shift, const float scale, const bool dequantize) const {
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &copy_res_layer_kernel
-            = pr->get_kernel(copy_res_layer_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1194,16 +1174,16 @@ void _ref_rnn_common_t<aprop>::copy_res_layer(const exec_ctx_t &ctx,
         arg_list.set(4, shift);
         arg_list.set(5, scale);
         arg_list.set(6, (int)dequantize);
-        compute_stream->parallel_for(compute::nd_range_t({dhc, batch, n_iter}),
-                copy_res_layer_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({dhc, batch, n_iter}),
+                copy_res_layer_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_src_layer);
         arg_list.set(2, (cl_int)lr);
         arg_list.set(3, (cl_int)rl);
-        compute_stream->parallel_for(compute::nd_range_t({slc, batch, n_iter}),
-                copy_res_layer_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({slc, batch, n_iter}),
+                copy_res_layer_kernel_, arg_list);
     }
 }
 
@@ -1215,9 +1195,6 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         const memory_storage_t &diff_src_iter,
         const memory_storage_t &diff_src_iter_c, const memory_storage_t &ws,
         const float shift, const float scale, const bool dequantize) const {
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &copy_res_iter_kernel
-            = pr->get_kernel(copy_res_iter_kernel_.get_id());
 
     if (aprop == prop_kind::forward) {
         compute::kernel_arg_list_t arg_list;
@@ -1227,17 +1204,15 @@ void _ref_rnn_common_t<aprop>::copy_res_iter(const exec_ctx_t &ctx,
         arg_list.set(3, shift);
         arg_list.set(4, scale);
         arg_list.set(5, (int)dequantize);
-        compute_stream->parallel_for(
-                compute::nd_range_t({dhc, batch, n_layer * n_dir}),
-                copy_res_iter_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({dhc, batch, n_layer * n_dir}),
+                copy_res_iter_kernel_, arg_list);
     } else {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, ws);
         arg_list.set(1, diff_src_iter);
         arg_list.set(2, diff_src_iter_c);
-        compute_stream->parallel_for(
-                compute::nd_range_t({sic, batch, n_layer * n_dir}),
-                copy_res_iter_kernel, arg_list);
+        parallel_for(ctx, compute::nd_range_t({sic, batch, n_layer * n_dir}),
+                copy_res_iter_kernel_, arg_list);
     }
 }
 
@@ -1252,10 +1227,8 @@ void _ref_rnn_common_t<aprop>::ws_set(const exec_ctx_t &ctx,
     arg_list.set(2, val);
     arg_list.set(3, ws_part);
     auto nd_range = compute::nd_range_t({size});
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &ws_set_kernel = pr->get_kernel(ws_set_kernel_.get_id());
 
-    compute_stream->parallel_for(nd_range, ws_set_kernel, arg_list);
+    parallel_for(ctx, nd_range, ws_set_kernel_, arg_list);
 }
 
 #if DEBUGPRINT
@@ -1266,10 +1239,8 @@ void _ref_rnn_common_t<aprop>::ws_print(
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, workspace_);
     auto nd_range = compute::nd_range_t({1});
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &ws_print_kernel = pr->get_kernel(ws_print_kernel_.get_id());
 
-    compute_stream->parallel_for(nd_range, ws_print_kernel, arg_list);
+    parallel_for(ctx, nd_range, ws_print_kernel_, arg_list);
 }
 #endif
 
@@ -1337,7 +1308,6 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
     auto *compute_stream
             = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     auto rnn_pd = this->pd();
     const conf_t &rnn = this->pd()->rnn_conf;
 
@@ -1492,7 +1462,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const memory_storage_t *scales_buf = nullptr;
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
-        scales_buf = pr->get_memory_storage(SCALES_);
+        scales_buf = &CTX_OCL_RES_STORAGE(SCALES_);
     }
 
     // bias prepare if needed
@@ -1521,7 +1491,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const memory_storage_t *tm_scales_buf = nullptr;
     if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
-        tm_scales_buf = pr->get_memory_storage(TM_SCALES_);
+        tm_scales_buf = &CTX_OCL_RES_STORAGE(TM_SCALES_);
     }
 
     // run the execution on the grid

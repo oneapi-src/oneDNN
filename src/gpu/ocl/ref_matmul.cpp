@@ -31,23 +31,22 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &bias = CTX_IN_STORAGE(DNNL_ARG_BIAS);
 
     auto &c = CTX_OUT_STORAGE(DNNL_ARG_DST);
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
 
     const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
-            : pr->get_memory_storage(SCALES_);
+            : &CTX_OCL_RES_STORAGE(SCALES_);
     const memory_storage_t *a0
             = !pd()->attr()->zero_points_.defined(DNNL_ARG_SRC)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC)
-            : pr->get_memory_storage(A0_);
+            : &CTX_OCL_RES_STORAGE(A0_);
     const memory_storage_t *b0
             = !pd()->attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS)
-            : pr->get_memory_storage(B0_);
+            : &CTX_OCL_RES_STORAGE(B0_);
     const memory_storage_t *c0
             = !pd()->attr()->zero_points_.defined(DNNL_ARG_DST)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-            : pr->get_memory_storage(C0_);
+            : &CTX_OCL_RES_STORAGE(C0_);
 
     const auto a_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto b_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
@@ -129,11 +128,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     size_t gws[3] = {1, (size_t)N, (size_t)MB};
     auto nd_range = compute::nd_range_t(gws);
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 

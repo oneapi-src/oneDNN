@@ -22,8 +22,6 @@ namespace gpu {
 namespace ocl {
 
 status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
@@ -39,10 +37,8 @@ status_t ref_lrn_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     }
 
     auto nd_range = pd()->dispatch.nd_range();
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const compute::kernel_t &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 
@@ -59,12 +55,8 @@ status_t ref_lrn_bwd_t::execute_backward(const exec_ctx_t &ctx) const {
     arg_list.set(3, diff_src);
 
     auto nd_range = pd()->dispatch.nd_range();
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const compute::kernel_t &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 

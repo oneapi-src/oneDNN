@@ -28,7 +28,6 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
     auto &c = GEMM_CTX_ARG_STORAGE(c);
 
     const auto exec_d = ctx.desc() ? ctx.desc() : pd()->desc();
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
 
     dim_t off_a0 = a.offset() / types::data_type_size(exec_d->a_type);
     dim_t off_b0 = b.offset() / types::data_type_size(exec_d->b_type);
@@ -39,18 +38,18 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
             ? &GEMM_CTX_ARG_STORAGE(output_scales)
-            : pr->get_memory_storage(SCALES_);
+            : &CTX_OCL_RES_STORAGE(SCALES_);
     const memory_storage_t *a0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_A)
             ? &GEMM_CTX_ARG_STORAGE(a_zero_point)
-            : pr->get_memory_storage(A0_);
+            : &CTX_OCL_RES_STORAGE(A0_);
 
     const memory_storage_t *b0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_B)
             ? &GEMM_CTX_ARG_STORAGE(b_zero_point)
-            : pr->get_memory_storage(B0_);
+            : &CTX_OCL_RES_STORAGE(B0_);
 
     const memory_storage_t *c0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_C)
             ? &GEMM_CTX_ARG_STORAGE(c_zero_point)
-            : pr->get_memory_storage(C0_);
+            : &CTX_OCL_RES_STORAGE(C0_);
 
     int c0_mask = 0;
     pd()->attr()->zero_points_.get(DNNL_ARG_C, nullptr, &c0_mask, nullptr);
@@ -111,11 +110,8 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     const size_t gws[3] = {1, (size_t)N, (size_t)MB};
     const auto nd_range = compute::nd_range_t(gws);
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }

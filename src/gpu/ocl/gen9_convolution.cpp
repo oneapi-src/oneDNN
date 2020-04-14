@@ -785,8 +785,6 @@ status_t gen9_convolution_bwd_data_t::pd_t::init_kernel_ctx(
 
 status_t gen9_convolution_bwd_data_t::execute_backward_data(
         const exec_ctx_t &ctx) const {
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &diff_dst = CTX_IN_STORAGE(DNNL_ARG_DIFF_DST);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
@@ -802,9 +800,8 @@ status_t gen9_convolution_bwd_data_t::execute_backward_data(
     arg_list.set(3, bias);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -1192,8 +1189,6 @@ status_t gen9_convolution_bwd_weights_t::pd_t::init_kernel_ctx(
 }
 
 status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-    auto *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &weights = CTX_IN_STORAGE(DNNL_ARG_WEIGHTS);
@@ -1213,10 +1208,8 @@ status_t gen9_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
     arg_list.set(7, conf.sum_scale);
 
     auto nd_range = compute::nd_range_t(conf.gws_d, conf.lws_d);
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
 
     return status;
 }
@@ -1249,10 +1242,8 @@ status_t gen9_convolution_bwd_weights_t::execute_backward_weights(
     arg_list.set(2, diff_bias);
     arg_list.set(3, diff_dst);
 
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
-    status_t status = compute_stream->parallel_for(
-            compute::nd_range_t(conf.gws_d, conf.lws_d), kernel, arg_list);
+    status_t status = parallel_for(ctx,
+            compute::nd_range_t(conf.gws_d, conf.lws_d), kernel_, arg_list);
     if (status != status::success) return status;
 
     return status::success;

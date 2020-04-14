@@ -153,8 +153,6 @@ status_t ref_binary_t::pd_t::init_kernel_ctx(
 }
 
 status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src0 = CTX_IN_STORAGE(DNNL_ARG_SRC_0);
     auto &src1 = CTX_IN_STORAGE(DNNL_ARG_SRC_1);
@@ -191,10 +189,8 @@ status_t ref_binary_t::execute_ref(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
 
     auto nd_range = conf.dispatch.nd_range();
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const compute::kernel_t &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status = compute_stream->parallel_for(nd_range, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range, kernel_, arg_list);
     return status;
 }
 

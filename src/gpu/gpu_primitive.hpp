@@ -20,7 +20,13 @@
 #include "common/primitive.hpp"
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
+#include "gpu/gemm/gpu_gemm_exec_types.hpp"
 #include "gpu/ocl/ocl_resource.hpp"
+
+#define CTX_OCL_RES_STORAGE(arg) \
+    (*(ctx.get_resource_mapper() \
+                    ->get<gpu_resource_t>(this) \
+                    ->get_memory_storage(arg)))
 
 namespace dnnl {
 namespace impl {
@@ -74,7 +80,36 @@ struct gpu_primitive_t : public primitive_t {
 protected:
     virtual primitive_list_t nested_primitives() const { return {}; }
 
+    // TODO: use inheritance for exec_ctx_t to get rid of such places...
+    status_t parallel_for(const gemm_exec_ctx_t &ctx,
+            const compute::nd_range_t &range, const compute::kernel_t &kernel,
+            const compute::kernel_arg_list_t &arg_list) const {
+        return parallel_for(ctx.get_resource_mapper(), ctx.stream(), range,
+                kernel, arg_list);
+    }
+
+    status_t parallel_for(const exec_ctx_t &ctx,
+            const compute::nd_range_t &range, const compute::kernel_t &kernel,
+            const compute::kernel_arg_list_t &arg_list) const {
+        return parallel_for(ctx.get_resource_mapper(), ctx.stream(), range,
+                kernel, arg_list);
+    }
+
 private:
+    status_t parallel_for(const resource_mapper_t *resource_mapper,
+            stream_t *stream, const compute::nd_range_t &range,
+            const compute::kernel_t &kernel,
+            const compute::kernel_arg_list_t &arg_list) const {
+
+        compute::compute_stream_t *compute_stream
+                = utils::downcast<compute::compute_stream_t *>(stream);
+        const auto *resource = resource_mapper->get<ocl::ocl_resource_t>(this);
+        const auto &realized_kernel = resource->get_kernel(kernel.get_id());
+
+        CHECK(compute_stream->parallel_for(range, realized_kernel, arg_list));
+        return status::success;
+    }
+
     void register_kernels(const std::vector<compute::kernel_t> &kernels) {
         for (const auto &k : kernels) {
             registered_kernels_.push_back(k);

@@ -53,9 +53,6 @@ status_t gen9_gemm_t::launch_beta(const gemm_exec_ctx_t &ctx,
         float alpha, const memory_storage_t &a, int64_t offset_a,
         int64_t lda) const {
 
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &beta_kernel = pr->get_kernel(beta_kernel_.get_id());
-
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, m);
     arg_list.set(1, n);
@@ -68,7 +65,7 @@ status_t gen9_gemm_t::launch_beta(const gemm_exec_ctx_t &ctx,
     size_t lws[3] = {1, 1, 1};
     auto nd_range = compute::nd_range_t(gws, lws);
 
-    return compute_stream->parallel_for(nd_range, beta_kernel, arg_list);
+    return parallel_for(ctx, nd_range, beta_kernel_, arg_list);
 }
 
 status_t gen9_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
@@ -76,9 +73,6 @@ status_t gen9_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
         const memory_storage_t &a, int64_t offset_a, int64_t lda, float alpha,
         const memory_storage_t &b, int64_t offset_b, bool outer,
         bool trans) const {
-
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(copy_kernel_[outer][trans].get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, x);
@@ -100,7 +94,7 @@ status_t gen9_gemm_t::launch_copy(const gemm_exec_ctx_t &ctx,
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
-    return compute_stream->parallel_for(nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, copy_kernel_[outer][trans], arg_list);
 }
 
 status_t gen9_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
@@ -109,9 +103,6 @@ status_t gen9_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
         int32_t offset_b, const memory_storage_t &c, int64_t offset_c,
         int64_t ldc, int last_k_block, float eltwise_alpha, float eltwise_beta,
         float eltwise_scale, bool beta0) const {
-
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(compute_kernel_[beta0].get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, m);
@@ -143,7 +134,7 @@ status_t gen9_gemm_t::launch_compute(const gemm_exec_ctx_t &ctx,
 
     auto nd_range = compute::nd_range_t(gws, lws);
 
-    return compute_stream->parallel_for(nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, compute_kernel_[beta0], arg_list);
 }
 
 status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
@@ -153,9 +144,6 @@ status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
         int32_t ldc, int32_t m, int32_t n, int32_t k, float alpha, float beta,
         int last_k_block, float eltwise_alpha, float eltwise_beta,
         float eltwise_scale, memory_storage_t &flag) const {
-
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(nocopy_kernel_.get_id());
 
     int64_t offset_f = 0;
 
@@ -215,7 +203,7 @@ status_t gen9_gemm_t::launch_nocopy(const gemm_exec_ctx_t &ctx,
     size_t lws[3] = {lthreads_x * subgroup_size, lthreads_y, lthreads_z};
 
     auto nd_range = compute::nd_range_t(gws, lws);
-    return compute_stream->parallel_for(nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, nocopy_kernel_, arg_list);
 }
 
 status_t gen9_gemm_t::launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
@@ -225,9 +213,6 @@ status_t gen9_gemm_t::launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
         int64_t offset_c, int32_t lda, int32_t ldb, int32_t ldc, int32_t m,
         int32_t n, int32_t k, float alpha, float beta, int last_k_block,
         float eltwise_alpha, float eltwise_beta, float eltwise_scale) const {
-
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(nocopy_superkernel_.get_id());
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, plan);
@@ -258,7 +243,7 @@ status_t gen9_gemm_t::launch_nocopy_superkernel(const gemm_exec_ctx_t &ctx,
     size_t gws[3] = {lthreads * subgroup_size, 1, 1};
 
     auto nd_range = compute::nd_range_t(gws, lws);
-    return compute_stream->parallel_for(nd_range, kernel, arg_list);
+    return parallel_for(ctx, nd_range, nocopy_superkernel_, arg_list);
 }
 
 status_t gen9_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {

@@ -110,8 +110,6 @@ status_t ref_layer_normalization_fwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &mean = pd()->stats_are_src() ? CTX_IN_STORAGE(DNNL_ARG_MEAN)
@@ -134,11 +132,8 @@ status_t ref_layer_normalization_fwd_t::execute_forward(
     arg_list.set(5, conf.eps);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status
-            = compute_stream->parallel_for(nd_range_kernel, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
 
     return status;
 }
@@ -154,8 +149,6 @@ status_t ref_layer_normalization_bwd_t::pd_t::init_kernel_ctx(
 
 status_t ref_layer_normalization_bwd_t::execute_backward(
         const exec_ctx_t &ctx) const {
-    compute::compute_stream_t *compute_stream
-            = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
     auto &src = CTX_IN_STORAGE(DNNL_ARG_SRC);
     auto &mean = CTX_IN_STORAGE(DNNL_ARG_MEAN);
@@ -167,7 +160,7 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     auto &diff_scaleshift = CTX_OUT_STORAGE(DNNL_ARG_DIFF_SCALE_SHIFT);
 
     const auto &conf = pd()->conf;
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
+
     if (conf.use_scaleshift) {
         compute::kernel_arg_list_t arg_list;
         arg_list.set(0, src);
@@ -178,12 +171,8 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
         arg_list.set(5, conf.eps);
 
         auto nd_range = conf.dispatch_scaleshift.nd_range();
-        const auto &kernel_scaleshift
-                = pr->get_kernel(kernel_scaleshift_.get_id());
-        assert(kernel_scaleshift);
-
-        status_t status = compute_stream->parallel_for(
-                nd_range, kernel_scaleshift, arg_list);
+        status_t status
+                = parallel_for(ctx, nd_range, kernel_scaleshift_, arg_list);
         if (status != status::success) return status;
     }
 
@@ -197,10 +186,8 @@ status_t ref_layer_normalization_bwd_t::execute_backward(
     arg_list.set(6, conf.eps);
 
     auto nd_range_kernel = conf.dispatch.nd_range();
-    const auto &kernel = pr->get_kernel(kernel_.get_id());
 
-    status_t status
-            = compute_stream->parallel_for(nd_range_kernel, kernel, arg_list);
+    status_t status = parallel_for(ctx, nd_range_kernel, kernel_, arg_list);
 
     return status;
 }

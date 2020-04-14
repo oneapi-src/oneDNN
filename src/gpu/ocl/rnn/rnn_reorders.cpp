@@ -125,7 +125,6 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     const auto &conf = pd()->conf;
     const bool do_reorder = conf.do_reorder;
 
-    const auto &pr = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
     auto ocl_reorder = [&](const memory_storage_t &in_storage,
                                const memory_storage_t &scales_storage,
                                const memory_storage_t &out_storage) {
@@ -135,9 +134,8 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
         arg_list.set(2, out_storage);
 
         auto nd_range = conf.dispatch.nd_range();
-        const auto &kernel = pr->get_kernel(kernel_.get_id());
 
-        return compute_stream->parallel_for(nd_range, kernel, arg_list);
+        return parallel_for(ctx, nd_range, kernel_, arg_list);
     };
 
     status_t status = status::success;
@@ -147,7 +145,7 @@ status_t rnn_weights_reorder_t::execute(const exec_ctx_t &ctx) const {
     if (do_reorder) {
         wspace = ctx.get_scratchpad_grantor().get_memory_storage(
                 key_reorder_rnn_space);
-        scales_buf = pr->get_memory_storage(SCALES_);
+        scales_buf = &CTX_OCL_RES_STORAGE(SCALES_);
     }
 
     // Copy to gpu

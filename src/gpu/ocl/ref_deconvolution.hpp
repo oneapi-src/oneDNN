@@ -440,8 +440,6 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
-        auto *compute_stream
-                = utils::downcast<compute::compute_stream_t *>(ctx.stream());
 
         const auto &args = ctx.args();
         exec_args_t conv_args;
@@ -469,12 +467,7 @@ struct ref_deconvolution_bwd_weights_t : public gpu_primitive_t {
 
             // Setting up global work-space to {OC*G, 1, 1}
             auto nd_range = compute::nd_range_t({gws[0], gws[1], gws[2]});
-            const auto &pr
-                    = ctx.get_resource_mapper()->get<ocl_resource_t>(this);
-            const compute::kernel_t &bias_kernel
-                    = pr->get_kernel(bias_kernel_.get_id());
-            status = compute_stream->parallel_for(
-                    nd_range, bias_kernel, arg_list);
+            status = parallel_for(ctx, nd_range, bias_kernel_, arg_list);
         }
         return status::success;
     }
