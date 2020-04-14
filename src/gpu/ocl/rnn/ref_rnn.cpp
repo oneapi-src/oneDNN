@@ -577,7 +577,7 @@ status_t _ref_rnn_common_t<aprop>::pd_t::init(engine_t *engine) {
     }
 
     rnn_conf.acc_data_type = acc_data_t;
-    rnn_conf.acc_data_type_elsz = types::data_type_size(acc_data_t);
+    rnn_conf.acc_data_type_elsz = (int)types::data_type_size(acc_data_t);
     status_t status = init_conf<aprop>(conf, rnn_conf, this, this->off);
     if (status != status::success) { return status; }
 
