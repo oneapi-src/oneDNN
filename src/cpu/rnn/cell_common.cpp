@@ -45,11 +45,13 @@ rnn_cell_execution_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 
     // Note: here proj_ht is scratchpad if inference or workspace if training
     auto dst_postgemm = rnn.is_lstm_projection ? proj_ht_ : dst_layer_;
+    // for lstmp, the copy to dst_iter happens after the projection
+    auto dst_iter_postgemm = rnn.is_lstm_projection ? nullptr : dst_iter_;
     rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             dst_postgemm, dst_iter_c_, src_iter_, src_iter_c_, diff_src_layer_,
             diff_src_iter_, diff_src_iter_c_, diff_dst_layer_, diff_dst_iter_,
             diff_dst_iter_c_, weights_peephole_, bias_[0], ws_grid_,
-            scratch_cell_, dst_iter_);
+            scratch_cell_, dst_iter_postgemm);
 
     if (rnn.is_lstm_projection) {
         auto dst_layer_ld = rnn.dst_layer_ld(cell_position, true);
