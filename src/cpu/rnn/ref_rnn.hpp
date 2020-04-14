@@ -37,16 +37,21 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+namespace {
+template <typename gates_t, typename acc_t>
+// The loop body needs to be put in a function as some versions of icc have
+// an issue with lambdas & macros inside omp simd loops
+inline void body_loop(int i, int k, const gates_t *ws_gates, acc_t *diff_bias,
+        const rnn_utils::rnn_conf_t &rnn) {
+    for (int j = 0; j < rnn.mb; j++)
+        diff_bias[i * rnn.dhc + k]
+                += ws_gates[j * rnn.scratch_gates_ld + i * rnn.dhc + k];
+}
+} // namespace
+
 template <typename gates_t, typename acc_t>
 void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
         acc_t *diff_bias_) {
-
-    // The loop body needs to be inlined as some versions of icc have
-    // an issue with lambdas inside omp simd loops
-#define body_loop(i, k) \
-    for (int j = 0; j < rnn.mb; j++) \
-        diff_bias_[i * rnn.dhc + k] \
-                += ws_gates_[j * rnn.scratch_gates_ld + i * rnn.dhc + k];
 
     // @todo block k on simd-width to enable vectorization in
     // parallel_nd path
@@ -54,9 +59,10 @@ void gates_reduction(const rnn_utils::rnn_conf_t &rnn, const gates_t *ws_gates_,
 #pragma omp parallel for simd collapse(2)
     for (int i = 0; i < rnn.n_gates; i++)
         for (int k = 0; k < rnn.dhc; k++)
-            body_loop(i, k);
+            body_loop(i, k, ws_gates_, diff_bias_, rnn);
 #else
-    parallel_nd(rnn.n_gates, rnn.dhc, [&](int i, int k) { body_loop(i, k); });
+    parallel_nd(rnn.n_gates, rnn.dhc,
+            [&](int i, int k) { body_loop(i, k, ws_gates_, diff_bias_, rnn); });
 #endif
 
 #undef body_loop
