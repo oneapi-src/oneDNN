@@ -104,14 +104,20 @@ endfunction()
 
 register_benchdnn_test(test_benchdnn_conv_topologies
     cpu "--conv --batch=inputs/conv/test_conv_all_topologies")
+register_benchdnn_test(test_benchdnn_conv_topologies_f32_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_all_topologies_f32_nxc")
 register_benchdnn_test(test_benchdnn_conv_bfloat16 # temporary proxy
     cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_conv_bf16
     cpu "--conv --batch=inputs/conv/test_conv_bfloat16")
 register_benchdnn_test(test_benchdnn_conv_f32
     cpu "--conv --batch=inputs/conv/test_conv_f32")
+register_benchdnn_test(test_benchdnn_conv_f32_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_f32_nxc")
 register_benchdnn_test(test_benchdnn_conv_3d
     cpu "--conv --batch=inputs/conv/test_conv_3d")
+register_benchdnn_test(test_benchdnn_conv_3d_f32_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_3d_f32_nxc")
 register_benchdnn_test(test_benchdnn_conv_wino
     cpu "--conv --batch=inputs/conv/test_conv_f32_wino")
 register_benchdnn_test(test_benchdnn_conv_int8_wino
@@ -120,8 +126,12 @@ register_benchdnn_test(test_benchdnn_conv_depthwise
     cpu "--conv --batch=inputs/conv/test_conv_depthwise")
 register_benchdnn_test(test_benchdnn_conv_dilated
     cpu "--conv --batch=inputs/conv/test_conv_dilated")
+register_benchdnn_test(test_benchdnn_conv_dilated_f32_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_dilated_f32_nxc")
 register_benchdnn_test(test_benchdnn_conv_attributes
     cpu "--conv --batch=inputs/conv/test_conv_attrs")
+register_benchdnn_test(test_benchdnn_conv_attributes_f32_nxc
+    cpu "--conv --batch=inputs/conv/test_conv_attrs_f32_nxc")
 register_benchdnn_test(test_benchdnn_conv_int8
     cpu "--conv --batch=inputs/conv/test_conv_int8")
 register_benchdnn_test(test_benchdnn_conv_function
