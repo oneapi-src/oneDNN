@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
-#define CPU_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
+#ifndef CPU_X64_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
+#define CPU_X64_JIT_AVX512_COMMON_CONVOLUTION_WINOGRAD_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"

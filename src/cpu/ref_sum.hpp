@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REF_SUM_HPP
-#define REF_SUM_HPP
+#ifndef CPU_REF_SUM_HPP
+#define CPU_REF_SUM_HPP
 
 #include "common/engine.hpp"
 #include "common/memory_tracking.hpp"

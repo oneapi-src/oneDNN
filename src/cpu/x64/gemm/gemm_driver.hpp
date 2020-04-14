@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_DRIVER_HPP
-#define GEMM_DRIVER_HPP
+#ifndef CPU_X64_GEMM_GEMM_DRIVER_HPP
+#define CPU_X64_GEMM_GEMM_DRIVER_HPP
 
 #include "dnnl_types.h"
 
@@ -47,4 +47,4 @@ dnnl_status_t ref_gemm_s8u8s32_pack(const void *src, dim_t ld_src, dim_t rows,
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMM_DRIVER_HPP
+#endif // CPU_X64_GEMM_GEMM_DRIVER_HPP

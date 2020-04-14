@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SUM_PD_HPP
-#define CPU_SUM_PD_HPP
+#ifndef CPU_CPU_SUM_PD_HPP
+#define CPU_CPU_SUM_PD_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/sum_pd.hpp"

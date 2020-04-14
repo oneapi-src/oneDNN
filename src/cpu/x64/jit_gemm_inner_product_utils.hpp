@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_GEMM_INNER_PRODUCT_UTILS_HPP
-#define CPU_JIT_GEMM_INNER_PRODUCT_UTILS_HPP
+#ifndef CPU_X64_JIT_GEMM_INNER_PRODUCT_UTILS_HPP
+#define CPU_X64_JIT_GEMM_INNER_PRODUCT_UTILS_HPP
 
 #include "cpu/gemm_inner_product_utils.hpp"
 

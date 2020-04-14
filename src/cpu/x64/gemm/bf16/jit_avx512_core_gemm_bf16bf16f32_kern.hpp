@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
-#define JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
+#ifndef CPU_X64_GEMM_BF16_JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
+#define CPU_X64_GEMM_BF16_JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
 
 #include "cpu/x64/jit_avx512_core_bf16cvt.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -93,4 +93,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP
+#endif // CPU_X64_GEMM_BF16_JIT_AVX512_CORE_GEMM_BF16BF16F32_KERN_HPP

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_S16_HPP
-#define COMMON_S16_HPP
+#ifndef CPU_X64_GEMM_BF16_COMMON_S16_HPP
+#define CPU_X64_GEMM_BF16_COMMON_S16_HPP
 
 #include "cpu/x64/jit_generator.hpp"
 
@@ -56,4 +56,4 @@ public:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-#endif // COMMON_S16_HPP
+#endif // CPU_X64_GEMM_BF16_COMMON_S16_HPP

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_X8S8S32X_CONVOLUTION_HPP
-#define GEMM_X8S8S32X_CONVOLUTION_HPP
+#ifndef CPU_GEMM_X8S8S32X_CONVOLUTION_HPP
+#define CPU_GEMM_X8S8S32X_CONVOLUTION_HPP
 
 #include <memory>
 

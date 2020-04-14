@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_RNN_PD_HPP
-#define CPU_RNN_PD_HPP
+#ifndef CPU_X64_RNN_CPU_RNN_PD_HPP
+#define CPU_X64_RNN_CPU_RNN_PD_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"

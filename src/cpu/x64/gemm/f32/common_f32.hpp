@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_F32_HPP
-#define COMMON_F32_HPP
+#ifndef CPU_X64_GEMM_F32_COMMON_F32_HPP
+#define CPU_X64_GEMM_F32_COMMON_F32_HPP
 
 #include "cpu/x64/jit_generator.hpp"
 
@@ -169,4 +169,4 @@ public:
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-#endif // COMMON_F32_HPP
+#endif // CPU_X64_GEMM_F32_COMMON_F32_HPP

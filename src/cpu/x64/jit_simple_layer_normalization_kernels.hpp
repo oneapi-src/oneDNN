@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
-#define CPU_JIT_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
+#ifndef CPU_X64_JIT_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
+#define CPU_X64_JIT_SIMPLE_LAYER_NORMALIZATION_KERNELS_HPP
 
 #include "cpu/simple_layer_normalization_kernels.hpp"
 

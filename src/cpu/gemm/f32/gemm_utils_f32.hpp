@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_UTILS_F32_HPP
-#define GEMM_UTILS_F32_HPP
+#ifndef CPU_GEMM_F32_GEMM_UTILS_F32_HPP
+#define CPU_GEMM_F32_GEMM_UTILS_F32_HPP
 
 #include <cstddef>
 
@@ -66,4 +66,4 @@ void partition_unit_diff(
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
-#endif // GEMM_UTILS_F32_HPP
+#endif // CPU_GEMM_F32_GEMM_UTILS_F32_HPP

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SIMPLE_SUM_HPP
-#define SIMPLE_SUM_HPP
+#ifndef CPU_SIMPLE_SUM_HPP
+#define CPU_SIMPLE_SUM_HPP
 
 #include "common/dnnl_thread.hpp"
 #include "common/primitive.hpp"

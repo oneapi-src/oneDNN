@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_BATCH_NORMALIZATION_PD_HPP
-#define CPU_BATCH_NORMALIZATION_PD_HPP
+#ifndef CPU_CPU_BATCH_NORMALIZATION_PD_HPP
+#define CPU_CPU_BATCH_NORMALIZATION_PD_HPP
 
 #include "common/batch_normalization_pd.hpp"
 #include "cpu/cpu_engine.hpp"

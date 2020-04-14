@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_UNI_BATCH_NORMALIZATION_HPP
-#define JIT_UNI_BATCH_NORMALIZATION_HPP
+#ifndef CPU_X64_JIT_UNI_BATCH_NORMALIZATION_HPP
+#define CPU_X64_JIT_UNI_BATCH_NORMALIZATION_HPP
 
 #include <assert.h>
 

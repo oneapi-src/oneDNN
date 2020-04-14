@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_SHUFFLE_PD_HPP
-#define CPU_SHUFFLE_PD_HPP
+#ifndef CPU_CPU_SHUFFLE_PD_HPP
+#define CPU_CPU_SHUFFLE_PD_HPP
 
 #include <assert.h>
 

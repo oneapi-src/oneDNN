@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMV_DRIVER_HPP
-#define GEMV_DRIVER_HPP
+#ifndef CPU_X64_GEMM_GEMV_DRIVER_HPP
+#define CPU_X64_GEMM_GEMV_DRIVER_HPP
 
 #include "dnnl_types.h"
 
@@ -31,4 +31,4 @@ dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg);
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMV_DRIVER_HPP
+#endif // CPU_X64_GEMM_GEMV_DRIVER_HPP

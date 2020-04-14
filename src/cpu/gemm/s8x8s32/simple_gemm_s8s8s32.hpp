@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef SIMPLE_GEMM_S8S8S32_HPP
-#define SIMPLE_GEMM_S8S8S32_HPP
+#ifndef CPU_GEMM_S8X8S32_SIMPLE_GEMM_S8S8S32_HPP
+#define CPU_GEMM_S8X8S32_SIMPLE_GEMM_S8S8S32_HPP
 
 #include <cstdint>
 
@@ -36,4 +36,4 @@ dnnl_status_t simple_gemm_s8s8s32(const char *transA, const char *transB,
 } // namespace impl
 } // namespace dnnl
 
-#endif // SIMPLE_GEMM_S8S8S32_HPP
+#endif // CPU_GEMM_S8X8S32_SIMPLE_GEMM_S8S8S32_HPP

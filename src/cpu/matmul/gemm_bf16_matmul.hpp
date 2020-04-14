@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_BF16_MATMUL_HPP
-#define GEMM_BF16_MATMUL_HPP
+#ifndef CPU_MATMUL_GEMM_BF16_MATMUL_HPP
+#define CPU_MATMUL_GEMM_BF16_MATMUL_HPP
 
 #include <assert.h>
 

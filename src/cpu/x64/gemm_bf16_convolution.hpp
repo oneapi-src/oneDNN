@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_GEMM_BF16_CONVOLUTION_HPP
-#define CPU_GEMM_BF16_CONVOLUTION_HPP
+#ifndef CPU_X64_GEMM_BF16_CONVOLUTION_HPP
+#define CPU_X64_GEMM_BF16_CONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/memory_tracking.hpp"

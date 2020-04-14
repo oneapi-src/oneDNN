@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_PACK_STORAGE_HPP
-#define GEMM_PACK_STORAGE_HPP
+#ifndef CPU_X64_GEMM_GEMM_PACK_STORAGE_HPP
+#define CPU_X64_GEMM_GEMM_PACK_STORAGE_HPP
 
 #include <cstdint>
 

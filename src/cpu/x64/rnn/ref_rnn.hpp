@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_REF_RNN_HPP
-#define CPU_REF_RNN_HPP
+#ifndef CPU_X64_RNN_REF_RNN_HPP
+#define CPU_X64_RNN_REF_RNN_HPP
 
 #include <assert.h>
 

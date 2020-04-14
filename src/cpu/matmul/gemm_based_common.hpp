@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_BASED_COMMON_HPP
-#define GEMM_BASED_COMMON_HPP
+#ifndef CPU_MATMUL_GEMM_BASED_COMMON_HPP
+#define CPU_MATMUL_GEMM_BASED_COMMON_HPP
 
 #include <assert.h>
 

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_MSAN_UNPOISON_HPP
-#define GEMM_MSAN_UNPOISON_HPP
+#ifndef CPU_GEMM_GEMM_MSAN_UNPOISON_HPP
+#define CPU_GEMM_GEMM_MSAN_UNPOISON_HPP
 
 namespace dnnl {
 namespace impl {

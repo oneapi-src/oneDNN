@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_MATMUL_PD_HPP
-#define CPU_MATMUL_PD_HPP
+#ifndef CPU_MATMUL_CPU_MATMUL_PD_HPP
+#define CPU_MATMUL_CPU_MATMUL_PD_HPP
 
 #include "common/matmul_pd.hpp"
 

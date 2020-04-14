@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_STREAM_HPP
-#define CPU_STREAM_HPP
+#ifndef CPU_CPU_STREAM_HPP
+#define CPU_CPU_STREAM_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"

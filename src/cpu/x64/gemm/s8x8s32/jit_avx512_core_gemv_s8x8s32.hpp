@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_GEMV_S8X8S32_HPP
-#define JIT_AVX512_CORE_GEMV_S8X8S32_HPP
+#ifndef CPU_X64_GEMM_S8X8S32_JIT_AVX512_CORE_GEMV_S8X8S32_HPP
+#define CPU_X64_GEMM_S8X8S32_JIT_AVX512_CORE_GEMV_S8X8S32_HPP
 
 #include <cstdint>
 
@@ -32,4 +32,4 @@ int jump_to_gemv_s8x8s32(T *arg);
 } // namespace impl
 } // namespace dnnl
 
-#endif // JIT_AVX512_CORE_GEMV_S8X8S32_HPP
+#endif // CPU_X64_GEMM_S8X8S32_JIT_AVX512_CORE_GEMV_S8X8S32_HPP

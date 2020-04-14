@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_INFO_HPP
-#define GEMM_INFO_HPP
+#ifndef CPU_X64_GEMM_GEMM_INFO_HPP
+#define CPU_X64_GEMM_GEMM_INFO_HPP
 
 #include <cstdint>
 #include <memory>
@@ -125,4 +125,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GEMM_INFO_HPP
+#endif // CPU_X64_GEMM_GEMM_INFO_HPP

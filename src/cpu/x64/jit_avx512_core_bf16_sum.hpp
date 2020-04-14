@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef JIT_AVX512_CORE_BF16_SUM_HPP
-#define JIT_AVX512_CORE_BF16_SUM_HPP
+#ifndef CPU_X64_JIT_AVX512_CORE_BF16_SUM_HPP
+#define CPU_X64_JIT_AVX512_CORE_BF16_SUM_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"

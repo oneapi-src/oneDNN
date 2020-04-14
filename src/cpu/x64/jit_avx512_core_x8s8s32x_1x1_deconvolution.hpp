@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
-#define CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
+#ifndef CPU_X64_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
+#define CPU_X64_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
@@ -155,4 +155,4 @@ private:
 } // namespace impl
 } // namespace dnnl
 
-#endif /* CPU_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP */
+#endif /* CPU_X64_JIT_AVX512_CORE_X8S8S32X_1X1_DECONVOLUTION_HPP */

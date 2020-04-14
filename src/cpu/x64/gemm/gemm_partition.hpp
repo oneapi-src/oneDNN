@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMM_PARTITION_HPP
-#define GEMM_PARTITION_HPP
+#ifndef CPU_X64_GEMM_GEMM_PARTITION_HPP
+#define CPU_X64_GEMM_GEMM_PARTITION_HPP
 
 #include <array>
 #include <cstdint>

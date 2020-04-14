@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_ENGINE_HPP
-#define CPU_ENGINE_HPP
+#ifndef CPU_CPU_ENGINE_HPP
+#define CPU_CPU_ENGINE_HPP
 
 #include <assert.h>
 

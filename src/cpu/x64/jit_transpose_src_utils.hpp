@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_TRANSPOSE_SRC_UTILS_HPP
-#define CPU_JIT_TRANSPOSE_SRC_UTILS_HPP
+#ifndef CPU_X64_JIT_TRANSPOSE_SRC_UTILS_HPP
+#define CPU_X64_JIT_TRANSPOSE_SRC_UTILS_HPP
 
 #include "cpu/x64/cpu_barrier.hpp"
 #include "cpu/x64/jit_primitive_conf.hpp"

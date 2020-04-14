@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef REF_MATMUL_HPP
-#define REF_MATMUL_HPP
+#ifndef CPU_MATMUL_REF_MATMUL_HPP
+#define CPU_MATMUL_REF_MATMUL_HPP
 
 #include <assert.h>
 

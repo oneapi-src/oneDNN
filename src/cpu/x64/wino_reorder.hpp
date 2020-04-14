@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_WINO_REORDER_HPP
-#define CPU_WINO_REORDER_HPP
+#ifndef CPU_X64_WINO_REORDER_HPP
+#define CPU_X64_WINO_REORDER_HPP
 
 #include "common/dnnl_thread.hpp"
 #include "common/primitive.hpp"

@@ -15,8 +15,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_JIT_UNI_POOL_KERNEL_HPP
-#define CPU_JIT_UNI_POOL_KERNEL_HPP
+#ifndef CPU_X64_JIT_UNI_POOL_KERNEL_HPP
+#define CPU_X64_JIT_UNI_POOL_KERNEL_HPP
 
 #include <cfloat>
 
