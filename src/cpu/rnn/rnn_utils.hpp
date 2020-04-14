@@ -249,14 +249,12 @@ struct rnn_conf_t {
                         dt_conf, u8u8u8u8, u8u8u8f32, all_f32, all_bf16);
     }
     inline bool skip_dst_layer_copy() const {
-        // TODO: enable skip copy with lstm_projection
-        return (exec_dir == l2r) && !is_lstm_projection
+        return (exec_dir == l2r)
                 && utils::one_of(
                         dt_conf, u8u8u8u8, f32u8f32u8, all_f32, all_bf16);
     }
     inline bool skip_dst_iter_copy() const {
-        // TODO: enable skip copy with lstm_projection
-        return (exec_dir == l2r) && (dst_iter_ld_ > 0) && !is_lstm_projection
+        return (exec_dir == l2r) && (dst_iter_ld_ > 0)
                 && utils::one_of(
                         dt_conf, u8u8u8u8, u8u8u8f32, all_f32, all_bf16);
     }
