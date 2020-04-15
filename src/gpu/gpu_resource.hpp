@@ -62,6 +62,8 @@ struct gpu_resource_t : public resource_t {
         return idx_to_memory_storage_.at(idx).get();
     }
 
+    DNNL_DISALLOW_COPY_AND_ASSIGN(gpu_resource_t);
+
 private:
     std::unordered_map<key_kernel_t, mapped_kernel_t> kernel_id_to_kernel_;
     std::unordered_map<key_memory_t, mapped_memory_t> idx_to_memory_storage_;
