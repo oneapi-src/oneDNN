@@ -612,7 +612,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
                 rnn.n_parts_weights_projection, rnn.parts_weights_projection,
                 rnn.part_weights_projection_pack_size,
                 rnn.weights_projection_comp_offset, rnn.dhc, rnn.dic, rnn.dic,
-                rnn.ws_states_iter_ld);
+                rnn.scratch_ht_ld);
         if (!ok) return false;
     }
 
