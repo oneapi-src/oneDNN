@@ -128,7 +128,8 @@ const char *get_isa_info() {
 }
 
 #if defined(DISABLE_VERBOSE)
-void pd_info_t::init(const primitive_desc_t *) {}
+void pd_info_t::init(
+        dnnl::impl::engine_t *, const dnnl::impl::primitive_desc_t *) {}
 
 #else
 
