@@ -38,7 +38,7 @@ using namespace dnnl::impl::format_tag;
 static void fwd_compute_block_sizes(
         conv_conf_t &conf, const convolution_pd_t *pd) {
 
-    int max_ow_block = 20;
+    int max_ow_block = (conf.src_data_type == data_type::f16 ? 20 : 16);
     if (conf.ver == ver_16mb16c) {
         max_ow_block = 1;
     } else if (conf.is_depthwise || conf.ver == ver_1stconv) {
@@ -71,10 +71,11 @@ static void fwd_compute_block_sizes(
         return;
     }
 
-    conf.oc_block = (conf.ver == ver_1stconv && conf.mb_block == 1
-                            && conf.oc % 32 == 0)
-            ? 32
-            : 16;
+    if (conf.ver == ver_1stconv && conf.mb_block == 1 && conf.oc % 32 == 0) {
+        conf.oc_block = 32;
+    } else {
+        conf.oc_block = 16;
+    }
     conf.ic_block = nstl::min(conf.ic, 16);
 
     conf.omb = (conf.mb_block == 1 && conf.mb % 16 == 0) ? 16 : conf.mb_block;
