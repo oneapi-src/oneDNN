@@ -27,7 +27,8 @@ namespace cpu {
 
 template <typename a_t, typename b_t, typename c_t>
 dnnl_status_t jump_to_gemv(const gemm_info_t<a_t, b_t, c_t> *arg);
-}
+
+} // namespace cpu
 } // namespace impl
 } // namespace dnnl
 
