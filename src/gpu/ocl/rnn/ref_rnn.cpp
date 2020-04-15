@@ -755,11 +755,8 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 }
 
 template <prop_kind_t aprop>
-status_t _ref_rnn_common_t<aprop>::create_resource(
-        engine_t *engine, resource_mapper_t &mapper) const {
-    if (mapper.has_resource(this)) return status::success;
-    auto r = utils::make_unique<ocl_resource_t>();
-    if (!r) return status::out_of_memory;
+status_t _ref_rnn_common_t<aprop>::init_res_storage(
+        engine_t *engine, ocl_resource_t *r) const {
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
         size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
                 * sizeof(float); // G * O * sizeof(float);
@@ -794,32 +791,6 @@ status_t _ref_rnn_common_t<aprop>::create_resource(
                 pd()->attr()->rnn_tparams_.ngates_);
         CHECK(tmp_mem_storage->unmap_data(tm_scales_ptr));
         r->add_memory_storage(TM_SCALES_, std::move(tmp_mem_storage));
-    }
-
-    for (const auto &k : {
-             bias_prepare_kernel_, copy_init_layer_kernel_,
-                     copy_init_iter_kernel_, copy_res_layer_kernel_,
-                     copy_res_iter_kernel_, ws_set_kernel_,
-                     elemwise_fwd_kernel_, elemwise_bwd_kernel_,
-                     gates_reduction_kernel_
-#if DEBUGPRINT
-                     ,
-                     ws_print_kernel_
-#endif
-         }) {
-        compute::kernel_t realized_kernel;
-        auto status = k.realize(&realized_kernel, engine);
-        r->add_kernel(k.get_id(), realized_kernel);
-        if (status != status::success) return status;
-    }
-
-    mapper.add(this, std::move(r));
-
-    const std::vector<const primitive_t *> gemms = {gemm_layer_fwd_.get(),
-            gemm_iter_fwd_.get(), gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
-            gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
-    for (const auto &g : gemms) {
-        if (g) CHECK(g->create_resource(engine, mapper));
     }
     return status::success;
 }

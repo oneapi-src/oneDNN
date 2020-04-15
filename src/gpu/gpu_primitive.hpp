@@ -25,7 +25,7 @@
 
 #define CTX_OCL_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
-                    ->get<gpu_resource_t>(this) \
+                    ->get<ocl_resource_t>(this) \
                     ->get_memory_storage(arg)))
 
 namespace dnnl {
@@ -46,6 +46,7 @@ struct gpu_primitive_t : public primitive_t {
             CHECK(rk.realize(&realized_kernel, engine));
             r->add_kernel(rk.get_id(), realized_kernel);
         }
+        init_res_storage(engine, r.get());
         mapper.add(this, std::move(r));
 
         for (auto const &np : nested_primitives()) {
@@ -79,6 +80,11 @@ struct gpu_primitive_t : public primitive_t {
 
 protected:
     virtual primitive_list_t nested_primitives() const { return {}; }
+
+    virtual status_t init_res_storage(
+            engine_t *engine, ocl::ocl_resource_t *r) const {
+        return status::success;
+    }
 
     // TODO: use inheritance for exec_ctx_t to get rid of such places...
     status_t parallel_for(const gemm_exec_ctx_t &ctx,

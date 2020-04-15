@@ -169,30 +169,22 @@ struct ref_gemm_t : public gpu_gemm_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        using namespace gemm_utils;
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        const auto attr = pd()->attr();
+    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
+
+protected:
+    status_t init_res_storage(
+            engine_t *engine, ocl_resource_t *r) const override {
+        const auto *attr = pd()->attr();
         std::unique_ptr<memory_storage_t> tmp_mem_storage;
         for (const auto idx : {A0_, B0_, C0_}) {
-            CHECK(prepare_zero_points(attr, engine, idx, tmp_mem_storage));
+            CHECK(gemm_utils::prepare_zero_points(
+                    attr, engine, idx, tmp_mem_storage));
             r->add_memory_storage(idx, std::move(tmp_mem_storage));
         }
-
-        CHECK(prepare_scales(attr, engine, tmp_mem_storage));
+        CHECK(gemm_utils::prepare_scales(attr, engine, tmp_mem_storage));
         r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-
-        compute::kernel_t realized_kernel;
-        CHECK(kernel_.realize(&realized_kernel, engine));
-        r->add_kernel(kernel_.get_id(), realized_kernel);
-        mapper.add(this, std::move(r));
         return status::success;
     }
-
-    virtual status_t execute(const gemm_exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

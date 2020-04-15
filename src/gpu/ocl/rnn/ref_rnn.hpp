@@ -173,8 +173,6 @@ struct _ref_rnn_common_t : public gpu_primitive_t {
     }; // struct pd_t : public base_pd_t
 
     virtual status_t init(engine_t *engine) override;
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override;
 
     _ref_rnn_common_t(const pd_t *apd) : gpu_primitive_t(apd) {
         using namespace rnn_utils;
@@ -254,6 +252,9 @@ protected:
                 gemm_layer_bwd_.get(), gemm_iter_bwd_.get(),
                 gemm_diff_wei_layer_.get(), gemm_diff_wei_iter_.get()};
     }
+
+    status_t init_res_storage(
+            engine_t *engine, ocl_resource_t *r) const override;
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;

@@ -182,37 +182,29 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        if (pd()->with_per_oc_scales() && !pd()->with_runtime_scales()) {
-            memory_desc_wrapper scales_mdw(pd()->scales_md());
-            memory_storage_t *tmp_mem_storage_ptr;
-            CHECK(engine->create_memory_storage(
-                    &tmp_mem_storage_ptr, scales_mdw.nelems() * sizeof(float)));
-
-            std::unique_ptr<memory_storage_t> tmp_mem_storage(
-                    tmp_mem_storage_ptr);
-            void *scales_ptr = nullptr;
-            CHECK(tmp_mem_storage->map_data(&scales_ptr));
-            utils::array_copy((float *)scales_ptr,
-                    pd()->attr()->output_scales_.scales_,
-                    pd()->attr()->output_scales_.count_);
-            CHECK(tmp_mem_storage->unmap_data(scales_ptr));
-            r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        }
-        compute::kernel_t realized_kernel;
-        CHECK(kernel_.realize(&realized_kernel, engine));
-        r->add_kernel(kernel_.get_id(), realized_kernel);
-
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
+    }
+
+protected:
+    status_t init_res_storage(
+            engine_t *engine, ocl_resource_t *r) const override {
+        if (!pd()->with_per_oc_scales() || pd()->with_runtime_scales())
+            return status::success;
+        memory_desc_wrapper scales_mdw(pd()->scales_md());
+        memory_storage_t *tmp_mem_storage_ptr;
+        CHECK(engine->create_memory_storage(
+                &tmp_mem_storage_ptr, scales_mdw.nelems() * sizeof(float)));
+
+        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
+        void *scales_ptr = nullptr;
+        CHECK(tmp_mem_storage->map_data(&scales_ptr));
+        utils::array_copy((float *)scales_ptr,
+                pd()->attr()->output_scales_.scales_,
+                pd()->attr()->output_scales_.count_);
+        CHECK(tmp_mem_storage->unmap_data(scales_ptr));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        return status::success;
     }
 
 private:

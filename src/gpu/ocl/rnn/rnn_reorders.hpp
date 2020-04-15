@@ -105,35 +105,26 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        if (pd()->conf.do_reorder) {
-            memory_storage_t *tmp_mem_storage_ptr = nullptr;
-            size_t size = pd()->conf.scales_count * sizeof(float);
-            CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, size));
+    virtual status_t execute(const exec_ctx_t &ctx) const override;
 
-            void *scales_ptr = nullptr;
-            std::unique_ptr<memory_storage_t> tmp_mem_storage(
-                    tmp_mem_storage_ptr);
-            CHECK(tmp_mem_storage->map_data(&scales_ptr));
-            utils::array_copy((float *)scales_ptr,
-                    pd()->attr()->rnn_weights_qparams_.scales_,
-                    pd()->conf.scales_count);
-            CHECK(tmp_mem_storage->unmap_data(scales_ptr));
-            r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        }
-        compute::kernel_t realized_kernel;
-        CHECK(kernel_.realize(&realized_kernel, engine));
-        r->add_kernel(kernel_.get_id(), realized_kernel);
+protected:
+    status_t init_res_storage(
+            engine_t *engine, ocl_resource_t *r) const override {
+        if (!pd()->conf.do_reorder) return status::success;
+        memory_storage_t *tmp_mem_storage_ptr = nullptr;
+        size_t size = pd()->conf.scales_count * sizeof(float);
+        CHECK(engine->create_memory_storage(&tmp_mem_storage_ptr, size));
 
-        mapper.add(this, std::move(r));
+        void *scales_ptr = nullptr;
+        std::unique_ptr<memory_storage_t> tmp_mem_storage(tmp_mem_storage_ptr);
+        CHECK(tmp_mem_storage->map_data(&scales_ptr));
+        utils::array_copy((float *)scales_ptr,
+                pd()->attr()->rnn_weights_qparams_.scales_,
+                pd()->conf.scales_count);
+        CHECK(tmp_mem_storage->unmap_data(scales_ptr));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
         return status::success;
     }
-
-    virtual status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

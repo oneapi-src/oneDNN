@@ -215,29 +215,6 @@ struct ref_matmul_t : public gpu_primitive_t {
         return status::success;
     }
 
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl_resource_t>();
-        if (!r) return status::out_of_memory;
-        compute::kernel_t realized_kernel;
-        CHECK(kernel_.realize(&realized_kernel, engine));
-        r->add_kernel(kernel_.get_id(), realized_kernel);
-
-        std::unique_ptr<memory_storage_t> tmp_mem_storage;
-        for (const auto &idx : {A0_, B0_, C0_}) {
-            CHECK(handle_runtime_value(
-                    engine, idx, pd()->zero_points_md(idx), tmp_mem_storage));
-            r->add_memory_storage(idx, std::move(tmp_mem_storage));
-        }
-
-        CHECK(handle_runtime_value(
-                engine, SCALES_, pd()->scales_md(), tmp_mem_storage));
-        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
-        mapper.add(this, std::move(r));
-        return status::success;
-    }
-
     virtual status_t execute(const exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
     }
@@ -290,6 +267,22 @@ struct ref_matmul_t : public gpu_primitive_t {
         }
         status = mem_storage->unmap_data(p);
         return status;
+    }
+
+protected:
+    status_t init_res_storage(
+            engine_t *engine, ocl_resource_t *r) const override {
+        std::unique_ptr<memory_storage_t> tmp_mem_storage;
+        for (const auto &idx : {A0_, B0_, C0_}) {
+            CHECK(handle_runtime_value(
+                    engine, idx, pd()->zero_points_md(idx), tmp_mem_storage));
+            r->add_memory_storage(idx, std::move(tmp_mem_storage));
+        }
+
+        CHECK(handle_runtime_value(
+                engine, SCALES_, pd()->scales_md(), tmp_mem_storage));
+        r->add_memory_storage(SCALES_, std::move(tmp_mem_storage));
+        return status::success;
     }
 
 private:
