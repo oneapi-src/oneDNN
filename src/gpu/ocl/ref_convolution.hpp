@@ -23,7 +23,7 @@
 
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_convolution_pd.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -188,7 +188,7 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, ocl_resource_t *r) const override {
+            engine_t *engine, gpu_resource_t *r) const override {
         if (!pd()->with_per_oc_scales() || pd()->with_runtime_scales())
             return status::success;
         memory_desc_wrapper scales_mdw(pd()->scales_md());

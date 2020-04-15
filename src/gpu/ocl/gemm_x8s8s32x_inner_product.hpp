@@ -28,7 +28,7 @@
 #include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -328,7 +328,7 @@ protected:
     }
 
     status_t init_res_storage(
-            engine_t *engine, ocl_resource_t *r) const override {
+            engine_t *engine, gpu_resource_t *r) const override {
         if (!pd()->with_scales()) return status::success;
         memory_desc_wrapper scales_mdw(pd()->scales_md());
         memory_storage_t *tmp_mem_storage_ptr;

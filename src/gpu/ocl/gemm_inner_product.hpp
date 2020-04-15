@@ -26,7 +26,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_inner_product_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 
 namespace dnnl {
 namespace impl {

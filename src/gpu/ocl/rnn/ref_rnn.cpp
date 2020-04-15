@@ -756,7 +756,7 @@ status_t _ref_rnn_common_t<aprop>::init(engine_t *engine) {
 
 template <prop_kind_t aprop>
 status_t _ref_rnn_common_t<aprop>::init_res_storage(
-        engine_t *engine, ocl_resource_t *r) const {
+        engine_t *engine, gpu_resource_t *r) const {
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
         size_t size = pd()->rnn_conf.n_gates * pd()->rnn_conf.dhc
                 * sizeof(float); // G * O * sizeof(float);
@@ -1433,7 +1433,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const memory_storage_t *scales_buf = nullptr;
     if (pd()->rnn_conf.is_int8 && pd()->rnn_conf.copy_bias) {
-        scales_buf = &CTX_OCL_RES_STORAGE(SCALES_);
+        scales_buf = &CTX_GPU_RES_STORAGE(SCALES_);
     }
 
     // bias prepare if needed
@@ -1462,7 +1462,7 @@ status_t _ref_rnn_common_t<aprop>::execute_(const exec_ctx_t &ctx) const {
 
     const memory_storage_t *tm_scales_buf = nullptr;
     if (pd()->rnn_conf.is_testmode && pd_->attr()->rnn_tparams_.scales_) {
-        tm_scales_buf = &CTX_OCL_RES_STORAGE(TM_SCALES_);
+        tm_scales_buf = &CTX_GPU_RES_STORAGE(TM_SCALES_);
     }
 
     // run the execution on the grid

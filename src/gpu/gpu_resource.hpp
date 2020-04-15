@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_OCL_OCL_RESOURCE_HPP
-#define GPU_OCL_OCL_RESOURCE_HPP
+#ifndef GPU_GPU_RESOURCE_HPP
+#define GPU_GPU_RESOURCE_HPP
 
 #include "dnnl.h"
 
@@ -26,16 +26,15 @@
 namespace dnnl {
 namespace impl {
 namespace gpu {
-namespace ocl {
 
-struct ocl_resource_t : public resource_t {
+struct gpu_resource_t : public resource_t {
     using key_kernel_t = compute::kernel_t::id_t;
     using mapped_kernel_t = compute::kernel_t;
 
     using key_memory_t = int;
     using mapped_memory_t = std::unique_ptr<memory_storage_t>;
 
-    ocl_resource_t() = default;
+    gpu_resource_t() = default;
 
     status_t add_kernel(compute::kernel_t::id_t kernel_id,
             const compute::kernel_t &kernel) {
@@ -68,7 +67,6 @@ private:
     std::unordered_map<key_memory_t, mapped_memory_t> idx_to_memory_storage_;
 };
 
-} // namespace ocl
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl

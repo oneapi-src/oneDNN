@@ -21,8 +21,8 @@
 #include "common/reorder_pd.hpp"
 #include "common/stream.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_sum_pd.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
 
 namespace dnnl {
 namespace impl {

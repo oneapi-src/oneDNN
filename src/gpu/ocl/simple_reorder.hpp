@@ -23,7 +23,7 @@
 #include "common/utils.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 

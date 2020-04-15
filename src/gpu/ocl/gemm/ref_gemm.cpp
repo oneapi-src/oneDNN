@@ -38,18 +38,18 @@ status_t ref_gemm_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
             ? &GEMM_CTX_ARG_STORAGE(output_scales)
-            : &CTX_OCL_RES_STORAGE(SCALES_);
+            : &CTX_GPU_RES_STORAGE(SCALES_);
     const memory_storage_t *a0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_A)
             ? &GEMM_CTX_ARG_STORAGE(a_zero_point)
-            : &CTX_OCL_RES_STORAGE(A0_);
+            : &CTX_GPU_RES_STORAGE(A0_);
 
     const memory_storage_t *b0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_B)
             ? &GEMM_CTX_ARG_STORAGE(b_zero_point)
-            : &CTX_OCL_RES_STORAGE(B0_);
+            : &CTX_GPU_RES_STORAGE(B0_);
 
     const memory_storage_t *c0 = !pd()->attr()->zero_points_.defined(DNNL_ARG_C)
             ? &GEMM_CTX_ARG_STORAGE(c_zero_point)
-            : &CTX_OCL_RES_STORAGE(C0_);
+            : &CTX_GPU_RES_STORAGE(C0_);
 
     int c0_mask = 0;
     pd()->attr()->zero_points_.get(DNNL_ARG_C, nullptr, &c0_mask, nullptr);

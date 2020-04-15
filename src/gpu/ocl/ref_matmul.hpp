@@ -25,7 +25,7 @@
 #include "common/utils.hpp"
 #include "gpu/gpu_matmul_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -271,7 +271,7 @@ struct ref_matmul_t : public gpu_primitive_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, ocl_resource_t *r) const override {
+            engine_t *engine, gpu_resource_t *r) const override {
         std::unique_ptr<memory_storage_t> tmp_mem_storage;
         for (const auto &idx : {A0_, B0_, C0_}) {
             CHECK(handle_runtime_value(

@@ -34,19 +34,19 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const memory_storage_t *scales = !pd()->attr()->output_scales_.defined()
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_OUTPUT_SCALES)
-            : &CTX_OCL_RES_STORAGE(SCALES_);
+            : &CTX_GPU_RES_STORAGE(SCALES_);
     const memory_storage_t *a0
             = !pd()->attr()->zero_points_.defined(DNNL_ARG_SRC)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC)
-            : &CTX_OCL_RES_STORAGE(A0_);
+            : &CTX_GPU_RES_STORAGE(A0_);
     const memory_storage_t *b0
             = !pd()->attr()->zero_points_.defined(DNNL_ARG_WEIGHTS)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS)
-            : &CTX_OCL_RES_STORAGE(B0_);
+            : &CTX_GPU_RES_STORAGE(B0_);
     const memory_storage_t *c0
             = !pd()->attr()->zero_points_.defined(DNNL_ARG_DST)
             ? &CTX_IN_STORAGE(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST)
-            : &CTX_OCL_RES_STORAGE(C0_);
+            : &CTX_GPU_RES_STORAGE(C0_);
 
     const auto a_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto b_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());

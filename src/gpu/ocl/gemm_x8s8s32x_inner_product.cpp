@@ -65,7 +65,7 @@ status_t gemm_x8s8s32x_inner_product_fwd_t::execute_forward(
                 pd()->use_scratchpad() ? *acc
                                        : memory_storage_t::empty_storage());
         arg_list.set(8,
-                pd()->with_scales() ? CTX_OCL_RES_STORAGE(SCALES_)
+                pd()->with_scales() ? CTX_GPU_RES_STORAGE(SCALES_)
                                     : memory_storage_t::empty_storage());
 
         size_t mb = pd()->MB();

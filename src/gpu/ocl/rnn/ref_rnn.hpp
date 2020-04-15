@@ -28,9 +28,9 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gpu_primitive.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/gpu_rnn_pd.hpp"
 #include "gpu/ocl/ocl_memory_storage.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
 #include "gpu/ocl/ocl_stream.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/ocl/rnn/rnn_utils.hpp"
@@ -254,7 +254,7 @@ protected:
     }
 
     status_t init_res_storage(
-            engine_t *engine, ocl_resource_t *r) const override;
+            engine_t *engine, gpu_resource_t *r) const override;
 
 private:
     status_t execute_(const exec_ctx_t &ctx) const;

@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/ocl/gemm/gen9_gemm.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_traits.hpp"

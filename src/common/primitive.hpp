@@ -179,9 +179,8 @@ struct resource_t : public c_compatible {
 // uses them at execution time. The mapper is passed to the execution function
 // with the execution context.
 //
-// The resource_mapper_t takes ownership of all resources (currently,
-// there is only ocl_resource_t) hence it should be responsible for
-// destroying them as well.
+// The resource_mapper_t takes ownership of all resources hence it should be
+// responsible for destroying them as well.
 struct resource_mapper_t {
     using key_t = const primitive_t;
     using mapped_t = std::unique_ptr<resource_t>;

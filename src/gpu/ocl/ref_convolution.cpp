@@ -212,7 +212,7 @@ status_t ref_convolution_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
             if (pd()->with_runtime_scales())
                 arg_list.set(8, oscales);
             else
-                arg_list.set(8, CTX_OCL_RES_STORAGE(SCALES_));
+                arg_list.set(8, CTX_GPU_RES_STORAGE(SCALES_));
         }
     }
 

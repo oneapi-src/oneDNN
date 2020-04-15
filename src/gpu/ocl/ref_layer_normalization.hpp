@@ -24,7 +24,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_layer_normalization_pd.hpp"
 #include "gpu/gpu_primitive.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {

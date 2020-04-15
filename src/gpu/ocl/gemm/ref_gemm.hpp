@@ -20,7 +20,7 @@
 #include "gpu/gemm/gpu_gemm.hpp"
 #include "gpu/gemm/gpu_gemm_utils.hpp"
 #include "gpu/gpu_gemm_pd.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/primitive_conf.hpp"
 
 namespace dnnl {
@@ -173,7 +173,7 @@ struct ref_gemm_t : public gpu_gemm_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, ocl_resource_t *r) const override {
+            engine_t *engine, gpu_resource_t *r) const override {
         const auto *attr = pd()->attr();
         std::unique_ptr<memory_storage_t> tmp_mem_storage;
         for (const auto idx : {A0_, B0_, C0_}) {

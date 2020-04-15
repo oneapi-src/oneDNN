@@ -21,11 +21,11 @@
 #include "common/utils.hpp"
 #include "gpu/compute/compute.hpp"
 #include "gpu/gemm/gpu_gemm_exec_types.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 
-#define CTX_OCL_RES_STORAGE(arg) \
+#define CTX_GPU_RES_STORAGE(arg) \
     (*(ctx.get_resource_mapper() \
-                    ->get<ocl_resource_t>(this) \
+                    ->get<gpu_resource_t>(this) \
                     ->get_memory_storage(arg)))
 
 namespace dnnl {
@@ -38,7 +38,7 @@ struct gpu_primitive_t : public primitive_t {
     status_t create_resource(
             engine_t *engine, resource_mapper_t &mapper) const override {
         if (mapper.has_resource(this)) return status::success;
-        auto r = utils::make_unique<ocl::ocl_resource_t>();
+        auto r = utils::make_unique<gpu_resource_t>();
         if (!r) return status::out_of_memory;
         for (const auto &rk : registered_kernels_) {
             if (!rk) continue;
@@ -82,7 +82,7 @@ protected:
     virtual primitive_list_t nested_primitives() const { return {}; }
 
     virtual status_t init_res_storage(
-            engine_t *engine, ocl::ocl_resource_t *r) const {
+            engine_t *engine, gpu_resource_t *r) const {
         return status::success;
     }
 
@@ -109,7 +109,7 @@ private:
 
         compute::compute_stream_t *compute_stream
                 = utils::downcast<compute::compute_stream_t *>(stream);
-        const auto *resource = resource_mapper->get<ocl::ocl_resource_t>(this);
+        const auto *resource = resource_mapper->get<gpu_resource_t>(this);
         const auto &realized_kernel = resource->get_kernel(kernel.id());
 
         CHECK(compute_stream->parallel_for(range, realized_kernel, arg_list));

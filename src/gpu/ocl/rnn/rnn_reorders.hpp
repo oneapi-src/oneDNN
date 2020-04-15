@@ -24,7 +24,7 @@
 #include "gpu/compute/compute.hpp"
 #include "gpu/gpu_primitive.hpp"
 #include "gpu/gpu_reorder_pd.hpp"
-#include "gpu/ocl/ocl_resource.hpp"
+#include "gpu/gpu_resource.hpp"
 #include "gpu/ocl/ocl_utils.hpp"
 #include "gpu/primitive_conf.hpp"
 
@@ -109,7 +109,7 @@ struct rnn_weights_reorder_t : public gpu_primitive_t {
 
 protected:
     status_t init_res_storage(
-            engine_t *engine, ocl_resource_t *r) const override {
+            engine_t *engine, gpu_resource_t *r) const override {
         if (!pd()->conf.do_reorder) return status::success;
         memory_storage_t *tmp_mem_storage_ptr = nullptr;
         size_t size = pd()->conf.scales_count * sizeof(float);
