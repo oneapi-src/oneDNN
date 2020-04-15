@@ -165,8 +165,9 @@ inline void inv_data_off(const prb_t *p, size_t off, int64_t &mb, int64_t &c,
     assert(off == 0);
 }
 
-void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src, dnn_mem_t &mean,
-        dnn_mem_t &var, const dnn_mem_t &ss, dnn_mem_t &dst);
+void compute_ref_fwd(const prb_t *p, const dnn_mem_t &src,
+        const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &ss,
+        dnn_mem_t &dst);
 void compute_ref_bwd(const prb_t *p, const dnn_mem_t &src,
         const dnn_mem_t &mean, const dnn_mem_t &var, const dnn_mem_t &d_dst,
         const dnn_mem_t &ss, const dnn_mem_t &rmask, dnn_mem_t &d_src,
