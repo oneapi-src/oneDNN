@@ -270,8 +270,8 @@ static inline std::tuple<int, int> partition_2d_minblk(dim_t m, dim_t n,
     return std::make_tuple(nthr_m, nthr_n);
 }
 
-} /* namespace cpu */
-} /* namespace impl */
-} /* namespace dnnl */
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
 
 #endif
