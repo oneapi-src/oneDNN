@@ -154,10 +154,6 @@ const primitive_desc_iface_t *dnnl_primitive::pd() const {
     return pd_.get();
 }
 
-const std::shared_ptr<primitive_t> &dnnl_primitive::get_primitive() const {
-    return primitive_;
-}
-
 status_t dnnl_primitive::execute(exec_ctx_t &ctx) const {
     const memory_storage_t *mem_storage = nullptr;
     if (primitive_->pd()->attr()->scratchpad_mode_ == scratchpad_mode::user) {

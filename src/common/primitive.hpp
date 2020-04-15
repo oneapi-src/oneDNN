@@ -242,7 +242,6 @@ struct dnnl_primitive : public dnnl::impl::c_compatible {
     dnnl::impl::status_t init();
     dnnl::impl::engine_t *engine() const;
     const primitive_desc_iface_t *pd() const;
-    const std::shared_ptr<dnnl::impl::primitive_t> &get_primitive() const;
     dnnl::impl::status_t execute(dnnl::impl::exec_ctx_t &ctx) const;
 
 private:
