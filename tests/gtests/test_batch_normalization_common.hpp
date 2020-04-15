@@ -219,6 +219,8 @@ protected:
                 == bnorm_bwd_pd.src_desc());
         ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_DST)
                 == bnorm_bwd_pd.diff_dst_desc());
+        ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_DIFF_SRC)
+                == bnorm_bwd_pd.diff_src_desc());
         ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_MEAN)
                 == bnorm_bwd_pd.mean_desc()); // a *very* mean desc
         ASSERT_TRUE(bnorm_bwd_pd.query_md(query::exec_arg_md, DNNL_ARG_VARIANCE)

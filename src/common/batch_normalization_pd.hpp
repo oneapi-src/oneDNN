@@ -229,6 +229,7 @@ struct batch_normalization_bwd_pd_t : public batch_normalization_pd_t {
             case DNNL_ARG_MEAN: return src_md(1);
             case DNNL_ARG_VARIANCE: return src_md(2);
             case DNNL_ARG_SCALE_SHIFT: return weights_md(0);
+            case DNNL_ARG_DIFF_SRC: return diff_src_md(0);
             case DNNL_ARG_DIFF_DST: return diff_dst_md(0);
             case DNNL_ARG_DIFF_SCALE_SHIFT: return diff_weights_md(0);
             default: return batch_normalization_pd_t::arg_md(arg);
