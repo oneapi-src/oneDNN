@@ -31,12 +31,16 @@ static size_t get_cpu_ram_size() {
     GlobalMemoryStatusEx(&s);
     return s.ullTotalPhys;
 }
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__FreeBSD__)
 #include <unistd.h>
 #include <sys/sysctl.h>
 
 static size_t get_cpu_ram_size() {
+#ifdef __APPLE__
     int query_ram[] = {CTL_HW, HW_MEMSIZE};
+#else
+    int query_ram[] = {CTL_HW, HW_PHYSMEM};
+#endif
     int query_ram_len = sizeof(query_ram) / sizeof(*query_ram);
     size_t totalram = 0;
     size_t length = sizeof(totalram);
