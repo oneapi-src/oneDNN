@@ -44,7 +44,7 @@ struct gpu_primitive_t : public primitive_t {
             if (!rk) continue;
             compute::kernel_t realized_kernel;
             CHECK(rk.realize(&realized_kernel, engine));
-            r->add_kernel(rk.get_id(), realized_kernel);
+            r->add_kernel(rk.id(), realized_kernel);
         }
         init_res_storage(engine, r.get());
         mapper.add(this, std::move(r));
@@ -110,7 +110,7 @@ private:
         compute::compute_stream_t *compute_stream
                 = utils::downcast<compute::compute_stream_t *>(stream);
         const auto *resource = resource_mapper->get<ocl::ocl_resource_t>(this);
-        const auto &realized_kernel = resource->get_kernel(kernel.get_id());
+        const auto &realized_kernel = resource->get_kernel(kernel.id());
 
         CHECK(compute_stream->parallel_for(range, realized_kernel, arg_list));
         return status::success;

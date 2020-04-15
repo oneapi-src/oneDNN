@@ -43,7 +43,7 @@ public:
     virtual ~kernel_t() = default;
 
     operator bool() const { return bool(impl_); }
-    id_t get_id() const;
+    id_t id() const;
 
     status_t parallel_for(stream_t &stream, const nd_range_t &range,
             const kernel_arg_list_t &arg_list) const;
@@ -68,7 +68,7 @@ public:
     virtual status_t realize(kernel_t *kernel, engine_t *engine) const = 0;
 };
 
-inline kernel_t::id_t kernel_t::get_id() const {
+inline kernel_t::id_t kernel_t::id() const {
     return reinterpret_cast<id_t>(impl_.get());
 }
 inline status_t kernel_t::parallel_for(stream_t &stream,
