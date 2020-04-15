@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace jit_uni_pooling_utils {
 struct trans_wrapper_t;
@@ -164,6 +165,7 @@ private:
     static constexpr data_type_t wsp_dt_ = data_type::f32;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

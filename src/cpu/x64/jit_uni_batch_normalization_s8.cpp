@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace {
 
@@ -539,6 +540,7 @@ jit_uni_batch_normalization_s8_fwd_t<
 template struct jit_uni_batch_normalization_s8_fwd_t<avx512_core>;
 template struct jit_uni_batch_normalization_s8_fwd_t<avx2>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

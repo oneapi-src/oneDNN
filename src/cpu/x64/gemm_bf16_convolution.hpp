@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <data_type_t dst_data_type>
 struct gemm_bf16_convolution_fwd_t : public primitive_t {
@@ -379,6 +380,7 @@ private:
     cpu_accumulator_1d_t<data_type::f32> *acc_ker_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

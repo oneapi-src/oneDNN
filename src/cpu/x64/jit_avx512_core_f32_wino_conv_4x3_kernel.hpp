@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct _jit_avx512_core_f32_wino_conv_4x3_data_kernel : public jit_generator {
     _jit_avx512_core_f32_wino_conv_4x3_data_kernel(
@@ -284,6 +285,7 @@ private:
     reg64_t reg_nb_dimN_bcast_ur = r11;
     reg64_t reg_dimK_block_loop_cnt = r12;
 };
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

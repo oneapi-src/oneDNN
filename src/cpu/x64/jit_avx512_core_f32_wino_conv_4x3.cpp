@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
@@ -985,6 +986,7 @@ void jit_avx512_core_f32_wino_conv_4x3_bwd_weights_t::
     }
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

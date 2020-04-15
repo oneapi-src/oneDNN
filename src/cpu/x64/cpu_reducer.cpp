@@ -29,6 +29,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace memory_tracking::names;
 
@@ -556,6 +557,7 @@ void cpu_accumulator_1d_t<data_type>::accumulate(
 template struct cpu_accumulator_1d_t<data_type::f32>;
 template struct cpu_accumulator_1d_t<data_type::s32>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

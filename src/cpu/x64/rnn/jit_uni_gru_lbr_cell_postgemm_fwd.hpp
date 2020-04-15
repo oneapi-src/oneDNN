@@ -22,6 +22,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa, impl::data_type_t src_data_t,
         impl::data_type_t scratch_data_t>
@@ -309,6 +310,7 @@ protected:
     }
 }; // namespace cpu
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

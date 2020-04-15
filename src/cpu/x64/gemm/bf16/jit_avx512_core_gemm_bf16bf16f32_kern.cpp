@@ -29,6 +29,7 @@ static const bool is_windows = false;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 
@@ -496,6 +497,7 @@ jit_avx512_core_gemm_bf16bf16f32_kern::
     delete bf16_emu_;
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

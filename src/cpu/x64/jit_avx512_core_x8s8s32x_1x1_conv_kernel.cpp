@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 
@@ -895,6 +896,7 @@ template struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Zmm>;
 template struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Ymm>;
 template struct _jit_avx512_core_x8s8s32x_1x1_conv_kernel<Xbyak::Xmm>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
@@ -1198,6 +1199,7 @@ void jit_avx2_x8s8s32x_fwd_kernel::init_scratchpad(
 template struct _jit_avx2_x8s8s32x_fwd_kernel<Ymm>;
 template struct _jit_avx2_x8s8s32x_fwd_kernel<Xmm>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

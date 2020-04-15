@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 using namespace rnn_utils;
 
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
@@ -294,6 +295,7 @@ rnn_cell_execution_sig(ref_rnn_bwd_bf16_t::cell_execution) {
             scratch_cell_, dst_iter_);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

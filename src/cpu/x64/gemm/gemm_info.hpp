@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 enum class pack_type { none, pack_a, pack_b };
 
@@ -121,6 +122,7 @@ private:
     void jit_init(void);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -53,6 +53,7 @@ using namespace dnnl::impl::types;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace tr {
 
@@ -1249,6 +1250,7 @@ status_t jit_uni_reorder_create(reorder_pd_t **reorder_pd, engine_t *engine,
             reorder_pd, engine, attr, src_engine, src_md, dst_engine, dst_md);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

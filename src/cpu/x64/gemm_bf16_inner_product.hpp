@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <data_type_t dst_data_type>
 struct gemm_bf16_inner_product_fwd_t : public primitive_t {
@@ -261,6 +262,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

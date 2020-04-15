@@ -108,8 +108,8 @@ pp_kernel_t<acc_type, dst_type> *pp_kernel_t<acc_type, dst_type>::create(
         size_t OC, size_t MB, const primitive_attr_t *attr, data_type_t bias_dt,
         bool skip_sum) {
 #if DNNL_X64
-    auto *res = jit_pp_kernel_create<acc_type, dst_type>(
-            OC, MB, attr, bias_dt, skip_sum);
+    auto *res = x64::inner_product_utils::jit_pp_kernel_create<acc_type,
+            dst_type>(OC, MB, attr, bias_dt, skip_sum);
     if (res) return res;
 #endif
 

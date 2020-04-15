@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
@@ -1359,6 +1360,7 @@ void jit_avx512_core_bf16_1x1_conv_kernel::balance(
     jcp.nthr = jcp.nthr_mb * jcp.nthr_g * jcp.nthr_oc_b * jcp.nthr_ic_b;
     assert(jcp.nthr <= nthreads);
 }
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

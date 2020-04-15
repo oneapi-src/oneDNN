@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <typename a_t, typename b_t, typename c_t>
 static void gemv_n_kernel(const dim_t m, const dim_t n, float alpha,
@@ -451,6 +452,7 @@ template // Instatiate gemv_f32
         jump_to_gemv<float, float, float>(
                 const gemm_info_t<float, float, float> *arg);
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -106,7 +106,7 @@ struct _gemm_x8s8s32x_convolution_fwd_t : public primitive_t {
                         = (1 << 0) + (with_groups() ? (1 << 1) : 0);
                 want_wei_md.extra.scale_adjust = 1.f;
 #if DNNL_X64
-                if (!mayiuse(avx512_core_vnni))
+                if (!x64::mayiuse(x64::avx512_core_vnni))
                     want_wei_md.extra.scale_adjust = 0.5f;
 #endif
             }

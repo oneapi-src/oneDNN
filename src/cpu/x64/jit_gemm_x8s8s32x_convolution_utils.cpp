@@ -22,7 +22,10 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace gemm_x8s8s32x_convolution_utils {
+
+using namespace dnnl::impl::cpu::gemm_x8s8s32x_convolution_utils;
 
 struct jit_pp_ker_t : pp_ker_t, jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(
@@ -433,6 +436,7 @@ pp_ker_t *jit_pp_ker_create(
 }
 
 } // namespace gemm_x8s8s32x_convolution_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

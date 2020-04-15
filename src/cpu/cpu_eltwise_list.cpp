@@ -21,6 +21,7 @@
 #if DNNL_X64
 #include "cpu/x64/jit_uni_eltwise.hpp"
 #include "cpu/x64/jit_uni_eltwise_int.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_avx2_conv_fwd_kernel_f32 : public jit_generator {
     jit_avx2_conv_fwd_kernel_f32(
@@ -210,6 +211,7 @@ private:
     void generate();
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

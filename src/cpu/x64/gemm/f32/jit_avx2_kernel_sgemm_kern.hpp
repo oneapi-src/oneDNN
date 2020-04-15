@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 class jit_avx2_kernel_sgemm_kern : public jit_generator {
 
@@ -674,6 +675,7 @@ class jit_avx2_kernel_sgemm_kern : public jit_generator {
 public:
     jit_avx2_kernel_sgemm_kern(bool beta_zero);
 };
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

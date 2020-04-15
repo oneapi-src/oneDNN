@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 static inline void partition_1d(const int ithr, const int nthrs, const dim_t n,
         dim_t &t_offset, dim_t &t_block) {
@@ -270,6 +271,7 @@ static inline std::tuple<int, int> partition_2d_minblk(dim_t m, dim_t n,
     return std::make_tuple(nthr_m, nthr_n);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

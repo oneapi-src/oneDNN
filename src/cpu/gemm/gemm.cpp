@@ -41,6 +41,8 @@
 #include "cpu/x64/gemm/f32/jit_avx_gemm_f32.hpp"
 
 #include "cpu/x64/gemm/gemm_driver.hpp"
+
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

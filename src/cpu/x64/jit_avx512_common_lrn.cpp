@@ -33,6 +33,7 @@ typedef float acc_data_t;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::utils;
@@ -956,6 +957,7 @@ void jit_avx512_common_lrn_bwd_t<d_type>::execute_backward(
 template struct jit_avx512_common_lrn_bwd_t<f32>;
 template struct jit_avx512_common_lrn_bwd_t<bf16>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -28,6 +28,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa>
 struct jit_uni_lrn_fwd_kernel_f32;
@@ -94,6 +95,7 @@ private:
     jit_uni_lrn_bwd_kernel_f32<isa> *ker_, *ker_first_, *ker_last_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

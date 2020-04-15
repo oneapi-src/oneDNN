@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 namespace simple_barrier {
 
@@ -105,6 +106,7 @@ void barrier(ctx_t *ctx, int nthr) {
 
 } // namespace simple_barrier
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

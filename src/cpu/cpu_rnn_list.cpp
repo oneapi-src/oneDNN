@@ -18,6 +18,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/rnn/ref_rnn.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

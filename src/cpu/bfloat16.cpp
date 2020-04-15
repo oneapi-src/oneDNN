@@ -33,12 +33,12 @@ namespace impl {
 
 bfloat16_t &bfloat16_t::operator=(float f) {
 #if DNNL_X64
-    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        cpu::bf16_support::jit_call_t p;
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
+        cpu::x64::bf16_support::jit_call_t p;
         p.inp = (void *)&f;
         p.out = (void *)this;
-        static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_one_ps_to_bf16(
-                1);
+        static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t
+                cvt_one_ps_to_bf16(1);
         cvt_one_ps_to_bf16.jit_ker(&p);
         return *this;
     }
@@ -78,12 +78,12 @@ bfloat16_t::operator float() const {
 
 void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        cpu::bf16_support::jit_call_t p_;
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
+        cpu::x64::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.nelems = nelems;
-        static const cpu::jit_avx512_core_cvt_ps_to_bf16_t cvt_ps_to_bf16;
+        static const cpu::x64::jit_avx512_core_cvt_ps_to_bf16_t cvt_ps_to_bf16;
         cvt_ps_to_bf16.jit_ker(&p_);
         return;
     }
@@ -96,12 +96,12 @@ void cvt_float_to_bfloat16(bfloat16_t *out, const float *inp, size_t nelems) {
 
 void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
 #if DNNL_X64
-    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        cpu::bf16_support::jit_call_t p_;
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
+        cpu::x64::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.nelems = nelems;
-        static const cpu::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_to_ps;
+        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_to_ps;
         cvt_bf16_to_ps.jit_ker(&p_);
         return;
     }
@@ -115,14 +115,14 @@ void cvt_bfloat16_to_float(float *out, const bfloat16_t *inp, size_t nelems) {
 void cvt_bfloat16_and_add_to_float(
         float *out, const bfloat16_t *inp, const float *add, size_t nelems) {
 #if DNNL_X64
-    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        cpu::bf16_support::jit_call_t p_;
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
+        cpu::x64::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp;
         p_.out = (void *)out;
         p_.add = (void *)add;
         p_.nelems = nelems;
-        static const cpu::jit_avx512_core_cvt_bf16_to_ps_t cvt_bf16_add_to_ps {
-                0, true};
+        static const cpu::x64::jit_avx512_core_cvt_bf16_to_ps_t
+                cvt_bf16_add_to_ps {0, true};
         cvt_bf16_add_to_ps.jit_ker(&p_);
         return;
     }
@@ -136,13 +136,13 @@ void cvt_bfloat16_and_add_to_float(
 void add_floats_and_cvt_to_bfloat16(
         bfloat16_t *out, const float *inp0, const float *inp1, size_t nelems) {
 #if DNNL_X64
-    if (cpu::mayiuse(cpu::cpu_isa_t::avx512_core)) {
-        cpu::bf16_support::jit_call_t p_;
+    if (cpu::x64::mayiuse(cpu::x64::cpu_isa_t::avx512_core)) {
+        cpu::x64::bf16_support::jit_call_t p_;
         p_.inp = (void *)inp0;
         p_.add = (void *)inp1;
         p_.out = (void *)out;
         p_.nelems = nelems;
-        static const cpu::jit_avx512_core_add_cvt_ps_to_bf16_t
+        static const cpu::x64::jit_avx512_core_add_cvt_ps_to_bf16_t
                 add_cvt_ps_to_bf16;
         add_cvt_ps_to_bf16.jit_ker(&p_);
         return;

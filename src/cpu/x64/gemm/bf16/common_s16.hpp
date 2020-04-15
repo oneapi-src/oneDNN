@@ -24,6 +24,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 class jit_avx512_core_s16_copy_an_kern : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx512_core_s16_copy_an_kern);
@@ -53,6 +54,7 @@ public:
     jit_avx512_core_s16_copy_bt_kern();
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

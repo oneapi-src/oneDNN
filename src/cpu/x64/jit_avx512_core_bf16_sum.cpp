@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::utils;
@@ -301,6 +302,7 @@ status_t jit_bf16_sum_t<src_data_type, dst_data_type>::execute(
 template struct jit_bf16_sum_t<data_type::bf16, data_type::f32>;
 template struct jit_bf16_sum_t<data_type::bf16, data_type::bf16>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

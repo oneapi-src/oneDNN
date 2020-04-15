@@ -22,12 +22,13 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace gemm_x8s8s32x_convolution_utils {
 
-pp_ker_t *jit_pp_ker_create(
+cpu::gemm_x8s8s32x_convolution_utils::pp_ker_t *jit_pp_ker_create(
         const convolution_pd_t *pd, const conv_gemm_conf_t &jcp);
-
-}
+} // namespace gemm_x8s8s32x_convolution_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

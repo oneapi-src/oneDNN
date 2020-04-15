@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 bool pack_sgemm_supported() {
 #if USE_MKL_PACKED_GEMM
@@ -523,6 +524,7 @@ dnnl_status_t gemm_s8s8s32_compute(const char *transa, const char *transb,
             transa, transb, offsetc, M, N, K, A, lda, B, ldb, beta, C, ldc, co);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

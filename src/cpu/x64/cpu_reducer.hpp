@@ -32,6 +32,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 /** class to perform balancing over 3D array
  *
@@ -339,6 +340,7 @@ struct cpu_accumulator_1d_t {
     DNNL_DISALLOW_COPY_AND_ASSIGN(cpu_accumulator_1d_t);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

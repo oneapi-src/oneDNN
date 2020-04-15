@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::status;
@@ -289,6 +290,7 @@ template struct jit_uni_lrn_fwd_t<sse41>;
 template struct jit_uni_lrn_fwd_t<avx2>;
 template struct jit_uni_lrn_bwd_t<avx2>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

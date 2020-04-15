@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 #define data_blk_off(f, n, c, h, w) \
     ((ndims == 3) ? (f).blk_off(n, c, w) : (f).blk_off(n, c, h, w))
@@ -288,6 +289,7 @@ void jit_sse41_1x1_convolution_fwd_t::execute_forward_thr(const int ithr,
     }
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

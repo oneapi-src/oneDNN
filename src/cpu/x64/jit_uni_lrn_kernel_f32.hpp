@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 enum params { VECTOR_LENGTH = 8, MAX_LOCAL_SIZE = 32 };
 
@@ -144,6 +145,7 @@ struct jit_uni_lrn_bwd_kernel_f32 : public jit_generator {
     void (*ker)(jit_args_bwd_t *);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

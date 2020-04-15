@@ -35,6 +35,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 #define CACHE_LINE_SIZE 64
 
@@ -2139,6 +2140,7 @@ dnnl_status_t jit_avx512_common_gemm_f32(const char *transa, const char *transb,
     return dnnl_success;
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

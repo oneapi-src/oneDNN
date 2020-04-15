@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct i8i8_binary_kernel_t;
 
@@ -102,6 +103,7 @@ private:
     std::unique_ptr<i8i8_binary_kernel_t> kernel_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

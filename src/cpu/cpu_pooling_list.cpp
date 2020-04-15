@@ -23,6 +23,7 @@
 #if DNNL_X64
 #include "cpu/x64/jit_uni_i8i8_pooling.hpp"
 #include "cpu/x64/jit_uni_pooling.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

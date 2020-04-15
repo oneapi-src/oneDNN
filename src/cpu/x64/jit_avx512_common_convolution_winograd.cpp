@@ -43,6 +43,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace memory_tracking::names;
 
@@ -1173,6 +1174,7 @@ void jit_avx512_common_convolution_winograd_bwd_weights_t::
     _maybe_execute_diff_bias_copy(ptr_diff_bias, scratchpad);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

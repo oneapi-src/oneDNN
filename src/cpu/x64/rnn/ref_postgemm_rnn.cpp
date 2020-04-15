@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::math;
@@ -206,6 +207,7 @@ rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::rnn_postgemm) {
                 ws_gates_, scratch_gates_, diff_dst_iter_, diff_dst_layer_);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

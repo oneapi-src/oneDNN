@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 using namespace alg_kind;
@@ -845,6 +846,7 @@ template struct jit_uni_pool_kernel<avx>; // implements both <avx> and <avx2>
 template struct jit_uni_pool_kernel<avx512_common>;
 template struct jit_uni_pool_kernel<avx512_core>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

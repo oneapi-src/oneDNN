@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_avx512_core_bf16_1x1_conv_kernel : public jit_generator {
     jit_avx512_core_bf16_1x1_conv_kernel(
@@ -137,6 +138,7 @@ private:
 
     bf16_emulation_t *bf16_emu_;
 };
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

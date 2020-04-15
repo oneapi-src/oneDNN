@@ -21,6 +21,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 jit_sse41_kernel_b0_r_gemm_s8u8s32_kern::
         jit_sse41_kernel_b0_r_gemm_s8u8s32_kern()
@@ -2226,6 +2227,7 @@ jit_sse41_kernel_b0_r_gemm_s8u8s32_kern::
 #undef COFFSET_RY
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

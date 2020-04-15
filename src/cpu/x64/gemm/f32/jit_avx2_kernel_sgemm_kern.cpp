@@ -25,6 +25,7 @@ static const bool is_windows = false;
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 int jit_avx2_kernel_sgemm_kern::next_acc(int idx, int um, int un) {
     while (!(((idx / unroll_n_) < std::max(1, um / nelt_per_vecreg_))
@@ -438,6 +439,7 @@ jit_avx2_kernel_sgemm_kern::jit_avx2_kernel_sgemm_kern(bool beta_zero)
     beta_zero_ = beta_zero;
     generate();
 }
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

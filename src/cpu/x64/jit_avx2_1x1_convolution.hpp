@@ -36,6 +36,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_avx2_1x1_convolution_fwd_t : public primitive_t {
     // TODO: (Roma) Code duplication duplication! Remove with templates
@@ -536,6 +537,7 @@ private:
     rtus_driver_t<avx2> *rtus_driver_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -26,6 +26,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace Xbyak;
@@ -1295,6 +1296,7 @@ jit_trans_dst_t *create_trans_dst(const jit_conv_conf_t *conf) {
     assert(!"unsupported configuration");
     return nullptr;
 }
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

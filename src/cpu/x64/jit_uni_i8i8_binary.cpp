@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace Xbyak;
 
@@ -507,6 +508,7 @@ template struct jit_uni_i8i8_binary_t<u8, s8>;
 template struct jit_uni_i8i8_binary_t<s8, s8>;
 template struct jit_uni_i8i8_binary_t<s8, u8>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

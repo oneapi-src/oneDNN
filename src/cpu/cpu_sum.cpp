@@ -21,6 +21,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/jit_avx512_core_bf16_sum.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

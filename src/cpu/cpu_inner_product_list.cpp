@@ -22,6 +22,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/gemm_bf16_inner_product.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

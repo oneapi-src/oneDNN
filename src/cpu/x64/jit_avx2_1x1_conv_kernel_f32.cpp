@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::prop_kind;
 using namespace dnnl::impl::format_tag;
@@ -696,6 +697,7 @@ void jit_avx2_1x1_conv_kernel_f32::init_scratchpad(
         scratchpad.book<float>(key_conv_padded_bias, jcp.oc);
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

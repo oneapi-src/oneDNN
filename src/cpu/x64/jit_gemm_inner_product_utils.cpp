@@ -29,8 +29,10 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace inner_product_utils {
 
+using namespace dnnl::impl::cpu::inner_product_utils;
 using namespace Xbyak;
 
 template <data_type_t acc_type, data_type_t dst_type>
@@ -684,6 +686,7 @@ INST(f32, bf16);
 #undef INST
 
 } // namespace inner_product_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

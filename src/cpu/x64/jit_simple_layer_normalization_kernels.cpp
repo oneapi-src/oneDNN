@@ -21,7 +21,10 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace lnorm_utils {
+
+using namespace dnnl::impl::cpu::lnorm_utils;
 
 struct jit_statistics_kernel_t : statistics_kernel_t, jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(lnorm_utils::jit_statistics_kernel_t);
@@ -581,6 +584,7 @@ diff_data_kernel_t *jit_diff_data_kernel_create(
 }
 
 } // namespace lnorm_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

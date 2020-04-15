@@ -30,6 +30,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace rnn_utils;
@@ -242,6 +243,7 @@ status_t rnn_utils::set_expected_desc(rnn_conf_t &rnn,
     return status::success;
 }
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

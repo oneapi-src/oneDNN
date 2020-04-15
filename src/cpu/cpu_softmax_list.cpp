@@ -20,6 +20,7 @@
 
 #if DNNL_X64
 #include "cpu/x64/jit_uni_softmax.hpp"
+using namespace dnnl::impl::cpu::x64;
 #endif
 
 namespace dnnl {

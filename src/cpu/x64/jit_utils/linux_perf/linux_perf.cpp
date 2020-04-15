@@ -50,6 +50,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 namespace jit_utils {
 
 class linux_perf_jitdump_t {
@@ -351,6 +352,7 @@ void linux_perf_perfmap_record_code_load(
 }
 
 } // namespace jit_utils
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

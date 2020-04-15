@@ -102,7 +102,7 @@ void diff_data_kernel_t::operator()(const float *src, const float *diff_dst,
 statistics_kernel_t *statistics_kernel_t::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    statistics_kernel_t *res = jit_statistics_kernel_create(pd);
+    auto *res = x64::lnorm_utils::jit_statistics_kernel_create(pd);
     if (res) return res;
 #endif
 
@@ -111,7 +111,7 @@ statistics_kernel_t *statistics_kernel_t::create(
 
 data_kernel_t *data_kernel_t::create(const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    data_kernel_t *res = jit_data_kernel_create(pd);
+    auto *res = x64::lnorm_utils::jit_data_kernel_create(pd);
     if (res) return res;
 #endif
 
@@ -120,7 +120,7 @@ data_kernel_t *data_kernel_t::create(const layer_normalization_pd_t *pd) {
 
 diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    diff_ss_kernel_t *res = jit_diff_ss_kernel_create(pd);
+    auto *res = x64::lnorm_utils::jit_diff_ss_kernel_create(pd);
     if (res) return res;
 #endif
 
@@ -130,7 +130,7 @@ diff_ss_kernel_t *diff_ss_kernel_t::create(const layer_normalization_pd_t *pd) {
 diff_data_kernel_t *diff_data_kernel_t::create(
         const layer_normalization_pd_t *pd) {
 #if DNNL_X64
-    diff_data_kernel_t *res = jit_diff_data_kernel_create(pd);
+    auto *res = x64::lnorm_utils::jit_diff_data_kernel_create(pd);
     if (res) return res;
 #endif
 

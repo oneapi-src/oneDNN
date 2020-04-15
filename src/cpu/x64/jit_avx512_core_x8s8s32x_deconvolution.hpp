@@ -33,6 +33,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 typedef enum {
     no_last_block = 0x1U,
@@ -236,6 +237,7 @@ private:
     jit_avx512_core_x8s8s32x_deconv_fwd_kernel *kernel_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

@@ -31,6 +31,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <cpu_isa_t isa>
 struct jit_uni_pool_kernel : public jit_generator {
@@ -231,6 +232,7 @@ private:
     bf16_emulation_t *bf16_emu_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

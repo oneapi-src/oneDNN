@@ -27,6 +27,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 struct jit_avx2_x8s8s32x_1x1_conv_kernel : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_avx2_x8s8s32x_1x1_conv_fwd_ker_t)
@@ -110,6 +111,7 @@ private:
             const Xbyak::Reg64 &reg, int offset, int load_size);
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

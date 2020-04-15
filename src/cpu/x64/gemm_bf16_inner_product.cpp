@@ -25,6 +25,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::prop_kind;
@@ -32,7 +33,7 @@ using namespace dnnl::impl::data_type;
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::primitive_kind;
 using namespace memory_tracking::names;
-using namespace dnnl::impl::cpu::bf16_support;
+using namespace dnnl::impl::cpu::x64::bf16_support;
 
 template <data_type_t dst_data_type>
 void gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
@@ -191,6 +192,7 @@ template struct gemm_bf16_inner_product_bwd_data_t<data_type::bf16>;
 template struct gemm_bf16_inner_product_bwd_weights_t<data_type::f32>;
 template struct gemm_bf16_inner_product_bwd_weights_t<data_type::bf16>;
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

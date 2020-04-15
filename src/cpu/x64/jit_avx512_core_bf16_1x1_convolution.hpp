@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace x64 {
 
 template <impl::data_type_t dst_type>
 struct jit_avx512_core_bf16_1x1_convolution_fwd_t : public primitive_t {
@@ -532,6 +533,7 @@ private:
     jit_avx512_core_bf16_reorder_s16c_to_S16c2s_t *tr_reorder_;
 };
 
+} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
