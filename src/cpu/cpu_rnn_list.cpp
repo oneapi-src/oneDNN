@@ -16,10 +16,7 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#if DNNL_X64
-#include "cpu/x64/rnn/ref_rnn.hpp"
-using namespace dnnl::impl::cpu::x64;
-#endif
+#include "cpu/rnn/ref_rnn.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -32,11 +29,11 @@ using namespace dnnl::impl::data_type;
 
 // clang-format off
 static const pd_create_f impl_list[] = {
-        CPU_INSTANCE_X64(ref_rnn_fwd_f32_t)
-        CPU_INSTANCE_X64(ref_rnn_fwd_bf16_t)
-        CPU_INSTANCE_X64(ref_rnn_fwd_u8s8_t)
-        CPU_INSTANCE_X64(ref_rnn_bwd_f32_t)
-        CPU_INSTANCE_X64(ref_rnn_bwd_bf16_t)
+        CPU_INSTANCE(ref_rnn_fwd_f32_t)
+        CPU_INSTANCE(ref_rnn_fwd_bf16_t)
+        CPU_INSTANCE(ref_rnn_fwd_u8s8_t)
+        CPU_INSTANCE(ref_rnn_bwd_f32_t)
+        CPU_INSTANCE(ref_rnn_bwd_bf16_t)
         /* eol */
         nullptr,
 };

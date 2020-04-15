@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_RNN_CPU_RNN_PD_HPP
-#define CPU_X64_RNN_CPU_RNN_PD_HPP
+#ifndef CPU_RNN_CPU_RNN_PD_HPP
+#define CPU_RNN_CPU_RNN_PD_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
@@ -25,12 +25,11 @@
 
 #include "cpu/cpu_engine.hpp"
 
-#include "cpu/x64/rnn/rnn_utils.hpp"
+#include "cpu/rnn/rnn_utils.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 
 struct cpu_rnn_fwd_pd_t : public rnn_fwd_pd_t {
     using rnn_fwd_pd_t::rnn_fwd_pd_t;
@@ -274,7 +273,7 @@ protected:
         return ok ? status::success : status::unimplemented;
     }
 };
-} // namespace x64
+
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

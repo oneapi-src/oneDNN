@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_RNN_RNN_UTILS_HPP
-#define CPU_X64_RNN_RNN_UTILS_HPP
+#ifndef CPU_RNN_RNN_UTILS_HPP
+#define CPU_RNN_RNN_UTILS_HPP
 
 #include <type_traits>
 
@@ -23,9 +23,13 @@
 #include "common/memory_desc_wrapper.hpp"
 #include "common/utils.hpp"
 
+#include "cpu/platform.hpp"
+
 #include "cpu/gemm/gemm_pack.hpp"
 
+#if DNNL_X64
 #include "cpu/x64/cpu_isa_traits.hpp"
+#endif
 
 #define rnn_postgemm_sig(f) \
     void f(const rnn_utils::rnn_conf_t &rnn, \
@@ -95,7 +99,6 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 
 namespace rnn_utils {
 
@@ -365,7 +368,7 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
         rnn.dt_conf = all_f32;
     else if (utils::everyone_is(data_type::bf16, src_layer_d.data_type(),
                      dst_layer_d.data_type(), weights_layer_d.data_type())) {
-        if (!mayiuse(avx512_core)) return false;
+        if (!platform::has_data_type_support(data_type::bf16)) return false;
         rnn.dt_conf = all_bf16;
     } else if (dst_layer_d.data_type() == data_type::u8) {
         if (IMPLICATION(
@@ -509,9 +512,12 @@ bool init_conf(rnn_conf_t &rnn, const rnn_desc_t &rd,
             && (((rnn.is_fwd && rnn.mb < 128) || !rnn.is_fwd) || rnn.is_int8());
     rnn.merge_gemm_iter
             = dst_layer_is_trivial_stride && !(rnn.is_fwd || is_gru);
-    rnn.force_nocopy = !mayiuse(avx512_mic) && mayiuse(avx)
+    rnn.force_nocopy = false;
+#if DNNL_X64
+    rnn.force_nocopy = !x64::mayiuse(x64::avx512_mic) && x64::mayiuse(x64::avx)
             && ((is_inference && (rnn.n_layer > 1 || rnn.mb < 100))
                     || (rnn.is_training && rnn.dhc < 500));
+#endif
 
     /* Decide to copy bias */
     rnn.copy_bias = rnn.is_int8();
@@ -901,8 +907,8 @@ private:
     dnnl::impl::utils::array_offset_calculator<float, 2> diff_weights_iter_;
     int DHC_;
 };
+
 } // namespace rnn_utils
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

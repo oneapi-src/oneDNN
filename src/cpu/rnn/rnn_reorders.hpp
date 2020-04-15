@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_RNN_RNN_REORDERS_HPP
-#define CPU_X64_RNN_RNN_REORDERS_HPP
+#ifndef CPU_RNN_RNN_REORDERS_HPP
+#define CPU_RNN_RNN_REORDERS_HPP
 
 #include <assert.h>
 
@@ -34,7 +34,6 @@
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 
 template <data_type_t type_i, data_type_t type_o>
 struct rnn_data_reorder_t : public primitive_t {
@@ -657,7 +656,6 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

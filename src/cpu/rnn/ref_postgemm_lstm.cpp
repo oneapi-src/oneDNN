@@ -23,12 +23,11 @@
 
 #include "cpu/simple_q10n.hpp"
 
-#include "cpu/x64/rnn/jit_uni_rnn_common_postgemm_dispatcher.hpp"
+#include "cpu/rnn/postgemm_dispatcher.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
-namespace x64 {
 
 using namespace dnnl::impl::utils;
 using namespace dnnl::impl::math;
@@ -314,7 +313,6 @@ rnn_postgemm_sig(rnn_postgemm_bwd_bf16_t::lstm_postgemm) {
                 diff_dst_iter_c_, weights_peephole_, bias_);
 }
 
-} // namespace x64
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
